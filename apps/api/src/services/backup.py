@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 import structlog
 
@@ -21,13 +23,31 @@ class BackupInfo:
 
 
 def _pg_dsn(database_url: str) -> str:
-    """Convert SQLAlchemy asyncpg URL to a standard postgresql:// DSN."""
-    return re.sub(r"^postgresql\+asyncpg://", "postgresql://", database_url)
+    """SQLAlchemy asyncpg URL -> libpq postgresql:// DSN, with the password removed.
+
+    The password is supplied out-of-band via PGPASSWORD (see ``_pg_password``) so
+    it never appears in the pg_dump argv, which is visible to ``ps``. (P3-6.)
+    """
+    url = re.sub(r"^postgresql\+asyncpg://", "postgresql://", database_url)
+    parts = urlsplit(url)
+    if parts.password is None:
+        return url
+    host = parts.hostname or ""
+    if parts.port:
+        host = f"{host}:{parts.port}"
+    netloc = f"{parts.username}@{host}" if parts.username else host
+    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+
+
+def _pg_password(database_url: str) -> str | None:
+    """Extract the URL-decoded password from a SQLAlchemy/libpq URL, if present."""
+    password = urlsplit(database_url).password
+    return unquote(password) if password else None
 
 
 def _safe_filename(filename: str) -> bool:
     """Accept only filenames that look like our own backup files."""
-    return bool(re.fullmatch(r"wc2026_\d{8}_\d{6}\.sql", filename))
+    return bool(re.fullmatch(r"backup_\d{8}_\d{6}\.sql", filename))
 
 
 async def create_backup(backup_dir: str, database_url: str) -> BackupInfo:
@@ -35,8 +55,13 @@ async def create_backup(backup_dir: str, database_url: str) -> BackupInfo:
     path.mkdir(parents=True, exist_ok=True)
 
     now = datetime.now(UTC)
-    filename = f"wc2026_{now.strftime('%Y%m%d_%H%M%S')}.sql"
+    filename = f"backup_{now.strftime('%Y%m%d_%H%M%S')}.sql"
     filepath = path / filename
+
+    env = os.environ.copy()
+    password = _pg_password(database_url)
+    if password is not None:
+        env["PGPASSWORD"] = password
 
     proc = await asyncio.create_subprocess_exec(
         "pg_dump",
@@ -45,6 +70,7 @@ async def create_backup(backup_dir: str, database_url: str) -> BackupInfo:
         "--file",
         str(filepath),
         _pg_dsn(database_url),
+        env=env,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -64,7 +90,7 @@ def list_backups(backup_dir: str) -> list[BackupInfo]:
     if not path.exists():
         return []
     files = sorted(
-        (f for f in path.glob("wc2026_*.sql") if _safe_filename(f.name)),
+        (f for f in path.glob("backup_*.sql") if _safe_filename(f.name)),
         reverse=True,
     )
     return [

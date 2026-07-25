@@ -40,7 +40,10 @@ def run_migrations_offline() -> None:
 
 
 def _do_run_migrations(connection):  # type: ignore[no-untyped-def]
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+    )
     with context.begin_transaction():
         # Fail fast if another connection holds a lock (e.g. long-running query).
         # Transactional DDL rolls back cleanly on timeout.
@@ -49,7 +52,10 @@ def _do_run_migrations(connection):  # type: ignore[no-untyped-def]
 
 
 async def _run_async_migrations() -> None:
-    engine = create_async_engine(_url())
+    engine = create_async_engine(
+        _url(),
+        connect_args={"prepared_statement_cache_size": 0},
+    )
     async with engine.connect() as connection:
         await connection.run_sync(_do_run_migrations)
     await engine.dispose()

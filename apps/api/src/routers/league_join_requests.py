@@ -14,7 +14,7 @@ from src.database import get_db
 from src.models.league_join_request import JoinRequestStatus, LeagueJoinRequest
 from src.models.notification import ActionType
 from src.models.profile import Profile
-from src.rate_limit import limiter, per_player_key
+from src.rate_limit import limiter, per_user_key
 from src.routers.leagues import (
     LeagueAdminDep,
     _active_member_count,
@@ -53,7 +53,7 @@ class DecideRequest(BaseModel):
 
 
 @router.get("/{slug}/join-requests", response_model=list[JoinRequestResponse])
-@limiter.limit("60/minute", key_func=per_player_key)
+@limiter.limit("60/minute", key_func=per_user_key)
 async def list_join_requests(
     request: Request,
     slug: str,
@@ -93,7 +93,7 @@ async def list_join_requests(
     "/{slug}/join-requests/{request_id}/approve",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-@limiter.limit("60/hour", key_func=per_player_key)
+@limiter.limit("60/hour", key_func=per_user_key)
 async def approve_join_request(
     request: Request,
     slug: str,
@@ -146,7 +146,7 @@ async def approve_join_request(
     "/{slug}/join-requests/{request_id}/reject",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-@limiter.limit("60/hour", key_func=per_player_key)
+@limiter.limit("60/hour", key_func=per_user_key)
 async def reject_join_request(
     request: Request,
     slug: str,

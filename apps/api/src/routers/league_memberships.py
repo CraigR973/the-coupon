@@ -10,14 +10,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import CurrentPlayer, generate_join_code, generate_opaque_token, hash_pin
+from src.auth import CurrentUser, generate_join_code, generate_opaque_token, hash_pin
 from src.database import get_db
 from src.models.invite import Invite
 from src.models.league import League
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.notification import ActionType
 from src.models.profile import Profile
-from src.rate_limit import limiter, per_player_key
+from src.rate_limit import limiter, per_user_key
 from src.routers.leagues import (
     LeagueAdminDep,
     LeagueMemberDep,
@@ -53,11 +53,11 @@ class ClaimInviteResponse(BaseModel):
 
 
 @router.post("/claim-invite", response_model=ClaimInviteResponse, status_code=status.HTTP_200_OK)
-@limiter.limit("10/hour", key_func=per_player_key)
+@limiter.limit("10/hour", key_func=per_user_key)
 async def claim_invite_authenticated(
     request: Request,
     body: ClaimInviteBody,
-    player: CurrentPlayer,
+    player: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ClaimInviteResponse:
     invite_result = await db.execute(select(Invite).where(Invite.token == body.token))
@@ -116,11 +116,11 @@ class JoinByCodeResponse(BaseModel):
 
 
 @router.post("/join-by-code", response_model=JoinByCodeResponse, status_code=status.HTTP_200_OK)
-@limiter.limit("20/hour", key_func=per_player_key)
+@limiter.limit("20/hour", key_func=per_user_key)
 async def join_league_by_code(
     request: Request,
     body: JoinByCodeBody,
-    player: CurrentPlayer,
+    player: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> JoinByCodeResponse:
     result = await db.execute(
@@ -154,7 +154,7 @@ async def join_league_by_code(
 
 
 @router.get("/{slug}/members", response_model=list[MemberInfo])
-@limiter.limit("120/minute", key_func=per_player_key)
+@limiter.limit("120/minute", key_func=per_user_key)
 async def list_members(
     request: Request,
     slug: str,
@@ -178,7 +178,7 @@ async def list_members(
             display_name=row[0].display_name_override or row[1].display_name,
             role=row[0].role.value,
             joined_at=row[0].joined_at,
-            avatar_url=row[1].avatar_url,
+            avatar_url=None,  # avatars not modelled in The Coupon spine
         )
         for row in result.all()
     ]
@@ -190,7 +190,7 @@ async def list_members(
 
 
 @router.post("/{slug}/members/{target_player_id}/promote", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("30/hour", key_func=per_player_key)
+@limiter.limit("30/hour", key_func=per_user_key)
 async def promote_member(
     request: Request,
     slug: str,
@@ -225,7 +225,7 @@ async def promote_member(
 
 
 @router.post("/{slug}/members/{target_player_id}/demote", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("30/hour", key_func=per_player_key)
+@limiter.limit("30/hour", key_func=per_user_key)
 async def demote_member(
     request: Request,
     slug: str,
@@ -267,7 +267,7 @@ async def demote_member(
 
 
 @router.delete("/{slug}/members/{target_player_id}", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("30/hour", key_func=per_player_key)
+@limiter.limit("30/hour", key_func=per_user_key)
 async def remove_member(
     request: Request,
     slug: str,
@@ -309,7 +309,7 @@ class DisplayNameRequest(BaseModel):
 
 
 @router.put("/{slug}/members/me/display-name", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("30/hour", key_func=per_player_key)
+@limiter.limit("30/hour", key_func=per_user_key)
 async def set_my_display_name(
     request: Request,
     slug: str,
@@ -354,7 +354,7 @@ class LeagueInviteResponse(BaseModel):
     response_model=LeagueInviteResponse,
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("30/hour", key_func=per_player_key)
+@limiter.limit("30/hour", key_func=per_user_key)
 async def create_league_invite(
     request: Request,
     slug: str,
@@ -399,7 +399,7 @@ async def create_league_invite(
 
 
 @router.get("/{slug}/invites", response_model=list[LeagueInviteResponse])
-@limiter.limit("60/minute", key_func=per_player_key)
+@limiter.limit("60/minute", key_func=per_user_key)
 async def list_league_invites(
     request: Request,
     slug: str,
@@ -421,7 +421,7 @@ async def list_league_invites(
 
 
 @router.delete("/{slug}/invites/{invite_id}", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("30/hour", key_func=per_player_key)
+@limiter.limit("30/hour", key_func=per_user_key)
 async def revoke_league_invite(
     request: Request,
     slug: str,
@@ -463,7 +463,7 @@ class LeagueResetPinResponse(BaseModel):
     "/{slug}/members/{target_player_id}/reset-pin",
     response_model=LeagueResetPinResponse,
 )
-@limiter.limit("10/hour", key_func=per_player_key)
+@limiter.limit("10/hour", key_func=per_user_key)
 async def reset_member_pin(
     request: Request,
     slug: str,
@@ -522,7 +522,7 @@ class RotateJoinCodeResponse(BaseModel):
     response_model=RotateJoinCodeResponse,
     status_code=status.HTTP_200_OK,
 )
-@limiter.limit("10/hour", key_func=per_player_key)
+@limiter.limit("10/hour", key_func=per_user_key)
 async def rotate_join_code(
     request: Request,
     slug: str,

@@ -12,6 +12,11 @@ engine = create_async_engine(
     pool_pre_ping=True,
     pool_recycle=1800,
     echo=False,
+    # prepared_statement_cache_size=0: required for Supabase's transaction-mode
+    # pooler (port 6543) which doesn't support prepared statements.
+    connect_args={
+        "prepared_statement_cache_size": 0,
+    },
 )
 
 AsyncSessionLocal = async_sessionmaker(

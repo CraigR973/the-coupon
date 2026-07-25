@@ -11,14 +11,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import CurrentPlayer, generate_join_code
+from src.auth import CurrentUser, generate_join_code
 from src.database import get_db
 from src.models.league import League, LeaguePrivacy
 from src.models.league_join_request import JoinRequestStatus, LeagueJoinRequest
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.notification import ActionType, ActorType, AuditLog
-from src.models.profile import Profile, SiteRole
-from src.rate_limit import limiter, per_player_key
+from src.models.profile import Profile, UserRole
+from src.rate_limit import limiter, per_user_key
 from src.services.notification_triggers import notify_member_joined
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -102,12 +102,12 @@ async def _active_member_count(league_id: uuid.UUID, db: AsyncSession) -> int:
 
 
 def _is_superadmin(player: Profile) -> bool:
-    return player.site_role is not None and player.site_role == SiteRole.superadmin
+    return player.role == UserRole.admin
 
 
 async def require_league_admin(
     slug: str,
-    player: CurrentPlayer,
+    player: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> tuple[Profile, League]:
     """Dependency: resolves league and verifies caller is league admin or site superadmin."""
@@ -122,7 +122,7 @@ async def require_league_admin(
 
 async def require_league_member(
     slug: str,
-    player: CurrentPlayer,
+    player: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> tuple[Profile, League]:
     """Dependency: resolves league and verifies caller is an active member."""
@@ -304,11 +304,11 @@ async def _upsert_membership(
 
 
 @router.post("", response_model=LeagueResponse, status_code=status.HTTP_201_CREATED)
-@limiter.limit("20/hour", key_func=per_player_key)
+@limiter.limit("20/hour", key_func=per_user_key)
 async def create_league(
     request: Request,
     body: CreateLeagueRequest,
-    player: CurrentPlayer,
+    player: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> LeagueResponse:
     slug = await _unique_slug(db, body.name)
@@ -368,10 +368,10 @@ async def create_league(
 
 
 @router.get("/mine", response_model=list[LeagueSummaryResponse])
-@limiter.limit("120/minute", key_func=per_player_key)
+@limiter.limit("120/minute", key_func=per_user_key)
 async def list_my_leagues(
     request: Request,
-    player: CurrentPlayer,
+    player: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[LeagueSummaryResponse]:
     result = await db.execute(
@@ -418,10 +418,10 @@ async def list_my_leagues(
 
 
 @router.get("/discover", response_model=DiscoverResponse)
-@limiter.limit("60/minute", key_func=per_player_key)
+@limiter.limit("60/minute", key_func=per_user_key)
 async def discover_leagues(
     request: Request,
-    player: CurrentPlayer,
+    player: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
     page: int = 1,
     page_size: int = 20,
@@ -547,11 +547,11 @@ class LeagueDetailResponse(BaseModel):
 
 
 @router.get("/{slug}", response_model=LeagueDetailResponse)
-@limiter.limit("120/minute", key_func=per_player_key)
+@limiter.limit("120/minute", key_func=per_user_key)
 async def get_league(
     request: Request,
     slug: str,
-    player: CurrentPlayer,
+    player: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> LeagueDetailResponse:
     league = await _resolve_league(slug, db)
@@ -587,7 +587,7 @@ async def get_league(
                 display_name=row[0].display_name_override or row[1].display_name,
                 role=row[0].role.value,
                 joined_at=row[0].joined_at,
-                avatar_url=row[1].avatar_url,
+                avatar_url=None,  # avatars not modelled in The Coupon spine
             )
             for row in result.all()
         ]
@@ -613,7 +613,7 @@ async def get_league(
 
 
 @router.patch("/{slug}", response_model=LeagueResponse)
-@limiter.limit("30/hour", key_func=per_player_key)
+@limiter.limit("30/hour", key_func=per_user_key)
 async def update_league(
     request: Request,
     slug: str,
@@ -696,7 +696,7 @@ class DeleteLeagueRequest(BaseModel):
 
 
 @router.delete("/{slug}", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("10/hour", key_func=per_player_key)
+@limiter.limit("10/hour", key_func=per_user_key)
 async def delete_league(
     request: Request,
     slug: str,
@@ -727,11 +727,11 @@ class JoinResponse(BaseModel):
 
 
 @router.post("/{slug}/join", response_model=JoinResponse, status_code=status.HTTP_200_OK)
-@limiter.limit("30/hour", key_func=per_player_key)
+@limiter.limit("30/hour", key_func=per_user_key)
 async def join_league(
     request: Request,
     slug: str,
-    player: CurrentPlayer,
+    player: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> JoinResponse:
     league = await _resolve_league(slug, db)
@@ -798,11 +798,11 @@ async def join_league(
 
 
 @router.delete("/{slug}/membership", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("30/hour", key_func=per_player_key)
+@limiter.limit("30/hour", key_func=per_user_key)
 async def leave_league(
     request: Request,
     slug: str,
-    player: CurrentPlayer,
+    player: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     league = await _resolve_league(slug, db)

@@ -12,30 +12,18 @@ from sentry_sdk.types import Event, Hint
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from src.config import Environment, settings
+from src.config import Environment, docs_urls, settings
 from src.logging_config import configure_logging
 from src.middleware import CorrelationIdMiddleware, SecurityHeadersMiddleware
 from src.rate_limit import limiter
 from src.routers import (
-    admin,
     auth,
-    compare,
-    groups,
     health,
-    knockout_predictions,
-    leaderboard,
     league_join_requests,
     league_memberships,
     leagues,
-    matches,
     me,
     notifications,
-    players,
-    predictions,
-    specials,
-    squad,
-    stats,
-    surveys,
 )
 from src.scheduler import create_scheduler
 
@@ -80,13 +68,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             log.info("scheduler stopped")
 
 
+# Docs/OpenAPI are disabled in production (private app — don't expose the schema
+# anonymously); kept in dev/staging. (Review finding P3-7.)
+_docs = docs_urls(settings.environment)
 app = FastAPI(
-    title="WC2026 Prediction League API",
+    title="The Coupon API",
     version="0.1.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
     lifespan=lifespan,
+    docs_url=_docs["docs_url"],
+    redoc_url=_docs["redoc_url"],
+    openapi_url=_docs["openapi_url"],
 )
 
 app.state.limiter = limiter
@@ -104,29 +95,8 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(health.router)
 app.include_router(auth.router)
-app.include_router(admin.router)
 app.include_router(me.router)
+app.include_router(notifications.router)
 app.include_router(leagues.router)
 app.include_router(league_memberships.router)
 app.include_router(league_join_requests.router)
-app.include_router(players.router)
-app.include_router(players.league_router)
-app.include_router(matches.router)
-app.include_router(groups.router)
-app.include_router(predictions.router)
-app.include_router(knockout_predictions.router)
-app.include_router(leaderboard.league_router)
-app.include_router(leaderboard.global_router)
-app.include_router(specials.router)
-app.include_router(specials.admin_router)
-app.include_router(squad.router)
-app.include_router(stats.router)
-app.include_router(stats.league_router)
-app.include_router(compare.league_router)
-app.include_router(notifications.router)
-app.include_router(surveys.router)
-
-if settings.environment == Environment.development:
-    from src.routers import test_helpers  # noqa: PLC0415
-
-    app.include_router(test_helpers.router)
