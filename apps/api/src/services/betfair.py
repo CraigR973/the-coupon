@@ -1,0 +1,1046 @@
+"""Betfair Exchange API adapter — the odds source for The Coupon.
+
+The Coupon's weekly slate, the odds snapshot frozen at pick time, and Saturday-evening
+settlement all come from Betfair. It is the only free source that prices the Scottish
+lower leagues (Match Odds *and* Both Teams To Score, even for games like *Forfar v
+Brechin*), which is why it's the single source of record.
+
+The public surface is the abstract :class:`BetfairAdapter`, which exposes three domain
+operations built on four raw Betfair primitives:
+
+* ``fetch_slate(saturday)``   — resolve target competitions, list that Saturday's 15:00
+  kick-offs → :class:`Slate` of :class:`SlateFixture`.
+* ``fetch_odds(event_ids)``   — Match Odds + BTTS selections *that Betfair actually prices*
+  → :class:`FixtureOdds` with a back-price snapshot per :class:`Selection`.
+* ``settle(market_ids)``      — read the market book after a market ``CLOSED`` → which
+  runner is the ``WINNER`` → :class:`MarketSettlement`.
+
+Two implementations:
+
+* :class:`Betfair`     — the live client (interactive login + keepAlive, JSON-RPC over
+  httpx). Constructed from env (``BF_APP_KEY`` / ``BF_USER`` / ``BF_PASS``).
+* :class:`FakeBetfair` — returns canned catalogues/books so the whole app is testable
+  (and demo-able) without a live login. The *domain* logic (Saturday filter, priced-only
+  rule, WINNER settlement) lives on the base class, so the fake exercises the same code
+  the live client runs.
+
+Betfair data model: Events → Markets (``MATCH_ODDS`` / ``BOTH_TEAMS_TO_SCORE``) → Runners;
+settle via runner status ``WINNER``.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from abc import ABC, abstractmethod
+from collections import defaultdict
+from collections.abc import Collection, Mapping, Sequence
+from datetime import UTC, date, datetime, timedelta
+from enum import StrEnum
+from typing import Any
+from zoneinfo import ZoneInfo
+
+import httpx
+import structlog
+from pydantic import BaseModel
+
+from src.config import settings
+
+log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+# ── Betfair endpoints / constants ──────────────────────────────────────────────
+
+_IDENTITY_BASE_URL = "https://identitysso.betfair.com"
+_BETTING_BASE_URL = "https://api.betfair.com"
+_RPC_PATH = "/exchange/betting/json-rpc/v1"
+_RPC_PREFIX = "SportsAPING/v1.0/"
+
+SOCCER_EVENT_TYPE_ID = "1"
+MARKET_MATCH_ODDS = "MATCH_ODDS"
+MARKET_BTTS = "BOTH_TEAMS_TO_SCORE"
+MARKET_TYPES: tuple[str, ...] = (MARKET_MATCH_ODDS, MARKET_BTTS)
+
+_MARKET_CLOSED = "CLOSED"
+_RUNNER_WINNER = "WINNER"
+
+# The eight target divisions — the English pyramid + full Scottish pyramid. Matched
+# case-insensitively against Betfair competition names. Adjust to the exact live names
+# once Craig's coverage probe confirms them (Betfair naming is not perfectly stable).
+TARGET_COMPETITION_NAMES: frozenset[str] = frozenset(
+    {
+        "English Premier League",
+        "English Championship",
+        "English League 1",
+        "English League 2",
+        "Scottish Premiership",
+        "Scottish Championship",
+        "Scottish League One",
+        "Scottish League Two",
+    }
+)
+
+_UK_TZ = ZoneInfo("Europe/London")
+_SATURDAY = 5  # date.weekday(): Monday=0 … Saturday=5
+_KICKOFF_HOUR = 15  # 15:00 UK local — "one Saturday's 3pm kick-offs"
+
+_MAX_RETRIES = 3
+_INITIAL_BACKOFF = 1.0  # seconds
+_TIMEOUT = 30.0
+
+
+# ── Exceptions ─────────────────────────────────────────────────────────────────
+
+
+class BetfairError(Exception):
+    """Base error for Betfair adapter failures."""
+
+
+class BetfairAuthError(BetfairError):
+    """Login / keepAlive failed, or an operation was attempted before login."""
+
+
+class BetfairAPIError(BetfairError):
+    """The betting JSON-RPC API returned an error (or an unusable response)."""
+
+
+# ── Raw Betfair response models (``BF*``) ──────────────────────────────────────
+# Only the fields we consume are modelled; unknown keys are ignored by pydantic.
+
+
+class BFIdentityResponse(BaseModel):
+    """Response from ``identitysso`` login / keepAlive."""
+
+    token: str = ""
+    product: str = ""
+    status: str = ""
+    error: str = ""
+
+
+class BFCompetition(BaseModel):
+    id: str
+    name: str
+
+
+class BFCompetitionResult(BaseModel):
+    competition: BFCompetition
+    marketCount: int = 0
+    competitionRegion: str = ""
+
+
+class BFEvent(BaseModel):
+    id: str
+    name: str
+    countryCode: str | None = None
+    timezone: str | None = None
+    openDate: datetime
+
+
+class BFEventResult(BaseModel):
+    event: BFEvent
+    marketCount: int = 0
+
+
+class BFRunnerCatalogue(BaseModel):
+    selectionId: int
+    runnerName: str
+    handicap: float = 0.0
+    sortPriority: int = 0
+
+
+class BFMarketDescription(BaseModel):
+    marketType: str = ""
+
+
+class BFMarketCatalogue(BaseModel):
+    marketId: str
+    marketName: str = ""
+    marketStartTime: datetime | None = None
+    description: BFMarketDescription | None = None
+    event: BFEvent | None = None
+    runners: list[BFRunnerCatalogue] = []
+
+
+class BFPriceSize(BaseModel):
+    price: float
+    size: float = 0.0
+
+
+class BFExchangePrices(BaseModel):
+    availableToBack: list[BFPriceSize] = []
+    availableToLay: list[BFPriceSize] = []
+
+
+class BFRunnerBook(BaseModel):
+    selectionId: int
+    status: str = ""  # ACTIVE, WINNER, LOSER, REMOVED, …
+    ex: BFExchangePrices | None = None
+
+
+class BFMarketBook(BaseModel):
+    marketId: str
+    status: str = ""  # OPEN, SUSPENDED, CLOSED, …
+    runners: list[BFRunnerBook] = []
+
+
+# ── Domain models (returned to callers / Batch 3) ──────────────────────────────
+
+
+class Market(StrEnum):
+    MATCH_ODDS = MARKET_MATCH_ODDS
+    BOTH_TEAMS_TO_SCORE = MARKET_BTTS
+
+
+class Outcome(StrEnum):
+    HOME = "HOME"
+    DRAW = "DRAW"
+    AWAY = "AWAY"
+    YES = "YES"
+    NO = "NO"
+
+
+class Selection(BaseModel):
+    """One offerable pick — a market + outcome Betfair currently prices."""
+
+    market: Market
+    betfair_market_id: str
+    betfair_selection_id: int
+    runner_name: str
+    outcome: Outcome
+    back_price: float
+
+
+class FixtureOdds(BaseModel):
+    """The priced selections for a single fixture (across Match Odds + BTTS)."""
+
+    betfair_event_id: str
+    home: str
+    away: str
+    selections: list[Selection]
+
+
+class SlateFixture(BaseModel):
+    """One Saturday-15:00 match in a target competition."""
+
+    betfair_event_id: str
+    home: str
+    away: str
+    kickoff_utc: datetime
+    competition: str
+    competition_id: str
+
+
+class Slate(BaseModel):
+    """A gameweek's worth of fixtures — one Saturday's 15:00 kick-offs."""
+
+    saturday: date
+    fixtures: list[SlateFixture]
+
+
+class RunnerSettlement(BaseModel):
+    betfair_selection_id: int
+    status: str
+    won: bool
+
+
+class MarketSettlement(BaseModel):
+    betfair_market_id: str
+    status: str
+    settled: bool  # True once the market is CLOSED
+    winners: list[int]  # selection ids with runner status WINNER
+    runners: list[RunnerSettlement]
+
+
+# ── Helpers (shared by both implementations via the base class) ─────────────────
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Return a timezone-aware UTC datetime (assume UTC for naive inputs)."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _iso_z(value: datetime) -> str:
+    """Serialise to the ``…Z`` UTC form Betfair's time filters expect."""
+    return _as_utc(value).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _saturday_window(saturday: date) -> tuple[datetime, datetime]:
+    """UTC [start, end) covering the whole of ``saturday`` in UK local time.
+
+    Anchored in ``Europe/London`` so the window is correct under both BST and GMT —
+    the season spans August (BST) to May (GMT).
+    """
+    start_local = datetime(saturday.year, saturday.month, saturday.day, tzinfo=_UK_TZ)
+    end_local = start_local + timedelta(days=1)
+    return start_local.astimezone(UTC), end_local.astimezone(UTC)
+
+
+def _is_saturday_kickoff(kickoff_utc: datetime) -> bool:
+    """True when the kick-off is 15:00 on a Saturday in UK local time."""
+    local = _as_utc(kickoff_utc).astimezone(_UK_TZ)
+    return local.weekday() == _SATURDAY and local.hour == _KICKOFF_HOUR and local.minute == 0
+
+
+def _split_event_name(name: str) -> tuple[str, str] | None:
+    """Split a Betfair event name ``"Home v Away"`` into ``(home, away)``.
+
+    Betfair names soccer events ``"<home> v <away>"`` (home first). Returns ``None``
+    when the name doesn't follow that shape so callers can degrade gracefully.
+    """
+    for separator in (" v ", " vs ", " @ "):
+        if separator in name:
+            home, _, away = name.partition(separator)
+            home, away = home.strip(), away.strip()
+            if home and away:
+                return home, away
+    return None
+
+
+def _market_type_code(catalogue: BFMarketCatalogue) -> str | None:
+    """The market type of a catalogue entry (``MATCH_ODDS`` / ``BOTH_TEAMS_TO_SCORE``).
+
+    Prefers ``description.marketType`` (exact, when the projection includes it); falls
+    back to classifying by the market name.
+    """
+    if catalogue.description is not None and catalogue.description.marketType:
+        return catalogue.description.marketType
+    name = catalogue.marketName.strip().casefold()
+    if name == "match odds":
+        return MARKET_MATCH_ODDS
+    if name in {"both teams to score", "both teams to score?"}:
+        return MARKET_BTTS
+    return None
+
+
+def _best_back_price(runner: BFRunnerBook) -> float | None:
+    """The best available back price, or ``None`` when Betfair isn't pricing it.
+
+    ``availableToBack`` is sorted best-first, so index 0 is the price a backer gets.
+    ``None`` drives the *only offer selections Betfair prices* rule.
+    """
+    if runner.ex is None or not runner.ex.availableToBack:
+        return None
+    return runner.ex.availableToBack[0].price
+
+
+def _match_odds_outcome(runner_name: str, home: str, away: str) -> Outcome:
+    """Map a Match Odds runner to HOME / AWAY / DRAW.
+
+    MATCH_ODDS has exactly three runners: the two team names and "The Draw". Anything
+    that isn't the home or away team is the draw.
+    """
+    name = runner_name.strip().casefold()
+    if name == home.strip().casefold():
+        return Outcome.HOME
+    if name == away.strip().casefold():
+        return Outcome.AWAY
+    return Outcome.DRAW
+
+
+def _btts_outcome(runner_name: str) -> Outcome | None:
+    """Map a BTTS runner ("Yes" / "No") to YES / NO; ``None`` for anything unexpected."""
+    name = runner_name.strip().casefold()
+    if name == "yes":
+        return Outcome.YES
+    if name == "no":
+        return Outcome.NO
+    return None
+
+
+# ── Abstract adapter (domain logic lives here) ─────────────────────────────────
+
+
+class BetfairAdapter(ABC):
+    """Shared domain operations over four raw Betfair primitives.
+
+    Subclasses implement only the primitives (``login`` / ``keep_alive`` and the four
+    ``list_*`` calls); ``fetch_slate`` / ``fetch_odds`` / ``settle`` are concrete here so
+    both the live client and the fake run identical domain logic.
+    """
+
+    # -- primitives (implemented by subclasses) --------------------------------
+
+    @abstractmethod
+    async def login(self) -> str:
+        """Establish a session and return the session token."""
+
+    @abstractmethod
+    async def keep_alive(self) -> None:
+        """Refresh the current session so it doesn't time out."""
+
+    @abstractmethod
+    async def list_competitions(self, *, event_type_id: str) -> list[BFCompetitionResult]: ...
+
+    @abstractmethod
+    async def list_events(
+        self, *, competition_ids: Sequence[str], from_utc: datetime, to_utc: datetime
+    ) -> list[BFEventResult]: ...
+
+    @abstractmethod
+    async def list_market_catalogue(
+        self, *, event_ids: Sequence[str], market_types: Sequence[str]
+    ) -> list[BFMarketCatalogue]: ...
+
+    @abstractmethod
+    async def list_market_book(self, *, market_ids: Sequence[str]) -> list[BFMarketBook]: ...
+
+    # -- domain operations (shared) --------------------------------------------
+
+    async def fetch_slate(
+        self, saturday: date, *, competition_names: Collection[str] = TARGET_COMPETITION_NAMES
+    ) -> Slate:
+        """Resolve target competitions and return that Saturday's 15:00 kick-offs."""
+        wanted_lower = {n.strip().casefold() for n in competition_names}
+        competitions = await self.list_competitions(event_type_id=SOCCER_EVENT_TYPE_ID)
+        targets = {
+            c.competition.id: c.competition.name
+            for c in competitions
+            if c.competition.name.strip().casefold() in wanted_lower
+        }
+
+        from_utc, to_utc = _saturday_window(saturday)
+        fixtures: list[SlateFixture] = []
+        for competition_id, competition_name in targets.items():
+            events = await self.list_events(
+                competition_ids=[competition_id], from_utc=from_utc, to_utc=to_utc
+            )
+            for result in events:
+                event = result.event
+                if not _is_saturday_kickoff(event.openDate):
+                    continue
+                names = _split_event_name(event.name)
+                if names is None:
+                    log.warning("betfair event name not parseable", event_name=event.name)
+                    continue
+                home, away = names
+                fixtures.append(
+                    SlateFixture(
+                        betfair_event_id=event.id,
+                        home=home,
+                        away=away,
+                        kickoff_utc=_as_utc(event.openDate),
+                        competition=competition_name,
+                        competition_id=competition_id,
+                    )
+                )
+
+        fixtures.sort(key=lambda f: (f.competition, f.kickoff_utc, f.home))
+        return Slate(saturday=saturday, fixtures=fixtures)
+
+    async def fetch_odds(self, event_ids: Sequence[str]) -> list[FixtureOdds]:
+        """Snapshot the priced Match Odds + BTTS selections for the given events.
+
+        Applies the core rule — *only offer a selection Betfair actually prices* — so a
+        thin lower-league BTTS market simply yields fewer selections rather than an error.
+        """
+        if not event_ids:
+            return []
+
+        catalogues = await self.list_market_catalogue(
+            event_ids=list(event_ids), market_types=list(MARKET_TYPES)
+        )
+        if not catalogues:
+            return []
+        books = await self.list_market_book(market_ids=[c.marketId for c in catalogues])
+        book_by_market = {b.marketId: b for b in books}
+
+        by_event: defaultdict[str, list[BFMarketCatalogue]] = defaultdict(list)
+        for catalogue in catalogues:
+            if catalogue.event is None:
+                continue
+            by_event[catalogue.event.id].append(catalogue)
+
+        odds: list[FixtureOdds] = []
+        for event_id, markets in by_event.items():
+            event = markets[0].event
+            assert event is not None  # markets are only grouped when event is present
+            names = _split_event_name(event.name)
+            if names is None:
+                log.warning("betfair event name not parseable", event_name=event.name)
+                continue
+            home, away = names
+
+            selections: list[Selection] = []
+            for catalogue in markets:
+                selections.extend(self._selections_for(catalogue, book_by_market, home, away))
+            selections.sort(key=lambda s: (s.market.value, s.betfair_selection_id))
+            odds.append(
+                FixtureOdds(betfair_event_id=event_id, home=home, away=away, selections=selections)
+            )
+
+        odds.sort(key=lambda o: o.betfair_event_id)
+        return odds
+
+    @staticmethod
+    def _selections_for(
+        catalogue: BFMarketCatalogue,
+        book_by_market: Mapping[str, BFMarketBook],
+        home: str,
+        away: str,
+    ) -> list[Selection]:
+        """Priced selections for one market, mapping runners to outcomes."""
+        code = _market_type_code(catalogue)
+        if code not in MARKET_TYPES:
+            return []
+        market = Market(code)
+        book = book_by_market.get(catalogue.marketId)
+        if book is None:
+            return []
+        price_by_selection = {r.selectionId: _best_back_price(r) for r in book.runners}
+
+        selections: list[Selection] = []
+        for runner in catalogue.runners:
+            price = price_by_selection.get(runner.selectionId)
+            if price is None:  # unpriced → not offered
+                continue
+            if market is Market.MATCH_ODDS:
+                outcome: Outcome | None = _match_odds_outcome(runner.runnerName, home, away)
+            else:
+                outcome = _btts_outcome(runner.runnerName)
+            if outcome is None:
+                continue
+            selections.append(
+                Selection(
+                    market=market,
+                    betfair_market_id=catalogue.marketId,
+                    betfair_selection_id=runner.selectionId,
+                    runner_name=runner.runnerName,
+                    outcome=outcome,
+                    back_price=price,
+                )
+            )
+        return selections
+
+    async def settle(self, market_ids: Sequence[str]) -> list[MarketSettlement]:
+        """Read the market book and report which runner won each market.
+
+        A market is ``settled`` only once Betfair reports it ``CLOSED``; a winning pick is
+        one whose selection id appears in ``winners``.
+        """
+        if not market_ids:
+            return []
+        books = await self.list_market_book(market_ids=list(market_ids))
+        settlements: list[MarketSettlement] = []
+        for book in books:
+            runners = [
+                RunnerSettlement(
+                    betfair_selection_id=r.selectionId,
+                    status=r.status,
+                    won=r.status.upper() == _RUNNER_WINNER,
+                )
+                for r in book.runners
+            ]
+            settlements.append(
+                MarketSettlement(
+                    betfair_market_id=book.marketId,
+                    status=book.status,
+                    settled=book.status.upper() == _MARKET_CLOSED,
+                    winners=[r.betfair_selection_id for r in runners if r.won],
+                    runners=runners,
+                )
+            )
+        return settlements
+
+
+# ── Live client ────────────────────────────────────────────────────────────────
+
+
+class Betfair(BetfairAdapter):
+    """Live Betfair client — interactive login + JSON-RPC over httpx.
+
+    Custom ``identity_client`` / ``betting_client`` can be injected to drive the HTTP
+    layer with a mock transport in tests.
+    """
+
+    def __init__(
+        self,
+        app_key: str,
+        username: str,
+        password: str,
+        *,
+        identity_client: httpx.AsyncClient | None = None,
+        betting_client: httpx.AsyncClient | None = None,
+    ) -> None:
+        self._app_key = app_key
+        self._username = username
+        self._password = password
+        self._identity = identity_client or httpx.AsyncClient(
+            base_url=_IDENTITY_BASE_URL, timeout=_TIMEOUT
+        )
+        self._betting = betting_client or httpx.AsyncClient(
+            base_url=_BETTING_BASE_URL, timeout=_TIMEOUT
+        )
+        self._session_token: str | None = None
+
+    @classmethod
+    def from_settings(cls) -> Betfair:
+        """Build a client from ``BF_APP_KEY`` / ``BF_USER`` / ``BF_PASS`` (env)."""
+        if not (settings.bf_app_key and settings.bf_user and settings.bf_pass):
+            raise BetfairAuthError(
+                "Betfair credentials not configured (BF_APP_KEY / BF_USER / BF_PASS)"
+            )
+        return cls(settings.bf_app_key, settings.bf_user, settings.bf_pass)
+
+    async def close(self) -> None:
+        await self._identity.aclose()
+        await self._betting.aclose()
+
+    async def __aenter__(self) -> Betfair:
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        await self.close()
+
+    # -- auth ------------------------------------------------------------------
+
+    async def login(self) -> str:
+        try:
+            response = await self._identity.post(
+                "/api/login",
+                data={"username": self._username, "password": self._password},
+                headers={"X-Application": self._app_key, "Accept": "application/json"},
+            )
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise BetfairAuthError(f"Betfair login request failed: {exc!r}") from exc
+
+        parsed = BFIdentityResponse.model_validate(response.json())
+        if parsed.status != "SUCCESS" or not parsed.token:
+            raise BetfairAuthError(
+                f"Betfair login failed: {parsed.status or 'UNKNOWN'} {parsed.error}"
+            )
+        self._session_token = parsed.token
+        log.info("betfair login succeeded")
+        return parsed.token
+
+    async def keep_alive(self) -> None:
+        token = self._require_token()
+        try:
+            response = await self._identity.post(
+                "/api/keepAlive",
+                headers={
+                    "X-Application": self._app_key,
+                    "X-Authentication": token,
+                    "Accept": "application/json",
+                },
+            )
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise BetfairAuthError(f"Betfair keepAlive request failed: {exc!r}") from exc
+
+        parsed = BFIdentityResponse.model_validate(response.json())
+        if parsed.status != "SUCCESS":
+            self._session_token = None
+            raise BetfairAuthError(
+                f"Betfair keepAlive failed: {parsed.status or 'UNKNOWN'} {parsed.error}"
+            )
+        if parsed.token:
+            self._session_token = parsed.token
+
+    def _require_token(self) -> str:
+        if self._session_token is None:
+            raise BetfairAuthError("Not logged in — call login() first")
+        return self._session_token
+
+    # -- primitives ------------------------------------------------------------
+
+    async def list_competitions(self, *, event_type_id: str) -> list[BFCompetitionResult]:
+        result = await self._rpc("listCompetitions", {"filter": {"eventTypeIds": [event_type_id]}})
+        return [BFCompetitionResult.model_validate(item) for item in result]
+
+    async def list_events(
+        self, *, competition_ids: Sequence[str], from_utc: datetime, to_utc: datetime
+    ) -> list[BFEventResult]:
+        result = await self._rpc(
+            "listEvents",
+            {
+                "filter": {
+                    "eventTypeIds": [SOCCER_EVENT_TYPE_ID],
+                    "competitionIds": list(competition_ids),
+                    "marketStartTime": {"from": _iso_z(from_utc), "to": _iso_z(to_utc)},
+                }
+            },
+        )
+        return [BFEventResult.model_validate(item) for item in result]
+
+    async def list_market_catalogue(
+        self, *, event_ids: Sequence[str], market_types: Sequence[str]
+    ) -> list[BFMarketCatalogue]:
+        result = await self._rpc(
+            "listMarketCatalogue",
+            {
+                "filter": {
+                    "eventIds": list(event_ids),
+                    "marketTypeCodes": list(market_types),
+                },
+                "marketProjection": [
+                    "MARKET_DESCRIPTION",
+                    "RUNNER_DESCRIPTION",
+                    "EVENT",
+                    "MARKET_START_TIME",
+                ],
+                "maxResults": 200,
+                "sort": "FIRST_TO_START",
+            },
+        )
+        return [BFMarketCatalogue.model_validate(item) for item in result]
+
+    async def list_market_book(self, *, market_ids: Sequence[str]) -> list[BFMarketBook]:
+        result = await self._rpc(
+            "listMarketBook",
+            {
+                "marketIds": list(market_ids),
+                "priceProjection": {"priceData": ["EX_BEST_OFFERS"]},
+            },
+        )
+        return [BFMarketBook.model_validate(item) for item in result]
+
+    # -- JSON-RPC transport ----------------------------------------------------
+
+    async def _rpc(self, method: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+        """POST a single JSON-RPC call, with retries, and return its ``result`` list."""
+        token = self._require_token()
+        body = {"jsonrpc": "2.0", "method": f"{_RPC_PREFIX}{method}", "params": params, "id": 1}
+        headers = {
+            "X-Application": self._app_key,
+            "X-Authentication": token,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+
+        backoff = _INITIAL_BACKOFF
+        for attempt in range(_MAX_RETRIES + 1):
+            try:
+                response = await self._betting.post(_RPC_PATH, json=body, headers=headers)
+            except httpx.RequestError as exc:
+                if attempt == _MAX_RETRIES:
+                    raise BetfairAPIError(
+                        f"Network error after {_MAX_RETRIES} retries: {exc!r}"
+                    ) from exc
+                log.warning(
+                    "betfair network error", method=method, attempt=attempt, error=repr(exc)
+                )
+                await asyncio.sleep(backoff)
+                backoff *= 2
+                continue
+
+            if response.status_code == 429 or response.status_code >= 500:
+                if attempt == _MAX_RETRIES:
+                    raise BetfairAPIError(
+                        f"{method} failed with status {response.status_code} after "
+                        f"{_MAX_RETRIES} retries"
+                    )
+                log.warning(
+                    "betfair transient error",
+                    method=method,
+                    attempt=attempt,
+                    status_code=response.status_code,
+                )
+                await asyncio.sleep(backoff)
+                backoff *= 2
+                continue
+
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise BetfairAPIError(
+                    f"{method} unexpected status {response.status_code}: {response.text[:200]}"
+                ) from exc
+
+            payload = response.json()
+            if isinstance(payload, dict) and payload.get("error") is not None:
+                raise BetfairAPIError(f"{method} JSON-RPC error: {payload['error']}")
+            result = payload.get("result") if isinstance(payload, dict) else None
+            if not isinstance(result, list):
+                raise BetfairAPIError(f"{method} returned no result list: {str(payload)[:200]}")
+            return result
+
+        raise BetfairAPIError(
+            f"{method} exhausted retries"
+        )  # pragma: no cover — loop always returns/raises
+
+
+# ── Fake client (canned catalogues/books) ──────────────────────────────────────
+
+
+class FakeBetfair(BetfairAdapter):
+    """In-memory Betfair adapter returning canned catalogues/books.
+
+    Backs every test and the mocked end-to-end flow — no live login required. Overrides
+    only the primitives; the domain logic is inherited from :class:`BetfairAdapter`, so
+    the fake exercises exactly the code the live client runs.
+    """
+
+    def __init__(
+        self,
+        *,
+        competitions: Sequence[BFCompetitionResult] = (),
+        events: Mapping[str, Sequence[BFEventResult]] | None = None,
+        catalogues: Sequence[BFMarketCatalogue] = (),
+        books: Sequence[BFMarketBook] = (),
+        session_token: str = "FAKE-SESSION-TOKEN",
+    ) -> None:
+        self._competitions = list(competitions)
+        self._events: dict[str, list[BFEventResult]] = {
+            k: list(v) for k, v in (events or {}).items()
+        }
+        self._catalogues = list(catalogues)
+        self._books = {b.marketId: b for b in books}
+        self._session_token = session_token
+        self._logged_in = False
+
+    # -- primitives ------------------------------------------------------------
+
+    async def login(self) -> str:
+        self._logged_in = True
+        return self._session_token
+
+    async def keep_alive(self) -> None:
+        if not self._logged_in:
+            raise BetfairAuthError("Not logged in — call login() first")
+
+    async def list_competitions(self, *, event_type_id: str) -> list[BFCompetitionResult]:
+        return list(self._competitions)
+
+    async def list_events(
+        self, *, competition_ids: Sequence[str], from_utc: datetime, to_utc: datetime
+    ) -> list[BFEventResult]:
+        results: list[BFEventResult] = []
+        for competition_id in competition_ids:
+            for result in self._events.get(competition_id, []):
+                if from_utc <= _as_utc(result.event.openDate) < to_utc:
+                    results.append(result)
+        return results
+
+    async def list_market_catalogue(
+        self, *, event_ids: Sequence[str], market_types: Sequence[str]
+    ) -> list[BFMarketCatalogue]:
+        wanted_events = set(event_ids)
+        wanted_types = set(market_types)
+        return [
+            c
+            for c in self._catalogues
+            if c.event is not None
+            and c.event.id in wanted_events
+            and _market_type_code(c) in wanted_types
+        ]
+
+    async def list_market_book(self, *, market_ids: Sequence[str]) -> list[BFMarketBook]:
+        return [self._books[m] for m in market_ids if m in self._books]
+
+    # -- test helpers ----------------------------------------------------------
+
+    def close_markets(self, winners: Mapping[str, int]) -> None:
+        """Flip the given markets to ``CLOSED`` with one ``WINNER`` runner each.
+
+        ``winners`` maps market id → the winning selection id; every other runner in that
+        market becomes a ``LOSER``. Lets a test drive a fixture from open odds through to
+        settlement on one fake object.
+        """
+        for market_id, winning_selection in winners.items():
+            book = self._books.get(market_id)
+            if book is None:
+                continue
+            self._books[market_id] = BFMarketBook(
+                marketId=book.marketId,
+                status=_MARKET_CLOSED,
+                runners=[
+                    BFRunnerBook(
+                        selectionId=r.selectionId,
+                        status=_RUNNER_WINNER if r.selectionId == winning_selection else "LOSER",
+                        ex=r.ex,
+                    )
+                    for r in book.runners
+                ],
+            )
+
+    @classmethod
+    def with_sample_data(cls) -> FakeBetfair:
+        """A realistic canned slate: a Premier League and a Scottish League Two fixture.
+
+        * Both kick off Saturday 2026-08-01 15:00 UK (14:00Z under BST).
+        * A decoy 12:30 lunchtime kick-off proves the Saturday-15:00 filter drops it.
+        * The Scottish BTTS market has an unpriced "No" runner, proving the *only offer
+          priced selections* rule.
+        """
+        return cls(**_sample_data())
+
+
+# ── Canned sample data (reused by tests and the mocked e2e flow) ────────────────
+
+# Stable ids so tests and the sample builder agree.
+SAMPLE_SATURDAY = date(2026, 8, 1)
+SAMPLE_EPL_ID = "10932509"
+SAMPLE_SL2_ID = "10932510"
+
+SAMPLE_EPL_EVENT_ID = "e-epl-1"
+SAMPLE_SL2_EVENT_ID = "e-sl2-1"
+
+# Match Odds selection ids
+SAMPLE_ARSENAL_SEL = 1001
+SAMPLE_CHELSEA_SEL = 1002
+SAMPLE_DRAW_SEL = 58805
+SAMPLE_FORFAR_SEL = 2001
+SAMPLE_BRECHIN_SEL = 2002
+SAMPLE_SL2_DRAW_SEL = 58805
+# BTTS selection ids (Betfair uses the same 30246/58948 pair across BTTS markets)
+SAMPLE_BTTS_YES_SEL = 30246
+SAMPLE_BTTS_NO_SEL = 58948
+
+# Market ids
+SAMPLE_EPL_MATCH_ODDS_MKT = "1.100000001"
+SAMPLE_EPL_BTTS_MKT = "1.100000002"
+SAMPLE_SL2_MATCH_ODDS_MKT = "1.100000003"
+SAMPLE_SL2_BTTS_MKT = "1.100000004"
+
+
+def _sample_data() -> dict[str, Any]:
+    """Build the canned catalogues/books for :meth:`FakeBetfair.with_sample_data`.
+
+    Everything is round-tripped through ``model_validate`` on raw dicts so the fake holds
+    genuine "canned catalogues/books", exercising the same parsing the live client uses.
+    """
+    kickoff_z = "2026-08-01T14:00:00.000Z"  # 15:00 BST
+    lunchtime_z = "2026-08-01T11:30:00.000Z"  # 12:30 BST — decoy, must be filtered out
+
+    competitions = [
+        BFCompetitionResult.model_validate(
+            {
+                "competition": {"id": SAMPLE_EPL_ID, "name": "English Premier League"},
+                "marketCount": 3,
+            }
+        ),
+        BFCompetitionResult.model_validate(
+            {"competition": {"id": SAMPLE_SL2_ID, "name": "Scottish League Two"}, "marketCount": 2}
+        ),
+        # A non-target competition that must be ignored even though it has Saturday games.
+        BFCompetitionResult.model_validate(
+            {"competition": {"id": "99999", "name": "Spanish La Liga"}, "marketCount": 9}
+        ),
+    ]
+
+    epl_event = {
+        "id": SAMPLE_EPL_EVENT_ID,
+        "name": "Arsenal v Chelsea",
+        "countryCode": "GB",
+        "openDate": kickoff_z,
+    }
+    sl2_event = {
+        "id": SAMPLE_SL2_EVENT_ID,
+        "name": "Forfar Athletic v Brechin City",
+        "countryCode": "GB",
+        "openDate": kickoff_z,
+    }
+    events = {
+        SAMPLE_EPL_ID: [
+            BFEventResult.model_validate({"event": epl_event, "marketCount": 2}),
+            # Decoy lunchtime kick-off — same competition, wrong time.
+            BFEventResult.model_validate(
+                {
+                    "event": {
+                        "id": "e-epl-decoy",
+                        "name": "Liverpool v Everton",
+                        "countryCode": "GB",
+                        "openDate": lunchtime_z,
+                    },
+                    "marketCount": 2,
+                }
+            ),
+        ],
+        SAMPLE_SL2_ID: [BFEventResult.model_validate({"event": sl2_event, "marketCount": 2})],
+    }
+
+    catalogues = [
+        BFMarketCatalogue.model_validate(
+            {
+                "marketId": SAMPLE_EPL_MATCH_ODDS_MKT,
+                "marketName": "Match Odds",
+                "description": {"marketType": MARKET_MATCH_ODDS},
+                "event": epl_event,
+                "runners": [
+                    {"selectionId": SAMPLE_ARSENAL_SEL, "runnerName": "Arsenal", "sortPriority": 1},
+                    {"selectionId": SAMPLE_CHELSEA_SEL, "runnerName": "Chelsea", "sortPriority": 2},
+                    {"selectionId": SAMPLE_DRAW_SEL, "runnerName": "The Draw", "sortPriority": 3},
+                ],
+            }
+        ),
+        BFMarketCatalogue.model_validate(
+            {
+                "marketId": SAMPLE_EPL_BTTS_MKT,
+                "marketName": "Both teams to Score",
+                "description": {"marketType": MARKET_BTTS},
+                "event": epl_event,
+                "runners": [
+                    {"selectionId": SAMPLE_BTTS_YES_SEL, "runnerName": "Yes", "sortPriority": 1},
+                    {"selectionId": SAMPLE_BTTS_NO_SEL, "runnerName": "No", "sortPriority": 2},
+                ],
+            }
+        ),
+        BFMarketCatalogue.model_validate(
+            {
+                "marketId": SAMPLE_SL2_MATCH_ODDS_MKT,
+                "marketName": "Match Odds",
+                "description": {"marketType": MARKET_MATCH_ODDS},
+                "event": sl2_event,
+                "runners": [
+                    {
+                        "selectionId": SAMPLE_FORFAR_SEL,
+                        "runnerName": "Forfar Athletic",
+                        "sortPriority": 1,
+                    },
+                    {
+                        "selectionId": SAMPLE_BRECHIN_SEL,
+                        "runnerName": "Brechin City",
+                        "sortPriority": 2,
+                    },
+                    {
+                        "selectionId": SAMPLE_SL2_DRAW_SEL,
+                        "runnerName": "The Draw",
+                        "sortPriority": 3,
+                    },
+                ],
+            }
+        ),
+        BFMarketCatalogue.model_validate(
+            {
+                "marketId": SAMPLE_SL2_BTTS_MKT,
+                "marketName": "Both teams to Score",
+                "description": {"marketType": MARKET_BTTS},
+                "event": sl2_event,
+                "runners": [
+                    {"selectionId": SAMPLE_BTTS_YES_SEL, "runnerName": "Yes", "sortPriority": 1},
+                    {"selectionId": SAMPLE_BTTS_NO_SEL, "runnerName": "No", "sortPriority": 2},
+                ],
+            }
+        ),
+    ]
+
+    def _book(market_id: str, prices: Mapping[int, float | None]) -> BFMarketBook:
+        runners: list[dict[str, Any]] = []
+        for selection_id, price in prices.items():
+            ex = {"availableToBack": [] if price is None else [{"price": price, "size": 120.0}]}
+            runners.append({"selectionId": selection_id, "status": "ACTIVE", "ex": ex})
+        return BFMarketBook.model_validate(
+            {"marketId": market_id, "status": "OPEN", "runners": runners}
+        )
+
+    books = [
+        _book(
+            SAMPLE_EPL_MATCH_ODDS_MKT,
+            {SAMPLE_ARSENAL_SEL: 1.9, SAMPLE_CHELSEA_SEL: 4.3, SAMPLE_DRAW_SEL: 3.75},
+        ),
+        _book(SAMPLE_EPL_BTTS_MKT, {SAMPLE_BTTS_YES_SEL: 1.8, SAMPLE_BTTS_NO_SEL: 2.05}),
+        _book(
+            SAMPLE_SL2_MATCH_ODDS_MKT,
+            {SAMPLE_FORFAR_SEL: 2.4, SAMPLE_BRECHIN_SEL: 3.1, SAMPLE_SL2_DRAW_SEL: 3.2},
+        ),
+        # Thin lower-league BTTS: only "Yes" is priced; "No" has no back offers.
+        _book(SAMPLE_SL2_BTTS_MKT, {SAMPLE_BTTS_YES_SEL: 1.95, SAMPLE_BTTS_NO_SEL: None}),
+    ]
+
+    return {
+        "competitions": competitions,
+        "events": events,
+        "catalogues": catalogues,
+        "books": books,
+    }

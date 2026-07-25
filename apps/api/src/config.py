@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     vapid_private_key: str = ""
     vapid_contact_email: str = "admin@example.com"
 
+    # Betfair Exchange API (odds source). Interactive login — no cert needed.
+    # Empty by default so tests/dev run without a live session; Betfair.from_settings
+    # raises when a caller needs the real client but these are unset.
+    bf_app_key: str = ""
+    bf_user: str = ""
+    bf_pass: str = ""
+
     # App
     frontend_origin: str = "http://localhost:5173"
     sentry_dsn_backend: str = ""
