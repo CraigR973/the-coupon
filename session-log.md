@@ -19,3 +19,17 @@ Batch scope + status lives in `docs/BUILD_PLAN.md`; current state in `STATUS.md`
 - League *router* tests not yet ported (calcio's used email-first fixtures); spine tests cover auth/notifications/backup/scheduler. Leagues proven via scratchpad `e2e_leagues.py`.
 
 **Next:** Batch 2 — Betfair adapter (`services/betfair.py` + `FakeBetfair`)
+
+---
+
+## Batch 2 — Betfair adapter
+**Commits:** 21078d6 · verified: ruff · ruff format · mypy --strict · 98 pytest (no migration — no tables added)
+
+### Key facts for future sessions
+- Adapter shape: domain logic (`fetch_slate`/`fetch_odds`/`settle`) lives on the `BetfairAdapter` ABC; `Betfair` (live httpx) and `FakeBetfair` override only the raw primitives (`login`/`keep_alive`/`list_*`), so every test drives the real domain code. Add new domain ops to the base, not each impl.
+- Batch 2 returns plain Pydantic **DTOs** (`Slate`/`SlateFixture`/`FixtureOdds`/`Selection`/`MarketSettlement`), not ORM rows. Batch 3 maps them into the new gameweek/fixture/pick tables: join slate↔odds by `betfair_event_id`; settle a pick by matching its `betfair_selection_id` against `MarketSettlement.winners` where `settled` is true.
+- `TARGET_COMPETITION_NAMES` (the 8 divisions) are best-guess Betfair names, matched case-insensitively — reconcile with the live feed (Craig's coverage probe) before launch; a wrong name silently drops that division from the slate. Betfair naming isn't stable.
+- Slate qualifier is anchored in `Europe/London`, not UTC: kickoff must be exactly Sat **15:00 UK local**, so 14:00Z (BST) and 15:00Z (GMT) both match across the Aug–May season.
+- `FakeBetfair.with_sample_data()` + `close_markets()` is the reusable canned scenario for the Batch 6 mocked e2e — EPL + Scottish L2 (Forfar v Brechin) at 15:00, a 12:30 decoy that must be filtered, and an unpriced BTTS "No" proving the *only-offer-priced* rule.
+
+**Next:** Batch 3 — Pick + scoring engine (`Pick` model + unique constraints, submit/odds-snapshot, `services/scoring.py`, `services/coupon.py`; adds gameweek/fixture/pick tables)

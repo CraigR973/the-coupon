@@ -2,27 +2,27 @@
 
 ## Now
 
-**Batch 1 of 6 shipped to local `main` (commit `8513a02`). Next: Batch 2 — Betfair adapter.**
+**Batch 2 of 6 shipped to local `main` (commit `21078d6`). Next: Batch 3 — Pick + scoring engine.**
 
 👉 Full context: `HANDOFF.md` (repo root) + `docs/BUILD_PLAN.md`.
 
-**Done (Batch 1):** ported app-starter's clean PIN/invite auth + profile + notification
-spine into this repo (replacing calcio's email-first tangle); reconciled calcio's
-leagues/memberships/join-requests onto it (`CurrentPlayer`→`CurrentUser`,
-`per_player_key`→`per_user_key`, site-admin via `UserRole.admin`, `avatar_url` stubbed);
-reduced `scheduler.py` to the app-starter framework (backup + connection-warmup);
-rebuilt `main.py`/`models/__init__.py`; squashed calcio's 40 WC migrations to a single
-`001_baseline` (profiles · refresh_tokens · push/notif tables · audit_log · leagues ·
-memberships · join_requests · invites). Added a minimal `services/notification_triggers.py`
-(the `notify_member_joined` the routers need). Dropped `bootstrap_admin.py` for
-app-starter's `seeds.py`.
+**Done (Batch 2):** built `services/betfair.py` — the odds source. Abstract `BetfairAdapter`
+holds the domain logic (`fetch_slate` Saturday-15:00 filter · `fetch_odds` MATCH_ODDS + BTTS
+priced-only snapshot with HOME/DRAW/AWAY · YES/NO mapping · `settle` on runner `WINNER`);
+`Betfair` (live httpx: interactive login/keepAlive, JSON-RPC, retry/backoff) and `FakeBetfair`
+(canned catalogues/books, `with_sample_data` + `close_markets`) override only the raw
+primitives, so tests drive the real domain code. Added `BF_APP_KEY`/`BF_USER`/`BF_PASS` to
+config. No tables added → no migration.
 
-**Verified green:** import-compiles (37 routes) · `ruff check` + `ruff format` clean ·
-`mypy --strict` (34 files, 0 issues) · 76 spine tests pass · baseline migration
-applies/reverses/re-applies on a real (pgserver) Postgres with all 9 tables + 6 enums
-+ constraints + updated_at trigger correct · **league routers driven end-to-end on real
-Postgres** (login → create → list mine → 2nd user join-by-code → detail shows both
-members). See scratchpad `verify_migration.py` / `e2e_leagues.py`.
+**Verified green:** `ruff check` + `ruff format` clean · `mypy --strict` (35 files, 0 issues) ·
+98 pytest (76 spine + 22 new). The 22 exercise FakeBetfair slate/odds/settlement and the live
+client's HTTP layer (login/keepAlive/RPC parse+error+5xx-retry) via `httpx.MockTransport` — no
+live Betfair session touched.
+
+**Done (Batch 1):** app-starter PIN/invite auth + profile + notification spine ported over
+calcio's email-first tangle; leagues/memberships/join-requests reconciled onto it; `scheduler.py`
+reduced; calcio's 40 WC migrations squashed to `001_baseline`. (Detail in `session-log.md` /
+`git show 8513a02`.)
 
 **Toolchain (no coupon venv exists):** run lint/type/test with app-starter's venv —
 `/Users/craigrobinson/app-starter/apps/api/.venv/bin/{ruff,mypy,python}` — and
@@ -30,9 +30,12 @@ members). See scratchpad `verify_migration.py` / `e2e_leagues.py`.
 package (local Homebrew postgres is broken). The loaded calcio `CLAUDE.md` points at
 calcio's venv — ignore it for this repo.
 
-**Next step:** Batch 2 — Betfair adapter (`services/betfair.py` + `FakeBetfair`):
-login/keepAlive, slate, odds, settlement; unit-tested against canned responses.
-Then Batches 3–6 (Pick/scoring → scheduler jobs → frontend → verify + rebrand).
+**Next step:** Batch 3 — Pick + scoring engine: `Pick` model with both unique constraints,
+submit endpoint (snapshot odds, enforce uniqueness), `services/scoring.py` (`round(odds*10)`
+on `WINNER`), leaderboard standings, `services/coupon.py` (combined acca). Adds the
+gameweek/fixture/pick tables (new hand-authored migration). It consumes Batch 2's DTOs —
+join slate↔odds by `betfair_event_id`; settle picks via `MarketSettlement.winners`. Then
+Batches 4–6 (scheduler jobs → frontend → verify + rebrand).
 
 **Known Batch-1 gaps (deferred by design):** league *routers* have no committed tests yet
 (spine tests cover auth/notifications/backup/scheduler; leagues proven via the e2e script) —
@@ -59,3 +62,8 @@ check is Craig's to run (agent never logs into his money account); API keys stay
   mypy --strict · 76 tests · migration + league e2e on real Postgres. Also reconciled the
   close-out workflow to this repo (BUILD_PLAN-driven, local-first) and cleared calcio's stale
   batch docs. Next = Batch 2 (Betfair adapter).
+- 2026-07-25 — **Batch 2 shipped** (`21078d6`, on local `main`). Betfair adapter
+  (`services/betfair.py`): `BetfairAdapter` ABC + live `Betfair` + `FakeBetfair`; slate /
+  odds snapshot / settlement, priced-only rule, Saturday-15:00 (Europe/London) filter. Green:
+  ruff · ruff format · mypy --strict · 98 tests (no migration — no tables). Next = Batch 3
+  (Pick + scoring engine).

@@ -105,7 +105,7 @@ This checklist is the **batch source of record**: `/next-batch-prompt` reads the
   squashed to a single `001_baseline` migration. Backend import-compiles · ruff · ruff format ·
   mypy --strict · 76 spine tests green; migration + league e2e verified on real (pgserver)
   Postgres. *(Gameweek/fixture/pick tables moved to Batch 3; the rebrand pass to Batch 6.)*
-- [ ] **Batch 2 — Betfair adapter** (`services/betfair.py` + `FakeBetfair`) — login/keepAlive,
+- [x] **Batch 2 — Betfair adapter** ✅ 2026-07-25 (`services/betfair.py` + `FakeBetfair`) — login/keepAlive,
   slate, odds, settlement; unit-tested against canned responses.
 - [ ] **Batch 3 — Pick + scoring engine** — `Pick` model, unique constraints, submit endpoint
   (snapshot odds, enforce uniqueness), `services/scoring.py`, leaderboard standings,
