@@ -95,17 +95,27 @@ countdown to 14:30); `PredictionCard`→`PickCard`; `ScoringGuide`→odds rules;
 
 ## Build order (batches)
 
-1. **Scaffold + strip** — clone calcio → `the-coupon`, rebrand identifiers, delete WC
-   backend+frontend modules, squash to a baseline migration (auth + leagues/memberships +
-   gameweek + fixture + pick + leaderboard_snapshots). Backend compiles, ruff/mypy green.
-2. **Betfair adapter** (`services/betfair.py` + `FakeBetfair`) — login/keepAlive, slate,
-   odds, settlement; unit-tested against canned responses.
-3. **Pick + scoring engine** — `Pick` model, unique constraints, submit endpoint (snapshot
-   odds, enforce uniqueness), `services/scoring.py`, leaderboard standings, `services/coupon.py`.
-4. **Scheduler** — jobs: refresh slate+odds (a few times pre-lock), lock at 14:30, settle
-   Sat evening + recompute standings, pick reminder push.
-5. **Frontend reshape** — Coupon pick screen, combined-acca view, rebrand; reuse league/leaderboard pages.
-6. **Verify** (below) + rebrand pass (grep clean of calcio/WC/bracket/knockout).
+This checklist is the **batch source of record**: `/next-batch-prompt` reads the first
+`[ ]` row for the next session's scope; `/phase-closeout <N>` ticks it. `[x]` = shipped,
+`[ ]` = pending. Acceptance for each batch is its description here plus the shared
+**Verification** section below — there is no separate per-phase acceptance doc.
+
+- [x] **Batch 1 — Scaffold + strip** ✅ 2026-07-25 — ported app-starter's PIN/invite auth +
+  profile + notification spine, reconciled calcio's leagues onto it, reduced `scheduler.py`,
+  squashed to a single `001_baseline` migration. Backend import-compiles · ruff · ruff format ·
+  mypy --strict · 76 spine tests green; migration + league e2e verified on real (pgserver)
+  Postgres. *(Gameweek/fixture/pick tables moved to Batch 3; the rebrand pass to Batch 6.)*
+- [ ] **Batch 2 — Betfair adapter** (`services/betfair.py` + `FakeBetfair`) — login/keepAlive,
+  slate, odds, settlement; unit-tested against canned responses.
+- [ ] **Batch 3 — Pick + scoring engine** — `Pick` model, unique constraints, submit endpoint
+  (snapshot odds, enforce uniqueness), `services/scoring.py`, leaderboard standings,
+  `services/coupon.py`. Adds the gameweek + fixture + pick tables (new migration).
+- [ ] **Batch 4 — Scheduler** — jobs: refresh slate+odds (a few times pre-lock), lock at 14:30,
+  settle Sat evening + recompute standings, pick reminder push.
+- [ ] **Batch 5 — Frontend reshape** — Coupon pick screen, combined-acca view; reuse
+  league/leaderboard pages.
+- [ ] **Batch 6 — Verify + rebrand pass** — full verification (below) + grep clean of
+  calcio/WC/bracket/knockout; replace the inherited calcio docs; delete `HANDOFF.md`.
 
 ## Verification
 

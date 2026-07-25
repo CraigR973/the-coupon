@@ -16,39 +16,46 @@ This file provides Claude with project-specific context and configuration for ev
 
 ## Phase close-out protocol
 
-Close-out is triggered by `/phase-closeout <ids>` (see `.claude/commands/phase-closeout.md`). Do not auto-run it at end-of-phase — wait for the slash command so the user can review the work first. The global `~/.claude/CLAUDE.md` defers to this same explicit-trigger rule.
+Close-out is triggered by `/phase-closeout <N>` (N = batch number; canonical steps in
+`docs/agent-commands/phase-closeout.md`). Do not auto-run it at end-of-batch — wait for the
+slash command so the user can review the work first. The global `~/.claude/CLAUDE.md` defers
+to this same explicit-trigger rule.
 
+- **Batch source of record:** `docs/BUILD_PLAN.md` — a checklist of `- [ ] **Batch N —`
+  rows. Close-out ticks the row; `/next-batch-prompt` reads the first un-ticked one.
+  There is **no** `phase-batches.md` / `wc2026-architecture.md` here — those were calcio's.
 - Session log: `session-log.md` (repo root)
-- Architecture/plan doc: `wc2026-architecture.md` (repo root)
-- Remote: `origin main`
-- After CI is green, merge the feature branch back to `main` via `git checkout main && git merge --ff-only <branch> && git push origin main`
-- CI: GitHub Actions — token in `.env` as `GITHUB_TOKEN`. **Do not foreground-poll CI in a tight loop** — each iteration pollutes chat context. Pattern: one immediate check, then one or two follow-up checks via `run_in_background` bash spaced ~3 min apart, OR push and rely on the cached result endpoint at the end. Never write 10+ polling lines into the conversation.
+- **Local-only right now:** no git remote, no CI, no staging/prod (its own GitHub remote +
+  Supabase/Railway/Vercel are gated to launch — see BUILD_PLAN "Out of scope"). So the green
+  gate is **local** (`ruff` · `ruff format` · `mypy` · `pytest`, plus a `pgserver` migration
+  check when models/migrations changed), and close-out ff-merges the `feat/` branch to **local**
+  `main`. The `docs/agent-commands/phase-closeout.md` 🚩 REMOTE-TODO markers show where
+  push / CI-poll / deploy slot in once that infra exists.
 
-### MANDATORY: generating the next-phase prompt
+### MANDATORY: generating the next-batch prompt
 
-When writing the next-phase copy-paste prompt at close-out, you MUST:
-
-1. `grep` `docs/phase-batches.md` to find the next un-struck-through batch. The prompt scope is **the entire batch**, not a single phase. A batch may contain 1–4 phases.
-2. For every phase ID in the batch, `grep -n -A 6 "Phase X.Y:" wc2026-architecture.md` to pull the acceptance criteria verbatim. NEVER invent a phase number. If `grep` returns no match, the phase does not exist — stop and ask the user.
-3. The model tag (🟢 Sonnet / 🔴 Opus) is fixed by the batch row. Do not propose a different model.
-4. After the user starts the next session, strike through or delete the completed batch row in `docs/phase-batches.md` as part of close-out.
-
-If `docs/phase-batches.md` does not exist or has no remaining batches, fall back to grepping `wc2026-architecture.md` for the next unticked phase heading — but say so explicitly so the user can confirm.
+Follow `docs/agent-commands/next-batch-prompt.md`: `grep` `docs/BUILD_PLAN.md` for the first
+`- [ ]` batch row, use its description verbatim as the scope (plus the relevant BUILD_PLAN
+"Verification" bullets as acceptance), and carry gotchas from the last `session-log.md` entry.
+NEVER invent a batch or acceptance criteria. Model tag (🟢 Sonnet default / 🔴 Opus for
+scoring, scheduler, Betfair sync) is a suggestion, not fixed.
 
 ### Session log entry format (use this, override the global protocol's verbose template)
 
 ```
-## Phase X.Y — Title
-**Commits:** <hash>[, <hash>] · CI ✅
+## Batch N — Title
+**Commits:** <hash>[, <hash>] · verified: ruff · mypy · pytest[ · migration/e2e]
 
 ### Key facts for future sessions
 - <only non-obvious gotchas a future session can't discover by reading code or `git log`>
 - <max ~6 bullets>
 
-**Next:** Phase X.Z — Title (model tag)
+**Next:** Batch N+1 — Title
 ```
 
-That is the whole entry — commits, CI marker, key facts, next pointer. Date, model, files-modified, what-shipped are ALL recoverable from `git show <hash>` / `git log --format=%ci %an` and must NOT be duplicated. Keep entries under ~15 lines.
+That is the whole entry — commits, verify marker, key facts, next pointer. Date, model,
+files-modified, what-shipped are ALL recoverable from `git show <hash>` / `git log` and must
+NOT be duplicated. Keep entries under ~15 lines.
 
 ---
 

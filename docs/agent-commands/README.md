@@ -1,29 +1,32 @@
 # Agent Commands
 
-These docs are the canonical command workflows for both Claude Code and Codex.
-Slash-command wrappers may live in tool-specific folders such as `.claude/`,
-but the source of truth is here.
+Canonical command workflows for The Coupon (Claude Code + Codex). Slash-command
+wrappers live in `.claude/commands/`, but the source of truth is here.
 
-## Normal Batch Flow
+## Normal batch flow
 
 ```text
-/next-batch-prompt polish
-/batch-start U43
-<implement the batch>
-/batch-verify U43
-/phase-closeout U43
+/next-batch-prompt          # reads the first `- [ ]` row in docs/BUILD_PLAN.md
+<implement the batch on a feat/ branch, with tests, until green>
+/phase-closeout <N>         # verify green locally → ff-merge to main → tick BUILD_PLAN + session-log
 ```
 
-The key invariant: implementation happens on a feature branch, not directly on
-`main`. `/phase-closeout` can recover from dirty `main` only when the user
-explicitly asks the agent to do that recovery.
+Invariant: implementation happens on a `feat/` branch, never directly on `main`.
+`/phase-closeout` recovers from dirty `main` only when the user explicitly asks.
 
-## Commands
+**Batch source of record:** `docs/BUILD_PLAN.md` (a `- [ ]`/`- [x]` checklist).
+**Local-only right now:** no git remote / CI / staging-prod yet — the green gate is local
+and close-out ff-merges to local `main` (see the 🚩 REMOTE-TODO markers in `phase-closeout.md`).
 
-- `batch-start.md` — update `main`, create the feature branch, print the batch source.
-- `batch-verify.md` — run local lint/typecheck/build/tests before close-out.
-- `next-batch-prompt.md` — generate the next implementation prompt from batch docs.
-- `phase-closeout.md` — push, poll CI, fast-forward merge, session-log, strike row.
-- `strike-batch.md` — mark a batch row shipped.
-- `ship-staging.md` — ship a feature branch to staging.
-- `ship-prod.md` — promote staging to production.
+## Commands (Coupon-ready)
+
+- `next-batch-prompt.md` — emit the next session's prompt from `docs/BUILD_PLAN.md`.
+- `phase-closeout.md` — local green gate → ff-merge to `main` → tick BUILD_PLAN + session-log.
+- `strike-batch.md` — flip a batch's checkbox to `- [x]` in `docs/BUILD_PLAN.md`.
+
+## ⚠️ Not yet reconciled (calcio leftovers)
+
+`batch-start.md`, `batch-verify.md`, `ship-staging.md`, `ship-prod.md` are still calcio's —
+they hardcode the `wc_2026_predictor` repo path and assume a remote/CI/staging that this repo
+doesn't have yet. Don't rely on them. Reconcile (or delete) them in the Batch-6 rebrand, or
+when launch infra lands. `AGENTS.md` (repo root) is likewise still calcio, under a stale banner.
