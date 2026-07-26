@@ -33,3 +33,17 @@ Batch scope + status lives in `docs/BUILD_PLAN.md`; current state in `STATUS.md`
 - `FakeBetfair.with_sample_data()` + `close_markets()` is the reusable canned scenario for the Batch 6 mocked e2e — EPL + Scottish L2 (Forfar v Brechin) at 15:00, a 12:30 decoy that must be filtered, and an unpriced BTTS "No" proving the *only-offer-priced* rule.
 
 **Next:** Batch 3 — Pick + scoring engine (`Pick` model + unique constraints, submit/odds-snapshot, `services/scoring.py`, `services/coupon.py`; adds gameweek/fixture/pick tables)
+
+---
+
+## Batch 3 — Pick + scoring engine
+**Commits:** 433f0ae · verified: ruff · ruff format · mypy (44 files) · 116 pytest + 3 skipped · pgserver: alembic 001→002 + pick/settle flow
+
+### Key facts for future sessions
+- **Betfair login per request + no odds table:** `deps.get_betfair_adapter` does a full interactive login on *every* call, and the submit endpoint snapshots odds by calling `fetch_odds` for the one fixture live (odds are frozen only onto the `Pick`, nowhere else). Batch 4's "refresh slate+odds" should cache/share the session and can persist odds so picks stop triggering a login each.
+- **Global vs league-scoped + naming:** `Gameweek` + `Fixture` are **global** (one slate per Saturday, shared by every league; gameweek is unique on `saturday_date`); only `Pick` is league-scoped. Models use `league_id`/`player_id` (schema convention), not BUILD_PLAN's illustrative `leaderboard_id`/`user_id`.
+- **Uniqueness key:** the no-dup-selection constraint is `(league, gameweek, fixture, market, outcome)`, **not** `betfair_selection_id` — Betfair reuses the same Yes/No ids (30246/58948) across BTTS markets. A re-pick updates the member's row in place (frees the old selection); the two unique constraints are the race backstop (`IntegrityError` → 409).
+- **Lock + settle transitions:** `gameweek.is_open_for_picks` = status `open` AND `now < locks_at_utc` (time-based; Batch 4's scheduler flips status→`locked` at 14:30). `scoring.settle_gameweek` is incremental/idempotent (settles only pending picks whose market is CLOSED) and flips the gameweek→`settled` once none remain pending. `points_for` uses **ROUND_HALF_UP** (2.05→21), not banker's. Services flush, never commit — the router owns the transaction.
+- **Test split:** the pure maths (points/resolve/combined-odds) run hermetically; `test_picks_flow.py` (uniqueness-both-ways + settlement + standings + acca) is **DATABASE_URL-gated** and skips otherwise — run it against a `pgserver` instance with `alembic upgrade head` first, the Batch-1 approach.
+
+**Next:** Batch 4 — Scheduler (refresh slate+odds pre-lock, lock at 14:30, settle Sat evening + recompute standings, pick reminder push)

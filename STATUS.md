@@ -2,9 +2,17 @@
 
 ## Now
 
-**Batch 2 of 6 shipped to local `main` (commit `21078d6`). Next: Batch 3 — Pick + scoring engine.**
+**Batch 3 of 6 shipped to local `main` (commit `433f0ae`). Next: Batch 4 — Scheduler.**
 
 👉 Full context: `HANDOFF.md` (repo root) + `docs/BUILD_PLAN.md`.
+
+**Done (Batch 3):** the weekly mechanic — `gameweeks`/`fixtures`/`picks` tables (migration
+`002`), `services/{gameweek,scoring,coupon}.py`, and `routers/{picks,gameweek,coupon}.py`.
+The submit endpoint snapshots live Betfair odds server-side and enforces both rules — one
+pick per member per gameweek (a re-pick updates in place), no two members on the same
+selection — with the two `picks` unique constraints as the race backstop. Scoring is
+`round(odds×10)` on the winning runner; the combined coupon is the product of the legs.
+Gameweek + fixture are global (one slate per Saturday); only the pick is league-scoped.
 
 **Done (Batch 2):** built `services/betfair.py` — the odds source. Abstract `BetfairAdapter`
 holds the domain logic (`fetch_slate` Saturday-15:00 filter · `fetch_odds` MATCH_ODDS + BTTS
@@ -30,12 +38,12 @@ reduced; calcio's 40 WC migrations squashed to `001_baseline`. (Detail in `sessi
 package (local Homebrew postgres is broken). The loaded calcio `CLAUDE.md` points at
 calcio's venv — ignore it for this repo.
 
-**Next step:** Batch 3 — Pick + scoring engine: `Pick` model with both unique constraints,
-submit endpoint (snapshot odds, enforce uniqueness), `services/scoring.py` (`round(odds*10)`
-on `WINNER`), leaderboard standings, `services/coupon.py` (combined acca). Adds the
-gameweek/fixture/pick tables (new hand-authored migration). It consumes Batch 2's DTOs —
-join slate↔odds by `betfair_event_id`; settle picks via `MarketSettlement.winners`. Then
-Batches 4–6 (scheduler jobs → frontend → verify + rebrand).
+**Next step:** Batch 4 — Scheduler: APScheduler jobs to refresh slate+odds a few times
+pre-lock, lock the gameweek at 14:30, settle Saturday evening + recompute standings, and
+push pick reminders. Wire `services/gameweek.sync_slate` + `scoring.settle_gameweek` into
+scheduled jobs; introduce a cached/shared Betfair session so it stops logging in per request
+(Batch 3's `get_betfair_adapter` logs in on every pick). Then Batches 5–6 (frontend reshape
+→ verify + rebrand).
 
 **Known Batch-1 gaps (deferred by design):** league *routers* have no committed tests yet
 (spine tests cover auth/notifications/backup/scheduler; leagues proven via the e2e script) —
@@ -67,3 +75,9 @@ check is Craig's to run (agent never logs into his money account); API keys stay
   odds snapshot / settlement, priced-only rule, Saturday-15:00 (Europe/London) filter. Green:
   ruff · ruff format · mypy --strict · 98 tests (no migration — no tables). Next = Batch 3
   (Pick + scoring engine).
+- 2026-07-26 — **Batch 3 shipped** (`433f0ae`, on local `main`). Pick + scoring engine:
+  gameweek/fixture/pick tables (migration `002`), `services/{gameweek,scoring,coupon}.py`,
+  `routers/{picks,gameweek,coupon}.py`; submit snapshots live odds + enforces uniqueness both
+  ways, scoring `round(odds×10)`, combined acca. Green: ruff · ruff format · mypy (44 files) ·
+  116 pytest + 3 skipped; pgserver: alembic 001→002 clean + pick/settle/standings/acca flow.
+  Next = Batch 4 (scheduler).

@@ -107,7 +107,7 @@ This checklist is the **batch source of record**: `/next-batch-prompt` reads the
   Postgres. *(Gameweek/fixture/pick tables moved to Batch 3; the rebrand pass to Batch 6.)*
 - [x] **Batch 2 — Betfair adapter** ✅ 2026-07-25 (`services/betfair.py` + `FakeBetfair`) — login/keepAlive,
   slate, odds, settlement; unit-tested against canned responses.
-- [ ] **Batch 3 — Pick + scoring engine** — `Pick` model, unique constraints, submit endpoint
+- [x] **Batch 3 — Pick + scoring engine** ✅ 2026-07-26 — `Pick` model, unique constraints, submit endpoint
   (snapshot odds, enforce uniqueness), `services/scoring.py`, leaderboard standings,
   `services/coupon.py`. Adds the gameweek + fixture + pick tables (new migration).
 - [ ] **Batch 4 — Scheduler** — jobs: refresh slate+odds (a few times pre-lock), lock at 14:30,
