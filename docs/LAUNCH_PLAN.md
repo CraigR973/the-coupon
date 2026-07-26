@@ -22,7 +22,7 @@ configuration is docs-only until a fresh Coupon staging project exists.
 This checklist is the launch source of record. Only
 `/launch-closeout <L0-L5>` may tick a phase after its gate is GREEN.
 
-- [ ] **L0 — Owner decisions and project identity**
+- [x] **L0 — Owner decisions and project identity** ✅ 2026-07-26
 - [ ] **L1 — Launch-hardening implementation**
 - [ ] **L2 — Fresh staging infrastructure**
 - [ ] **L3 — Staging verification**
