@@ -102,10 +102,10 @@ export const z = {
 } as const;
 
 export const brand = {
-  full: 'Calcio',
-  short: 'Calcio',
-  wordmarkTop: 'Calcio',
-  wordmarkBottom: '',
-  tagline: 'Predict once, compete everywhere.',
-  taglineSub: 'Scotland qualify once every 28 years — best make it count.',
+  full: 'The Coupon',
+  short: 'The Coupon',
+  wordmarkTop: 'The',
+  wordmarkBottom: 'Coupon',
+  tagline: 'One pick. One coupon. Every Saturday.',
+  taglineSub: 'Grab your selection before 14:30 — no two the same.',
 } as const;

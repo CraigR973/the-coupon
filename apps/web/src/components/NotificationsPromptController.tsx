@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { isTourSeen } from './IntroTour';
 import {
   NotificationsPromptModal,
   isNotifPromptSeen,
@@ -29,8 +28,6 @@ export function NotificationsPromptController() {
 
   useEffect(() => {
     if (!player) return;
-    // Wait until first-run (the launchpad) is done so this can't stack on top of it.
-    if (!isTourSeen(player.id)) return;
     if (!isStandalone()) return;
     if (isNotifPromptSeen(player.id)) return;
     if (typeof Notification !== 'undefined' && Notification.permission !== 'default') return;

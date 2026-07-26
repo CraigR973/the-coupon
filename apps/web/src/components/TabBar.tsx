@@ -3,15 +3,10 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Home,
-  CalendarDays,
-  Pencil,
+  Ticket,
   Trophy,
   MoreHorizontal,
-  GitBranch,
-  Users,
   Settings as SettingsIcon,
-  Info,
-  Shield,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -28,22 +23,12 @@ interface TabDef {
 
 const PRIMARY: ReadonlyArray<TabDef> = [
   { to: '/', label: 'Home', Icon: Home },
-  { to: '/schedule', label: 'Schedule', Icon: CalendarDays },
-  { to: '/predictions', label: 'Predict', Icon: Pencil, matchPrefix: ['/predictions'] },
-  { to: '/leagues', label: 'Leagues', Icon: Trophy, matchPrefix: ['/leagues', '/players'] },
+  { to: '/predictions', label: 'Coupon', Icon: Ticket, matchPrefix: ['/predictions'] },
+  { to: '/leagues', label: 'Leagues', Icon: Trophy, matchPrefix: ['/leagues'] },
 ];
 
 const SECONDARY: ReadonlyArray<TabDef> = [
-  { to: '/groups', label: 'Groups', Icon: Users, matchPrefix: ['/groups'] },
-  { to: '/bracket', label: 'Knockout', Icon: GitBranch },
-  { to: '/settings', label: 'Settings', Icon: SettingsIcon },
-  { to: '/about', label: 'About', Icon: Info },
-];
-
-const ADMIN: ReadonlyArray<TabDef> = [
-  { to: '/admin', label: 'Admin Dashboard', Icon: Shield, matchPrefix: ['/admin'] },
-  { to: '/admin/invites', label: 'Invites', Icon: Shield },
-  { to: '/admin/players', label: 'Players', Icon: Shield },
+  { to: '/settings', label: 'Settings', Icon: SettingsIcon, matchPrefix: ['/settings'] },
 ];
 
 function isActive(pathname: string, tab: TabDef): boolean {
@@ -54,7 +39,7 @@ function isActive(pathname: string, tab: TabDef): boolean {
 
 export function TabBar() {
   const { pathname } = useLocation();
-  const { player, logout } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
   const layoutId = useId();
@@ -65,9 +50,7 @@ export function TabBar() {
     setMoreOpen(false);
   }, [pathname]);
 
-  const isMoreActive = [...SECONDARY, ...(player?.role === 'admin' ? ADMIN : [])].some((t) =>
-    isActive(pathname, t),
-  );
+  const isMoreActive = SECONDARY.some((t) => isActive(pathname, t));
 
   const tabs: ReadonlyArray<TabDef & { isCurrent: boolean }> = [
     ...PRIMARY.map((t) => ({ ...t, isCurrent: isActive(pathname, t) })),
@@ -169,25 +152,6 @@ export function TabBar() {
               <span className="font-sans text-sm">{label}</span>
             </button>
           ))}
-
-          {player?.role === 'admin' && (
-            <>
-              <div className="px-3 pt-4 pb-1 text-[10px] font-mono uppercase tracking-[0.25em] text-text-muted">
-                Admin
-              </div>
-              {ADMIN.map(({ to, label, Icon }) => (
-                <button
-                  key={to}
-                  type="button"
-                  onClick={() => handleSheetNav(to)}
-                  className="flex items-center gap-4 px-3 py-3 rounded-md text-left text-text-primary hover:bg-surface-elevated press-down tap-target focus-visible:outline-none focus-visible:shadow-glow"
-                >
-                  <Icon className="h-5 w-5 text-text-secondary" aria-hidden />
-                  <span className="font-sans text-sm">{label}</span>
-                </button>
-              ))}
-            </>
-          )}
 
           <div className="h-px bg-border my-3" />
 

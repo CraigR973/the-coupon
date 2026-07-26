@@ -1,5 +1,5 @@
 import { NavLink, Link } from 'react-router-dom';
-import { Moon, Sun, User, Settings, Info, LogOut } from 'lucide-react';
+import { Moon, Sun, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Brand } from '@/components/Brand';
@@ -15,13 +15,9 @@ import { cn } from '@/lib/utils';
 
 const DESKTOP_NAV = [
   { to: '/', label: 'Home', exact: true },
-  { to: '/schedule', label: 'Schedule', exact: false },
-  { to: '/predictions', label: 'Predict', exact: false },
-  { to: '/bracket', label: 'Knockout', exact: false },
-  { to: '/groups', label: 'Groups', exact: false },
+  { to: '/predictions', label: 'Coupon', exact: false },
   { to: '/leagues', label: 'Leagues', exact: false },
   { to: '/settings', label: 'Settings', exact: false },
-  { to: '/about', label: 'About', exact: false },
 ];
 
 export function TopBar() {
@@ -59,21 +55,9 @@ export function TopBar() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem asChild>
-          <Link to={`/players/${player.id}`}>
-            <User className="h-4 w-4" aria-hidden />
-            Profile
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
           <Link to="/settings">
             <Settings className="h-4 w-4" aria-hidden />
             Settings
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link to="/about">
-            <Info className="h-4 w-4" aria-hidden />
-            About / How it works
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -131,31 +115,10 @@ export function TopBar() {
               {label}
             </NavLink>
           ))}
-          {player?.role === 'admin' && (
-            <NavLink
-              to="/admin"
-              className={({ isActive }) =>
-                cn(
-                  'ml-2 px-3 py-1.5 rounded-sm text-sm font-medium font-sans tracking-tight transition-colors press-down',
-                  'focus-visible:outline-none focus-visible:shadow-glow',
-                  isActive
-                    ? 'bg-accent/15 text-accent'
-                    : 'text-accent/80 hover:text-accent hover:bg-surface-elevated',
-                )
-              }
-            >
-              Admin
-            </NavLink>
-          )}
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
           {themeToggle}
-          {player?.role === 'admin' && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-accent/15 text-accent text-[10px] font-mono uppercase tracking-[0.2em]">
-              Admin
-            </span>
-          )}
           {avatarMenu}
         </div>
       </div>

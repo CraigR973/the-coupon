@@ -48,7 +48,7 @@ function renderTopBar() {
         <AuthProvider>
           <Routes>
             <Route path="/" element={<TopBar />} />
-            <Route path="/about" element={<div>About route</div>} />
+            <Route path="/settings" element={<div>Settings route</div>} />
           </Routes>
         </AuthProvider>
       </MemoryRouter>
@@ -57,13 +57,15 @@ function renderTopBar() {
 }
 
 describe('TopBar avatar menu', () => {
-  it('includes a one-tap About entry in the avatar dropdown', () => {
+  it('includes a one-tap Settings entry in the avatar dropdown', () => {
     renderTopBar();
 
     fireEvent.click(screen.getAllByRole('button', { name: /account menu/i })[0]);
-    fireEvent.click(screen.getAllByRole('link', { name: /about \/ how it works/i })[0]);
+    // No profile/about entries after the reshape — Settings + Sign out only.
+    expect(screen.queryByRole('link', { name: /about/i })).toBeNull();
+    fireEvent.click(screen.getAllByRole('link', { name: /settings/i })[0]);
 
-    expect(screen.getByText('About route')).toBeTruthy();
+    expect(screen.getByText('Settings route')).toBeTruthy();
   });
 
   it('uses the larger compact logo size in the top bar only', () => {

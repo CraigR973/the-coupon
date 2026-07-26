@@ -8,25 +8,32 @@ export interface CountdownParts {
   expired: boolean;
 }
 
+const EXPIRED: CountdownParts = { days: 0, hours: 0, minutes: 0, seconds: 0, expired: true };
+
+function compute(targetIso: string): CountdownParts {
+  const diff = new Date(targetIso).getTime() - Date.now();
+  if (!Number.isFinite(diff) || diff <= 0) return EXPIRED;
+  return {
+    days: Math.floor(diff / 86_400_000),
+    hours: Math.floor((diff % 86_400_000) / 3_600_000),
+    minutes: Math.floor((diff % 3_600_000) / 60_000),
+    seconds: Math.floor((diff % 60_000) / 1_000),
+    expired: false,
+  };
+}
+
+/**
+ * Live countdown to `targetIso`. Recomputed fresh on every render (and on a 1 s
+ * tick), so it reflects the current target immediately when it changes — e.g.
+ * when the gameweek slate loads and the 14:30 lock time becomes known.
+ */
 export function useCountdown(targetIso: string): CountdownParts {
-  const target = new Date(targetIso).getTime();
-
-  function calc(): CountdownParts {
-    const diff = target - Date.now();
-    if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0, expired: true };
-    const days = Math.floor(diff / 86_400_000);
-    const hours = Math.floor((diff % 86_400_000) / 3_600_000);
-    const minutes = Math.floor((diff % 3_600_000) / 60_000);
-    const seconds = Math.floor((diff % 60_000) / 1_000);
-    return { days, hours, minutes, seconds, expired: false };
-  }
-
-  const [parts, setParts] = useState<CountdownParts>(calc);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
-    const id = setInterval(() => setParts(calc()), 1_000);
+    const id = setInterval(() => setTick((t) => t + 1), 1_000);
     return () => clearInterval(id);
-  }, [targetIso]);
+  }, []);
 
-  return parts;
+  return compute(targetIso);
 }

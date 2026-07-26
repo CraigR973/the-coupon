@@ -50,7 +50,7 @@ describe('LoginPage', () => {
 
   it('shows the value-proposition tagline', () => {
     renderLogin();
-    expect(screen.getByText(/predict once, compete everywhere/i)).toBeTruthy();
+    expect(screen.getByText(/one pick\. one coupon\. every saturday/i)).toBeTruthy();
   });
 
   it('shows generic error even on locked account response (lockout removed)', async () => {
