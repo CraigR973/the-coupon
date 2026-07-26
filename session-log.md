@@ -47,3 +47,17 @@ Batch scope + status lives in `docs/BUILD_PLAN.md`; current state in `STATUS.md`
 - **Test split:** the pure maths (points/resolve/combined-odds) run hermetically; `test_picks_flow.py` (uniqueness-both-ways + settlement + standings + acca) is **DATABASE_URL-gated** and skips otherwise — run it against a `pgserver` instance with `alembic upgrade head` first, the Batch-1 approach.
 
 **Next:** Batch 4 — Scheduler (refresh slate+odds pre-lock, lock at 14:30, settle Sat evening + recompute standings, pick reminder push)
+
+---
+
+## Batch 4 — Scheduler
+**Commits:** bc40245 · verified: ruff · ruff format · mypy (45 files) · 142 pytest + 7 skipped · pgserver: 149 passed incl. lock→settle→leaderboard e2e
+
+### Key facts for future sessions
+- **Shared Betfair session (fixes Batch 3's per-request login):** `deps.get_betfair_adapter` now returns `services/betfair_session.betfair_session.acquire()` — login once · keepAlive after a 10-min idle window · transparent re-auth on lapse — and it's closed in `main.lifespan`. Tests still override the dep with `FakeBetfair`, so the shared session is bypassed in the request path.
+- **No odds cache, no new table:** odds stay live-snapshotted onto each `Pick` (Batch 3 design). The refresh job only upserts *fixtures* via `sync_slate`; `refresh_slate` returns `None` on an empty slate so no empty gameweeks accumulate. "refresh slate+odds" reads odds live — there's nothing persisted to read back.
+- **"recompute standings" is on-demand, not a snapshot table:** the settle job settles picks (which makes `scoring.standings` current) then logs each league's leader for observability. No `leaderboard_snapshots` table exists — the coupon router computes standings live.
+- **Schedules are Europe/London wall-clock (APScheduler handles BST/GMT); the source of truth is per-gameweek `locks_at_utc`.** Lock (`lock_due_gameweeks`) and settle (`settleable_gameweeks`) are predicate-based (`status`/`locks_at_utc <= now`), so a missed firing self-heals on the next run. Every job logs+swallows its own errors — an unconfigured/unreachable Betfair just logs, never crashes the scheduler. All four are also on external cron via `run_scheduled.py` (`refresh-slate`/`remind`/`lock`/`settle`).
+- **DB-test hygiene:** `test_picks_flow` commits (non-hermetic — it drives the HTTP endpoint), so a reused `pgserver` PGDATA accumulates rows and makes it fail on re-run (e.g. `assert 6 == 3` from doubled picks). Start each DB run from a clean schema (`DROP SCHEMA public CASCADE`). Batch-4 `test_scheduler_jobs` is hermetic (one session, always rolled back). `alembic check` reports pre-existing model↔migration drift (Batch 1/3, not Batch 4) — the real gate is `alembic upgrade head` (clean on `002`, no new tables).
+
+**Next:** Batch 5 — Frontend reshape (Coupon pick screen + combined-acca view; reuse league/leaderboard pages)

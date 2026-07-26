@@ -2,9 +2,18 @@
 
 ## Now
 
-**Batch 3 of 6 shipped to local `main` (commit `433f0ae`). Next: Batch 4 — Scheduler.**
+**Batch 4 of 6 shipped to local `main` (commit `bc40245`). Next: Batch 5 — Frontend reshape.**
 
 👉 Full context: `HANDOFF.md` (repo root) + `docs/BUILD_PLAN.md`.
+
+**Done (Batch 4):** the scheduler — four APScheduler jobs (`scheduler.py`) on Europe/London
+wall-clock schedules: `refresh_slate` (upsert the upcoming Saturday's fixtures a few times
+pre-lock), `pick_reminders` (Sat 11:00), `lock_gameweeks` (Sat 14:30, open→locked),
+`settle_gameweeks` (Sat evening, settle vs Betfair + recompute standings). Each owns its DB
+transaction + Betfair session and swallows its own errors. New `services/betfair_session.py`
+gives one process-wide login (keepAlive + re-auth) so `deps.get_betfair_adapter` stops logging
+in per request. No new tables — odds stay live-snapshotted onto picks. All four jobs also on
+external cron via `run_scheduled.py`.
 
 **Done (Batch 3):** the weekly mechanic — `gameweeks`/`fixtures`/`picks` tables (migration
 `002`), `services/{gameweek,scoring,coupon}.py`, and `routers/{picks,gameweek,coupon}.py`.
@@ -38,12 +47,10 @@ reduced; calcio's 40 WC migrations squashed to `001_baseline`. (Detail in `sessi
 package (local Homebrew postgres is broken). The loaded calcio `CLAUDE.md` points at
 calcio's venv — ignore it for this repo.
 
-**Next step:** Batch 4 — Scheduler: APScheduler jobs to refresh slate+odds a few times
-pre-lock, lock the gameweek at 14:30, settle Saturday evening + recompute standings, and
-push pick reminders. Wire `services/gameweek.sync_slate` + `scoring.settle_gameweek` into
-scheduled jobs; introduce a cached/shared Betfair session so it stops logging in per request
-(Batch 3's `get_betfair_adapter` logs in on every pick). Then Batches 5–6 (frontend reshape
-→ verify + rebrand).
+**Next step:** Batch 5 — Frontend reshape: the Coupon pick screen (this Saturday's slate, one
+selection, taken selections shown unavailable, odds + countdown to 14:30) and the combined-acca
+view, reusing the existing league/leaderboard pages. Then Batch 6 (verify end-to-end in the
+preview browser + rebrand pass: replace the inherited calcio docs, delete `HANDOFF.md`).
 
 **Known Batch-1 gaps (deferred by design):** league *routers* have no committed tests yet
 (spine tests cover auth/notifications/backup/scheduler; leagues proven via the e2e script) —
@@ -81,3 +88,10 @@ check is Craig's to run (agent never logs into his money account); API keys stay
   ways, scoring `round(odds×10)`, combined acca. Green: ruff · ruff format · mypy (44 files) ·
   116 pytest + 3 skipped; pgserver: alembic 001→002 clean + pick/settle/standings/acca flow.
   Next = Batch 4 (scheduler).
+- 2026-07-26 — **Batch 4 shipped** (`bc40245`, on local `main`). Scheduler: four APScheduler
+  jobs (refresh slate, pick reminders, lock at 14:30, settle Sat evening + recompute standings)
+  on Europe/London wall-clock; new `services/betfair_session.py` shared login replaces the
+  per-request one in `get_betfair_adapter`; all four also on external cron via `run_scheduled.py`.
+  No new tables (odds stay live on picks). Green: ruff · ruff format · mypy (45 files) · 142
+  pytest + 7 skipped; pgserver: 149 passed incl. the lock→settle→leaderboard e2e. Next = Batch 5
+  (frontend reshape).

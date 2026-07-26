@@ -110,7 +110,7 @@ This checklist is the **batch source of record**: `/next-batch-prompt` reads the
 - [x] **Batch 3 — Pick + scoring engine** ✅ 2026-07-26 — `Pick` model, unique constraints, submit endpoint
   (snapshot odds, enforce uniqueness), `services/scoring.py`, leaderboard standings,
   `services/coupon.py`. Adds the gameweek + fixture + pick tables (new migration).
-- [ ] **Batch 4 — Scheduler** — jobs: refresh slate+odds (a few times pre-lock), lock at 14:30,
+- [x] **Batch 4 — Scheduler** ✅ 2026-07-26 — jobs: refresh slate+odds (a few times pre-lock), lock at 14:30,
   settle Sat evening + recompute standings, pick reminder push.
 - [ ] **Batch 5 — Frontend reshape** — Coupon pick screen, combined-acca view; reuse
   league/leaderboard pages.
