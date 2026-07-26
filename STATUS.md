@@ -11,6 +11,10 @@ Batch 6 completed the product rebrand, removed inherited surfaces, corrected
 the frontend auth and invite wiring, and added a deterministic production-
 preview browser flow backed by scratch PostgreSQL and `FakeBetfair`.
 
+Launch phase L0 now records the private repository, fresh project names and
+owner accounts, no-cost platform hostname strategy, regions, budget controls,
+15-player roster handling, and connector boundaries.
+
 ## Verified
 
 - Backend: 149 pytest, Ruff check/format, and strict mypy
@@ -19,19 +23,19 @@ preview browser flow backed by scratch PostgreSQL and `FakeBetfair`.
 - Browser: three-member uniqueness, lock, settlement, standings, and combined
   4.56 accumulator against real PostgreSQL and canned Betfair data
 - Repository: inherited-name and stale-file audit clean
+- Launch L0: owner-approved public GitHub origin, explicit fresh platform
+  targets, docs-only Supabase MCP, and recorded owner decisions
 
 The owner's real Betfair session remains outside agent automation and should be
 checked immediately before launch.
 
 ## Next
 
-Launch hardening and fresh staging infrastructure. The 2026-07-26 audit found
-that the core game is ready, but remote shipment is blocked by application
-contract gaps, auth/database hardening, scheduler/backup decisions, missing
-staging and production targets, and owner-only Betfair launch work. Follow
-`docs/LAUNCH_PLAN.md`; no external service was accessed or changed by the
-audit. Launch phases use `/launch-start <L0-L5>`, `/launch-verify <L0-L5>`,
-and explicit `/launch-closeout <L0-L5>`.
+L1 launch hardening. Implement the application-contract fixes, durable auth
+protections, scheduler retries, database lockdown migration, deployment
+configuration, runbooks, and CI coverage in `docs/LAUNCH_PLAN.md`. Launch
+phases use `/launch-start <L0-L5>`, `/launch-verify <L0-L5>`, and explicit
+`/launch-closeout <L0-L5>`.
 
 ## Toolchain
 

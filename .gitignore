@@ -61,3 +61,6 @@ artifacts/
 .claude/worktrees/
 .mcp.json
 .vercel
+
+# Owner-held launch inputs (real names, PIN handoff, and credential material)
+.launch-private/

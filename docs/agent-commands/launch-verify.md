@@ -33,10 +33,11 @@ push, deploy, or tick the launch status row.
 
 ### `L0` — Owner decisions and project identity
 
-- Confirm the owner has explicitly recorded the MVP scope decisions, domains,
-  project/account ownership, region, budget controls, and initial roster
+- Confirm the owner has explicitly recorded the MVP scope decisions, hostname
+  strategy, project/account ownership, region, budget controls, and initial roster
   handling.
-- Confirm `origin` is the intended private repository without pushing.
+- Confirm `origin` is the intended repository, its visibility matches the
+  owner's recorded decision, and verification itself does not push.
 - Confirm the Supabase connector project ID is either documented as the fresh
   Coupon project or has been replaced. Do not query an unconfirmed project.
 - Confirm no external target was selected merely because a CLI was already
@@ -82,7 +83,7 @@ push, deploy, or tick the launch status row.
 - Verify push subscribe/send/unsubscribe on a supported real device when the
   owner makes one available.
 - Confirm exactly one execution of each scheduler job.
-- Scan logs and Sentry for secrets and personal data.
+- Scan Railway and Vercel logs for secrets and personal data.
 - Restore the approved backup into a disposable database and verify its
   migration revision and representative row counts.
 - Record screenshots, deployment IDs, timestamps, and rollback evidence.
