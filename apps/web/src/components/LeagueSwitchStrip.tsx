@@ -9,7 +9,7 @@ interface Props {
   className?: string;
 }
 
-const LEAGUE_SWITCH_SCROLL_KEY = 'wc2026_league_switch_scroll';
+const LEAGUE_SWITCH_SCROLL_KEY = 'coupon_league_switch_scroll';
 
 function getSavedScrollOffset(): number {
   if (typeof window === 'undefined') return 0;

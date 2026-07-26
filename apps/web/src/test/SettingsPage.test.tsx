@@ -100,8 +100,8 @@ function makeStorage(initial: Record<string, string> = {}) {
 
 function renderPage(fetchMock?: ReturnType<typeof makeFetch>) {
   const storage = makeStorage({
-    wc2026_player: STORED_PLAYER,
-    wc2026_access: FAKE_JWT,
+    coupon_player: STORED_PLAYER,
+    coupon_access: FAKE_JWT,
   });
   vi.stubGlobal('localStorage', storage);
 
@@ -243,8 +243,8 @@ describe('SettingsPage', () => {
 
     vi.stubGlobal('localStorage', {
       getItem: (k: string) => {
-        if (k === 'wc2026_player') return storedPlayerWithAvatar;
-        if (k === 'wc2026_access') return FAKE_JWT;
+        if (k === 'coupon_player') return storedPlayerWithAvatar;
+        if (k === 'coupon_access') return FAKE_JWT;
         return null;
       },
       setItem: vi.fn(),

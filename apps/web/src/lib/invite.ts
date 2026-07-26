@@ -8,15 +8,15 @@ export interface InviteMessageParams {
 
 export function buildInviteMessage({ leagueName, joinCode, origin }: InviteMessageParams): string {
   return [
-    `Join me on Calcio — World Cup 2026 predictions.`,
+    `Join me on The Coupon — our weekly football picks.`,
     ``,
-    `Like fantasy football: you predict once and your picks count across every league you're in.`,
+    `Claim one unique Saturday selection, score the frozen odds, and climb the table.`,
     ``,
-    `New here? Install the app first:`,
+    `Install the app first:`,
     `${origin}`,
-    `Then create an account and tap Leagues → Join by code.`,
+    `Then sign in with the display name and PIN from your admin.`,
     ``,
-    `Already have the app? Open it and tap Leagues → Join by code.`,
+    `Open Leagues → Join by code.`,
     ``,
     `League: ${leagueName}`,
     `Join code: ${joinCode}`,

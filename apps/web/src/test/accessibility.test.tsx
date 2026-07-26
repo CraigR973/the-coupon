@@ -29,8 +29,8 @@ const STORED_PLAYER = JSON.stringify({
 function stubAuth() {
   vi.stubGlobal('localStorage', {
     getItem: (k: string) => {
-      if (k === 'wc2026_player') return STORED_PLAYER;
-      if (k === 'wc2026_access') return FAKE_JWT;
+      if (k === 'coupon_player') return STORED_PLAYER;
+      if (k === 'coupon_access') return FAKE_JWT;
       return null;
     },
     setItem: vi.fn(),
@@ -99,7 +99,7 @@ describe('Accessibility — LoginPage', () => {
     expect(results).toHaveNoViolations();
   });
 
-  it('has no axe violations on the email+PIN form', async () => {
+  it('has no axe violations on the display-name + PIN form', async () => {
     const { container } = render(
       <QueryClientProvider client={makeQueryClient()}>
         <MemoryRouter>

@@ -33,10 +33,10 @@ export default {
           DEFAULT: 'var(--accent)',
           dark: 'var(--accent-dark)',
         },
-        steele: {
-          DEFAULT: 'var(--steele)',
-          mid: 'var(--steele-mid)',
-          dark: 'var(--steele-dark)',
+        metal: {
+          DEFAULT: 'var(--metal)',
+          mid: 'var(--metal-mid)',
+          dark: 'var(--metal-dark)',
         },
 
         // Semantic

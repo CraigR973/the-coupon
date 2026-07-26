@@ -1,5 +1,5 @@
 /**
- * Single source of truth for visual design tokens — "Calcio" identity.
+ * Single source of truth for The Coupon's visual design tokens.
  * CSS variables in `index.css` mirror these values, Tailwind utilities
  * resolve to `var(--*)` references, and JS consumers (sonner toasts,
  * framer-motion variants, inline gradients) import these constants directly.
@@ -20,7 +20,7 @@ export const colors = {
   textMuted: '#7B859B',
   textInverse: '#0B0E13',
 
-  // Brand — refined emerald "go", deeper brass accent, neutral silver Steele
+  // Brand — refined emerald, deeper brass, and neutral metallic accents
   primary: '#10B981',
   primaryDark: '#059669',
   primaryGlow: 'rgba(16, 185, 129, 0.35)',
@@ -29,9 +29,9 @@ export const colors = {
   accentDark: '#A77C2A',
   accentGlow: 'rgba(200, 148, 60, 0.35)',
 
-  steele: '#E8EBF0',
-  steeleMid: '#B0B8C4',
-  steeleDark: '#7A828F',
+  metal: '#E8EBF0',
+  metalMid: '#B0B8C4',
+  metalDark: '#7A828F',
 
   // Semantic
   success: '#10B981',
@@ -47,8 +47,8 @@ export const colors = {
 } as const;
 
 export const gradients = {
-  steele: 'linear-gradient(180deg, #E8EBF0 0%, #B0B8C4 60%, #7A828F 100%)',
-  steeleHorizontal: 'linear-gradient(90deg, #E8EBF0 0%, #B0B8C4 100%)',
+  metal: 'linear-gradient(180deg, #E8EBF0 0%, #B0B8C4 60%, #7A828F 100%)',
+  metalHorizontal: 'linear-gradient(90deg, #E8EBF0 0%, #B0B8C4 100%)',
   surface: 'linear-gradient(180deg, #131720 0%, #0B0E13 100%)',
 } as const;
 

@@ -26,27 +26,26 @@ describe('clearTokens', () => {
 
   it('removes all token keys from localStorage', async () => {
     storeTokens('access-tok', 'refresh-tok', FAKE_PLAYER);
-    expect(localStorage.getItem('wc2026_access')).toBe('access-tok');
+    expect(localStorage.getItem('coupon_access')).toBe('access-tok');
 
     await clearTokens();
 
-    expect(localStorage.getItem('wc2026_access')).toBeNull();
-    expect(localStorage.getItem('wc2026_refresh')).toBeNull();
-    expect(localStorage.getItem('wc2026_player')).toBeNull();
+    expect(localStorage.getItem('coupon_access')).toBeNull();
+    expect(localStorage.getItem('coupon_refresh')).toBeNull();
+    expect(localStorage.getItem('coupon_player')).toBeNull();
   });
 
-  it('deletes api-user-data and api-matches caches on logout', async () => {
+  it('deletes the Coupon API cache on logout', async () => {
     await clearTokens();
 
-    expect(mockCachesDelete).toHaveBeenCalledWith('api-user-data');
-    expect(mockCachesDelete).toHaveBeenCalledWith('api-matches');
-    expect(mockCachesDelete).toHaveBeenCalledTimes(2);
+    expect(mockCachesDelete).toHaveBeenCalledWith('api-coupon');
+    expect(mockCachesDelete).toHaveBeenCalledTimes(1);
   });
 
-  it('caches.has("api-user-data") is false after clearTokens', async () => {
+  it('caches.has("api-coupon") is false after clearTokens', async () => {
     await clearTokens();
 
-    const stillPresent = await caches.has('api-user-data');
+    const stillPresent = await caches.has('api-coupon');
     expect(stillPresent).toBe(false);
   });
 

@@ -2,113 +2,35 @@
 
 ## Now
 
-**Batch 5 of 6 shipped to local `main` (commit `25133f0`). Next: Batch 6 — Verify + rebrand pass.**
+Batch 5 is closed on local `main` at `9ca4c8e`. Batch 6 is in progress on
+`feat/batch-6-verify-rebrand`.
 
-👉 Full context: `HANDOFF.md` (repo root) + `docs/BUILD_PLAN.md`.
+The backend provides display-name + PIN auth, leagues and memberships, weekly
+gameweeks and fixtures, unique picks, frozen odds, settlement, standings, and a
+combined coupon. The frontend provides the weekly pick screen, combined coupon,
+standings, league management, settings, and the PWA shell.
 
-**Done (Batch 5):** the frontend reshape — `apps/web` turned from the inherited calcio World-Cup
-app into The Coupon's weekly-accumulator UI. New pick screen (`CouponPickPage`: this Saturday's
-slate, one selection, taken selections unavailable, live odds + 14:30 countdown), `CombinedAccaView`
-+ `CouponCombinedPage`, `PickCard`/`OddsGuide`/`usePickEditor`/`lib/coupon`. Rebuilt the home
-(`DashboardPage`) and `LeaderboardPage` (onto `/standings`). Stripped every WC surface bound to the
-deleted backend (bracket/knockout/specials/survey/week1/schedule/match/group/admin pages + helper
-libs/hooks/tests) and de-Calcio'd Brand/TopBar/TabBar. Screens bind to the snake_case API under
-`/api/v1/leagues/{slug}` via `DEFAULT_LEAGUE_SLUG`. Green (Node 20): `pnpm build` (tsc + vite + PWA)
-· `tsc --noEmit` · vitest 169/169. (Full mocked-Betfair/real-Postgres/preview e2e is Batch 6.)
+## Verification target
 
-**Done (Batch 4):** the scheduler — four APScheduler jobs (`scheduler.py`) on Europe/London
-wall-clock schedules: `refresh_slate` (upsert the upcoming Saturday's fixtures a few times
-pre-lock), `pick_reminders` (Sat 11:00), `lock_gameweeks` (Sat 14:30, open→locked),
-`settle_gameweeks` (Sat evening, settle vs Betfair + recompute standings). Each owns its DB
-transaction + Betfair session and swallows its own errors. New `services/betfair_session.py`
-gives one process-wide login (keepAlive + re-auth) so `deps.get_betfair_adapter` stops logging
-in per request. No new tables — odds stay live-snapshotted onto picks. All four jobs also on
-external cron via `run_scheduled.py`.
+Batch 6 must leave all of these green:
 
-**Done (Batch 3):** the weekly mechanic — `gameweeks`/`fixtures`/`picks` tables (migration
-`002`), `services/{gameweek,scoring,coupon}.py`, and `routers/{picks,gameweek,coupon}.py`.
-The submit endpoint snapshots live Betfair odds server-side and enforces both rules — one
-pick per member per gameweek (a re-pick updates in place), no two members on the same
-selection — with the two `picks` unique constraints as the race backstop. Scoring is
-`round(odds×10)` on the winning runner; the combined coupon is the product of the legs.
-Gameweek + fixture are global (one slate per Saturday); only the pick is league-scoped.
+- Backend pytest, Ruff check/format, and strict mypy
+- Alembic upgrade on clean scratch PostgreSQL with only Coupon tables
+- Frontend production build, TypeScript, and Vitest
+- Playwright browser flow on a real scratch database with `FakeBetfair`
+- Repository inherited-name audit
 
-**Done (Batch 2):** built `services/betfair.py` — the odds source. Abstract `BetfairAdapter`
-holds the domain logic (`fetch_slate` Saturday-15:00 filter · `fetch_odds` MATCH_ODDS + BTTS
-priced-only snapshot with HOME/DRAW/AWAY · YES/NO mapping · `settle` on runner `WINNER`);
-`Betfair` (live httpx: interactive login/keepAlive, JSON-RPC, retry/backoff) and `FakeBetfair`
-(canned catalogues/books, `with_sample_data` + `close_markets`) override only the raw
-primitives, so tests drive the real domain code. Added `BF_APP_KEY`/`BF_USER`/`BF_PASS` to
-config. No tables added → no migration.
+The live Betfair slate check remains owner-only and is not an automated gate.
+Do not log into the owner's account.
 
-**Verified green:** `ruff check` + `ruff format` clean · `mypy --strict` (35 files, 0 issues) ·
-98 pytest (76 spine + 22 new). The 22 exercise FakeBetfair slate/odds/settlement and the live
-client's HTTP layer (login/keepAlive/RPC parse+error+5xx-retry) via `httpx.MockTransport` — no
-live Betfair session touched.
+## Toolchain
 
-**Done (Batch 1):** app-starter PIN/invite auth + profile + notification spine ported over
-calcio's email-first tangle; leagues/memberships/join-requests reconciled onto it; `scheduler.py`
-reduced; calcio's 40 WC migrations squashed to `001_baseline`. (Detail in `session-log.md` /
-`git show 8513a02`.)
+- Backend Python tools:
+  `/Users/craigrobinson/app-starter/apps/api/.venv/bin/`
+- Backend import path:
+  `/Users/craigrobinson/the-coupon/apps/api`
+- Frontend: Node `20.20.2` and pnpm
+- Scratch database: pip `pgserver`
 
-**Toolchain (no coupon venv exists):** run lint/type/test with app-starter's venv —
-`/Users/craigrobinson/app-starter/apps/api/.venv/bin/{ruff,mypy,python}` — and
-`PYTHONPATH=/Users/craigrobinson/the-coupon/apps/api`. DB checks use the pip `pgserver`
-package (local Homebrew postgres is broken). The loaded calcio `CLAUDE.md` points at
-calcio's venv — ignore it for this repo.
-
-**Next step:** Batch 6 — Verify + rebrand pass: the full mocked-Betfair + real-Postgres +
-preview-browser end-to-end (seed a leaderboard → open the Saturday slate → members pick → a
-third is blocked from a taken selection → lock → settle → standings + combined-acca render,
-screenshot as proof) + grep-clean of calcio/WC/bracket/knockout; replace the inherited calcio
-docs (README/AGENTS/.env.example), sweep the `wc2026_*` localStorage keys, delete `HANDOFF.md`.
-
-**Known Batch-1 gaps (deferred by design):** league *routers* have no committed tests yet
-(spine tests cover auth/notifications/backup/scheduler; leagues proven via the e2e script) —
-port/reconcile calcio's `test_leagues`/`test_join`/`test_invites` when convenient. Docs
-rebrand (`AGENTS.md`/`README.md`/`.env.example` still calcio/WC) + `HANDOFF.md` deletion
-are Batch 6.
-
-**Key decisions (settled — don't re-litigate):** base = calcio clone · auth = pure
-PIN/invite (port app-starter's) · odds = Betfair Exchange (only free source with the
-Scottish lower leagues — verified) · scope = English pyramid + full Scottish · mechanic
-= one unique odds-scored pick per member per gameweek.
-
-**Gotchas:** web needs Node 20; backend deps `--prefer-binary`; scratch Postgres via
-pip `pgserver`; `/Users/craigrobinson/app-starter` is the infra reference; Betfair live
-check is Craig's to run (agent never logs into his money account); API keys stay in
-`.env`, never the repo.
-
-## Log
-
-- 2026-07-24 — Cloned calcio → the-coupon; stripped WC backend; locked auth = PIN/invite;
-  wrote HANDOFF.md + BUILD_PLAN.md. Handed off mid-Batch-1.
-- 2026-07-25 — **Batch 1 shipped** (`8513a02`, on local `main`). Ported app-starter spine,
-  reconciled leagues, squashed to `001_baseline`, reduced scheduler. Green: compile · ruff ·
-  mypy --strict · 76 tests · migration + league e2e on real Postgres. Also reconciled the
-  close-out workflow to this repo (BUILD_PLAN-driven, local-first) and cleared calcio's stale
-  batch docs. Next = Batch 2 (Betfair adapter).
-- 2026-07-25 — **Batch 2 shipped** (`21078d6`, on local `main`). Betfair adapter
-  (`services/betfair.py`): `BetfairAdapter` ABC + live `Betfair` + `FakeBetfair`; slate /
-  odds snapshot / settlement, priced-only rule, Saturday-15:00 (Europe/London) filter. Green:
-  ruff · ruff format · mypy --strict · 98 tests (no migration — no tables). Next = Batch 3
-  (Pick + scoring engine).
-- 2026-07-26 — **Batch 3 shipped** (`433f0ae`, on local `main`). Pick + scoring engine:
-  gameweek/fixture/pick tables (migration `002`), `services/{gameweek,scoring,coupon}.py`,
-  `routers/{picks,gameweek,coupon}.py`; submit snapshots live odds + enforces uniqueness both
-  ways, scoring `round(odds×10)`, combined acca. Green: ruff · ruff format · mypy (44 files) ·
-  116 pytest + 3 skipped; pgserver: alembic 001→002 clean + pick/settle/standings/acca flow.
-  Next = Batch 4 (scheduler).
-- 2026-07-26 — **Batch 4 shipped** (`bc40245`, on local `main`). Scheduler: four APScheduler
-  jobs (refresh slate, pick reminders, lock at 14:30, settle Sat evening + recompute standings)
-  on Europe/London wall-clock; new `services/betfair_session.py` shared login replaces the
-  per-request one in `get_betfair_adapter`; all four also on external cron via `run_scheduled.py`.
-  No new tables (odds stay live on picks). Green: ruff · ruff format · mypy (45 files) · 142
-  pytest + 7 skipped; pgserver: 149 passed incl. the lock→settle→leaderboard e2e. Next = Batch 5
-  (frontend reshape).
-- 2026-07-26 — **Batch 5 shipped** (`25133f0`, on local `main`). Frontend reshape: `apps/web`
-  turned from the calcio WC app into The Coupon's weekly-accumulator UI — new pick screen +
-  combined-acca view + `PickCard`/`OddsGuide`/`usePickEditor`/`lib/coupon`, rebuilt home +
-  `LeaderboardPage` (onto `/standings`); stripped every WC surface bound to the deleted backend
-  and de-Calcio'd Brand/TopBar/TabBar. Green (Node 20): `pnpm build` (tsc + vite + PWA) · `tsc` ·
-  vitest 169/169 (28 files). Next = Batch 6 (verify e2e + rebrand pass).
+See `docs/BUILD_PLAN.md` for acceptance and `session-log.md` for completed-batch
+implementation notes.

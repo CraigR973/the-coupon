@@ -159,5 +159,4 @@ export interface LeagueInvite {
   created_at: string;
   expires_at: string | null;
   used_at: string | null;
-  invitee_email: string | null;
 }

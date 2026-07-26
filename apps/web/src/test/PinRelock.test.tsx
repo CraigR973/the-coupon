@@ -10,16 +10,15 @@ const FAKE_JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwMSIsImV4cCI6MX0.fake';
 const STORED_PLAYER = JSON.stringify({
   id: 'p1',
   displayName: 'Alice',
-  email: 'alice@example.com',
   role: 'player',
   timezone: 'UTC',
 });
 
 function makeStorage() {
   const values = new Map([
-    ['wc2026_player', STORED_PLAYER],
-    ['wc2026_access', FAKE_JWT],
-    ['wc2026_refresh', 'refresh-token'],
+    ['coupon_player', STORED_PLAYER],
+    ['coupon_access', FAKE_JWT],
+    ['coupon_refresh', 'refresh-token'],
   ]);
 
   return {
@@ -82,7 +81,6 @@ describe('PIN re-lock gate', () => {
             player: {
               id: 'p1',
               display_name: 'Alice',
-              email: 'alice@example.com',
               role: 'player',
               timezone: 'UTC',
               avatar_url: 'https://example.supabase.co/avatars/p1/face.jpg',
@@ -107,7 +105,7 @@ describe('PIN re-lock gate', () => {
       expect.stringContaining('/api/v1/auth/login'),
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ email: 'alice@example.com', pin: '1234' }),
+        body: JSON.stringify({ display_name: 'Alice', pin: '1234' }),
       }),
     );
   });

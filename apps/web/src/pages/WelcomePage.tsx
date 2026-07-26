@@ -57,9 +57,9 @@ function AndroidInstructions() {
 function DesktopInstructions() {
   return (
     <p className="text-sm font-sans text-text-secondary">
-      Open this page on your phone to install the app. On desktop, you can use the app directly in your browser — just{' '}
-      <Link to="/login" className="text-primary underline">sign in</Link> or{' '}
-      <Link to="/signup" className="text-primary underline">create an account</Link>.
+      Open this page on your phone to install the app. On desktop, you can use
+      the app directly in your browser — just{' '}
+      <Link to="/login" className="text-primary underline">sign in</Link>.
     </p>
   );
 }
@@ -108,9 +108,7 @@ export function WelcomePage() {
             <CardContent className="pt-4 space-y-3">
               <p className="text-sm font-sans text-text-secondary">
                 Already have the app?{' '}
-                <Link to="/login" className="text-primary underline">Sign in</Link>
-                {' or '}
-                <Link to="/signup" className="text-primary underline">create an account</Link>.
+                <Link to="/login" className="text-primary underline">Sign in</Link>.
               </p>
             </CardContent>
           </Card>

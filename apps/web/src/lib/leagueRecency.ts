@@ -1,6 +1,6 @@
 import type { LeagueSummary } from './types';
 
-export const LAST_VIEWED_LEAGUE_KEY = 'wc2026_last_viewed_league';
+export const LAST_VIEWED_LEAGUE_KEY = 'coupon_last_viewed_league';
 
 export interface LastViewedLeague {
   slug: string;

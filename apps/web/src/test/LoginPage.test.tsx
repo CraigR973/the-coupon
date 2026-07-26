@@ -33,9 +33,9 @@ beforeEach(() => {
 });
 
 describe('LoginPage', () => {
-  it('shows an email input field', () => {
+  it('shows a display-name input field', () => {
     renderLogin();
-    expect(screen.getByLabelText(/email/i)).toBeTruthy();
+    expect(screen.getByLabelText(/display name/i)).toBeTruthy();
   });
 
   it('shows a PIN input', () => {
@@ -43,9 +43,9 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText(/pin digit 1/i)).toBeTruthy();
   });
 
-  it('shows a sign up link', () => {
+  it('does not offer public account creation', () => {
     renderLogin();
-    expect(screen.getByRole('link', { name: /create account/i })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /create account/i })).toBeNull();
   });
 
   it('shows the value-proposition tagline', () => {
@@ -63,15 +63,15 @@ describe('LoginPage', () => {
     );
 
     renderLogin();
-    const emailInput = screen.getByLabelText(/email/i);
-    fireEvent.change(emailInput, { target: { value: 'alice@example.com' } });
+    const displayNameInput = screen.getByLabelText(/display name/i);
+    fireEvent.change(displayNameInput, { target: { value: 'Alice' } });
     fireEvent.change(screen.getByLabelText('PIN digit 1'), { target: { value: '1' } });
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeTruthy();
     });
-    expect(screen.getByRole('alert').textContent).toMatch(/invalid email or pin/i);
+    expect(screen.getByRole('alert').textContent).toMatch(/invalid display name or pin/i);
   });
 
   it('shows generic error on invalid credentials', async () => {
@@ -83,12 +83,12 @@ describe('LoginPage', () => {
     );
 
     renderLogin();
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'alice@example.com' } });
+    fireEvent.change(screen.getByLabelText(/display name/i), { target: { value: 'Alice' } });
     fireEvent.change(screen.getByLabelText('PIN digit 1'), { target: { value: '1' } });
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole('alert').textContent).toMatch(/invalid email or pin/i);
+      expect(screen.getByRole('alert').textContent).toMatch(/invalid display name or pin/i);
     });
   });
 
@@ -105,7 +105,6 @@ describe('LoginPage', () => {
             player: {
               id: 'p1',
               display_name: 'Alice',
-              email: 'alice@example.com',
               role: 'player',
               timezone: 'Europe/London',
               avatar_url: null,
@@ -115,14 +114,13 @@ describe('LoginPage', () => {
     );
 
     renderLogin();
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'alice@example.com' } });
+    fireEvent.change(screen.getByLabelText(/display name/i), { target: { value: 'Alice' } });
     fillPin('1234');
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => {
-      expect(cachesDelete).toHaveBeenCalledWith('api-user-data');
-      expect(cachesDelete).toHaveBeenCalledWith('api-matches');
+      expect(cachesDelete).toHaveBeenCalledWith('api-coupon');
     });
-    expect(localStorage.getItem('wc2026_player')).toContain('alice@example.com');
+    expect(localStorage.getItem('coupon_player')).toContain('Alice');
   });
 });

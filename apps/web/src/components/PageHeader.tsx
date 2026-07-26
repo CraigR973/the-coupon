@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 
 interface PageHeaderProps {
   title: ReactNode;
-  /** Optional kicker / pre-title (e.g. "Round of 16"). */
+  /** Optional kicker / pre-title (e.g. "Saturday slate"). */
   eyebrow?: ReactNode;
   /** When true, shows a back chevron (inline, left of title) that calls navigate(-1). */
   showBack?: boolean;

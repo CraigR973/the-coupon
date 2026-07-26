@@ -100,15 +100,13 @@
     --accent: #C8943C;
     --accent-dark: #A77C2A;
     --accent-glow: rgba(200, 148, 60, 0.35);
-    --steele: #E8EBF0;
-    --steele-mid: #B0B8C4;
-    --steele-dark: #7A828F;
-    --steele-gradient: linear-gradient(180deg, #E8EBF0 0%, #B0B8C4 60%, #7A828F 100%);
-    --steele-gradient-h: linear-gradient(90deg, #E8EBF0 0%, #B0B8C4 100%);
+    --metal: #E8EBF0;
+    --metal-mid: #B0B8C4;
+    --metal-dark: #7A828F;
+    --metal-gradient: linear-gradient(180deg, #E8EBF0 0%, #B0B8C4 60%, #7A828F 100%);
+    --metal-gradient-h: linear-gradient(90deg, #E8EBF0 0%, #B0B8C4 100%);
 
-    /* Wordmark — premium brass gold gradient applied to the
-       "THE STEELE / SPREADSHEET SYSTEM" mark. Separate from Steele so
-       Avatar tints + other Steele uses stay metallic-silver. */
+    /* Wordmark — premium brass gradient, separate from neutral accents. */
     --wordmark-gradient: linear-gradient(180deg, #F0DDA6 0%, #D4A24A 55%, #A77C2A 100%);
     --wordmark-gradient-h: linear-gradient(90deg, #F0DDA6 0%, #D4A24A 50%, #A77C2A 100%);
 
@@ -164,13 +162,12 @@
     --accent-dark: #8B6320;
     --accent-glow: rgba(167, 124, 42, 0.22);
 
-    /* Steele in light mode is a dark slate gradient — keeps the
-       metallic-character of the wordmark legible against white. */
-    --steele: #4B5563;
-    --steele-mid: #6B7280;
-    --steele-dark: #9CA3AF;
-    --steele-gradient: linear-gradient(180deg, #374151 0%, #6B7280 60%, #9CA3AF 100%);
-    --steele-gradient-h: linear-gradient(90deg, #374151 0%, #6B7280 100%);
+    /* Neutral metallic accents in light mode use a darker slate. */
+    --metal: #4B5563;
+    --metal-mid: #6B7280;
+    --metal-dark: #9CA3AF;
+    --metal-gradient: linear-gradient(180deg, #374151 0%, #6B7280 60%, #9CA3AF 100%);
+    --metal-gradient-h: linear-gradient(90deg, #374151 0%, #6B7280 100%);
 
     /* Wordmark — deeper brass for AA contrast on white. */
     --wordmark-gradient: linear-gradient(180deg, #D9A968 0%, #A77C2A 55%, #6E4F18 100%);
@@ -279,16 +276,16 @@
     display: none;
   }
 
-  .text-steele {
-    background: var(--steele-gradient);
+  .text-metal {
+    background: var(--metal-gradient);
     background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     color: transparent;
   }
 
-  .text-steele-h {
-    background: var(--steele-gradient-h);
+  .text-metal-h {
+    background: var(--metal-gradient-h);
     background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;

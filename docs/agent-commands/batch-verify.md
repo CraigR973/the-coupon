@@ -1,79 +1,44 @@
 ---
-description: Run the local verification gate before pushing a batch branch.
+description: Run The Coupon's local verification gate.
 ---
 
 # /batch-verify
 
-Use this after implementation and before `/phase-closeout`. It gives the agent
-one obvious place to prove the branch is ready.
+`$ARGUMENTS` must identify a batch in `docs/BUILD_PLAN.md`. Read that row and
+the Verification section before running checks.
 
-Examples:
-
-```text
-/batch-verify U43
-/batch-verify 14
-```
-
-## Steps
-
-1. Verify branch and status:
-
-   ```bash
-   git -C /Users/craigrobinson/wc_2026_predictor symbolic-ref --short HEAD
-   git -C /Users/craigrobinson/wc_2026_predictor status --short
-   ```
-
-   Warn if the branch is `main`. Verification may still run, but close-out will
-   require a feature branch.
-
-2. Determine touched areas:
-
-   ```bash
-   git -C /Users/craigrobinson/wc_2026_predictor diff --name-only main...HEAD
-   git -C /Users/craigrobinson/wc_2026_predictor diff --name-only
-   ```
-
-3. Frontend gate, when `apps/web` or `packages/shared` changed:
-
-   ```bash
-   PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" pnpm --dir /Users/craigrobinson/wc_2026_predictor/apps/web lint
-   PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" pnpm --dir /Users/craigrobinson/wc_2026_predictor/apps/web typecheck
-   PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" pnpm --dir /Users/craigrobinson/wc_2026_predictor/apps/web build
-   PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" pnpm --dir /Users/craigrobinson/wc_2026_predictor/apps/web test
-   ```
-
-4. Backend gate, when `apps/api`, `migrations`, or backend-affecting shared code
-   changed:
-
-   ```bash
-   PYTHONPATH=/Users/craigrobinson/wc_2026_predictor/apps/api /Users/craigrobinson/wc_2026_predictor/apps/api/.venv/bin/python -m ruff check /Users/craigrobinson/wc_2026_predictor/apps/api
-   PYTHONPATH=/Users/craigrobinson/wc_2026_predictor/apps/api /Users/craigrobinson/wc_2026_predictor/apps/api/.venv/bin/python -m ruff format --check /Users/craigrobinson/wc_2026_predictor/apps/api
-   PYTHONPATH=/Users/craigrobinson/wc_2026_predictor/apps/api /Users/craigrobinson/wc_2026_predictor/apps/api/.venv/bin/python -m mypy /Users/craigrobinson/wc_2026_predictor/apps/api/src
-   PYTHONPATH=/Users/craigrobinson/wc_2026_predictor/apps/api /Users/craigrobinson/wc_2026_predictor/apps/api/.venv/bin/python -m pytest /Users/craigrobinson/wc_2026_predictor/apps/api/tests
-   ```
-
-5. Shared package gate, when `packages/shared` changed:
-
-   ```bash
-   PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" pnpm --dir /Users/craigrobinson/wc_2026_predictor/packages/shared test
-   ```
-
-   If a script is missing, report it and continue with the relevant frontend or
-   backend tests that consume the shared package.
-
-6. Print a concise result:
-
-   ```text
-   Ready for /phase-closeout U43: yes
-   Verified: lint, typecheck, build, tests
-   ```
-
-## Optional helper
-
-Agents may use:
+Confirm the current branch is not `main`, then run:
 
 ```bash
-/Users/craigrobinson/wc_2026_predictor/scripts/agent/batch-verify.sh U43
+PYTHONPATH=/Users/craigrobinson/the-coupon/apps/api \
+  /Users/craigrobinson/app-starter/apps/api/.venv/bin/ruff check \
+  /Users/craigrobinson/the-coupon/apps/api
+PYTHONPATH=/Users/craigrobinson/the-coupon/apps/api \
+  /Users/craigrobinson/app-starter/apps/api/.venv/bin/ruff format --check \
+  /Users/craigrobinson/the-coupon/apps/api
+PYTHONPATH=/Users/craigrobinson/the-coupon/apps/api \
+  /Users/craigrobinson/app-starter/apps/api/.venv/bin/mypy \
+  /Users/craigrobinson/the-coupon/apps/api/src
+PYTHONPATH=/Users/craigrobinson/the-coupon/apps/api \
+  /Users/craigrobinson/app-starter/apps/api/.venv/bin/python -m pytest \
+  /Users/craigrobinson/the-coupon/apps/api/tests
 ```
 
-The helper runs the common gates and exits non-zero on failure.
+```bash
+PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" \
+  pnpm --dir /Users/craigrobinson/the-coupon/apps/web lint
+PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" \
+  pnpm --dir /Users/craigrobinson/the-coupon/apps/web typecheck
+PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" \
+  pnpm --dir /Users/craigrobinson/the-coupon/apps/web build
+PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" \
+  pnpm --dir /Users/craigrobinson/the-coupon/apps/web test
+```
+
+When database behavior is in scope, use a clean pip `pgserver` instance, run
+`alembic upgrade head`, then rerun pytest with `DATABASE_URL` set. When browser
+behavior is in scope, run the production-preview Playwright flow and retain its
+screenshots.
+
+Report every command and result. Do not commit or merge; close-out remains a
+separate user-triggered action.

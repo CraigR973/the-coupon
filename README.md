@@ -1,47 +1,63 @@
-# World Cup 2026 Prediction League
+# The Coupon
 
-A private, invite-only prediction league PWA for the 2026 FIFA World Cup. Up to 15 players, full tournament coverage (104 matches), automatic result fetching, live leaderboard, and push notifications.
+The Coupon is a private weekly football accumulator game for friends. Each
+leaderboard opens one Saturday 3pm slate, every member claims one unique priced
+selection, and winning picks score `round(odds × 10)` points. The combined
+coupon shows every member's frozen pick as one accumulator.
+
+The game is for points and fun; it does not place bets or handle money.
 
 ## Stack
 
-- **Frontend:** React 18 + Tailwind CSS + shadcn/ui + Vite (PWA)
-- **Backend:** Python 3.12 + FastAPI
-- **Database:** PostgreSQL via Supabase
-- **Hosting:** Vercel (frontend) + Railway (backend)
+- React 18, TypeScript, Tailwind CSS, Vite, and PWA support
+- FastAPI, SQLAlchemy, Alembic, and PostgreSQL
+- Betfair Exchange adapter with a fully canned test implementation
 
-## Monorepo Structure
+## Repository
 
-```
-apps/
-  api/          FastAPI backend
-  web/          React + Vite frontend (PWA)
-packages/
-  shared/       Shared Zod schemas, TS types, scoring logic
-migrations/     Alembic database migrations
-docs/
-  adr/          Architecture Decision Records
-  runbooks/     Operational runbooks
+```text
+apps/api/       FastAPI backend and tests
+apps/web/       React PWA, unit tests, and Playwright verification
+migrations/     Alembic migrations
+docs/           Build plan and agent workflows
 ```
 
-## Prerequisites
+`docs/BUILD_PLAN.md` is the product and batch source of record.
 
-- Node.js ≥ 20.x
-- pnpm ≥ 9.x (`npm i -g pnpm`)
-- Python 3.12
+## Local setup
 
-## Getting Started
+Requirements: Node 20, pnpm 9, Python 3.12, and PostgreSQL.
 
-1. Copy env vars: `cp .env.example .env` and fill in values
-2. Install Node dependencies: `pnpm install`
-3. Set up Python venv: `cd apps/api && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
-4. Run migrations: `alembic upgrade head`
-5. Start dev servers:
-   - Backend: `cd apps/api && uvicorn main:app --reload`
-   - Frontend: `cd apps/web && pnpm dev`
+```bash
+cp .env.example .env
+pnpm install
+```
 
-## Environment Variables
+This repository intentionally has no Python virtual environment. The local
+toolchain uses the sibling template environment:
 
-See [.env.example](.env.example) for all required variables.
+```bash
+export PYTHONPATH=/Users/craigrobinson/the-coupon/apps/api
+/Users/craigrobinson/app-starter/apps/api/.venv/bin/python -m alembic \
+  -c /Users/craigrobinson/the-coupon/apps/api/alembic.ini upgrade head
+/Users/craigrobinson/app-starter/apps/api/.venv/bin/python -m uvicorn \
+  src.main:app --app-dir /Users/craigrobinson/the-coupon/apps/api --reload
+```
+
+In another terminal:
+
+```bash
+PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" \
+  pnpm --dir /Users/craigrobinson/the-coupon/apps/web dev
+```
+
+Use the canned Betfair adapter for automated tests. Live Betfair access is a
+manual owner-only check because the account is money-linked.
+
+## Verification
+
+See `docs/agent-commands/batch-verify.md` for the exact backend, database,
+frontend, and browser checks.
 
 ## License
 

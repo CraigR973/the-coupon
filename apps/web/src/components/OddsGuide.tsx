@@ -1,7 +1,7 @@
 /**
  * OddsGuide — collapsible quick-reference for how The Coupon scores.
  *
- * Replaces calcio's ScoringGuide. Pure/static: the rules and worked examples
+ * Static rules and worked examples
  * live here so the pick screen can explain the odds×10 model at a glance.
  */
 

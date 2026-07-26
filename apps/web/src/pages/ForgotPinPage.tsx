@@ -9,7 +9,7 @@ import { Brand } from '@/components/Brand';
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 export function ForgotPinPage() {
-  const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -22,7 +22,7 @@ export function ForgotPinPage() {
       const resp = await fetch(`${BASE}/api/v1/auth/pin/reset-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ display_name: displayName.trim() }),
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
@@ -51,8 +51,7 @@ export function ForgotPinPage() {
             {submitted ? (
               <div className="space-y-4 text-center">
                 <p className="text-sm font-sans text-text-secondary">
-                  If that email is registered and verified, you'll receive a reset link shortly.
-                  Check your inbox (and spam folder).
+                  If that display name is registered, an admin will help you reset your PIN.
                 </p>
                 <Link
                   to="/login"
@@ -64,19 +63,19 @@ export function ForgotPinPage() {
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <p className="text-sm font-sans text-text-secondary">
-                  Enter your email address and we'll send you a link to reset your PIN.
+                  Enter your display name to ask an admin for a PIN reset.
                 </p>
 
                 <div className="space-y-1">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="display-name">Display name</Label>
                   <Input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
+                    id="display-name"
+                    type="text"
+                    autoComplete="username"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Your name"
                   />
                 </div>
 
@@ -87,7 +86,7 @@ export function ForgotPinPage() {
                 )}
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Sending…' : 'Send reset link'}
+                  {isLoading ? 'Sending…' : 'Request PIN reset'}
                 </Button>
 
                 <div className="text-center">

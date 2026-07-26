@@ -9,8 +9,8 @@ const FAKE_JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwMSIsImV4cCI6OTk5OTk5OTk5OX0.f
 const STORED_PLAYER = JSON.stringify({ id: 'p1', displayName: 'Alice', role: 'player', timezone: 'UTC' });
 
 const MOCK_LEAGUE = {
-  slug: 'steele-spreadsheet',
-  name: 'The Steele Spreadsheet',
+  slug: 'the-coupon',
+  name: 'The Coupon',
   description: null,
   privacy: 'private',
   member_count: 2,
@@ -25,8 +25,8 @@ function makeQueryClient() {
 function stubAuth() {
   vi.stubGlobal('localStorage', {
     getItem: (k: string) => {
-      if (k === 'wc2026_player') return STORED_PLAYER;
-      if (k === 'wc2026_access') return FAKE_JWT;
+      if (k === 'coupon_player') return STORED_PLAYER;
+      if (k === 'coupon_access') return FAKE_JWT;
       return null;
     },
     setItem: vi.fn(),
@@ -78,7 +78,7 @@ describe('LeagueContext', () => {
   it('loads leagues and exposes them', async () => {
     renderWithLeague([MOCK_LEAGUE]);
     await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1'));
-    expect(screen.getByTestId('league-steele-spreadsheet').textContent).toBe('The Steele Spreadsheet');
+    expect(screen.getByTestId('league-the-coupon').textContent).toBe('The Coupon');
   });
 
   it('shows empty list when no leagues', async () => {

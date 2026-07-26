@@ -60,7 +60,7 @@ export function CreateLeaguePage() {
                 maxLength={30}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Calcio"
+                placeholder="Saturday crew"
               />
             </div>
 

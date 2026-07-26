@@ -1,13 +1,12 @@
 const KEYS = {
-  access: 'wc2026_access',
-  refresh: 'wc2026_refresh',
-  player: 'wc2026_player',
+  access: 'coupon_access',
+  refresh: 'coupon_refresh',
+  player: 'coupon_player',
 } as const;
 
 export interface StoredPlayer {
   id: string;
   displayName: string;
-  email?: string | null;
   role: 'player' | 'admin';
   timezone: string;
   avatarUrl?: string | null;
@@ -39,10 +38,7 @@ export function getStoredPlayer(): StoredPlayer | null {
 
 export async function clearApiCaches(): Promise<void> {
   if (typeof caches !== 'undefined') {
-    await Promise.all([
-      caches.delete('api-user-data'),
-      caches.delete('api-matches'),
-    ]);
+    await caches.delete('api-coupon');
   }
 }
 

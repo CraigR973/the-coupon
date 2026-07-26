@@ -28,7 +28,7 @@ const ThemeContext = createContext<ThemeContextValue>({
   },
 });
 
-const STORAGE_KEY = 'sss_theme';
+const STORAGE_KEY = 'coupon_theme';
 const LIGHT_THEME_COLOR = '#F7F8FA';
 const DARK_THEME_COLOR = '#071A3D';
 

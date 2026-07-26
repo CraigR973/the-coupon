@@ -2,26 +2,26 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
-  reporter: process.env.CI ? 'github' : 'html',
+  retries: process.env.CI ? 1 : 0,
+  workers: 1,
+  reporter: 'line',
   use: {
-    baseURL: 'http://localhost:5173',
-    trace: 'on-first-retry',
+    baseURL: process.env.COUPON_E2E_WEB_URL ?? 'http://127.0.0.1:4173',
+    serviceWorkers: 'block',
+    trace: 'retain-on-failure',
   },
   projects: [
-    // Mocked tests (no backend required) — exclude smoke + prod-bundle tests
-    { name: 'chromium', testIgnore: ['**/smoke.spec.ts', '**/prod-bundle*.spec.ts'], use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', testIgnore: ['**/smoke.spec.ts', '**/prod-bundle*.spec.ts'], use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', testIgnore: ['**/smoke.spec.ts', '**/prod-bundle*.spec.ts'], use: { ...devices['Desktop Safari'] } },
-    // Full-stack smoke test — requires FastAPI + Postgres running locally
-    { name: 'smoke', testMatch: ['**/smoke.spec.ts'], use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'coupon-flow',
+      testMatch: ['**/coupon-flow.spec.ts'],
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
   webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:5173',
+    command: 'pnpm preview --host 127.0.0.1 --port 4173',
+    url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

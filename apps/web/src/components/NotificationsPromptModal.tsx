@@ -2,7 +2,7 @@ import { Bell, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePushSubscription } from '@/hooks/usePushSubscription';
 
-const STORAGE_KEY = 'sss_notif_prompt_seen';
+const STORAGE_KEY = 'coupon_notif_prompt_seen';
 
 function storageKey(playerId?: string): string {
   return playerId ? `${STORAGE_KEY}_${playerId}` : STORAGE_KEY;

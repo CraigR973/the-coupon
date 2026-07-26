@@ -17,10 +17,10 @@ beforeEach(() => {
 });
 
 describe('ForgotPinPage', () => {
-  it('renders an email input and submit button', () => {
+  it('renders a display-name input and submit button', () => {
     renderPage();
-    expect(screen.getByLabelText(/email/i)).toBeTruthy();
-    expect(screen.getByRole('button', { name: /send reset link/i })).toBeTruthy();
+    expect(screen.getByLabelText(/display name/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /request pin reset/i })).toBeTruthy();
   });
 
   it('shows confirmation message after successful request', async () => {
@@ -28,10 +28,10 @@ describe('ForgotPinPage', () => {
       Promise.resolve({ ok: true, json: () => Promise.resolve({ message: 'ok' }) }),
     );
     renderPage();
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'user@example.com' } });
-    fireEvent.click(screen.getByRole('button', { name: /send reset link/i }));
+    fireEvent.change(screen.getByLabelText(/display name/i), { target: { value: 'Alice' } });
+    fireEvent.click(screen.getByRole('button', { name: /request pin reset/i }));
     await waitFor(() =>
-      expect(screen.getByText(/check your inbox/i)).toBeTruthy(),
+      expect(screen.getByText(/admin will help/i)).toBeTruthy(),
     );
   });
 
@@ -43,8 +43,8 @@ describe('ForgotPinPage', () => {
       }),
     );
     renderPage();
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'user@example.com' } });
-    fireEvent.click(screen.getByRole('button', { name: /send reset link/i }));
+    fireEvent.change(screen.getByLabelText(/display name/i), { target: { value: 'Alice' } });
+    fireEvent.click(screen.getByRole('button', { name: /request pin reset/i }));
     await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
     expect(screen.getByRole('alert').textContent).toMatch(/rate limited/i);
   });

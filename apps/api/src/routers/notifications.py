@@ -133,7 +133,7 @@ async def test_push(request: Request, user: CurrentUser, db: Db) -> dict[str, An
     sent = await send_notification(
         session=db,
         user_id=user.id,
-        title="App Starter — test",
+        title="The Coupon — test",
         body="Push notifications are working!",
         data={"url": "/"},
     )

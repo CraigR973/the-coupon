@@ -23,10 +23,10 @@ function PostInstallScreen() {
             <Home className="h-7 w-7 text-success" aria-hidden />
           </div>
           <h2 className="text-lg font-semibold text-text-primary font-sans">
-            Calcio is installed!
+            The Coupon is installed!
           </h2>
           <p className="text-sm font-sans text-text-secondary leading-relaxed">
-            Tap the <strong className="text-text-primary">Calcio icon</strong> on your home
+            Tap the <strong className="text-text-primary">The Coupon icon</strong> on your home
             screen to open the app and get started.
           </p>
           <p className="text-xs font-sans text-text-muted leading-relaxed">

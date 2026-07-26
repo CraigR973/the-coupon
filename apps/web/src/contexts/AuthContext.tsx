@@ -1,6 +1,15 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { clearApiCaches, clearTokens, getAccessToken, getRefreshToken, getStoredPlayer, isAccessTokenExpired, storeTokens, StoredPlayer } from '../lib/tokens';
+import {
+  clearApiCaches,
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  getStoredPlayer,
+  isAccessTokenExpired,
+  storeTokens,
+  type StoredPlayer,
+} from '../lib/tokens';
 
 if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
   throw new Error('VITE_API_URL is required in production builds');
@@ -15,14 +24,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (email: string, pin: string) => Promise<void>;
-  signup: (params: {
-    email: string;
-    first_name: string;
-    last_name: string;
-    pin: string;
-    timezone: string;
-  }) => Promise<void>;
+  login: (displayName: string, pin: string) => Promise<void>;
   logout: () => Promise<void>;
   /** Update a subset of the stored player (e.g. after avatar upload). */
   updatePlayer: (patch: Partial<StoredPlayer>) => void;
@@ -32,12 +34,17 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 function playerFromApiResponse(data: {
-  player: { id: string; display_name: string; email?: string | null; role: string; timezone: string; avatar_url?: string | null };
+  player: {
+    id: string;
+    display_name: string;
+    role: string;
+    timezone: string;
+    avatar_url?: string | null;
+  };
 }): StoredPlayer {
   return {
     id: data.player.id,
     displayName: data.player.display_name,
-    email: data.player.email ?? null,
     role: data.player.role as 'player' | 'admin',
     timezone: data.player.timezone,
     avatarUrl: data.player.avatar_url ?? null,
@@ -58,48 +65,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     sessionUnlockError: null,
   });
 
-  const login = useCallback(async (email: string, pin: string) => {
+  const login = useCallback(async (displayName: string, pin: string) => {
     setState((s) => ({ ...s, isLoading: true }));
     try {
       const resp = await fetch(`${BASE}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, pin }),
+        body: JSON.stringify({ display_name: displayName, pin }),
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
         throw new Error(err.detail ?? 'Login failed');
-      }
-      const data = await resp.json();
-      const player = playerFromApiResponse(data);
-      await clearApiCaches();
-      queryClient.clear();
-      storeTokens(data.access_token, data.refresh_token, player);
-      setLockedPlayer(null);
-      setState({ player, isLoading: false, sessionUnlockRequired: false, sessionUnlockError: null });
-    } catch (err) {
-      setState((s) => ({ ...s, isLoading: false }));
-      throw err;
-    }
-  }, [queryClient]);
-
-  const signup = useCallback(async (params: {
-    email: string;
-    first_name: string;
-    last_name: string;
-    pin: string;
-    timezone: string;
-  }) => {
-    setState((s) => ({ ...s, isLoading: true }));
-    try {
-      const resp = await fetch(`${BASE}/api/v1/auth/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.detail ?? 'Signup failed');
       }
       const data = await resp.json();
       const player = playerFromApiResponse(data);
@@ -143,18 +119,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const unlockStoredSession = useCallback(async (pin: string) => {
     if (!lockedPlayer) return;
-    if (!lockedPlayer.email) {
-      const message = 'Please sign in again to refresh this saved session.';
-      setState((s) => ({ ...s, isLoading: false, sessionUnlockRequired: true, sessionUnlockError: message }));
-      throw new Error(message);
-    }
 
     setState((s) => ({ ...s, isLoading: true, sessionUnlockError: null }));
     try {
       const resp = await fetch(`${BASE}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: lockedPlayer.email, pin }),
+        body: JSON.stringify({ display_name: lockedPlayer.displayName, pin }),
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
@@ -184,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [lockedPlayer, queryClient]);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, signup, logout, updatePlayer, unlockStoredSession }}>
+    <AuthContext.Provider value={{ ...state, login, logout, updatePlayer, unlockStoredSession }}>
       {children}
     </AuthContext.Provider>
   );

@@ -21,7 +21,8 @@ interface BrandProps {
  *   mono    - short name in mono (misc)
  *   mark    - the ticket mark alone
  *
- * NOTE: this is a lean placeholder identity; the full visual rebrand is Batch 6.
+ * The ticket mark is intentionally inline so every app surface shares one
+ * scalable source without a second image asset pipeline.
  */
 
 /** A simple coupon-ticket glyph (perforated stub) rendered inline as SVG. */

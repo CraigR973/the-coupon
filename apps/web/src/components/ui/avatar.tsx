@@ -28,18 +28,18 @@ export function initials(name: string): string {
  * dark-mode-safe backgrounds.
  *
  * Tints are built with `color-mix` rather than Tailwind's `/opacity` modifier:
- * the brand colours are defined as raw `var(--x)` hex tokens, so `bg-silver/15`
+ * the brand colours are defined as raw `var(--x)` hex tokens, so `bg-metal/15`
  * et al. emit invalid CSS and fall back to transparent (the badge had no
  * background at all). `color-mix` works on the hex vars directly and stays
- * theme-aware; text uses `text-[var(--x)]` to avoid the `.text-steele` gradient
+ * theme-aware; text uses `text-[var(--x)]` to avoid the `.text-metal` gradient
  * utility hijacking the background.
  */
 const PALETTE = [
   'bg-[color-mix(in_srgb,var(--primary)_15%,transparent)] text-[var(--primary)]',
   'bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] text-[var(--accent)]',
-  'bg-[color-mix(in_srgb,var(--steele-dark)_35%,transparent)] text-[var(--steele)]',
+  'bg-[color-mix(in_srgb,var(--metal-dark)_35%,transparent)] text-[var(--metal)]',
   'bg-[color-mix(in_srgb,var(--gold)_15%,transparent)] text-[var(--gold)]',
-  'bg-[color-mix(in_srgb,var(--silver)_15%,transparent)] text-[var(--silver)]',
+  'bg-[color-mix(in_srgb,var(--metal)_15%,transparent)] text-[var(--metal)]',
   'bg-[color-mix(in_srgb,var(--bronze)_15%,transparent)] text-[var(--bronze)]',
 ];
 

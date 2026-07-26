@@ -84,7 +84,7 @@ describe('NotificationsPromptModal', () => {
   });
 
   it('does not let a legacy global flag suppress a different player prompt', () => {
-    localStorage.setItem('sss_notif_prompt_seen', '1');
+    localStorage.setItem('coupon_notif_prompt_seen', '1');
     expect(isNotifPromptSeen('p2')).toBe(false);
   });
 });

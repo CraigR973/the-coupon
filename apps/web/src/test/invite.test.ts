@@ -42,27 +42,24 @@ describe('buildInviteMessage', () => {
     expect(msg.indexOf('https://example.com')).toBeLessThan(msg.indexOf('Join code: ABC123'));
   });
 
-  it('leads with the fantasy-football, predict-once hook', () => {
+  it('leads with the unique Saturday-pick hook', () => {
     const msg = buildInviteMessage(PARAMS).toLowerCase();
-    expect(msg).toContain('fantasy football');
-    expect(msg).toContain('predict once');
+    expect(msg).toContain('unique saturday selection');
+    expect(msg).toContain('frozen odds');
   });
 
-  it('covers both new and existing app users', () => {
+  it('explains private admin-provisioned sign-in', () => {
     const msg = buildInviteMessage(PARAMS).toLowerCase();
-    expect(msg).toContain('create an account');
-    expect(msg).toContain('already have the app');
+    expect(msg).toContain('display name and pin');
+    expect(msg).toContain('your admin');
   });
 
-  it('mentions Calcio', () => {
-    expect(buildInviteMessage(PARAMS)).toContain('Calcio');
+  it('mentions The Coupon', () => {
+    expect(buildInviteMessage(PARAMS)).toContain('The Coupon');
   });
 
-  it('stays slim — defers rules, Specials and lore to the in-app guide', () => {
+  it('stays slim and focused on onboarding', () => {
     const msg = buildInviteMessage(PARAMS);
-    expect(msg).not.toContain('spreadsheet');
-    expect(msg.toLowerCase()).not.toContain('pre-tournament checklist');
-    expect(msg).not.toContain('Specials');
     expect(msg.length).toBeLessThan(400);
   });
 });

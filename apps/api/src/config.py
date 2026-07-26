@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Database
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/app_starter"
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/the_coupon"
 
     # Auth
     jwt_access_secret: str
@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     railway_git_commit_sha: str | None = None
 
     # Backup
-    backup_dir: str = "/tmp/app_starter_backups"
+    backup_dir: str = "/tmp/the_coupon_backups"
 
     # Background scheduler (APScheduler) — disable in tests / one-off scripts.
     scheduler_enabled: bool = True

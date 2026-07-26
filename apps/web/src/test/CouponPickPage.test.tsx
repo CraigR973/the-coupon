@@ -34,8 +34,8 @@ const SLATE: GameweekSlate = {
 function stubAuth() {
   vi.stubGlobal('localStorage', {
     getItem: (k: string) => {
-      if (k === 'wc2026_player') return STORED_PLAYER;
-      if (k === 'wc2026_access') return FAKE_JWT;
+      if (k === 'coupon_player') return STORED_PLAYER;
+      if (k === 'coupon_access') return FAKE_JWT;
       return null;
     },
     setItem: vi.fn(),

@@ -1,13 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { JoinPage } from '@/pages/JoinPage';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { JoinPage } from '@/pages/JoinPage';
 
-// JoinPage splits on isMobile + isInstalled from useInstallPrompt.
-// Tests cover the installed-PWA path (AppJoinFlow) — mock as standalone so
-// the functional join form renders rather than the browser info page.
 vi.mock('@/hooks/useInstallPrompt', () => ({
   useInstallPrompt: () => ({
     isInstalled: true,
@@ -29,6 +26,7 @@ function renderJoin(token: string) {
         <AuthProvider>
           <Routes>
             <Route path="/join/:token" element={<JoinPage />} />
+            <Route path="/leagues/:slug" element={<p>Joined</p>} />
           </Routes>
         </AuthProvider>
       </MemoryRouter>
@@ -36,75 +34,80 @@ function renderJoin(token: string) {
   );
 }
 
-function fillPin(group: HTMLElement, digits: string) {
-  for (let i = 0; i < digits.length; i++) {
-    fireEvent.change(within(group).getByLabelText(`PIN digit ${i + 1}`), {
-      target: { value: digits[i] },
-    });
-  }
+function storeSignedInPlayer() {
+  localStorage.setItem('coupon_access', 'header.eyJleHAiOjk5OTk5OTk5OTl9.signature');
+  localStorage.setItem('coupon_refresh', 'refresh-token');
+  localStorage.setItem(
+    'coupon_player',
+    JSON.stringify({
+      id: 'player-1',
+      displayName: 'Alice',
+      role: 'player',
+      timezone: 'Europe/London',
+    }),
+  );
 }
 
 beforeEach(() => {
-  vi.restoreAllMocks();
+  localStorage.clear();
 });
 
-describe('JoinPage — installed PWA (AppJoinFlow)', () => {
-  it('shows loading state initially', () => {
-    vi.stubGlobal('fetch', () => new Promise(() => {}));
-    renderJoin('abc');
-    expect(screen.getByText(/checking invite/i)).toBeTruthy();
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+describe('JoinPage', () => {
+  it('asks an unauthenticated invite recipient to sign in, preserving the return path', () => {
+    renderJoin('ABC123');
+
+    expect(screen.getByText(/display name and PIN provided by your admin/i)).toBeTruthy();
+    expect(screen.getByRole('link', { name: /sign in to continue/i })).toHaveAttribute(
+      'href',
+      '/login?next=%2Fjoin%2FABC123',
+    );
   });
 
-  it('shows error when invite is invalid', async () => {
-    vi.stubGlobal('fetch', () =>
-      Promise.resolve({
-        ok: false,
-        json: () => Promise.resolve({ detail: 'Invalid invite token' }),
-      }),
-    );
-    renderJoin('badtoken');
-    await waitFor(() => {
-      expect(screen.getByText(/invalid invite token/i)).toBeTruthy();
+  it('claims a six-character join code for the signed-in player', async () => {
+    storeSignedInPlayer();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ league_slug: 'the-coupon' }),
     });
-  });
+    vi.stubGlobal('fetch', fetchMock);
 
-  it('shows join form when invite is valid', async () => {
-    vi.stubGlobal('fetch', () =>
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ display_name_hint: 'Craig' }),
-      }),
-    );
-    renderJoin('goodtoken');
-    await waitFor(() => {
-      expect(screen.getByLabelText(/display name/i)).toBeTruthy();
-    });
-    const nameInput = screen.getByLabelText(/display name/i) as HTMLInputElement;
-    expect(nameInput.value).toBe('Craig');
-    expect(screen.getByRole('group', { name: 'PIN' })).toBeTruthy();
-    expect(screen.getByRole('group', { name: 'Confirm PIN' })).toBeTruthy();
-  });
-
-  it('shows PIN mismatch error on submit', async () => {
-    vi.stubGlobal('fetch', () =>
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ display_name_hint: null }),
-      }),
-    );
-    renderJoin('tok');
-    await waitFor(() => screen.getByLabelText(/display name/i));
-
-    fireEvent.change(screen.getByLabelText(/display name/i), { target: { value: 'Test' } });
-    fillPin(screen.getByRole('group', { name: 'PIN' }), '1234');
-    fillPin(screen.getByRole('group', { name: 'Confirm PIN' }), '5678');
+    renderJoin('abc123');
     fireEvent.click(screen.getByRole('button', { name: /join league/i }));
 
+    expect(await screen.findByText('Joined')).toBeTruthy();
     await waitFor(() => {
-      expect(screen.getByText(/pins do not match/i)).toBeTruthy();
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/leagues/join-by-code'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ code: 'ABC123' }),
+        }),
+      );
     });
   });
-});
 
-// BrowserInfoPage is covered by visual/E2E testing — the module-level mock
-// for useInstallPrompt cannot be overridden per-suite without full isolation.
+  it('uses the invite-claim endpoint for a long invite token', async () => {
+    storeSignedInPlayer();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ league_slug: 'the-coupon' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderJoin('signed-invite-token');
+    fireEvent.click(screen.getByRole('button', { name: /join league/i }));
+
+    expect(await screen.findByText('Joined')).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/leagues/claim-invite'),
+      expect.objectContaining({
+        body: JSON.stringify({ token: 'signed-invite-token' }),
+      }),
+    );
+  });
+});

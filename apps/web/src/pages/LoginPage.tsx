@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,8 +12,9 @@ import { brand } from '@/theme/tokens';
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -23,10 +24,14 @@ export function LoginPage() {
     setError('');
     setIsLoading(true);
     try {
-      await login(email.trim(), pin);
-      navigate('/', { replace: true });
+      await login(displayName.trim(), pin);
+      const requested = new URLSearchParams(location.search).get('next');
+      const destination = requested?.startsWith('/') && !requested.startsWith('//')
+        ? requested
+        : '/';
+      navigate(destination, { replace: true });
     } catch {
-      setError('Invalid email or PIN.');
+      setError('Invalid display name or PIN.');
     } finally {
       setIsLoading(false);
     }
@@ -48,15 +53,15 @@ export function LoginPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="display-name">Display name</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
+                  id="display-name"
+                  type="text"
+                  autoComplete="username"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Your name"
                 />
               </div>
 
@@ -69,10 +74,6 @@ export function LoginPage() {
 
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? 'Signing in…' : 'Sign in'}
-              </Button>
-
-              <Button asChild variant="outline" className="w-full">
-                <Link to="/signup">Create account</Link>
               </Button>
 
               <div className="text-center">
