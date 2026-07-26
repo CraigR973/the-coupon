@@ -12,9 +12,10 @@ production build, and CI. Launch work is still required to close security and
 frontend/API gaps, define the scheduler and backup topology, create fresh
 infrastructure, and verify a real deployment.
 
-No existing remote service or Betfair account was accessed during this audit.
-The project-bound Supabase reference in `.codex/config.toml` must be treated as
-unverified and must not be reused without explicit owner confirmation.
+No existing remote service or Betfair account was accessed during the audit.
+L0 later proved that the old project-bound Supabase reference belonged to
+`wc2026-staging`, not The Coupon. It has been rejected and the repository MCP
+configuration is docs-only until a fresh Coupon staging project exists.
 
 ## Launch phase status
 
@@ -37,7 +38,7 @@ This checklist is the launch source of record. Only
 | PostgreSQL | Fresh Supabase staging project | Fresh Supabase production project |
 | Odds source | Explicit safe `FakeBetfair` mode | Betfair delayed app key + non-interactive certificate login |
 | Domains | Stable staging web/API hostnames | Final web hostname + API subdomain |
-| Monitoring | Railway logs + Sentry | Railway logs + Sentry + first-Saturday watch |
+| Monitoring | Railway and Vercel logs | Railway and Vercel logs + first-Saturday watch |
 
 The single Railway replica is a deliberate MVP constraint. APScheduler runs
 inside the API process, so scaling the API above one replica would duplicate
@@ -61,6 +62,8 @@ chooses otherwise:
   PINs, or credentials in application logs.
 - Keep the embedded scheduler on one always-on API replica, and add settlement
   retries after Saturday night.
+- Use Railway and Vercel platform logs for MVP monitoring. Omit Sentry and its
+  configuration until the owner explicitly adds it in a later phase.
 
 ## Readiness already in place
 
@@ -109,7 +112,8 @@ chooses otherwise:
   only a hard-coded `Admin` profile.
 - [ ] Remove dead inherited configuration and dependencies, including unused
   `ANTHROPIC_*`, backend Supabase client settings, `resend`, and the unused
-  browser Supabase client, unless a launch feature needs them.
+  browser Supabase client and Sentry configuration, unless a launch feature
+  needs them.
 - [ ] Pin Python production dependencies so rebuilding the same commit is
   reproducible.
 
@@ -187,7 +191,6 @@ chooses otherwise:
 | `VAPID_PRIVATE_KEY` | Required secret while push is retained |
 | `VAPID_CONTACT_EMAIL` | Required non-placeholder contact |
 | `SCHEDULER_ENABLED` | Explicit `true` for the single-replica topology |
-| `SENTRY_DSN_BACKEND` | Recommended |
 | `LOG_LEVEL` | `INFO` initially |
 | `PORT`, `RAILWAY_GIT_COMMIT_SHA` | Railway supplied |
 
@@ -201,7 +204,6 @@ MVP scope.
 | --- | --- |
 | `VITE_API_URL` | Required absolute HTTPS API URL for the selected environment |
 | `VITE_VAPID_PUBLIC_KEY` | Required while push is retained |
-| `VITE_SENTRY_DSN` | Recommended |
 
 Never put database credentials, JWT secrets, Betfair credentials, a VAPID
 private key, certificate private material, or a Supabase service-role key in a
@@ -211,18 +213,21 @@ private key, certificate private material, or a Supabase service-role key in a
 
 ### L0 — Owner decisions and project identity
 
-- [ ] Confirm the recommended MVP scope decisions above.
-- [ ] Choose the production domain and stable staging hostnames.
-- [ ] Choose project names, account/team ownership, region, budget limits, and
+- [x] Confirm the recommended MVP scope decisions above.
+- [x] Choose the production and staging hostname strategy.
+- [x] Choose project names, account/team ownership, region, budget limits, and
   the initial player roster.
-- [ ] Create a new private Git remote and record it as `origin`.
-- [ ] Document whether launch phases integrate through local fast-forward or a
+- [x] Create a new private Git remote and record it as `origin`.
+- [x] Document whether launch phases integrate through local fast-forward or a
   remote PR/required-CI workflow.
-- [ ] Confirm or replace the Supabase MCP project reference before any connector
+- [x] Confirm or replace the Supabase MCP project reference before any connector
   is allowed to access it.
 
-**Gate:** repository ownership, domains, and every external target are explicit;
-no existing service is being reused by inference.
+Implementation record: `docs/launch/L0_PROJECT_IDENTITY.md`.
+
+**Gate:** repository ownership, hostname strategy, and every external target are
+explicit; generated platform hostnames are captured during provisioning, and no
+existing service is reused by inference.
 
 ### L1 — Launch-hardening implementation
 
@@ -257,7 +262,8 @@ production credential or real member data exists in staging.
 - [ ] Verify SPA deep links and refreshes, auth/PIN lockout, league membership,
   unique picks, locking, settlement retries, standings, and combined coupon.
 - [ ] Verify push subscribe/send/unsubscribe on at least one supported phone.
-- [ ] Verify logs and Sentry contain no PINs, tokens, names, or credentials.
+- [ ] Verify Railway and Vercel logs contain no PINs, tokens, names, or
+  credentials.
 - [ ] Exercise scheduler jobs once and confirm there is only one execution.
 - [ ] Complete a backup restore rehearsal into a disposable database.
 - [ ] Record screenshots, deployment identifiers, and verification evidence.
@@ -268,7 +274,7 @@ production credential or real member data exists in staging.
 
 - [ ] Provision separate fresh production Supabase, Railway, and Vercel targets.
 - [ ] Configure sealed production secrets and the delayed Betfair app key.
-- [ ] Apply migrations and verify RLS/grants, readiness, logs, and Sentry.
+- [ ] Apply migrations and verify RLS/grants, readiness, and platform logs.
 - [ ] Run the idempotent bootstrap with the reviewed real roster; distribute
   PINs out of band.
 - [ ] Attach production DNS and validate TLS without sending member invites yet.
