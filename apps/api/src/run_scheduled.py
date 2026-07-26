@@ -14,7 +14,11 @@ Usage:
     python -m src.run_scheduled <job>
 
 Jobs:
-    backup    database backup
+    backup         database backup
+    refresh-slate  refresh the upcoming Saturday's slate + fixtures from Betfair
+    remind         push a pick reminder to members who haven't picked
+    lock           lock any gameweek past its 14:30 deadline
+    settle         settle locked gameweeks against Betfair results + recompute standings
 """
 
 from __future__ import annotations
@@ -23,10 +27,20 @@ import argparse
 import asyncio
 from collections.abc import Awaitable, Callable
 
-from src.scheduler import run_scheduled_backup
+from src.scheduler import (
+    run_lock_gameweeks,
+    run_pick_reminders,
+    run_refresh_slate,
+    run_scheduled_backup,
+    run_settle_gameweeks,
+)
 
 JOBS: dict[str, Callable[[], Awaitable[None]]] = {
     "backup": run_scheduled_backup,
+    "refresh-slate": run_refresh_slate,
+    "remind": run_pick_reminders,
+    "lock": run_lock_gameweeks,
+    "settle": run_settle_gameweeks,
 }
 
 

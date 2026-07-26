@@ -29,6 +29,7 @@ from src.routers import (
     picks,
 )
 from src.scheduler import create_scheduler
+from src.services.betfair_session import betfair_session
 
 configure_logging(settings.log_level)
 
@@ -69,6 +70,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if scheduler.running:
             scheduler.shutdown(wait=False)
             log.info("scheduler stopped")
+        await betfair_session.close()
 
 
 # Docs/OpenAPI are disabled in production (private app — don't expose the schema

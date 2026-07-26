@@ -11,19 +11,25 @@ naive-UTC to match the rest of the schema.
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus
-from src.services.betfair import Slate
+from src.models.league import League
+from src.models.league_membership import LeagueMembership
+from src.models.pick import Pick
+from src.models.profile import Profile
+from src.services.betfair import BetfairAdapter, Slate
 
 _UK_TZ = ZoneInfo("Europe/London")
 _LOCK_HOUR = 14
 _LOCK_MINUTE = 30  # picks lock 14:30 Saturday — 30 min before the 15:00 kick-offs
+_SATURDAY = 5  # date.weekday(): Monday=0 … Saturday=5
 
 
 def _naive_utc(value: datetime) -> datetime:
@@ -103,3 +109,134 @@ async def sync_slate(db: AsyncSession, slate: Slate) -> Gameweek:
 
     await db.flush()
     return gameweek
+
+
+# ── Scheduler-driven lifecycle (Batch 4) ────────────────────────────────────────
+
+
+def upcoming_saturday(today: date) -> date:
+    """The Saturday on or after ``today`` — the slate the refresh job targets.
+
+    On a Saturday it returns that same day, so the match-day refreshes keep updating the
+    current slate rather than skipping to next week.
+    """
+    return today + timedelta(days=(_SATURDAY - today.weekday()) % 7)
+
+
+async def refresh_slate(
+    db: AsyncSession, adapter: BetfairAdapter, saturday: date
+) -> Gameweek | None:
+    """Fetch ``saturday``'s Betfair slate and upsert it as the gameweek + fixtures.
+
+    Returns the synced gameweek, or ``None`` when Betfair prices no target fixtures that day
+    (so the periodic job never leaves an empty gameweek behind, e.g. out of season). Flushes
+    but does not commit — the scheduler job owns the transaction.
+    """
+    slate = await adapter.fetch_slate(saturday)
+    if not slate.fixtures:
+        return None
+    return await sync_slate(db, slate)
+
+
+async def lock_due_gameweeks(db: AsyncSession, now: datetime) -> list[Gameweek]:
+    """Flip every open gameweek whose 14:30 lock has passed to ``locked``.
+
+    ``now`` is naive-UTC (as stored). Predicate-based rather than "the latest one" so a
+    missed run self-heals on the next. Flushes but does not commit.
+    """
+    result = await db.execute(
+        select(Gameweek).where(
+            Gameweek.status == GameweekStatus.open,
+            Gameweek.locks_at_utc <= now,
+        )
+    )
+    locked = list(result.scalars().all())
+    for gameweek in locked:
+        gameweek.status = GameweekStatus.locked
+    await db.flush()
+    return locked
+
+
+async def settleable_gameweeks(db: AsyncSession, now: datetime) -> list[Gameweek]:
+    """Gameweeks past their lock that aren't settled yet — the settle job's candidates.
+
+    Includes any still ``open`` past its lock (a defensive catch if the lock job missed a
+    run) as well as ``locked`` ones. Ordered oldest-first.
+    """
+    result = await db.execute(
+        select(Gameweek)
+        .where(
+            Gameweek.status != GameweekStatus.settled,
+            Gameweek.locks_at_utc <= now,
+        )
+        .order_by(Gameweek.saturday_date)
+    )
+    return list(result.scalars().all())
+
+
+async def current_open_gameweek(db: AsyncSession, now: datetime) -> Gameweek | None:
+    """The latest still-open gameweek whose lock is in the future — the one to remind for."""
+    result = await db.execute(
+        select(Gameweek)
+        .where(
+            Gameweek.status == GameweekStatus.open,
+            Gameweek.locks_at_utc > now,
+        )
+        .order_by(Gameweek.saturday_date.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+class MissingPickMember(BaseModel):
+    """A member who still owes a pick for a gameweek — one pick-reminder recipient."""
+
+    player_id: str
+    display_name: str
+    timezone: str
+    league_id: str
+    league_name: str
+
+
+async def members_missing_picks(db: AsyncSession, gameweek: Gameweek) -> list[MissingPickMember]:
+    """Active memberships with no pick for ``gameweek`` — the pick-reminder recipients.
+
+    Picks are league-scoped, so a member in several leagues appears once per league they
+    still owe. Excludes deleted memberships/leagues and inactive/deleted profiles.
+    """
+    display_name = func.coalesce(LeagueMembership.display_name_override, Profile.display_name)
+    rows = await db.execute(
+        select(
+            LeagueMembership.player_id,
+            display_name.label("display_name"),
+            Profile.timezone,
+            League.id.label("league_id"),
+            League.name.label("league_name"),
+        )
+        .select_from(LeagueMembership)
+        .join(League, League.id == LeagueMembership.league_id)
+        .join(Profile, Profile.id == LeagueMembership.player_id)
+        .outerjoin(
+            Pick,
+            (Pick.league_id == LeagueMembership.league_id)
+            & (Pick.player_id == LeagueMembership.player_id)
+            & (Pick.gameweek_id == gameweek.id),
+        )
+        .where(
+            LeagueMembership.deleted_at.is_(None),
+            League.deleted_at.is_(None),
+            Profile.deleted_at.is_(None),
+            Profile.is_active.is_(True),
+            Pick.id.is_(None),
+        )
+    )
+    return [
+        MissingPickMember(
+            player_id=str(row.player_id),
+            display_name=row.display_name,
+            timezone=row.timezone,
+            league_id=str(row.league_id),
+            league_name=row.league_name,
+        )
+        for row in rows.all()
+    ]

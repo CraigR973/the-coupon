@@ -22,7 +22,7 @@ from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickStatus
 from src.models.profile import Profile
-from src.services.betfair import MarketSettlement
+from src.services.betfair import BetfairAdapter, MarketSettlement
 
 _POINTS_MULTIPLIER = 10
 _REMOVED = "REMOVED"
@@ -111,6 +111,45 @@ async def settle_gameweek(
 
     await db.flush()
     return resolved
+
+
+async def pending_market_ids(db: AsyncSession, gameweek: Gameweek) -> list[str]:
+    """Distinct Betfair market ids across a gameweek's still-pending picks.
+
+    These are the markets the settle job asks Betfair to settle; a market with no pending
+    pick (already resolved, or never picked) is skipped.
+    """
+    result = await db.execute(
+        select(Pick.betfair_market_id)
+        .where(Pick.gameweek_id == gameweek.id, Pick.status == PickStatus.pending)
+        .distinct()
+    )
+    return list(result.scalars().all())
+
+
+async def settle_gameweek_via_adapter(
+    db: AsyncSession, adapter: BetfairAdapter, gameweek: Gameweek
+) -> int:
+    """Read a gameweek's markets from Betfair and settle its pending picks.
+
+    The scheduler-facing wrapper: gather the distinct markets still awaiting a result, ask
+    the adapter to settle them, then apply the outcomes via :func:`settle_gameweek`. Returns
+    the count resolved (0 when nothing is pending). Flushes but does not commit — the job
+    owns the transaction.
+    """
+    market_ids = await pending_market_ids(db, gameweek)
+    if not market_ids:
+        return 0
+    settlements = await adapter.settle(market_ids)
+    return await settle_gameweek(db, gameweek, settlements)
+
+
+async def participating_league_ids(db: AsyncSession, gameweek: Gameweek) -> list[uuid.UUID]:
+    """League ids holding ≥1 pick in ``gameweek`` — whose standings the settle job recomputes."""
+    result = await db.execute(
+        select(Pick.league_id).where(Pick.gameweek_id == gameweek.id).distinct()
+    )
+    return list(result.scalars().all())
 
 
 class Standing(BaseModel):

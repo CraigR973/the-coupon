@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from src.models.notification import ActionType, ActorType, AuditLog
-from src.scheduler import create_scheduler, run_scheduled_backup
+from src.scheduler import (
+    create_scheduler,
+    run_lock_gameweeks,
+    run_pick_reminders,
+    run_refresh_slate,
+    run_scheduled_backup,
+    run_settle_gameweeks,
+)
 
 
 class _Ctx:
@@ -74,7 +82,14 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
     scheduler = create_scheduler()
     try:
         job_ids = {j.id for j in scheduler.get_jobs()}
-        assert job_ids == {"connection_warmup", "daily_backup"}
+        assert job_ids == {
+            "connection_warmup",
+            "daily_backup",
+            "refresh_slate",
+            "pick_reminders",
+            "lock_gameweeks",
+            "settle_gameweeks",
+        }
 
         backup = scheduler.get_job("daily_backup")
         assert backup is not None
@@ -89,6 +104,150 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
     finally:
         if scheduler.running:
             scheduler.shutdown(wait=False)
+
+
+def test_create_scheduler_domain_jobs_fire_on_uk_wall_clock() -> None:
+    """The Coupon jobs run on Europe/London wall-clock so 14:30 lock survives BST/GMT."""
+    scheduler = create_scheduler()
+    try:
+        expected = {
+            "refresh_slate": "cron[day_of_week='mon-sat', hour='9,12,14', minute='0']",
+            "pick_reminders": "cron[day_of_week='sat', hour='11', minute='0']",
+            "lock_gameweeks": "cron[day_of_week='sat', hour='14', minute='30']",
+            "settle_gameweeks": "cron[day_of_week='sat', hour='18,20,22', minute='0']",
+        }
+        for job_id, trigger_repr in expected.items():
+            job = scheduler.get_job(job_id)
+            assert job is not None
+            assert str(job.trigger) == trigger_repr
+            assert str(job.trigger.timezone) == "Europe/London"
+            assert job.coalesce is True
+            assert job.max_instances == 1
+    finally:
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
+
+
+# ---------------------------------------------------------------------------
+# Coupon domain jobs — wiring (own the tx + Betfair session, swallow errors)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_refresh_slate_syncs_and_commits() -> None:
+    session = AsyncMock()
+    gameweek = MagicMock()
+    gameweek.id = uuid.uuid4()
+    with (
+        patch("src.scheduler.betfair_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.refresh_slate", new=AsyncMock(return_value=gameweek)) as refresh,
+    ):
+        await run_refresh_slate()
+    refresh.assert_awaited_once()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_run_refresh_slate_empty_slate_still_commits() -> None:
+    """No target fixtures → no gameweek created, but the (no-op) tx still closes cleanly."""
+    session = AsyncMock()
+    with (
+        patch("src.scheduler.betfair_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.refresh_slate", new=AsyncMock(return_value=None)),
+    ):
+        await run_refresh_slate()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_run_refresh_slate_swallows_errors() -> None:
+    with patch(
+        "src.scheduler.betfair_session.acquire",
+        new=AsyncMock(side_effect=RuntimeError("betfair down")),
+    ):
+        await run_refresh_slate()  # a failed run must not propagate
+
+
+@pytest.mark.asyncio
+async def test_run_lock_gameweeks_commits() -> None:
+    session = AsyncMock()
+    locked = MagicMock()
+    locked.id = uuid.uuid4()
+    with (
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.lock_due_gameweeks", new=AsyncMock(return_value=[locked])) as lock,
+    ):
+        await run_lock_gameweeks()
+    lock.assert_awaited_once()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_run_lock_gameweeks_swallows_errors() -> None:
+    with patch("src.scheduler.AsyncSessionLocal", side_effect=RuntimeError("db down")):
+        await run_lock_gameweeks()
+
+
+@pytest.mark.asyncio
+async def test_run_settle_gameweeks_settles_then_recomputes_standings() -> None:
+    session = AsyncMock()
+    gameweek = MagicMock()
+    gameweek.id = uuid.uuid4()
+    leader = MagicMock()
+    leader.display_name = "alice"
+    leader.total_points = 24
+    with (
+        patch("src.scheduler.betfair_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.settleable_gameweeks", new=AsyncMock(return_value=[gameweek])),
+        patch("src.scheduler.settle_gameweek_via_adapter", new=AsyncMock(return_value=3)) as settle,
+        patch("src.scheduler.participating_league_ids", new=AsyncMock(return_value=[uuid.uuid4()])),
+        patch("src.scheduler.standings", new=AsyncMock(return_value=[leader])) as recompute,
+    ):
+        await run_settle_gameweeks()
+    settle.assert_awaited_once()
+    recompute.assert_awaited_once()  # standings recomputed per participating league
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_run_settle_gameweeks_swallows_errors() -> None:
+    with patch(
+        "src.scheduler.betfair_session.acquire",
+        new=AsyncMock(side_effect=RuntimeError("betfair down")),
+    ):
+        await run_settle_gameweeks()
+
+
+@pytest.mark.asyncio
+async def test_run_pick_reminders_sends_and_commits() -> None:
+    session = AsyncMock()
+    gameweek = MagicMock()
+    gameweek.id = uuid.uuid4()
+    with (
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.current_open_gameweek", new=AsyncMock(return_value=gameweek)),
+        patch("src.scheduler.send_pick_reminders", new=AsyncMock(return_value=2)) as remind,
+    ):
+        await run_pick_reminders()
+    remind.assert_awaited_once()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_run_pick_reminders_no_open_gameweek_is_noop() -> None:
+    """With no open gameweek to remind for, the job returns without sending or committing."""
+    session = AsyncMock()
+    with (
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.current_open_gameweek", new=AsyncMock(return_value=None)),
+        patch("src.scheduler.send_pick_reminders", new=AsyncMock()) as remind,
+    ):
+        await run_pick_reminders()
+    remind.assert_not_awaited()
+    session.commit.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
