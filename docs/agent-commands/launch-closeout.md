@@ -63,10 +63,10 @@ This workflow runs only when the user explicitly invokes
      check, and merge only when all are green. Then fast-forward local `main` to
      the merged remote `main`.
    - **Empty-remote L0 bootstrap:** before pushing the phase branch, re-confirm
-     that `origin` is the documented private repository and has no refs. Push
-     the unchanged pre-L0 local `main` as remote `main`, wait for its documented
-     CI checks, then continue with the remote PR path. Never push the L0
-     implementation directly to `main`.
+     that `origin` is the documented repository, its visibility matches the
+     owner decision, and it has no refs. Push the unchanged pre-L0 local `main`
+     as remote `main`, wait for its documented CI checks, then continue with the
+     remote PR path. Never push the L0 implementation directly to `main`.
 
    Never force-push, bypass required CI, or invent a remote workflow. If a push,
    check, or merge fails, report the partial external state and do not claim the

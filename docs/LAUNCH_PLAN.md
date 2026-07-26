@@ -217,7 +217,8 @@ private key, certificate private material, or a Supabase service-role key in a
 - [x] Choose the production and staging hostname strategy.
 - [x] Choose project names, account/team ownership, region, budget limits, and
   the initial player roster.
-- [x] Create a new private Git remote and record it as `origin`.
+- [x] Create a new Git remote with owner-confirmed visibility and record it as
+  `origin`.
 - [x] Document whether launch phases integrate through local fast-forward or a
   remote PR/required-CI workflow.
 - [x] Confirm or replace the Supabase MCP project reference before any connector
@@ -225,9 +226,9 @@ private key, certificate private material, or a Supabase service-role key in a
 
 Implementation record: `docs/launch/L0_PROJECT_IDENTITY.md`.
 
-**Gate:** repository ownership, hostname strategy, and every external target are
-explicit; generated platform hostnames are captured during provisioning, and no
-existing service is reused by inference.
+**Gate:** repository ownership and visibility, hostname strategy, and every
+external target are explicit; generated platform hostnames are captured during
+provisioning, and no existing service is reused by inference.
 
 ### L1 — Launch-hardening implementation
 

@@ -23,8 +23,8 @@ owner accounts, no-cost platform hostname strategy, regions, budget controls,
 - Browser: three-member uniqueness, lock, settlement, standings, and combined
   4.56 accumulator against real PostgreSQL and canned Betfair data
 - Repository: inherited-name and stale-file audit clean
-- Launch L0: private empty GitHub origin, explicit fresh platform targets,
-  docs-only Supabase MCP, and recorded owner decisions
+- Launch L0: owner-approved public GitHub origin, explicit fresh platform
+  targets, docs-only Supabase MCP, and recorded owner decisions
 
 The owner's real Betfair session remains outside agent automation and should be
 checked immediately before launch.

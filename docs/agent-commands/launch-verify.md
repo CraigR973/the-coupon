@@ -36,7 +36,8 @@ push, deploy, or tick the launch status row.
 - Confirm the owner has explicitly recorded the MVP scope decisions, hostname
   strategy, project/account ownership, region, budget controls, and initial roster
   handling.
-- Confirm `origin` is the intended private repository without pushing.
+- Confirm `origin` is the intended repository, its visibility matches the
+  owner's recorded decision, and verification itself does not push.
 - Confirm the Supabase connector project ID is either documented as the fresh
   Coupon project or has been replaced. Do not query an unconfirmed project.
 - Confirm no external target was selected merely because a CLI was already

@@ -5,11 +5,12 @@ Launch-phase close-out entries are appended here by the explicit
 `session-log.md`.
 
 ## L0 — Owner decisions and project identity
-**Commits:** 4194705 · verified: GREEN owner, repository, hostname, budget,
-roster, and connector gates
+**Commits:** 4194705, f2a1b06 · verified: GREEN owner, repository, hostname,
+budget, roster, and connector gates
 
 ### Key facts for future sessions
-- `origin` is the new private `CraigR973/the-coupon` repository.
+- `origin` is the public `CraigR973/the-coupon` repository; the owner explicitly
+  chose public visibility after private Actions jobs hit account billing limits.
 - Staging and production use fresh Supabase, Railway, and Vercel targets under
   the recorded owner accounts; discovered WC2026 and Garmin targets are
   excluded.

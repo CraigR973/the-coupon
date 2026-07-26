@@ -13,6 +13,8 @@ Owner decisions recorded on 2026-07-26:
 - administrator display name: `Craig`;
 - initial roster: 15 profiles and 15 league memberships, including Craig;
 - Sentry: omitted from the MVP.
+- repository visibility: public, explicitly selected by the owner so GitHub
+  Actions can use public-repository runner allocation.
 
 ## MVP scope
 
@@ -35,7 +37,7 @@ No existing project was selected as a Coupon target.
 
 | System | Selected owner | Fresh Coupon targets | Provisioning phase |
 | --- | --- | --- | --- |
-| GitHub | Personal account `CraigR973` | Private repository `CraigR973/the-coupon` | Created in L0 |
+| GitHub | Personal account `CraigR973` | Public repository `CraigR973/the-coupon` | Created in L0 |
 | Supabase | `CraigR973's Org` (`eufhjqkyoiuzfwuptlyn`) | `the-coupon-staging`, `the-coupon-production` | L2, L4 |
 | Railway | `Craig Robinson's Projects` (`518ea7c5-7ee6-464b-bcf0-befed3153c1f`) | Projects `the-coupon-staging`, `the-coupon-production`; service `api` in each | L2, L4 |
 | Vercel | `craigr973's projects` (`team_MVQMOaFtYHlwO5QVzSOZQ0Ud`) | Projects `the-coupon-staging`, `the-coupon-production` | L2, L4 |
@@ -56,15 +58,15 @@ create them. Names alone never authorize a connector or CLI target.
 ## Repository and integration
 
 - `origin` is `https://github.com/CraigR973/the-coupon.git`.
-- GitHub reports the repository as private and empty as of 2026-07-26.
+- The owner explicitly selected public visibility on 2026-07-26 after private
+  GitHub Actions jobs were blocked by account billing limits.
 - L0 verification must not push.
 - All launch phases integrate through pull requests and the required
   `Quality / backend` and `Quality / frontend` checks. A phase is not merged
   while either check is missing or failing.
-- L0 close-out is the one-time bootstrap: it first pushes the unchanged,
-  pre-L0 local `main` to the verified empty private remote, then pushes the L0
-  branch and follows the same pull-request path. No implementation is pushed
-  directly to `main`.
+- L0 close-out bootstrapped the unchanged pre-L0 local `main` to the verified
+  repository, then pushes the L0 branch and follows the same pull-request path.
+  No implementation is pushed directly to `main`.
 - Close-out bookkeeping is committed on the phase branch before its pull
   request, as defined by the canonical `/launch-closeout` workflow. After merge,
   local `main` is fast-forwarded to the remote result.
