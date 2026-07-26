@@ -2,35 +2,36 @@
 
 ## Now
 
-Batch 5 is closed on local `main` at `9ca4c8e`. Batch 6 is in progress on
-`feat/batch-6-verify-rebrand`.
+All six build batches are closed on local `main`. The Coupon is a verified
+private weekly football accumulator PWA: members sign in with display name and
+PIN, claim one unique Saturday selection, score frozen odds after settlement,
+compare standings, and view the shared combined coupon.
 
-The backend provides display-name + PIN auth, leagues and memberships, weekly
-gameweeks and fixtures, unique picks, frozen odds, settlement, standings, and a
-combined coupon. The frontend provides the weekly pick screen, combined coupon,
-standings, league management, settings, and the PWA shell.
+Batch 6 completed the product rebrand, removed inherited surfaces, corrected
+the frontend auth and invite wiring, and added a deterministic production-
+preview browser flow backed by scratch PostgreSQL and `FakeBetfair`.
 
-## Verification target
+## Verified
 
-Batch 6 must leave all of these green:
+- Backend: 149 pytest, Ruff check/format, and strict mypy
+- Database: clean `pgserver` migration to head with only Coupon-domain tables
+- Frontend: Node 20 production build, TypeScript, ESLint, and 168 Vitest
+- Browser: three-member uniqueness, lock, settlement, standings, and combined
+  4.56 accumulator against real PostgreSQL and canned Betfair data
+- Repository: inherited-name and stale-file audit clean
 
-- Backend pytest, Ruff check/format, and strict mypy
-- Alembic upgrade on clean scratch PostgreSQL with only Coupon tables
-- Frontend production build, TypeScript, and Vitest
-- Playwright browser flow on a real scratch database with `FakeBetfair`
-- Repository inherited-name audit
+The owner's real Betfair session remains outside agent automation and should be
+checked immediately before launch.
 
-The live Betfair slate check remains owner-only and is not an automated gate.
-Do not log into the owner's account.
+## Next
+
+Launch planning: provision the fresh production services and domain, seed the
+real league membership, configure secrets, and run the owner-only live Betfair
+slate check. See the launch gates in `docs/BUILD_PLAN.md`.
 
 ## Toolchain
 
-- Backend Python tools:
-  `/Users/craigrobinson/app-starter/apps/api/.venv/bin/`
-- Backend import path:
-  `/Users/craigrobinson/the-coupon/apps/api`
+- Backend tools: `/Users/craigrobinson/app-starter/apps/api/.venv/bin/`
+- Backend import path: `/Users/craigrobinson/the-coupon/apps/api`
 - Frontend: Node `20.20.2` and pnpm
 - Scratch database: pip `pgserver`
-
-See `docs/BUILD_PLAN.md` for acceptance and `session-log.md` for completed-batch
-implementation notes.

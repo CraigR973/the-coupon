@@ -56,3 +56,19 @@
   later product work.
 
 **Next:** Batch 6 — Verify + rebrand pass
+
+## Batch 6 — Verify + rebrand pass
+**Commits:** `72945c0` · verified: 149 pytest + Ruff/mypy · scratch migration · build/TypeScript + 168 Vitest · mocked browser E2E · grep clean
+
+### Key facts for future sessions
+- Browser verification uses `tests.e2e_server:app`, disposable PostgreSQL, and
+  `FakeBetfair`; production never imports the test control endpoints.
+- The MVP default league slug is `the-coupon`; browser storage and cache keys
+  use the `coupon_*` namespace.
+- Display-name + PIN auth and invite claiming now use only the live snake_case
+  API surface.
+- Inherited product documentation, assets, routes, scripts, and the temporary
+  handoff document were removed.
+- The owner's live Betfair account remains outside agent automation.
+
+**Next:** Launch planning (all build batches closed)

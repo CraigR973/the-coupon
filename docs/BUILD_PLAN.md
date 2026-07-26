@@ -42,7 +42,7 @@ after the user invokes `/phase-closeout <N>`.
   settlement, and shared live-session lifecycle.
 - [x] **Batch 5 — Frontend reshape** ✅ 2026-07-26 — weekly pick UI, combined
   coupon, home, standings, and current API binding.
-- [ ] **Batch 6 — Verify + rebrand pass** — run every verification gate below,
+- [x] **Batch 6 — Verify + rebrand pass** ✅ 2026-07-26 — run every verification gate below,
   remove inherited product naming and unused surfaces, replace inherited
   documentation and assets, and delete the temporary handoff document.
 
