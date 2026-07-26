@@ -13,8 +13,10 @@ Exchange adapter. Authentication is display name + four-digit PIN.
 ## Source of record
 
 - Product, batch checklist, and acceptance: `docs/BUILD_PLAN.md`
+- Launch checklist and acceptance: `docs/LAUNCH_PLAN.md`
 - Current implementation state: `STATUS.md`
 - Completed-batch notes: `session-log.md`
+- Completed-launch notes: `launch-log.md`
 - Canonical slash-command workflows: `docs/agent-commands/`
 
 When the user invokes a slash command, read and follow its matching canonical
@@ -25,11 +27,16 @@ file:
 - `/batch-verify <id>` → `docs/agent-commands/batch-verify.md`
 - `/phase-closeout <id>` → `docs/agent-commands/phase-closeout.md`
 - `/strike-batch <id>` → `docs/agent-commands/strike-batch.md`
+- `/launch-start <L0-L5>` → `docs/agent-commands/launch-start.md`
+- `/launch-verify <L0-L5>` → `docs/agent-commands/launch-verify.md`
+- `/launch-closeout <L0-L5>` → `docs/agent-commands/launch-closeout.md`
 - `/ship-staging [message]` → `docs/agent-commands/ship-staging.md`
 - `/ship-prod` → `docs/agent-commands/ship-prod.md`
 
-Close-out is explicit. Do not commit, merge, tick a batch, or append its final
-session-log entry until the user invokes `/phase-closeout <id>`.
+Close-out is explicit. Do not commit, merge, tick a build batch, or append its
+final session-log entry until the user invokes `/phase-closeout <id>`. Do not
+commit, merge, tick a launch phase, or append its final launch-log entry until
+the user invokes `/launch-closeout <L0-L5>`.
 
 ## Toolchain
 

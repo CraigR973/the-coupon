@@ -25,9 +25,13 @@ checked immediately before launch.
 
 ## Next
 
-Launch planning: provision the fresh production services and domain, seed the
-real league membership, configure secrets, and run the owner-only live Betfair
-slate check. See the launch gates in `docs/BUILD_PLAN.md`.
+Launch hardening and fresh staging infrastructure. The 2026-07-26 audit found
+that the core game is ready, but remote shipment is blocked by application
+contract gaps, auth/database hardening, scheduler/backup decisions, missing
+staging and production targets, and owner-only Betfair launch work. Follow
+`docs/LAUNCH_PLAN.md`; no external service was accessed or changed by the
+audit. Launch phases use `/launch-start <L0-L5>`, `/launch-verify <L0-L5>`,
+and explicit `/launch-closeout <L0-L5>`.
 
 ## Toolchain
 

@@ -65,4 +65,5 @@ after the user invokes `/phase-closeout <N>`.
 ## Launch gates
 
 Fresh Supabase, Railway, Vercel, domain naming, real league membership, and any
-non-interactive Betfair certificate are separate launch work.
+non-interactive Betfair certificate are separate launch work. The audited,
+ordered launch checklist is in `docs/LAUNCH_PLAN.md`.
