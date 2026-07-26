@@ -2,9 +2,19 @@
 
 ## Now
 
-**Batch 4 of 6 shipped to local `main` (commit `bc40245`). Next: Batch 5 — Frontend reshape.**
+**Batch 5 of 6 shipped to local `main` (commit `25133f0`). Next: Batch 6 — Verify + rebrand pass.**
 
 👉 Full context: `HANDOFF.md` (repo root) + `docs/BUILD_PLAN.md`.
+
+**Done (Batch 5):** the frontend reshape — `apps/web` turned from the inherited calcio World-Cup
+app into The Coupon's weekly-accumulator UI. New pick screen (`CouponPickPage`: this Saturday's
+slate, one selection, taken selections unavailable, live odds + 14:30 countdown), `CombinedAccaView`
++ `CouponCombinedPage`, `PickCard`/`OddsGuide`/`usePickEditor`/`lib/coupon`. Rebuilt the home
+(`DashboardPage`) and `LeaderboardPage` (onto `/standings`). Stripped every WC surface bound to the
+deleted backend (bracket/knockout/specials/survey/week1/schedule/match/group/admin pages + helper
+libs/hooks/tests) and de-Calcio'd Brand/TopBar/TabBar. Screens bind to the snake_case API under
+`/api/v1/leagues/{slug}` via `DEFAULT_LEAGUE_SLUG`. Green (Node 20): `pnpm build` (tsc + vite + PWA)
+· `tsc --noEmit` · vitest 169/169. (Full mocked-Betfair/real-Postgres/preview e2e is Batch 6.)
 
 **Done (Batch 4):** the scheduler — four APScheduler jobs (`scheduler.py`) on Europe/London
 wall-clock schedules: `refresh_slate` (upsert the upcoming Saturday's fixtures a few times
@@ -47,10 +57,11 @@ reduced; calcio's 40 WC migrations squashed to `001_baseline`. (Detail in `sessi
 package (local Homebrew postgres is broken). The loaded calcio `CLAUDE.md` points at
 calcio's venv — ignore it for this repo.
 
-**Next step:** Batch 5 — Frontend reshape: the Coupon pick screen (this Saturday's slate, one
-selection, taken selections shown unavailable, odds + countdown to 14:30) and the combined-acca
-view, reusing the existing league/leaderboard pages. Then Batch 6 (verify end-to-end in the
-preview browser + rebrand pass: replace the inherited calcio docs, delete `HANDOFF.md`).
+**Next step:** Batch 6 — Verify + rebrand pass: the full mocked-Betfair + real-Postgres +
+preview-browser end-to-end (seed a leaderboard → open the Saturday slate → members pick → a
+third is blocked from a taken selection → lock → settle → standings + combined-acca render,
+screenshot as proof) + grep-clean of calcio/WC/bracket/knockout; replace the inherited calcio
+docs (README/AGENTS/.env.example), sweep the `wc2026_*` localStorage keys, delete `HANDOFF.md`.
 
 **Known Batch-1 gaps (deferred by design):** league *routers* have no committed tests yet
 (spine tests cover auth/notifications/backup/scheduler; leagues proven via the e2e script) —
@@ -95,3 +106,9 @@ check is Craig's to run (agent never logs into his money account); API keys stay
   No new tables (odds stay live on picks). Green: ruff · ruff format · mypy (45 files) · 142
   pytest + 7 skipped; pgserver: 149 passed incl. the lock→settle→leaderboard e2e. Next = Batch 5
   (frontend reshape).
+- 2026-07-26 — **Batch 5 shipped** (`25133f0`, on local `main`). Frontend reshape: `apps/web`
+  turned from the calcio WC app into The Coupon's weekly-accumulator UI — new pick screen +
+  combined-acca view + `PickCard`/`OddsGuide`/`usePickEditor`/`lib/coupon`, rebuilt home +
+  `LeaderboardPage` (onto `/standings`); stripped every WC surface bound to the deleted backend
+  and de-Calcio'd Brand/TopBar/TabBar. Green (Node 20): `pnpm build` (tsc + vite + PWA) · `tsc` ·
+  vitest 169/169 (28 files). Next = Batch 6 (verify e2e + rebrand pass).

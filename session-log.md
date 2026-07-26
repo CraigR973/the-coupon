@@ -61,3 +61,17 @@ Batch scope + status lives in `docs/BUILD_PLAN.md`; current state in `STATUS.md`
 - **DB-test hygiene:** `test_picks_flow` commits (non-hermetic — it drives the HTTP endpoint), so a reused `pgserver` PGDATA accumulates rows and makes it fail on re-run (e.g. `assert 6 == 3` from doubled picks). Start each DB run from a clean schema (`DROP SCHEMA public CASCADE`). Batch-4 `test_scheduler_jobs` is hermetic (one session, always rolled back). `alembic check` reports pre-existing model↔migration drift (Batch 1/3, not Batch 4) — the real gate is `alembic upgrade head` (clean on `002`, no new tables).
 
 **Next:** Batch 5 — Frontend reshape (Coupon pick screen + combined-acca view; reuse league/leaderboard pages)
+
+---
+
+## Batch 5 — Frontend reshape
+**Commits:** 25133f0 · verified (Node 20 frontend gate): pnpm build (tsc + vite + PWA) · tsc --noEmit · vitest 169/169 (28 files). No backend files touched, so ruff/mypy/pytest are N/A.
+
+### Key facts for future sessions
+- **Backend reality drove more stripping than BUILD_PLAN's frontend keep-list.** The `/api/v1/{admin/*, leaderboard, leaderboard/global, groups, matches, predictions, ...}` routers were all deleted in Batches 1–3, so the admin pages, leaderboard History/Round/Global sub-pages, and WC-group pages (which the plan named "Groups/GroupDetail" as keep) were stripped too. Surviving live-endpoint pages: LoginPage/JoinPage/Forgot/PinReset/Welcome/Offline/Settings + the league hub (MyLeagues/Create/Discover/JoinByCode/Members/Settings/JoinRequests/AdminInvites).
+- **Pick/coupon/standings screens bind to `DEFAULT_LEAGUE_SLUG` (`steele-spreadsheet`)**, not a per-league route — the top-level Coupon tab shows one leaderboard's slate (single-leaderboard MVP; per-league pick screen is a follow-up). API is **snake_case** (no camelCase alias) — `lib/types` + components bind to it directly. Query keys: `gameweekKey`/`couponKey`/`myPickKey` in `hooks/usePickEditor.ts`; standings under `['standings', slug]` (shared by home + LeaderboardPage + MyLeagues).
+- **LeaderboardPage was rebuilt on `/standings`** (the old 581-line WC merit-cascade page + its `/matches` form-guide + Supabase realtime are gone). `MyLeaguesPage` de-globalised onto `/standings`.
+- **Rebrand is only partial — the rest is Batch 6.** Brand/TopBar/TabBar were minimally de-Calcio'd (wordmark "The Coupon", `brand.tagline`, nav = Home/Coupon/Leagues/Settings; mobile More sheet holds Settings + Sign out since SettingsPage has no logout). Still calcio/WC and owed to Batch 6: `HANDOFF.md` deletion, docs rebrand (README/AGENTS/.env.example), the grep-clean, localStorage keys (`wc2026_*`), and the full mocked-Betfair + real-Postgres + preview-browser e2e (not run here — no backend was started).
+- **`useCountdown` was changed** to compute fresh each render (was seeding state from the first target and only updating on the next 1 s tick → stale "locked" flash when the slate loaded). Drives the 14:30 lock on the pick page + home.
+
+**Next:** Batch 6 — Verify + rebrand pass (full mocked-Betfair/real-Postgres/preview e2e + grep-clean of calcio/WC/bracket/knockout; replace inherited docs; delete HANDOFF.md)

@@ -112,7 +112,7 @@ This checklist is the **batch source of record**: `/next-batch-prompt` reads the
   `services/coupon.py`. Adds the gameweek + fixture + pick tables (new migration).
 - [x] **Batch 4 — Scheduler** ✅ 2026-07-26 — jobs: refresh slate+odds (a few times pre-lock), lock at 14:30,
   settle Sat evening + recompute standings, pick reminder push.
-- [ ] **Batch 5 — Frontend reshape** — Coupon pick screen, combined-acca view; reuse
+- [x] **Batch 5 — Frontend reshape** ✅ 2026-07-26 — Coupon pick screen, combined-acca view; reuse
   league/leaderboard pages.
 - [ ] **Batch 6 — Verify + rebrand pass** — full verification (below) + grep clean of
   calcio/WC/bracket/knockout; replace the inherited calcio docs; delete `HANDOFF.md`.
