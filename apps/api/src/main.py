@@ -18,12 +18,15 @@ from src.middleware import CorrelationIdMiddleware, SecurityHeadersMiddleware
 from src.rate_limit import limiter
 from src.routers import (
     auth,
+    coupon,
+    gameweek,
     health,
     league_join_requests,
     league_memberships,
     leagues,
     me,
     notifications,
+    picks,
 )
 from src.scheduler import create_scheduler
 
@@ -100,3 +103,6 @@ app.include_router(notifications.router)
 app.include_router(leagues.router)
 app.include_router(league_memberships.router)
 app.include_router(league_join_requests.router)
+app.include_router(gameweek.router)
+app.include_router(picks.router)
+app.include_router(coupon.router)

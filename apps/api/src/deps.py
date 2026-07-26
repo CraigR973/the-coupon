@@ -3,11 +3,85 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator
+from typing import Annotated
 
+import structlog
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.auth import CurrentUser
+from src.database import get_db
+from src.models.league import League
 from src.models.league_membership import LeagueMembership
+from src.models.profile import UserRole
+from src.services.betfair import Betfair, BetfairAdapter, BetfairError
+
+log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+
+async def get_league_or_404(slug: str, db: AsyncSession) -> League:
+    result = await db.execute(
+        select(League).where(League.slug == slug, League.deleted_at.is_(None))
+    )
+    league = result.scalar_one_or_none()
+    if league is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="League not found")
+    return league
+
+
+async def require_league_member(
+    slug: str,
+    player: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> League:
+    """Resolve the league by slug and require the caller be an active member.
+
+    Site admins bypass the membership check. Shared by the picks / gameweek / coupon
+    routers (leagues.py keeps its own equivalents).
+    """
+    league = await get_league_or_404(slug, db)
+    if player.role == UserRole.admin:
+        return league
+    membership = await db.execute(
+        select(LeagueMembership.id).where(
+            LeagueMembership.league_id == league.id,
+            LeagueMembership.player_id == player.id,
+            LeagueMembership.deleted_at.is_(None),
+        )
+    )
+    if membership.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="League membership required"
+        )
+    return league
+
+
+LeagueMemberDep = Annotated[League, Depends(require_league_member)]
+
+
+async def get_betfair_adapter() -> AsyncIterator[BetfairAdapter]:
+    """Yield a logged-in live Betfair client for odds snapshots / settlement.
+
+    Overridden with ``FakeBetfair`` in tests. A 503 (not 500) surfaces when Betfair is
+    unconfigured or unreachable, so a missing session degrades cleanly.
+    """
+    try:
+        client = Betfair.from_settings()
+        await client.login()
+    except BetfairError as exc:
+        log.warning("betfair unavailable", error=repr(exc))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Odds service unavailable"
+        ) from exc
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+BetfairDep = Annotated[BetfairAdapter, Depends(get_betfair_adapter)]
 
 
 async def shared_league_player_ids(
