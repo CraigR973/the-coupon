@@ -1,7 +1,5 @@
 """Shared FastAPI dependencies."""
 
-from __future__ import annotations
-
 import uuid
 from typing import Annotated
 
