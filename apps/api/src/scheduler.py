@@ -57,11 +57,12 @@ def _uk_today() -> date:
     return datetime.now(_UK_TZ).date()
 
 
-async def run_scheduled_backup() -> None:
+async def run_scheduled_backup() -> bool:
     """Daily backup job — runs at 03:00 UTC."""
     try:
         info = await create_backup(settings.backup_dir, settings.database_url)
         log.info("scheduled backup complete", filename=info.filename, size_bytes=info.size_bytes)
+        return True
     except Exception as exc:
         reason = str(exc)
         log.exception("scheduled backup failed")
@@ -77,9 +78,10 @@ async def run_scheduled_backup() -> None:
                 )
             )
             await session.commit()
+        return False
 
 
-async def run_connection_warmup() -> None:
+async def run_connection_warmup() -> bool:
     """Keep a pooled DB connection hot so the first open rarely pays a cold connect.
 
     ``pool_recycle=1800`` recycles a connection idle for 30 min, so the first
@@ -90,8 +92,10 @@ async def run_connection_warmup() -> None:
     try:
         async with AsyncSessionLocal() as session:
             await session.execute(text("SELECT 1"))
+        return True
     except Exception:
         log.exception("connection warmup failed")
+        return False
 
 
 # ── Coupon domain jobs (Batch 4) ────────────────────────────────────────────────
@@ -100,7 +104,7 @@ async def run_connection_warmup() -> None:
 # errors so one bad run never takes the scheduler down.
 
 
-async def run_refresh_slate() -> None:
+async def run_refresh_slate() -> bool:
     """Refresh the upcoming Saturday's slate + fixtures from Betfair.
 
     Runs a few times pre-lock so the card firms up (names, kick-offs). Odds themselves are
@@ -117,11 +121,13 @@ async def run_refresh_slate() -> None:
             log.info("slate refreshed", saturday=str(saturday), gameweek_id=gameweek_id)
         else:
             log.info("slate refresh: no target fixtures", saturday=str(saturday))
+        return True
     except Exception:
         log.exception("slate refresh failed")
+        return False
 
 
-async def run_lock_gameweeks() -> None:
+async def run_lock_gameweeks() -> bool:
     """Lock any open gameweek whose 14:30 deadline has passed (fires 14:30 UK, Saturdays)."""
     try:
         async with AsyncSessionLocal() as session:
@@ -130,11 +136,13 @@ async def run_lock_gameweeks() -> None:
             await session.commit()
         if gameweek_ids:
             log.info("gameweeks locked", count=len(gameweek_ids), gameweek_ids=gameweek_ids)
+        return True
     except Exception:
         log.exception("gameweek lock failed")
+        return False
 
 
-async def run_settle_gameweeks() -> None:
+async def run_settle_gameweeks() -> bool:
     """Settle locked gameweeks against Betfair results and recompute standings.
 
     Idempotent: :func:`~src.services.scoring.settle_gameweek_via_adapter` resolves only picks
@@ -165,24 +173,28 @@ async def run_settle_gameweeks() -> None:
                     )
         if resolved_by_gameweek:
             log.info("gameweeks settled", resolved=resolved_by_gameweek)
+        return True
     except Exception:
         log.exception("settle failed")
+        return False
 
 
-async def run_pick_reminders() -> None:
+async def run_pick_reminders() -> bool:
     """Nudge members who still owe a pick for the current open gameweek (fires pre-lock)."""
     try:
         async with AsyncSessionLocal() as session:
             gameweek = await current_open_gameweek(session, _utc_now())
             if gameweek is None:
                 log.info("pick reminder: no open gameweek")
-                return
+                return True
             gameweek_id = str(gameweek.id)
             reminded = await send_pick_reminders(session, gameweek)
             await session.commit()
         log.info("pick reminders sent", gameweek_id=gameweek_id, count=reminded)
+        return True
     except Exception:
         log.exception("pick reminder failed")
+        return False
 
 
 def create_scheduler() -> AsyncIOScheduler:
@@ -251,8 +263,8 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(
         run_settle_gameweeks,
         trigger="cron",
-        day_of_week="sat",
-        hour="18,20,22",  # Saturday evening — retried as markets close
+        day_of_week="sat,sun,mon",
+        hour="18,20,22",  # Saturday evening plus Sunday/Monday retries for late markets
         minute=0,
         timezone="Europe/London",
         id="settle_gameweeks",

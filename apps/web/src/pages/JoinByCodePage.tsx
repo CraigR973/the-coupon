@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch } from '@/lib/api';
+import { API_BASE, apiFetch } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/PageHeader';
-
-const BASE = import.meta.env.VITE_API_URL ?? '';
 
 interface LeaguePreview {
   name: string;
@@ -51,7 +49,7 @@ export function JoinByCodePage() {
     setError('');
     setIsLoading(true);
     try {
-      const resp = await fetch(`${BASE}/api/v1/leagues/join-by-code`, {
+      const resp = await fetch(`${API_BASE}/api/v1/leagues/join-by-code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

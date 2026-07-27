@@ -49,8 +49,9 @@ async def test_run_scheduled_backup_failure_writes_audit() -> None:
         ),
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
     ):
-        await run_scheduled_backup()
+        ok = await run_scheduled_backup()
 
+    assert ok is False
     added = [call.args[0] for call in session.add.call_args_list]
     audit_rows = [a for a in added if isinstance(a, AuditLog)]
     assert len(audit_rows) == 1
@@ -69,8 +70,9 @@ async def test_run_scheduled_backup_success_does_not_raise() -> None:
     info.size_bytes = 1024
 
     with patch("src.scheduler.create_backup", new_callable=AsyncMock, return_value=info):
-        await run_scheduled_backup()
+        ok = await run_scheduled_backup()
     # No exception raised = pass
+    assert ok is True
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +116,7 @@ def test_create_scheduler_domain_jobs_fire_on_uk_wall_clock() -> None:
             "refresh_slate": "cron[day_of_week='mon-sat', hour='9,12,14', minute='0']",
             "pick_reminders": "cron[day_of_week='sat', hour='11', minute='0']",
             "lock_gameweeks": "cron[day_of_week='sat', hour='14', minute='30']",
-            "settle_gameweeks": "cron[day_of_week='sat', hour='18,20,22', minute='0']",
+            "settle_gameweeks": "cron[day_of_week='sat,sun,mon', hour='18,20,22', minute='0']",
         }
         for job_id, trigger_repr in expected.items():
             job = scheduler.get_job(job_id)
@@ -167,7 +169,8 @@ async def test_run_refresh_slate_swallows_errors() -> None:
         "src.scheduler.betfair_session.acquire",
         new=AsyncMock(side_effect=RuntimeError("betfair down")),
     ):
-        await run_refresh_slate()  # a failed run must not propagate
+        ok = await run_refresh_slate()  # a failed run must not propagate
+    assert ok is False
 
 
 @pytest.mark.asyncio
@@ -179,7 +182,8 @@ async def test_run_lock_gameweeks_commits() -> None:
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
         patch("src.scheduler.lock_due_gameweeks", new=AsyncMock(return_value=[locked])) as lock,
     ):
-        await run_lock_gameweeks()
+        ok = await run_lock_gameweeks()
+    assert ok is True
     lock.assert_awaited_once()
     session.commit.assert_awaited_once()
 
@@ -187,7 +191,8 @@ async def test_run_lock_gameweeks_commits() -> None:
 @pytest.mark.asyncio
 async def test_run_lock_gameweeks_swallows_errors() -> None:
     with patch("src.scheduler.AsyncSessionLocal", side_effect=RuntimeError("db down")):
-        await run_lock_gameweeks()
+        ok = await run_lock_gameweeks()
+    assert ok is False
 
 
 @pytest.mark.asyncio
@@ -206,7 +211,8 @@ async def test_run_settle_gameweeks_settles_then_recomputes_standings() -> None:
         patch("src.scheduler.participating_league_ids", new=AsyncMock(return_value=[uuid.uuid4()])),
         patch("src.scheduler.standings", new=AsyncMock(return_value=[leader])) as recompute,
     ):
-        await run_settle_gameweeks()
+        ok = await run_settle_gameweeks()
+    assert ok is True
     settle.assert_awaited_once()
     recompute.assert_awaited_once()  # standings recomputed per participating league
     session.commit.assert_awaited_once()
@@ -218,7 +224,8 @@ async def test_run_settle_gameweeks_swallows_errors() -> None:
         "src.scheduler.betfair_session.acquire",
         new=AsyncMock(side_effect=RuntimeError("betfair down")),
     ):
-        await run_settle_gameweeks()
+        ok = await run_settle_gameweeks()
+    assert ok is False
 
 
 @pytest.mark.asyncio

@@ -48,7 +48,8 @@ push, deploy, or tick the launch status row.
 - Run the complete backend and frontend gate from `/batch-verify`.
 - Start clean scratch PostgreSQL, run `alembic upgrade head`, and rerun
   database-backed tests.
-- Build the production Docker image.
+- Verify the Railway/Nixpacks build config installs backend dependencies and
+  runs Alembic before Uvicorn without requiring local container tooling.
 - Run the production-bundle Playwright flow and retain screenshots.
 - Verify API/frontend contracts for avatar removal, notification settings, PIN
   reset, activation removal, bootstrap behavior, and staging-only odds mode.

@@ -7,11 +7,10 @@ import {
   getStoredPlayer,
 } from './tokens';
 
-if (import.meta.env.PROD && import.meta.env.VITE_API_URL === undefined) {
+if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
   throw new Error('VITE_API_URL is required in production builds');
 }
-// Empty string = same-origin (requests go through Vercel proxy rewrite).
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+export const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 /**
  * Single-leaderboard MVP target for the top-level pick and combined-coupon
@@ -27,7 +26,7 @@ async function silentRefresh(): Promise<void> {
     await clearTokens();
     throw new Error('No refresh token');
   }
-  const resp = await fetch(`${BASE}/api/v1/auth/refresh`, {
+  const resp = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refresh_token: refreshToken }),
@@ -64,7 +63,7 @@ export async function apiFetch<T>(
   };
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
-  const resp = await fetch(`${BASE}${path}`, { ...options, headers });
+  const resp = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
   if (resp.status === 401) {
     // Access token was rejected — attempt one refresh then retry
@@ -72,7 +71,7 @@ export async function apiFetch<T>(
       await silentRefresh();
       const retryToken = getAccessToken();
       if (retryToken) headers['Authorization'] = `Bearer ${retryToken}`;
-      const retry = await fetch(`${BASE}${path}`, { ...options, headers });
+      const retry = await fetch(`${API_BASE}${path}`, { ...options, headers });
       if (!retry.ok) throw new Error(`${retry.status}`);
       return retry.json() as Promise<T>;
     } catch {

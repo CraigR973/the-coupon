@@ -26,31 +26,9 @@ vi.mock('@/hooks/useInstallPrompt', () => ({
   }),
 }));
 
-// ── Mock Supabase (not used in unit tests; avoids env-var initialisation) ────
-
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    storage: {
-      from: () => ({
-        upload: vi.fn().mockResolvedValue({ error: null }),
-        getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://example.supabase.co/avatars/x.jpg' } }),
-      }),
-    },
-  },
-}));
-
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const DEFAULT_PREFS = {
-  deadline_warning: true,
-  predict_reminder: true,
-  pick_confirmation: false,
-  match_locked: true,
-  result_detected: true,
-  leaderboard_shift: true,
-  round_complete: true,
-  match_postponed: true,
-  special_results: true,
   global_mute: false,
   quiet_hours_start: null,
   quiet_hours_end: null,
@@ -159,48 +137,34 @@ describe('SettingsPage', () => {
     });
   });
 
-  it('renders all 9 category toggles', async () => {
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getByRole('switch', { name: /deadline warning/i })).toBeInTheDocument();
-      expect(screen.getByRole('switch', { name: /daily prediction reminder/i })).toBeInTheDocument();
-      expect(screen.getByRole('switch', { name: /pick confirmation/i })).toBeInTheDocument();
-      expect(screen.getByRole('switch', { name: /predictions locked/i })).toBeInTheDocument();
-      expect(screen.getByRole('switch', { name: /match result posted/i })).toBeInTheDocument();
-      expect(screen.getByRole('switch', { name: /leaderboard rank/i })).toBeInTheDocument();
-      expect(screen.getByRole('switch', { name: /round complete/i })).toBeInTheDocument();
-      expect(screen.getByRole('switch', { name: /match postponed/i })).toBeInTheDocument();
-      expect(screen.getByRole('switch', { name: /special prediction/i })).toBeInTheDocument();
-    });
-  });
-
-  it('toggling a category sends PATCH request', async () => {
+  it('toggling global mute sends PATCH request', async () => {
     const fetch = makeFetch();
     renderPage(fetch);
-    await waitFor(() => screen.getByRole('switch', { name: /deadline warning/i }));
-    fireEvent.click(screen.getByRole('switch', { name: /deadline warning/i }));
+    await waitFor(() => screen.getByRole('switch', { name: /enable all notifications/i }));
+    fireEvent.click(screen.getByRole('switch', { name: /enable all notifications/i }));
     await waitFor(() => {
       const patchCall = (fetch.mock.calls as [string, RequestInit?][]).find(
         ([url, opts]) => url.includes('/api/v1/notifications/preferences') && opts?.method === 'PATCH',
       );
       expect(patchCall).toBeDefined();
       const body = JSON.parse(patchCall![1]!.body as string);
-      expect(body).toHaveProperty('deadline_warning');
+      expect(body).toEqual({ global_mute: true });
     });
   });
 
-  it('renders pick confirmation off by default', async () => {
+  it('does not render unsupported category toggles', async () => {
     renderPage();
     await waitFor(() => {
-      expect(screen.getByRole('switch', { name: /pick confirmation/i })).toHaveAttribute('aria-checked', 'false');
+      expect(screen.queryByRole('switch', { name: /pick confirmation/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('switch', { name: /deadline warning/i })).not.toBeInTheDocument();
     });
   });
 
-  it('global mute toggle disables category switches', async () => {
+  it('global mute disables quiet-hour controls', async () => {
     renderPage(makeFetch(MUTED_PREFS));
     await waitFor(() => {
-      const deadlineToggle = screen.getByRole('switch', { name: /deadline warning/i });
-      expect(deadlineToggle).toBeDisabled();
+      expect(screen.getByLabelText(/from/i)).toBeDisabled();
+      expect(screen.getByLabelText(/to/i)).toBeDisabled();
     });
   });
 
@@ -211,60 +175,10 @@ describe('SettingsPage', () => {
     });
   });
 
-  it('renders the Profile Photo section', async () => {
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getByText('Profile Photo')).toBeInTheDocument();
-    });
-  });
-
   it('does not render a passkey unlock setting', async () => {
     renderPage();
     await waitFor(() => {
       expect(screen.queryByRole('switch', { name: /unlock with face id/i })).not.toBeInTheDocument();
-    });
-  });
-
-  it('shows "Upload photo" button when player has no avatar', async () => {
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /upload avatar photo/i })).toBeInTheDocument();
-    });
-  });
-
-  it('renders "Remove photo" button when player has an avatar', async () => {
-    const storedPlayerWithAvatar = JSON.stringify({
-      id: 'p1',
-      displayName: 'Alice',
-      role: 'player',
-      timezone: 'UTC',
-      avatarUrl: 'https://example.supabase.co/avatars/p1/face.jpg',
-    });
-
-    vi.stubGlobal('localStorage', {
-      getItem: (k: string) => {
-        if (k === 'coupon_player') return storedPlayerWithAvatar;
-        if (k === 'coupon_access') return FAKE_JWT;
-        return null;
-      },
-      setItem: vi.fn(),
-      removeItem: vi.fn(),
-      clear: vi.fn(),
-    });
-    vi.stubGlobal('fetch', makeFetch());
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter>
-          <AuthProvider>
-            <SettingsPage />
-          </AuthProvider>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /remove avatar photo/i })).toBeInTheDocument();
     });
   });
 });

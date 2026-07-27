@@ -7,7 +7,7 @@ Audit date: 2026-07-26
 **Not ready to ship to a remote staging or production environment yet.**
 
 The core game is implemented and locally verified, and the repository already
-has a viable Railway container, Alembic migrations, health endpoints, a Vite
+has a viable Railway backend service, Alembic migrations, health endpoints, a Vite
 production build, and CI. Launch work is still required to close security and
 frontend/API gaps, define the scheduler and backup topology, create fresh
 infrastructure, and verify a real deployment.
@@ -69,9 +69,9 @@ chooses otherwise:
 
 - [x] All six build batches and local verification gates are closed
   (`STATUS.md`).
-- [x] The Docker image installs PostgreSQL tools, copies the API and migrations,
-  runs Alembic before Uvicorn, and fails startup if migration fails
-  (`Dockerfile`).
+- [x] The Railway/Nixpacks config installs PostgreSQL tools and backend
+  dependencies, runs Alembic before Uvicorn, and fails startup if migration
+  fails (`railway.toml`, `nixpacks.toml`).
 - [x] Railway build, restart, and health-check configuration exists
   (`railway.toml`).
 - [x] Async SQLAlchemy and Alembic disable prepared-statement caching for
@@ -80,7 +80,7 @@ chooses otherwise:
 - [x] Liveness and database-readiness endpoints exist
   (`/api/v1/health` and `/api/v1/health/ready`).
 - [x] Non-development secret validation, production API-doc disabling, API
-  security headers, structured logs, and optional Sentry integration exist.
+  security headers, and structured platform logs exist.
 - [x] Game locks are stored in UTC and scheduler wall-clock jobs use
   `Europe/London`.
 - [x] Test-only browser controls are not copied into the production image.
@@ -168,7 +168,8 @@ chooses otherwise:
   not marked ready while PostgreSQL is unavailable.
 - [ ] Require `ENVIRONMENT` explicitly outside local development; a missing
   value currently defaults to development and weakens production safeguards.
-- [ ] Add a Docker-image build and Playwright production-bundle job to CI.
+- [ ] Add Railway/Nixpacks build configuration coverage and Playwright
+  production-bundle job to CI.
 - [ ] Add staging post-deploy smoke tests for deep links, auth, league
   administration, picks, lock, settlement, push subscription, and PWA update
   behavior.
@@ -232,13 +233,13 @@ provisioning, and no existing service is reused by inference.
 
 ### L1 — Launch-hardening implementation
 
-- [ ] Complete every Application and security blocker.
-- [ ] Complete the Vercel/API-routing code changes.
-- [ ] Complete scheduler retry/failure behavior and non-interactive Betfair
+- [x] Complete every Application and security blocker.
+- [x] Complete the Vercel/API-routing code changes.
+- [x] Complete scheduler retry/failure behavior and non-interactive Betfair
   support behind tests.
-- [ ] Add the bootstrap command, RLS/grant migration, pinned dependencies,
+- [x] Add the bootstrap command, RLS/grant migration, pinned dependencies,
   runbooks, and CI coverage.
-- [ ] Run the full local verification suite against clean PostgreSQL.
+- [x] Run the full local verification suite against clean PostgreSQL.
 
 **Gate:** no known broken production UI surface; auth protections, database
 exposure, config validation, and scheduled failure behavior are tested.
@@ -246,7 +247,8 @@ exposure, config validation, and scheduled failure behavior are tested.
 ### L2 — Fresh staging infrastructure
 
 - [ ] Provision a fresh Supabase staging project and verify Data API lockdown.
-- [ ] Provision one always-on Railway staging service from the root Dockerfile.
+- [ ] Provision one always-on Railway staging service from the repo-root
+  Nixpacks config.
 - [ ] Provision the Vercel staging project with `apps/web` as its root.
 - [ ] Configure environment-scoped secrets without copying production values.
 - [ ] Apply migrations, run the non-real staging seed, and attach stable staging

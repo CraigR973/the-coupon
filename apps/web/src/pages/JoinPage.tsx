@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
+import { API_BASE } from '@/lib/api';
 import { getAccessToken } from '@/lib/tokens';
 import { brand } from '@/theme/tokens';
 
-const BASE = import.meta.env.VITE_API_URL ?? '';
 const JOIN_CODE_RE = /^[A-Z0-9]{6}$/;
 
 function AppJoinFlow() {
@@ -30,8 +30,8 @@ function AppJoinFlow() {
       if (!accessToken) throw new Error('Sign in before joining a league.');
 
       const endpoint = isJoinCode
-        ? `${BASE}/api/v1/leagues/join-by-code`
-        : `${BASE}/api/v1/leagues/claim-invite`;
+        ? `${API_BASE}/api/v1/leagues/join-by-code`
+        : `${API_BASE}/api/v1/leagues/claim-invite`;
       const body = isJoinCode ? { code: token.toUpperCase() } : { token };
       const response = await fetch(endpoint, {
         method: 'POST',

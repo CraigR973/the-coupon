@@ -5,8 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Brand } from '@/components/Brand';
-
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+import { API_BASE } from '@/lib/api';
 
 export function ForgotPinPage() {
   const [displayName, setDisplayName] = useState('');
@@ -19,7 +18,7 @@ export function ForgotPinPage() {
     setError('');
     setIsLoading(true);
     try {
-      const resp = await fetch(`${BASE}/api/v1/auth/pin/reset-request`, {
+      const resp = await fetch(`${API_BASE}/api/v1/auth/pin/reset-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ display_name: displayName.trim() }),

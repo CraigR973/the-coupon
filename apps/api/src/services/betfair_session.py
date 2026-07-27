@@ -19,7 +19,8 @@ from datetime import UTC, datetime, timedelta
 
 import structlog
 
-from src.services.betfair import Betfair, BetfairAdapter, BetfairError
+from src.config import Environment, settings
+from src.services.betfair import Betfair, BetfairAdapter, BetfairError, FakeBetfair
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -42,7 +43,7 @@ class BetfairSession:
     """
 
     def __init__(self) -> None:
-        self._client: Betfair | None = None
+        self._client: BetfairAdapter | None = None
         self._validated_at: datetime | None = None
         self._lock = asyncio.Lock()
 
@@ -62,7 +63,13 @@ class BetfairSession:
             return self._client
 
     async def _login(self, now: datetime) -> None:
-        client = Betfair.from_settings()
+        client: BetfairAdapter
+        if settings.bf_fake_mode:
+            if settings.environment == Environment.production:
+                raise BetfairError("Fake Betfair mode is forbidden in production")
+            client = FakeBetfair.with_sample_data()
+        else:
+            client = Betfair.from_settings()
         await client.login()
         self._client = client
         self._validated_at = now

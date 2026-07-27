@@ -17,10 +17,15 @@ def _build_settings(**overrides: object) -> Settings:
         "environment": Environment.production,
         "jwt_access_secret": "a" * 32,
         "jwt_refresh_secret": "b" * 32,
+        "vapid_public_key": "vapid-public",
         "vapid_private_key": "vapid-private",
-        "supabase_service_key": "supabase-service",
         "database_url": "postgresql+asyncpg://u:p@host:5432/db",
         "frontend_origin": "https://app.example.com",
+        "bf_app_key": "betfair-app-key",
+        "bf_user": "betfair-user",
+        "bf_pass": "betfair-pass",
+        "bf_cert_file": "/run/secrets/betfair.crt",
+        "bf_key_file": "/run/secrets/betfair.key",
     }
     params.update(overrides)
     return Settings(**params)  # type: ignore[arg-type]
@@ -31,10 +36,9 @@ def test_valid_production_settings_construct() -> None:
     assert settings.environment == Environment.production
 
 
-def test_production_allows_missing_anthropic_api_key() -> None:
-    # Claude is optional in the template — an app that doesn't use an LLM still boots.
-    settings = _build_settings(anthropic_api_key="")
-    assert settings.anthropic_api_key == ""
+def test_production_does_not_require_removed_template_services() -> None:
+    settings = _build_settings()
+    assert settings.environment == Environment.production
 
 
 def test_production_rejects_short_jwt_secret() -> None:
@@ -55,6 +59,11 @@ def test_development_allows_weak_jwt_secrets() -> None:
         jwt_refresh_secret="dev",
     )
     assert settings.jwt_access_secret == "dev"
+
+
+def test_production_rejects_fake_betfair_mode() -> None:
+    with pytest.raises(ValueError, match="bf_fake_mode is forbidden"):
+        _build_settings(bf_fake_mode=True)
 
 
 def test_docs_urls_disabled_in_production() -> None:

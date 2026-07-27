@@ -13,10 +13,19 @@ from src.config import settings
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
+
+def client_address(request: Request) -> str:
+    """Return the user-facing client IP, honoring Railway's proxy header."""
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()
+    return get_remote_address(request)
+
+
 # Counters are in-process and reset on restart. This is acceptable for a
 # single-instance Railway deployment — the DB lockout (max_attempts) is the
 # durable brute-force guard; these counters add a short-term rate layer.
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=client_address)
 
 
 def per_user_key(request: Request) -> str:
@@ -40,7 +49,7 @@ def per_user_key(request: Request) -> str:
             return f"user:{payload['sub']}"
         except Exception:
             pass
-    return get_remote_address(request)
+    return client_address(request)
 
 
 def login_key(request: Request) -> str:
@@ -55,7 +64,7 @@ def login_key(request: Request) -> str:
         name = str(data.get("display_name", "")).lower()
     except Exception:
         name = ""
-    return f"login:{name}:{get_remote_address(request)}"
+    return f"login:{name}:{client_address(request)}"
 
 
 def refresh_token_key(request: Request) -> str:
@@ -70,4 +79,4 @@ def refresh_token_key(request: Request) -> str:
         raw_token = str(data.get("refresh_token", ""))
         return f"refresh:{hashlib.sha256(raw_token.encode()).hexdigest()}"
     except Exception:
-        return get_remote_address(request)
+        return client_address(request)

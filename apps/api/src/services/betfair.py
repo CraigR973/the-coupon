@@ -50,6 +50,7 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 # ── Betfair endpoints / constants ──────────────────────────────────────────────
 
 _IDENTITY_BASE_URL = "https://identitysso.betfair.com"
+_IDENTITY_CERT_BASE_URL = "https://identitysso-cert.betfair.com"
 _BETTING_BASE_URL = "https://api.betfair.com"
 _RPC_PATH = "/exchange/betting/json-rpc/v1"
 _RPC_PREFIX = "SportsAPING/v1.0/"
@@ -369,6 +370,10 @@ class BetfairAdapter(ABC):
         """Refresh the current session so it doesn't time out."""
 
     @abstractmethod
+    async def close(self) -> None:
+        """Release any client resources held by the adapter."""
+
+    @abstractmethod
     async def list_competitions(self, *, event_type_id: str) -> list[BFCompetitionResult]: ...
 
     @abstractmethod
@@ -558,14 +563,20 @@ class Betfair(BetfairAdapter):
         username: str,
         password: str,
         *,
+        cert_file: str = "",
+        key_file: str = "",
         identity_client: httpx.AsyncClient | None = None,
         betting_client: httpx.AsyncClient | None = None,
     ) -> None:
         self._app_key = app_key
         self._username = username
         self._password = password
+        self._cert_file = cert_file
+        self._key_file = key_file
         self._identity = identity_client or httpx.AsyncClient(
-            base_url=_IDENTITY_BASE_URL, timeout=_TIMEOUT
+            base_url=_IDENTITY_CERT_BASE_URL if cert_file and key_file else _IDENTITY_BASE_URL,
+            timeout=_TIMEOUT,
+            cert=(cert_file, key_file) if cert_file and key_file else None,
         )
         self._betting = betting_client or httpx.AsyncClient(
             base_url=_BETTING_BASE_URL, timeout=_TIMEOUT
@@ -579,7 +590,13 @@ class Betfair(BetfairAdapter):
             raise BetfairAuthError(
                 "Betfair credentials not configured (BF_APP_KEY / BF_USER / BF_PASS)"
             )
-        return cls(settings.bf_app_key, settings.bf_user, settings.bf_pass)
+        return cls(
+            settings.bf_app_key,
+            settings.bf_user,
+            settings.bf_pass,
+            cert_file=settings.bf_cert_file,
+            key_file=settings.bf_key_file,
+        )
 
     async def close(self) -> None:
         await self._identity.aclose()
@@ -594,9 +611,10 @@ class Betfair(BetfairAdapter):
     # -- auth ------------------------------------------------------------------
 
     async def login(self) -> str:
+        path = "/api/certlogin" if self._cert_file and self._key_file else "/api/login"
         try:
             response = await self._identity.post(
-                "/api/login",
+                path,
                 data={"username": self._username, "password": self._password},
                 headers={"X-Application": self._app_key, "Accept": "application/json"},
             )
@@ -798,6 +816,9 @@ class FakeBetfair(BetfairAdapter):
     async def keep_alive(self) -> None:
         if not self._logged_in:
             raise BetfairAuthError("Not logged in — call login() first")
+
+    async def close(self) -> None:
+        self._logged_in = False
 
     async def list_competitions(self, *, event_type_id: str) -> list[BFCompetitionResult]:
         return list(self._competitions)

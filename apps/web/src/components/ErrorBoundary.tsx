@@ -1,5 +1,4 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import * as Sentry from '@sentry/react';
 import { Button } from './ui/button';
 import { EmptyState } from './EmptyState';
 
@@ -20,7 +19,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
+    console.error('render failed', error, info.componentStack);
   }
 
   reset = (): void => {

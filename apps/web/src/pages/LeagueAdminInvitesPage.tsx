@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Share2, ChevronDown, RefreshCw } from 'lucide-react';
-import { apiFetch, DEFAULT_LEAGUE_SLUG } from '@/lib/api';
+import { API_BASE, apiFetch, DEFAULT_LEAGUE_SLUG } from '@/lib/api';
 import type { LeagueDetail, LeagueInvite } from '@/lib/types';
 import { buildInviteMessage, shareInvite } from '@/lib/invite';
 import { getAccessToken } from '@/lib/tokens';
@@ -11,8 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/PageHeader';
-
-const BASE = import.meta.env.VITE_API_URL ?? '';
 
 export function LeagueAdminInvitesPage() {
   const { slug = DEFAULT_LEAGUE_SLUG } = useParams<{ slug: string }>();
@@ -53,7 +51,7 @@ export function LeagueAdminInvitesPage() {
     if (!window.confirm('Generate a new join code? The old link will stop working immediately.')) return;
     setIsRotating(true);
     try {
-      const resp = await fetch(`${BASE}/api/v1/leagues/${slug}/join-code/rotate`, {
+      const resp = await fetch(`${API_BASE}/api/v1/leagues/${slug}/join-code/rotate`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${getAccessToken()}` },
       });

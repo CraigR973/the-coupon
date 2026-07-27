@@ -1,7 +1,7 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bell, BellOff, Download, Send, Check, Sun, Moon, Monitor, Info, Camera, Trash2, Globe, KeyRound } from 'lucide-react';
+import { Bell, BellOff, Download, Send, Check, Sun, Moon, Monitor, Info, Globe, KeyRound } from 'lucide-react';
 import { PinInput } from '../components/PinInput';
 import { toast } from 'sonner';
 import { apiFetch } from '../lib/api';
@@ -12,44 +12,14 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 import { PageHeader } from '../components/PageHeader';
-import { Avatar } from '../components/ui/avatar';
-import {
-  ALLOWED_AVATAR_TYPES,
-  MAX_AVATAR_BYTES,
-  resizeAvatar,
-  uploadAvatarImage,
-} from '../lib/image';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface NotificationPreferences {
-  deadline_warning: boolean;
-  predict_reminder: boolean;
-  pick_confirmation: boolean;
-  match_locked: boolean;
-  result_detected: boolean;
-  leaderboard_shift: boolean;
-  round_complete: boolean;
-  match_postponed: boolean;
-  special_results: boolean;
   global_mute: boolean;
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;
 }
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const CATEGORY_LABELS: Array<{ key: keyof NotificationPreferences; label: string }> = [
-  { key: 'deadline_warning', label: 'Deadline warning (15 min before kickoff)' },
-  { key: 'predict_reminder', label: 'Daily prediction reminder' },
-  { key: 'pick_confirmation', label: 'Pick confirmation (opt-in)' },
-  { key: 'match_locked', label: 'Predictions locked' },
-  { key: 'result_detected', label: 'Match result posted' },
-  { key: 'leaderboard_shift', label: 'Leaderboard rank change' },
-  { key: 'round_complete', label: 'Round complete' },
-  { key: 'match_postponed', label: 'Match postponed' },
-  { key: 'special_results', label: 'Special prediction results' },
-];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -260,18 +230,6 @@ function PreferencesSection() {
         onChange={(v) => update({ global_mute: !v })}
         label="Enable all notifications"
       />
-
-      <div className={`pl-4 border-l border-border space-y-0 ${muted ? 'opacity-50' : ''}`}>
-        {CATEGORY_LABELS.map(({ key, label }) => (
-          <Toggle
-            key={key}
-            checked={prefs[key] as boolean}
-            onChange={(v) => update({ [key]: v })}
-            label={label}
-            disabled={muted}
-          />
-        ))}
-      </div>
 
       <div className="pt-3 border-t border-border">
         <p className="text-sm font-sans text-text-secondary mb-2">Quiet hours (no notifications)</p>
@@ -492,134 +450,12 @@ function TimezoneSection() {
   );
 }
 
-// ── Avatar section ────────────────────────────────────────────────────────────
-
-function AvatarSection() {
-  const { player, updatePlayer } = useAuth();
-  const queryClient = useQueryClient();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-
-  const invalidateAvatarCaches = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
-    queryClient.invalidateQueries({ queryKey: ['league-members'] });
-    if (player?.id) queryClient.invalidateQueries({ queryKey: ['stats', player.id] });
-  }, [queryClient, player?.id]);
-
-  const handleFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!fileRef.current) return;
-      fileRef.current.value = '';
-
-      if (!file) return;
-      if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
-        toast.error('Only JPEG, PNG, WebP, or GIF files are supported');
-        return;
-      }
-      if (file.size > MAX_AVATAR_BYTES * 2) {
-        // Rough guard before resize — the resized output is far smaller.
-        toast.error('File too large. Please choose an image under 5 MB.');
-        return;
-      }
-
-      setUploading(true);
-      try {
-        const blob = await resizeAvatar(file);
-        if (blob.size > MAX_AVATAR_BYTES) {
-          toast.error('Resized image is too large. Please choose a smaller photo.');
-          return;
-        }
-
-        // Upload via the backend (service-role key → bypasses Storage RLS).
-        const newUrl = await uploadAvatarImage(blob);
-        updatePlayer({ avatarUrl: newUrl });
-        invalidateAvatarCaches();
-        toast.success('Avatar updated');
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Upload failed');
-      } finally {
-        setUploading(false);
-      }
-    },
-    [updatePlayer, invalidateAvatarCaches],
-  );
-
-  const handleRemove = useCallback(async () => {
-    if (!player) return;
-    setUploading(true);
-    try {
-      await apiFetch('/api/v1/auth/me/avatar', {
-        method: 'PATCH',
-        body: JSON.stringify({ avatar_url: null }),
-      });
-      updatePlayer({ avatarUrl: null });
-      invalidateAvatarCaches();
-      toast.success('Avatar removed');
-    } catch {
-      toast.error('Failed to remove avatar');
-    } finally {
-      setUploading(false);
-    }
-  }, [player, updatePlayer, invalidateAvatarCaches]);
-
-  if (!player) return null;
-
-  return (
-    <div className="flex items-center gap-4">
-      <Avatar name={player.displayName} size="lg" src={player.avatarUrl} />
-
-      <div className="flex flex-col gap-2">
-        <input
-          ref={fileRef}
-          type="file"
-          accept={ALLOWED_AVATAR_TYPES.join(',')}
-          className="sr-only"
-          aria-label="Upload avatar photo"
-          onChange={handleFileChange}
-        />
-        <button
-          type="button"
-          disabled={uploading}
-          onClick={() => fileRef.current?.click()}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-sans border border-border hover:bg-surface-elevated disabled:opacity-50 transition-colors"
-          aria-label={player.avatarUrl ? 'Replace avatar photo' : 'Upload avatar photo'}
-        >
-          <Camera size={14} aria-hidden />
-          {uploading ? 'Uploading…' : player.avatarUrl ? 'Replace photo' : 'Upload photo'}
-        </button>
-
-        {player.avatarUrl && (
-          <button
-            type="button"
-            disabled={uploading}
-            onClick={handleRemove}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-sans text-error border border-error/30 hover:bg-error/10 disabled:opacity-50 transition-colors"
-            aria-label="Remove avatar photo"
-          >
-            <Trash2 size={14} aria-hidden />
-            Remove photo
-          </button>
-        )}
-
-        <p className="text-[11px] text-text-muted font-sans leading-tight">
-          JPEG, PNG, WebP or GIF · cropped to square · max 5 MB
-        </p>
-      </div>
-    </div>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
   return (
     <div className="max-w-xl space-y-6">
       <PageHeader title="Settings" eyebrow="Account & device" />
-
-      <SectionCard title="Profile Photo">
-        <AvatarSection />
-      </SectionCard>
 
       <SectionCard title="Change PIN">
         <ChangePinSection />
