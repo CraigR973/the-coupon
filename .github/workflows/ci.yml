@@ -45,6 +45,33 @@ jobs:
       - run: alembic upgrade head
       - run: pytest
 
+  railway-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python - <<'PY'
+          import pathlib
+          import tomllib
+
+          root = pathlib.Path.cwd()
+          railway = tomllib.loads((root / "railway.toml").read_text())
+          nixpacks = tomllib.loads((root / "nixpacks.toml").read_text())
+
+          assert railway["build"]["builder"] == "nixpacks"
+          assert railway["build"]["nixpacksConfigPath"] == "nixpacks.toml"
+          assert railway["deploy"]["healthcheckPath"] == "/api/v1/health/ready"
+          assert "postgresql-client" in nixpacks["phases"]["setup"]["aptPkgs"]
+          assert "apps/api/requirements.txt" in " ".join(nixpacks["phases"]["install"]["cmds"])
+
+          start_cmd = nixpacks["start"]["cmd"]
+          assert "alembic -c apps/api/alembic.ini upgrade head" in start_cmd
+          assert "uvicorn src.main:app" in start_cmd
+          PY
+
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -63,3 +90,22 @@ jobs:
       - run: pnpm --dir apps/web build
         env:
           VITE_API_URL: https://api.example.invalid
+
+  prod-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir apps/web exec playwright install --with-deps chromium
+      - run: pnpm --dir apps/web build
+        env:
+          VITE_API_URL: https://api.example.invalid
+      - run: pnpm --dir apps/web exec vite preview --host 127.0.0.1 > /tmp/the-coupon-vite.log 2>&1 & sleep 5
+      - run: pnpm --dir apps/web exec playwright test -c playwright.prod-bundle.config.ts

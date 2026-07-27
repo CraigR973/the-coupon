@@ -10,11 +10,7 @@ import {
   storeTokens,
   type StoredPlayer,
 } from '../lib/tokens';
-
-if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
-  throw new Error('VITE_API_URL is required in production builds');
-}
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+import { API_BASE } from '../lib/api';
 
 interface AuthState {
   player: StoredPlayer | null;
@@ -68,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (displayName: string, pin: string) => {
     setState((s) => ({ ...s, isLoading: true }));
     try {
-      const resp = await fetch(`${BASE}/api/v1/auth/login`, {
+      const resp = await fetch(`${API_BASE}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ display_name: displayName, pin }),
@@ -94,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { getRefreshToken } = await import('../lib/tokens');
     const refreshToken = getRefreshToken();
     if (refreshToken) {
-      fetch(`${BASE}/api/v1/auth/logout`, {
+      fetch(`${API_BASE}/api/v1/auth/logout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refreshToken }),
@@ -122,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setState((s) => ({ ...s, isLoading: true, sessionUnlockError: null }));
     try {
-      const resp = await fetch(`${BASE}/api/v1/auth/login`, {
+      const resp = await fetch(`${API_BASE}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ display_name: lockedPlayer.displayName, pin }),

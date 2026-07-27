@@ -24,18 +24,27 @@ def test_jobs_map_to_the_same_scheduler_coroutines() -> None:
 
 @pytest.mark.asyncio
 async def test_run_awaits_selected_job() -> None:
-    fake = AsyncMock()
+    fake = AsyncMock(return_value=True)
     with patch.dict(run_scheduled.JOBS, {"backup": fake}):
-        await run_scheduled._run("backup")
+        ok = await run_scheduled._run("backup")
     fake.assert_awaited_once()
+    assert ok is True
 
 
 def test_main_runs_named_job(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake = AsyncMock()
+    fake = AsyncMock(return_value=True)
     monkeypatch.setattr(sys, "argv", ["run_scheduled", "backup"])
     with patch.dict(run_scheduled.JOBS, {"backup": fake}):
         run_scheduled.main()
     fake.assert_awaited_once()
+
+
+def test_main_exits_nonzero_when_job_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = AsyncMock(return_value=False)
+    monkeypatch.setattr(sys, "argv", ["run_scheduled", "backup"])
+    with patch.dict(run_scheduled.JOBS, {"backup": fake}), pytest.raises(SystemExit) as exc:
+        run_scheduled.main()
+    assert exc.value.code == 1
 
 
 def test_main_rejects_unknown_job(monkeypatch: pytest.MonkeyPatch) -> None:

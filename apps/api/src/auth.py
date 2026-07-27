@@ -17,7 +17,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.database import get_db
 from src.models.profile import Profile, UserRole
-from src.models.refresh_token import RefreshToken
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -25,10 +24,6 @@ _bearer = HTTPBearer(auto_error=True)
 
 ACCESS_TTL = timedelta(hours=24)
 REFRESH_TTL = timedelta(days=30)
-PIN_RESET_TTL = timedelta(minutes=30)
-# Passwordless device-token auth (additive — runs alongside PIN login).
-ACTIVATION_TTL = timedelta(minutes=30)
-DEVICE_TOKEN_TTL = timedelta(days=365)
 MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_DURATION = timedelta(minutes=15)
 
@@ -115,52 +110,9 @@ def decode_refresh_token(token: str) -> dict[str, Any]:
         )
 
 
-def create_pin_reset_token(user_id: uuid.UUID) -> str:
-    payload = {
-        "sub": str(user_id),
-        "scope": "pin_reset",
-        "exp": _now() + PIN_RESET_TTL,
-        "iat": _now(),
-    }
-    return jwt.encode(payload, settings.jwt_access_secret, algorithm="HS256")
-
-
-def decode_pin_reset_token(token: str) -> dict[str, Any]:
-    try:
-        payload = jwt.decode(token, settings.jwt_access_secret, algorithms=["HS256"])
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reset link expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token")
-    if payload.get("scope") != "pin_reset":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token")
-    return payload
-
-
 # ---------------------------------------------------------------------------
 # FastAPI dependencies
 # ---------------------------------------------------------------------------
-
-
-async def _resolve_device_token(raw_token: str, db: AsyncSession) -> Profile | None:
-    """Resolve an opaque device token to its active Profile, or None.
-
-    Matches an unrevoked, unexpired ``refresh_tokens`` row with ``purpose='device'``
-    by SHA-256 hash and joins to an active, non-deleted profile.
-    """
-    result = await db.execute(
-        select(Profile)
-        .join(RefreshToken, RefreshToken.user_id == Profile.id)
-        .where(
-            RefreshToken.token_hash == hash_token(raw_token),
-            RefreshToken.purpose == "device",
-            RefreshToken.revoked_at.is_(None),
-            RefreshToken.expires_at > _now(),
-            Profile.deleted_at.is_(None),
-            Profile.is_active.is_(True),
-        )
-    )
-    return result.scalar_one_or_none()
 
 
 async def get_current_user(
@@ -169,38 +121,27 @@ async def get_current_user(
 ) -> Profile:
     token = credentials.credentials
 
-    # Path 1: a PIN-login JWT access token. A device token is opaque (not a
-    # JWT), so jwt.decode raises InvalidTokenError and we fall through to path 2.
     try:
-        payload: dict[str, Any] | None = jwt.decode(
+        payload: dict[str, Any] = jwt.decode(
             token, settings.jwt_access_secret, algorithms=["HS256"]
         )
     except jwt.ExpiredSignatureError:
-        # A genuine but expired JWT — tell the client to refresh; do not
-        # reinterpret it as a device token.
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
     except jwt.InvalidTokenError:
-        payload = None
-
-    if payload is not None:
-        user_id = uuid.UUID(payload["sub"])
-        result = await db.execute(
-            select(Profile).where(
-                Profile.id == user_id,
-                Profile.deleted_at.is_(None),
-                Profile.is_active.is_(True),
-            )
-        )
-        user = result.scalar_one_or_none()
-        if user is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-        return user
-
-    # Path 2: a passwordless device token (opaque, stored hashed in refresh_tokens).
-    device_user = await _resolve_device_token(token, db)
-    if device_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    return device_user
+
+    user_id = uuid.UUID(payload["sub"])
+    result = await db.execute(
+        select(Profile).where(
+            Profile.id == user_id,
+            Profile.deleted_at.is_(None),
+            Profile.is_active.is_(True),
+        )
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    return user
 
 
 async def require_admin(

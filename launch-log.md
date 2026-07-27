@@ -22,3 +22,22 @@ budget, roster, and connector gates
   staging ref; production must never be connected.
 
 **Next:** L1 — Launch-hardening implementation
+
+## L1 — Launch-hardening implementation
+**Commits:** 51e2a52, af7eb62, 0e889f2, d5a2273, e2740f8 · verified: GREEN
+local backend, frontend, clean
+PostgreSQL, Railway/Nixpacks config, and production-bundle gates
+
+### Key facts for future sessions
+- Railway backend builds from the repo root with Nixpacks; local Docker Desktop
+  is not required.
+- Production startup applies `alembic -c apps/api/alembic.ini upgrade head`
+  before Uvicorn and checks `/api/v1/health/ready`.
+- Public avatar upload, browser Supabase, passwordless activation, public reset
+  tokens, and Sentry surfaces were removed for MVP launch.
+- Production rejects fake odds mode; staging can explicitly use `FakeBetfair`.
+- The owner-only live Betfair account/slate check remains deferred to L4.
+- L1 verification used clean `pgserver` PostgreSQL through migration revision
+  `003`.
+
+**Next:** L2 — Fresh staging infrastructure

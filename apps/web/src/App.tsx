@@ -50,7 +50,6 @@ const LeagueAdminInvitesPage = lazy(() =>
 
 // Auth / onboarding
 const ForgotPinPage = lazy(() => import('./pages/ForgotPinPage').then((m) => ({ default: m.ForgotPinPage })));
-const PinResetPage = lazy(() => import('./pages/PinResetPage').then((m) => ({ default: m.PinResetPage })));
 const WelcomePage = lazy(() => import('./pages/WelcomePage').then((m) => ({ default: m.WelcomePage })));
 
 const queryClient = new QueryClient({
@@ -121,7 +120,6 @@ export function App() {
                   {/* Public routes (no auth, no league context) */}
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/forgot-pin" element={<ForgotPinPage />} />
-                  <Route path="/pin/reset/:token" element={<PinResetPage />} />
                   <Route path="/join/:token" element={<JoinPage />} />
                   <Route path="/welcome" element={<WelcomePage />} />
 

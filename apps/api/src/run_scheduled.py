@@ -7,8 +7,8 @@ running, so wall-clock and interval jobs do not fire reliably (see
 ``docs/runbooks/scheduled-jobs-cron.md``).
 
 Each job name maps to the same coroutine the in-process scheduler runs, so
-behaviour is identical; the job functions log and swallow their own errors, so
-this exits 0 even on an internal failure (failures are visible in the logs).
+behaviour is identical. A job returns a success flag after logging its own
+details; one-off runs exit non-zero when the selected job reports failure.
 
 Usage:
     python -m src.run_scheduled <job>
@@ -35,7 +35,7 @@ from src.scheduler import (
     run_settle_gameweeks,
 )
 
-JOBS: dict[str, Callable[[], Awaitable[None]]] = {
+JOBS: dict[str, Callable[[], Awaitable[bool]]] = {
     "backup": run_scheduled_backup,
     "refresh-slate": run_refresh_slate,
     "remind": run_pick_reminders,
@@ -50,13 +50,15 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-async def _run(job: str) -> None:
-    await JOBS[job]()
+async def _run(job: str) -> bool:
+    return await JOBS[job]()
 
 
 def main() -> None:
     args = _build_parser().parse_args()
-    asyncio.run(_run(args.job))
+    ok = asyncio.run(_run(args.job))
+    if not ok:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

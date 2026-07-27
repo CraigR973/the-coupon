@@ -8,8 +8,6 @@ Both are computed on demand from ``picks`` by :mod:`src.services.coupon` /
 :mod:`src.services.scoring`.
 """
 
-from __future__ import annotations
-
 from typing import Annotated
 
 import structlog

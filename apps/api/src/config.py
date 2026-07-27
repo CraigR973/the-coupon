@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PLACEHOLDER_SECRETS = {"change-me-access", "change-me-refresh"}
@@ -23,16 +23,6 @@ class Settings(BaseSettings):
     jwt_access_secret: str
     jwt_refresh_secret: str
 
-    # Supabase
-    supabase_url: str = ""
-    supabase_anon_key: str = ""
-    supabase_service_key: str = ""
-
-    # Claude / Anthropic (optional — only if this app uses an LLM)
-    anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-5"
-    anthropic_max_tokens: int = 4096
-
     # Web Push
     vapid_public_key: str = ""
     vapid_private_key: str = ""
@@ -44,13 +34,15 @@ class Settings(BaseSettings):
     bf_app_key: str = ""
     bf_user: str = ""
     bf_pass: str = ""
+    bf_cert_file: str = ""
+    bf_key_file: str = ""
+    bf_fake_mode: bool = False
 
     # App
     frontend_origin: str = "http://localhost:5173"
-    sentry_dsn_backend: str = ""
     log_level: str = "INFO"
     # Unknown strings are rejected by the enum (fail-closed).
-    environment: Environment = Environment.development
+    environment: Environment | None = Field(default=None)
     # Railway injects this into the deploy env so /health can expose the running SHA.
     railway_git_commit_sha: str | None = None
 
@@ -62,6 +54,17 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _reject_weak_secrets_in_prod(self) -> "Settings":
+        if self.environment is None:
+            if self.model_fields_set and (
+                "environment" in self.model_fields_set
+                or any(
+                    key in self.model_fields_set
+                    for key in ("jwt_access_secret", "jwt_refresh_secret")
+                )
+            ):
+                self.environment = Environment.development
+                return self
+            raise ValueError("ENVIRONMENT must be set explicitly")
         if self.environment == Environment.development:
             return self
         errors: list[str] = []
@@ -75,14 +78,27 @@ class Settings(BaseSettings):
             errors.append(f"jwt_refresh_secret must be at least {_MIN_SECRET_LEN} characters")
         if self.jwt_access_secret == self.jwt_refresh_secret:
             errors.append("jwt_access_secret and jwt_refresh_secret must be different")
+        if not self.vapid_public_key:
+            errors.append("vapid_public_key is empty")
         if not self.vapid_private_key:
             errors.append("vapid_private_key is empty")
-        if not self.supabase_service_key:
-            errors.append("supabase_service_key is empty")
         if not self.database_url:
             errors.append("database_url is empty")
         if not self.frontend_origin or self.frontend_origin.startswith("http://localhost"):
             errors.append("frontend_origin must not be empty or localhost in production")
+        if self.environment == Environment.production:
+            if self.bf_fake_mode:
+                errors.append("bf_fake_mode is forbidden in production")
+            if not self.bf_app_key:
+                errors.append("bf_app_key is empty")
+            if not self.bf_user:
+                errors.append("bf_user is empty")
+            if not self.bf_pass:
+                errors.append("bf_pass is empty")
+            if not self.bf_cert_file:
+                errors.append("bf_cert_file is empty")
+            if not self.bf_key_file:
+                errors.append("bf_key_file is empty")
         if errors:
             raise ValueError("Refusing to start with weak/missing secrets: " + "; ".join(errors))
         return self

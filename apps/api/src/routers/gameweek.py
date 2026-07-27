@@ -6,8 +6,6 @@ this leaderboard (and which is the caller's own). It's a read view; grabbing hap
 ``POST .../picks``.
 """
 
-from __future__ import annotations
-
 from datetime import date, datetime
 from typing import Annotated
 

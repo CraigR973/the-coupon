@@ -15,6 +15,10 @@ Launch phase L0 now records the private repository, fresh project names and
 owner accounts, no-cost platform hostname strategy, regions, budget controls,
 15-player roster handling, and connector boundaries.
 
+Launch phase L1 is implemented and locally verified on
+`feat/launch-l1-hardening`. The launch path now uses Railway's native Nixpacks
+builder, not local container tooling.
+
 ## Verified
 
 - Backend: 149 pytest, Ruff check/format, and strict mypy
@@ -25,16 +29,21 @@ owner accounts, no-cost platform hostname strategy, regions, budget controls,
 - Repository: inherited-name and stale-file audit clean
 - Launch L0: owner-approved public GitHub origin, explicit fresh platform
   targets, docs-only Supabase MCP, and recorded owner decisions
+- Launch L1: durable PIN lockout, inactive-login rejection, removed avatar
+  upload/passwordless activation/public reset/Sentry surfaces, staging-only
+  `FakeBetfair`, Betfair certificate-login support, scheduler retries,
+  migration-level Supabase Data API lockdown, deployment runbooks, CI coverage,
+  and clean PostgreSQL-backed tests
 
 The owner's real Betfair session remains outside agent automation and should be
 checked immediately before launch.
 
 ## Next
 
-L1 launch hardening. Implement the application-contract fixes, durable auth
-protections, scheduler retries, database lockdown migration, deployment
-configuration, runbooks, and CI coverage in `docs/LAUNCH_PLAN.md`. Launch
-phases use `/launch-start <L0-L5>`, `/launch-verify <L0-L5>`, and explicit
+L2 fresh staging infrastructure. Provision only the documented fresh Supabase,
+Railway, and Vercel staging targets; keep staging separate from production and
+use the repo-root Railway/Nixpacks backend service. Launch phases use
+`/launch-start <L0-L5>`, `/launch-verify <L0-L5>`, and explicit
 `/launch-closeout <L0-L5>`.
 
 ## Toolchain

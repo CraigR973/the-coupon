@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_en
 
 def pytest_configure(config: pytest.Config) -> None:  # noqa: ARG001
     """Set required env vars before any src modules are imported."""
+    os.environ.setdefault("ENVIRONMENT", "development")
     os.environ.setdefault("JWT_ACCESS_SECRET", "test-access-secret-for-unit-tests-only")
     os.environ.setdefault("JWT_REFRESH_SECRET", "test-refresh-secret-for-unit-tests-only")
 

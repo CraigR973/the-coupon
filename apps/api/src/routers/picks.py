@@ -11,8 +11,6 @@ The unique constraints on ``picks`` are the race backstop — a concurrent grab 
 past the pre-check trips ``IntegrityError`` and is reported as a conflict.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated
