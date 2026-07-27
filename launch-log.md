@@ -24,7 +24,7 @@ budget, roster, and connector gates
 **Next:** L1 — Launch-hardening implementation
 
 ## L1 — Launch-hardening implementation
-**Commits:** 51e2a52 · verified: GREEN local backend, frontend, clean
+**Commits:** 51e2a52, af7eb62 · verified: GREEN local backend, frontend, clean
 PostgreSQL, Railway/Nixpacks config, and production-bundle gates
 
 ### Key facts for future sessions
