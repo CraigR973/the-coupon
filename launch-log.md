@@ -41,3 +41,25 @@ PostgreSQL, Railway/Nixpacks config, and production-bundle gates
   `003`.
 
 **Next:** L2 — Fresh staging infrastructure
+
+## L2 — Fresh staging infrastructure
+**Commits:** 40be573 · verified: GREEN local backend, frontend, clean
+PostgreSQL, Supabase lockdown, Railway topology/readiness, Vercel SPA, and
+staging data-isolation gates
+
+### Key facts for future sessions
+- Supabase staging is `gegcnhoeudpkcoxqcebe` in London on the Free plan; it is
+  at migration `004`, and its public schema and Data API are locked down.
+- Railway staging is one always-on, resource-capped Amsterdam `api` replica at
+  `https://api-production-0641.up.railway.app`, with the scheduler and
+  `FakeBetfair` enabled.
+- Vercel staging uses project `prj_r9VsE4xnCj53S3OiOUH7GSzQsn2c`, the
+  `apps/web` root, and `https://the-coupon-staging.vercel.app`.
+- Staging contains 15 synthetic profiles and memberships, with no real member
+  data, production credentials, or owner Betfair credentials.
+- The target-specific `/ship-staging` workflow records exact deployment,
+  health, migration, smoke, and rollback checks.
+- Node.js 20 Vercel builds expire after 2026-10-01; runtime migration remains
+  follow-up work.
+
+**Next:** L3 — Staging verification

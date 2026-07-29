@@ -24,7 +24,7 @@ This checklist is the launch source of record. Only
 
 - [x] **L0 — Owner decisions and project identity** ✅ 2026-07-26
 - [x] **L1 — Launch-hardening implementation** ✅ 2026-07-27
-- [ ] **L2 — Fresh staging infrastructure**
+- [x] **L2 — Fresh staging infrastructure** ✅ 2026-07-29
 - [ ] **L3 — Staging verification**
 - [ ] **L4 — Fresh production infrastructure and owner checks**
 - [ ] **L5 — Launch and first-Saturday watch**
