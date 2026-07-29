@@ -13,5 +13,9 @@ nixpacksConfigPath = "nixpacks.toml"
 # on boot.
 healthcheckPath = "/api/v1/health/ready"
 healthcheckTimeout = 300
+numReplicas = 1
+sleepApplication = false
+ipv6EgressEnabled = true
+multiRegionConfig = { "europe-west4-drams3a" = { numReplicas = 1 } }
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3

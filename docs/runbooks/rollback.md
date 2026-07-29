@@ -1,7 +1,8 @@
 # Rollback Runbook
 
 Use the platform deployment history. Do not roll databases backward unless a
-reviewed migration-specific plan exists.
+reviewed migration-specific plan exists. The exact staging IDs and CLI
+commands are in `docs/agent-commands/ship-staging.md`.
 
 1. Identify the last known-good frontend and backend deployment IDs.
 2. Roll the frontend back in Vercel first when the issue is browser-only.

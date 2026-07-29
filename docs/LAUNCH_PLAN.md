@@ -246,14 +246,14 @@ exposure, config validation, and scheduled failure behavior are tested.
 
 ### L2 — Fresh staging infrastructure
 
-- [ ] Provision a fresh Supabase staging project and verify Data API lockdown.
-- [ ] Provision one always-on Railway staging service from the repo-root
+- [x] Provision a fresh Supabase staging project and verify Data API lockdown.
+- [x] Provision one always-on Railway staging service from the repo-root
   Nixpacks config.
-- [ ] Provision the Vercel staging project with `apps/web` as its root.
-- [ ] Configure environment-scoped secrets without copying production values.
-- [ ] Apply migrations, run the non-real staging seed, and attach stable staging
+- [x] Provision the Vercel staging project with `apps/web` as its root.
+- [x] Configure environment-scoped secrets without copying production values.
+- [x] Apply migrations, run the non-real staging seed, and attach stable staging
   web/API domains.
-- [ ] Replace the placeholder `/ship-staging` workflow with the documented,
+- [x] Replace the placeholder `/ship-staging` workflow with the documented,
   target-specific deployment and rollback procedure.
 
 **Gate:** readiness is green, the migration revision is current, and no

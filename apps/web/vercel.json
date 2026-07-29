@@ -1,7 +1,7 @@
 {
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm --dir apps/web build",
-  "outputDirectory": "apps/web/dist",
+  "buildCommand": "pnpm build",
+  "outputDirectory": "dist",
   "rewrites": [
     {
       "source": "/((?!assets/|icons/|favicon|robots\\.txt|manifest\\.webmanifest|workbox-|sw\\.js).*)",
