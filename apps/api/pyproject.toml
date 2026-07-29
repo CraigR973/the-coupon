@@ -34,6 +34,7 @@ dev = [
     "pytest-cov==5.0.0",
     "ruff==0.5.4",
     "mypy==1.11.0",
+    "pgserver==0.1.4",
 ]
 
 [tool.ruff]

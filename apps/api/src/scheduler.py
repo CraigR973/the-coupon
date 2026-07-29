@@ -168,7 +168,7 @@ async def run_settle_gameweeks() -> bool:
                         "standings recomputed",
                         gameweek_id=str(gameweek.id),
                         league_id=str(league_id),
-                        leader=leader.display_name if leader else None,
+                        leader_present=leader is not None,
                         leader_points=leader.total_points if leader else None,
                     )
         if resolved_by_gameweek:

@@ -6,7 +6,7 @@ PYTHONDONTWRITEBYTECODE = "1"
 PYTHONPATH = "/app/apps/api"
 
 [phases.setup]
-aptPkgs = ["postgresql-client"]
+nixPkgs = ["...", "postgresql_17"]
 
 [phases.install]
 cmds = [

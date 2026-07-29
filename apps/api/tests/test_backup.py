@@ -17,6 +17,21 @@ def test_pg_dsn_preserves_query_params() -> None:
     assert "pw" not in dsn
 
 
+def test_pg_dsn_maps_asyncpg_ssl_to_libpq_sslmode() -> None:
+    dsn = _pg_dsn("postgresql+asyncpg://app:pw@db:5432/appdb?ssl=require")
+    assert dsn == "postgresql://app@db:5432/appdb?sslmode=require"
+
+
+def test_pg_dsn_prefers_explicit_sslmode() -> None:
+    dsn = _pg_dsn("postgresql+asyncpg://app:pw@db:5432/appdb?ssl=require&sslmode=verify-full")
+    assert dsn == "postgresql://app@db:5432/appdb?sslmode=verify-full"
+
+
+def test_pg_dsn_brackets_ipv6_hosts() -> None:
+    dsn = _pg_dsn("postgresql+asyncpg://app:pw@[2001:db8::1]:5432/appdb?ssl=require")
+    assert dsn == "postgresql://app@[2001:db8::1]:5432/appdb?sslmode=require"
+
+
 def test_pg_password_extracts_and_url_decodes() -> None:
     # %40 -> @, %3A -> : : the env var must carry the decoded password.
     url = "postgresql+asyncpg://app:p%40ss%3Aword@db.example.com:5432/appdb"

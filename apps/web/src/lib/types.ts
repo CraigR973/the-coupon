@@ -135,9 +135,8 @@ export interface LeagueDetail extends LeagueSummary {
 }
 
 export interface LeagueMember {
-  player_id: string;
+  id: string;
   display_name: string;
-  league_display_name: string | null;
   role: 'player' | 'admin';
   joined_at: string;
   avatar_url?: string | null;
