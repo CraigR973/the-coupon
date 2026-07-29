@@ -10,9 +10,10 @@ aptPkgs = ["postgresql-client"]
 
 [phases.install]
 cmds = [
-  "python -m pip install --upgrade pip",
-  "python -m pip install -r apps/api/requirements.txt",
+  "python -m venv --copies /opt/venv && . /opt/venv/bin/activate && pip install --upgrade pip && pip install -r apps/api/requirements.txt",
 ]
+paths = ["/opt/venv/bin"]
+cacheDirectories = ["/root/.cache/pip"]
 
 [start]
 cmd = "alembic -c apps/api/alembic.ini upgrade head && uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"

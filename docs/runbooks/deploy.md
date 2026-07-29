@@ -1,7 +1,8 @@
 # Deploy Runbook
 
 Use this after L2/L4 provision exact staging or production targets. Do not infer
-targets from cached CLI state.
+targets from cached CLI state. For staging, the canonical executable procedure
+and exact IDs are in `docs/agent-commands/ship-staging.md`.
 
 ## Backend
 
@@ -18,7 +19,8 @@ targets from cached CLI state.
 ## Frontend
 
 1. Confirm the target Vercel project and `VITE_API_URL`.
-2. Deploy `apps/web` using the committed Vercel configuration.
+2. Upload the repository root. The Vercel project applies its configured
+   `apps/web` root and the committed `apps/web/vercel.json`.
 3. Open `/login`, `/forgot-pin`, and a protected deep link such as `/settings`.
 4. Confirm the protected deep link refreshes through the SPA and redirects to
    login when unauthenticated.

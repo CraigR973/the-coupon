@@ -24,7 +24,7 @@ This checklist is the launch source of record. Only
 
 - [x] **L0 — Owner decisions and project identity** ✅ 2026-07-26
 - [x] **L1 — Launch-hardening implementation** ✅ 2026-07-27
-- [ ] **L2 — Fresh staging infrastructure**
+- [x] **L2 — Fresh staging infrastructure** ✅ 2026-07-29
 - [ ] **L3 — Staging verification**
 - [ ] **L4 — Fresh production infrastructure and owner checks**
 - [ ] **L5 — Launch and first-Saturday watch**
@@ -246,14 +246,14 @@ exposure, config validation, and scheduled failure behavior are tested.
 
 ### L2 — Fresh staging infrastructure
 
-- [ ] Provision a fresh Supabase staging project and verify Data API lockdown.
-- [ ] Provision one always-on Railway staging service from the repo-root
+- [x] Provision a fresh Supabase staging project and verify Data API lockdown.
+- [x] Provision one always-on Railway staging service from the repo-root
   Nixpacks config.
-- [ ] Provision the Vercel staging project with `apps/web` as its root.
-- [ ] Configure environment-scoped secrets without copying production values.
-- [ ] Apply migrations, run the non-real staging seed, and attach stable staging
+- [x] Provision the Vercel staging project with `apps/web` as its root.
+- [x] Configure environment-scoped secrets without copying production values.
+- [x] Apply migrations, run the non-real staging seed, and attach stable staging
   web/API domains.
-- [ ] Replace the placeholder `/ship-staging` workflow with the documented,
+- [x] Replace the placeholder `/ship-staging` workflow with the documented,
   target-specific deployment and rollback procedure.
 
 **Gate:** readiness is green, the migration revision is current, and no

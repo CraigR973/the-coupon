@@ -55,6 +55,18 @@ The following discovered resources are explicitly excluded:
 Fresh Supabase and hosting project IDs must be appended here when L2 and L4
 create them. Names alone never authorize a connector or CLI target.
 
+L2 staging targets created so far:
+
+- Supabase project `the-coupon-staging`:
+  `gegcnhoeudpkcoxqcebe` in `eufhjqkyoiuzfwuptlyn`.
+- Railway project `the-coupon-staging`:
+  `cc2fc994-87c3-4e2e-8d9b-5bcafa496350`; environment
+  `333ffc77-ad0d-43af-8436-4865fb9c2946`; service `api`
+  (`535e77d7-f8a2-4fd4-85a3-e8cb0ada7fd8`).
+- Vercel project `the-coupon-staging`:
+  `prj_r9VsE4xnCj53S3OiOUH7GSzQsn2c` in
+  `team_MVQMOaFtYHlwO5QVzSOZQ0Ud`.
+
 ## Repository and integration
 
 - `origin` is `https://github.com/CraigR973/the-coupon.git`.
@@ -80,7 +92,7 @@ custom domain will be purchased or configured.
 
 | Environment | Web | API |
 | --- | --- | --- |
-| Staging | Vercel hostname for `the-coupon-staging` | Railway hostname for the `api` service in `the-coupon-staging` |
+| Staging | `https://the-coupon-staging.vercel.app` | `https://api-production-0641.up.railway.app` |
 | Production | Vercel hostname for `the-coupon-production` | Railway hostname for the `api` service in `the-coupon-production` |
 
 L2 and L4 must record the exact assigned HTTPS hostnames and project/service
@@ -119,22 +131,34 @@ month unless the owner explicitly changes this record.
   the owner before creating a paid resource. No existing unrelated project's
   budget or quota is treated as Coupon capacity.
 
+L2 staging exceptions recorded on 2026-07-27:
+
+- After pausing an unrelated Supabase project, the owner directed L2 to use the
+  newly available Free-plan slot. Staging therefore costs USD 0, may be paused
+  by Supabase after inactivity, and has no managed daily backups. It contains
+  synthetic data only; L3 must complete a manual export/restore rehearsal.
+  This does not waive the production backup and paid-plan decision in L4.
+- Railway compute limits are workspace-wide and the selected workspace also
+  hosts excluded projects. L2 did not apply a shared hard shutdown limit.
+  Instead, the staging `api` replica is capped at 0.25 vCPU and 500 MB, which
+  bounds its maximum CPU-plus-memory allocation to about USD 10/month at
+  current list pricing while leaving unrelated workloads untouched.
+
 ## Supabase connector boundary
 
 The former `.codex/config.toml` ref `lesscrmlfijiokureomm` is rejected because
 account-level metadata identifies it as `wc2026-staging`. The repository MCP
-URL is now restricted to read-only documentation features and has no project
-ref. L2 may replace it only with the newly created Coupon staging ref, scoped
-read-only. Production must never be connected to an agent MCP server.
+URL is now scoped read-only to staging ref `gegcnhoeudpkcoxqcebe`, with only
+database, debugging, development, and documentation feature groups enabled.
+Production must never be connected to an agent MCP server.
 
 ## Initial roster handling
 
 Real display names, PINs, reset tokens, phone numbers, and invitation details
 must not be committed. The owner supplies the reviewed roster out of band in
-`.launch-private/roster.csv`, which is ignored by Git. L1 will provide the
-idempotent bootstrap command and a non-secret input template; L4 will record
-only the expected 15 profiles and 15 league memberships as verification
-evidence.
+`.launch-private/roster.json`, which is ignored by Git. L1 provides the
+idempotent JSON bootstrap command; L4 will record only the expected 15 profiles
+and 15 league memberships as verification evidence.
 
 The administrator display name is `Craig`. The other 14 display names remain
 owner-held and will be supplied through the ignored roster file when L4 is
