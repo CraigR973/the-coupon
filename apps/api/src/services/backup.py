@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.parse import unquote, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 
 import structlog
 
@@ -27,16 +27,36 @@ def _pg_dsn(database_url: str) -> str:
 
     The password is supplied out-of-band via PGPASSWORD (see ``_pg_password``) so
     it never appears in the pg_dump argv, which is visible to ``ps``. (P3-6.)
+
+    asyncpg calls its TLS query parameter ``ssl`` while libpq calls the same
+    setting ``sslmode``. Normalise it here so the exact Railway DATABASE_URL can
+    be reused safely by pg_dump.
     """
     url = re.sub(r"^postgresql\+asyncpg://", "postgresql://", database_url)
     parts = urlsplit(url)
-    if parts.password is None:
-        return url
     host = parts.hostname or ""
+    if ":" in host:
+        host = f"[{host}]"
     if parts.port:
         host = f"{host}:{parts.port}"
     netloc = f"{parts.username}@{host}" if parts.username else host
-    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+
+    query_items = parse_qsl(parts.query, keep_blank_values=True)
+    has_sslmode = any(key == "sslmode" for key, _ in query_items)
+    normalised_query = [
+        ("sslmode" if key == "ssl" and not has_sslmode else key, value)
+        for key, value in query_items
+        if not (key == "ssl" and has_sslmode)
+    ]
+    return urlunsplit(
+        (
+            parts.scheme,
+            netloc,
+            parts.path,
+            urlencode(normalised_query),
+            parts.fragment,
+        )
+    )
 
 
 def _pg_password(database_url: str) -> str | None:
@@ -67,6 +87,8 @@ async def create_backup(backup_dir: str, database_url: str) -> BackupInfo:
         "pg_dump",
         "--no-password",
         "--format=plain",
+        "--no-owner",
+        "--no-privileges",
         "--file",
         str(filepath),
         _pg_dsn(database_url),

@@ -33,9 +33,9 @@ This checklist is the launch source of record. Only
 
 | Component | Staging | Production |
 | --- | --- | --- |
-| Web PWA | Separate Vercel project/environment | Vercel production project |
-| API + scheduler | One always-on Railway replica | One always-on Railway replica |
-| PostgreSQL | Fresh Supabase staging project | Fresh Supabase production project |
+| Web PWA | Dedicated Vercel project through launch; routine post-launch changes use Preview deployments | Vercel production project |
+| API + scheduler | One always-on Railway replica through the first-Saturday gate; dormant/serverless between explicit post-launch rehearsals | One always-on Railway replica |
+| PostgreSQL | Fresh synthetic-only Supabase staging project through launch; permitted to pause afterward | Fresh Supabase production project |
 | Odds source | Explicit safe `FakeBetfair` mode | Betfair delayed app key + non-interactive certificate login |
 | Domains | Stable staging web/API hostnames | Final web hostname + API subdomain |
 | Monitoring | Railway and Vercel logs | Railway and Vercel logs + first-Saturday watch |
@@ -43,6 +43,17 @@ This checklist is the launch source of record. Only
 The single Railway replica is a deliberate MVP constraint. APScheduler runs
 inside the API process, so scaling the API above one replica would duplicate
 scheduled work. A dedicated scheduler service can replace this topology later.
+
+Environment isolation remains a launch requirement, but permanent staging
+uptime does not. Keep the complete staging stack available through L3, L4, and
+the first live Saturday in L5. After that gate is green, production becomes the
+only always-on stack and staging becomes dormant/on-demand: the Supabase Free
+project may pause, the Railway staging API may use Serverless or be stopped,
+and routine frontend review uses Vercel Preview deployments. The dedicated
+staging targets remain separate from production and are reactivated for
+database migrations, authentication or scheduler changes, push work, Betfair
+integration changes, restore rehearsals, and other releases where production
+data would make testing unsafe.
 
 ## Default scope decisions
 
@@ -60,8 +71,9 @@ chooses otherwise:
   browser route and token-storage flow. Retain display-name + PIN login.
 - Add an admin-operated, one-time PIN reset flow and never place reset tokens,
   PINs, or credentials in application logs.
-- Keep the embedded scheduler on one always-on API replica, and add settlement
-  retries after Saturday night.
+- Keep the embedded scheduler on exactly one API replica in every active
+  environment, keep production always-on, and add settlement retries after
+  Saturday night.
 - Use Railway and Vercel platform logs for MVP monitoring. Omit Sentry and its
   configuration until the owner explicitly adds it in a later phase.
 
@@ -139,7 +151,8 @@ chooses otherwise:
 ### Scheduler and Betfair
 
 - [ ] Enforce exactly one always-on Railway API replica with serverless/sleep
-  disabled and `SCHEDULER_ENABLED=true`.
+  disabled and `SCHEDULER_ENABLED=true` through launch and in production.
+  Post-launch staging may sleep only under the recorded on-demand lifecycle.
 - [ ] Add Sunday/Monday settlement retries so a late market or a missed
   Saturday 22:00 run does not wait a week.
 - [ ] Make one-off scheduled commands return a non-zero exit status on internal
@@ -296,11 +309,16 @@ and restore procedures are available.
 - [ ] Confirm standings and combined coupon after settlement.
 - [ ] Review errors, failed pushes, Betfair auth refreshes, database connections,
   and backup completion.
+- [ ] After the first live gameweek and recovery evidence are complete,
+  transition staging to the dormant/on-demand lifecycle recorded in
+  `docs/launch/L2_STAGING_INFRASTRUCTURE.md`; retain production isolation and a
+  tested staging reactivation path.
 - [ ] Record launch results and any follow-up work separately from the completed
   build batches.
 
 **Gate:** the first live gameweek is settled correctly and recoverability is
-confirmed.
+confirmed; production is the only always-on stack and the on-demand staging
+lifecycle is recorded.
 
 ## Platform notes verified during the audit
 
@@ -313,6 +331,16 @@ confirmed.
   <https://supabase.com/changelog?types=breaking-change>
 - Vercel requires an SPA rewrite for Vite deep links:
   <https://vercel.com/docs/frameworks/frontend/vite>
+- Vercel creates Preview deployments for branch pushes and pull requests, so
+  routine post-launch frontend review does not require an always-on staging
+  frontend:
+  <https://vercel.com/docs/git>
+- Supabase Free projects may pause after low activity and can be restored from
+  the dashboard for 90 days after pausing:
+  <https://supabase.com/docs/guides/platform/free-project-pausing>
+- Railway Serverless stops an inactive service and can be used to reduce
+  post-launch staging compute:
+  <https://docs.railway.com/pricing/cost-control>
 - Railway Cron is UTC, has a five-minute minimum, may run a few minutes late,
   and skips an invocation while the previous one is active:
   <https://docs.railway.com/cron-jobs>

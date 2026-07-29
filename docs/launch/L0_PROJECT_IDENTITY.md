@@ -16,6 +16,31 @@ Owner decisions recorded on 2026-07-26:
 - repository visibility: public, explicitly selected by the owner so GitHub
   Actions can use public-repository runner allocation.
 
+## Post-launch environment lifecycle amendment
+
+Owner decision recorded on 2026-07-29:
+
+- retain a complete, isolated staging stack through L3, L4, and the first live
+  Saturday in L5;
+- after that gate is green, keep production as the only always-on stack and
+  operate staging as dormant/on-demand;
+- allow the synthetic-only Supabase Free staging project to pause, use
+  Railway Serverless or stop the staging API between rehearsals, and use Vercel
+  Preview deployments for routine frontend review;
+- reactivate the full staging stack before database migrations,
+  authentication, scheduler, push, Betfair integration, restore, or similarly
+  risky changes; and
+- retain staging/production isolation. Dormancy does not authorize deleting a
+  recorded target, reusing production data, or running destructive verification
+  against production.
+
+The production API remains exactly one always-on Railway replica because the
+embedded scheduler must continue to execute. A dormant staging API is not
+expected to run scheduled jobs. Before a staging rehearsal, resume or recreate
+the database, apply migrations and synthetic seed data, wake exactly one API
+replica, deploy the matching frontend, and recheck readiness, CORS, and SPA deep
+links.
+
 ## MVP scope
 
 The launch keeps the seven defaults in `docs/LAUNCH_PLAN.md`:
@@ -143,6 +168,14 @@ L2 staging exceptions recorded on 2026-07-27:
   Instead, the staging `api` replica is capped at 0.25 vCPU and 500 MB, which
   bounds its maximum CPU-plus-memory allocation to about USD 10/month at
   current list pricing while leaving unrelated workloads untouched.
+
+The steady-state budget after the first-Saturday gate assumes that only
+production is deliberately kept warm. Staging retains its isolated target
+identity but is not kept active solely to prevent Supabase pausing or Railway
+sleep. Before dormancy, capture a current logical export. If target continuity
+matters, resume a paused Supabase Free project within the platform's current
+90-day restore window; otherwise rebuild it from migrations, the logical
+export where needed, and synthetic seed data.
 
 ## Supabase connector boundary
 

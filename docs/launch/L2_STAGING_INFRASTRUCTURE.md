@@ -146,6 +146,46 @@ before every shipment, deploys only these recorded targets, and verifies
 readiness, migration state, CORS, and SPA deep links. Database migrations are
 forward-only unless a separately reviewed recovery plan exists.
 
+## Lifecycle after launch
+
+Keep all three staging targets available through L3, L4, and the first live
+Saturday in L5. Do not put the Railway API to sleep or rely only on an
+ephemeral frontend while launch verification, production provisioning, or
+first-Saturday recovery work may still need this known-good isolated stack.
+
+After the L5 first-Saturday evidence and recovery checks are complete, staging
+becomes dormant/on-demand:
+
+- Supabase may automatically pause the Free project. Capture a fresh logical
+  export before dormancy. A paused project is currently restorable in place
+  for 90 days; after that window, be prepared to recreate staging from
+  migrations, the export where needed, and synthetic seed data.
+- Railway may enable Serverless or stop the staging `api` service between
+  rehearsals. Scheduled jobs are not expected while staging is dormant.
+  Production remains one always-on replica with its scheduler enabled.
+- The dedicated Vercel staging project and stable alias may remain recorded
+  without being actively maintained. Routine frontend changes use Preview
+  deployments from the production project. Deleting or reassigning the staging
+  project remains an explicit later workflow.
+
+Reactivate the full stack before testing database migrations, authentication,
+scheduler behavior, push notifications, Betfair integration, backup/restore,
+or another change that is unsafe to exercise with live member data. The
+reactivation procedure is:
+
+1. Resume the recorded Supabase project or recreate it from migrations and the
+   latest safe export, then load synthetic seed data only.
+2. Wake the recorded Railway service with exactly one replica and configure
+   the scheduler for the planned rehearsal.
+3. Deploy a matching frontend build to the dedicated staging target when the
+   test needs the full cross-origin application.
+4. Verify database revision, API readiness, CORS, SPA deep links, and
+   `FakeBetfair` before running the change-specific checks.
+
+Dormancy never authorizes using production credentials, member data, or live
+Betfair access in staging, and it never authorizes destructive verification
+against production.
+
 ## Gate state
 
 The L2 implementation evidence is present: readiness is green, the database is

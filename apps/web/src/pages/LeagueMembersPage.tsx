@@ -37,7 +37,7 @@ export function LeagueMembersPage() {
     queryFn: () => apiFetch<LeagueMember[]>(`/api/v1/leagues/${slug}/members`),
   });
 
-  const myMembership = members?.find((m) => m.player_id === player?.id);
+  const myMembership = members?.find((m) => m.id === player?.id);
   const isAdmin = myMembership?.role === 'admin';
 
   async function promote(playerId: string) {
@@ -68,10 +68,10 @@ export function LeagueMembersPage() {
 
   async function confirmRemoveMember() {
     if (!removeTarget) return;
-    setActingOn(removeTarget.player_id);
+    setActingOn(removeTarget.id);
     const name = removeTarget.display_name;
     try {
-      await apiFetch(`/api/v1/leagues/${slug}/members/${removeTarget.player_id}`, { method: 'DELETE' });
+      await apiFetch(`/api/v1/leagues/${slug}/members/${removeTarget.id}`, { method: 'DELETE' });
       toast.success(`${name} removed`);
       setRemoveTarget(null);
       setRemoveConfirm('');
@@ -123,17 +123,14 @@ export function LeagueMembersPage() {
       {!isLoading && members && (
         <div className="space-y-2">
           {members.map((m) => (
-            <Card key={m.player_id}>
+            <Card key={m.id}>
               <CardContent className="pt-3 pb-3">
                 <div className="flex items-center gap-3">
-                  <Avatar name={m.league_display_name ?? m.display_name} size="sm" src={m.avatar_url} />
+                  <Avatar name={m.display_name} size="sm" src={m.avatar_url} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-sans font-medium truncate">
-                      {m.league_display_name ?? m.display_name}
+                      {m.display_name}
                     </p>
-                    {m.league_display_name && (
-                      <p className="text-xs text-text-muted font-sans">{m.display_name}</p>
-                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {m.role === 'admin' && (
@@ -141,18 +138,18 @@ export function LeagueMembersPage() {
                         Admin
                       </Badge>
                     )}
-                    {m.player_id === player?.id && (
+                    {m.id === player?.id && (
                       <Badge variant="muted" className="text-xs">You</Badge>
                     )}
-                    {isAdmin && m.player_id !== player?.id && (
+                    {isAdmin && m.id !== player?.id && (
                       <div className="flex gap-1">
                         {m.role === 'player' ? (
                           <Button
                             size="sm"
                             variant="ghost"
                             className="text-xs h-7 px-2"
-                            disabled={actingOn === m.player_id}
-                            onClick={() => promote(m.player_id)}
+                            disabled={actingOn === m.id}
+                            onClick={() => promote(m.id)}
                           >
                             Promote
                           </Button>
@@ -161,8 +158,8 @@ export function LeagueMembersPage() {
                             size="sm"
                             variant="ghost"
                             className="text-xs h-7 px-2"
-                            disabled={actingOn === m.player_id}
-                            onClick={() => demote(m.player_id)}
+                            disabled={actingOn === m.id}
+                            onClick={() => demote(m.id)}
                           >
                             Demote
                           </Button>
@@ -172,7 +169,7 @@ export function LeagueMembersPage() {
                             size="sm"
                             variant="ghost"
                             className="text-xs h-7 px-2 text-error hover:bg-error/10"
-                            disabled={actingOn === m.player_id}
+                            disabled={actingOn === m.id}
                             onClick={() => { setRemoveTarget(m); setRemoveConfirm(''); }}
                           >
                             Remove
@@ -196,7 +193,7 @@ export function LeagueMembersPage() {
           <DialogHeader>
             <DialogTitle>Remove member</DialogTitle>
             <DialogDescription>
-              Type <strong>{removeTarget?.league_display_name ?? removeTarget?.display_name}</strong> to confirm removal.
+              Type <strong>{removeTarget?.display_name}</strong> to confirm removal.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 mt-2">
@@ -212,12 +209,12 @@ export function LeagueMembersPage() {
               <Button
                 variant="destructive"
                 disabled={
-                  removeConfirm !== (removeTarget?.league_display_name ?? removeTarget?.display_name) ||
-                  actingOn === removeTarget?.player_id
+                  removeConfirm !== removeTarget?.display_name ||
+                  actingOn === removeTarget?.id
                 }
                 onClick={confirmRemoveMember}
               >
-                {actingOn === removeTarget?.player_id ? 'Removing…' : 'Remove'}
+                {actingOn === removeTarget?.id ? 'Removing…' : 'Remove'}
               </Button>
             </DialogFooter>
           </div>
