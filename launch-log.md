@@ -63,3 +63,25 @@ staging data-isolation gates
   follow-up work.
 
 **Next:** L3 — Staging verification
+
+## L3 — Staging verification
+**Commits:** 53334a1, 0e88d03 · verified: GREEN CI, canned-odds browser
+story, phone push, scheduler, platform logs, disposable restore, and rollback
+
+### Key facts for future sessions
+- The reviewed forward staging source is `9f498675`; Railway is restored to
+  deployment `900b74fa-80cd-40d7-9a3a-5eba472f0fc6`, and Vercel is restored
+  to `dpl_smnv3fDEV1EPYpyR2TDA56maiykS`.
+- The full synthetic browser story passed, including durable lockout,
+  membership administration, unique picks, lock, settlement retry, standings,
+  combined coupon, and a rollback-backed PWA update.
+- The owner confirmed push subscribe, test delivery, and unsubscribe on a
+  supported phone; zero subscriptions remained active afterward.
+- One always-on Railway replica exercised every scheduler path, including the
+  corrected PostgreSQL 17 backup and connection warmup.
+- The approved logical export restored into disposable PostgreSQL at migration
+  `004` with representative row counts matching staging.
+- Final bounded Railway and Vercel reviews found no application errors,
+  secrets, credentials, PIN values, tokens, or synthetic profile names.
+
+**Next:** L4 — Fresh production infrastructure and owner checks
