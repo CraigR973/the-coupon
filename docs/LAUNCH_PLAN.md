@@ -274,15 +274,15 @@ production credential or real member data exists in staging.
 
 ### L3 — Staging verification
 
-- [ ] Run CI and the production-bundle Playwright flow against staging.
-- [ ] Verify SPA deep links and refreshes, auth/PIN lockout, league membership,
+- [x] Run CI and the production-bundle Playwright flow against staging.
+- [x] Verify SPA deep links and refreshes, auth/PIN lockout, league membership,
   unique picks, locking, settlement retries, standings, and combined coupon.
-- [ ] Verify push subscribe/send/unsubscribe on at least one supported phone.
-- [ ] Verify Railway and Vercel logs contain no PINs, tokens, names, or
+- [x] Verify push subscribe/send/unsubscribe on at least one supported phone.
+- [x] Verify Railway and Vercel logs contain no PINs, tokens, names, or
   credentials.
-- [ ] Exercise scheduler jobs once and confirm there is only one execution.
-- [ ] Complete a backup restore rehearsal into a disposable database.
-- [ ] Record screenshots, deployment identifiers, and verification evidence.
+- [x] Exercise scheduler jobs once and confirm there is only one execution.
+- [x] Complete a backup restore rehearsal into a disposable database.
+- [x] Record screenshots, deployment identifiers, and verification evidence.
 
 **Gate:** staging passes the full story with canned odds and a tested rollback.
 

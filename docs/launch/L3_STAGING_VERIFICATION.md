@@ -14,19 +14,19 @@ mark the phase complete. Only `/launch-closeout L3` may close the gate after
 | Railway project | `the-coupon-staging` (`cc2fc994-87c3-4e2e-8d9b-5bcafa496350`) |
 | Railway environment | `production` (`333ffc77-ad0d-43af-8436-4865fb9c2946`) in the dedicated staging project |
 | Railway service | `api` (`535e77d7-f8a2-4fd4-85a3-e8cb0ada7fd8`) |
-| Railway deployment | `6b8ca99f-4423-48f3-a6ed-73d588ad8b95` (`SUCCESS`) |
-| Railway deployment instance | `89f51f6b-fb26-4d20-8b4f-1b565aa3e59c` |
+| Railway deployment | `900b74fa-80cd-40d7-9a3a-5eba472f0fc6` (`SUCCESS`, restored forward deployment) |
+| Railway deployment instance | `f13e12fc-33f5-40d3-bde1-1c3648bd8f81` (`RUNNING`) |
 | API origin | `https://api-production-0641.up.railway.app` |
 | Vercel team | `team_MVQMOaFtYHlwO5QVzSOZQ0Ud` |
 | Vercel project | `the-coupon-staging` (`prj_r9VsE4xnCj53S3OiOUH7GSzQsn2c`) |
-| Vercel deployment | `dpl_FX53BDv6KVPVzEwcknPsknATqSaA` (`READY`, created `2026-07-29T08:21:37Z`) |
+| Vercel deployment | `dpl_smnv3fDEV1EPYpyR2TDA56maiykS` (`READY`, created `2026-07-29T17:12:06Z`) |
 | Web origin | `https://the-coupon-staging.vercel.app` |
-| Source commit under test | `4d5d29da71df639daff547b04c57a3f44f8b06f0` |
+| Source commit under test | `9f498675720fd74434102956a1301dfefc421063` |
 
-The Vercel deployment is newer than the L2 rollback baseline because the
-connected `main` branch deployed after L2 close-out. No deployment or rollback
-was performed during L3 implementation; those actions require
-`/ship-staging`.
+The reviewed L3 implementation commit
+`53334a1f47733ab32385f788e02a46bd65c59a61` was merged by PR #4 as source
+commit `9f498675720fd74434102956a1301dfefc421063`. `/ship-staging` deployed that
+source to the exact Railway and Vercel targets above.
 
 ## Implemented verification support and fixes
 
@@ -52,15 +52,15 @@ was performed during L3 implementation; those actions require
 - Updated the scheduler and backup/restore runbooks with the L3 procedures and
   safety boundaries.
 
-These changes are local on `chore/launch-l3-staging-verification` until the
-reviewed close-out and shipment workflows are invoked.
+These changes were reviewed in PR #4 and shipped through the target-specific
+staging workflow. The launch phase remains open until explicit close-out.
 
 ## CI and local verification
 
-- GitHub Actions run
-  `30435196533`, attempt 2, completed successfully at
-  `2026-07-29T12:46:47Z` for the deployed source commit. Backend, frontend,
-  deployment configuration, and production-bundle jobs were all green.
+- GitHub Actions merge run `30473285598` completed successfully at
+  `2026-07-29T17:01:06Z` for source commit
+  `9f498675720fd74434102956a1301dfefc421063`. Backend, frontend, deployment
+  configuration, and production-bundle jobs were all green.
 - Local backend verification passed Ruff check, Ruff format verification,
   strict mypy, a clean migration through revision `004`, and all 161 tests
   against a fresh pip-`pgserver` database.
@@ -72,8 +72,7 @@ reviewed close-out and shipment workflows are invoked.
   refuses missing or non-HTTPS staging origins.
 - The three L3 operator scripts pass Ruff and bytecode compilation.
 
-Branch CI cannot run until the implementation is committed and pushed by the
-explicit close-out workflow.
+PR and merge CI both passed before shipment.
 
 ## Production-bundle staging browser story
 
@@ -92,11 +91,10 @@ were held in a mode-`0600` temporary file and were not printed.
 | Combined coupon | The settled two-fold showed combined odds `4.56` and both legs won. |
 | PWA update | The active service worker completed `update()`; `/sw.js` returned `200` with `max-age=0`. |
 
-The membership API behavior passed, but visual inspection of
-`members-admin.png` confirms that the currently deployed web bundle does not
-show the admin controls. The local contract fix and regression test address
-this finding. The browser membership check must be rerun against the shipped
-bundle.
+The pre-shipment membership UI finding was corrected in the reviewed source.
+The post-shipment browser rerun returned all 15 members, promoted and demoted
+the selected synthetic member with `204` responses, and visually confirmed the
+admin controls in the final deployed bundle.
 
 ### Screenshot evidence
 
@@ -112,6 +110,21 @@ only and remain ignored by Git.
 | `2026-07-29T13:01:23Z` | `standings-settled.png` | `74864568535028577ae0bbac93b9f5c4757b40b8f8dda942dc9a82cd08dd9695` |
 | `2026-07-29T13:01:24Z` | `combined-coupon-settled.png` | `f382c5ac8478b719ff845719e871691657760355ae4606a17c6ca45081ac3022` |
 
+Post-shipment screenshots are stored locally under
+`artifacts/launch-l3/20260729-postship/` and remain ignored by Git.
+
+| UTC timestamp | File | SHA-256 |
+| --- | --- | --- |
+| `2026-07-29T17:16:07Z` | `members-admin.png` | `4042374e81b8364a26d43d81501fb2055f6b71ae1e583df1b1d36ff35b384b75` |
+| `2026-07-29T17:16:19Z` | `picks-open.png` | `b65b622d4638721d95bb6ec942527beef4d4cf0abbb5ef0f048cd6bc88c88884` |
+| `2026-07-29T17:24:45Z` | `pwa-update-banner.png` | `a5b0789f4829aef7b1a105aab71f88a52fd7b4f06c95793911f6ec5ce40c2c0d` |
+
+The rollback-backed PWA transition changed the service-worker SHA-256 from
+`5a3bf107e1a46178f71791142b4feaa9b1ef0188d1ef7da8b05410c7693e7e65`
+to
+`0cbc1054fef617b6e713f793558bd1cc9160a3a8372bbecee05e04037da02dc5`
+and displayed the live five-second update banner.
+
 ## Scheduler evidence
 
 Railway deployment metadata confirms one always-on API replica in
@@ -123,7 +136,8 @@ Railway deployment metadata confirms one always-on API replica in
 | `pick_reminders` | One successful manual execution at `2026-07-29T13:19:39Z`; it correctly found no open gameweek after settlement. |
 | `lock_gameweeks` | One successful execution through the guarded lifecycle control; one gameweek locked. |
 | `settle_gameweeks` | One initial execution left two picks pending, followed by one intentional retry that resolved both and settled the gameweek. |
-| `daily_backup` | Not green on the deployed revision. Historical scheduled runs failed because the asyncpg `ssl` query parameter was passed to libpq and the image contained PostgreSQL 16 `pg_dump` against PostgreSQL 17 staging. |
+| `connection_warmup` | One direct execution of the real job function completed successfully against the deployed service runtime. |
+| `daily_backup` | One direct execution completed successfully at `2026-07-29T17:18:58Z`, creating a 209,052-byte PostgreSQL 17 logical backup. |
 
 Two direct Railway SSH attempts at `refresh_slate` exited non-zero before a
 database operation because a direct SSH child does not inherit the Nix loader
@@ -131,8 +145,9 @@ path used by PID 1. A subsequent service-runtime invocation supplied that path
 and produced the single successful execution recorded above. The in-process
 API remained ready throughout.
 
-The backup defects are fixed locally, but a successful deployed backup
-execution is still required after `/ship-staging`.
+The original deployed backup failures identified the libpq URL and PostgreSQL
+client-version defects. The reviewed fixes were shipped, and the successful
+post-shipment execution above proves the deployed path.
 
 ## Log review and health
 
@@ -144,15 +159,15 @@ At the end of the run:
 - The API SHA field is `unknown` on the current CLI-uploaded Railway
   deployment; deployment IDs and the inspected Vercel source commit are the
   release identifiers for this run.
-- A bounded four-hour Railway application-log scan inspected 322 records.
-  Exact generated PIN values, synthetic profile names, bearer values, JWT
-  shapes, PostgreSQL URLs, private-key headers, and secret assignments each
-  had zero matches.
-- The static Vercel deployment produced no runtime records in the same
-  four-hour window and no runtime errors in the preceding seven-day check.
-
-The local settlement-log change must be shipped before another in-process
-settlement run so future logs cannot include the leader display name.
+- The final bounded Railway application-log scan on
+  `900b74fa-80cd-40d7-9a3a-5eba472f0fc6` inspected 252 records on
+  `2026-07-30`. Startup/migration errors, generated PIN values, synthetic
+  profile names, bearer values, JWT shapes, PostgreSQL URLs, private-key
+  headers, identity fields, and secret assignments each had zero matches.
+- The static Vercel deployment produced no runtime records and no runtime
+  errors in the final 24-hour check.
+- The settlement-log change is present in the shipped source and records only
+  non-personal outcome evidence.
 
 ## Backup and disposable restore evidence
 
@@ -173,21 +188,47 @@ disposable database was deleted automatically. After the final repeat, the
 temporary credential and export directory was deleted without using Trash; it
 is not recoverable through the normal desktop recovery path.
 
-## Remaining gate items
+The post-shipment scheduled backup and the earlier approved logical
+export/restore exercise the corrected backup code paths against the same
+PostgreSQL 17 schema. A final read-only query on `2026-07-30` confirmed
+migration `004`, 15 profiles and memberships, two fixtures and picks, and zero
+active push subscriptions.
 
-L3 is **BLOCKED**, not failed:
+## Rollback and forward restoration
 
-1. A supported real phone is required for owner-observed push
-   subscribe/send/unsubscribe. Staging currently has zero push subscriptions.
-2. The current workflows need an owner decision before shipment. The fixes
-   cannot reach the clean `main` checkout required by `/ship-staging` because
-   `/launch-closeout L3` correctly refuses to commit a BLOCKED phase. The owner
-   must explicitly authorize a narrow remediation commit/PR exception or amend
-   the workflow before `/ship-staging`.
-3. After that reviewed shipment, rerun the membership UI story, the scheduled
-   backup, readiness, and the bounded log scan.
-4. The same shipment must exercise and record rollback of both exact staging
-   targets, then restore the reviewed forward deployments. L3 implementation
-   does not authorize deployment or rollback without `/ship-staging`.
-5. After those items pass, run `/launch-verify L3`. A GREEN result still waits
-   for explicit `/launch-closeout L3`.
+Both exact staging targets completed a rollback and forward-restore rehearsal:
+
+- Railway:
+  `6b8ca99f-4423-48f3-a6ed-73d588ad8b95`
+  (pre-shipment source) →
+  `5dfccc34-279f-47cb-a3bd-943a09ab5933`
+  (reviewed forward shipment) →
+  `4fd323a5-b49c-4b68-a32b-09b4deb50927`
+  (rollback) →
+  `900b74fa-80cd-40d7-9a3a-5eba472f0fc6`
+  (restored forward deployment).
+- Vercel:
+  `dpl_FX53BDv6KVPVzEwcknPsknATqSaA`
+  (pre-remediation deployment) →
+  `dpl_smnv3fDEV1EPYpyR2TDA56maiykS`
+  (reviewed forward shipment) → the pre-remediation deployment → the reviewed
+  forward shipment.
+
+The final Railway instance is running the reviewed forward image with one
+always-on replica, and the stable Vercel alias resolves to the reviewed forward
+deployment. Root, SPA deep-link, security-header, service-worker-cache, CORS,
+and database-readiness checks all pass.
+
+## Final gate result
+
+The owner explicitly confirmed successful push subscription, test delivery,
+and unsubscribe on a supported real phone. The retained subscription record is
+inactive (`active=0`), which matches the API's intentional unsubscribe model.
+Temporary phone-test credentials were rotated and their refresh tokens
+invalidated after the check.
+
+`/launch-verify L3` returned **GREEN** on `2026-07-30` for the canonical branch
+and final forward deployments. The full canned-odds story, exactly-one
+scheduler exercise, platform-log review, disposable restore, evidence capture,
+and tested rollback are complete. The top-level L3 status remains unchecked
+until explicit `/launch-closeout L3`.
