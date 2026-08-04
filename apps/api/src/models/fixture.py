@@ -35,4 +35,7 @@ class Fixture(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     away: Mapped[str] = mapped_column(String(120), nullable=False)
     kickoff_utc: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False)
     competition: Mapped[str] = mapped_column(String(120), nullable=False)
-    competition_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Holds the provider's league slug, not a short numeric id as it did under
+    # Betfair. Ten of the thirty UK slugs exceed 32 characters and the longest
+    # across all competitions is 66, so this matches `competition`'s width.
+    competition_id: Mapped[str] = mapped_column(String(120), nullable=False)
