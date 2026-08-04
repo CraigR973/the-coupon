@@ -2,7 +2,7 @@
 
 ## Now
 
-All six build batches are closed. The Coupon is a verified private weekly
+All seven build batches are closed. The Coupon is a verified private weekly
 football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
 compare standings, and view the shared combined coupon.
@@ -10,6 +10,14 @@ compare standings, and view the shared combined coupon.
 Batch 6 completed the product rebrand, removed inherited surfaces, corrected
 the frontend auth and invite wiring, and added a deterministic production-
 preview browser flow backed by scratch PostgreSQL and `FakeBetfair`.
+
+Batch 7 replaced the Betfair Exchange with `odds-api.io` priced by Bet365,
+behind a provider-neutral `OddsProvider` port. This unblocks production: the
+Exchange never priced the Scottish lower divisions and refused the production
+login from every available region, so no gameweek could exist. Settlement is
+now derived from published scores, the schema carries no provider identifiers
+(revision `005`), and request-path odds are cached against the provider's rate
+limit.
 
 Launch phase L0 records the public repository, fresh project names and
 owner accounts, no-cost platform hostname strategy, regions, budget controls,
@@ -27,20 +35,21 @@ deployed, healthy, and serving at
 `https://api-production-109b1.up.railway.app` and a locked-down London Supabase
 project holding one bootstrapped administrator.
 
-**Production is not yet playable.** Betfair refuses the production login with
-`BETTING_RESTRICTED_LOCATION`: Railway serves only the Netherlands, the USA,
-and Singapore, and Betfair Exchange is unavailable in all three, so no region
-change resolves it. The scheduler's slate-refresh job therefore fails on every
-run and no gameweek, fixture, or pick can exist until Batch 7 replaces the
-odds source. Every other service and scheduled job is healthy.
+**Production is not yet playable, but the blocker is now deployment, not code.**
+The odds source works: verified live for Saturday 2026-08-08, `odds-api.io`
+carries 30 UK leagues, 131 qualifying 15:00 fixtures, and 280 distinct priced
+selections against the 15 a full league needs, with both Scottish lower
+divisions fully priced. Production still runs the Betfair build and has no
+`ODDS_API_KEY` sealed, so the slate-refresh job keeps failing until Batch 7 is
+deployed and configured.
 
 Launch also ships with **no database backup**, by owner decision recorded in
 `docs/launch/L0_PROJECT_IDENTITY.md`.
 
 ## Verified
 
-- Backend: 176 pytest, Ruff check/format, and strict mypy
-- Database: clean `pgserver` migration through revision `004`, with forced RLS
+- Backend: 294 pytest, Ruff check/format, and strict mypy
+- Database: clean `pgserver` migration through revision `005`, with forced RLS
   on all 13 public tables under a Supabase-like role setup
 - Frontend: Node 20 production build, TypeScript, ESLint, and 160 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
@@ -73,21 +82,25 @@ Launch also ships with **no database backup**, by owner decision recorded in
 
 ## Next
 
-Batch 7 — replace the Betfair Exchange with `odds-api.io` priced by Bet365.
-This is required rather than optional: Betfair is geo-blocked from every
-Railway region, so it is the only way production can obtain odds. It also
-closes the coverage gap, since the Exchange never priced the Scottish lower
-divisions. Scope and verified evidence are in
-`docs/adr/0002-replace-betfair-exchange-with-odds-api-io.md`.
+Launch L5 — launch and first-Saturday watch. Batch 7 shipped the odds source,
+so the remaining work is deployment and configuration:
 
-Then L5 launch and first-Saturday watch. Build batches use `/batch-start <N>`,
-`/batch-verify <N>`, and `/phase-closeout <N>`; launch phases use
-`/launch-start <L0-L5>`, `/launch-verify <L0-L5>`, and explicit
-`/launch-closeout <L0-L5>`.
+- seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`;
+- migrate staging from the deprecated `BF_FAKE_MODE` to `ODDS_PROVIDER=fake`;
+- ship staging and then production, which runs migration `005`;
+- re-run `.launch-private/weekend-fixtures.py` against the launch Saturday.
+
+The `BF_*` variables and the Betfair certificate are no longer required in
+production; they apply only if `ODDS_PROVIDER=betfair` is ever selected.
+
+Build batches use `/batch-start <N>`, `/batch-verify <N>`, and
+`/phase-closeout <N>`; launch phases use `/launch-start <L0-L5>`,
+`/launch-verify <L0-L5>`, and explicit `/launch-closeout <L0-L5>`.
 
 Two carried follow-ups: the administrator PIN is a known value and must be
-changed at first login, and the `odds-api.io` key shared during scoping should
-be rotated.
+changed at first login, and the `odds-api.io` key **must** be rotated — it was
+shared during scoping and was printed in a request URL during Batch 7
+verification.
 
 ## Toolchain
 

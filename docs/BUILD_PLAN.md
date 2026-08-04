@@ -45,7 +45,7 @@ after the user invokes `/phase-closeout <N>`.
 - [x] **Batch 6 — Verify + rebrand pass** ✅ 2026-07-26 — run every verification gate below,
   remove inherited product naming and unused surfaces, replace inherited
   documentation and assets, and delete the temporary handoff document.
-- [ ] **Batch 7 — Odds provider replacement** — replace the Betfair Exchange
+- [x] **Batch 7 — Odds provider replacement** ✅ 2026-08-04 — replace the Betfair Exchange
   with `odds-api.io` priced by Bet365, for full UK coverage including the
   Scottish lower divisions the Exchange does not price. Extract a
   provider-neutral port, derive settlement from scores rather than Exchange

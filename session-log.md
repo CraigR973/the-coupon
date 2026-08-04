@@ -72,3 +72,34 @@
 - The owner's live Betfair account remains outside agent automation.
 
 **Next:** Launch planning (all build batches closed)
+
+## Batch 7 — Odds provider replacement
+**Commits:** `c17e996` · verified: 294 pytest + Ruff/mypy · clean scratch migration through `005` · Node build/TypeScript/ESLint + 160 Vitest · production-bundle browser flow · live provider coverage probe
+
+### Key facts for future sessions
+- Settlement reads `GET /v3/events/{id}`, never the odds endpoints: once a
+  fixture settles `/odds` keeps `status` but drops `scores`, and `/odds/multi`
+  omits it entirely. There is no batch form — `/events` ignores an `eventIds`
+  filter — so it is one request per unresolved fixture.
+- Status is the settlement gate, not the presence of a score. A `pending`
+  fixture reports `scores: {0, 0}` and a `live` one reports the score so far;
+  the vocabulary is `pending` → `live` → `settled`, plus `cancelled`. Fixtures
+  settle from ~2h after kick-off, so the 18:00 Saturday job has ample margin.
+- Leagues carry no `country` field — the country is only in the name — and
+  England's lower tiers sit under `England Amateur - …`. Matching must strip
+  that qualifier and stay exact afterwards, because `Ukraine` begins with `uk`.
+- Event `id` is a JSON number and `league` a nested `{name, slug}` object;
+  `coerce_numbers_to_str` is what keeps the slate from coming back empty.
+- No provider identifier reaches the database. `(fixture, market, outcome)` is
+  both the league's uniqueness key and what settlement resolves against, so
+  `005` dropped the Betfair market/selection columns rather than renaming them.
+- `fetch_odds` runs in the request path against 100/hour and 500/day. The
+  launch Saturday's 131 fixtures batch ten at a time into 14 calls, so
+  `ODDS_CACHE_TTL_SECONDS` defaults to 900; the daily cap binds first under
+  sustained match-day refreshing.
+- Errors must never carry the request URL — the API key travels in the query
+  string, so `raise_for_status()` would print it into platform logs.
+
+**Next:** Launch L5 — the odds-api.io key must be sealed into production
+(`ODDS_API_KEY`) and staging's `BF_FAKE_MODE` migrated to `ODDS_PROVIDER=fake`
+before the first-Saturday watch.
