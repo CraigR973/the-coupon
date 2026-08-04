@@ -17,8 +17,8 @@ operations built on four raw Betfair primitives:
 
 Two implementations:
 
-* :class:`Betfair`     — the live client (interactive login + keepAlive, JSON-RPC over
-  httpx). Constructed from env (``BF_APP_KEY`` / ``BF_USER`` / ``BF_PASS``).
+* :class:`Betfair`     — the live client (certificate login + keepAlive, JSON-RPC over
+  httpx). Constructed from sealed production settings.
 * :class:`FakeBetfair` — returns canned catalogues/books so the whole app is testable
   (and demo-able) without a live login. The *domain* logic (Saturday filter, priced-only
   rule, WINNER settlement) lives on the base class, so the fake exercises the same code
@@ -41,7 +41,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 import structlog
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 
 from src.config import settings
 
@@ -63,19 +63,69 @@ MARKET_TYPES: tuple[str, ...] = (MARKET_MATCH_ODDS, MARKET_BTTS)
 _MARKET_CLOSED = "CLOSED"
 _RUNNER_WINNER = "WINNER"
 
-# The eight target divisions — the English pyramid + full Scottish pyramid. Matched
-# case-insensitively against Betfair competition names. Adjust to the exact live names
-# once Craig's coverage probe confirms them (Betfair naming is not perfectly stable).
+# The slate rule: any British football kicking off at 15:00 on the Saturday, in any
+# competition. Betfair tags events with an ISO country code, and "GB" covers the English,
+# Scottish, Welsh, and Northern Irish games this league cares about.
+#
+# This replaced a fixed list of eight divisions on 2026-08-04. The list starved the
+# slate whenever those divisions were not playing: on Saturday 2026-08-08 it produced
+# two fixtures — six selections for a fifteen-member league — while the country rule
+# produced thirty-eight fixtures and 114 selections, because that Saturday was League
+# Cup first round plus a full National League card.
+SLATE_COUNTRIES: frozenset[str] = frozenset({"GB"})
+
+# Retained as an *optional* narrowing filter for callers that want specific divisions,
+# and as documentation of Betfair's live competition naming. No longer applied by
+# default — `fetch_slate` selects on country and kick-off time instead.
+#
+# Names are matched case-insensitively and *exactly*, so a name that does not appear
+# verbatim in Betfair's competition list is silently skipped rather than erroring.
+#
+# The live coverage probe on 2026-08-04 confirmed Betfair carries the three English
+# divisions below the Premier League under their **sponsored** names — "English Sky Bet
+# Championship", "English Sky Bet League 1", "English Sky Bet League 2". The
+# unsponsored spellings this set originally used matched nothing, so those three
+# divisions would have been invisible all season.
+#
+# Both spellings are kept deliberately. Sponsor names change between seasons, and an
+# unmatched entry costs nothing because matching is exact — it simply never fires.
+# Re-run `.launch-private/weekend-fixtures.py` after any season rollover to reconfirm.
+#
+# Scottish League One and Two are not reachable from this application at all. They are
+# priced on the Betfair *Sportsbook* (betfair.com/betting/...), not the Exchange, and
+# SportsAPING serves the Exchange only. Confirmed 2026-08-04 by four independent checks:
+# the full 98-competition list held only "Scottish Premiership" (105) and "Scottish
+# Championship" (107); competition ids 106 and 108-110 returned zero events; an
+# unfiltered sweep of every soccer event that Saturday found no Scottish lower-league
+# fixture; and a text search on twenty lower-league clubs across all sports returned
+# nothing.
+#
+# The speculative spellings below cost nothing — matching is exact, so an entry that
+# never appears simply never fires — but they should not be read as an expectation that
+# these divisions will arrive.
+#
+# Note the module docstring calls Scottish lower-division pricing the reason for
+# choosing Betfair, and `test_covers_scottish_lower_league` encodes that against canned
+# data. Against the live Exchange that premise does not hold.
 TARGET_COMPETITION_NAMES: frozenset[str] = frozenset(
     {
+        # English — confirmed live 2026-08-04
         "English Premier League",
+        "English Sky Bet Championship",
+        "English Sky Bet League 1",
+        "English Sky Bet League 2",
+        # English — unsponsored fallbacks
         "English Championship",
         "English League 1",
         "English League 2",
+        # Scottish — confirmed live 2026-08-04
         "Scottish Premiership",
         "Scottish Championship",
+        # Scottish — unconfirmed, both forms pending a probe
         "Scottish League One",
         "Scottish League Two",
+        "Scottish League 1",
+        "Scottish League 2",
     }
 )
 
@@ -108,11 +158,24 @@ class BetfairAPIError(BetfairError):
 
 
 class BFIdentityResponse(BaseModel):
-    """Response from ``identitysso`` login / keepAlive."""
+    """Response from ``identitysso`` login / keepAlive.
 
-    token: str = ""
+    The two identity endpoints disagree on field names, so both spellings are
+    accepted:
+
+    * ``/api/login`` and ``/api/keepAlive`` on ``identitysso`` return
+      ``token`` / ``status``;
+    * ``/api/certlogin`` on ``identitysso-cert`` returns ``sessionToken`` /
+      ``loginStatus`` — verified against the live endpoint on 2026-08-03.
+
+    Modelling only the first spelling silently parses a *successful* certificate
+    login as an empty token with an empty status, which then surfaces as the
+    misleading ``Betfair login failed: UNKNOWN``.
+    """
+
+    token: str = Field("", validation_alias=AliasChoices("token", "sessionToken"))
     product: str = ""
-    status: str = ""
+    status: str = Field("", validation_alias=AliasChoices("status", "loginStatus"))
     error: str = ""
 
 
@@ -374,7 +437,14 @@ class BetfairAdapter(ABC):
         """Release any client resources held by the adapter."""
 
     @abstractmethod
-    async def list_competitions(self, *, event_type_id: str) -> list[BFCompetitionResult]: ...
+    async def list_competitions(
+        self,
+        *,
+        event_type_id: str,
+        market_countries: Sequence[str] = (),
+        from_utc: datetime | None = None,
+        to_utc: datetime | None = None,
+    ) -> list[BFCompetitionResult]: ...
 
     @abstractmethod
     async def list_events(
@@ -392,18 +462,38 @@ class BetfairAdapter(ABC):
     # -- domain operations (shared) --------------------------------------------
 
     async def fetch_slate(
-        self, saturday: date, *, competition_names: Collection[str] = TARGET_COMPETITION_NAMES
+        self,
+        saturday: date,
+        *,
+        competition_names: Collection[str] | None = None,
+        countries: Collection[str] = SLATE_COUNTRIES,
     ) -> Slate:
-        """Resolve target competitions and return that Saturday's 15:00 kick-offs."""
-        wanted_lower = {n.strip().casefold() for n in competition_names}
-        competitions = await self.list_competitions(event_type_id=SOCCER_EVENT_TYPE_ID)
-        targets = {
-            c.competition.id: c.competition.name
-            for c in competitions
-            if c.competition.name.strip().casefold() in wanted_lower
-        }
+        """Return that Saturday's 15:00 kick-offs across every qualifying competition.
 
+        The slate is defined by *country and kick-off time*, not by a fixed list of
+        divisions. Any British competition — league, cup, or non-league — counts, so a
+        first-round League Cup Saturday is as playable as a league Saturday. Restricting
+        to eight named divisions previously starved the slate: on 2026-08-08 it yielded
+        two fixtures where the country rule yields thirty-eight.
+
+        ``competition_names`` narrows to specific competitions when a caller needs the
+        old behaviour; it is ``None`` (no restriction) by default.
+        """
         from_utc, to_utc = _saturday_window(saturday)
+        wanted_countries = {c.strip().upper() for c in countries}
+        competitions = await self.list_competitions(
+            event_type_id=SOCCER_EVENT_TYPE_ID,
+            market_countries=sorted(wanted_countries),
+            from_utc=from_utc,
+            to_utc=to_utc,
+        )
+        if competition_names is not None:
+            wanted_lower = {n.strip().casefold() for n in competition_names}
+            competitions = [
+                c for c in competitions if c.competition.name.strip().casefold() in wanted_lower
+            ]
+        targets = {c.competition.id: c.competition.name for c in competitions}
+
         fixtures: list[SlateFixture] = []
         for competition_id, competition_name in targets.items():
             events = await self.list_events(
@@ -412,6 +502,11 @@ class BetfairAdapter(ABC):
             for result in events:
                 event = result.event
                 if not _is_saturday_kickoff(event.openDate):
+                    continue
+                # Enforce the country rule on the event as well as in the query. The
+                # market-country filter narrows the request; this makes the outcome
+                # deterministic and testable against canned data.
+                if wanted_countries and (event.countryCode or "").upper() not in wanted_countries:
                     continue
                 names = _split_event_name(event.name)
                 if names is None:
@@ -551,7 +646,7 @@ class BetfairAdapter(ABC):
 
 
 class Betfair(BetfairAdapter):
-    """Live Betfair client — interactive login + JSON-RPC over httpx.
+    """Live Betfair client — certificate login + JSON-RPC over httpx.
 
     Custom ``identity_client`` / ``betting_client`` can be injected to drive the HTTP
     layer with a mock transport in tests.
@@ -574,7 +669,7 @@ class Betfair(BetfairAdapter):
         self._cert_file = cert_file
         self._key_file = key_file
         self._identity = identity_client or httpx.AsyncClient(
-            base_url=_IDENTITY_CERT_BASE_URL if cert_file and key_file else _IDENTITY_BASE_URL,
+            base_url=_IDENTITY_BASE_URL,
             timeout=_TIMEOUT,
             cert=(cert_file, key_file) if cert_file and key_file else None,
         )
@@ -611,7 +706,11 @@ class Betfair(BetfairAdapter):
     # -- auth ------------------------------------------------------------------
 
     async def login(self) -> str:
-        path = "/api/certlogin" if self._cert_file and self._key_file else "/api/login"
+        path = (
+            f"{_IDENTITY_CERT_BASE_URL}/api/certlogin"
+            if self._cert_file and self._key_file
+            else "/api/login"
+        )
         try:
             response = await self._identity.post(
                 path,
@@ -662,8 +761,20 @@ class Betfair(BetfairAdapter):
 
     # -- primitives ------------------------------------------------------------
 
-    async def list_competitions(self, *, event_type_id: str) -> list[BFCompetitionResult]:
-        result = await self._rpc("listCompetitions", {"filter": {"eventTypeIds": [event_type_id]}})
+    async def list_competitions(
+        self,
+        *,
+        event_type_id: str,
+        market_countries: Sequence[str] = (),
+        from_utc: datetime | None = None,
+        to_utc: datetime | None = None,
+    ) -> list[BFCompetitionResult]:
+        market_filter: dict[str, Any] = {"eventTypeIds": [event_type_id]}
+        if market_countries:
+            market_filter["marketCountries"] = list(market_countries)
+        if from_utc is not None and to_utc is not None:
+            market_filter["marketStartTime"] = {"from": _iso_z(from_utc), "to": _iso_z(to_utc)}
+        result = await self._rpc("listCompetitions", {"filter": market_filter})
         return [BFCompetitionResult.model_validate(item) for item in result]
 
     async def list_events(
@@ -820,7 +931,16 @@ class FakeBetfair(BetfairAdapter):
     async def close(self) -> None:
         self._logged_in = False
 
-    async def list_competitions(self, *, event_type_id: str) -> list[BFCompetitionResult]:
+    async def list_competitions(
+        self,
+        *,
+        event_type_id: str,
+        market_countries: Sequence[str] = (),
+        from_utc: datetime | None = None,
+        to_utc: datetime | None = None,
+    ) -> list[BFCompetitionResult]:
+        # The canned competitions carry no country of their own; the country rule is
+        # enforced per event in fetch_slate, which is what the live filter narrows to.
         return list(self._competitions)
 
     async def list_events(

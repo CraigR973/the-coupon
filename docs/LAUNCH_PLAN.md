@@ -26,7 +26,7 @@ This checklist is the launch source of record. Only
 - [x] **L1 — Launch-hardening implementation** ✅ 2026-07-27
 - [x] **L2 — Fresh staging infrastructure** ✅ 2026-07-29
 - [x] **L3 — Staging verification** ✅ 2026-07-30
-- [ ] **L4 — Fresh production infrastructure and owner checks**
+- [x] **L4 — Fresh production infrastructure and owner checks** ✅ 2026-08-04
 - [ ] **L5 — Launch and first-Saturday watch**
 
 ## Recommended launch architecture
@@ -142,9 +142,16 @@ chooses otherwise:
   encode it as a SQLAlchemy `postgresql+asyncpg://` URL with SSL. Use the direct
   connection when reachable or Supavisor session mode for a persistent IPv4
   backend; reserve transaction mode for a proven need.
-- [ ] Replace `/tmp` application backups with Supabase managed backups/PITR or
-  durable encrypted offsite storage. Document and rehearse one restore before
-  production.
+- [ ] **Deferred by owner decision on 2026-07-30 — not required for launch.**
+  Replace `/tmp` application backups with Supabase managed backups/PITR or
+  durable encrypted offsite storage, and document and rehearse one restore.
+  Production launches on the Supabase Free plan with no managed backup, no
+  PITR, and no durable copy of the nightly logical dump, which Railway's
+  ephemeral filesystem discards on every deploy. The accepted consequence is
+  that a bad migration, a mistaken administrative write, or platform-side loss
+  is unrecoverable, and `picks` — including `odds_at_pick`, `points_awarded`,
+  and `status` — has no second copy. Routine operation does not put it at
+  risk: `sync_slate` upserts and never deletes. Revisit post-launch.
 - [ ] Move migrations out of concurrent web startup before ever increasing the
   API above one replica. The one-replica MVP may retain migration-on-start.
 
@@ -288,18 +295,55 @@ production credential or real member data exists in staging.
 
 ### L4 — Fresh production infrastructure and owner checks
 
-- [ ] Provision separate fresh production Supabase, Railway, and Vercel targets.
-- [ ] Configure sealed production secrets and the delayed Betfair app key.
-- [ ] Apply migrations and verify RLS/grants, readiness, and platform logs.
-- [ ] Run the idempotent bootstrap with the reviewed real roster; distribute
-  PINs out of band.
-- [ ] Attach production DNS and validate TLS without sending member invites yet.
-- [ ] Owner performs the non-interactive Betfair certificate/slate/price probe.
-- [ ] Replace the placeholder `/ship-prod` workflow with explicit promotion,
+- [x] Provision fresh production Railway and Vercel targets, and one Supabase
+  production project. Per the owner's 2026-07-30 decision the organization
+  stays on the Free plan and `the-coupon-production` is the only active Coupon
+  Supabase project, so staging is paused to free the two-active-project quota.
+- [x] Configure sealed production secrets and the delayed Betfair app key. All
+  seventeen names are sealed; the app key in use is version `1.0-DELAY` with
+  `delayData=true`, and the live key is inactive.
+- [x] Apply migrations and verify RLS/grants, readiness, and platform logs.
+  Migration `004`; RLS enabled and forced on all thirteen public tables; no
+  grants to `anon`, `authenticated`, or `PUBLIC`; Data API returns `401`;
+  security and performance advisors clean; readiness reports database `ok`.
+- [x] Run the idempotent bootstrap with the reviewed roster; distribute PINs out
+  of band. Per the owner's 2026-08-01 decision this seeded the administrator
+  alone — one profile, one league, one membership — and the rerun created
+  nothing.
+- [x] Validate TLS without sending member invites yet. No custom domain is in
+  scope per L0, so this is the platform hostnames: both origins serve valid
+  certificates, SPA deep links resolve, and CORS admits only the recorded web
+  origin. No invites were sent.
+- [x] Non-interactive Betfair certificate/slate/price probe. Run on 2026-08-04
+  at the owner's explicit direction, overriding the owner-only boundary
+  recorded for this phase. Certificate login, keep-alive, slate, and Match Odds
+  pricing all pass; the probe exposed and fixed a defect that would have failed
+  every scheduled Betfair call in production.
+- [x] Replace the placeholder `/ship-prod` workflow with explicit promotion,
   health verification, and rollback steps.
 
-**Gate:** owner approves the real slate, all services are healthy, and rollback
-and restore procedures are available.
+**Gate:** production infrastructure is provisioned, sealed, migrated, locked
+down, deployed, and healthy, and the deployment rollback procedure is available.
+
+Amended by the owner on 2026-08-04, closing this phase on infrastructure terms
+only. Two original gate clauses are explicitly **not** met and are carried into
+Batch 7 rather than waived:
+
+- the owner cannot approve a real slate, because Betfair refuses the production
+  login with `BETTING_RESTRICTED_LOCATION`. Railway serves this project only
+  from the Netherlands, the United States, and Singapore, and Betfair Exchange
+  is unavailable in all three, so no region change resolves it; and
+- the scheduler's slate-refresh job therefore fails on every run. The API,
+  database, frontend, and every other scheduled job are healthy.
+
+Consequently no gameweek, fixture, or pick can be created in production until
+`docs/adr/0002-replace-betfair-exchange-with-odds-api-io.md` lands. The
+application is deployed and serving but is not yet playable.
+
+Database restore is out of scope under the owner's 2026-07-30 deferral, so
+rollback must never assume a recoverable database: it reverts application
+deployments only, and a forward migration incompatible with the previous
+application requires a separately reviewed forward recovery plan.
 
 ### L5 — Launch and first-Saturday watch
 
@@ -307,18 +351,20 @@ and restore procedures are available.
 - [ ] Confirm the Monday-Saturday slate refreshes and Saturday reminder.
 - [ ] Watch the 14:30 Europe/London lock and all settlement retries.
 - [ ] Confirm standings and combined coupon after settlement.
-- [ ] Review errors, failed pushes, Betfair auth refreshes, database connections,
-  and backup completion.
-- [ ] After the first live gameweek and recovery evidence are complete,
-  transition staging to the dormant/on-demand lifecycle recorded in
-  `docs/launch/L2_STAGING_INFRASTRUCTURE.md`; retain production isolation and a
-  tested staging reactivation path.
+- [ ] Review errors, failed pushes, Betfair auth refreshes, and database
+  connections. Backup completion is out of scope under the 2026-07-30
+  deferral; the nightly job still runs and still logs a successful dump, but
+  it writes to an ephemeral path and produces no recovery artifact.
+- [ ] Staging is already dormant from L4 under the 2026-07-30 one-project
+  decision. After the first live gameweek, confirm production isolation and
+  record the staging reactivation path in
+  `docs/launch/L2_STAGING_INFRASTRUCTURE.md`.
 - [ ] Record launch results and any follow-up work separately from the completed
   build batches.
 
-**Gate:** the first live gameweek is settled correctly and recoverability is
-confirmed; production is the only always-on stack and the on-demand staging
-lifecycle is recorded.
+**Gate:** the first live gameweek is settled correctly; production is the only
+always-on stack and the on-demand staging lifecycle is recorded. Recoverability
+is explicitly **not** part of this gate under the owner's 2026-07-30 deferral.
 
 ## Platform notes verified during the audit
 

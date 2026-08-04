@@ -79,8 +79,15 @@ jobs:
           assert nixpacks["phases"]["install"]["paths"] == ["/opt/venv/bin"]
 
           start_cmd = nixpacks["start"]["cmd"]
+          assert "python -m src.runtime_secrets" in start_cmd
           assert "alembic -c apps/api/alembic.ini upgrade head" in start_cmd
           assert "uvicorn src.main:app" in start_cmd
+          assert start_cmd.index("python -m src.runtime_secrets") < start_cmd.index(
+              "alembic -c apps/api/alembic.ini upgrade head"
+          )
+          assert start_cmd.index(
+              "alembic -c apps/api/alembic.ini upgrade head"
+          ) < start_cmd.index("uvicorn src.main:app")
 
           assert not (root / "vercel.json").exists()
           assert vercel["installCommand"] == "pnpm install --frozen-lockfile"

@@ -21,9 +21,25 @@ stable web/API origins and a target-specific shipment workflow. Launch phase
 L3 verified the full canned-odds staging story, phone push lifecycle,
 scheduler, backup/restore, platform logs, and rollback.
 
+Launch phase L4 provisioned and verified the production stack. Production is
+deployed, healthy, and serving at
+`https://the-coupon-production.vercel.app`, backed by
+`https://api-production-109b1.up.railway.app` and a locked-down London Supabase
+project holding one bootstrapped administrator.
+
+**Production is not yet playable.** Betfair refuses the production login with
+`BETTING_RESTRICTED_LOCATION`: Railway serves only the Netherlands, the USA,
+and Singapore, and Betfair Exchange is unavailable in all three, so no region
+change resolves it. The scheduler's slate-refresh job therefore fails on every
+run and no gameweek, fixture, or pick can exist until Batch 7 replaces the
+odds source. Every other service and scheduled job is healthy.
+
+Launch also ships with **no database backup**, by owner decision recorded in
+`docs/launch/L0_PROJECT_IDENTITY.md`.
+
 ## Verified
 
-- Backend: 161 pytest, Ruff check/format, and strict mypy
+- Backend: 176 pytest, Ruff check/format, and strict mypy
 - Database: clean `pgserver` migration through revision `004`, with forced RLS
   on all 13 public tables under a Supabase-like role setup
 - Frontend: Node 20 production build, TypeScript, ESLint, and 160 Vitest
@@ -47,17 +63,31 @@ scheduler, backup/restore, platform logs, and rollback.
   logs, a disposable logical restore, recorded evidence, and tested rollback
   with the reviewed forward deployments restored
 
-The owner's real Betfair session remains outside agent automation and should be
-checked immediately before launch.
+- Launch L4: London Supabase production at migration `004` with forced RLS,
+  denied Data API and clean advisors; sealed Railway and Vercel production
+  configuration; healthy first deployments with confirmed alias, TLS, CORS and
+  SPA deep links; an idempotent administrator bootstrap with verified counts
+  and end-to-end login; and clean production logs. Three Betfair defects found
+  by live probing were fixed: certlogin field names, sponsored English
+  competition names, and a division allow-list that starved the slate.
 
 ## Next
 
-L4 fresh production infrastructure and owner checks. Provision distinct
-production Supabase, Railway, and Vercel targets, configure sealed production
-secrets, apply migration `004`, bootstrap the reviewed roster, validate TLS and
-readiness, and require the owner's non-interactive Betfair slate/price probe.
-Launch phases use `/launch-start <L0-L5>`, `/launch-verify <L0-L5>`, and
-explicit `/launch-closeout <L0-L5>`.
+Batch 7 — replace the Betfair Exchange with `odds-api.io` priced by Bet365.
+This is required rather than optional: Betfair is geo-blocked from every
+Railway region, so it is the only way production can obtain odds. It also
+closes the coverage gap, since the Exchange never priced the Scottish lower
+divisions. Scope and verified evidence are in
+`docs/adr/0002-replace-betfair-exchange-with-odds-api-io.md`.
+
+Then L5 launch and first-Saturday watch. Build batches use `/batch-start <N>`,
+`/batch-verify <N>`, and `/phase-closeout <N>`; launch phases use
+`/launch-start <L0-L5>`, `/launch-verify <L0-L5>`, and explicit
+`/launch-closeout <L0-L5>`.
+
+Two carried follow-ups: the administrator PIN is a known value and must be
+changed at first login, and the `odds-api.io` key shared during scoping should
+be rotated.
 
 ## Toolchain
 

@@ -64,3 +64,13 @@ artifacts/
 
 # Owner-held launch inputs (real names, PIN handoff, and credential material)
 .launch-private/
+
+# Credential material anywhere in the tree. The Betfair certificate pair is
+# generated locally and belongs only in .launch-private/; a stray copy in the
+# repository root was caught by review on 2026-08-01, so fail closed here.
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx

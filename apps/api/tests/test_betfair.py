@@ -29,6 +29,7 @@ from src.services.betfair import (
     SAMPLE_FORFAR_SEL,
     SAMPLE_SATURDAY,
     SAMPLE_SL2_EVENT_ID,
+    TARGET_COMPETITION_NAMES,
     Betfair,
     BetfairAPIError,
     BetfairAuthError,
@@ -36,6 +37,27 @@ from src.services.betfair import (
     Market,
     Outcome,
 )
+
+
+def test_target_competitions_include_betfair_sponsored_english_names() -> None:
+    """Betfair lists the three English divisions under sponsored names.
+
+    Confirmed against the live competition list on 2026-08-04. Dropping these
+    silently hides every Championship, League 1, and League 2 fixture, because
+    competition matching is exact rather than fuzzy.
+    """
+    for name in (
+        "English Sky Bet Championship",
+        "English Sky Bet League 1",
+        "English Sky Bet League 2",
+    ):
+        assert name in TARGET_COMPETITION_NAMES, f"{name} missing — English coverage would be lost"
+
+
+def test_target_competitions_are_matched_case_insensitively_without_duplicates() -> None:
+    folded = [n.strip().casefold() for n in TARGET_COMPETITION_NAMES]
+    assert len(folded) == len(set(folded)), "duplicate competition names differing only by case"
+
 
 # ══ FakeBetfair — slate ═════════════════════════════════════════════════════════
 
@@ -249,6 +271,78 @@ class TestLiveLogin:
         with pytest.raises(BetfairAuthError, match="INVALID_USERNAME_OR_PASSWORD"):
             await client.login()
 
+    async def test_certificate_login_uses_noninteractive_endpoint(self) -> None:
+        seen: dict[str, str] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["path"] = request.url.path
+            seen["host"] = request.url.host
+            if request.url.path == "/api/certlogin":
+                # The real certlogin endpoint returns sessionToken/loginStatus,
+                # not the token/status pair the interactive endpoint uses.
+                # Verified against the live endpoint on 2026-08-03.
+                return httpx.Response(
+                    200, json={"sessionToken": "CERT-SESSION-1", "loginStatus": "SUCCESS"}
+                )
+            return httpx.Response(
+                200,
+                json={"token": "SESSION-2", "status": "SUCCESS", "error": ""},
+            )
+
+        identity = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            base_url=_IDENTITY_BASE_URL,
+        )
+        client = Betfair(
+            "app-key",
+            "user",
+            "pass",
+            cert_file="/tmp/betfair.crt",
+            key_file="/tmp/betfair.key",
+            identity_client=identity,
+            betting_client=httpx.AsyncClient(
+                transport=httpx.MockTransport(lambda _r: httpx.Response(200, json={})),
+                base_url=_BETTING_BASE_URL,
+            ),
+        )
+
+        token = await client.login()
+        assert seen["path"] == "/api/certlogin"
+        assert seen["host"] == "identitysso-cert.betfair.com"
+        # The certlogin field names must actually be parsed, not silently
+        # defaulted to empty and reported as "Betfair login failed: UNKNOWN".
+        assert token == "CERT-SESSION-1"
+        await client.keep_alive()
+        assert seen["path"] == "/api/keepAlive"
+        assert seen["host"] == "identitysso.betfair.com"
+        await client.close()
+
+    async def test_certificate_login_rejects_failed_login_status(self) -> None:
+        """A failed certlogin must surface its real loginStatus, not UNKNOWN."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200, json={"sessionToken": "", "loginStatus": "CERT_AUTH_REQUIRED"}
+            )
+
+        client = Betfair(
+            "app-key",
+            "user",
+            "pass",
+            cert_file="/tmp/betfair.crt",
+            key_file="/tmp/betfair.key",
+            identity_client=httpx.AsyncClient(
+                transport=httpx.MockTransport(handler), base_url=_IDENTITY_BASE_URL
+            ),
+            betting_client=httpx.AsyncClient(
+                transport=httpx.MockTransport(lambda _r: httpx.Response(200, json={})),
+                base_url=_BETTING_BASE_URL,
+            ),
+        )
+        with pytest.raises(BetfairAuthError, match="CERT_AUTH_REQUIRED"):
+            await client.login()
+        await client.close()
+
     async def test_keep_alive_refreshes_token(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             if request.url.path == "/api/login":
@@ -360,9 +454,20 @@ class TestLiveRpc:
                                 "event": {
                                     "id": "e9",
                                     "name": "Forfar Athletic v Brechin City",
+                                    "countryCode": "GB",
                                     "openDate": "2026-08-01T14:00:00.000Z",
                                 }
-                            }
+                            },
+                            # Same 15:00 UK kick-off, but not a British match — the
+                            # country rule must drop it.
+                            {
+                                "event": {
+                                    "id": "e10",
+                                    "name": "Hobro v AB",
+                                    "countryCode": "DK",
+                                    "openDate": "2026-08-01T14:00:00.000Z",
+                                }
+                            },
                         ],
                         "id": 1,
                     },
@@ -376,3 +481,51 @@ class TestLiveRpc:
         assert len(slate.fixtures) == 1
         assert slate.fixtures[0].competition == "Scottish League Two"
         assert slate.fixtures[0].home == "Forfar Athletic"
+        assert all(f.home != "Hobro" for f in slate.fixtures)
+
+    async def test_slate_includes_any_british_competition(self) -> None:
+        """The slate is defined by country and kick-off, not a division allow-list.
+
+        A League Cup tie must be offerable: on 2026-08-08 the cup and the National
+        League were the entire British 15:00 card.
+        """
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = request.content.decode()
+            if "listCompetitions" in body:
+                return httpx.Response(
+                    200,
+                    json={
+                        "jsonrpc": "2.0",
+                        "result": [
+                            {"competition": {"id": "c9", "name": "English Football League Cup"}}
+                        ],
+                        "id": 1,
+                    },
+                )
+            if "listEvents" in body:
+                return httpx.Response(
+                    200,
+                    json={
+                        "jsonrpc": "2.0",
+                        "result": [
+                            {
+                                "event": {
+                                    "id": "e11",
+                                    "name": "Burnley v Notts Co",
+                                    "countryCode": "GB",
+                                    "openDate": "2026-08-01T14:00:00.000Z",
+                                }
+                            }
+                        ],
+                        "id": 1,
+                    },
+                )
+            raise AssertionError(f"unexpected RPC body: {body}")
+
+        client = _client(betting_handler=httpx.MockTransport(handler))
+        await client.login()
+        slate = await client.fetch_slate(date(2026, 8, 1))
+
+        assert [f.competition for f in slate.fixtures] == ["English Football League Cup"]
+        assert slate.fixtures[0].home == "Burnley"

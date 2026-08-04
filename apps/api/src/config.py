@@ -1,10 +1,25 @@
+import os
 from enum import StrEnum
+from pathlib import Path
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PLACEHOLDER_SECRETS = {"change-me-access", "change-me-refresh"}
 _MIN_SECRET_LEN = 32
+
+
+def _private_file_error(path_value: str, field_name: str) -> str | None:
+    path = Path(path_value)
+    if not path.is_absolute():
+        return f"{field_name} must be an absolute path"
+    if not path.is_file():
+        return f"{field_name} does not identify a file"
+    if not os.access(path, os.R_OK):
+        return f"{field_name} is not readable"
+    if path.stat().st_mode & 0o077:
+        return f"{field_name} must not be accessible by group or other users"
+    return None
 
 
 class Environment(StrEnum):
@@ -28,9 +43,8 @@ class Settings(BaseSettings):
     vapid_private_key: str = ""
     vapid_contact_email: str = "admin@example.com"
 
-    # Betfair Exchange API (odds source). Interactive login — no cert needed.
-    # Empty by default so tests/dev run without a live session; Betfair.from_settings
-    # raises when a caller needs the real client but these are unset.
+    # Betfair Exchange API (odds source). Production uses non-interactive
+    # certificate login; tests and staging use no live session.
     bf_app_key: str = ""
     bf_user: str = ""
     bf_pass: str = ""
@@ -97,8 +111,16 @@ class Settings(BaseSettings):
                 errors.append("bf_pass is empty")
             if not self.bf_cert_file:
                 errors.append("bf_cert_file is empty")
+            else:
+                cert_error = _private_file_error(self.bf_cert_file, "bf_cert_file")
+                if cert_error:
+                    errors.append(cert_error)
             if not self.bf_key_file:
                 errors.append("bf_key_file is empty")
+            else:
+                key_error = _private_file_error(self.bf_key_file, "bf_key_file")
+                if key_error:
+                    errors.append(key_error)
         if errors:
             raise ValueError("Refusing to start with weak/missing secrets: " + "; ".join(errors))
         return self
