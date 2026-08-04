@@ -41,6 +41,65 @@ the database, apply migrations and synthetic seed data, wake exactly one API
 replica, deploy the matching frontend, and recheck readiness, CORS, and SPA deep
 links.
 
+## Supabase plan and project-count amendment
+
+Owner decision recorded on 2026-07-30, superseding the L4 working assumption of
+a Supabase Pro organization:
+
+- keep `CraigR973's Org` on the Free plan; the Coupon budget for Supabase is
+  USD 0;
+- run exactly one active Coupon Supabase project, which is production; and
+- free the required Free-plan slot by pausing `the-coupon-staging` rather than
+  by pausing or deleting any non-Coupon project.
+
+The withdrawn Pro estimate was also wrong on its own terms. Supabase sets the
+plan per organization, so upgrading would have applied to every project in
+`CraigR973's Org`, not to two Coupon projects in isolation, costing about
+USD 45/month rather than the USD 35 previously recorded.
+
+This brings forward the dormant-staging lifecycle that the 2026-07-29
+amendment scheduled for after the first live Saturday. The consequence is
+accepted knowingly: no staging database rehearsal is available during L4 and
+L5. L3 is already closed and green, the paused project stays restorable within
+the platform's 90-day window, and the Railway and Vercel staging targets are
+unaffected. Reactivating staging later requires resuming the project inside
+that window or rebuilding it from migrations and synthetic seed data, and it
+must not displace the active production project.
+
+Free-plan consequences accepted for production: no managed daily backups and
+no PITR add-on, a 500 MB database ceiling, and 5 GB monthly egress. Automatic
+pausing is not a material risk for production because the always-on Railway
+replica warms the connection every ten minutes and dumps daily, which exceeds
+Supabase's stated activity bar.
+
+## Backup deferral
+
+Owner decision recorded on 2026-07-30: **the launch ships with no database
+backup**, deferring `docs/LAUNCH_PLAN.md`'s durable-backup blocking finding to
+post-launch. The owner was shown the risk, asked again, and reaffirmed, citing
+a previous World Cup predictor run without backups.
+
+Recorded so the record is honest rather than silent:
+
+- Production has no managed backup, no PITR, and no durable copy of the
+  nightly logical dump. The dump still runs at 03:00 UTC and still logs a
+  successful backup, but it writes to Railway's ephemeral filesystem and is
+  discarded on every deploy. Nobody should later read that log line as
+  evidence a backup exists.
+- `picks` is the only irreplaceable table. `odds_at_pick` is frozen at pick
+  time and `points_awarded`/`status` are written at settlement; nothing else
+  can reconstruct them. Profiles and the league re-bootstrap from the roster
+  file, fixtures re-fetch from Betfair, and standings recompute from picks.
+  `audit_log` is not a second copy: it records only league membership changes
+  and backup failures, and it lives in the same database.
+- Routine operation does not endanger picks. `sync_slate` upserts fixtures and
+  never deletes, so the weekly refresh cannot cascade picks away.
+- The exposure is a bad migration, a mistaken administrative write, or
+  platform-side loss. Migration risk is elevated because `nixpacks.toml` runs
+  `alembic upgrade head` on every boot, so migrations reach production with no
+  human gate and, on Free, no undo.
+- Consequently, deployment rollback must never assume a recoverable database.
+
 ## MVP scope
 
 The launch keeps the seven defaults in `docs/LAUNCH_PLAN.md`:
@@ -92,6 +151,22 @@ L2 staging targets created so far:
   `prj_r9VsE4xnCj53S3OiOUH7GSzQsn2c` in
   `team_MVQMOaFtYHlwO5QVzSOZQ0Ud`.
 
+L4 production targets created so far:
+
+- Supabase project `the-coupon-production`: `pugujiiojitstkilphrz`, London
+  (`eu-west-2`), Free plan, PostgreSQL 17.6, created 2026-07-31. It is the
+  only active Coupon Supabase project and is never attached to MCP.
+- Railway project `the-coupon-production`:
+  `e030ebe3-e7fc-43c9-9478-4e80cafaa126`; environment `production`
+  (`8f18cb49-5137-4557-900a-031bcab4ac38`); service `api`
+  (`d59f4f17-3e7d-4b3b-bf40-30620150fa2f`).
+- Vercel project `the-coupon-production`:
+  `prj_3h3OSNFDoPAySqTa9nVswUrMs0jJ` in
+  `team_MVQMOaFtYHlwO5QVzSOZQ0Ud`.
+
+The database is migrated and locked down. The two hosting targets are reserved
+but not deployed. Neither creation nor migration satisfies the production gate.
+
 ## Repository and integration
 
 - `origin` is `https://github.com/CraigR973/the-coupon.git`.
@@ -118,7 +193,7 @@ custom domain will be purchased or configured.
 | Environment | Web | API |
 | --- | --- | --- |
 | Staging | `https://the-coupon-staging.vercel.app` | `https://api-production-0641.up.railway.app` |
-| Production | Vercel hostname for `the-coupon-production` | Railway hostname for the `api` service in `the-coupon-production` |
+| Production | Intended stable alias `https://the-coupon-production.vercel.app`; confirm after the first production deployment | `https://api-production-109b1.up.railway.app` |
 
 L2 and L4 must record the exact assigned HTTPS hostnames and project/service
 IDs immediately after provisioning. The project and service names must not be

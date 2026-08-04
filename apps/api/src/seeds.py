@@ -1,8 +1,8 @@
 """Small admin-only seed helpers.
 
-These functions are intentionally boring: private users are created directly by
-an operator, not through a public signup flow. Rename ``ADMIN_DISPLAY_NAME`` and
-set ``ADMIN_PIN`` when you clone this template.
+Private users are created directly by an operator, not through a public signup
+flow. The league bootstrap takes its administrator identity from the reviewed
+roster and uses ``ADMIN_PIN`` only as the administrator's one-off PIN input.
 """
 
 import argparse
@@ -86,7 +86,26 @@ def load_roster(path: Path) -> list[BootstrapPlayer]:
     raw_players = data.get("players") if isinstance(data, dict) else data
     if not isinstance(raw_players, list) or not raw_players:
         raise ValueError("Roster JSON must contain a non-empty players array")
-    return [_player_from_mapping(item) for item in raw_players]
+    roster = [_player_from_mapping(item) for item in raw_players]
+    _bootstrap_admin(roster)
+    return roster
+
+
+def _bootstrap_admin(roster: list[BootstrapPlayer]) -> BootstrapPlayer:
+    normalized_names = [player.display_name.casefold() for player in roster]
+    if len(normalized_names) != len(set(normalized_names)):
+        raise ValueError("Roster display_name values must be unique")
+    profile_admins = [player for player in roster if player.role == UserRole.admin]
+    league_admins = [player for player in roster if player.league_role == LeagueMemberRole.admin]
+    if (
+        len(profile_admins) != 1
+        or len(league_admins) != 1
+        or profile_admins[0] is not league_admins[0]
+    ):
+        raise ValueError(
+            "Roster must contain exactly one player with admin profile and league roles"
+        )
+    return profile_admins[0]
 
 
 async def seed_admin_profile(db: AsyncSession, pin: str) -> Profile:
@@ -121,22 +140,17 @@ async def bootstrap_league(
     league_slug: str = DEFAULT_LEAGUE_SLUG,
     league_name: str = DEFAULT_LEAGUE_NAME,
 ) -> BootstrapSummary:
-    admin = await seed_admin_profile(db, admin_pin)
+    _validate_pin(admin_pin)
+    admin_player = _bootstrap_admin(roster)
     by_name = {player.display_name: player for player in roster}
-    by_name[admin.display_name] = BootstrapPlayer(
-        display_name=admin.display_name,
-        pin=admin_pin,
-        role=UserRole.admin,
-        timezone=admin.timezone,
-        league_role=LeagueMemberRole.admin,
-    )
 
     created = 0
     updated = 0
-    profiles: dict[str, Profile] = {admin.display_name: admin}
+    profiles: dict[str, Profile] = {}
     for player in by_name.values():
-        if player.display_name == admin.display_name:
-            continue
+        is_admin = player.display_name == admin_player.display_name
+        pin = admin_pin if is_admin else player.pin
+        role = UserRole.admin if is_admin else player.role
         result = await db.execute(
             select(Profile).where(
                 Profile.display_name == player.display_name,
@@ -147,16 +161,16 @@ async def bootstrap_league(
         if profile is None:
             profile = Profile(
                 display_name=player.display_name,
-                pin_hash=hash_pin(player.pin),
-                role=player.role,
+                pin_hash=hash_pin(pin),
+                role=role,
                 timezone=player.timezone,
                 is_active=True,
             )
             db.add(profile)
             created += 1
         else:
-            profile.pin_hash = hash_pin(player.pin)
-            profile.role = player.role
+            profile.pin_hash = hash_pin(pin)
+            profile.role = role
             profile.timezone = player.timezone
             profile.is_active = True
             profile.failed_login_count = 0
@@ -165,6 +179,7 @@ async def bootstrap_league(
         profiles[player.display_name] = profile
 
     await db.flush()
+    admin = profiles[admin_player.display_name]
 
     league = (
         await db.execute(
