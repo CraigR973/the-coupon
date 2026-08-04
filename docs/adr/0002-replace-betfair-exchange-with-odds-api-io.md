@@ -142,6 +142,54 @@ safe on populated tables.
   new provider, showing at least fifteen distinct priced selections for the
   intended launch Saturday.
 
+## Verified during implementation, 2026-08-04
+
+Against the live v3 API. Four of the assumptions above were wrong, and each one would
+have shipped a broken game.
+
+**Settlement does not come from the odds endpoints.** The scope above says the event
+exposes `status` and `scores`, which is true — on `/events`. Once a fixture settles,
+`/odds` returns it with `status: "settled"` but **no `scores` key and no bookmakers**,
+and `/odds/multi` omits it from the response entirely; both carry only what is still
+priced. Settlement reads `GET /v3/events/{id}`. There is no batch form — `/events`
+ignores an `eventIds` filter and returns the whole book — so it is one request per
+fixture still awaiting a result.
+
+**Status is the gate, not the presence of a score.** A *pending* fixture already reports
+`scores: {home: 0, away: 0}`, and a *live* one reports the score so far. Deriving
+settlement from a score's presence would have resolved the entire slate as goalless
+draws before kick-off, and paid out in-play matches at half time. The live vocabulary is
+`pending` → `live` → `settled`, plus `cancelled`.
+
+**Settlement timing is comfortable.** Sampling 227 football events: fixtures reach
+`settled` from roughly **two hours** after kick-off (13 of 13 between 2-4h, 9 of 11
+between 4-6h). A 15:00 kick-off settles well before the scheduler's first 18:00 Saturday
+run, so the Sunday/Monday retries are slack rather than load-bearing. The ADR's worry
+about a provider lagging past Monday does not arise.
+
+**Leagues carry no `country` field, and England's lower tiers are qualified.** The
+catalogue returns `{name, slug, eventsCount}` for 728 competitions, so the country is
+only ever in the name. England's amateur tiers sit under `England Amateur - …` — the same
+pattern Austria, Denmark, Germany, Sweden and Turkiye use — and reading the whole prefix
+as the country silently drops eight competitions including National League North and
+South. Matching must also stay exact after normalisation: `Ukraine` begins with `uk`.
+
+Two smaller corrections: event `id` is a JSON **number** and `league` a nested
+`{name, slug}` object, so both need coercion; and `/odds/multi` rejects more than **ten**
+event ids per request.
+
+**Coverage, for the intended launch Saturday 2026-08-08:** 30 UK leagues, **131**
+qualifying 15:00 fixtures, 56 of them priced by Bet365, giving **280 distinct priced
+selections** against the 15 a full league needs. All five `Scotland - League One` and all
+five `Scotland - League Two` fixtures carry both markets — the coverage the Exchange
+never had.
+
+**Consequence for the rate limit.** 131 fixtures batched ten at a time is 14 requests per
+full odds refresh, so `ODDS_CACHE_TTL_SECONDS` defaults to 900 rather than 300: at 300s
+the pick page would cost 168 requests/hour against a 100/hour plan. The 500/day cap is
+the tighter constraint under sustained match-day refreshing and is the first thing to
+raise if the provider starts returning 429s.
+
 ## Consequences
 
 - The module docstring's premise — that Betfair was chosen for Scottish

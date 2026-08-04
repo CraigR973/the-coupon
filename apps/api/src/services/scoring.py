@@ -1,11 +1,16 @@
-"""Scoring — settle picks against Betfair results and rank the leaderboard.
+"""Scoring — settle picks against the provider's results and rank the leaderboard.
 
 The rule: a winning pick scores ``round(odds_at_pick × 10)`` (long shots pay more), a
 losing or void pick scores nothing. Season standing is the cumulative sum per member.
 
 ``resolve_pick`` and ``points_for`` are pure (no DB) so the maths and the
-:class:`~src.services.betfair.MarketSettlement` mapping are unit-tested directly;
+:class:`~src.services.odds_provider.EventSettlement` mapping are unit-tested directly;
 ``settle_gameweek`` and ``standings`` apply them over the database.
+
+A pick resolves on ``(market, outcome)`` against its *fixture's* settlement. Until ADR
+0002 it resolved on a Betfair market and selection id stored on the pick itself; those
+columns are gone (revision ``005``) because ``(fixture, market, outcome)`` is already the
+league's uniqueness key and is the same in every provider's vocabulary.
 """
 
 from __future__ import annotations
@@ -18,14 +23,19 @@ from pydantic import BaseModel
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.league_membership import LeagueMembership
-from src.models.pick import Pick, PickStatus
+from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile
-from src.services.betfair import BetfairAdapter, MarketSettlement
+from src.services.odds_provider import (
+    EventSettlement,
+    Market,
+    OddsProvider,
+    Outcome,
+)
 
 _POINTS_MULTIPLIER = 10
-_REMOVED = "REMOVED"
 
 
 def _now() -> datetime:
@@ -49,51 +59,69 @@ class PickResolution(BaseModel):
 
 
 def resolve_pick(
-    betfair_selection_id: int, odds: Decimal, settlement: MarketSettlement
+    market: PickMarket,
+    outcome: PickOutcome,
+    odds: Decimal,
+    settlement: EventSettlement,
 ) -> PickResolution | None:
-    """Score a single pick against its market settlement.
+    """Score a single pick against its fixture's settlement.
 
-    Returns ``None`` when the market has not settled yet (leave the pick pending). Once
-    settled: the selection is ``won`` if its runner is the Betfair ``WINNER``; ``void`` if
-    the runner was removed (or is absent from the closed market) so it scores nothing but
-    is not counted as a loss; otherwise ``lost``.
+    Returns ``None`` — leave the pick pending — when the fixture has no result yet, or
+    when it has one but *this* market does not. That distinction is what stops a
+    half-settled fixture from voiding picks that are merely still waiting.
+
+    Once the market has settled: ``won`` when the outcome won, ``lost`` when it did not,
+    and ``void`` when the fixture was postponed or abandoned, or the outcome has vanished
+    from a settled market (a withdrawn selection). A void pick scores nothing but is not
+    counted as a loss.
     """
     if not settlement.settled:
         return None
-    runner = next(
-        (r for r in settlement.runners if r.betfair_selection_id == betfair_selection_id),
+    if settlement.void:
+        return PickResolution(status=PickStatus.void, points=0)
+    if Market(market.value) not in settlement.settled_markets:
+        return None
+    result = next(
+        (
+            o
+            for o in settlement.outcomes
+            if o.market == Market(market.value) and o.outcome == Outcome(outcome.value)
+        ),
         None,
     )
-    if runner is None or runner.status.upper() == _REMOVED:
+    if result is None:
         return PickResolution(status=PickStatus.void, points=0)
-    if runner.won:
+    if result.won:
         return PickResolution(status=PickStatus.won, points=points_for(odds))
     return PickResolution(status=PickStatus.lost, points=0)
 
 
 async def settle_gameweek(
-    db: AsyncSession, gameweek: Gameweek, settlements: list[MarketSettlement]
+    db: AsyncSession, gameweek: Gameweek, settlements: list[EventSettlement]
 ) -> int:
-    """Apply market settlements to a gameweek's pending picks; returns the count resolved.
+    """Apply event settlements to a gameweek's pending picks; returns the count resolved.
 
-    Idempotent and incremental: only pending picks whose market is settled are scored, so
-    the scheduler can call this repeatedly as markets close. Once no pending picks remain,
-    the gameweek flips to ``settled``. Does not commit — the caller owns the transaction.
+    Idempotent and incremental: only pending picks whose fixture has a result are scored,
+    so the scheduler can call this repeatedly as results land. Once no pending picks
+    remain, the gameweek flips to ``settled``. Does not commit — the caller owns the
+    transaction.
     """
-    by_market = {s.betfair_market_id: s for s in settlements if s.settled}
+    by_event = {s.provider_event_id: s for s in settlements if s.settled}
 
     result = await db.execute(
-        select(Pick).where(
+        select(Pick, Fixture.provider_event_id)
+        .join(Fixture, Fixture.id == Pick.fixture_id)
+        .where(
             Pick.gameweek_id == gameweek.id,
             Pick.status == PickStatus.pending,
         )
     )
     resolved = 0
-    for pick in result.scalars().all():
-        settlement = by_market.get(pick.betfair_market_id)
+    for pick, provider_event_id in result.all():
+        settlement = by_event.get(provider_event_id)
         if settlement is None:
             continue
-        resolution = resolve_pick(pick.betfair_selection_id, pick.odds_at_pick, settlement)
+        resolution = resolve_pick(pick.market, pick.outcome, pick.odds_at_pick, settlement)
         if resolution is None:
             continue
         pick.status = resolution.status
@@ -113,34 +141,36 @@ async def settle_gameweek(
     return resolved
 
 
-async def pending_market_ids(db: AsyncSession, gameweek: Gameweek) -> list[str]:
-    """Distinct Betfair market ids across a gameweek's still-pending picks.
+async def pending_event_ids(db: AsyncSession, gameweek: Gameweek) -> list[str]:
+    """Distinct provider event ids across a gameweek's still-pending picks.
 
-    These are the markets the settle job asks Betfair to settle; a market with no pending
-    pick (already resolved, or never picked) is skipped.
+    These are the fixtures the settle job asks the provider to resolve; a fixture with no
+    pending pick (already resolved, or never picked) is skipped, which keeps the request
+    count proportional to what is actually outstanding.
     """
     result = await db.execute(
-        select(Pick.betfair_market_id)
+        select(Fixture.provider_event_id)
+        .join(Pick, Pick.fixture_id == Fixture.id)
         .where(Pick.gameweek_id == gameweek.id, Pick.status == PickStatus.pending)
         .distinct()
     )
     return list(result.scalars().all())
 
 
-async def settle_gameweek_via_adapter(
-    db: AsyncSession, adapter: BetfairAdapter, gameweek: Gameweek
+async def settle_gameweek_via_provider(
+    db: AsyncSession, provider: OddsProvider, gameweek: Gameweek
 ) -> int:
-    """Read a gameweek's markets from Betfair and settle its pending picks.
+    """Read a gameweek's results from the provider and settle its pending picks.
 
-    The scheduler-facing wrapper: gather the distinct markets still awaiting a result, ask
-    the adapter to settle them, then apply the outcomes via :func:`settle_gameweek`. Returns
-    the count resolved (0 when nothing is pending). Flushes but does not commit — the job
-    owns the transaction.
+    The scheduler-facing wrapper: gather the distinct fixtures still awaiting a result, ask
+    the provider to settle them, then apply the outcomes via :func:`settle_gameweek`.
+    Returns the count resolved (0 when nothing is pending). Flushes but does not commit —
+    the job owns the transaction.
     """
-    market_ids = await pending_market_ids(db, gameweek)
-    if not market_ids:
+    event_ids = await pending_event_ids(db, gameweek)
+    if not event_ids:
         return 0
-    settlements = await adapter.settle(market_ids)
+    settlements = await provider.settle(event_ids)
     return await settle_gameweek(db, gameweek, settlements)
 
 

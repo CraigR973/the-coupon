@@ -26,14 +26,15 @@ The command exits non-zero when the job logs an internal failure.
 ## Settlement Retries
 
 Settlement runs Saturday, Sunday, and Monday at 18:00, 20:00, and 22:00
-Europe/London. Re-run `settle` manually if Betfair marks a market closed after
-the final retry.
+Europe/London. Settlement is derived from the provider's published score, so a
+fixture whose score lands late simply stays pending; re-run `settle` manually if a
+result appears after the final retry.
 
 ## Staging lifecycle rehearsal
 
 `scripts/agent/l3-staging-control.py` drives the deterministic L3 story using
 the real scheduler functions and canned `FakeBetfair` markets. It refuses any
-environment except staging and refuses live Betfair mode. Its output contains
+environment except staging and requires `ODDS_PROVIDER=fake`. Its output contains
 counts and state only.
 
 Use the exact staging Railway selectors with `railway run --no-local`, and keep
@@ -49,4 +50,4 @@ place a PIN on the command line or in a log. The expected sequence is:
 7. verify standings and the combined coupon
 
 The control is for designated synthetic staging data only. It is not copied
-into the production image and must never be used with a live Betfair account.
+into the production image and must never be used with a live odds provider.

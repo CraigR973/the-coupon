@@ -3,7 +3,7 @@
 Skipped unless ``DATABASE_URL`` points at a migrated database (the repo runs it via the
 pgserver harness, mirroring Batch 1). It proves the pieces the pure tests can't:
 
-* the submit endpoint snapshots live Betfair odds and enforces uniqueness **both ways**
+* the submit endpoint snapshots the provider's odds and enforces uniqueness **both ways**
   (a taken selection → 409; a member's re-pick updates in place, freeing the old one);
 * the two ``picks`` unique constraints reject duplicates at the DB level (the race backstop);
 * an unpriced / locked selection is refused;
@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import create_access_token, hash_pin
 from src.database import AsyncSessionLocal
-from src.deps import get_betfair_adapter
+from src.deps import get_odds_provider
 from src.main import app
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus
@@ -51,7 +51,7 @@ pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
 )
 
-# Betfair sample winners: Arsenal (home, EPL) and Forfar (home, SL2).
+# Canned sample winners: Arsenal (home, EPL) and Forfar (home, SL2).
 SAMPLE_ARSENAL_SEL = 1001
 SAMPLE_FORFAR_SEL = 2001
 
@@ -68,11 +68,11 @@ def _auth(profile: Profile) -> dict[str, str]:
 @pytest_asyncio.fixture
 async def client_and_fake() -> AsyncIterator[tuple[AsyncClient, FakeBetfair]]:
     fake = FakeBetfair.with_sample_data()
-    app.dependency_overrides[get_betfair_adapter] = lambda: fake
+    app.dependency_overrides[get_odds_provider] = lambda: fake
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client, fake
-    app.dependency_overrides.pop(get_betfair_adapter, None)
+    app.dependency_overrides.pop(get_odds_provider, None)
 
 
 async def _seed_league(session: AsyncSession, names: list[str]) -> tuple[list[Profile], League]:
@@ -109,7 +109,7 @@ async def _open_sample_gameweek(session: AsyncSession, fake: FakeBetfair) -> Gam
 
 async def _fixture_ids(session: AsyncSession, gameweek_id: uuid.UUID) -> dict[str, str]:
     result = await session.execute(select(Fixture).where(Fixture.gameweek_id == gameweek_id))
-    return {f.betfair_event_id: str(f.id) for f in result.scalars().all()}
+    return {f.provider_event_id: str(f.id) for f in result.scalars().all()}
 
 
 async def _submit(
@@ -176,7 +176,7 @@ async def test_full_pick_flow(client_and_fake: tuple[AsyncClient, FakeBetfair]) 
                 SAMPLE_SL2_MATCH_ODDS_MKT: SAMPLE_FORFAR_SEL,
             }
         )
-        settlements = await fake.settle([SAMPLE_EPL_MATCH_ODDS_MKT, SAMPLE_SL2_MATCH_ODDS_MKT])
+        settlements = await fake.settle([SAMPLE_EPL_EVENT_ID, SAMPLE_SL2_EVENT_ID])
         gameweek = (
             await session.execute(select(Gameweek).where(Gameweek.id == gameweek.id))
         ).scalar_one()
@@ -223,8 +223,6 @@ async def _assert_db_constraints(
             outcome=PickOutcome.DRAW,
             runner_name="The Draw",
             odds_at_pick=Decimal("3.75"),
-            betfair_market_id=SAMPLE_EPL_MATCH_ODDS_MKT,
-            betfair_selection_id=58805,
         )
     )
     with pytest.raises(IntegrityError):
@@ -242,8 +240,6 @@ async def _assert_db_constraints(
             outcome=PickOutcome.HOME,
             runner_name="Arsenal",
             odds_at_pick=Decimal("1.90"),
-            betfair_market_id=SAMPLE_EPL_MATCH_ODDS_MKT,
-            betfair_selection_id=SAMPLE_ARSENAL_SEL,
         )
     )
     with pytest.raises(IntegrityError):
@@ -285,7 +281,7 @@ async def test_unpriced_selection_is_refused(
         await session.flush()
         fixture = Fixture(
             gameweek_id=gameweek.id,
-            betfair_event_id=SAMPLE_SL2_EVENT_ID,
+            provider_event_id=SAMPLE_SL2_EVENT_ID,
             home="Forfar Athletic",
             away="Brechin City",
             kickoff_utc=_now(),
@@ -316,7 +312,7 @@ async def test_locked_gameweek_rejects_submit(
         await session.flush()
         fixture = Fixture(
             gameweek_id=gameweek.id,
-            betfair_event_id=SAMPLE_EPL_EVENT_ID,
+            provider_event_id=SAMPLE_EPL_EVENT_ID,
             home="Arsenal",
             away="Chelsea",
             kickoff_utc=_now(),

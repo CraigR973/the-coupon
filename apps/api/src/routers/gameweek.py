@@ -1,9 +1,13 @@
 """The weekly pick screen — this Saturday's slate with live odds and taken selections.
 
 ``GET /api/v1/leagues/{slug}/gameweek/current`` returns the latest gameweek's fixtures,
-each with the currently-priced Betfair selections, marking which are already grabbed in
-this leaderboard (and which is the caller's own). It's a read view; grabbing happens via
+each with the currently-priced selections, marking which are already grabbed in this
+leaderboard (and which is the caller's own). It's a read view; grabbing happens via
 ``POST .../picks``.
+
+The odds here come from the provider on every request, which is why the provider handed
+out by ``deps.get_odds_provider`` caches: fifteen members refreshing this page must not
+turn into fifteen upstream calls against a 100/hour quota.
 """
 
 from datetime import date, datetime
@@ -17,12 +21,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser
 from src.database import get_db
-from src.deps import BetfairDep, LeagueMemberDep
+from src.deps import LeagueMemberDep, OddsProviderDep
 from src.models.fixture import Fixture
 from src.models.pick import Pick
 from src.models.profile import Profile
-from src.services.betfair import FixtureOdds
 from src.services.gameweek import latest_gameweek
+from src.services.odds_provider import FixtureOdds
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -46,7 +50,7 @@ class SelectionOption(BaseModel):
 
 class FixtureSlate(BaseModel):
     fixture_id: str
-    betfair_event_id: str
+    provider_event_id: str
     home: str
     away: str
     competition: str
@@ -67,7 +71,7 @@ async def current_gameweek(
     slug: str,
     player: CurrentUser,
     league: LeagueMemberDep,
-    adapter: BetfairDep,
+    provider: OddsProviderDep,
     db: Db,
 ) -> GameweekSlateResponse:
     gameweek = await latest_gameweek(db)
@@ -82,18 +86,18 @@ async def current_gameweek(
     fixtures = list(fixtures_result.scalars().all())
 
     taken = await _taken_selections(db, league.id, gameweek.id)
-    odds_by_event = await _live_odds(adapter, [f.betfair_event_id for f in fixtures])
+    odds_by_event = await _live_odds(provider, [f.provider_event_id for f in fixtures])
 
     slate = [
         FixtureSlate(
             fixture_id=str(fixture.id),
-            betfair_event_id=fixture.betfair_event_id,
+            provider_event_id=fixture.provider_event_id,
             home=fixture.home,
             away=fixture.away,
             competition=fixture.competition,
             kickoff_utc=fixture.kickoff_utc,
             selections=_selection_options(
-                fixture, odds_by_event.get(fixture.betfair_event_id), taken, player.id
+                fixture, odds_by_event.get(fixture.provider_event_id), taken, player.id
             ),
         )
         for fixture in fixtures
@@ -126,11 +130,11 @@ async def _taken_selections(db: AsyncSession, league_id: object, gameweek_id: ob
     return taken
 
 
-async def _live_odds(adapter: BetfairDep, event_ids: list[str]) -> dict[str, FixtureOdds]:
+async def _live_odds(provider: OddsProviderDep, event_ids: list[str]) -> dict[str, FixtureOdds]:
     if not event_ids:
         return {}
-    odds = await adapter.fetch_odds(event_ids)
-    return {o.betfair_event_id: o for o in odds}
+    odds = await provider.fetch_odds(event_ids)
+    return {o.provider_event_id: o for o in odds}
 
 
 def _selection_options(
@@ -150,7 +154,7 @@ def _selection_options(
                 market=selection.market.value,
                 outcome=selection.outcome.value,
                 runner_name=selection.runner_name,
-                odds=selection.back_price,
+                odds=float(selection.price),
                 taken_by_player_id=holder[0] if holder else None,
                 taken_by_name=holder[1] if holder else None,
                 mine=holder is not None and holder[0] == str(my_id),

@@ -1,11 +1,11 @@
-"""Scheduler domain functions on real Postgres (mocked Betfair via ``FakeBetfair``).
+"""Scheduler domain functions on real Postgres (canned odds via ``FakeBetfair``).
 
 Covers the pieces the pure/unit tests can't — the DB-driven halves of the four jobs:
 
-* ``refresh_slate``            — a Betfair slate becomes gameweek + fixtures (and an empty
+* ``refresh_slate``            — a provider slate becomes gameweek + fixtures (and an empty
   slate creates nothing);
 * ``lock_due_gameweeks``       — an open gameweek past 14:30 flips to ``locked``;
-* ``settle_gameweek_via_adapter`` + ``standings`` — the **lock → settle → leaderboard**
+* ``settle_gameweek_via_provider`` + ``standings`` — the **lock → settle → leaderboard**
   end-to-end: canned results settle the picks and the season table updates (the Batch 4
   slice of the acceptance e2e);
 * ``members_missing_picks``    — only members without a pick are reminder candidates;
@@ -39,7 +39,6 @@ from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile, UserRole
 from src.services.betfair import (
     SAMPLE_ARSENAL_SEL,
-    SAMPLE_CHELSEA_SEL,
     SAMPLE_EPL_EVENT_ID,
     SAMPLE_EPL_MATCH_ODDS_MKT,
     SAMPLE_FORFAR_SEL,
@@ -56,7 +55,7 @@ from src.services.gameweek import (
     refresh_slate,
     settleable_gameweeks,
 )
-from src.services.scoring import settle_gameweek_via_adapter, standings
+from src.services.scoring import settle_gameweek_via_provider, standings
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -105,7 +104,7 @@ async def _open_gameweek(db: AsyncSession, saturday: date) -> tuple[Gameweek, Fi
     kickoff = datetime(saturday.year, saturday.month, saturday.day, 14, 0)
     epl = Fixture(
         gameweek_id=gameweek.id,
-        betfair_event_id=SAMPLE_EPL_EVENT_ID,
+        provider_event_id=SAMPLE_EPL_EVENT_ID,
         home="Arsenal",
         away="Chelsea",
         kickoff_utc=kickoff,
@@ -114,7 +113,7 @@ async def _open_gameweek(db: AsyncSession, saturday: date) -> tuple[Gameweek, Fi
     )
     sl2 = Fixture(
         gameweek_id=gameweek.id,
-        betfair_event_id=SAMPLE_SL2_EVENT_ID,
+        provider_event_id=SAMPLE_SL2_EVENT_ID,
         home="Forfar Athletic",
         away="Brechin City",
         kickoff_utc=kickoff,
@@ -134,8 +133,6 @@ def _pick(
     outcome: PickOutcome,
     runner_name: str,
     odds: str,
-    market_id: str,
-    selection_id: int,
 ) -> Pick:
     return Pick(
         league_id=league.id,
@@ -146,8 +143,6 @@ def _pick(
         outcome=outcome,
         runner_name=runner_name,
         odds_at_pick=Decimal(odds),
-        betfair_market_id=market_id,
-        betfair_selection_id=selection_id,
     )
 
 
@@ -167,7 +162,7 @@ async def test_refresh_slate_syncs_fixtures_and_skips_empty(session: AsyncSessio
     )
     assert {"Arsenal", "Forfar Athletic"} <= {f.home for f in fixtures}
 
-    # A Saturday Betfair prices nothing for → no gameweek is created.
+    # A Saturday the provider prices nothing for → no gameweek is created.
     assert await refresh_slate(session, fake, date(2030, 1, 5)) is None
 
 
@@ -189,8 +184,6 @@ async def test_lock_then_settle_updates_leaderboard(session: AsyncSession) -> No
                 PickOutcome.HOME,
                 "Arsenal",
                 "1.90",
-                SAMPLE_EPL_MATCH_ODDS_MKT,
-                SAMPLE_ARSENAL_SEL,
             ),
             _pick(
                 league,
@@ -200,8 +193,6 @@ async def test_lock_then_settle_updates_leaderboard(session: AsyncSession) -> No
                 PickOutcome.AWAY,
                 "Chelsea",
                 "4.30",
-                SAMPLE_EPL_MATCH_ODDS_MKT,
-                SAMPLE_CHELSEA_SEL,
             ),
             _pick(
                 league,
@@ -211,8 +202,6 @@ async def test_lock_then_settle_updates_leaderboard(session: AsyncSession) -> No
                 PickOutcome.HOME,
                 "Forfar Athletic",
                 "2.40",
-                SAMPLE_SL2_MATCH_ODDS_MKT,
-                SAMPLE_FORFAR_SEL,
             ),
         ]
     )
@@ -233,7 +222,7 @@ async def test_lock_then_settle_updates_leaderboard(session: AsyncSession) -> No
             SAMPLE_SL2_MATCH_ODDS_MKT: SAMPLE_FORFAR_SEL,
         }
     )
-    resolved = await settle_gameweek_via_adapter(session, fake, gameweek)
+    resolved = await settle_gameweek_via_provider(session, fake, gameweek)
     assert resolved == 3
     assert gameweek.status is GameweekStatus.settled
     assert gameweek.settled_at is not None
@@ -255,7 +244,7 @@ async def test_lock_then_settle_updates_leaderboard(session: AsyncSession) -> No
     assert (table["bob"].total_points, table["bob"].rank) == (0, 3)
 
     # Idempotent: a second settle pass finds nothing pending.
-    assert await settle_gameweek_via_adapter(session, fake, gameweek) == 0
+    assert await settle_gameweek_via_provider(session, fake, gameweek) == 0
 
 
 # ── gameweek selection helpers ──────────────────────────────────────────────────
@@ -292,8 +281,6 @@ async def test_members_missing_picks_targets_only_non_pickers(session: AsyncSess
             PickOutcome.HOME,
             "Arsenal",
             "1.90",
-            SAMPLE_EPL_MATCH_ODDS_MKT,
-            SAMPLE_ARSENAL_SEL,
         )
     )
     await session.flush()

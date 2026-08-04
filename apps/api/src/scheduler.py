@@ -27,7 +27,6 @@ from src.config import settings
 from src.database import AsyncSessionLocal
 from src.models.notification import ActionType, ActorType, AuditLog
 from src.services.backup import create_backup
-from src.services.betfair_session import betfair_session
 from src.services.gameweek import (
     current_open_gameweek,
     lock_due_gameweeks,
@@ -36,9 +35,10 @@ from src.services.gameweek import (
     upcoming_saturday,
 )
 from src.services.notification_triggers import send_pick_reminders
+from src.services.odds_session import odds_session
 from src.services.scoring import (
     participating_league_ids,
-    settle_gameweek_via_adapter,
+    settle_gameweek_via_provider,
     standings,
 )
 
@@ -99,22 +99,23 @@ async def run_connection_warmup() -> bool:
 
 
 # ── Coupon domain jobs (Batch 4) ────────────────────────────────────────────────
-# Each owns its Betfair session (via the shared ``betfair_session``) and its DB
+# Each draws the odds provider from the shared ``odds_session`` and owns its DB
 # transaction (the domain functions flush; the job commits), and logs+swallows its own
 # errors so one bad run never takes the scheduler down.
 
 
 async def run_refresh_slate() -> bool:
-    """Refresh the upcoming Saturday's slate + fixtures from Betfair.
+    """Refresh the upcoming Saturday's slate + fixtures from the odds provider.
 
     Runs a few times pre-lock so the card firms up (names, kick-offs). Odds themselves are
-    snapshotted live onto each pick, so there is no separate odds cache to refresh here.
+    snapshotted onto each pick at pick time and served through the provider's own
+    short-lived cache, so there is nothing to warm here.
     """
     try:
-        adapter = await betfair_session.acquire()
+        provider = await odds_session.acquire()
         saturday = upcoming_saturday(_uk_today())
         async with AsyncSessionLocal() as session:
-            gameweek = await refresh_slate(session, adapter, saturday)
+            gameweek = await refresh_slate(session, provider, saturday)
             gameweek_id = str(gameweek.id) if gameweek is not None else None
             await session.commit()
         if gameweek_id is not None:
@@ -143,20 +144,23 @@ async def run_lock_gameweeks() -> bool:
 
 
 async def run_settle_gameweeks() -> bool:
-    """Settle locked gameweeks against Betfair results and recompute standings.
+    """Settle locked gameweeks against the provider's results and recompute standings.
 
-    Idempotent: :func:`~src.services.scoring.settle_gameweek_via_adapter` resolves only picks
-    whose market has closed, so the Saturday-evening re-runs pick up late settlements and
-    flip a gameweek to ``settled`` once nothing is pending. Standings are then recomputed per
-    participating league and logged (they are read on demand — this surfaces the outcome).
+    Idempotent: :func:`~src.services.scoring.settle_gameweek_via_provider` resolves only
+    picks whose fixture has a final result, so the Saturday-evening re-runs pick up late
+    results and flip a gameweek to ``settled`` once nothing is pending. That retry window
+    matters more under odds-api.io than it did on the Exchange, because a result is derived
+    from a published score rather than pushed by a settlement feed. Standings are then
+    recomputed per participating league and logged (they are read on demand — this surfaces
+    the outcome).
     """
     try:
-        adapter = await betfair_session.acquire()
+        provider = await odds_session.acquire()
         async with AsyncSessionLocal() as session:
             gameweeks = await settleable_gameweeks(session, _utc_now())
             resolved_by_gameweek: dict[str, int] = {}
             for gameweek in gameweeks:
-                resolved = await settle_gameweek_via_adapter(session, adapter, gameweek)
+                resolved = await settle_gameweek_via_provider(session, provider, gameweek)
                 resolved_by_gameweek[str(gameweek.id)] = resolved
             await session.commit()
 

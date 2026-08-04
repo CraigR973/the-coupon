@@ -15,10 +15,10 @@ Usage:
 
 Jobs:
     backup         database backup
-    refresh-slate  refresh the upcoming Saturday's slate + fixtures from Betfair
+    refresh-slate  refresh the upcoming Saturday's slate + fixtures from the odds provider
     remind         push a pick reminder to members who haven't picked
     lock           lock any gameweek past its 14:30 deadline
-    settle         settle locked gameweeks against Betfair results + recompute standings
+    settle         settle locked gameweeks against provider results + recompute standings
 """
 
 from __future__ import annotations

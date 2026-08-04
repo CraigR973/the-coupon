@@ -3,7 +3,6 @@ from decimal import Decimal
 from enum import StrEnum
 
 from sqlalchemy import (
-    BigInteger,
     Enum,
     ForeignKey,
     Index,
@@ -19,8 +18,9 @@ from src.models.base import Base, UpdatedAtMixin, UUIDPrimaryKeyMixin
 
 
 class PickMarket(StrEnum):
-    """The two markets The Coupon offers. Values mirror the Betfair market codes
-    (:class:`src.services.betfair.Market`) so a snapshotted selection round-trips by value.
+    """The two markets The Coupon offers. Values mirror
+    :class:`src.services.odds_provider.Market` so a snapshotted selection round-trips by
+    value, whichever provider priced it.
     """
 
     MATCH_ODDS = "MATCH_ODDS"
@@ -29,7 +29,7 @@ class PickMarket(StrEnum):
 
 class PickOutcome(StrEnum):
     """The selectable outcome within a market. HOME/DRAW/AWAY for Match Odds, YES/NO for
-    BTTS. Values mirror :class:`src.services.betfair.Outcome`.
+    BTTS. Values mirror :class:`src.services.odds_provider.Outcome`.
     """
 
     HOME = "HOME"
@@ -41,7 +41,8 @@ class PickOutcome(StrEnum):
 
 class PickStatus(StrEnum):
     """``pending`` until the gameweek settles, then ``won`` / ``lost``; ``void`` when the
-    Betfair runner was removed (e.g. a cancelled fixture) so the pick scores nothing.
+    fixture was postponed or abandoned, or the selection was withdrawn, so the pick scores
+    nothing rather than counting as a loss.
     """
 
     pending = "pending"
@@ -57,12 +58,15 @@ class Pick(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
 
     * ``uq_picks_league_gameweek_player`` — **one pick per member per gameweek**.
     * ``uq_picks_league_gameweek_selection`` — **no two members hold the same selection**
-      (the first-come land-grab). Keyed on ``(fixture, market, outcome)`` rather than the
-      Betfair selection id, which is only unique *within* a market (BTTS reuses the same
-      Yes/No ids across every fixture).
+      (the first-come land-grab). Keyed on ``(fixture, market, outcome)``.
 
-    Odds are frozen at pick time in ``odds_at_pick`` (with the Betfair market/selection ids
-    for settlement). ``points_awarded`` stays null until the gameweek is settled.
+    That second key is also how a pick settles. Revision ``005`` dropped the Betfair
+    market and selection ids this table used to carry: ``(fixture, market, outcome)``
+    already identifies a selection exactly, so no provider's identifiers need to survive
+    into the database, and settlement works the same whoever priced the fixture.
+
+    Odds are frozen at pick time in ``odds_at_pick``. ``points_awarded`` stays null until
+    the gameweek is settled.
     """
 
     __tablename__ = "picks"
@@ -102,8 +106,6 @@ class Pick(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     )
     runner_name: Mapped[str] = mapped_column(String(120), nullable=False)
     odds_at_pick: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False)
-    betfair_market_id: Mapped[str] = mapped_column(String(32), nullable=False)
-    betfair_selection_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     points_awarded: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[PickStatus] = mapped_column(
         Enum(PickStatus, name="pick_status", create_type=False),

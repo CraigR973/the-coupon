@@ -2,7 +2,7 @@
 """Guarded operator controls for the L3 canned-odds staging verification.
 
 Run this script only through Railway's exact staging variables. It deliberately
-refuses production and live Betfair mode. Output is limited to counts and state;
+refuses production and any live odds provider. Output is limited to counts and state;
 credentials, tokens, profile names, and database URLs are never printed.
 """
 
@@ -16,7 +16,7 @@ from datetime import timedelta
 
 from sqlalchemy import delete, func, select
 from src.auth import hash_pin
-from src.config import Environment, settings
+from src.config import Environment, OddsProviderName, settings
 from src.database import AsyncSessionLocal
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus
@@ -34,7 +34,8 @@ from src.services.betfair import (
     SAMPLE_SL2_MATCH_ODDS_MKT,
     FakeBetfair,
 )
-from src.services.betfair_session import betfair_session
+from src.services.odds_cache import CachingOddsProvider
+from src.services.odds_session import odds_session
 
 _SYNTHETIC_NAMES = (
     "Admin",
@@ -47,8 +48,10 @@ _SYNTHETIC_NAMES = (
 def _require_safe_staging() -> None:
     if settings.environment != Environment.staging:
         raise SystemExit("L3 controls require ENVIRONMENT=staging")
-    if not settings.bf_fake_mode:
-        raise SystemExit("L3 controls require BF_FAKE_MODE=true")
+    if settings.odds_provider != OddsProviderName.fake:
+        raise SystemExit(
+            "L3 controls require ODDS_PROVIDER=fake (or the deprecated BF_FAKE_MODE)"
+        )
 
 
 async def _sample_gameweek(db) -> Gameweek:
@@ -112,10 +115,13 @@ async def force_lock() -> None:
 
 async def settle(*, close_markets: bool) -> None:
     if close_markets:
-        adapter = await betfair_session.acquire()
-        if not isinstance(adapter, FakeBetfair):
+        provider = await odds_session.acquire()
+        # The session hands out a cache wrapper; the canned client is inside it.
+        if isinstance(provider, CachingOddsProvider):
+            provider = provider.inner
+        if not isinstance(provider, FakeBetfair):
             raise SystemExit("Canned settlement requires FakeBetfair")
-        adapter.close_markets(
+        provider.close_markets(
             {
                 SAMPLE_EPL_MATCH_ODDS_MKT: SAMPLE_ARSENAL_SEL,
                 SAMPLE_SL2_MATCH_ODDS_MKT: SAMPLE_FORFAR_SEL,

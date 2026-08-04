@@ -1,8 +1,8 @@
 """Pick submission — the weekly land-grab.
 
 ``POST /api/v1/leagues/{slug}/picks`` submits (or, before lock, changes) the caller's one
-pick for the gameweek. The endpoint snapshots the live Betfair odds itself, so the frozen
-price is authoritative rather than client-supplied, and it enforces both game rules:
+pick for the gameweek. The endpoint snapshots the odds itself, so the frozen price is
+authoritative rather than client-supplied, and it enforces both game rules:
 
 * one pick per member per gameweek (a re-pick updates in place, freeing the old selection);
 * no two members holding the same selection (first-come; a taken selection → 409).
@@ -12,7 +12,6 @@ past the pre-check trips ``IntegrityError`` and is reported as a conflict.
 """
 
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Annotated
 
 import structlog
@@ -24,13 +23,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser
 from src.database import get_db
-from src.deps import BetfairDep, LeagueMemberDep
+from src.deps import LeagueMemberDep, OddsProviderDep
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek
 from src.models.pick import Pick, PickMarket, PickOutcome
 from src.rate_limit import limiter, per_user_key
-from src.services.betfair import Selection
 from src.services.gameweek import is_open_for_picks
+from src.services.odds_provider import Selection
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -97,7 +96,7 @@ async def submit_pick(
     body: SubmitPickRequest,
     player: CurrentUser,
     league: LeagueMemberDep,
-    adapter: BetfairDep,
+    provider: OddsProviderDep,
     db: Db,
 ) -> PickResponse:
     fixture = await _resolve_fixture(body.fixture_id, db)
@@ -107,7 +106,7 @@ async def submit_pick(
     if not is_open_for_picks(gameweek, _now()):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="PICKS_LOCKED")
 
-    selection = await _snapshot_selection(adapter, fixture, body.market, body.outcome)
+    selection = await _snapshot_selection(provider, fixture, body.market, body.outcome)
 
     # Pre-check: is this exact selection already held by another member?
     taken = await db.execute(
@@ -194,17 +193,19 @@ async def _resolve_fixture(fixture_id: str, db: AsyncSession) -> Fixture:
 
 
 async def _snapshot_selection(
-    adapter: BetfairDep,
+    provider: OddsProviderDep,
     fixture: Fixture,
     market: PickMarket,
     outcome: PickOutcome,
 ) -> Selection:
-    """Fetch live odds for the fixture and return the chosen priced selection.
+    """Fetch the fixture's odds and return the chosen priced selection.
 
-    Enforces the *only offer what Betfair prices* rule: an outcome that isn't currently
-    offered (unpriced or missing) is rejected rather than stored at a stale price.
+    Enforces the *only offer what the provider prices* rule: an outcome that isn't
+    currently offered (unpriced or missing) is rejected rather than stored at a stale
+    price. The price may come from the provider's short-lived cache — bounded by
+    ``ODDS_CACHE_TTL_SECONDS`` — which is the trade the provider's rate limit forces.
     """
-    odds = await adapter.fetch_odds([fixture.betfair_event_id])
+    odds = await provider.fetch_odds([fixture.provider_event_id])
     for fixture_odds in odds:
         for selection in fixture_odds.selections:
             if selection.market.value == market.value and selection.outcome.value == outcome.value:
@@ -217,11 +218,14 @@ async def _snapshot_selection(
 def _apply_selection(
     pick: Pick, fixture: Fixture, body: SubmitPickRequest, selection: Selection
 ) -> None:
-    """Write the frozen snapshot onto a new or re-picked row."""
+    """Write the frozen snapshot onto a new or re-picked row.
+
+    ``(fixture, market, outcome)`` is the whole identity of a pick — the same key the
+    league's uniqueness constraint uses and the one settlement resolves against — so no
+    provider identifier is stored alongside it.
+    """
     pick.fixture_id = fixture.id
     pick.market = body.market
     pick.outcome = body.outcome
     pick.runner_name = selection.runner_name
-    pick.odds_at_pick = Decimal(str(selection.back_price))
-    pick.betfair_market_id = selection.betfair_market_id
-    pick.betfair_selection_id = selection.betfair_selection_id
+    pick.odds_at_pick = selection.price

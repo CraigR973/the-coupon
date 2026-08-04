@@ -11,7 +11,8 @@ The game is for points and fun; it does not place bets or handle money.
 
 - React 18, TypeScript, Tailwind CSS, Vite, and PWA support
 - FastAPI, SQLAlchemy, Alembic, and PostgreSQL
-- Betfair Exchange adapter with a fully canned test implementation
+- Provider-neutral odds port — `odds-api.io` priced by one bookmaker in production,
+  a Betfair Exchange fallback, and a fully canned implementation for tests
 
 ## Repository
 
@@ -51,8 +52,9 @@ PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" \
   pnpm --dir /Users/craigrobinson/the-coupon/apps/web dev
 ```
 
-Use the canned Betfair adapter for automated tests. Live Betfair access is a
-manual owner-only check because the account is money-linked.
+Use the canned odds provider (`ODDS_PROVIDER=fake`) for automated tests. The live
+coverage check against `odds-api.io` is an owner-only step, and live Betfair access
+remains owner-only because that account is money-linked.
 
 ## Verification
 

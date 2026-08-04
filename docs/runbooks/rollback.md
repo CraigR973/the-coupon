@@ -7,7 +7,7 @@ commands are in `docs/agent-commands/ship-staging.md`.
 1. Identify the last known-good frontend and backend deployment IDs.
 2. Roll the frontend back in Vercel first when the issue is browser-only.
 3. Roll the backend back in Railway when API readiness, migrations, scheduler,
-   or Betfair integration is failing.
+   or the odds provider integration is failing.
 4. Keep one backend replica during rollback.
 5. Recheck `/api/v1/health/ready`, login, current gameweek, picks, standings,
    and combined coupon.

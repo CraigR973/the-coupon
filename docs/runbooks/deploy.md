@@ -9,8 +9,8 @@ and exact IDs are in `docs/agent-commands/ship-staging.md`.
 1. Confirm the target Railway service name and environment.
 2. Confirm exactly one always-on replica and `SCHEDULER_ENABLED=true`.
 3. Confirm required secrets are present: `DATABASE_URL`, JWT secrets,
-   `ENVIRONMENT`, `FRONTEND_ORIGIN`, VAPID keys, and Betfair settings for
-   production.
+   `ENVIRONMENT`, `FRONTEND_ORIGIN`, VAPID keys, and `ODDS_API_KEY` for
+   production (`ODDS_PROVIDER` defaults to `oddsapi`; `fake` is refused there).
 4. Deploy the repo-root Railway/Nixpacks service.
 5. Wait for `/api/v1/health/ready` to pass.
 6. Check Railway logs for migration success and absence of PINs, tokens, or

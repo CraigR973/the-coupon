@@ -1,4 +1,13 @@
-"""Materialize production-only runtime files from sealed environment values."""
+"""Materialize production-only runtime files from sealed environment values.
+
+Only the Betfair Exchange needs a file on disk (a client certificate pair for
+non-interactive login). ADR 0002 made odds-api.io the production odds source, and it
+authenticates with a query-string key, so under the default ``ODDS_PROVIDER=oddsapi``
+there is nothing to materialize and production no longer requires the ``BF_*`` PEM
+values. The strict production path below still runs whenever ``ODDS_PROVIDER=betfair``
+is selected, and the guard against certificate material appearing outside production
+still applies either way.
+"""
 
 from __future__ import annotations
 
@@ -12,6 +21,10 @@ _CERT_PATH = Path("/tmp/the_coupon_secrets/betfair-client.crt")
 _KEY_PATH = Path("/tmp/the_coupon_secrets/betfair-client.key")
 _CERT_VALUE_ENV = "BF_CERT_PEM_B64"
 _KEY_VALUE_ENV = "BF_KEY_PEM_B64"
+# Kept as literals rather than importing src.config: this module runs before the app
+# imports its settings, which is the whole point of materializing files first.
+_DEFAULT_ODDS_PROVIDER = "oddsapi"
+_BETFAIR_PROVIDER = "betfair"
 
 
 def _decode_pem(value: str, *, variable_name: str, marker: bytes) -> bytes:
@@ -56,6 +69,12 @@ def materialize_betfair_certificate(
     if environment != "production":
         if cert_value or key_value:
             raise RuntimeError("Betfair certificate material is allowed only in production")
+        return
+
+    # Production, but the Exchange is not the odds source: nothing to write, and the
+    # PEM values are not required. `ODDS_PROVIDER` defaults to odds-api.io, so an
+    # unset variable means no certificate is needed.
+    if values.get("ODDS_PROVIDER", _DEFAULT_ODDS_PROVIDER) != _BETFAIR_PROVIDER:
         return
 
     configured_cert_path = values.get("BF_CERT_FILE", "")
