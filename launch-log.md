@@ -85,3 +85,33 @@ story, phone push, scheduler, platform logs, disposable restore, and rollback
   secrets, credentials, PIN values, tokens, or synthetic profile names.
 
 **Next:** L4 — Fresh production infrastructure and owner checks
+
+## L4 — Fresh production infrastructure and owner checks
+**Commits:** af9c20c · verified: GREEN provisioning, lockdown, deployment,
+bootstrap, TLS/CORS, and logs — RED live Betfair slate, carried to Batch 7
+
+### Key facts for future sessions
+- Supabase production is `pugujiiojitstkilphrz` (London, Free plan, sole active
+  Coupon project) at migration `004`; staging `gegcnhoeudpkcoxqcebe` is paused
+  to free the two-active-project quota and is restorable for 90 days.
+- Railway reaches Supabase over the **direct** IPv6 endpoint; an IPv4
+  workstation must use the session pooler at
+  `aws-1-eu-west-2.pooler.supabase.com` as `postgres.<ref>` — note `aws-1`,
+  not `aws-0`.
+- **Betfair cannot be used from Railway at all.** Production login returns
+  `BETTING_RESTRICTED_LOCATION`; Railway serves only the Netherlands, the USA,
+  and Singapore, and Betfair Exchange is unavailable in all three. The same
+  credentials succeed from a UK machine.
+- Three Betfair defects were found by probing the live API, none by tests:
+  certlogin returns `sessionToken`/`loginStatus`; the English divisions carry
+  sponsored names; and a fixed division list starved the slate. The slate is
+  now chosen by country and kick-off time.
+- Launch ships with **no database backup** by owner decision; `picks` has no
+  second copy, and migrations apply automatically on boot, so rollback must
+  never assume a recoverable database.
+- Production holds one bootstrapped administrator with a known PIN that must be
+  changed at first login; the roster bootstrap rewrites `pin_hash` for every
+  entry on each run, so members added later lose self-chosen PINs.
+
+**Next:** Batch 7 — replace the Betfair Exchange with odds-api.io priced by
+Bet365, which is now required for production to obtain odds at all
