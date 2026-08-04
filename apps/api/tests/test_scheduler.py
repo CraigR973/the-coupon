@@ -131,7 +131,7 @@ def test_create_scheduler_domain_jobs_fire_on_uk_wall_clock() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Coupon domain jobs — wiring (own the tx + Betfair session, swallow errors)
+# Coupon domain jobs — wiring (own the tx + odds session, swallow errors)
 # ---------------------------------------------------------------------------
 
 
@@ -141,7 +141,7 @@ async def test_run_refresh_slate_syncs_and_commits() -> None:
     gameweek = MagicMock()
     gameweek.id = uuid.uuid4()
     with (
-        patch("src.scheduler.betfair_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
         patch("src.scheduler.refresh_slate", new=AsyncMock(return_value=gameweek)) as refresh,
     ):
@@ -155,7 +155,7 @@ async def test_run_refresh_slate_empty_slate_still_commits() -> None:
     """No target fixtures → no gameweek created, but the (no-op) tx still closes cleanly."""
     session = AsyncMock()
     with (
-        patch("src.scheduler.betfair_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
         patch("src.scheduler.refresh_slate", new=AsyncMock(return_value=None)),
     ):
@@ -166,8 +166,8 @@ async def test_run_refresh_slate_empty_slate_still_commits() -> None:
 @pytest.mark.asyncio
 async def test_run_refresh_slate_swallows_errors() -> None:
     with patch(
-        "src.scheduler.betfair_session.acquire",
-        new=AsyncMock(side_effect=RuntimeError("betfair down")),
+        "src.scheduler.odds_session.acquire",
+        new=AsyncMock(side_effect=RuntimeError("odds provider down")),
     ):
         ok = await run_refresh_slate()  # a failed run must not propagate
     assert ok is False
@@ -204,10 +204,12 @@ async def test_run_settle_gameweeks_settles_then_recomputes_standings() -> None:
     leader.display_name = "alice"
     leader.total_points = 24
     with (
-        patch("src.scheduler.betfair_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
         patch("src.scheduler.settleable_gameweeks", new=AsyncMock(return_value=[gameweek])),
-        patch("src.scheduler.settle_gameweek_via_adapter", new=AsyncMock(return_value=3)) as settle,
+        patch(
+            "src.scheduler.settle_gameweek_via_provider", new=AsyncMock(return_value=3)
+        ) as settle,
         patch("src.scheduler.participating_league_ids", new=AsyncMock(return_value=[uuid.uuid4()])),
         patch("src.scheduler.standings", new=AsyncMock(return_value=[leader])) as recompute,
     ):
@@ -221,8 +223,8 @@ async def test_run_settle_gameweeks_settles_then_recomputes_standings() -> None:
 @pytest.mark.asyncio
 async def test_run_settle_gameweeks_swallows_errors() -> None:
     with patch(
-        "src.scheduler.betfair_session.acquire",
-        new=AsyncMock(side_effect=RuntimeError("betfair down")),
+        "src.scheduler.odds_session.acquire",
+        new=AsyncMock(side_effect=RuntimeError("odds provider down")),
     ):
         ok = await run_settle_gameweeks()
     assert ok is False

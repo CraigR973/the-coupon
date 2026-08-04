@@ -13,8 +13,8 @@ from src.database import get_db
 from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.profile import UserRole
-from src.services.betfair import BetfairAdapter, BetfairError
-from src.services.betfair_session import betfair_session
+from src.services.odds_provider import OddsProvider, OddsProviderError
+from src.services.odds_session import odds_session
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -59,24 +59,25 @@ async def require_league_member(
 LeagueMemberDep = Annotated[League, Depends(require_league_member)]
 
 
-async def get_betfair_adapter() -> BetfairAdapter:
-    """Return the shared, kept-warm live Betfair client for odds snapshots / settlement.
+async def get_odds_provider() -> OddsProvider:
+    """Return the shared, kept-warm odds client for odds snapshots / settlement.
 
     Overridden with ``FakeBetfair`` in tests. Draws from the process-wide
-    :data:`~src.services.betfair_session.betfair_session` rather than logging in per request
-    (Batch 3 authenticated on every call). A 503 (not 500) surfaces when Betfair is
-    unconfigured or unreachable, so a missing session degrades cleanly.
+    :data:`~src.services.odds_session.odds_session` rather than authenticating per request
+    (Batch 3 authenticated on every call), and the client it returns caches odds so the
+    request path stays inside the provider's rate limit. A 503 (not 500) surfaces when the
+    provider is unconfigured or unreachable, so a missing session degrades cleanly.
     """
     try:
-        return await betfair_session.acquire()
-    except BetfairError as exc:
-        log.warning("betfair unavailable", error=repr(exc))
+        return await odds_session.acquire()
+    except OddsProviderError as exc:
+        log.warning("odds provider unavailable", error=repr(exc))
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Odds service unavailable"
         ) from exc
 
 
-BetfairDep = Annotated[BetfairAdapter, Depends(get_betfair_adapter)]
+OddsProviderDep = Annotated[OddsProvider, Depends(get_odds_provider)]
 
 
 async def shared_league_player_ids(

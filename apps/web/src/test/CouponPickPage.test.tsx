@@ -18,7 +18,7 @@ const SLATE: GameweekSlate = {
   fixtures: [
     {
       fixture_id: 'fx1',
-      betfair_event_id: 'ev1',
+      provider_event_id: 'ev1',
       home: 'Forfar',
       away: 'Brechin',
       competition: 'Scottish League 2',

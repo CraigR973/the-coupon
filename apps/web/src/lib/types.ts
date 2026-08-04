@@ -6,7 +6,7 @@
 // verbatim. See apps/api/src/routers/{gameweek,picks,coupon}.py.
 // ---------------------------------------------------------------------------
 
-// ── Enums (values mirror the Betfair / Pick model codes) ───────────────────
+// ── Enums (values mirror the odds-provider / Pick model codes) ─────────────
 
 export type PickMarket = 'MATCH_ODDS' | 'BOTH_TEAMS_TO_SCORE';
 export type PickOutcome = 'HOME' | 'DRAW' | 'AWAY' | 'YES' | 'NO';
@@ -29,7 +29,7 @@ export interface SelectionOption {
 
 export interface FixtureSlate {
   fixture_id: string;
-  betfair_event_id: string;
+  provider_event_id: string;
   home: string;
   away: string;
   competition: string;

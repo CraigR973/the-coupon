@@ -11,7 +11,7 @@ class GameweekStatus(StrEnum):
     """Lifecycle of a weekly round.
 
     ``open`` — picks accepted; ``locked`` — 14:30 Saturday passed, picks frozen;
-    ``settled`` — Betfair results in, points awarded.
+    ``settled`` — provider results in, points awarded.
     """
 
     open = "open"

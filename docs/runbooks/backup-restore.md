@@ -26,7 +26,7 @@ export and `scripts/agent/l3-restore-rehearsal.py` restores it into a fresh
 pip-`pgserver` database.
 
 - Export refuses to run unless `ENVIRONMENT=staging` and
-  `BF_FAKE_MODE=true`.
+  `ODDS_PROVIDER=fake`.
 - Restore refuses non-loopback databases and requires
   `ENVIRONMENT=development`.
 - The export is created mode `0600`, contains sensitive authentication hashes,

@@ -1,9 +1,9 @@
-"""Persist a Betfair slate as the week's gameweek + fixtures.
+"""Persist a provider's slate as the week's gameweek + fixtures.
 
-Turns the adapter's :class:`~src.services.betfair.Slate` DTO into ``gameweeks`` /
-``fixtures`` rows — the DTO→ORM mapping at the heart of Batch 3. Idempotent: syncing the
-same Saturday twice updates the existing rows rather than duplicating them, so the Batch 4
-scheduler can refresh the slate repeatedly before lock.
+Turns a :class:`~src.services.odds_provider.Slate` DTO into ``gameweeks`` / ``fixtures``
+rows — the DTO→ORM mapping at the heart of Batch 3. Idempotent: syncing the same Saturday
+twice updates the existing rows rather than duplicating them, so the Batch 4 scheduler can
+refresh the slate repeatedly before lock.
 
 The gameweek locks at **14:30 UK local** on its Saturday; all ``*_utc`` values are stored
 naive-UTC to match the rest of the schema.
@@ -24,7 +24,7 @@ from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
-from src.services.betfair import BetfairAdapter, Slate
+from src.services.odds_provider import OddsProvider, Slate
 
 _UK_TZ = ZoneInfo("Europe/London")
 _LOCK_HOUR = 14
@@ -83,15 +83,15 @@ async def sync_slate(db: AsyncSession, slate: Slate) -> Gameweek:
         await db.flush()
 
     existing = await db.execute(select(Fixture).where(Fixture.gameweek_id == gameweek.id))
-    by_event = {f.betfair_event_id: f for f in existing.scalars().all()}
+    by_event = {f.provider_event_id: f for f in existing.scalars().all()}
 
     for sf in slate.fixtures:
-        fixture = by_event.get(sf.betfair_event_id)
+        fixture = by_event.get(sf.provider_event_id)
         if fixture is None:
             db.add(
                 Fixture(
                     gameweek_id=gameweek.id,
-                    betfair_event_id=sf.betfair_event_id,
+                    provider_event_id=sf.provider_event_id,
                     home=sf.home,
                     away=sf.away,
                     kickoff_utc=_naive_utc(sf.kickoff_utc),
@@ -100,7 +100,7 @@ async def sync_slate(db: AsyncSession, slate: Slate) -> Gameweek:
                 )
             )
         else:
-            # Names/kick-off can shift as Betfair firms up the card before lock.
+            # Names/kick-off can shift as the provider firms up the card before lock.
             fixture.home = sf.home
             fixture.away = sf.away
             fixture.kickoff_utc = _naive_utc(sf.kickoff_utc)
@@ -124,15 +124,15 @@ def upcoming_saturday(today: date) -> date:
 
 
 async def refresh_slate(
-    db: AsyncSession, adapter: BetfairAdapter, saturday: date
+    db: AsyncSession, provider: OddsProvider, saturday: date
 ) -> Gameweek | None:
-    """Fetch ``saturday``'s Betfair slate and upsert it as the gameweek + fixtures.
+    """Fetch ``saturday``'s slate from the provider and upsert it as gameweek + fixtures.
 
-    Returns the synced gameweek, or ``None`` when Betfair prices no target fixtures that day
-    (so the periodic job never leaves an empty gameweek behind, e.g. out of season). Flushes
-    but does not commit — the scheduler job owns the transaction.
+    Returns the synced gameweek, or ``None`` when the provider carries no qualifying
+    fixtures that day (so the periodic job never leaves an empty gameweek behind, e.g. out
+    of season). Flushes but does not commit — the scheduler job owns the transaction.
     """
-    slate = await adapter.fetch_slate(saturday)
+    slate = await provider.fetch_slate(saturday)
     if not slate.fixtures:
         return None
     return await sync_slate(db, slate)

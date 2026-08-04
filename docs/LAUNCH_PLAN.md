@@ -36,7 +36,7 @@ This checklist is the launch source of record. Only
 | Web PWA | Dedicated Vercel project through launch; routine post-launch changes use Preview deployments | Vercel production project |
 | API + scheduler | One always-on Railway replica through the first-Saturday gate; dormant/serverless between explicit post-launch rehearsals | One always-on Railway replica |
 | PostgreSQL | Fresh synthetic-only Supabase staging project through launch; permitted to pause afterward | Fresh Supabase production project |
-| Odds source | Explicit safe `FakeBetfair` mode | Betfair delayed app key + non-interactive certificate login |
+| Odds source | Explicit safe `ODDS_PROVIDER=fake` (canned) mode | `odds-api.io` API key, priced by Bet365 (ADR 0002) |
 | Domains | Stable staging web/API hostnames | Final web hostname + API subdomain |
 | Monitoring | Railway and Vercel logs | Railway and Vercel logs + first-Saturday watch |
 
@@ -155,7 +155,18 @@ chooses otherwise:
 - [ ] Move migrations out of concurrent web startup before ever increasing the
   API above one replica. The one-replica MVP may retain migration-on-start.
 
-### Scheduler and Betfair
+### Scheduler and the odds source
+
+Superseded in part by `docs/adr/0002-replace-betfair-exchange-with-odds-api-io.md`
+(Batch 7). The three Betfair items below were satisfied at L1 and L4 and remain
+accurate for the `ODDS_PROVIDER=betfair` fallback, but the Exchange is no longer
+the production odds source: it never priced the Scottish lower divisions and it
+refuses the production login from every Railway region. Production runs on
+`odds-api.io` priced by Bet365, which authenticates with an API key rather than a
+certificate. The canned-odds mode is now `ODDS_PROVIDER=fake`, still refused in
+production. Rate limiting is a new requirement the Exchange did not impose:
+`fetch_odds` runs in the request path and the plan allows 100 requests/hour, so
+the provider handed to the request path must cache.
 
 - [ ] Enforce exactly one always-on Railway API replica with serverless/sleep
   disabled and `SCHEDULER_ENABLED=true` through launch and in production.
@@ -205,9 +216,11 @@ chooses otherwise:
 | `JWT_REFRESH_SECRET` | Required, unique, generated secret |
 | `ENVIRONMENT` | Required: `staging` or `production` |
 | `FRONTEND_ORIGIN` | Required exact HTTPS frontend origin |
-| `BF_APP_KEY` | Required in production; owner supplies delayed key |
-| `BF_USER`, `BF_PASS` | Backend-only Betfair credentials |
-| Future certificate variables | Required for non-interactive production login |
+| `ODDS_PROVIDER` | `oddsapi` in production; `fake` is refused there |
+| `ODDS_API_KEY` | Required secret in production when `ODDS_PROVIDER=oddsapi` |
+| `ODDS_API_BOOKMAKER` | `Bet365` — one book prices everything; case-sensitive |
+| `ODDS_CACHE_TTL_SECONDS` | `900`; bounds request-path calls against 100/hour, 500/day |
+| `BF_*` | Unused unless `ODDS_PROVIDER=betfair`; no longer required in production |
 | `VAPID_PUBLIC_KEY` | Required while push is retained |
 | `VAPID_PRIVATE_KEY` | Required secret while push is retained |
 | `VAPID_CONTACT_EMAIL` | Required non-placeholder contact |
@@ -390,8 +403,13 @@ is explicitly **not** part of this gate under the owner's 2026-07-30 deferral.
 - Railway Cron is UTC, has a five-minute minimum, may run a few minutes late,
   and skips an invocation while the previous one is active:
   <https://docs.railway.com/cron-jobs>
-- Betfair recommends certificate-based non-interactive login for autonomous
-  scheduled applications and a delayed key for read-only use:
+- `odds-api.io` authenticates with a query-string API key, so production needs no
+  certificate on disk and `runtime_secrets` writes nothing under the default provider.
+  The free plan allows 100 requests/hour and 500/day and pins two bookmakers;
+  changing that selection takes a `PUT`. Bet365 must remain one of them.
+- The Betfair notes below applied while the Exchange was the odds source. They
+  still describe the `ODDS_PROVIDER=betfair` fallback, but the Exchange is
+  geo-blocked from every Railway region, so that path cannot serve production:
   <https://support.developer.betfair.com/hc/en-us/articles/115003899492-How-do-I-login-to-the-API>
   and
   <https://support.developer.betfair.com/hc/en-us/articles/25033076334748-What-is-read-only-Betfair-API-access>

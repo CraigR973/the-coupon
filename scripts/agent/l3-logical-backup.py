@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Portable application-data backup used by the L3 staging restore rehearsal.
 
-The staging export is allowed only with FakeBetfair. Restore is allowed only to
+The staging export is allowed only with the canned odds provider. Restore is allowed only to
 a loopback database that already has the repository migrations at head. The
 backup contains sensitive hashes and is therefore written mode 0600; callers
 must delete it after recording the checksum and redacted row-count evidence.
@@ -24,7 +24,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from sqlalchemy import func, select, text
 from src import models as _models  # noqa: F401 - populate Base.metadata
-from src.config import Environment, settings
+from src.config import Environment, OddsProviderName, settings
 from src.database import AsyncSessionLocal, Base
 
 _FORMAT_VERSION = 1
@@ -86,8 +86,10 @@ def _decode(value: Any) -> Any:
 
 
 def _require_staging_export() -> None:
-    if settings.environment != Environment.staging or not settings.bf_fake_mode:
-        raise SystemExit("Export requires staging with BF_FAKE_MODE=true")
+    if settings.environment != Environment.staging or (
+        settings.odds_provider != OddsProviderName.fake
+    ):
+        raise SystemExit("Export requires staging with ODDS_PROVIDER=fake")
 
 
 def _require_loopback_restore() -> None:

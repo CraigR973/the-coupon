@@ -6,21 +6,16 @@ from pathlib import Path
 
 import pytest
 
-from src.config import Environment, Settings, docs_urls
+from src.config import Environment, OddsProviderName, Settings, docs_urls
 
 
 def _build_settings(tmp_path: Path, **overrides: object) -> Settings:
     """Construct Settings from a valid production baseline, overriding per test.
 
     Every field the prod validator inspects is supplied as an init kwarg so the
-    result is deterministic regardless of the ambient .env / environment.
+    result is deterministic regardless of the ambient .env / environment. The baseline
+    runs on odds-api.io, which is what production actually uses (ADR 0002).
     """
-    cert_path = tmp_path / "betfair.crt"
-    key_path = tmp_path / "betfair.key"
-    cert_path.write_text("test certificate", encoding="utf-8")
-    key_path.write_text("test private key", encoding="utf-8")
-    cert_path.chmod(0o600)
-    key_path.chmod(0o600)
     params: dict[str, object] = {
         "environment": Environment.production,
         "jwt_access_secret": "a" * 32,
@@ -29,6 +24,24 @@ def _build_settings(tmp_path: Path, **overrides: object) -> Settings:
         "vapid_private_key": "vapid-private",
         "database_url": "postgresql+asyncpg://u:p@host:5432/db",
         "frontend_origin": "https://app.example.com",
+        "odds_provider": OddsProviderName.oddsapi,
+        "odds_api_key": "odds-api-key",
+        "odds_api_bookmaker": "Bet365",
+    }
+    params.update(overrides)
+    return Settings(**params)  # type: ignore[arg-type]
+
+
+def _build_betfair_settings(tmp_path: Path, **overrides: object) -> Settings:
+    """A production baseline that has selected the Exchange as its odds source."""
+    cert_path = tmp_path / "betfair.crt"
+    key_path = tmp_path / "betfair.key"
+    cert_path.write_text("test certificate", encoding="utf-8")
+    key_path.write_text("test private key", encoding="utf-8")
+    cert_path.chmod(0o600)
+    key_path.chmod(0o600)
+    params: dict[str, object] = {
+        "odds_provider": OddsProviderName.betfair,
         "bf_app_key": "betfair-app-key",
         "bf_user": "betfair-user",
         "bf_pass": "betfair-pass",
@@ -36,7 +49,7 @@ def _build_settings(tmp_path: Path, **overrides: object) -> Settings:
         "bf_key_file": str(key_path),
     }
     params.update(overrides)
-    return Settings(**params)  # type: ignore[arg-type]
+    return _build_settings(tmp_path, **params)
 
 
 def test_valid_production_settings_construct(tmp_path: Path) -> None:
@@ -79,9 +92,48 @@ def test_production_rejects_fake_betfair_mode(tmp_path: Path) -> None:
         _build_settings(tmp_path, bf_fake_mode=True)
 
 
+# ── ADR 0002: the odds provider decides which credentials production requires ──
+
+
+def test_production_requires_an_odds_api_key(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="odds_api_key is empty"):
+        _build_settings(tmp_path, odds_api_key="")
+
+
+def test_production_requires_a_bookmaker(tmp_path: Path) -> None:
+    """One bookmaker prices everything, so an empty selection is not a valid config."""
+    with pytest.raises(ValueError, match="odds_api_bookmaker is empty"):
+        _build_settings(tmp_path, odds_api_bookmaker="")
+
+
+def test_production_rejects_the_fake_provider(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="odds_provider 'fake' is forbidden"):
+        _build_settings(tmp_path, odds_provider=OddsProviderName.fake)
+
+
+def test_production_on_odds_api_does_not_require_betfair_credentials(tmp_path: Path) -> None:
+    """The Exchange certificate stopped being a production requirement with ADR 0002.
+
+    Demanding it under odds-api.io would block a valid deployment — and production has no
+    Betfair certificate, because the Exchange refuses the login from every region the
+    platform offers.
+    """
+    settings = _build_settings(tmp_path)
+    assert settings.bf_app_key == ""
+    assert settings.bf_cert_file == ""
+
+
+def test_production_on_betfair_still_validates_its_credentials(tmp_path: Path) -> None:
+    settings = _build_betfair_settings(tmp_path)
+    assert settings.odds_provider is OddsProviderName.betfair
+
+    with pytest.raises(ValueError, match="bf_app_key is empty"):
+        _build_betfair_settings(tmp_path, bf_app_key="")
+
+
 def test_production_rejects_missing_betfair_certificate(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="bf_cert_file does not identify a file"):
-        _build_settings(tmp_path, bf_cert_file=str(tmp_path / "missing.crt"))
+        _build_betfair_settings(tmp_path, bf_cert_file=str(tmp_path / "missing.crt"))
 
 
 def test_production_rejects_permissive_betfair_private_key(tmp_path: Path) -> None:
@@ -90,7 +142,41 @@ def test_production_rejects_permissive_betfair_private_key(tmp_path: Path) -> No
     key_path.chmod(0o644)
 
     with pytest.raises(ValueError, match="accessible by group or other"):
-        _build_settings(tmp_path, bf_key_file=str(key_path))
+        _build_betfair_settings(tmp_path, bf_key_file=str(key_path))
+
+
+def _staging_settings(**overrides: object) -> Settings:
+    """A staging baseline that leaves ODDS_PROVIDER unset unless a test sets it."""
+    params: dict[str, object] = {
+        "environment": Environment.staging,
+        "jwt_access_secret": "a" * 32,
+        "jwt_refresh_secret": "b" * 32,
+        "vapid_public_key": "vapid-public",
+        "vapid_private_key": "vapid-private",
+        "database_url": "postgresql+asyncpg://u:p@host:5432/db",
+        "frontend_origin": "https://staging.example.com",
+    }
+    params.update(overrides)
+    return Settings(**params)  # type: ignore[arg-type]
+
+
+def test_deprecated_fake_mode_still_selects_the_fake_provider() -> None:
+    """Staging was sealed with BF_FAKE_MODE before the odds source changed.
+
+    Ignoring it would silently point staging at a live provider it has no key for.
+    """
+    assert _staging_settings(bf_fake_mode=True).odds_provider is OddsProviderName.fake
+
+
+def test_explicit_provider_wins_over_deprecated_fake_mode() -> None:
+    settings = _staging_settings(
+        bf_fake_mode=True, odds_provider=OddsProviderName.oddsapi, odds_api_key="k"
+    )
+    assert settings.odds_provider is OddsProviderName.oddsapi
+
+
+def test_odds_api_is_the_default_provider() -> None:
+    assert _staging_settings().odds_provider is OddsProviderName.oddsapi
 
 
 def test_docs_urls_disabled_in_production() -> None:

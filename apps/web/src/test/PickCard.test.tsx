@@ -5,7 +5,7 @@ import type { FixtureSlate } from '@/lib/types';
 
 const FIXTURE: FixtureSlate = {
   fixture_id: 'fx1',
-  betfair_event_id: 'ev1',
+  provider_event_id: 'ev1',
   home: 'Forfar',
   away: 'Brechin',
   competition: 'Scottish League 2',

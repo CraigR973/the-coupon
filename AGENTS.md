@@ -7,8 +7,9 @@ contains one Saturday 3pm slate. Each leaderboard member claims one unique
 `MATCH_ODDS` or `BOTH_TEAMS_TO_SCORE` selection; odds are frozen at pick time,
 picks lock at 14:30 Europe/London, and a winner scores `round(odds × 10)`.
 
-Stack: FastAPI + PostgreSQL, React 18 + TypeScript + Vite, and a Betfair
-Exchange adapter. Authentication is display name + four-digit PIN.
+Stack: FastAPI + PostgreSQL, React 18 + TypeScript + Vite, and a provider-neutral
+odds port (`odds-api.io` priced by Bet365 in production; a Betfair Exchange
+fallback; canned data for tests). Authentication is display name + four-digit PIN.
 
 ## Source of record
 
@@ -67,6 +68,8 @@ from a clean schema because the HTTP pick-flow test commits.
 - Store timestamps in UTC; schedule weekly locks in `Europe/London`.
 - Tests ship with every batch.
 - Never log into the owner's live Betfair account. Automated verification uses
-  `FakeBetfair`; the owner performs the live slate check.
+  `ODDS_PROVIDER=fake`; the owner performs the live slate and pricing checks.
+- `fetch_odds` runs in the request path and `odds-api.io` allows 100 requests/hour
+  and 500/day, so the provider handed to a request must be the cached one.
 - When investigating more than three files to learn where behavior is wired,
   use an Explore subagent.

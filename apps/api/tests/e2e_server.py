@@ -13,7 +13,7 @@ from sqlalchemy import text
 
 from src.auth import hash_pin
 from src.database import AsyncSessionLocal
-from src.deps import get_betfair_adapter
+from src.deps import get_odds_provider
 from src.main import app
 from src.models.gameweek import GameweekStatus
 from src.models.league import League
@@ -27,13 +27,13 @@ from src.services.betfair import (
     FakeBetfair,
 )
 from src.services.gameweek import latest_gameweek, sync_slate
-from src.services.scoring import settle_gameweek_via_adapter
+from src.services.scoring import settle_gameweek_via_provider
 
 E2E_LEAGUE_SLUG = "the-coupon"
 E2E_PIN = "1234"
 
 fake_betfair = FakeBetfair.with_sample_data()
-app.dependency_overrides[get_betfair_adapter] = lambda: fake_betfair
+app.dependency_overrides[get_odds_provider] = lambda: fake_betfair
 
 
 def _now() -> datetime:
@@ -133,6 +133,6 @@ async def settle_coupon_flow() -> dict[str, object]:
         gameweek = await latest_gameweek(db)
         if gameweek is None:
             raise HTTPException(status_code=404, detail="E2E_NOT_SEEDED")
-        resolved = await settle_gameweek_via_adapter(db, fake_betfair, gameweek)
+        resolved = await settle_gameweek_via_provider(db, fake_betfair, gameweek)
         await db.commit()
         return {"status": gameweek.status.value, "resolved": resolved}

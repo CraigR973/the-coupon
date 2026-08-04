@@ -2,10 +2,10 @@
 
 ## First Response
 
-1. Identify whether the issue is frontend, API, database, scheduler, Betfair, or
+1. Identify whether the issue is frontend, API, database, scheduler, odds provider, or
    push notifications.
 2. Preserve Railway and Vercel log links before rotating deployments.
-3. Do not paste PINs, JWTs, Betfair credentials, certificate material, or player
+3. Do not paste PINs, JWTs, odds-provider keys, certificate material, or player
    private data into issue trackers or logs.
 
 ## Triage Checks
@@ -14,7 +14,7 @@
 - API: check `/api/v1/health` and `/api/v1/health/ready`.
 - Database: confirm Supabase status, connection limits, and latest migration.
 - Scheduler: confirm one replica and inspect recent scheduler log lines.
-- Betfair: owner confirms live account/app-key state; agents do not log in to
+- Odds provider: owner confirms live key/quota state; agents do not log in to
   the owner account.
 
 ## Recovery
