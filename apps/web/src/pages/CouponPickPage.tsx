@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { formatInTimeZone } from 'date-fns-tz';
 import { Clock, Lock } from 'lucide-react';
-import { apiFetch, DEFAULT_LEAGUE_SLUG } from '../lib/api';
+import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useLeague } from '../contexts/LeagueContext';
 import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
 import { usePickEditor, gameweekKey } from '../hooks/usePickEditor';
 import type { GameweekSlate, SelectionOption } from '../lib/types';
@@ -38,7 +39,7 @@ function findMyPick(slate: GameweekSlate | undefined) {
 export function CouponPickPage() {
   const { player } = useAuth();
   const timezone = player?.timezone ?? 'UTC';
-  const slug = DEFAULT_LEAGUE_SLUG;
+  const { activeSlug: slug } = useLeague();
 
   const {
     data: slate,

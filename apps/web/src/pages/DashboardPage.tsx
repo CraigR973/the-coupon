@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Clock, Lock, Ticket, Trophy } from 'lucide-react';
-import { apiFetch, DEFAULT_LEAGUE_SLUG } from '../lib/api';
+import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useLeague } from '../contexts/LeagueContext';
 import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
 import { gameweekKey, couponKey } from '../hooks/usePickEditor';
 import type { Coupon, GameweekSlate, SelectionOption, Standing } from '../lib/types';
@@ -35,7 +36,7 @@ function Card({ children, className }: { children: React.ReactNode; className?: 
 
 export function DashboardPage() {
   const { player } = useAuth();
-  const slug = DEFAULT_LEAGUE_SLUG;
+  const { activeSlug: slug } = useLeague();
 
   const { data: slate, isLoading: slateLoading } = useQuery<GameweekSlate>({
     queryKey: gameweekKey(slug),

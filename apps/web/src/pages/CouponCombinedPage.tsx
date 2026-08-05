@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch, DEFAULT_LEAGUE_SLUG } from '../lib/api';
+import { apiFetch } from '../lib/api';
+import { useLeague } from '../contexts/LeagueContext';
 import { couponKey } from '../hooks/usePickEditor';
 import type { Coupon } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
@@ -13,7 +14,7 @@ import { Skeleton } from '../components/ui/skeleton';
  * one pick stacked into a single acca to reference on a real book.
  */
 export function CouponCombinedPage() {
-  const slug = DEFAULT_LEAGUE_SLUG;
+  const { activeSlug: slug } = useLeague();
 
   const {
     data: coupon,

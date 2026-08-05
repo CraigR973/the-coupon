@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LeagueProvider, useLeague } from '@/contexts/LeagueContext';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { LAST_VIEWED_LEAGUE_KEY } from '@/lib/leagueRecency';
 
 const FAKE_JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwMSIsImV4cCI6OTk5OTk5OTk5OX0.fake';
 const STORED_PLAYER = JSON.stringify({ id: 'p1', displayName: 'Alice', role: 'player', timezone: 'UTC' });
@@ -22,11 +23,14 @@ function makeQueryClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } });
 }
 
-function stubAuth() {
+function stubAuth(lastViewedSlug: string | null = null) {
   vi.stubGlobal('localStorage', {
     getItem: (k: string) => {
       if (k === 'coupon_player') return STORED_PLAYER;
       if (k === 'coupon_access') return FAKE_JWT;
+      if (k === LAST_VIEWED_LEAGUE_KEY && lastViewedSlug) {
+        return JSON.stringify({ slug: lastViewedSlug, name: lastViewedSlug });
+      }
       return null;
     },
     setItem: vi.fn(),
@@ -36,11 +40,12 @@ function stubAuth() {
 }
 
 function LeagueDisplay() {
-  const { leagues, isLoading } = useLeague();
+  const { leagues, isLoading, activeSlug } = useLeague();
   if (isLoading) return <div>loading</div>;
   return (
     <div>
       <div data-testid="count">{leagues.length}</div>
+      <div data-testid="active-slug">{activeSlug}</div>
       {leagues.map((l) => (
         <div key={l.slug} data-testid={`league-${l.slug}`}>{l.name}</div>
       ))}
@@ -92,6 +97,25 @@ describe('LeagueContext', () => {
     const second = { ...MOCK_LEAGUE, slug: 'friends-league', name: 'Friends League' };
     renderWithLeague([MOCK_LEAGUE, second]);
     await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('2'));
+  });
+
+  it('defaults activeSlug to the first league when nothing was last viewed', async () => {
+    const second = { ...MOCK_LEAGUE, slug: 'friends-league', name: 'Friends League' };
+    renderWithLeague([MOCK_LEAGUE, second]);
+    await waitFor(() => expect(screen.getByTestId('active-slug').textContent).toBe('the-coupon'));
+  });
+
+  it('prefers the last-viewed league when the member still belongs to it', async () => {
+    const second = { ...MOCK_LEAGUE, slug: 'friends-league', name: 'Friends League' };
+    stubAuth('friends-league');
+    renderWithLeague([MOCK_LEAGUE, second]);
+    await waitFor(() => expect(screen.getByTestId('active-slug').textContent).toBe('friends-league'));
+  });
+
+  it('falls back to the first league when the last-viewed one is no longer a membership', async () => {
+    stubAuth('some-old-league');
+    renderWithLeague([MOCK_LEAGUE]);
+    await waitFor(() => expect(screen.getByTestId('active-slug').textContent).toBe('the-coupon'));
   });
 
   it('useLeague throws when used outside LeagueProvider', () => {

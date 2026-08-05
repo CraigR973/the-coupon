@@ -3,8 +3,19 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { LeagueProvider } from '@/contexts/LeagueContext';
 import { CouponPickPage } from '@/pages/CouponPickPage';
 import type { GameweekSlate } from '@/lib/types';
+
+const MOCK_LEAGUE = {
+  slug: 'the-coupon',
+  name: 'The Coupon',
+  description: null,
+  privacy: 'private',
+  member_count: 2,
+  max_members: null,
+  created_at: '2026-01-01T00:00:00Z',
+};
 
 // Far-future exp so apiFetch's ensureFreshToken never tries to refresh.
 const FAKE_JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwMSIsImV4cCI6OTk5OTk5OTk5OX0.fake';
@@ -49,6 +60,9 @@ function stubFetchWithSlate() {
     if (String(url).includes('/gameweek/current')) {
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(SLATE) });
     }
+    if (String(url).includes('/leagues/mine')) {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([MOCK_LEAGUE]) });
+    }
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
   });
 }
@@ -59,7 +73,9 @@ function renderPage() {
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={['/predictions']}>
         <AuthProvider>
-          <CouponPickPage />
+          <LeagueProvider>
+            <CouponPickPage />
+          </LeagueProvider>
         </AuthProvider>
       </MemoryRouter>
     </QueryClientProvider>,
