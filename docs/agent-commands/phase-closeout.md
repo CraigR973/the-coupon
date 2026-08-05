@@ -37,5 +37,15 @@ This workflow runs only when the user explicitly invokes
 
 7. Refresh `STATUS.md`, stage only the three close-out documents, and commit:
    `docs: close out Batch N — tick BUILD_PLAN + session log`.
+8. Push local `main` to `origin`:
 
-This repository is local-only. Do not push, poll CI, or deploy.
+   ```bash
+   git -C /Users/craigrobinson/the-coupon push origin main
+   ```
+
+   This must be a plain (non-force) push of `main` only — never push the
+   feature branch, never force-push, never push any other branch. Stop and
+   report if the push is rejected (e.g. `origin/main` has diverged); never
+   force past a rejection.
+
+Do not poll CI or deploy — those remain separate, explicit actions.
