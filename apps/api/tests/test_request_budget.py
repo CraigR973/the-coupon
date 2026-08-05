@@ -86,9 +86,9 @@ async def test_a_saturated_day_of_browsing_stays_inside_the_daily_limit() -> Non
 
     browsing = _sweeps(inner)
     discovery = UK_COMPETITIONS * len(upcoming_saturdays_for_budget())
-    assert browsing + discovery <= DAILY_LIMIT, (
-        f"browsing {browsing} + discovery {discovery} exceeds {DAILY_LIMIT}/day"
-    )
+    total = browsing + discovery
+    why = f"browsing {browsing} + discovery {discovery} exceeds {DAILY_LIMIT}/day"
+    assert total <= DAILY_LIMIT, why
 
 
 def upcoming_saturdays_for_budget() -> list[object]:
@@ -122,9 +122,9 @@ async def test_freezing_every_members_pick_costs_one_request_each() -> None:
 async def test_discovery_is_a_fixed_daily_cost_independent_of_traffic() -> None:
     """Discovery is scheduled, so its cost is the horizon — not how busy the app is."""
     saturdays = upcoming_saturdays_for_budget()
-    assert UK_COMPETITIONS * len(saturdays) <= HOURLY_LIMIT, (
-        "the daily discovery burst must fit inside one hour's allowance"
-    )
+    burst = UK_COMPETITIONS * len(saturdays)
+    why = "the daily discovery burst must fit inside one hour's allowance"
+    assert burst <= HOURLY_LIMIT, why
 
 
 def test_the_configured_defaults_are_the_ones_this_module_budgets_for() -> None:
