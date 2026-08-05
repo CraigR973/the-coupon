@@ -226,3 +226,28 @@ before the first-Saturday watch.
 - The season list is unpaged on purpose — about forty rows a season.
 
 **Next:** Batch 13 — Profile
+
+## Batch 13 — Profile
+**Commits:** `096818f` · verified: 314 pytest + Ruff/mypy · 340 pytest on clean `pgserver` through `008` · Node build/TypeScript/ESLint + 186 Vitest · production-bundle browser flow
+
+### Key facts for future sessions
+- The profile is **per-league**, and that was the open decision in the batch row.
+  Picks are league-scoped, and since Batch 10 the claim rule is too, so a career
+  total would sum leagues playing different games. Route is
+  `/leagues/:slug/players/:playerId`.
+- Season figures come from `standings()` rather than a second query, so the
+  profile and the leaderboard cannot drift apart. Anything added to one should
+  be added there, not recomputed.
+- `win_rate_pct` is `null`, not `0`, before anything settles — an untested
+  record is not a bad one. The page renders "—" and says why.
+- History excludes `pending` picks on purpose: an unsettled pick is already on
+  the coupon, and repeating it here would be a worse copy of that view.
+- Only ~130 of the source page's 774 lines were applicable. The World Cup
+  predictor's exact-score rate, streaks, submit timing, and group/knockout
+  sections have no counterpart in an accumulator game. Avatar **upload** was not
+  ported — Launch L1 removed it deliberately.
+- Reading a profile requires membership of the league it is read through
+  (`LeagueMemberDep`), and a player not in that league is a 404, not an empty
+  record.
+
+**Next:** Batch 14 — Per-league gameweeks (the architectural pair with Batch 15)

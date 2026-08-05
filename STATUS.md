@@ -2,7 +2,7 @@
 
 ## Now
 
-Build batches 1–12 are closed. The Coupon is a verified private weekly
+Build batches 1–13 are closed. The Coupon is a verified private weekly
 football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
 compare standings, and view the shared combined coupon.
@@ -76,12 +76,17 @@ parameter on the slate and coupon reads replaced the hardcoded `latest_gameweek`
 and the client keeps the selection in the URL so a past week is linkable. Every
 gameweek ever synced is retained, so the history needed no backfill.
 
+Batch 13 added a per-league member profile at `/leagues/:slug/players/:playerId`:
+season figures taken from `standings()` so the two cannot disagree, a win rate,
+and every settled pick behind them. Per-league rather than career-wide, because
+picks are league-scoped and the claim rule is too.
+
 ## Verified
 
-- Backend: 314 pytest (337 with a database), Ruff check/format, and strict mypy
+- Backend: 314 pytest (340 with a database), Ruff check/format, and strict mypy
 - Database: clean `pgserver` migration through revision `008`, with forced RLS
   on all 13 public tables under a Supabase-like role setup
-- Frontend: Node 20 production build, TypeScript, ESLint, and 182 Vitest
+- Frontend: Node 20 production build, TypeScript, ESLint, and 186 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
   coupon, phone push, and PWA update behavior
@@ -112,7 +117,8 @@ gameweek ever synced is retained, so the history needed no backfill.
 
 ## Next
 
-Batch 13 — Profile is the next unchecked build batch. In parallel,
+Batch 14 — Per-league gameweeks is the next unchecked build batch, and it pairs
+with Batch 15, which builds admin configuration on top of it. In parallel,
 Launch L5 — launch and first-Saturday watch. Batch 7 shipped the odds source,
 so the remaining launch work is deployment and configuration:
 

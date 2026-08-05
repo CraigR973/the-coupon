@@ -97,7 +97,7 @@ radius, not a rule — `/next-batch-prompt` still leaves the choice to the user.
   a fantasy-football season is. The rows are all retained; nothing needs
   backfilling.
 
-- [ ] **Batch 13 — Profile** *(Sonnet)* — port `PlayerProfilePage` from
+- [x] **Batch 13 — Profile** ✅ 2026-08-06 *(Sonnet)* — port `PlayerProfilePage` from
   `~/wc_2026_predictor/apps/web/src/pages/`, add a settled-pick history
   endpoint, and surface win rate from the `picks_played` / `picks_won` figures
   `standings()` already computes. Decide career-wide versus per-league framing:
