@@ -83,7 +83,7 @@ radius, not a rule — `/next-batch-prompt` still leaves the choice to the user.
   Migration plus the pre-check in `routers/picks.py`. Note this shrinks the pick
   pool roughly fivefold, which matters against a 15-member roster.
 
-- [ ] **Batch 11 — Daily slate pre-fetch** *(Opus)* — split fixture discovery
+- [x] **Batch 11 — Daily slate pre-fetch** ✅ 2026-08-06 *(Opus)* — split fixture discovery
   from pricing. A daily job walks the coming week's fixtures into `fixtures`;
   odds stay on demand behind a cache that tightens as lock approaches, because a
   price is frozen the moment a member picks and someone picking on Tuesday still

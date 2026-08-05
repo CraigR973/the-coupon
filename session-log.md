@@ -174,3 +174,31 @@ before the first-Saturday watch.
   needs 15 fixtures, not three. The launch Saturday carries 131.
 
 **Next:** Batch 11 — Daily slate pre-fetch
+
+## Batch 11 — Daily slate pre-fetch
+**Commits:** `5b77972` · verified: 314 pytest + Ruff/mypy · 334 pytest on clean `pgserver` through `008` · Node build/TypeScript/ESLint + 180 Vitest · production-bundle browser flow
+
+### Key facts for future sessions
+- **The daily cap binds, not the hourly one.** 500/day minus ~60 for discovery
+  leaves 440 for odds — 31 sweeps of the 131-fixture card at 14 requests each.
+  The first tier values written for this batch failed that (704/day) and were
+  recomputed backwards from the limit. Any future work that adds request-path
+  provider calls must re-run `tests/test_request_budget.py`.
+- `fetch_odds(..., max_age_seconds=)` **tightens but never loosens** the TTL.
+  Browsing passes the lock-aware tier; the submit path passes 60s for the single
+  fixture being picked. That asymmetry — 14 requests to browse the card versus 1
+  to freeze a price — is the whole design.
+- Consequence for the UI: a browsed price can be up to 30 minutes old near lock,
+  so the odds a member taps may differ slightly from the odds they are scored on.
+  The submit response carries the actual frozen price.
+- Discovery does **not** fetch odds, deliberately. A price only means anything at
+  the instant it is frozen, so pre-fetching prices would spend the budget on
+  numbers nobody is scored on.
+- `refresh_slate` is no longer the midweek job — it is the Saturday late pass.
+  `discover_fixtures` covers midweek. Both are idempotent on `(gameweek,
+  provider_event_id)`.
+- Three places must stay in step when a job is added: `create_scheduler`,
+  `run_scheduled.JOBS`, and their two guard tests in `test_scheduler.py` /
+  `test_run_scheduled.py`, which assert the exact job set and cron strings.
+
+**Next:** Batch 12 — Gameweek history
