@@ -2,7 +2,7 @@
 
 ## Now
 
-All seven build batches are closed. The Coupon is a verified private weekly
+Build batches 1–9 are closed. The Coupon is a verified private weekly
 football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
 compare standings, and view the shared combined coupon.
@@ -51,12 +51,19 @@ alongside launch. Batch 8 bound the coupon, combined-acca, and home pages to
 `LeagueContext`'s new `activeSlug` (last-viewed league, falling back to the
 member's first league) instead of the hardcoded `DEFAULT_LEAGUE_SLUG`.
 
+Batch 9 reshaped the pick screen: the slate groups by competition behind
+collapsible headers, a member roster shows every member's pick and who is still
+to pick, each fixture carries an "already picked" marker beside the existing
+per-selection one, and `profiles.odds_format` (migration `007`) lets a member
+read prices as decimal or traditional UK fractional. The format is display only
+— prices stay `Numeric(6, 2)` and a winner still scores `round(odds × 10)`.
+
 ## Verified
 
-- Backend: 294 pytest, Ruff check/format, and strict mypy
-- Database: clean `pgserver` migration through revision `005`, with forced RLS
+- Backend: 289 pytest (301 with a database), Ruff check/format, and strict mypy
+- Database: clean `pgserver` migration through revision `007`, with forced RLS
   on all 13 public tables under a Supabase-like role setup
-- Frontend: Node 20 production build, TypeScript, ESLint, and 163 Vitest
+- Frontend: Node 20 production build, TypeScript, ESLint, and 180 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
   coupon, phone push, and PWA update behavior
@@ -87,7 +94,7 @@ member's first league) instead of the hardcoded `DEFAULT_LEAGUE_SLUG`.
 
 ## Next
 
-Batch 9 — Coupon presentation is the next unchecked build batch. In parallel,
+Batch 10 — One pick per fixture is the next unchecked build batch. In parallel,
 Launch L5 — launch and first-Saturday watch. Batch 7 shipped the odds source,
 so the remaining launch work is deployment and configuration:
 

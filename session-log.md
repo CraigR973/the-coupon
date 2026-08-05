@@ -120,3 +120,30 @@ before the first-Saturday watch.
   change rode along on this branch as its own commit (`6d6451e`).
 
 **Next:** Batch 9 — Coupon presentation
+
+## Batch 9 — Coupon presentation
+**Commits:** `3c3f5b5` · verified: 289 pytest + Ruff/mypy · 301 pytest on clean `pgserver` through `007` · Node build/TypeScript/ESLint + 180 Vitest · production-bundle browser flow
+
+### Key facts for future sessions
+- `latest_gameweek` takes the maximum `saturday_date`, and two edge-case tests
+  in `test_picks_flow.py` commit gameweeks dated *after* `SAMPLE_SATURDAY`. Any
+  test that reads the slate endpoint must out-date every other gameweek in the
+  shared committed database or it silently asserts against another test's
+  gameweek; `_open_sample_gameweek_as_latest` claims a distinct far-future
+  Saturday per call. This trap is waiting for Batch 12.
+- The browser flow needs `FRONTEND_ORIGIN=http://127.0.0.1:4173`. CORS allows
+  exactly one origin and Playwright serves the preview there, so without it
+  every login fails silently and the spec only reports "still on /login".
+- `odds_format` is display only. `toFractional` snaps to the traditional UK
+  ladder rather than converting arithmetically, because the exact fraction of
+  1.91 is 91/100 where every real coupon says 10/11.
+- `useOptionalAuth` exists so `useOddsFormat` degrades to decimal outside an
+  AuthProvider. `CombinedAccaView` and `usePickEditor` are tested without one,
+  and how a price is spelled is not worth coupling them to auth.
+- The roster discloses nothing new before lock: the slate already labels each
+  taken selection with its holder. What it adds is the members who have picked
+  *nothing*, who by definition appear nowhere in the slate.
+- Fixture-level `taken_by_names` is a list because the selection-level rule
+  lets several members hold one game. Batch 10 makes it at most one.
+
+**Next:** Batch 10 — One pick per fixture

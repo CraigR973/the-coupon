@@ -65,7 +65,7 @@ radius, not a rule — `/next-batch-prompt` still leaves the choice to the user.
   `DEFAULT_LEAGUE_SLUG` in `apps/web/src/lib/api.ts`. Small, but every
   per-league feature below is wrong without it, so it goes first.
 
-- [ ] **Batch 9 — Coupon presentation** *(Sonnet)* — group the slate by
+- [x] **Batch 9 — Coupon presentation** ✅ 2026-08-06 *(Sonnet)* — group the slate by
   competition then kick-off with each competition collapsible; a per-user
   decimal/fractional odds preference; the full member roster for a gameweek
   showing each member's pick and who has yet to pick; and a fixture-level
