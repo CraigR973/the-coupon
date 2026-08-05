@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -46,6 +46,21 @@ function makeFetch(prefs = DEFAULT_PREFS, patchResult = DEFAULT_PREFS) {
     }
     if (url.includes('/api/v1/push/test')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ sent: 1 }) });
+    }
+    if (url.includes('/api/v1/auth/me') && opts?.method === 'PATCH') {
+      const patch = JSON.parse(String(opts.body ?? '{}'));
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id: 'p1',
+            display_name: 'Alice',
+            role: 'player',
+            timezone: 'UTC',
+            odds_format: 'decimal',
+            ...patch,
+          }),
+      });
     }
     // token refresh — return 401 to skip
     return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) });
@@ -179,6 +194,39 @@ describe('SettingsPage', () => {
     renderPage();
     await waitFor(() => {
       expect(screen.queryByRole('switch', { name: /unlock with face id/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('defaults the odds format to decimal and shows both samples', async () => {
+    renderPage();
+    const group = await screen.findByRole('radiogroup', { name: /odds format/i });
+    const [decimal, fractional] = within(group).getAllByRole('radio');
+    expect(decimal.getAttribute('aria-checked')).toBe('true');
+    expect(fractional.getAttribute('aria-checked')).toBe('false');
+    // The samples are the same price in each notation.
+    expect(decimal.textContent).toContain('2.50');
+    expect(fractional.textContent).toContain('3/2');
+  });
+
+  it('PATCHes the odds format and reflects the new preference', async () => {
+    const fetch = makeFetch();
+    renderPage(fetch);
+    const group = await screen.findByRole('radiogroup', { name: /odds format/i });
+    fireEvent.click(within(group).getAllByRole('radio')[1]);
+
+    await waitFor(() => {
+      const patch = fetch.mock.calls.find(
+        ([url, opts]) => String(url).includes('/api/v1/auth/me') && opts?.method === 'PATCH',
+      );
+      expect(patch).toBeTruthy();
+      // Only the changed field is sent — timezone is left alone.
+      expect(JSON.parse(String(patch![1]!.body))).toEqual({ odds_format: 'fractional' });
+    });
+
+    await waitFor(() => {
+      const [decimal, fractional] = within(group).getAllByRole('radio');
+      expect(fractional.getAttribute('aria-checked')).toBe('true');
+      expect(decimal.getAttribute('aria-checked')).toBe('false');
     });
   });
 });

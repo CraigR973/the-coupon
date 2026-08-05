@@ -12,6 +12,7 @@ pgserver harness, mirroring Batch 1). It proves the pieces the pure tests can't:
 
 from __future__ import annotations
 
+import itertools
 import os
 import uuid
 from collections.abc import AsyncIterator
@@ -325,3 +326,105 @@ async def test_locked_gameweek_rejects_submit(
 
     r = await _submit(client, league.slug, alice, fixture_id, "MATCH_ODDS", "HOME")
     assert r.status_code == 409 and r.json()["detail"] == "PICKS_LOCKED"
+
+
+# ── Batch 9: the slate's member roster and fixture-level picked marker ────────
+
+# Distinct far-future Saturdays for the tests below. ``saturday_date`` is unique,
+# so each caller needs its own.
+_LATEST_SATURDAYS = itertools.count()
+
+
+async def _open_sample_gameweek_as_latest(session: AsyncSession, fake: FakeBetfair) -> Gameweek:
+    """Open the sample slate and make it unambiguously the newest gameweek.
+
+    ``latest_gameweek`` — which is what ``GET .../gameweek/current`` reads — takes
+    the maximum ``saturday_date``, and the edge-case tests above commit gameweeks
+    dated after ``SAMPLE_SATURDAY``. Any test that reads the slate endpoint has to
+    out-date every other gameweek in the shared database or it silently asserts
+    against someone else's gameweek.
+    """
+    gameweek = await _open_sample_gameweek(session, fake)
+    gameweek.saturday_date = date(2090, 1, 7) + timedelta(weeks=next(_LATEST_SATURDAYS))
+    await session.commit()
+    await session.refresh(gameweek)
+    return gameweek
+
+
+async def test_slate_reports_roster_and_fixture_level_marker(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The slate names every member, who is missing, and which games are spoken for."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob, carol), league = await _seed_league(session, ["alice", "bob", "carol"])
+        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    epl, sl2 = fixtures[SAMPLE_EPL_EVENT_ID], fixtures[SAMPLE_SL2_EVENT_ID]
+    slug = league.slug
+
+    # Alice and Bob take different selections on the *same* fixture — legal under
+    # the selection-level rule, and the case the fixture marker has to collapse.
+    assert (await _submit(client, slug, alice, epl, "MATCH_ODDS", "HOME")).status_code == 201
+    assert (await _submit(client, slug, bob, epl, "MATCH_ODDS", "AWAY")).status_code == 201
+
+    slate = (
+        await client.get(f"/api/v1/leagues/{slug}/gameweek/current", headers=_auth(alice))
+    ).json()
+
+    # Roster: three members, ordered by display name, one of them yet to pick.
+    assert [m["display_name"] for m in slate["members"]] == sorted(
+        m["display_name"] for m in slate["members"]
+    )
+    assert len(slate["members"]) == 3
+    assert slate["members_missing_picks"] == 1
+    by_name = {m["display_name"].split("-")[0]: m for m in slate["members"]}
+    assert by_name["alice"]["has_picked"] is True
+    assert by_name["alice"]["fixture_id"] == epl
+    assert by_name["alice"]["home"] == "Arsenal"
+    assert by_name["alice"]["odds"] == 1.9
+    assert by_name["carol"]["has_picked"] is False
+    assert by_name["carol"]["fixture_id"] is None and by_name["carol"]["odds"] is None
+
+    fixture_by_id = {f["fixture_id"]: f for f in slate["fixtures"]}
+    # Two holders on the EPL game, named once each; Alice sees it as hers.
+    assert sorted(n.split("-")[0] for n in fixture_by_id[epl]["taken_by_names"]) == [
+        "alice",
+        "bob",
+    ]
+    assert fixture_by_id[epl]["mine"] is True
+    # The untouched fixture carries no marker at all.
+    assert fixture_by_id[sl2]["taken_by_names"] == []
+    assert fixture_by_id[sl2]["mine"] is False
+
+    # Bob holds the same fixture but a different selection — so it is his too.
+    bob_slate = (
+        await client.get(f"/api/v1/leagues/{slug}/gameweek/current", headers=_auth(bob))
+    ).json()
+    assert {f["fixture_id"]: f for f in bob_slate["fixtures"]}[epl]["mine"] is True
+    # Carol has picked nothing, so no fixture is hers.
+    carol_slate = (
+        await client.get(f"/api/v1/leagues/{slug}/gameweek/current", headers=_auth(carol))
+    ).json()
+    assert all(f["mine"] is False for f in carol_slate["fixtures"])
+    assert carol_slate["members_missing_picks"] == 1
+
+
+async def test_one_member_holding_two_selections_is_named_once(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """A re-pick within a fixture must not duplicate the holder in the marker."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["solo"])
+        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    epl = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    assert (await _submit(client, league.slug, alice, epl, "MATCH_ODDS", "HOME")).status_code == 201
+    slate = (
+        await client.get(f"/api/v1/leagues/{league.slug}/gameweek/current", headers=_auth(alice))
+    ).json()
+    marker = {f["fixture_id"]: f for f in slate["fixtures"]}[epl]
+    assert len(marker["taken_by_names"]) == 1
+    assert slate["members_missing_picks"] == 0

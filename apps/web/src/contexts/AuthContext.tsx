@@ -35,6 +35,7 @@ function playerFromApiResponse(data: {
     display_name: string;
     role: string;
     timezone: string;
+    odds_format?: string;
     avatar_url?: string | null;
   };
 }): StoredPlayer {
@@ -43,6 +44,7 @@ function playerFromApiResponse(data: {
     displayName: data.player.display_name,
     role: data.player.role as 'player' | 'admin',
     timezone: data.player.timezone,
+    oddsFormat: data.player.odds_format === 'fractional' ? 'fractional' : 'decimal',
     avatarUrl: data.player.avatar_url ?? null,
   };
 }
@@ -161,4 +163,15 @@ export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
+}
+
+/**
+ * The auth context if there is one, else null — for consumers whose dependence
+ * on it is cosmetic and who have a sensible answer without it.
+ *
+ * `useAuth` stays strict: anything that actually needs a signed-in member
+ * should still fail loudly outside the provider.
+ */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext);
 }

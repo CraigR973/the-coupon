@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '../lib/api';
+import { useOddsFormat } from './useOddsFormat';
 import { formatOdds, selectionKey } from '../lib/coupon';
 import type { PickMarket, PickOutcome, PickResponse, SubmitPickBody } from '../lib/types';
 
@@ -45,6 +46,7 @@ export interface PickEditor {
  */
 export function usePickEditor(slug: string, gameweekId: string | undefined): PickEditor {
   const queryClient = useQueryClient();
+  const oddsFormat = useOddsFormat();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
 
   const mutation = useMutation({
@@ -57,7 +59,7 @@ export function usePickEditor(slug: string, gameweekId: string | undefined): Pic
       void queryClient.invalidateQueries({ queryKey: gameweekKey(slug) });
       void queryClient.invalidateQueries({ queryKey: couponKey(slug) });
       void queryClient.invalidateQueries({ queryKey: myPickKey(slug, gameweekId) });
-      toast.success(`Grabbed ${pick.runner_name} @ ${formatOdds(pick.odds)}`);
+      toast.success(`Grabbed ${pick.runner_name} @ ${formatOdds(pick.odds, oddsFormat)}`);
     },
     onError: (err) => {
       toast.error(pickErrorMessage(err instanceof Error ? err.message : ''));

@@ -12,6 +12,8 @@ export type PickMarket = 'MATCH_ODDS' | 'BOTH_TEAMS_TO_SCORE';
 export type PickOutcome = 'HOME' | 'DRAW' | 'AWAY' | 'YES' | 'NO';
 export type GameweekStatus = 'open' | 'locked' | 'settled';
 export type PickStatus = 'pending' | 'won' | 'lost' | 'void';
+/** How a member reads prices. Display only — scoring is always decimal. */
+export type OddsFormat = 'decimal' | 'fractional';
 
 // ── Gameweek slate — GET /leagues/{slug}/gameweek/current ──────────────────
 
@@ -35,6 +37,28 @@ export interface FixtureSlate {
   competition: string;
   kickoff_utc: string;
   selections: SelectionOption[];
+  /**
+   * Members holding any selection on this fixture — the fixture-level "already
+   * picked" marker. A list rather than a flag because the selection-level rule
+   * lets several members share one game.
+   */
+  taken_by_names: string[];
+  /** True when the caller holds a selection on this fixture. */
+  mine: boolean;
+}
+
+/** One member's standing on a gameweek, including those yet to pick. */
+export interface GameweekMember {
+  player_id: string;
+  display_name: string;
+  has_picked: boolean;
+  fixture_id: string | null;
+  home: string | null;
+  away: string | null;
+  market: PickMarket | null;
+  outcome: PickOutcome | null;
+  runner_name: string | null;
+  odds: number | null;
 }
 
 export interface GameweekSlate {
@@ -43,6 +67,8 @@ export interface GameweekSlate {
   status: GameweekStatus;
   locks_at_utc: string;
   fixtures: FixtureSlate[];
+  members: GameweekMember[];
+  members_missing_picks: number;
 }
 
 // ── Pick — POST /leagues/{slug}/picks · GET .../gameweeks/{id}/pick ─────────

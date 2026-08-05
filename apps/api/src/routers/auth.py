@@ -25,7 +25,7 @@ from src.auth import (
     verify_pin,
 )
 from src.database import get_db
-from src.models.profile import Profile
+from src.models.profile import OddsFormat, Profile
 from src.models.refresh_token import RefreshToken
 from src.rate_limit import limiter, login_key, per_user_key, refresh_token_key
 
@@ -62,6 +62,7 @@ class PlayerInfo(BaseModel):
     display_name: str
     role: str
     timezone: str
+    odds_format: str
 
 
 class RefreshRequest(BaseModel):
@@ -189,6 +190,7 @@ async def login(
             display_name=user.display_name,
             role=user.role.value,
             timezone=user.timezone,
+            odds_format=user.odds_format.value,
         ),
     )
 
@@ -273,11 +275,19 @@ async def me(user: CurrentUser) -> PlayerInfo:
         display_name=user.display_name,
         role=user.role.value,
         timezone=user.timezone,
+        odds_format=user.odds_format.value,
     )
 
 
 class ProfileUpdateRequest(BaseModel):
-    timezone: str = Field(..., min_length=1, max_length=64)
+    """Both fields are optional so a client can change one without resending the other.
+
+    ``timezone`` was required until Batch 9 added ``odds_format`` alongside it;
+    callers that still send only a timezone are unaffected.
+    """
+
+    timezone: str | None = Field(default=None, min_length=1, max_length=64)
+    odds_format: OddsFormat | None = None
 
 
 @router.patch("/me", response_model=PlayerInfo)
@@ -287,20 +297,29 @@ async def update_profile(
     db: AsyncSession = Depends(get_db),
 ) -> PlayerInfo:
     """Update the authenticated user's mutable profile fields."""
-    try:
-        ZoneInfo(body.timezone)
-    except (ZoneInfoNotFoundError, KeyError):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid IANA timezone identifier",
-        )
-    await db.execute(update(Profile).where(Profile.id == user.id).values(timezone=body.timezone))
-    await db.commit()
+    values: dict[str, object] = {}
+    if body.timezone is not None:
+        try:
+            ZoneInfo(body.timezone)
+        except (ZoneInfoNotFoundError, KeyError):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid IANA timezone identifier",
+            )
+        values["timezone"] = body.timezone
+    if body.odds_format is not None:
+        values["odds_format"] = body.odds_format
+
+    if values:
+        await db.execute(update(Profile).where(Profile.id == user.id).values(**values))
+        await db.commit()
+
     return PlayerInfo(
         id=str(user.id),
         display_name=user.display_name,
         role=user.role.value,
-        timezone=body.timezone,
+        timezone=body.timezone if body.timezone is not None else user.timezone,
+        odds_format=(body.odds_format or user.odds_format).value,
     )
 
 

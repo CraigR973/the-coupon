@@ -16,6 +16,8 @@ const FIXTURE: FixtureSlate = {
     { market: 'MATCH_ODDS', outcome: 'AWAY', runner_name: 'Brechin', odds: 3.2, taken_by_player_id: 'p2', taken_by_name: 'Bob Baker', mine: false },
     { market: 'BOTH_TEAMS_TO_SCORE', outcome: 'YES', runner_name: 'Yes', odds: 1.8, taken_by_player_id: null, taken_by_name: null, mine: false },
   ],
+  taken_by_names: ['Alice Adams', 'Bob Baker'],
+  mine: true,
 };
 
 function renderCard(overrides: Partial<React.ComponentProps<typeof PickCard>> = {}) {
@@ -27,6 +29,7 @@ function renderCard(overrides: Partial<React.ComponentProps<typeof PickCard>> = 
       locked={false}
       pendingKey={null}
       busy={false}
+      oddsFormat="decimal"
       onGrab={onGrab}
       {...overrides}
     />,
@@ -72,5 +75,29 @@ describe('PickCard', () => {
     expect(home.disabled).toBe(true);
     fireEvent.click(home);
     expect(onGrab).not.toHaveBeenCalled();
+  });
+
+  it('marks the whole fixture as the caller’s when they hold a selection on it', () => {
+    renderCard();
+    expect(screen.getByTestId('fixture-claimed-fx1').textContent).toContain('Your game');
+  });
+
+  it('names the other holders when the caller holds nothing on the fixture', () => {
+    renderCard({ fixture: { ...FIXTURE, mine: false } });
+    const marker = screen.getByTestId('fixture-claimed-fx1');
+    expect(marker.textContent).toContain('Picked by Alice, Bob');
+  });
+
+  it('shows no fixture marker on an untouched game', () => {
+    renderCard({ fixture: { ...FIXTURE, mine: false, taken_by_names: [] } });
+    expect(screen.queryByTestId('fixture-claimed-fx1')).toBeNull();
+  });
+
+  it('renders prices in the caller’s chosen notation', () => {
+    renderCard({ oddsFormat: 'fractional' });
+    // 2.00 decimal is evens, 3.50 is 5/2.
+    expect(screen.getByText('1/1')).toBeTruthy();
+    expect(screen.getByText('5/2')).toBeTruthy();
+    expect(screen.queryByText('2.00')).toBeNull();
   });
 });

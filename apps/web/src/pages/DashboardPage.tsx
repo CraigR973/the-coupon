@@ -5,6 +5,7 @@ import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
 import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
+import { useOddsFormat } from '../hooks/useOddsFormat';
 import { gameweekKey, couponKey } from '../hooks/usePickEditor';
 import type { Coupon, GameweekSlate, SelectionOption, Standing } from '../lib/types';
 import { formatOdds, outcomeLabel } from '../lib/coupon';
@@ -36,6 +37,7 @@ function Card({ children, className }: { children: React.ReactNode; className?: 
 
 export function DashboardPage() {
   const { player } = useAuth();
+  const oddsFormat = useOddsFormat();
   const { activeSlug: slug } = useLeague();
 
   const { data: slate, isLoading: slateLoading } = useQuery<GameweekSlate>({
@@ -92,7 +94,7 @@ export function DashboardPage() {
                 <p className="text-sm font-sans font-medium text-text-primary">
                   {outcomeLabel(myPick.sel.market, myPick.sel.outcome, myPick.fixture.home, myPick.fixture.away)}
                   <span className="mx-1.5 text-text-muted">·</span>
-                  <span className="font-mono tabular-nums">{formatOdds(myPick.sel.odds)}</span>
+                  <span className="font-mono tabular-nums">{formatOdds(myPick.sel.odds, oddsFormat)}</span>
                 </p>
                 <p className="mt-0.5 text-xs font-sans text-text-muted">
                   {myPick.fixture.home} v {myPick.fixture.away}
@@ -133,7 +135,7 @@ export function DashboardPage() {
                   </p>
                   <p className="mt-1 text-sm font-sans text-text-primary">
                     {coupon.leg_count}-fold ·{' '}
-                    <span className="font-mono font-semibold tabular-nums">{formatOdds(coupon.combined_odds)}</span>
+                    <span className="font-mono font-semibold tabular-nums">{formatOdds(coupon.combined_odds, oddsFormat)}</span>
                   </p>
                 </div>
                 <ArrowRight className="h-4 w-4 text-text-muted" aria-hidden />

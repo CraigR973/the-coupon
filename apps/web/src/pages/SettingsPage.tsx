@@ -1,10 +1,12 @@
 import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bell, BellOff, Download, Send, Check, Sun, Moon, Monitor, Info, Globe, KeyRound } from 'lucide-react';
+import { Bell, BellOff, Download, Send, Check, Sun, Moon, Monitor, Info, Globe, KeyRound, Percent } from 'lucide-react';
 import { PinInput } from '../components/PinInput';
 import { toast } from 'sonner';
 import { apiFetch } from '../lib/api';
+import { formatOdds } from '../lib/coupon';
+import type { OddsFormat } from '../lib/types';
 import { usePushSubscription } from '../hooks/usePushSubscription';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import { Skeleton } from '../components/ui/skeleton';
@@ -450,6 +452,73 @@ function TimezoneSection() {
   );
 }
 
+// ── Odds format section ───────────────────────────────────────────────────────
+
+function OddsFormatSection() {
+  const { player, updatePlayer } = useAuth();
+  const current: OddsFormat = player?.oddsFormat ?? 'decimal';
+  const [saving, setSaving] = useState<OddsFormat | null>(null);
+
+  const options: Array<{ value: OddsFormat; label: string; sample: string }> = [
+    { value: 'decimal', label: 'Decimal', sample: formatOdds(2.5, 'decimal') },
+    { value: 'fractional', label: 'Fractional', sample: formatOdds(2.5, 'fractional') },
+  ];
+
+  async function choose(value: OddsFormat) {
+    if (value === current) return;
+    setSaving(value);
+    try {
+      await apiFetch('/api/v1/auth/me', {
+        method: 'PATCH',
+        body: JSON.stringify({ odds_format: value }),
+      });
+      updatePlayer({ oddsFormat: value });
+      toast.success(`Showing ${value} odds`);
+    } catch {
+      toast.error('Failed to update odds format');
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-sm text-text-secondary font-sans">
+        <Percent size={14} aria-hidden />
+        <span>How prices are shown. Points always come from the decimal price.</span>
+      </div>
+      <div
+        role="radiogroup"
+        aria-label="Odds format"
+        className="inline-flex w-full max-w-sm gap-1 p-1 rounded-md bg-surface-elevated border border-border"
+      >
+        {options.map(({ value, label, sample }) => {
+          const active = current === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              disabled={saving !== null}
+              onClick={() => void choose(value)}
+              className={cn(
+                'flex-1 inline-flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-sm text-sm font-medium font-sans transition-colors tap-target press-down focus-visible:outline-none focus-visible:shadow-glow disabled:opacity-60',
+                active
+                  ? 'bg-surface text-text-primary shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary',
+              )}
+            >
+              {label}
+              <span className="font-mono text-[10px] tabular-nums text-text-muted">{sample}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
@@ -463,6 +532,10 @@ export function SettingsPage() {
 
       <SectionCard title="Timezone">
         <TimezoneSection />
+      </SectionCard>
+
+      <SectionCard title="Odds format">
+        <OddsFormatSection />
       </SectionCard>
 
       <SectionCard title="Appearance">

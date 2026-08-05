@@ -1,6 +1,12 @@
 import { formatInTimeZone } from 'date-fns-tz';
 import { Check, Loader2 } from 'lucide-react';
-import type { FixtureSlate, PickMarket, PickOutcome, SelectionOption } from '../lib/types';
+import type {
+  FixtureSlate,
+  OddsFormat,
+  PickMarket,
+  PickOutcome,
+  SelectionOption,
+} from '../lib/types';
 import { Badge } from './ui/badge';
 import {
   formatOdds,
@@ -34,6 +40,8 @@ export interface PickCardProps {
   pendingKey: string | null;
   /** A grab is in flight somewhere — disable every button to avoid double-grabs. */
   busy: boolean;
+  /** The member's odds notation. Display only. */
+  oddsFormat: OddsFormat;
   onGrab: (fixtureId: string, market: PickMarket, outcome: PickOutcome) => void;
 }
 
@@ -43,7 +51,15 @@ export interface PickCardProps {
  * another member is shown unavailable ("taken by …"); the rest are one tap to
  * grab. Presentation only — the grab mutation lives in usePickEditor.
  */
-export function PickCard({ fixture, timezone, locked, pendingKey, busy, onGrab }: PickCardProps) {
+export function PickCard({
+  fixture,
+  timezone,
+  locked,
+  pendingKey,
+  busy,
+  oddsFormat,
+  onGrab,
+}: PickCardProps) {
   const kickoffLocal = formatInTimeZone(new Date(fixture.kickoff_utc), timezone, 'EEE d MMM, HH:mm');
 
   const byMarket = new Map<PickMarket, SelectionOption[]>();
@@ -53,10 +69,14 @@ export function PickCard({ fixture, timezone, locked, pendingKey, busy, onGrab }
     byMarket.set(sel.market, bucket);
   }
   const markets = MARKET_ORDER.filter((m) => byMarket.has(m));
+  const claimed = fixture.taken_by_names.length > 0;
 
   return (
     <div
-      className="flex flex-col rounded-lg border border-border bg-surface p-4"
+      className={cn(
+        'flex flex-col rounded-lg border bg-surface p-4',
+        fixture.mine ? 'border-success/60' : 'border-border',
+      )}
       data-testid={`pick-card-${fixture.fixture_id}`}
     >
       {/* Eyebrow: competition + kickoff */}
@@ -73,6 +93,20 @@ export function PickCard({ fixture, timezone, locked, pendingKey, busy, onGrab }
         <span className="mx-1.5 text-text-muted">v</span>
         <span className="font-medium">{fixture.away}</span>
       </p>
+
+      {/* Fixture-level marker: who has taken anything on this game */}
+      {claimed && (
+        <p
+          className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted"
+          data-testid={`fixture-claimed-${fixture.fixture_id}`}
+        >
+          {fixture.mine ? (
+            <span className="text-success">Your game</span>
+          ) : (
+            <>Picked by {fixture.taken_by_names.map(firstName).join(', ')}</>
+          )}
+        </p>
+      )}
 
       {fixture.selections.length === 0 ? (
         <p className="text-xs font-sans text-text-muted">Not priced yet — check back closer to kick-off.</p>
@@ -98,6 +132,7 @@ export function PickCard({ fixture, timezone, locked, pendingKey, busy, onGrab }
                       pending={
                         pendingKey === `${fixture.fixture_id}:${selectionKey(sel.market, sel.outcome)}`
                       }
+                      oddsFormat={oddsFormat}
                       onGrab={onGrab}
                     />
                   ))}
@@ -117,6 +152,7 @@ function SelectionButton({
   locked,
   busy,
   pending,
+  oddsFormat,
   onGrab,
 }: {
   fixture: FixtureSlate;
@@ -124,6 +160,7 @@ function SelectionButton({
   locked: boolean;
   busy: boolean;
   pending: boolean;
+  oddsFormat: OddsFormat;
   onGrab: (fixtureId: string, market: PickMarket, outcome: PickOutcome) => void;
 }) {
   const label = outcomeLabel(sel.market, sel.outcome, fixture.home, fixture.away);
@@ -157,7 +194,9 @@ function SelectionButton({
         {pending ? (
           <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
         ) : (
-          <span className="shrink-0 font-mono text-xs tabular-nums">{formatOdds(sel.odds)}</span>
+          <span className="shrink-0 font-mono text-xs tabular-nums">
+            {formatOdds(sel.odds, oddsFormat)}
+          </span>
         )}
       </span>
       <span className="text-[10px] font-mono uppercase tracking-wide text-text-muted">

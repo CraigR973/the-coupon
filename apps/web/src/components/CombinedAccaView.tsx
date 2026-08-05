@@ -2,6 +2,7 @@ import type { Coupon, CouponLeg, PickStatus } from '../lib/types';
 import { Badge } from './ui/badge';
 import { EmptyState } from './EmptyState';
 import { formatOdds, marketTag, outcomeLabel, pickStatusLabel } from '../lib/coupon';
+import { useOddsFormat } from '../hooks/useOddsFormat';
 import { cn } from '../lib/utils';
 
 const STATUS_VARIANT: Record<PickStatus, 'success' | 'error' | 'muted' | 'default'> = {
@@ -17,6 +18,8 @@ const STATUS_VARIANT: Record<PickStatus, 'success' | 'error' | 'muted' | 'defaul
  * only — the caller fetches GET /leagues/{slug}/coupon.
  */
 export function CombinedAccaView({ coupon }: { coupon: Coupon }) {
+  const oddsFormat = useOddsFormat();
+
   if (coupon.leg_count === 0) {
     return (
       <EmptyState
@@ -38,7 +41,7 @@ export function CombinedAccaView({ coupon }: { coupon: Coupon }) {
               {coupon.leg_count}-fold accumulator
             </p>
             <p className="mt-1 text-3xl font-semibold tabular-nums text-text-primary">
-              {formatOdds(coupon.combined_odds)}
+              {formatOdds(coupon.combined_odds, oddsFormat)}
             </p>
             <p className="mt-0.5 text-xs font-sans text-text-muted">combined odds</p>
           </div>
@@ -61,6 +64,7 @@ export function CombinedAccaView({ coupon }: { coupon: Coupon }) {
 }
 
 function LegRow({ leg, index, settled }: { leg: CouponLeg; index: number; settled: boolean }) {
+  const oddsFormat = useOddsFormat();
   const selection = outcomeLabel(leg.market, leg.outcome, leg.home, leg.away);
   return (
     <li
@@ -83,7 +87,7 @@ function LegRow({ leg, index, settled }: { leg: CouponLeg; index: number; settle
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5">
-        <span className="font-mono text-sm tabular-nums text-text-primary">{formatOdds(leg.odds)}</span>
+        <span className="font-mono text-sm tabular-nums text-text-primary">{formatOdds(leg.odds, oddsFormat)}</span>
         {settled && (
           <Badge variant={STATUS_VARIANT[leg.status]}>{pickStatusLabel(leg.status)}</Badge>
         )}

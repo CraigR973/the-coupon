@@ -23,7 +23,7 @@ from src.auth import (
 from src.config import settings
 from src.database import get_db
 from src.main import app
-from src.models.profile import Profile, UserRole
+from src.models.profile import OddsFormat, Profile, UserRole
 from src.models.refresh_token import RefreshToken
 
 # ---------------------------------------------------------------------------
@@ -47,6 +47,7 @@ def _make_user(
     p.pin_hash = hash_pin("1234")
     p.role = role
     p.timezone = "UTC"
+    p.odds_format = OddsFormat.decimal
     p.is_active = is_active
     p.failed_login_count = failed
     p.locked_until = locked_until
@@ -420,3 +421,59 @@ async def test_me_profile_rejects_expired_jwt_without_device_fallback(client: As
 
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Token expired"
+
+
+# ---------------------------------------------------------------------------
+# Batch 9 — the odds display preference on PATCH /auth/me
+# ---------------------------------------------------------------------------
+
+
+async def test_patch_me_sets_odds_format_without_a_timezone(client: AsyncClient) -> None:
+    """``timezone`` became optional in Batch 9 so one field can change alone."""
+    user = _make_user()
+    mock_db = _stub_db([_scalar(user), MagicMock()])
+    token = create_access_token(user.id, user.role)
+
+    async with _override_db(mock_db):
+        resp = await client.patch(
+            "/api/v1/auth/me",
+            json={"odds_format": "fractional"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["odds_format"] == "fractional"
+    # The untouched field comes back as it was, not as null.
+    assert resp.json()["timezone"] == "UTC"
+
+
+async def test_patch_me_still_accepts_a_timezone_alone(client: AsyncClient) -> None:
+    user = _make_user()
+    mock_db = _stub_db([_scalar(user), MagicMock()])
+    token = create_access_token(user.id, user.role)
+
+    async with _override_db(mock_db):
+        resp = await client.patch(
+            "/api/v1/auth/me",
+            json={"timezone": "Europe/London"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["timezone"] == "Europe/London"
+    assert resp.json()["odds_format"] == "decimal"
+
+
+async def test_patch_me_rejects_an_unknown_odds_format(client: AsyncClient) -> None:
+    user = _make_user()
+    mock_db = _stub_db([_scalar(user)])
+    token = create_access_token(user.id, user.role)
+
+    async with _override_db(mock_db):
+        resp = await client.patch(
+            "/api/v1/auth/me",
+            json={"odds_format": "american"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 422

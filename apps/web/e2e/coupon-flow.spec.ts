@@ -44,6 +44,20 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   const takenArsenal = carol.getByRole('button', { name: /Arsenal.*taken by Alice/i });
   await expect(takenArsenal).toBeDisabled();
 
+  // Batch 9 presentation: the slate is grouped by competition, each fixture Alice
+  // or Bob has taken carries a fixture-level marker, and the roster counts Carol
+  // as the one member still to pick.
+  await expect(carol.getByTestId('competition-English Premier League')).toBeVisible();
+  await expect(carol.getByTestId('competition-Scottish League Two')).toBeVisible();
+  await expect(carol.getByTestId('member-roster')).toContainText('2 of 3 picked');
+  await expect(carol.getByTestId('member-roster')).toContainText('1 to go');
+  await carol.getByTestId('member-roster').getByRole('button').click();
+  await expect(carol.getByTestId('member-roster')).toContainText('Yet to pick');
+  await carol.screenshot({
+    path: join(ARTIFACT_DIR, 'coupon-grouped-with-roster.png'),
+    fullPage: true,
+  });
+
   const blocked = await carol.evaluate(async (api) => {
     const token = localStorage.getItem('coupon_access');
     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };

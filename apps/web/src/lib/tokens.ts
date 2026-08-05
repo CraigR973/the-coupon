@@ -1,3 +1,5 @@
+import type { OddsFormat } from './types';
+
 const KEYS = {
   access: 'coupon_access',
   refresh: 'coupon_refresh',
@@ -9,6 +11,8 @@ export interface StoredPlayer {
   displayName: string;
   role: 'player' | 'admin';
   timezone: string;
+  /** Absent on sessions stored before Batch 9 — callers default to decimal. */
+  oddsFormat?: OddsFormat;
   avatarUrl?: string | null;
 }
 

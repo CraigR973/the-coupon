@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   formatOdds,
+  toFractional,
   potentialPoints,
   marketLabel,
   marketTag,
@@ -14,6 +15,46 @@ describe('formatOdds', () => {
     expect(formatOdds(2.5)).toBe('2.50');
     expect(formatOdds(13)).toBe('13.00');
     expect(formatOdds(1.909)).toBe('1.91');
+  });
+
+  it('defaults to decimal when no preference is given', () => {
+    expect(formatOdds(2.5)).toBe(formatOdds(2.5, 'decimal'));
+  });
+
+  it('renders fractional odds when asked', () => {
+    expect(formatOdds(2.5, 'fractional')).toBe('3/2');
+    expect(formatOdds(13, 'fractional')).toBe('12/1');
+  });
+});
+
+describe('toFractional', () => {
+  it('converts the net return, not the decimal price', () => {
+    // 3.00 decimal returns 2 profit on 1 staked.
+    expect(toFractional(3)).toBe('2/1');
+    expect(toFractional(2)).toBe('1/1');
+  });
+
+  it('snaps to the traditional ladder rather than the exact ratio', () => {
+    // The exact fraction of 1.91 is 91/100; every real coupon says 10/11.
+    expect(toFractional(1.91)).toBe('10/11');
+    expect(toFractional(1.9)).toBe('10/11');
+    expect(toFractional(1.5)).toBe('1/2');
+    expect(toFractional(4.5)).toBe('7/2');
+  });
+
+  it('falls back to a whole-number fraction above the ladder', () => {
+    expect(toFractional(151)).toBe('150/1');
+  });
+
+  it('never returns a negative or zero-denominator fraction', () => {
+    expect(toFractional(1)).toBe('0/1');
+    expect(toFractional(0.5)).toBe('0/1');
+  });
+
+  it('preserves the scoring relationship — points come off the decimal price', () => {
+    // Display changes; the winner still scores round(odds × 10).
+    expect(toFractional(2.5)).toBe('3/2');
+    expect(potentialPoints(2.5)).toBe(25);
   });
 });
 

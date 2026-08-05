@@ -1,17 +1,27 @@
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { formatInTimeZone } from 'date-fns-tz';
-import { Clock, Lock } from 'lucide-react';
+import { ChevronDown, Clock, Lock } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
 import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
+import { useOddsFormat } from '../hooks/useOddsFormat';
 import { usePickEditor, gameweekKey } from '../hooks/usePickEditor';
-import type { GameweekSlate, SelectionOption } from '../lib/types';
+import type {
+  FixtureSlate,
+  GameweekSlate,
+  OddsFormat,
+  PickMarket,
+  PickOutcome,
+  SelectionOption,
+} from '../lib/types';
 import { formatOdds, outcomeLabel } from '../lib/coupon';
 import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
 import { OddsGuide } from '../components/OddsGuide';
 import { PickCard } from '../components/PickCard';
+import { MemberRoster } from '../components/MemberRoster';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/ui/skeleton';
 import { Badge } from '../components/ui/badge';
@@ -36,9 +46,38 @@ function findMyPick(slate: GameweekSlate | undefined) {
   return null;
 }
 
+interface CompetitionGroup {
+  competition: string;
+  fixtures: FixtureSlate[];
+}
+
+/**
+ * The slate grouped by competition, each group ordered by kick-off.
+ *
+ * Competitions are ordered by their earliest kick-off rather than
+ * alphabetically, so the games that lock first sit at the top. The backend
+ * already returns fixtures in kick-off order, so within a group that order is
+ * preserved by construction.
+ */
+function groupByCompetition(fixtures: FixtureSlate[]): CompetitionGroup[] {
+  const groups = new Map<string, FixtureSlate[]>();
+  for (const fixture of fixtures) {
+    const bucket = groups.get(fixture.competition) ?? [];
+    bucket.push(fixture);
+    groups.set(fixture.competition, bucket);
+  }
+  return [...groups.entries()]
+    .map(([competition, groupFixtures]) => ({
+      competition,
+      fixtures: [...groupFixtures].sort((a, b) => a.kickoff_utc.localeCompare(b.kickoff_utc)),
+    }))
+    .sort((a, b) => a.fixtures[0].kickoff_utc.localeCompare(b.fixtures[0].kickoff_utc));
+}
+
 export function CouponPickPage() {
   const { player } = useAuth();
   const timezone = player?.timezone ?? 'UTC';
+  const oddsFormat = useOddsFormat();
   const { activeSlug: slug } = useLeague();
 
   const {
@@ -57,6 +96,7 @@ export function CouponPickPage() {
 
   const locked = !slate || slate.status !== 'open' || countdown.expired;
   const myPick = findMyPick(slate);
+  const groups = useMemo(() => groupByCompetition(slate?.fixtures ?? []), [slate?.fixtures]);
 
   return (
     <div>
@@ -102,7 +142,9 @@ export function CouponPickPage() {
           <p className="mt-1 text-sm font-sans font-medium text-text-primary">
             {outcomeLabel(myPick.sel.market, myPick.sel.outcome, myPick.fixture.home, myPick.fixture.away)}
             <span className="mx-1.5 text-text-muted">·</span>
-            <span className="font-mono tabular-nums">{formatOdds(myPick.sel.odds)}</span>
+            <span className="font-mono tabular-nums">
+              {formatOdds(myPick.sel.odds, oddsFormat)}
+            </span>
           </p>
           <p className="mt-0.5 text-xs font-sans text-text-muted">
             {myPick.fixture.home} v {myPick.fixture.away}
@@ -131,6 +173,14 @@ export function CouponPickPage() {
         />
       )}
 
+      {slate && (
+        <MemberRoster
+          members={slate.members}
+          missingCount={slate.members_missing_picks}
+          oddsFormat={oddsFormat}
+        />
+      )}
+
       {slate && slate.fixtures.length === 0 && (
         <EmptyState
           title="No fixtures on the slate"
@@ -145,19 +195,89 @@ export function CouponPickPage() {
               You haven't grabbed a selection yet
             </Badge>
           )}
-          {slate.fixtures.map((fixture) => (
-            <PickCard
-              key={fixture.fixture_id}
-              fixture={fixture}
+          {groups.map((group) => (
+            <CompetitionSection
+              key={group.competition}
+              group={group}
               timezone={timezone}
               locked={locked}
               pendingKey={pendingKey}
               busy={isSubmitting}
+              oddsFormat={oddsFormat}
               onGrab={submit}
             />
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * One competition's fixtures behind a collapsible header.
+ *
+ * Open by default: a member arriving at the coupon wants to see games, not a
+ * list of league names to expand. Collapsing is for skipping past the
+ * competitions they don't follow on a slate that can run past a hundred games.
+ */
+function CompetitionSection({
+  group,
+  timezone,
+  locked,
+  pendingKey,
+  busy,
+  oddsFormat,
+  onGrab,
+}: {
+  group: CompetitionGroup;
+  timezone: string;
+  locked: boolean;
+  pendingKey: string | null;
+  busy: boolean;
+  oddsFormat: OddsFormat;
+  onGrab: (fixtureId: string, market: PickMarket, outcome: PickOutcome) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const claimed = group.fixtures.filter((f) => f.taken_by_names.length > 0).length;
+
+  return (
+    <section data-testid={`competition-${group.competition}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="mb-2 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-none focus-visible:shadow-glow"
+      >
+        <span className="min-w-0 truncate font-mono text-[11px] uppercase tracking-[0.2em] text-text-primary">
+          {group.competition}
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="font-mono text-[10px] tabular-nums text-text-muted">
+            {claimed > 0 ? `${claimed}/${group.fixtures.length}` : group.fixtures.length}
+          </span>
+          <ChevronDown
+            className={cn('h-4 w-4 text-text-muted transition-transform', open && 'rotate-180')}
+            aria-hidden
+          />
+        </span>
+      </button>
+
+      {open && (
+        <div className="flex flex-col gap-4">
+          {group.fixtures.map((fixture) => (
+            <PickCard
+              key={fixture.fixture_id}
+              fixture={fixture}
+              timezone={timezone}
+              locked={locked}
+              pendingKey={pendingKey}
+              busy={busy}
+              oddsFormat={oddsFormat}
+              onGrab={onGrab}
+            />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

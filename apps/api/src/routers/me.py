@@ -13,6 +13,7 @@ class ProfileOut(BaseModel):
     display_name: str
     role: str
     timezone: str
+    odds_format: str
 
 
 @router.get("/profile", response_model=ProfileOut)
@@ -23,4 +24,5 @@ async def get_profile(user: CurrentUser) -> ProfileOut:
         display_name=user.display_name,
         role=user.role.value,
         timezone=user.timezone,
+        odds_format=user.odds_format.value,
     )
