@@ -7,11 +7,12 @@ Normal flow:
 
 ```text
 /next-batch-prompt
-/batch-start <N>
-<implement and test>
-/batch-verify <N>
+/batch-start <N>   # branches, implements, and verifies the batch
 /phase-closeout <N>
 ```
+
+`/batch-verify <N>` still exists standalone for re-running the checks (e.g.
+after manual follow-up edits) without redoing the implementation step.
 
 Launch flow:
 
@@ -23,9 +24,10 @@ Launch flow:
 ```
 
 Implementation belongs on the working branch created by the matching start
-workflow. Close-out is always an explicit user action and is the only workflow
-that commits, integrates, ticks the applicable source-of-record checklist, and
-appends a final log entry. Build history is recorded in `session-log.md`;
+workflow — for batches, `/batch-start` does this itself. Close-out is always
+an explicit user action and is the only workflow that commits, integrates,
+ticks the applicable source-of-record checklist, and appends a final log
+entry. Build history is recorded in `session-log.md`;
 launch history is recorded in `launch-log.md`.
 
 The repository has no remote or deployment environments yet. The two ship
