@@ -57,21 +57,25 @@ Batches 8 onward come from the owner's 2026-08-05 feedback pass. Three of those
 points are already satisfied and need no batch: joining by invite code, changing
 a pick until lock, and showing combined plus per-leg odds on the coupon.
 
-- [ ] **Batch 8 — League-aware coupon** — bind the coupon, combined-acca, and
-  home pages to the active league rather than the hardcoded
+The bracketed model on each row is a recommendation sized to that batch's blast
+radius, not a rule — `/next-batch-prompt` still leaves the choice to the user.
+
+- [ ] **Batch 8 — League-aware coupon** *(Sonnet)* — bind the coupon,
+  combined-acca, and home pages to the active league rather than the hardcoded
   `DEFAULT_LEAGUE_SLUG` in `apps/web/src/lib/api.ts`. Small, but every
   per-league feature below is wrong without it, so it goes first.
 
-- [ ] **Batch 9 — Coupon presentation** — group the slate by competition then
-  kick-off with each competition collapsible; a per-user decimal/fractional odds
-  preference; the full member roster for a gameweek showing each member's pick
-  and who has yet to pick; and a fixture-level "already picked" marker alongside
-  the existing per-selection one. Backend is one endpoint exposing
-  `members_missing_picks` and a profile preference column; the rest is
-  `CouponPickPage`, `PickCard`, and `formatOdds`. Fractional odds are display
-  only — prices stay `Numeric(6, 2)` and scoring stays `round(odds × 10)`.
+- [ ] **Batch 9 — Coupon presentation** *(Sonnet)* — group the slate by
+  competition then kick-off with each competition collapsible; a per-user
+  decimal/fractional odds preference; the full member roster for a gameweek
+  showing each member's pick and who has yet to pick; and a fixture-level
+  "already picked" marker alongside the existing per-selection one. Backend is
+  one endpoint exposing `members_missing_picks` and a profile preference column;
+  the rest is `CouponPickPage`, `PickCard`, and `formatOdds`. Fractional odds
+  are display only — prices stay `Numeric(6, 2)` and scoring stays
+  `round(odds × 10)`.
 
-- [ ] **Batch 10 — One pick per fixture** — replace
+- [ ] **Batch 10 — One pick per fixture** *(Opus)* — replace
   `uq_picks_league_gameweek_selection` with a `(league, gameweek, fixture)` key
   so claiming any market on a game takes the whole game, behind a per-league
   setting that keeps the selection-level rule available. Supersedes the "a
@@ -79,28 +83,28 @@ a pick until lock, and showing combined plus per-leg odds on the coupon.
   Migration plus the pre-check in `routers/picks.py`. Note this shrinks the pick
   pool roughly fivefold, which matters against a 15-member roster.
 
-- [ ] **Batch 11 — Daily slate pre-fetch** — split fixture discovery from
-  pricing. A daily job walks the coming week's fixtures into `fixtures`; odds
-  stay on demand behind a cache that tightens as lock approaches, because a
+- [ ] **Batch 11 — Daily slate pre-fetch** *(Opus)* — split fixture discovery
+  from pricing. A daily job walks the coming week's fixtures into `fixtures`;
+  odds stay on demand behind a cache that tightens as lock approaches, because a
   price is frozen the moment a member picks and someone picking on Tuesday still
   needs a live one. Foundation for Batches 15 and 16, which cannot afford their
   request budget without it. Must stay inside 100 requests/hour and 500/day.
 
-- [ ] **Batch 12 — Gameweek history** — a gameweek list endpoint and a
-  `gameweek_id` parameter on the slate and coupon reads, replacing the hardcoded
-  `latest_gameweek` in `routers/coupon.py` and `routers/gameweek.py`, plus
-  navigation so past scores and every member's picks are browsable the way a
-  fantasy-football season is. The rows are all retained; nothing needs
+- [ ] **Batch 12 — Gameweek history** *(Sonnet)* — a gameweek list endpoint and
+  a `gameweek_id` parameter on the slate and coupon reads, replacing the
+  hardcoded `latest_gameweek` in `routers/coupon.py` and `routers/gameweek.py`,
+  plus navigation so past scores and every member's picks are browsable the way
+  a fantasy-football season is. The rows are all retained; nothing needs
   backfilling.
 
-- [ ] **Batch 13 — Profile** — port `PlayerProfilePage` from
+- [ ] **Batch 13 — Profile** *(Sonnet)* — port `PlayerProfilePage` from
   `~/wc_2026_predictor/apps/web/src/pages/`, add a settled-pick history
   endpoint, and surface win rate from the `picks_played` / `picks_won` figures
   `standings()` already computes. Decide career-wide versus per-league framing:
   picks are league-scoped, so a member in three leagues has three records.
 
-- [ ] **Batch 14 — Per-league gameweeks** — the architectural change the
-  configuration work depends on. `gameweeks` is global and unique on
+- [ ] **Batch 14 — Per-league gameweeks** *(Opus)* — the architectural change
+  the configuration work depends on. `gameweeks` is global and unique on
   `saturday_date`, so two leagues cannot play different fixtures. Split it into
   a shared fixture pool and a per-league gameweek selecting from that pool, and
   lift the hardcoded window — `KICKOFF_HOUR`, `is_saturday_kickoff`,
@@ -108,33 +112,36 @@ a pick until lock, and showing combined plus per-leg odds on the coupon.
   per-league configuration. Supersedes the "one global gameweek" bullet in the
   product contract.
 
-- [ ] **Batch 15 — League admin configuration** — admin surfaces on Batch 14:
-  fixture window (the 15:00 Saturday slate, or an arbitrary range such as Friday
-  19:00 to Monday 22:00), competition selection both individually and by group
-  ("all UK leagues"), the offered market set, and ad-hoc gameweeks for rounds
-  like Boxing Day — all settable at league creation and editable afterwards,
-  gated by `LeagueAdminDep`. Competition scope is bounded by the provider's rate
-  limit rather than by preference: the slate costs one `/events` request per
-  competition, so "every league the API carries" is 728 requests against a
-  100/hour budget and is not affordable on the free plan. Markets are a
-  PostgreSQL enum, so widening the set is a migration, not configuration alone.
+- [ ] **Batch 15 — League admin configuration** *(Opus)* — admin surfaces on
+  Batch 14: fixture window (the 15:00 Saturday slate, or an arbitrary range such
+  as Friday 19:00 to Monday 22:00), competition selection both individually and
+  by group ("all UK leagues"), the offered market set, and ad-hoc gameweeks for
+  rounds like Boxing Day — all settable at league creation and editable
+  afterwards, gated by `LeagueAdminDep`. Competition scope is bounded by the
+  provider's rate limit rather than by preference: the slate costs one `/events`
+  request per competition, so "every league the API carries" is 728 requests
+  against a 100/hour budget and is not affordable on the free plan. Markets are
+  a PostgreSQL enum, so widening the set is a migration, not configuration
+  alone.
 
-- [ ] **Batch 16 — Football data** — real league tables, previous results, and
-  recent form, both as their own section and inline on the pick screen. Needs a
-  second provider, because odds-api.io publishes no standings; `teams` /
-  `matches` / `standings` tables; ingestion on the Batch 11 schedule; a season
-  backfill; and a name-reconciliation layer between the two providers' team
-  spellings, since `fixtures.home` / `away` are free text and there is no `Team`
-  table. Our own fixtures cannot supply a table: the slate has only ever stored
-  Saturday 15:00 UK kick-offs, so Sunday, Monday, and midweek games were never
-  fetched. Scores are not persisted at all today — `settle_gameweek` consumes the
-  result and writes only pick status and points. The largest batch on this list.
+- [ ] **Batch 16 — Football data** *(Opus)* — real league tables, previous
+  results, and recent form, both as their own section and inline on the pick
+  screen. Needs a second provider, because odds-api.io publishes no standings;
+  `teams` / `matches` / `standings` tables; ingestion on the Batch 11 schedule;
+  a season backfill; and a name-reconciliation layer between the two providers'
+  team spellings, since `fixtures.home` / `away` are free text and there is no
+  `Team` table. Our own fixtures cannot supply a table: the slate has only ever
+  stored Saturday 15:00 UK kick-offs, so Sunday, Monday, and midweek games were
+  never fetched. Scores are not persisted at all today — `settle_gameweek`
+  consumes the result and writes only pick status and points. The largest batch
+  on this list.
 
-- [ ] **Batch 17 — Betslip export spike** — timeboxed investigation into pushing
-  a completed coupon to a bookmaker account, Bet365 first, ending in an ADR
-  rather than a feature. Bet365 publishes no betslip API; the likely finding is a
-  shareable betslip link for books that support one. Independent of every batch
-  above, and to be weighed against the "never places a wager" contract bullet.
+- [ ] **Batch 17 — Betslip export spike** *(Opus)* — timeboxed investigation
+  into pushing a completed coupon to a bookmaker account, Bet365 first, ending
+  in an ADR rather than a feature. Bet365 publishes no betslip API; the likely
+  finding is a shareable betslip link for books that support one. Independent of
+  every batch above, and to be weighed against the "never places a wager"
+  contract bullet.
 
 ## Verification
 
