@@ -75,7 +75,7 @@ radius, not a rule — `/next-batch-prompt` still leaves the choice to the user.
   are display only — prices stay `Numeric(6, 2)` and scoring stays
   `round(odds × 10)`.
 
-- [ ] **Batch 10 — One pick per fixture** *(Opus)* — replace
+- [x] **Batch 10 — One pick per fixture** ✅ 2026-08-06 *(Opus)* — replace
   `uq_picks_league_gameweek_selection` with a `(league, gameweek, fixture)` key
   so claiming any market on a game takes the whole game, behind a per-league
   setting that keeps the selection-level rule available. Supersedes the "a

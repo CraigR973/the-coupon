@@ -2,7 +2,7 @@
 
 ## Now
 
-Build batches 1–9 are closed. The Coupon is a verified private weekly
+Build batches 1–10 are closed. The Coupon is a verified private weekly
 football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
 compare standings, and view the shared combined coupon.
@@ -58,10 +58,16 @@ per-selection one, and `profiles.odds_format` (migration `007`) lets a member
 read prices as decimal or traditional UK fractional. The format is display only
 — prices stay `Numeric(6, 2)` and a winner still scores `round(odds × 10)`.
 
+Batch 10 added `leagues.pick_scope` (migration `008`): a league may make one
+claim take the whole game rather than a single selection, enforced by a partial
+unique index on a scope denormalised onto each pick. The default is unchanged
+behaviour, so opting in is deliberate — it shrinks the pick pool roughly
+fivefold, which a 15-member roster feels.
+
 ## Verified
 
-- Backend: 289 pytest (301 with a database), Ruff check/format, and strict mypy
-- Database: clean `pgserver` migration through revision `007`, with forced RLS
+- Backend: 289 pytest (307 with a database), Ruff check/format, and strict mypy
+- Database: clean `pgserver` migration through revision `008`, with forced RLS
   on all 13 public tables under a Supabase-like role setup
 - Frontend: Node 20 production build, TypeScript, ESLint, and 180 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
@@ -94,7 +100,7 @@ read prices as decimal or traditional UK fractional. The format is display only
 
 ## Next
 
-Batch 10 — One pick per fixture is the next unchecked build batch. In parallel,
+Batch 11 — Daily slate pre-fetch is the next unchecked build batch. In parallel,
 Launch L5 — launch and first-Saturday watch. Batch 7 shipped the odds source,
 so the remaining launch work is deployment and configuration:
 

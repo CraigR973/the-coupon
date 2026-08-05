@@ -147,3 +147,30 @@ before the first-Saturday watch.
   lets several members hold one game. Batch 10 makes it at most one.
 
 **Next:** Batch 10 — One pick per fixture
+
+## Batch 10 — One pick per fixture
+**Commits:** `329daa6` · verified: 289 pytest + Ruff/mypy · 307 pytest on clean `pgserver` through `008` · Node build/TypeScript/ESLint + 180 Vitest · production-bundle browser flow
+
+### Key facts for future sessions
+- The rule is per-league but uniqueness is a database constraint, and a
+  PostgreSQL index predicate cannot join to another table. So `pick_scope` is
+  **denormalised onto `picks`** at write time and the fixture key is a partial
+  unique index `WHERE pick_scope = 'fixture'`. `picks.pick_scope` is never the
+  league's current setting — only the index reads it.
+- `uq_picks_league_gameweek_selection` was **kept**, not replaced as the batch
+  row said. Fixture uniqueness implies selection uniqueness, so it is true in
+  both modes, and it is the only backstop selection-rule leagues have.
+- The slate had to change with it: under `fixture`, every selection on a claimed
+  game reports that holder, or the coupon offers selections the submit endpoint
+  must refuse. Any future read of the slate has to keep honouring the scope.
+- Changing a league's scope is a data migration in miniature. Tightening is
+  refused with `PICK_SCOPE_CONFLICT` if two members already share a game;
+  succeeding restamps **pending** picks only, because a settled gameweek was
+  played under the rule then in force.
+- Default is `selection` everywhere — column, API, and league creation — so
+  nothing changes for an existing league until an admin opts in.
+- The pick pool shrinks roughly fivefold under the fixture rule (three
+  match-odds outcomes plus two BTTS collapse to one claim). A 15-member league
+  needs 15 fixtures, not three. The launch Saturday carries 131.
+
+**Next:** Batch 11 — Daily slate pre-fetch
