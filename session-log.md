@@ -251,3 +251,22 @@ before the first-Saturday watch.
   record.
 
 **Next:** Batch 14 — Per-league gameweeks (the architectural pair with Batch 15)
+
+## Toolchain trap found closing Batch 13
+**Commit:** `48a7a58`
+
+CI pins `ruff==0.5.4` (`apps/api/requirements-dev.txt`, `pyproject.toml`) but the
+local toolchain `/batch-verify` mandates — app-starter's venv — ships **0.16.0**.
+They format `assert X, (msg)` differently, so a locally-clean file can fail CI.
+
+It went unnoticed for three batches because `ruff format --check` is the **first**
+backend step: it failed the job before `mypy`, `alembic upgrade head`, and
+`pytest` ever ran, so Batches 11-13 merged onto a red main and the DB-backed
+suite was never actually exercised remotely. It has been since — 340 passed in CI
+on `48a7a58`, migration `008` applied.
+
+Check formatting with the pinned version, not the venv:
+
+    cd apps/api && uvx ruff@0.5.4 format --check . && uvx ruff@0.5.4 check .
+
+A green local gate is not evidence of a green CI until this is reconciled.
