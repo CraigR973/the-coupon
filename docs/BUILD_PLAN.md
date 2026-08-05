@@ -90,7 +90,7 @@ radius, not a rule — `/next-batch-prompt` still leaves the choice to the user.
   needs a live one. Foundation for Batches 15 and 16, which cannot afford their
   request budget without it. Must stay inside 100 requests/hour and 500/day.
 
-- [ ] **Batch 12 — Gameweek history** *(Sonnet)* — a gameweek list endpoint and
+- [x] **Batch 12 — Gameweek history** ✅ 2026-08-06 *(Sonnet)* — a gameweek list endpoint and
   a `gameweek_id` parameter on the slate and coupon reads, replacing the
   hardcoded `latest_gameweek` in `routers/coupon.py` and `routers/gameweek.py`,
   plus navigation so past scores and every member's picks are browsable the way

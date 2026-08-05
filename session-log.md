@@ -202,3 +202,27 @@ before the first-Saturday watch.
   `test_run_scheduled.py`, which assert the exact job set and cron strings.
 
 **Next:** Batch 12 — Gameweek history
+
+## Batch 12 — Gameweek history
+**Commits:** `1be9f0d` · verified: 314 pytest + Ruff/mypy · 337 pytest on clean `pgserver` through `008` · Node build/TypeScript/ESLint + 182 Vitest · production-bundle browser flow
+
+### Key facts for future sessions
+- `resolve_gameweek(db, gameweek_id)` is the single entry point for "which
+  gameweek is this read about". The slate and coupon both go through it, so
+  anything added later that reads a gameweek should too, or the two surfaces
+  will disagree about what "current" means.
+- React Query keys are `['gameweek', slug, gameweekId]` and
+  `['coupon', slug, gameweekId]`, with `undefined` meaning latest. Invalidation
+  after a grab is **prefix-matched** on `['gameweek', slug]` so every viewed
+  week refreshes, plus `['gameweeks', slug]` for the season list's pick counts.
+- Selection lives in the `?gw=` search param, not component state. That is what
+  makes a past week linkable and back-button-navigable, and it means the default
+  URL stays clean and the default query key stays stable.
+- A `gameweek_id` that is not a UUID is a **404, not a 500** — the value comes
+  straight off the query string, and an impossible id is a miss like any other.
+- `test_picks_flow.py`'s `_open_sample_gameweek_as_latest` (added Batch 9) is
+  what makes these tests possible: each call claims a distinct far-future
+  Saturday, so a test can create two gameweeks and know which one is newest.
+- The season list is unpaged on purpose — about forty rows a season.
+
+**Next:** Batch 13 — Profile

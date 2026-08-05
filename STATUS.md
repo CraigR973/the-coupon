@@ -2,7 +2,7 @@
 
 ## Now
 
-Build batches 1–11 are closed. The Coupon is a verified private weekly
+Build batches 1–12 are closed. The Coupon is a verified private weekly
 football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
 compare standings, and view the shared combined coupon.
@@ -71,12 +71,17 @@ pick refreshed separately for that one fixture. `tests/test_request_budget.py`
 asserts the whole arrangement against the provider's 100/hour and 500/day — the
 daily cap is the binding one.
 
+Batch 12 made the season browsable. A gameweek list endpoint plus a `gameweek_id`
+parameter on the slate and coupon reads replaced the hardcoded `latest_gameweek`,
+and the client keeps the selection in the URL so a past week is linkable. Every
+gameweek ever synced is retained, so the history needed no backfill.
+
 ## Verified
 
-- Backend: 314 pytest (334 with a database), Ruff check/format, and strict mypy
+- Backend: 314 pytest (337 with a database), Ruff check/format, and strict mypy
 - Database: clean `pgserver` migration through revision `008`, with forced RLS
   on all 13 public tables under a Supabase-like role setup
-- Frontend: Node 20 production build, TypeScript, ESLint, and 180 Vitest
+- Frontend: Node 20 production build, TypeScript, ESLint, and 182 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
   coupon, phone push, and PWA update behavior
@@ -107,7 +112,7 @@ daily cap is the binding one.
 
 ## Next
 
-Batch 12 — Gameweek history is the next unchecked build batch. In parallel,
+Batch 13 — Profile is the next unchecked build batch. In parallel,
 Launch L5 — launch and first-Saturday watch. Batch 7 shipped the odds source,
 so the remaining launch work is deployment and configuration:
 
