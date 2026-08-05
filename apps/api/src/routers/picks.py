@@ -27,6 +27,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser
+from src.config import settings
 from src.database import get_db
 from src.deps import LeagueMemberDep, OddsProviderDep
 from src.models.fixture import Fixture
@@ -203,7 +204,11 @@ async def _snapshot_selection(
     price. The price may come from the provider's short-lived cache — bounded by
     ``ODDS_CACHE_TTL_SECONDS`` — which is the trade the provider's rate limit forces.
     """
-    odds = await provider.fetch_odds([fixture.provider_event_id])
+    # The one price that gets frozen onto a scored pick, so it buys freshness the
+    # browse path cannot afford — but for a single fixture, which is one request.
+    odds = await provider.fetch_odds(
+        [fixture.provider_event_id], max_age_seconds=settings.odds_cache_pick_ttl_seconds
+    )
     for fixture_odds in odds:
         for selection in fixture_odds.selections:
             if selection.market.value == market.value and selection.outcome.value == outcome.value:

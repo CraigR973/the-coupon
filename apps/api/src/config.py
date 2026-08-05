@@ -63,19 +63,42 @@ class Settings(BaseSettings):
     odds_api_bookmaker: str = "Bet365"
     odds_api_base_url: str = "https://api.odds-api.io/v3"
     # How long a fetched price may be served from the process cache. `fetch_odds` runs in
-    # the request path, so this is the only thing standing between the pick page and the
+    # the request path, so these are the only thing standing between the pick page and the
     # free plan's 100 requests/hour and 500/day.
     #
     # The arithmetic, using the measured launch Saturday: 131 qualifying fixtures batched
-    # ten at a time is 14 requests per full refresh, so the hourly cost is
-    # `14 * 3600 / ttl`. At 300s that is 168/hour — over budget. At 900s it is 56/hour,
-    # and a price frozen at pick time is never more than fifteen minutes stale, which is
-    # immaterial for pre-match lower-league football.
+    # ten at a time is 14 requests per full sweep, so browsing costs `14 * 3600 / ttl` per
+    # hour of continuous refreshing. At 300s that is 168/hour — over budget. At 900s it is
+    # 56/hour.
     #
-    # The *daily* cap is the tighter one under sustained load: 56/hour for ten hours of
-    # continuous Saturday refreshing is 560, above the 500/day allowance. Raise this if
-    # the provider starts returning 429s on a match day.
-    odds_cache_ttl_seconds: int = 900
+    # Batch 11 made the ceiling a function of how close lock is, because the two things a
+    # price is used for want different freshness. Browsing the card tolerates a stale-ish
+    # price; the price *frozen onto a pick* does not — and buying that freshness for the
+    # one fixture being picked costs a single request instead of a sweep:
+    #
+    #   lock > 24h away   -> `odds_cache_ttl_seconds`      7200s ->  7/hour
+    #   lock 6-24h away   -> half of it                    3600s -> 14/hour
+    #   lock < 6h away    -> `odds_cache_near_ttl_seconds` 1800s -> 28/hour
+    #   submitting a pick -> `odds_cache_pick_ttl_seconds`   60s -> 1 request per fixture
+    #
+    # The **daily** cap is what sets these, not the hourly one. 500/day minus the ~60 the
+    # discovery job spends leaves 440 for odds, or 31 sweeps. A fully saturated day —
+    # someone refreshing continuously for 24 hours — is 18 sweeps at the loose tiers plus
+    # 12 in the final six hours: 30 sweeps, 420 requests, 480 with discovery. The tightest
+    # hour is then 28/hour against a 100/hour allowance, so there is room to tighten the
+    # near tier if the daily budget ever grows; there is none to tighten it today.
+    #
+    # `tests/test_request_budget.py` asserts this arithmetic against a real cache rather
+    # than trusting this comment.
+    odds_cache_ttl_seconds: int = 7200
+    odds_cache_near_ttl_seconds: int = 1800
+    odds_cache_pick_ttl_seconds: int = 60
+
+    # How many upcoming Saturdays the daily discovery job walks into `fixtures`. Fixture
+    # discovery costs one request per UK competition (~30), so each extra Saturday is ~30
+    # requests once a day — cheap, and it means a member picking on Tuesday already has a
+    # full card rather than waiting for match day.
+    slate_horizon_weeks: int = 2
 
     # Betfair Exchange API — only read when `odds_provider` is `betfair`. Production
     # uses non-interactive certificate login.

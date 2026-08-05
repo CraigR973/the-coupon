@@ -82,7 +82,9 @@ class _CountingProvider(OddsProvider):
             ],
         )
 
-    async def fetch_odds(self, event_ids: Sequence[str]) -> list[FixtureOdds]:
+    async def fetch_odds(
+        self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
+    ) -> list[FixtureOdds]:
         self.odds_calls.append(list(event_ids))
         return [_odds(e, self.price) for e in event_ids if self.priced is None or e in self.priced]
 
@@ -255,4 +257,64 @@ async def test_invalidate_forces_a_refetch() -> None:
     cache.invalidate()
     await cache.fetch_odds(["a"])
 
+    assert len(inner.odds_calls) == 2
+
+
+# ── Batch 11: the per-call freshness ceiling ──────────────────────────────────
+
+
+async def test_max_age_tightens_the_ttl_for_one_call() -> None:
+    """A caller that needs a fresher price than the TTL allows gets one."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _cache(inner, clock, ttl=3600.0)
+
+    await cache.fetch_odds(["a"])
+    clock.advance(120)
+
+    # Well inside the 3600s TTL, so a browse is still served from cache…
+    await cache.fetch_odds(["a"])
+    assert len(inner.odds_calls) == 1
+
+    # …but a pick submission asking for a price no older than 60s pays for a refetch.
+    await cache.fetch_odds(["a"], max_age_seconds=60)
+    assert len(inner.odds_calls) == 2
+
+
+async def test_max_age_never_loosens_the_ttl() -> None:
+    """A caller cannot ask to be served something staler than the configured TTL."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _cache(inner, clock, ttl=300.0)
+
+    await cache.fetch_odds(["a"])
+    clock.advance(400)
+    await cache.fetch_odds(["a"], max_age_seconds=86_400)
+    assert len(inner.odds_calls) == 2, "the entry was past its TTL and had to be refetched"
+
+
+async def test_a_fresh_entry_satisfies_a_tight_ceiling_without_refetching() -> None:
+    """Freshness is a bound, not a command — an already-fresh price is reused."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _cache(inner, clock, ttl=3600.0)
+
+    await cache.fetch_odds(["a"], max_age_seconds=60)
+    clock.advance(5)
+    await cache.fetch_odds(["a"], max_age_seconds=60)
+    assert len(inner.odds_calls) == 1
+
+
+async def test_a_tight_ceiling_refetches_only_the_events_asked_for() -> None:
+    """Freezing one pick must not sweep the whole card — that is the budget."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _cache(inner, clock, ttl=3600.0)
+
+    slate = [f"e{i}" for i in range(20)]
+    await cache.fetch_odds(slate)
+    clock.advance(120)
+    await cache.fetch_odds(["e7"], max_age_seconds=60)
+
+    assert inner.odds_calls[-1] == ["e7"]
     assert len(inner.odds_calls) == 2

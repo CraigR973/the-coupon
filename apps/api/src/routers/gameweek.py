@@ -10,7 +10,7 @@ out by ``deps.get_odds_provider`` caches: fifteen members refreshing this page m
 turn into fifteen upstream calls against a 100/hour quota.
 """
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated
 
 import structlog
@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser
+from src.config import settings
 from src.database import get_db
 from src.deps import LeagueMemberDep, OddsProviderDep
 from src.models.fixture import Fixture
@@ -27,7 +28,7 @@ from src.models.league import PickScope
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
-from src.services.gameweek import latest_gameweek
+from src.services.gameweek import latest_gameweek, slate_odds_max_age
 from src.services.odds_provider import FixtureOdds
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -117,7 +118,17 @@ async def current_gameweek(
     fixtures = list(fixtures_result.scalars().all())
 
     taken = await _taken_selections(db, league.id, gameweek.id)
-    odds_by_event = await _live_odds(provider, [f.provider_event_id for f in fixtures])
+    # Browsing tolerates a stale-ish price; the ceiling tightens as lock nears, and the
+    # price a member is actually scored on is refreshed at submit time, not here.
+    max_age = slate_odds_max_age(
+        gameweek,
+        datetime.now(UTC).replace(tzinfo=None),
+        near_ttl=settings.odds_cache_near_ttl_seconds,
+        far_ttl=settings.odds_cache_ttl_seconds,
+    )
+    odds_by_event = await _live_odds(
+        provider, [f.provider_event_id for f in fixtures], max_age_seconds=max_age
+    )
 
     holders_by_fixture = _holders_by_fixture(taken)
     slate = [
@@ -261,10 +272,12 @@ async def _gameweek_members(
     return members
 
 
-async def _live_odds(provider: OddsProviderDep, event_ids: list[str]) -> dict[str, FixtureOdds]:
+async def _live_odds(
+    provider: OddsProviderDep, event_ids: list[str], *, max_age_seconds: float
+) -> dict[str, FixtureOdds]:
     if not event_ids:
         return {}
-    odds = await provider.fetch_odds(event_ids)
+    odds = await provider.fetch_odds(event_ids, max_age_seconds=max_age_seconds)
     return {o.provider_event_id: o for o in odds}
 
 

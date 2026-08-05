@@ -11,11 +11,19 @@ from src import run_scheduled, scheduler
 
 
 def test_jobs_cover_expected_names() -> None:
-    assert set(run_scheduled.JOBS) == {"backup", "refresh-slate", "remind", "lock", "settle"}
+    assert set(run_scheduled.JOBS) == {
+        "backup",
+        "discover-fixtures",
+        "refresh-slate",
+        "remind",
+        "lock",
+        "settle",
+    }
 
 
 def test_jobs_map_to_the_same_scheduler_coroutines() -> None:
     assert run_scheduled.JOBS["backup"] is scheduler.run_scheduled_backup
+    assert run_scheduled.JOBS["discover-fixtures"] is scheduler.run_discover_fixtures
     assert run_scheduled.JOBS["refresh-slate"] is scheduler.run_refresh_slate
     assert run_scheduled.JOBS["remind"] is scheduler.run_pick_reminders
     assert run_scheduled.JOBS["lock"] is scheduler.run_lock_gameweeks

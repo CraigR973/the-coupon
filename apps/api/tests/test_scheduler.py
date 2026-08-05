@@ -7,9 +7,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.config import settings
 from src.models.notification import ActionType, ActorType, AuditLog
 from src.scheduler import (
     create_scheduler,
+    run_discover_fixtures,
     run_lock_gameweeks,
     run_pick_reminders,
     run_refresh_slate,
@@ -87,6 +89,7 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
         assert job_ids == {
             "connection_warmup",
             "daily_backup",
+            "discover_fixtures",
             "refresh_slate",
             "pick_reminders",
             "lock_gameweeks",
@@ -113,7 +116,10 @@ def test_create_scheduler_domain_jobs_fire_on_uk_wall_clock() -> None:
     scheduler = create_scheduler()
     try:
         expected = {
-            "refresh_slate": "cron[day_of_week='mon-sat', hour='9,12,14', minute='0']",
+            # Discovery is daily and early — the pre-fetch half of the Batch 11 split.
+            "discover_fixtures": "cron[hour='6', minute='0']",
+            # Match day only; midweek fixtures are discovery's job now.
+            "refresh_slate": "cron[day_of_week='sat', hour='9,13', minute='0']",
             "pick_reminders": "cron[day_of_week='sat', hour='11', minute='0']",
             "lock_gameweeks": "cron[day_of_week='sat', hour='14', minute='30']",
             "settle_gameweeks": "cron[day_of_week='sat,sun,mon', hour='18,20,22', minute='0']",
@@ -133,6 +139,36 @@ def test_create_scheduler_domain_jobs_fire_on_uk_wall_clock() -> None:
 # ---------------------------------------------------------------------------
 # Coupon domain jobs — wiring (own the tx + odds session, swallow errors)
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_discover_fixtures_walks_the_horizon_and_commits() -> None:
+    """The daily job spans the configured horizon, not just this Saturday."""
+    session = AsyncMock()
+    gameweek = MagicMock()
+    gameweek.id = uuid.uuid4()
+    with (
+        patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch(
+            "src.scheduler.discover_fixtures", new=AsyncMock(return_value=[gameweek])
+        ) as discover,
+    ):
+        assert await run_discover_fixtures() is True
+
+    session.commit.assert_awaited_once()
+    saturdays = discover.await_args.args[2]
+    assert len(saturdays) == settings.slate_horizon_weeks
+    assert all(d.weekday() == 5 for d in saturdays), "every discovered date is a Saturday"
+
+
+@pytest.mark.asyncio
+async def test_run_discover_fixtures_swallows_provider_failure() -> None:
+    """One bad provider run must never take the scheduler down."""
+    with patch(
+        "src.scheduler.odds_session.acquire", new=AsyncMock(side_effect=RuntimeError("boom"))
+    ):
+        assert await run_discover_fixtures() is False
 
 
 @pytest.mark.asyncio

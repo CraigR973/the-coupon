@@ -270,8 +270,18 @@ class OddsProvider(ABC):
         """Return that Saturday's British 15:00 kick-offs."""
 
     @abstractmethod
-    async def fetch_odds(self, event_ids: Sequence[str]) -> list[FixtureOdds]:
-        """Snapshot the priced Match Odds + BTTS selections for the given events."""
+    async def fetch_odds(
+        self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
+    ) -> list[FixtureOdds]:
+        """Snapshot the priced Match Odds + BTTS selections for the given events.
+
+        ``max_age_seconds`` is the caller's freshness ceiling: "do not serve me a
+        price older than this". Providers that always go upstream satisfy any
+        ceiling and ignore it; only :class:`~src.services.odds_cache.CachingOddsProvider`
+        acts on it, tightening its TTL for the call. It exists because browsing the
+        slate and freezing a price at pick time want very different freshness for
+        very different costs against the provider's rate limit.
+        """
 
     @abstractmethod
     async def settle(self, event_ids: Sequence[str]) -> list[EventSettlement]:

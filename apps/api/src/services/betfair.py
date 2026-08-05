@@ -395,7 +395,9 @@ class BetfairAdapter(OddsProvider):
         fixtures.sort(key=lambda f: (f.competition, f.kickoff_utc, f.home))
         return Slate(saturday=saturday, fixtures=fixtures)
 
-    async def fetch_odds(self, event_ids: Sequence[str]) -> list[FixtureOdds]:
+    async def fetch_odds(
+        self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
+    ) -> list[FixtureOdds]:
         """Snapshot the priced Match Odds + BTTS selections for the given events.
 
         Applies the core rule — *only offer a selection the source actually prices* — so a

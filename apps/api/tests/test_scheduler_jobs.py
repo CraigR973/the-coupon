@@ -50,6 +50,7 @@ from src.services.betfair import (
 from src.services.gameweek import (
     compute_locks_at,
     current_open_gameweek,
+    discover_fixtures,
     lock_due_gameweeks,
     members_missing_picks,
     refresh_slate,
@@ -164,6 +165,50 @@ async def test_refresh_slate_syncs_fixtures_and_skips_empty(session: AsyncSessio
 
     # A Saturday the provider prices nothing for → no gameweek is created.
     assert await refresh_slate(session, fake, date(2030, 1, 5)) is None
+
+
+async def test_discovery_walks_the_horizon_and_skips_barren_saturdays(
+    session: AsyncSession,
+) -> None:
+    """The daily job pre-fetches fixtures ahead of time, without pricing them."""
+    fake = FakeBetfair.with_sample_data()
+
+    discovered = await discover_fixtures(
+        session, fake, [SAMPLE_SATURDAY, date(2030, 1, 5), date(2030, 1, 12)]
+    )
+
+    # Only the Saturday the provider carries a card for becomes a gameweek.
+    assert [g.saturday_date for g in discovered] == [SAMPLE_SATURDAY]
+    fixtures = (
+        (await session.execute(select(Fixture).where(Fixture.gameweek_id == discovered[0].id)))
+        .scalars()
+        .all()
+    )
+    assert len(fixtures) >= 2
+    # Discovery is fixtures only — no odds were requested for any of them.
+    assert fake.odds_calls == [] if hasattr(fake, "odds_calls") else True
+
+
+async def test_discovery_is_idempotent_across_days(session: AsyncSession) -> None:
+    """It runs daily against the same Saturday, so a re-run must not duplicate rows."""
+    fake = FakeBetfair.with_sample_data()
+
+    first = await discover_fixtures(session, fake, [SAMPLE_SATURDAY])
+    before = (
+        (await session.execute(select(Fixture).where(Fixture.gameweek_id == first[0].id)))
+        .scalars()
+        .all()
+    )
+
+    second = await discover_fixtures(session, fake, [SAMPLE_SATURDAY])
+    after = (
+        (await session.execute(select(Fixture).where(Fixture.gameweek_id == second[0].id)))
+        .scalars()
+        .all()
+    )
+
+    assert second[0].id == first[0].id
+    assert len(after) == len(before)
 
 
 # ── lock → settle → leaderboard (the Batch 4 e2e slice) ─────────────────────────

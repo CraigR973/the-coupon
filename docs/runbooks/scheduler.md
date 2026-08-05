@@ -7,14 +7,15 @@ The MVP scheduler runs inside the single always-on Railway API process.
 - Keep exactly one API replica.
 - Keep sleep/serverless behavior disabled.
 - Keep `SCHEDULER_ENABLED=true` on the scheduler-owning service.
-- Check Railway logs for `slate refreshed`, `gameweeks locked`, `gameweeks
-  settled`, and `pick reminders sent`.
+- Check Railway logs for `fixtures discovered`, `slate refreshed`, `gameweeks
+  locked`, `gameweeks settled`, and `pick reminders sent`.
 
 ## One-Off Commands
 
 Run from the backend service environment:
 
 ```bash
+python -m src.run_scheduled discover-fixtures
 python -m src.run_scheduled refresh-slate
 python -m src.run_scheduled remind
 python -m src.run_scheduled lock
@@ -22,6 +23,19 @@ python -m src.run_scheduled settle
 ```
 
 The command exits non-zero when the job logs an internal failure.
+
+## Fixture discovery vs slate refresh
+
+Batch 11 split the two. `discover-fixtures` runs daily at 06:00 Europe/London and
+walks the next `SLATE_HORIZON_WEEKS` Saturdays (default 2) into `fixtures`, so a
+member picking on Tuesday already has a full card. `refresh-slate` is the late
+match-day pass — Saturdays at 09:00 and 13:00 — that catches postponements and
+kick-off changes.
+
+Neither job fetches odds. Prices are requested on demand and served from a cache
+whose ceiling tightens as lock approaches; the price a member is actually scored
+on is refreshed at submit time for that one fixture. `tests/test_request_budget.py`
+holds the whole arrangement to the provider's 100/hour and 500/day.
 
 ## Settlement Retries
 

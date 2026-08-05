@@ -28,6 +28,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 
 from src.scheduler import (
+    run_discover_fixtures,
     run_lock_gameweeks,
     run_pick_reminders,
     run_refresh_slate,
@@ -37,6 +38,7 @@ from src.scheduler import (
 
 JOBS: dict[str, Callable[[], Awaitable[bool]]] = {
     "backup": run_scheduled_backup,
+    "discover-fixtures": run_discover_fixtures,
     "refresh-slate": run_refresh_slate,
     "remind": run_pick_reminders,
     "lock": run_lock_gameweeks,

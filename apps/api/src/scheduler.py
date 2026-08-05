@@ -29,10 +29,12 @@ from src.models.notification import ActionType, ActorType, AuditLog
 from src.services.backup import create_backup
 from src.services.gameweek import (
     current_open_gameweek,
+    discover_fixtures,
     lock_due_gameweeks,
     refresh_slate,
     settleable_gameweeks,
     upcoming_saturday,
+    upcoming_saturdays,
 )
 from src.services.notification_triggers import send_pick_reminders
 from src.services.odds_session import odds_session
@@ -104,12 +106,40 @@ async def run_connection_warmup() -> bool:
 # errors so one bad run never takes the scheduler down.
 
 
-async def run_refresh_slate() -> bool:
-    """Refresh the upcoming Saturday's slate + fixtures from the odds provider.
+async def run_discover_fixtures() -> bool:
+    """Walk the coming weeks' fixtures into the table, once a day.
 
-    Runs a few times pre-lock so the card firms up (names, kick-offs). Odds themselves are
-    snapshotted onto each pick at pick time and served through the provider's own
-    short-lived cache, so there is nothing to warm here.
+    The pre-fetch half of Batch 11's split. Discovery is scheduled, cheap, and ahead
+    of time — one request per UK competition per Saturday, so the whole horizon costs
+    about sixty requests once daily. Pricing is deliberately *not* pre-fetched: a
+    price only matters at the instant a member freezes it onto a pick, and sweeping
+    the card for odds is what the provider's rate limit cannot afford.
+    """
+    try:
+        provider = await odds_session.acquire()
+        saturdays = upcoming_saturdays(_uk_today(), settings.slate_horizon_weeks)
+        async with AsyncSessionLocal() as session:
+            gameweeks = await discover_fixtures(session, provider, saturdays)
+            gameweek_ids = [str(g.id) for g in gameweeks]
+            await session.commit()
+        log.info(
+            "fixtures discovered",
+            saturdays=[str(d) for d in saturdays],
+            gameweeks=len(gameweek_ids),
+        )
+        return True
+    except Exception:
+        log.exception("fixture discovery failed")
+        return False
+
+
+async def run_refresh_slate() -> bool:
+    """Firm up match day's card shortly before lock.
+
+    Discovery already walked this Saturday in days ago; this is the late pass that
+    catches a postponement or a kick-off change. Odds themselves are snapshotted onto
+    each pick at pick time and served through the provider's own TTL cache, so there
+    is nothing to warm here.
     """
     try:
         provider = await odds_session.acquire()
@@ -229,10 +259,21 @@ def create_scheduler() -> AsyncIOScheduler:
     # per-gameweek ``locks_at_utc`` predicate is the real source of truth, so an off-by-a-run
     # firing still resolves correctly; the cron just decides when to look.
     scheduler.add_job(
+        run_discover_fixtures,
+        trigger="cron",
+        hour=6,
+        minute=0,
+        timezone="Europe/London",
+        id="discover_fixtures",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+    )
+    scheduler.add_job(
         run_refresh_slate,
         trigger="cron",
-        day_of_week="mon-sat",
-        hour="9,12,14",  # a few times pre-lock on match day; keeps the slate fresh midweek
+        day_of_week="sat",
+        hour="9,13",  # the late pass on match day — midweek is the daily discovery job's
         minute=0,
         timezone="Europe/London",
         id="refresh_slate",

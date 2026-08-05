@@ -11,6 +11,7 @@ naive-UTC to match the rest of the schema.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -30,6 +31,10 @@ _UK_TZ = ZoneInfo("Europe/London")
 _LOCK_HOUR = 14
 _LOCK_MINUTE = 30  # picks lock 14:30 Saturday — 30 min before the 15:00 kick-offs
 _SATURDAY = 5  # date.weekday(): Monday=0 … Saturday=5
+
+# Tier boundaries for how stale a browsed price may be (see slate_odds_max_age).
+_NEAR_LOCK_SECONDS = 6 * 3600
+_MID_LOCK_SECONDS = 24 * 3600
 
 
 def _naive_utc(value: datetime) -> datetime:
@@ -121,6 +126,54 @@ def upcoming_saturday(today: date) -> date:
     current slate rather than skipping to next week.
     """
     return today + timedelta(days=(_SATURDAY - today.weekday()) % 7)
+
+
+def upcoming_saturdays(today: date, count: int) -> list[date]:
+    """The next ``count`` Saturdays starting with :func:`upcoming_saturday`.
+
+    Fixture *discovery* runs on this horizon so the card for a Saturday exists days
+    before anyone can pick on it. Pricing is deliberately not on this horizon —
+    odds are fetched on demand, because a price is only meaningful at the moment a
+    member freezes it onto a pick.
+    """
+    first = upcoming_saturday(today)
+    return [first + timedelta(weeks=offset) for offset in range(max(count, 1))]
+
+
+def slate_odds_max_age(gameweek: Gameweek, now: datetime, near_ttl: float, far_ttl: float) -> float:
+    """How stale a browsed price may be, tightening as the lock approaches.
+
+    Three tiers rather than a curve, because the cost is a step function of the TTL
+    and a legible budget matters more here than a smooth one. A locked or settled
+    gameweek gets the loosest tier: nothing can move a price that is already frozen,
+    so re-fetching it buys nothing.
+    """
+    if gameweek.status != GameweekStatus.open:
+        return far_ttl
+    until_lock = (gameweek.locks_at_utc - now).total_seconds()
+    if until_lock <= _NEAR_LOCK_SECONDS:
+        return near_ttl
+    if until_lock <= _MID_LOCK_SECONDS:
+        return far_ttl / 2
+    return far_ttl
+
+
+async def discover_fixtures(
+    db: AsyncSession, provider: OddsProvider, saturdays: Sequence[date]
+) -> list[Gameweek]:
+    """Walk each Saturday's card into ``gameweeks`` / ``fixtures``.
+
+    The pre-fetch half of Batch 11's split: discovery is scheduled and cheap
+    (one request per competition), pricing is on demand and rate-limited. Saturdays
+    the provider carries nothing for are skipped rather than left as empty
+    gameweeks. Flushes but does not commit — the caller owns the transaction.
+    """
+    discovered: list[Gameweek] = []
+    for saturday in saturdays:
+        gameweek = await refresh_slate(db, provider, saturday)
+        if gameweek is not None:
+            discovered.append(gameweek)
+    return discovered
 
 
 async def refresh_slate(

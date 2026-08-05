@@ -98,20 +98,29 @@ class CachingOddsProvider(OddsProvider):
 
     # -- the cached one --------------------------------------------------------
 
-    async def fetch_odds(self, event_ids: Sequence[str]) -> list[FixtureOdds]:
+    async def fetch_odds(
+        self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
+    ) -> list[FixtureOdds]:
         """Return odds for the given events, fetching only the ones that have gone stale.
 
         The result carries an entry per event the provider prices, in the same order the
         underlying provider would return them (sorted by event id), so callers cannot tell
         a cached response from a fresh one.
+
+        ``max_age_seconds`` tightens (never loosens) the TTL for this call. Browsing the
+        slate accepts a stale-ish price; freezing one onto a pick does not, and paying for
+        that freshness on the single fixture being picked costs one request rather than a
+        sweep of the whole card.
         """
         wanted = list(dict.fromkeys(event_ids))
         if not wanted:
             return []
 
+        ttl = self._ttl if max_age_seconds is None else min(self._ttl, max_age_seconds)
+
         async with self._lock:
             now = self._clock()
-            stale = [event_id for event_id in wanted if self._stale(event_id, now)]
+            stale = [event_id for event_id in wanted if self._stale(event_id, now, ttl)]
             if stale:
                 fetched = await self._inner.fetch_odds(stale)
                 by_event = {o.provider_event_id: o for o in fetched}
@@ -129,9 +138,9 @@ class CachingOddsProvider(OddsProvider):
         results.sort(key=lambda o: o.provider_event_id)
         return results
 
-    def _stale(self, event_id: str, now: float) -> bool:
+    def _stale(self, event_id: str, now: float, ttl: float) -> bool:
         entry = self._entries.get(event_id)
-        return entry is None or now - entry.stored_at >= self._ttl
+        return entry is None or now - entry.stored_at >= ttl
 
     def invalidate(self) -> None:
         """Drop every cached entry — used when a session is re-established."""

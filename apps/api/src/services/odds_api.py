@@ -421,7 +421,9 @@ class OddsApiProvider(OddsProvider):
         )
         return Slate(saturday=saturday, fixtures=fixtures)
 
-    async def fetch_odds(self, event_ids: Sequence[str]) -> list[FixtureOdds]:
+    async def fetch_odds(
+        self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
+    ) -> list[FixtureOdds]:
         """Snapshot the Bet365-priced Match Odds + BTTS selections for the given events.
 
         Keeps the rule the Exchange adapter established — *only offer a selection the
