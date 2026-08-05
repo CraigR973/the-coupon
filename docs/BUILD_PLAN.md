@@ -60,7 +60,7 @@ a pick until lock, and showing combined plus per-leg odds on the coupon.
 The bracketed model on each row is a recommendation sized to that batch's blast
 radius, not a rule — `/next-batch-prompt` still leaves the choice to the user.
 
-- [ ] **Batch 8 — League-aware coupon** *(Sonnet)* — bind the coupon,
+- [x] **Batch 8 — League-aware coupon** ✅ 2026-08-05 *(Sonnet)* — bind the coupon,
   combined-acca, and home pages to the active league rather than the hardcoded
   `DEFAULT_LEAGUE_SLUG` in `apps/web/src/lib/api.ts`. Small, but every
   per-league feature below is wrong without it, so it goes first.

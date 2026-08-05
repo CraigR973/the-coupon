@@ -103,3 +103,20 @@
 **Next:** Launch L5 — the odds-api.io key must be sealed into production
 (`ODDS_API_KEY`) and staging's `BF_FAKE_MODE` migrated to `ODDS_PROVIDER=fake`
 before the first-Saturday watch.
+
+## Batch 8 — League-aware coupon
+**Commits:** `6d6451e`, `990b6f8` · verified: 286 pytest + Ruff/mypy · Node build/TypeScript/ESLint + 163 Vitest
+
+### Key facts for future sessions
+- `DashboardPage`, `CouponPickPage`, and `CouponCombinedPage` have no `:slug`
+  route param — they previously hardcoded `DEFAULT_LEAGUE_SLUG` because
+  there was nowhere else to read a league from.
+- `LeagueContext` now derives `activeSlug`: the last-viewed league from
+  `leagueRecency.ts`'s localStorage key if the member still belongs to it,
+  else their first league from `/leagues/mine`, else `DEFAULT_LEAGUE_SLUG`
+  while that query is still loading/empty.
+- `/batch-start` was changed this session to implement and verify a batch
+  inline rather than stopping after branch creation; that workflow doc
+  change rode along on this branch as its own commit (`6d6451e`).
+
+**Next:** Batch 9 — Coupon presentation

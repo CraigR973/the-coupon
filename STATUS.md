@@ -46,12 +46,17 @@ deployed and configured.
 Launch also ships with **no database backup**, by owner decision recorded in
 `docs/launch/L0_PROJECT_IDENTITY.md`.
 
+Batches 8 onward come from the owner's 2026-08-05 feedback pass and proceed
+alongside launch. Batch 8 bound the coupon, combined-acca, and home pages to
+`LeagueContext`'s new `activeSlug` (last-viewed league, falling back to the
+member's first league) instead of the hardcoded `DEFAULT_LEAGUE_SLUG`.
+
 ## Verified
 
 - Backend: 294 pytest, Ruff check/format, and strict mypy
 - Database: clean `pgserver` migration through revision `005`, with forced RLS
   on all 13 public tables under a Supabase-like role setup
-- Frontend: Node 20 production build, TypeScript, ESLint, and 160 Vitest
+- Frontend: Node 20 production build, TypeScript, ESLint, and 163 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
   coupon, phone push, and PWA update behavior
@@ -82,8 +87,9 @@ Launch also ships with **no database backup**, by owner decision recorded in
 
 ## Next
 
+Batch 9 — Coupon presentation is the next unchecked build batch. In parallel,
 Launch L5 — launch and first-Saturday watch. Batch 7 shipped the odds source,
-so the remaining work is deployment and configuration:
+so the remaining launch work is deployment and configuration:
 
 - seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`;
 - migrate staging from the deprecated `BF_FAKE_MODE` to `ODDS_PROVIDER=fake`;
