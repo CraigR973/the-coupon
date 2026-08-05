@@ -9,8 +9,15 @@ import type { PickMarket, PickOutcome, PickResponse, SubmitPickBody } from '../l
 // Query keys the pick screen + combined view read; a successful grab invalidates
 // all three so the slate re-fetches taken-flags, the coupon rebuilds, and "my
 // pick" updates. Exported so the pages register under the same keys.
-export const gameweekKey = (slug: string) => ['gameweek', slug] as const;
-export const couponKey = (slug: string) => ['coupon', slug] as const;
+//
+// The gameweek is part of the key because Batch 12 made both reads browsable back
+// through the season — without it, viewing a past week would poison the cache
+// entry the current week reads from. `undefined` is the "latest" entry.
+export const gameweekKey = (slug: string, gameweekId?: string) =>
+  ['gameweek', slug, gameweekId] as const;
+export const couponKey = (slug: string, gameweekId?: string) =>
+  ['coupon', slug, gameweekId] as const;
+export const gameweekListKey = (slug: string) => ['gameweeks', slug] as const;
 export const myPickKey = (slug: string, gameweekId: string | undefined) =>
   ['my-pick', slug, gameweekId] as const;
 
@@ -58,8 +65,11 @@ export function usePickEditor(slug: string, gameweekId: string | undefined): Pic
         body: JSON.stringify(body),
       }),
     onSuccess: (pick) => {
-      void queryClient.invalidateQueries({ queryKey: gameweekKey(slug) });
-      void queryClient.invalidateQueries({ queryKey: couponKey(slug) });
+      // Prefix-matched, so every gameweek's entry for this league is refreshed —
+      // a grab changes the season list's pick counts as well as this week's slate.
+      void queryClient.invalidateQueries({ queryKey: ['gameweek', slug] });
+      void queryClient.invalidateQueries({ queryKey: ['coupon', slug] });
+      void queryClient.invalidateQueries({ queryKey: gameweekListKey(slug) });
       void queryClient.invalidateQueries({ queryKey: myPickKey(slug, gameweekId) });
       toast.success(`Grabbed ${pick.runner_name} @ ${formatOdds(pick.odds, oddsFormat)}`);
     },

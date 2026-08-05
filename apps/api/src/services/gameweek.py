@@ -11,10 +11,12 @@ naive-UTC to match the rest of the schema.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from fastapi import HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,9 +68,52 @@ def compute_locks_at(saturday: date) -> datetime:
 
 
 async def latest_gameweek(db: AsyncSession) -> Gameweek | None:
-    """The most recent gameweek by Saturday date — the one the pick screen shows."""
+    """The most recent gameweek by Saturday date — the one the pick screen defaults to."""
     result = await db.execute(select(Gameweek).order_by(Gameweek.saturday_date.desc()).limit(1))
     return result.scalar_one_or_none()
+
+
+async def gameweek_by_id(db: AsyncSession, gameweek_id: str) -> Gameweek | None:
+    """One gameweek by id, or ``None`` — including for an id that isn't a UUID.
+
+    Callers pass a raw query-string value, and a malformed id is a miss rather than
+    a 500: asking for a gameweek that cannot exist is the same as asking for one
+    that doesn't.
+    """
+    try:
+        key = uuid.UUID(gameweek_id)
+    except (ValueError, AttributeError, TypeError):
+        return None
+    return await db.get(Gameweek, key)
+
+
+async def resolve_gameweek(db: AsyncSession, gameweek_id: str | None) -> Gameweek:
+    """The requested gameweek, or the latest when none is named.
+
+    Shared by the slate and coupon reads so browsing back through the season means
+    the same thing on both. Raises 404 either way — for an empty season and for an
+    id that does not resolve — because to a client both are "there is nothing to
+    show for what you asked".
+    """
+    gameweek = (
+        await latest_gameweek(db) if gameweek_id is None else await gameweek_by_id(db, gameweek_id)
+    )
+    if gameweek is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No gameweek yet" if gameweek_id is None else "Gameweek not found",
+        )
+    return gameweek
+
+
+async def all_gameweeks(db: AsyncSession) -> list[Gameweek]:
+    """Every gameweek, newest first — the season's browsable history.
+
+    Nothing is pruned or archived, so this is the whole record. A season is about
+    forty rows, which is small enough not to need paging.
+    """
+    result = await db.execute(select(Gameweek).order_by(Gameweek.saturday_date.desc()))
+    return list(result.scalars().all())
 
 
 async def sync_slate(db: AsyncSession, slate: Slate) -> Gameweek:

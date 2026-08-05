@@ -66,6 +66,17 @@ export interface GameweekMember {
   odds: number | null;
 }
 
+/** One row of the season's history — GET /leagues/{slug}/gameweeks. */
+export interface GameweekSummary {
+  gameweek_id: string;
+  saturday_date: string; // ISO date (yyyy-mm-dd)
+  status: GameweekStatus;
+  locks_at_utc: string;
+  fixture_count: number;
+  /** Picks made in *this* league, so the same week reads differently per league. */
+  pick_count: number;
+}
+
 export interface GameweekSlate {
   gameweek_id: string;
   saturday_date: string; // ISO date (yyyy-mm-dd)

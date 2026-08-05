@@ -1,20 +1,28 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
+import { useGameweekHistory } from '../hooks/useGameweekHistory';
 import { couponKey } from '../hooks/usePickEditor';
 import type { Coupon } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
 import { CombinedAccaView } from '../components/CombinedAccaView';
+import { GameweekNav } from '../components/GameweekNav';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/ui/skeleton';
 
 /**
- * The leaderboard's combined accumulator for the current gameweek — everyone's
- * one pick stacked into a single acca to reference on a real book.
+ * The leaderboard's combined accumulator — everyone's one pick stacked into a
+ * single acca to reference on a real book. Defaults to the current gameweek and
+ * browses back through the season alongside the pick screen.
  */
 export function CouponCombinedPage() {
+  const { player } = useAuth();
+  const timezone = player?.timezone ?? 'UTC';
   const { activeSlug: slug } = useLeague();
+  const history = useGameweekHistory(slug);
+  const gameweekId = history.selectedId;
 
   const {
     data: coupon,
@@ -22,15 +30,22 @@ export function CouponCombinedPage() {
     isError,
     error,
   } = useQuery<Coupon>({
-    queryKey: couponKey(slug),
-    queryFn: () => apiFetch<Coupon>(`/api/v1/leagues/${slug}/coupon`),
+    queryKey: couponKey(slug, gameweekId),
+    queryFn: () =>
+      apiFetch<Coupon>(
+        `/api/v1/leagues/${slug}/coupon${gameweekId ? `?gameweek_id=${gameweekId}` : ''}`,
+      ),
     staleTime: 30_000,
   });
 
   return (
     <div>
-      <PageHeader title="Combined coupon" eyebrow="This week" />
+      <PageHeader
+        title="Combined coupon"
+        eyebrow={history.isLatest ? 'This week' : 'Earlier in the season'}
+      />
       <CouponSubNav />
+      <GameweekNav history={history} timezone={timezone} />
 
       {isLoading && (
         <div className="space-y-3" aria-label="Loading combined coupon">

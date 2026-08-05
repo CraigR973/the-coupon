@@ -1,6 +1,7 @@
-"""The weekly pick screen — this Saturday's slate with live odds and taken selections.
+"""The weekly pick screen — a gameweek's slate with live odds and taken selections.
 
-``GET /api/v1/leagues/{slug}/gameweek/current`` returns the latest gameweek's fixtures,
+``GET /api/v1/leagues/{slug}/gameweeks`` lists the season, newest first.
+``GET /api/v1/leagues/{slug}/gameweek/current`` returns a gameweek's fixtures,
 each with the currently-priced selections, marking which are already grabbed in this
 leaderboard (and which is the caller's own). It's a read view; grabbing happens via
 ``POST .../picks``.
@@ -10,13 +11,14 @@ out by ``deps.get_odds_provider`` caches: fifteen members refreshing this page m
 turn into fifteen upstream calls against a 100/hour quota.
 """
 
+import uuid
 from datetime import UTC, date, datetime
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser
@@ -28,7 +30,7 @@ from src.models.league import PickScope
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
-from src.services.gameweek import latest_gameweek, slate_odds_max_age
+from src.services.gameweek import all_gameweeks, resolve_gameweek, slate_odds_max_age
 from src.services.odds_provider import FixtureOdds
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -86,6 +88,18 @@ class GameweekMember(BaseModel):
     odds: float | None
 
 
+class GameweekListEntry(BaseModel):
+    """One row of the season's history — enough to label and choose it."""
+
+    gameweek_id: str
+    saturday_date: date
+    status: str
+    locks_at_utc: datetime
+    fixture_count: int
+    # Picks made in *this* league, so the same gameweek reads differently per league.
+    pick_count: int
+
+
 class GameweekSlateResponse(BaseModel):
     gameweek_id: str
     saturday_date: date
@@ -98,6 +112,48 @@ class GameweekSlateResponse(BaseModel):
     pick_scope: str
 
 
+@router.get("/{slug}/gameweeks", response_model=list[GameweekListEntry])
+async def list_gameweeks(
+    slug: str,
+    league: LeagueMemberDep,
+    db: Db,
+) -> list[GameweekListEntry]:
+    """The season so far, newest first — what makes past weeks browsable.
+
+    Every gameweek ever synced is still in the table, so this is the whole record
+    with nothing to backfill. Counts are per league, because the same Saturday has
+    a different set of picks in each one.
+    """
+    gameweeks = await all_gameweeks(db)
+    if not gameweeks:
+        return []
+
+    fixture_rows = await db.execute(
+        select(Fixture.gameweek_id, func.count())
+        .where(Fixture.gameweek_id.in_([g.id for g in gameweeks]))
+        .group_by(Fixture.gameweek_id)
+    )
+    fixture_counts: dict[uuid.UUID, int] = {row[0]: row[1] for row in fixture_rows.all()}
+
+    pick_rows = await db.execute(
+        select(Pick.gameweek_id, func.count())
+        .where(Pick.league_id == league.id)
+        .group_by(Pick.gameweek_id)
+    )
+    pick_counts: dict[uuid.UUID, int] = {row[0]: row[1] for row in pick_rows.all()}
+    return [
+        GameweekListEntry(
+            gameweek_id=str(gameweek.id),
+            saturday_date=gameweek.saturday_date,
+            status=gameweek.status.value,
+            locks_at_utc=gameweek.locks_at_utc,
+            fixture_count=fixture_counts.get(gameweek.id, 0),
+            pick_count=pick_counts.get(gameweek.id, 0),
+        )
+        for gameweek in gameweeks
+    ]
+
+
 @router.get("/{slug}/gameweek/current", response_model=GameweekSlateResponse)
 async def current_gameweek(
     slug: str,
@@ -105,10 +161,10 @@ async def current_gameweek(
     league: LeagueMemberDep,
     provider: OddsProviderDep,
     db: Db,
+    gameweek_id: str | None = None,
 ) -> GameweekSlateResponse:
-    gameweek = await latest_gameweek(db)
-    if gameweek is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No gameweek yet")
+    """A gameweek's slate — the latest by default, or ``gameweek_id`` when browsing back."""
+    gameweek = await resolve_gameweek(db, gameweek_id)
 
     fixtures_result = await db.execute(
         select(Fixture)

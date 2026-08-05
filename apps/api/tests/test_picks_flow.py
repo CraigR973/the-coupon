@@ -647,3 +647,114 @@ async def test_switching_scope_restamps_pending_picks(
             )
         )
         assert set(scopes.scalars().all()) == {PickScope.fixture}
+
+
+# ── Batch 12: browsing back through the season ───────────────────────────────
+
+
+async def test_gameweek_list_counts_fixtures_and_this_leagues_picks(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The season list is the browsable history, counted per league."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), league = await _seed_league(session, ["alice", "bob"])
+        older = await _open_sample_gameweek_as_latest(session, fake)
+        newer = await _open_sample_gameweek_as_latest(session, fake)
+        newer_fixtures = await _fixture_ids(session, newer.id)
+    slug = league.slug
+
+    assert (
+        await _submit(
+            client, slug, alice, newer_fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME"
+        )
+    ).status_code == 201
+
+    listed = (await client.get(f"/api/v1/leagues/{slug}/gameweeks", headers=_auth(alice))).json()
+    by_id = {row["gameweek_id"]: row for row in listed}
+
+    # Newest first, and both gameweeks are retained — nothing is pruned.
+    assert [row["gameweek_id"] for row in listed][:2] == [str(newer.id), str(older.id)]
+    assert by_id[str(newer.id)]["pick_count"] == 1
+    assert by_id[str(older.id)]["pick_count"] == 0
+    assert by_id[str(newer.id)]["fixture_count"] >= 2
+
+    # Picks are league-scoped, so another league sees the same gameweeks with no picks.
+    async with AsyncSessionLocal() as session:
+        (carol,), other_league = await _seed_league(session, ["carol"])
+    other = (
+        await client.get(f"/api/v1/leagues/{other_league.slug}/gameweeks", headers=_auth(carol))
+    ).json()
+    assert {row["gameweek_id"]: row["pick_count"] for row in other}[str(newer.id)] == 0
+
+
+async def test_slate_and_coupon_read_a_named_gameweek(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Both reads default to the latest and both accept an explicit gameweek."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["alice"])
+        older = await _open_sample_gameweek_as_latest(session, fake)
+        older_fixtures = await _fixture_ids(session, older.id)
+        newer = await _open_sample_gameweek_as_latest(session, fake)
+    slug = league.slug
+
+    # A pick on the *older* gameweek only.
+    assert (
+        await _submit(
+            client, slug, alice, older_fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME"
+        )
+    ).status_code == 201
+
+    # Default: the latest gameweek, which has no picks.
+    default_slate = (
+        await client.get(f"/api/v1/leagues/{slug}/gameweek/current", headers=_auth(alice))
+    ).json()
+    assert default_slate["gameweek_id"] == str(newer.id)
+    assert default_slate["members_missing_picks"] == 1
+
+    # Named: the older one, where Alice's pick is still visible.
+    past_slate = (
+        await client.get(
+            f"/api/v1/leagues/{slug}/gameweek/current?gameweek_id={older.id}",
+            headers=_auth(alice),
+        )
+    ).json()
+    assert past_slate["gameweek_id"] == str(older.id)
+    assert past_slate["members_missing_picks"] == 0
+
+    past_coupon = (
+        await client.get(
+            f"/api/v1/leagues/{slug}/coupon?gameweek_id={older.id}", headers=_auth(alice)
+        )
+    ).json()
+    assert past_coupon["gameweek_id"] == str(older.id)
+    assert past_coupon["leg_count"] == 1
+
+    default_coupon = (
+        await client.get(f"/api/v1/leagues/{slug}/coupon", headers=_auth(alice))
+    ).json()
+    assert default_coupon["gameweek_id"] == str(newer.id)
+    assert default_coupon["leg_count"] == 0
+
+
+async def test_an_unknown_or_malformed_gameweek_id_is_a_404(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """A query-string id the caller invented must 404, not 500."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["alice"])
+        await _open_sample_gameweek_as_latest(session, fake)
+    slug = league.slug
+
+    for bad in (str(uuid.uuid4()), "not-a-uuid", ""):
+        slate = await client.get(
+            f"/api/v1/leagues/{slug}/gameweek/current?gameweek_id={bad}", headers=_auth(alice)
+        )
+        coupon = await client.get(
+            f"/api/v1/leagues/{slug}/coupon?gameweek_id={bad}", headers=_auth(alice)
+        )
+        assert slate.status_code == 404, f"{bad!r} → {slate.text}"
+        assert coupon.status_code == 404, f"{bad!r} → {coupon.text}"

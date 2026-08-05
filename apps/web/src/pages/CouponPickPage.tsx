@@ -6,6 +6,7 @@ import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
 import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
+import { useGameweekHistory } from '../hooks/useGameweekHistory';
 import { useOddsFormat } from '../hooks/useOddsFormat';
 import { usePickEditor, gameweekKey } from '../hooks/usePickEditor';
 import type {
@@ -22,6 +23,7 @@ import { CouponSubNav } from '../components/CouponSubNav';
 import { OddsGuide } from '../components/OddsGuide';
 import { PickCard } from '../components/PickCard';
 import { MemberRoster } from '../components/MemberRoster';
+import { GameweekNav } from '../components/GameweekNav';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/ui/skeleton';
 import { Badge } from '../components/ui/badge';
@@ -79,6 +81,8 @@ export function CouponPickPage() {
   const timezone = player?.timezone ?? 'UTC';
   const oddsFormat = useOddsFormat();
   const { activeSlug: slug } = useLeague();
+  const history = useGameweekHistory(slug);
+  const gameweekId = history.selectedId;
 
   const {
     data: slate,
@@ -86,8 +90,11 @@ export function CouponPickPage() {
     isError,
     error,
   } = useQuery<GameweekSlate>({
-    queryKey: gameweekKey(slug),
-    queryFn: () => apiFetch<GameweekSlate>(`/api/v1/leagues/${slug}/gameweek/current`),
+    queryKey: gameweekKey(slug, gameweekId),
+    queryFn: () =>
+      apiFetch<GameweekSlate>(
+        `/api/v1/leagues/${slug}/gameweek/current${gameweekId ? `?gameweek_id=${gameweekId}` : ''}`,
+      ),
     staleTime: 30_000,
   });
 
@@ -101,12 +108,13 @@ export function CouponPickPage() {
   return (
     <div>
       <PageHeader
-        title="This week's coupon"
+        title={history.isLatest ? "This week's coupon" : 'Past coupon'}
         eyebrow={
           slate ? formatInTimeZone(new Date(slate.saturday_date), timezone, 'EEE d MMM yyyy') : 'Saturday slate'
         }
       />
       <CouponSubNav />
+      <GameweekNav history={history} timezone={timezone} />
 
       {/* Lock / countdown banner */}
       {slate && (

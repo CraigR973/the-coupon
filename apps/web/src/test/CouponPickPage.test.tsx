@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -85,6 +85,25 @@ const SLATE: GameweekSlate = {
   pick_scope: 'selection',
 };
 
+const GAMEWEEKS = [
+  {
+    gameweek_id: 'gw1',
+    saturday_date: '2026-08-08',
+    status: 'open',
+    locks_at_utc: '2999-01-01T14:30:00Z',
+    fixture_count: 2,
+    pick_count: 1,
+  },
+  {
+    gameweek_id: 'gw0',
+    saturday_date: '2026-08-01',
+    status: 'settled',
+    locks_at_utc: '2026-08-01T13:30:00Z',
+    fixture_count: 3,
+    pick_count: 2,
+  },
+];
+
 function stubAuth() {
   vi.stubGlobal('localStorage', {
     getItem: (k: string) => {
@@ -103,6 +122,9 @@ function stubFetchWithSlate() {
     if (String(url).includes('/gameweek/current')) {
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(SLATE) });
     }
+    if (String(url).includes('/gameweeks')) {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(GAMEWEEKS) });
+    }
     if (String(url).includes('/leagues/mine')) {
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([MOCK_LEAGUE]) });
     }
@@ -110,11 +132,11 @@ function stubFetchWithSlate() {
   });
 }
 
-function renderPage() {
+function renderPage(entries: string[] = ['/predictions']) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/predictions']}>
+      <MemoryRouter initialEntries={entries}>
         <AuthProvider>
           <LeagueProvider>
             <CouponPickPage />
@@ -179,6 +201,48 @@ describe('CouponPickPage', () => {
     const roster = await screen.findByTestId('member-roster');
     expect(roster.textContent).toContain('1 of 2 picked');
     expect(roster.textContent).toContain('1 to go');
+  });
+
+  it('offers navigation back through the season', async () => {
+    renderPage();
+    const nav = await screen.findByTestId('gameweek-nav');
+    // Newest gameweek: nothing newer to go to, but there is something older.
+    expect(within(nav).getByLabelText('Newer gameweek')).toBeDisabled();
+    expect(within(nav).getByLabelText('Older gameweek')).not.toBeDisabled();
+    expect(nav.textContent).toContain('Open');
+    // pick_count / fixture_count for the selected week.
+    expect(nav.textContent).toContain('1/2');
+  });
+
+  it('requests the named gameweek and offers a way back to the latest', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (String(url).includes('/gameweeks')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(GAMEWEEKS) });
+      }
+      if (String(url).includes('/gameweek/current')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(SLATE) });
+      }
+      if (String(url).includes('/leagues/mine')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([MOCK_LEAGUE]) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage(['/predictions?gw=gw0']);
+    const nav = await screen.findByTestId('gameweek-nav');
+
+    await waitFor(() => {
+      const asked = fetchMock.mock.calls.some(([url]) =>
+        String(url).includes('/gameweek/current?gameweek_id=gw0'),
+      );
+      expect(asked).toBe(true);
+    });
+
+    // Viewing a past week: the header says so and a "latest" escape appears.
+    expect(screen.getByText('Past coupon')).toBeTruthy();
+    expect(within(nav).getByTestId('gameweek-latest')).toBeTruthy();
+    expect(within(nav).getByLabelText('Older gameweek')).toBeDisabled();
   });
 
   it('lists every member and flags the ones yet to pick', async () => {
