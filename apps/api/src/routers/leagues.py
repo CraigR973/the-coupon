@@ -8,15 +8,16 @@ from typing import Annotated, Any
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser, generate_join_code
 from src.database import get_db
-from src.models.league import League, LeaguePrivacy
+from src.models.league import League, LeaguePrivacy, PickScope
 from src.models.league_join_request import JoinRequestStatus, LeagueJoinRequest
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.notification import ActionType, ActorType, AuditLog
+from src.models.pick import Pick, PickStatus
 from src.models.profile import Profile, UserRole
 from src.rate_limit import limiter, per_user_key
 from src.services.notification_triggers import notify_member_joined
@@ -151,6 +152,8 @@ class CreateLeagueRequest(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     privacy: LeaguePrivacy = LeaguePrivacy.private
     max_members: int = Field(default=15, ge=2, le=50)
+    # Defaults to the original rule so a league's behaviour is never a surprise.
+    pick_scope: PickScope = PickScope.selection
 
 
 class UpdateLeagueRequest(BaseModel):
@@ -158,6 +161,7 @@ class UpdateLeagueRequest(BaseModel):
     description: str | None = None
     privacy: LeaguePrivacy | None = None
     max_members: int | None = Field(default=None, ge=2, le=50)
+    pick_scope: PickScope | None = None
 
 
 class LeagueResponse(BaseModel):
@@ -167,6 +171,7 @@ class LeagueResponse(BaseModel):
     description: str | None
     privacy: str
     max_members: int
+    pick_scope: str
     member_count: int
     created_by: str
     created_at: datetime
@@ -221,6 +226,43 @@ def _audit(
         target_table=target_table,
         target_id=target_id,
         changes=changes,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Pick-scope transition
+# ---------------------------------------------------------------------------
+
+
+async def _apply_pick_scope_change(league: League, new_scope: PickScope, db: AsyncSession) -> None:
+    """Restamp this league's unsettled picks with the new scope.
+
+    ``picks.pick_scope`` is what the partial fixture-level unique index reads, so
+    leaving old rows on the old scope would exempt them from the rule the league
+    just adopted. Only ``pending`` picks are restamped: a settled gameweek was
+    played under the rule in force at the time and is not rewritten.
+
+    Tightening to ``fixture`` is refused when it would immediately be violated —
+    two members already holding one game. Reporting that is far kinder than
+    letting the index raise ``IntegrityError`` on an unrelated later write.
+    """
+    if new_scope is PickScope.fixture:
+        clash = await db.execute(
+            select(Pick.gameweek_id, Pick.fixture_id)
+            .where(Pick.league_id == league.id, Pick.status == PickStatus.pending)
+            .group_by(Pick.gameweek_id, Pick.fixture_id)
+            .having(func.count() > 1)
+        )
+        if clash.first() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="PICK_SCOPE_CONFLICT",
+            )
+
+    await db.execute(
+        update(Pick)
+        .where(Pick.league_id == league.id, Pick.status == PickStatus.pending)
+        .values(pick_scope=new_scope)
     )
 
 
@@ -318,6 +360,7 @@ async def create_league(
         description=body.description,
         privacy=body.privacy,
         max_members=body.max_members,
+        pick_scope=body.pick_scope,
         created_by=player.id,
         created_at=_now(),
         join_code=generate_join_code(),
@@ -355,6 +398,7 @@ async def create_league(
         description=league.description,
         privacy=league.privacy.value,
         max_members=league.max_members,
+        pick_scope=league.pick_scope.value,
         member_count=1,
         created_by=str(league.created_by),
         created_at=league.created_at,
@@ -539,6 +583,7 @@ class LeagueDetailResponse(BaseModel):
     description: str | None
     privacy: str
     max_members: int
+    pick_scope: str
     member_count: int
     created_by: str
     created_at: datetime
@@ -599,6 +644,7 @@ async def get_league(
         description=league.description,
         privacy=league.privacy.value,
         max_members=league.max_members,
+        pick_scope=league.pick_scope.value,
         member_count=member_count,
         created_by=str(league.created_by),
         created_at=league.created_at,
@@ -642,6 +688,11 @@ async def update_league(
         changes["max_members"] = {"from": league.max_members, "to": body.max_members}
         league.max_members = body.max_members
 
+    if body.pick_scope is not None and body.pick_scope != league.pick_scope:
+        await _apply_pick_scope_change(league, body.pick_scope, db)
+        changes["pick_scope"] = {"from": league.pick_scope.value, "to": body.pick_scope.value}
+        league.pick_scope = body.pick_scope
+
     privacy_changed = body.privacy is not None and body.privacy != league.privacy
     if privacy_changed:
         old_privacy = league.privacy
@@ -679,6 +730,7 @@ async def update_league(
         description=league.description,
         privacy=league.privacy.value,
         max_members=league.max_members,
+        pick_scope=league.pick_scope.value,
         member_count=member_count,
         created_by=str(league.created_by),
         created_at=league.created_at,

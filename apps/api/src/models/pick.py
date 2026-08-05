@@ -10,11 +10,13 @@ from sqlalchemy import (
     Numeric,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base, UpdatedAtMixin, UUIDPrimaryKeyMixin
+from src.models.league import PickScope
 
 
 class PickMarket(StrEnum):
@@ -54,16 +56,23 @@ class PickStatus(StrEnum):
 class Pick(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     """One member's single selection for a gameweek, scoped to a leaderboard.
 
-    Two unique constraints implement the game's core rules:
+    Three keys implement the game's core rules:
 
     * ``uq_picks_league_gameweek_player`` — **one pick per member per gameweek**.
     * ``uq_picks_league_gameweek_selection`` — **no two members hold the same selection**
       (the first-come land-grab). Keyed on ``(fixture, market, outcome)``.
+    * ``uq_picks_league_gameweek_fixture`` — **no two members hold the same game**, for
+      leagues on the fixture rule only. A *partial* unique index, because the rule is
+      per-league and an index predicate cannot join to ``leagues`` — hence
+      ``pick_scope`` denormalised onto each row at write time.
 
-    That second key is also how a pick settles. Revision ``005`` dropped the Betfair
-    market and selection ids this table used to carry: ``(fixture, market, outcome)``
-    already identifies a selection exactly, so no provider's identifiers need to survive
-    into the database, and settlement works the same whoever priced the fixture.
+    The fixture key implies the selection key, so both hold in fixture mode and the
+    selection key alone holds in selection mode.
+
+    ``(fixture, market, outcome)`` is also how a pick settles. Revision ``005`` dropped
+    the Betfair market and selection ids this table used to carry: that triple already
+    identifies a selection exactly, so no provider's identifiers need to survive into the
+    database, and settlement works the same whoever priced the fixture.
 
     Odds are frozen at pick time in ``odds_at_pick``. ``points_awarded`` stays null until
     the gameweek is settled.
@@ -81,6 +90,14 @@ class Pick(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
             "market",
             "outcome",
             name="uq_picks_league_gameweek_selection",
+        ),
+        Index(
+            "uq_picks_league_gameweek_fixture",
+            "league_id",
+            "gameweek_id",
+            "fixture_id",
+            unique=True,
+            postgresql_where=text("pick_scope = 'fixture'"),
         ),
         Index("ix_picks_league_gameweek", "league_id", "gameweek_id"),
         Index("ix_picks_player_id", "player_id"),
@@ -111,4 +128,11 @@ class Pick(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
         Enum(PickStatus, name="pick_status", create_type=False),
         nullable=False,
         server_default="pending",
+    )
+    # Copied from the owning league when the pick is written. Only the partial
+    # index above reads it — never treat it as the league's current setting.
+    pick_scope: Mapped[PickScope] = mapped_column(
+        Enum(PickScope, name="pick_scope", create_type=False),
+        nullable=False,
+        server_default="selection",
     )

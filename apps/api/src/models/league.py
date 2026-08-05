@@ -25,6 +25,21 @@ class LeaguePrivacy(StrEnum):
     public_open = "public_open"
 
 
+class PickScope(StrEnum):
+    """How much of a fixture one member's claim takes.
+
+    ``selection`` is the original rule: a member claims exactly one
+    ``(fixture, market, outcome)`` and other members may claim the rest of that
+    game. ``fixture`` makes a claim take the whole game.
+
+    The choice is per-league and shrinks the pick pool roughly fivefold, which
+    matters when the roster is large relative to the slate.
+    """
+
+    selection = "selection"
+    fixture = "fixture"
+
+
 class League(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     __tablename__ = "leagues"
     __table_args__ = (
@@ -44,6 +59,11 @@ class League(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
         server_default="private",
     )
     max_members: Mapped[int] = mapped_column(Integer, nullable=False, server_default="15")
+    pick_scope: Mapped[PickScope] = mapped_column(
+        Enum(PickScope, name="pick_scope", create_type=False),
+        nullable=False,
+        server_default="selection",
+    )
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("profiles.id"), nullable=False
     )

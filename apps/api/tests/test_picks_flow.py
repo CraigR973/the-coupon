@@ -22,7 +22,7 @@ from decimal import Decimal
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient, Response
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,8 +32,8 @@ from src.deps import get_odds_provider
 from src.main import app
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus
-from src.models.league import League
-from src.models.league_membership import LeagueMembership
+from src.models.league import League, PickScope
+from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile, UserRole
 from src.services import coupon as coupon_svc
@@ -428,3 +428,222 @@ async def test_one_member_holding_two_selections_is_named_once(
     marker = {f["fixture_id"]: f for f in slate["fixtures"]}[epl]
     assert len(marker["taken_by_names"]) == 1
     assert slate["members_missing_picks"] == 0
+
+
+# ── Batch 10: the per-league fixture rule ────────────────────────────────────
+
+
+async def _set_pick_scope(league: League, scope: PickScope) -> None:
+    async with AsyncSessionLocal() as session:
+        await session.execute(update(League).where(League.id == league.id).values(pick_scope=scope))
+        await session.commit()
+
+
+async def test_fixture_scope_takes_the_whole_game(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Under the fixture rule, claiming any market on a game takes every market."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), league = await _seed_league(session, ["alice", "bob"])
+        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    await _set_pick_scope(league, PickScope.fixture)
+    epl, sl2 = fixtures[SAMPLE_EPL_EVENT_ID], fixtures[SAMPLE_SL2_EVENT_ID]
+    slug = league.slug
+
+    assert (await _submit(client, slug, alice, epl, "MATCH_ODDS", "HOME")).status_code == 201
+
+    # Bob is refused every other market on the same game — the away side, the
+    # draw, and BTTS — all of which the selection rule would have allowed.
+    for market, outcome in (
+        ("MATCH_ODDS", "AWAY"),
+        ("MATCH_ODDS", "DRAW"),
+        ("BOTH_TEAMS_TO_SCORE", "YES"),
+    ):
+        refused = await _submit(client, slug, bob, epl, market, outcome)
+        assert refused.status_code == 409, f"{market}:{outcome} → {refused.text}"
+        assert refused.json()["detail"] == "FIXTURE_TAKEN"
+
+    # A different game is still his for the taking.
+    assert (await _submit(client, slug, bob, sl2, "MATCH_ODDS", "HOME")).status_code == 201
+
+
+async def test_fixture_scope_hides_every_selection_on_a_claimed_game(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The slate must not offer selections the submit endpoint is bound to refuse."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), league = await _seed_league(session, ["alice", "bob"])
+        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    await _set_pick_scope(league, PickScope.fixture)
+    epl = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    assert (await _submit(client, league.slug, alice, epl, "MATCH_ODDS", "HOME")).status_code == 201
+
+    slate = (
+        await client.get(f"/api/v1/leagues/{league.slug}/gameweek/current", headers=_auth(bob))
+    ).json()
+    assert slate["pick_scope"] == "fixture"
+    claimed = {f["fixture_id"]: f for f in slate["fixtures"]}[epl]
+    assert claimed["selections"], "the fixture should still be priced"
+    for selection in claimed["selections"]:
+        assert selection["taken_by_player_id"] == str(alice.id)
+        assert selection["mine"] is False
+
+    # Alice sees the same game as entirely hers.
+    alice_slate = (
+        await client.get(f"/api/v1/leagues/{league.slug}/gameweek/current", headers=_auth(alice))
+    ).json()
+    alice_claimed = {f["fixture_id"]: f for f in alice_slate["fixtures"]}[epl]
+    assert all(s["mine"] is True for s in alice_claimed["selections"])
+
+
+async def test_fixture_scope_still_lets_a_member_repick_within_their_own_game(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """A member owns the whole game, so switching market inside it is not a conflict."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["solo"])
+        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    await _set_pick_scope(league, PickScope.fixture)
+    epl = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    assert (await _submit(client, league.slug, alice, epl, "MATCH_ODDS", "HOME")).status_code == 201
+    switched = await _submit(client, league.slug, alice, epl, "BOTH_TEAMS_TO_SCORE", "YES")
+    assert switched.status_code == 201, switched.text
+    assert switched.json()["outcome"] == "YES"
+
+
+async def test_the_fixture_index_is_the_race_backstop(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The partial unique index rejects a second holder even past the pre-check."""
+    _, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), league = await _seed_league(session, ["alice", "bob"])
+        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    await _set_pick_scope(league, PickScope.fixture)
+    epl = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    async with AsyncSessionLocal() as session:
+        for player, outcome in ((alice, PickOutcome.HOME), (bob, PickOutcome.AWAY)):
+            session.add(
+                Pick(
+                    league_id=league.id,
+                    gameweek_id=gameweek.id,
+                    fixture_id=uuid.UUID(epl),
+                    player_id=player.id,
+                    market=PickMarket.MATCH_ODDS,
+                    outcome=outcome,
+                    runner_name="whoever",
+                    odds_at_pick=Decimal("2.00"),
+                    pick_scope=PickScope.fixture,
+                )
+            )
+        with pytest.raises(IntegrityError):
+            await session.commit()
+
+    # The same two rows are fine under the selection rule — the index is partial.
+    async with AsyncSessionLocal() as session:
+        for player, outcome in ((alice, PickOutcome.HOME), (bob, PickOutcome.AWAY)):
+            session.add(
+                Pick(
+                    league_id=league.id,
+                    gameweek_id=gameweek.id,
+                    fixture_id=uuid.UUID(epl),
+                    player_id=player.id,
+                    market=PickMarket.MATCH_ODDS,
+                    outcome=outcome,
+                    runner_name="whoever",
+                    odds_at_pick=Decimal("2.00"),
+                    pick_scope=PickScope.selection,
+                )
+            )
+        await session.commit()
+
+
+async def test_tightening_to_fixture_scope_is_refused_when_it_would_break(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Two members already sharing a game must not be silently made illegal."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), league = await _seed_league(session, ["alice", "bob"])
+        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    epl = fixtures[SAMPLE_EPL_EVENT_ID]
+    slug = league.slug
+
+    assert (await _submit(client, slug, alice, epl, "MATCH_ODDS", "HOME")).status_code == 201
+    assert (await _submit(client, slug, bob, epl, "MATCH_ODDS", "AWAY")).status_code == 201
+
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(LeagueMembership)
+            .where(
+                LeagueMembership.league_id == league.id,
+                LeagueMembership.player_id == alice.id,
+            )
+            .values(role=LeagueMemberRole.admin)
+        )
+        await session.commit()
+
+    refused = await client.patch(
+        f"/api/v1/leagues/{slug}",
+        json={"pick_scope": "fixture"},
+        headers=_auth(alice),
+    )
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "PICK_SCOPE_CONFLICT"
+
+    # Nothing changed: the league is still on the selection rule.
+    detail = await client.get(f"/api/v1/leagues/{slug}", headers=_auth(alice))
+    assert detail.json()["pick_scope"] == "selection"
+
+
+async def test_switching_scope_restamps_pending_picks(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Old rows must not be exempted from the rule their league just adopted."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), league = await _seed_league(session, ["alice", "bob"])
+        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    epl, sl2 = fixtures[SAMPLE_EPL_EVENT_ID], fixtures[SAMPLE_SL2_EVENT_ID]
+    slug = league.slug
+
+    # Different games, so tightening the rule is legal.
+    assert (await _submit(client, slug, alice, epl, "MATCH_ODDS", "HOME")).status_code == 201
+    assert (await _submit(client, slug, bob, sl2, "MATCH_ODDS", "HOME")).status_code == 201
+
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(LeagueMembership)
+            .where(
+                LeagueMembership.league_id == league.id,
+                LeagueMembership.player_id == alice.id,
+            )
+            .values(role=LeagueMemberRole.admin)
+        )
+        await session.commit()
+
+    ok = await client.patch(
+        f"/api/v1/leagues/{slug}", json={"pick_scope": "fixture"}, headers=_auth(alice)
+    )
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["pick_scope"] == "fixture"
+
+    async with AsyncSessionLocal() as session:
+        scopes = await session.execute(
+            select(Pick.pick_scope).where(
+                Pick.league_id == league.id, Pick.gameweek_id == gameweek.id
+            )
+        )
+        assert set(scopes.scalars().all()) == {PickScope.fixture}

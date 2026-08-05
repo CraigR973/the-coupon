@@ -14,6 +14,11 @@ export type GameweekStatus = 'open' | 'locked' | 'settled';
 export type PickStatus = 'pending' | 'won' | 'lost' | 'void';
 /** How a member reads prices. Display only — scoring is always decimal. */
 export type OddsFormat = 'decimal' | 'fractional';
+/**
+ * How much of a fixture one claim takes. `selection` is the original rule;
+ * `fixture` makes claiming any market on a game take the whole game.
+ */
+export type PickScope = 'selection' | 'fixture';
 
 // ── Gameweek slate — GET /leagues/{slug}/gameweek/current ──────────────────
 
@@ -69,6 +74,8 @@ export interface GameweekSlate {
   fixtures: FixtureSlate[];
   members: GameweekMember[];
   members_missing_picks: number;
+  /** The league's claim rule, so the UI can explain why a whole game is gone. */
+  pick_scope: PickScope;
 }
 
 // ── Pick — POST /leagues/{slug}/picks · GET .../gameweeks/{id}/pick ─────────
@@ -143,6 +150,7 @@ export interface LeagueSummary {
   privacy: 'public_open' | 'public_request' | 'private';
   member_count: number;
   max_members: number | null;
+  pick_scope: PickScope;
   created_at: string;
 }
 

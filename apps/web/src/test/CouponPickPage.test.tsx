@@ -82,6 +82,7 @@ const SLATE: GameweekSlate = {
     },
   ],
   members_missing_picks: 1,
+  pick_scope: 'selection',
 };
 
 function stubAuth() {

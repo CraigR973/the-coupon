@@ -5,12 +5,17 @@ pick for the gameweek. The endpoint snapshots the odds itself, so the frozen pri
 authoritative rather than client-supplied, and it enforces both game rules:
 
 * one pick per member per gameweek (a re-pick updates in place, freeing the old selection);
-* no two members holding the same selection (first-come; a taken selection → 409).
+* no two members holding the same claim (first-come; a taken claim → 409).
+
+How much a claim covers is the league's ``pick_scope``: one ``(fixture, market,
+outcome)`` under the original ``selection`` rule, or the entire game under ``fixture``.
+The refusal is ``SELECTION_TAKEN`` or ``FIXTURE_TAKEN`` accordingly.
 
 The unique constraints on ``picks`` are the race backstop — a concurrent grab that slips
 past the pre-check trips ``IntegrityError`` and is reported as a conflict.
 """
 
+import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -26,6 +31,7 @@ from src.database import get_db
 from src.deps import LeagueMemberDep, OddsProviderDep
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek
+from src.models.league import League, PickScope
 from src.models.pick import Pick, PickMarket, PickOutcome
 from src.rate_limit import limiter, per_user_key
 from src.services.gameweek import is_open_for_picks
@@ -108,19 +114,11 @@ async def submit_pick(
 
     selection = await _snapshot_selection(provider, fixture, body.market, body.outcome)
 
-    # Pre-check: is this exact selection already held by another member?
-    taken = await db.execute(
-        select(Pick).where(
-            Pick.league_id == league.id,
-            Pick.gameweek_id == gameweek.id,
-            Pick.fixture_id == fixture.id,
-            Pick.market == body.market,
-            Pick.outcome == body.outcome,
-        )
-    )
-    held = taken.scalar_one_or_none()
-    if held is not None and held.player_id != player.id:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="SELECTION_TAKEN")
+    # Pre-check: has another member already claimed this? How much of the fixture a
+    # claim covers is the league's choice — one selection, or the whole game.
+    conflict_detail = await _claim_conflict(db, league, gameweek, fixture, body, player.id)
+    if conflict_detail is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=conflict_detail)
 
     # One pick per member per gameweek: update in place if they already have one.
     existing = await db.execute(
@@ -134,15 +132,15 @@ async def submit_pick(
     if pick is None:
         pick = Pick(league_id=league.id, gameweek_id=gameweek.id, player_id=player.id)
         db.add(pick)
-    _apply_selection(pick, fixture, body, selection)
+    _apply_selection(pick, fixture, body, selection, league.pick_scope)
 
     try:
         await db.commit()
     except IntegrityError:
-        # A concurrent grab won the selection (or the member's pick) between pre-check
+        # A concurrent grab won the claim (or the member's pick) between pre-check
         # and commit — the unique constraints are the source of truth.
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="SELECTION_TAKEN")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_taken_detail(league))
     await db.refresh(pick)
 
     log.info(
@@ -215,17 +213,60 @@ async def _snapshot_selection(
     )
 
 
+def _taken_detail(league: League) -> str:
+    """The conflict code for a claim this league's rule refuses."""
+    return "FIXTURE_TAKEN" if league.pick_scope is PickScope.fixture else "SELECTION_TAKEN"
+
+
+async def _claim_conflict(
+    db: AsyncSession,
+    league: League,
+    gameweek: Gameweek,
+    fixture: Fixture,
+    body: SubmitPickRequest,
+    player_id: uuid.UUID,
+) -> str | None:
+    """The conflict code if another member already holds this claim, else ``None``.
+
+    Under ``selection`` scope only the exact ``(fixture, market, outcome)`` is
+    contested. Under ``fixture`` scope any pick on the game blocks, which is the
+    whole point of the rule. The caller's own pick never conflicts with itself —
+    a re-pick to the same claim is a no-op update, not a grab.
+    """
+    conditions = [
+        Pick.league_id == league.id,
+        Pick.gameweek_id == gameweek.id,
+        Pick.fixture_id == fixture.id,
+    ]
+    if league.pick_scope is PickScope.selection:
+        conditions += [Pick.market == body.market, Pick.outcome == body.outcome]
+
+    result = await db.execute(select(Pick.player_id).where(*conditions))
+    holders = set(result.scalars().all())
+    if holders - {player_id}:
+        return _taken_detail(league)
+    return None
+
+
 def _apply_selection(
-    pick: Pick, fixture: Fixture, body: SubmitPickRequest, selection: Selection
+    pick: Pick,
+    fixture: Fixture,
+    body: SubmitPickRequest,
+    selection: Selection,
+    scope: PickScope,
 ) -> None:
     """Write the frozen snapshot onto a new or re-picked row.
 
     ``(fixture, market, outcome)`` is the whole identity of a pick — the same key the
     league's uniqueness constraint uses and the one settlement resolves against — so no
     provider identifier is stored alongside it.
+
+    ``scope`` is copied from the league because the fixture-level unique index is
+    partial on this column: a PostgreSQL index predicate cannot join to ``leagues``.
     """
     pick.fixture_id = fixture.id
     pick.market = body.market
     pick.outcome = body.outcome
     pick.runner_name = selection.runner_name
     pick.odds_at_pick = selection.price
+    pick.pick_scope = scope

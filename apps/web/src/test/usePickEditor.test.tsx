@@ -44,6 +44,8 @@ beforeEach(() => {
 describe('pickErrorMessage', () => {
   it('maps backend detail codes to friendly copy', () => {
     expect(pickErrorMessage('SELECTION_TAKEN')).toMatch(/just grabbed/i);
+    // The fixture rule refuses the whole game, not one selection.
+    expect(pickErrorMessage('FIXTURE_TAKEN')).toMatch(/already has that game/i);
     expect(pickErrorMessage('PICKS_LOCKED')).toMatch(/locked/i);
     expect(pickErrorMessage('SELECTION_NOT_AVAILABLE')).toMatch(/priced/i);
     expect(pickErrorMessage('')).toMatch(/could not save/i);

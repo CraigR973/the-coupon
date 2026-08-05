@@ -23,6 +23,7 @@ from src.auth import CurrentUser
 from src.database import get_db
 from src.deps import LeagueMemberDep, OddsProviderDep
 from src.models.fixture import Fixture
+from src.models.league import PickScope
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
@@ -92,6 +93,8 @@ class GameweekSlateResponse(BaseModel):
     fixtures: list[FixtureSlate]
     members: list[GameweekMember]
     members_missing_picks: int
+    # The league's claim rule, so the client can say why a whole game is gone.
+    pick_scope: str
 
 
 @router.get("/{slug}/gameweek/current", response_model=GameweekSlateResponse)
@@ -126,7 +129,12 @@ async def current_gameweek(
             competition=fixture.competition,
             kickoff_utc=fixture.kickoff_utc,
             selections=_selection_options(
-                fixture, odds_by_event.get(fixture.provider_event_id), taken, player.id
+                fixture,
+                odds_by_event.get(fixture.provider_event_id),
+                taken,
+                player.id,
+                league.pick_scope,
+                holders_by_fixture.get(str(fixture.id), []),
             ),
             taken_by_names=[name for _, name in holders_by_fixture.get(str(fixture.id), [])],
             mine=any(
@@ -144,6 +152,7 @@ async def current_gameweek(
         fixtures=slate,
         members=members,
         members_missing_picks=sum(1 for m in members if not m.has_picked),
+        pick_scope=league.pick_scope.value,
     )
 
 
@@ -264,13 +273,23 @@ def _selection_options(
     fixture_odds: FixtureOdds | None,
     taken: _TakenMap,
     my_id: object,
+    scope: PickScope,
+    fixture_holders: list[tuple[str, str]],
 ) -> list[SelectionOption]:
+    """Price every offered selection and mark who, if anyone, holds it.
+
+    Under ``fixture`` scope a claim takes the whole game, so *every* selection on
+    a claimed fixture reports that holder — otherwise the slate would offer
+    selections the submit endpoint is bound to refuse with ``FIXTURE_TAKEN``.
+    """
     if fixture_odds is None:
         return []
+    whole_fixture = fixture_holders[0] if scope is PickScope.fixture and fixture_holders else None
+
     options: list[SelectionOption] = []
     for selection in fixture_odds.selections:
         key = (str(fixture.id), selection.market.value, selection.outcome.value)
-        holder = taken.get(key)
+        holder = whole_fixture or taken.get(key)
         options.append(
             SelectionOption(
                 market=selection.market.value,

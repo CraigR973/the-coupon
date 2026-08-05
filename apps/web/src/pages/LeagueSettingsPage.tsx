@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch, DEFAULT_LEAGUE_SLUG } from '@/lib/api';
-import type { LeagueSummary } from '@/lib/types';
+import type { LeagueSummary, PickScope } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ export function LeagueSettingsPage() {
   const [description, setDescription] = useState('');
   const [privacy, setPrivacy] = useState<'public_open' | 'public_request' | 'private'>('public_open');
   const [maxMembers, setMaxMembers] = useState('');
+  const [pickScope, setPickScope] = useState<PickScope>('selection');
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
@@ -34,6 +35,7 @@ export function LeagueSettingsPage() {
       setDescription(league.description ?? '');
       setPrivacy(league.privacy);
       setMaxMembers(league.max_members?.toString() ?? '');
+      setPickScope(league.pick_scope ?? 'selection');
     }
   }, [league]);
 
@@ -44,12 +46,18 @@ export function LeagueSettingsPage() {
       const body: Record<string, unknown> = { name: name.trim(), privacy };
       if (description.trim()) body.description = description.trim();
       if (maxMembers) body.max_members = Number(maxMembers);
+      body.pick_scope = pickScope;
       await apiFetch(`/api/v1/leagues/${slug}`, { method: 'PATCH', body: JSON.stringify(body) });
       toast.success('League settings saved');
       queryClient.invalidateQueries({ queryKey: ['league', slug] });
       queryClient.invalidateQueries({ queryKey: ['leagues', 'mine'] });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save');
+      const message = err instanceof Error ? err.message : 'Failed to save';
+      toast.error(
+        message.includes('PICK_SCOPE_CONFLICT')
+          ? 'Two members already share a game this week — one of them must move before one-pick-per-match can be turned on.'
+          : message,
+      );
     } finally {
       setIsSaving(false);
     }
@@ -127,6 +135,24 @@ export function LeagueSettingsPage() {
                 onChange={(e) => setMaxMembers(e.target.value)}
                 placeholder="Unlimited"
               />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="pickScope">What a pick claims</Label>
+              <select
+                id="pickScope"
+                value={pickScope}
+                onChange={(e) => setPickScope(e.target.value as PickScope)}
+                className="flex h-10 w-full items-center rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary font-sans focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="selection">One selection — others can take the same match</option>
+                <option value="fixture">The whole match — one member per game</option>
+              </select>
+              <p className="text-xs font-sans text-text-muted">
+                One member per game makes picks scarcer: it takes roughly five times more
+                fixtures to go round, so a {league?.max_members ?? 15}-member league needs at
+                least that many matches on the slate.
+              </p>
             </div>
 
             <Button type="submit" disabled={isSaving} className="w-full">

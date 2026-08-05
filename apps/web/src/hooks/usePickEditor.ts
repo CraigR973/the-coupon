@@ -19,6 +19,8 @@ export function pickErrorMessage(detail: string): string {
   switch (detail) {
     case 'SELECTION_TAKEN':
       return 'Someone in your league just grabbed that selection — pick another.';
+    case 'FIXTURE_TAKEN':
+      return 'Someone in your league already has that game — pick another match.';
     case 'PICKS_LOCKED':
       return 'Picks are locked for this week.';
     case 'SELECTION_NOT_AVAILABLE':
