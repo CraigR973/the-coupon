@@ -758,3 +758,113 @@ async def test_an_unknown_or_malformed_gameweek_id_is_a_404(
         )
         assert slate.status_code == 404, f"{bad!r} → {slate.text}"
         assert coupon.status_code == 404, f"{bad!r} → {coupon.text}"
+
+
+# ── Batch 13: the per-league member profile ──────────────────────────────────
+
+
+async def test_profile_reports_this_leagues_record_and_settled_history(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Win rate and history come from the same settled picks the table counts."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), league = await _seed_league(session, ["alice", "bob"])
+        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    epl, sl2 = fixtures[SAMPLE_EPL_EVENT_ID], fixtures[SAMPLE_SL2_EVENT_ID]
+    slug = league.slug
+
+    assert (await _submit(client, slug, alice, epl, "MATCH_ODDS", "HOME")).status_code == 201
+    assert (await _submit(client, slug, bob, sl2, "MATCH_ODDS", "HOME")).status_code == 201
+
+    # Settle: Arsenal (Alice) wins, Forfar (Bob) also wins — then check the split.
+    async with AsyncSessionLocal() as session:
+        fake.close_markets({SAMPLE_EPL_MATCH_ODDS_MKT: SAMPLE_ARSENAL_SEL})
+        settlements = await fake.settle([SAMPLE_EPL_EVENT_ID])
+        stored = (
+            await session.execute(select(Gameweek).where(Gameweek.id == gameweek.id))
+        ).scalar_one()
+        await scoring.settle_gameweek(session, stored, settlements)
+        await session.commit()
+
+    profile = (
+        await client.get(f"/api/v1/leagues/{slug}/players/{alice.id}/profile", headers=_auth(alice))
+    ).json()
+
+    assert profile["display_name"] == alice.display_name
+    assert profile["picks_played"] == 1
+    assert profile["picks_won"] == 1
+    assert profile["win_rate_pct"] == 100
+    assert profile["total_points"] == 19  # round(1.90 × 10)
+
+    # History carries the settled pick, and only that one.
+    assert len(profile["history"]) == 1
+    entry = profile["history"][0]
+    assert entry["home"] == "Arsenal" and entry["status"] == "won"
+    assert entry["points_awarded"] == 19
+    assert entry["odds"] == 1.9
+
+    # Bob's pick never settled, so his record is untested rather than bad.
+    bob_profile = (
+        await client.get(f"/api/v1/leagues/{slug}/players/{bob.id}/profile", headers=_auth(alice))
+    ).json()
+    assert bob_profile["picks_played"] == 0
+    assert bob_profile["win_rate_pct"] is None
+    assert bob_profile["history"] == []
+
+
+async def test_profile_is_scoped_to_the_league_it_is_read_through(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """A member of two leagues has two records, and one league cannot see the other."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), first = await _seed_league(session, ["alice", "bob"])
+        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        fixtures = await _fixture_ids(session, gameweek.id)
+        # A second league Alice also belongs to, but has not picked in.
+        second = League(slug=f"cpn2-{uuid.uuid4().hex[:8]}", name="Second", created_by=alice.id)
+        session.add(second)
+        await session.flush()
+        session.add(LeagueMembership(league_id=second.id, player_id=alice.id))
+        await session.commit()
+        second_slug = second.slug
+    epl = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    assert (await _submit(client, first.slug, alice, epl, "MATCH_ODDS", "HOME")).status_code == 201
+
+    in_second = (
+        await client.get(
+            f"/api/v1/leagues/{second_slug}/players/{alice.id}/profile", headers=_auth(alice)
+        )
+    ).json()
+    assert in_second["picks_played"] == 0, "the other league's picks must not leak in"
+
+    # Bob is not in the second league, so he has no record there.
+    missing = await client.get(
+        f"/api/v1/leagues/{second_slug}/players/{bob.id}/profile", headers=_auth(alice)
+    )
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "Player is not in this league"
+
+
+async def test_profile_rejects_a_non_member_caller_and_a_malformed_id(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["alice"])
+        (outsider,), _ = await _seed_league(session, ["outsider"])
+
+    # A member of another league cannot read this league's profiles at all.
+    forbidden = await client.get(
+        f"/api/v1/leagues/{league.slug}/players/{alice.id}/profile", headers=_auth(outsider)
+    )
+    assert forbidden.status_code == 403
+
+    # A player id that cannot be a UUID is a miss, not a 500.
+    malformed = await client.get(
+        f"/api/v1/leagues/{league.slug}/players/not-a-uuid/profile", headers=_auth(alice)
+    )
+    assert malformed.status_code == 404

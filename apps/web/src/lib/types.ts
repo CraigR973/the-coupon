@@ -150,6 +150,40 @@ export interface Standing {
   rank: number;
 }
 
+// ── Player profile — GET /leagues/{slug}/players/{id}/profile ──────────────
+
+/** One resolved pick — a row of a member's history. */
+export interface SettledPick {
+  gameweek_id: string;
+  saturday_date: string; // ISO date (yyyy-mm-dd)
+  fixture_id: string;
+  home: string;
+  away: string;
+  competition: string;
+  market: PickMarket;
+  outcome: PickOutcome;
+  runner_name: string;
+  odds: number;
+  status: PickStatus;
+  points_awarded: number | null;
+}
+
+/**
+ * A member's record **within one league**. Picks are league-scoped, so a member
+ * in three leagues has three of these.
+ */
+export interface PlayerProfile {
+  player_id: string;
+  display_name: string;
+  total_points: number;
+  picks_played: number;
+  picks_won: number;
+  rank: number;
+  /** null until something settles — an untested record is not a bad one. */
+  win_rate_pct: number | null;
+  history: SettledPick[];
+}
+
 // ---------------------------------------------------------------------------
 // Leagues (the social "leaderboard" layer — kept from the shared spine).
 // ---------------------------------------------------------------------------

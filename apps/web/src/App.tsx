@@ -27,6 +27,7 @@ const CouponCombinedPage = lazy(() =>
   import('./pages/CouponCombinedPage').then((m) => ({ default: m.CouponCombinedPage })),
 );
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
+const PlayerProfilePage = lazy(() => import('./pages/PlayerProfilePage').then((m) => ({ default: m.PlayerProfilePage })));
 const OfflinePage = lazy(() => import('./pages/OfflinePage').then((m) => ({ default: m.OfflinePage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 
@@ -146,6 +147,7 @@ export function App() {
 
                         {/* Per-league standings */}
                         <Route path="/leagues/:slug/leaderboard" element={<LeaderboardPage />} />
+                        <Route path="/leagues/:slug/players/:playerId" element={<PlayerProfilePage />} />
 
                         {/* Old per-league member/settings paths → redirect to /admin/* sub-paths */}
                         <Route path="/leagues/:slug/members" element={<LeagueAdminRedirect suffix="members" />} />

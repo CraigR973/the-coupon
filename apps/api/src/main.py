@@ -22,6 +22,7 @@ from src.routers import (
     me,
     notifications,
     picks,
+    players,
 )
 from src.scheduler import create_scheduler
 from src.services.odds_session import odds_session
@@ -84,3 +85,4 @@ app.include_router(league_join_requests.router)
 app.include_router(gameweek.router)
 app.include_router(picks.router)
 app.include_router(coupon.router)
+app.include_router(players.router)

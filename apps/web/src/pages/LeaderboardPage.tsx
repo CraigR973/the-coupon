@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, DEFAULT_LEAGUE_SLUG } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -71,30 +71,33 @@ export function LeaderboardPage() {
           {standings.map((s) => {
             const isMe = s.player_id === player?.id;
             return (
-              <li
-                key={s.player_id}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg border p-3',
-                  isMe ? 'border-primary/40 bg-primary/5' : 'border-border bg-surface',
-                )}
-                data-testid={`standing-${s.rank}`}
-              >
-                <span className="w-6 shrink-0 text-center font-mono text-sm tabular-nums text-text-muted">
-                  {s.rank}
-                </span>
-                <Avatar name={s.display_name} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <p className={cn('truncate text-sm font-sans', isMe ? 'font-semibold text-primary' : 'text-text-primary')}>
-                    {s.display_name}
-                  </p>
-                  <p className="text-xs font-sans text-text-muted">
-                    {s.picks_won}/{s.picks_played} won
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="font-mono text-lg font-semibold tabular-nums text-text-primary">{s.total_points}</p>
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-text-muted">pts</p>
-                </div>
+              <li key={s.player_id} data-testid={`standing-${s.rank}`}>
+                <Link
+                  to={`/leagues/${slug}/players/${s.player_id}`}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg border p-3 transition-colors press-down focus-visible:outline-none focus-visible:shadow-glow',
+                    isMe
+                      ? 'border-primary/40 bg-primary/5'
+                      : 'border-border bg-surface hover:border-primary/40',
+                  )}
+                >
+                  <span className="w-6 shrink-0 text-center font-mono text-sm tabular-nums text-text-muted">
+                    {s.rank}
+                  </span>
+                  <Avatar name={s.display_name} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <p className={cn('truncate text-sm font-sans', isMe ? 'font-semibold text-primary' : 'text-text-primary')}>
+                      {s.display_name}
+                    </p>
+                    <p className="text-xs font-sans text-text-muted">
+                      {s.picks_won}/{s.picks_played} won
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-mono text-lg font-semibold tabular-nums text-text-primary">{s.total_points}</p>
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-text-muted">pts</p>
+                  </div>
+                </Link>
               </li>
             );
           })}
