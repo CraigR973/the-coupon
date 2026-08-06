@@ -5,6 +5,7 @@ from src.models.invite import Invite
 from src.models.league import League, LeaguePrivacy
 from src.models.league_join_request import JoinRequestStatus, LeagueJoinRequest
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
+from src.models.match import Match
 from src.models.notification import (
     ActionType,
     ActorType,
@@ -15,6 +16,8 @@ from src.models.notification import (
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile, SiteRole, UserRole
 from src.models.refresh_token import RefreshToken
+from src.models.standing import Standing
+from src.models.team import Team, TeamAlias
 
 __all__ = [
     "ActionType",
@@ -31,6 +34,7 @@ __all__ = [
     "LeagueMemberRole",
     "LeagueMembership",
     "LeaguePrivacy",
+    "Match",
     "NotificationPreferences",
     "Pick",
     "PickMarket",
@@ -40,5 +44,8 @@ __all__ = [
     "PushSubscription",
     "RefreshToken",
     "SiteRole",
+    "Standing",
+    "Team",
+    "TeamAlias",
     "UserRole",
 ]

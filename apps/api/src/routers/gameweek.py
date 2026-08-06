@@ -31,6 +31,7 @@ from src.models.league import PickMarket, PickScope
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
+from src.services.football_data import FixtureContext, fixture_context, season_or_default
 from src.services.gameweek import (
     all_gameweeks,
     fixtures_for,
@@ -72,6 +73,10 @@ class FixtureSlate(BaseModel):
     # current selection-level rule, so this is a list rather than a flag.
     taken_by_names: list[str]
     mine: bool
+    # Both clubs' league position and recent form (Batch 16), or `None` when the
+    # football-data source has nothing for them. Read from `standings` / `matches`,
+    # never from a provider — see src/services/football_data.py.
+    context: FixtureContext | None = None
 
 
 class GameweekMember(BaseModel):
@@ -187,6 +192,15 @@ async def current_gameweek(
         provider, [f.provider_event_id for f in fixtures], max_age_seconds=max_age
     )
 
+    # Tables and form, from our own tables — three queries for a slate of any size, and
+    # no upstream request. An empty map simply means nothing has been ingested yet.
+    contexts = await fixture_context(
+        db,
+        fixtures,
+        season=season_or_default(settings.football_season),
+        form_matches=settings.football_form_matches,
+    )
+
     holders_by_fixture = _holders_by_fixture(taken)
     # The markets this league offers — the slate must not show a selection the submit
     # endpoint would refuse with MARKET_NOT_OFFERED. Coerced through PickMarket so it
@@ -213,6 +227,7 @@ async def current_gameweek(
             mine=any(
                 pid == str(player.id) for pid, _ in holders_by_fixture.get(str(fixture.id), [])
             ),
+            context=contexts.get(str(fixture.id)),
         )
         for fixture in fixtures
     ]

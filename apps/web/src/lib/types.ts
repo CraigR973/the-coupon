@@ -50,6 +50,89 @@ export interface FixtureSlate {
   taken_by_names: string[];
   /** True when the caller holds a selection on this fixture. */
   mine: boolean;
+  /**
+   * Both clubs' table position and recent form, or absent when the football
+   * source has nothing for this game (Batch 16). Optional throughout: form is an
+   * enhancement, not a precondition for picking, so every consumer has to render
+   * the fixture without it.
+   */
+  context?: FixtureContext | null;
+}
+
+// ── Football data — tables, results and form (Batch 16) ────────────────────
+//
+// A second provider from the odds one: odds-api.io publishes no standings. All of
+// this is read from the API's own `teams` / `matches` / `standings` tables, which a
+// scheduled job fills — no screen here can cause an upstream request.
+
+/** One match from a club's point of view — the letters a form line is made of. */
+export type FormResult = 'W' | 'D' | 'L';
+
+export interface FormMatch {
+  match_id: string;
+  kickoff_utc: string;
+  opponent: string;
+  home: boolean;
+  goals_for: number;
+  goals_against: number;
+  result: FormResult;
+}
+
+/** A club's table line and recent form, as shown beside a fixture. */
+export interface TeamContext {
+  team_id: string;
+  name: string;
+  /** Null when the competition has no stored table — a cup, or a season not yet ingested. */
+  position: number | null;
+  played: number | null;
+  points: number | null;
+  goal_difference: number | null;
+  /** Most recent **last**, e.g. `"LWWDW"` — the order every football table prints. */
+  form: string;
+  recent: FormMatch[];
+}
+
+/** Both clubs' context for one fixture. Either side may be unresolved. */
+export interface FixtureContext {
+  home: TeamContext | null;
+  away: TeamContext | null;
+}
+
+export interface TableEntry {
+  position: number;
+  team_id: string;
+  team: string;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goals_for: number;
+  goals_against: number;
+  goal_difference: number;
+  points: number;
+  form: string;
+}
+
+/** One competition's table — GET /leagues/{slug}/football/tables. */
+export interface CompetitionTable {
+  competition_id: string;
+  competition: string;
+  season: number;
+  /** When this table was last ingested. Shown as "as of": stored data, not live. */
+  updated_at: string | null;
+  rows: TableEntry[];
+}
+
+/** One finished match — GET /leagues/{slug}/football/results. */
+export interface ResultEntry {
+  match_id: string;
+  competition_id: string;
+  competition: string;
+  kickoff_utc: string;
+  home: string;
+  away: string;
+  home_goals: number;
+  away_goals: number;
 }
 
 /** One member's standing on a gameweek, including those yet to pick. */

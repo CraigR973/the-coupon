@@ -13,6 +13,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import hash_pin
+from src.config import settings
 from src.database import AsyncSessionLocal
 from src.deps import get_odds_provider
 from src.main import app
@@ -27,6 +28,8 @@ from src.services.betfair import (
     SAMPLE_SL2_MATCH_ODDS_MKT,
     FakeBetfair,
 )
+from src.services.fake_football import SAMPLE_SEASON, FakeFootballData
+from src.services.football_data import backfill_season
 from src.services.gameweek import latest_gameweek, sync_slate, window_for
 from src.services.scoring import settle_gameweek_via_provider
 
@@ -35,6 +38,13 @@ E2E_PIN = "1234"
 
 fake_betfair = FakeBetfair.with_sample_data()
 app.dependency_overrides[get_odds_provider] = lambda: fake_betfair
+
+# The canned football data describes 2025-26 while the canned slate is the opening
+# Saturday of 2026-27 — the ordinary opening-day situation, where what a member sees
+# is last season's final table. The read path takes its season from settings, so it is
+# pinned here rather than left to whichever season today happens to fall in; this
+# module is test-only, so mutating settings is contained to the browser flow.
+settings.football_season = SAMPLE_SEASON
 
 
 def _now() -> datetime:
@@ -99,12 +109,21 @@ async def seed_coupon_flow() -> dict[str, object]:
         gameweek = await sync_slate(db, league, slate)
         gameweek.status = GameweekStatus.open
         gameweek.locks_at_utc = _now() + timedelta(hours=2)
+
+        # Batch 16: the canned season's tables and results for whatever competitions the
+        # slate just put in the pool. Runs *after* `sync_slate` because ingestion takes
+        # its competition list from the fixtures, and it is the backfill rather than the
+        # windowed daily job because the canned results predate the canned slate.
+        football = await backfill_season(
+            db, FakeFootballData.with_sample_data(), season=SAMPLE_SEASON
+        )
         await db.commit()
 
         return {
             "league_slug": league.slug,
             "gameweek_id": str(gameweek.id),
             "players": ["Alice", "Bob", "Carol"],
+            "football_competitions": [r.competition_id for r in football if r.carried],
         }
 
 

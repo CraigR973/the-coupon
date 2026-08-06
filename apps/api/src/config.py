@@ -41,6 +41,25 @@ class OddsProviderName(StrEnum):
     fake = "fake"
 
 
+class FootballDataProviderName(StrEnum):
+    """Which football-data source supplies tables, results and form (Batch 16).
+
+    A second provider, independent of the odds one: odds-api.io publishes no standings.
+    ``apifootball`` is api-sports.io (ADR 0003). ``fake`` serves canned data and is
+    forbidden in production. ``none`` is the default and turns *ingestion* off — the
+    screens still read whatever is already in ``teams`` / ``matches`` / ``standings``, so
+    an unconfigured deployment shows no football data rather than failing.
+
+    ``none`` rather than ``apifootball`` is the default deliberately: production is
+    already deployed and sealed, and defaulting to a provider whose key it does not hold
+    would stop it starting.
+    """
+
+    apifootball = "apifootball"
+    fake = "fake"
+    none = "none"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -99,6 +118,35 @@ class Settings(BaseSettings):
     # requests once a day — cheap, and it means a member picking on Tuesday already has a
     # full card rather than waiting for match day.
     slate_horizon_weeks: int = 2
+
+    # ── Football data: tables, previous results, form (Batch 16) ────────────────
+    #
+    # A separate provider from the odds one, with a far smaller allowance: API-Football's
+    # free plan is **100 requests/day**, against odds-api.io's 500. That single number
+    # decides the whole design — nothing here may run in the request path, so ingestion
+    # writes `teams` / `matches` / `standings` on a schedule and every screen reads those.
+    #
+    # The arithmetic, for the 30 UK competitions the slate carries: one catalogue request
+    # per run (cached on the client), then one `/standings` and one `/fixtures` per
+    # competition — 61 requests for a full daily sweep, against 100. `football_
+    # competitions_per_run` is the guard: competitions are synced least-recently-first, so
+    # a slate that grows past the cap rotates through rather than starving its tail.
+    # `tests/test_football_data.py` asserts this against a counting provider.
+    football_data_provider: FootballDataProviderName = FootballDataProviderName.none
+    football_api_key: str = ""
+    football_api_base_url: str = "https://v3.football.api-sports.io"
+    # Which season to ingest. `None` derives it from today (August-May, named by the
+    # starting year), which is what a live deployment wants; an explicit value is for
+    # backfilling a finished season, or for the canned data, which describes 2025-26.
+    football_season: int | None = None
+    football_competitions_per_run: int = 30
+    # How far back the scheduled top-up asks for results. Long enough to pick up a match
+    # rearranged after the fact; the season backfill is what fills history.
+    football_results_lookback_days: int = 30
+    # How many recent matches make up a form line, and how many results a competition
+    # shows on the football-data screen.
+    football_form_matches: int = 5
+    football_recent_results_limit: int = 20
 
     # Betfair Exchange API — only read when `odds_provider` is `betfair`. Production
     # uses non-interactive certificate login.
@@ -178,6 +226,14 @@ class Settings(BaseSettings):
                 errors.append("bf_fake_mode is forbidden in production")
             if self.odds_provider == OddsProviderName.fake:
                 errors.append("odds_provider 'fake' is forbidden in production")
+            if self.football_data_provider == FootballDataProviderName.fake:
+                errors.append("football_data_provider 'fake' is forbidden in production")
+            # `none` needs no key — it is the default, and it only turns ingestion off.
+            if (
+                self.football_data_provider == FootballDataProviderName.apifootball
+                and not self.football_api_key
+            ):
+                errors.append("football_api_key is empty")
             # Each provider's credentials are required only when it is the one selected.
             # Betfair's certificate pair stopped being a production requirement with
             # ADR 0002; demanding it under odds-api.io would block a valid deployment.

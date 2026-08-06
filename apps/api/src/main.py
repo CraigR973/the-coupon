@@ -14,6 +14,7 @@ from src.rate_limit import limiter
 from src.routers import (
     auth,
     coupon,
+    football,
     gameweek,
     health,
     league_join_requests,
@@ -25,6 +26,7 @@ from src.routers import (
     players,
 )
 from src.scheduler import create_scheduler
+from src.services.football_session import football_session
 from src.services.odds_session import odds_session
 
 configure_logging(settings.log_level)
@@ -48,6 +50,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             scheduler.shutdown(wait=False)
             log.info("scheduler stopped")
         await odds_session.close()
+        await football_session.close()
 
 
 # Docs/OpenAPI are disabled in production (private app — don't expose the schema
@@ -83,6 +86,7 @@ app.include_router(leagues.router)
 app.include_router(league_memberships.router)
 app.include_router(league_join_requests.router)
 app.include_router(gameweek.router)
+app.include_router(football.router)
 app.include_router(picks.router)
 app.include_router(coupon.router)
 app.include_router(players.router)

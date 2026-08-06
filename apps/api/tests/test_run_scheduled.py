@@ -18,6 +18,8 @@ def test_jobs_cover_expected_names() -> None:
         "remind",
         "lock",
         "settle",
+        "sync-football",
+        "football-backfill",
     }
 
 
@@ -28,6 +30,8 @@ def test_jobs_map_to_the_same_scheduler_coroutines() -> None:
     assert run_scheduled.JOBS["remind"] is scheduler.run_pick_reminders
     assert run_scheduled.JOBS["lock"] is scheduler.run_lock_gameweeks
     assert run_scheduled.JOBS["settle"] is scheduler.run_settle_gameweeks
+    assert run_scheduled.JOBS["sync-football"] is scheduler.run_sync_football_data
+    assert run_scheduled.JOBS["football-backfill"] is scheduler.run_backfill_football_season
 
 
 @pytest.mark.asyncio

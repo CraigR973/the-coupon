@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { PickCard } from '@/components/PickCard';
-import type { FixtureSlate } from '@/lib/types';
+import type { FixtureSlate, TeamContext } from '@/lib/types';
 
 const FIXTURE: FixtureSlate = {
   fixture_id: 'fx1',
@@ -99,5 +99,86 @@ describe('PickCard', () => {
     expect(screen.getByText('1/1')).toBeTruthy();
     expect(screen.getByText('5/2')).toBeTruthy();
     expect(screen.queryByText('2.00')).toBeNull();
+  });
+});
+
+// ── Inline table position and form (Batch 16) ─────────────────────────────────
+//
+// The football data comes from a second provider and can be absent for any club,
+// so the card has to read correctly with both sides, one side, or neither.
+
+const FORFAR: TeamContext = {
+  team_id: 't-forfar',
+  name: 'Forfar Athletic FC',
+  position: 1,
+  played: 36,
+  points: 68,
+  goal_difference: 19,
+  form: 'WDWWL',
+  recent: [],
+};
+
+const BRECHIN: TeamContext = {
+  team_id: 't-brechin',
+  name: 'Brechin City FC',
+  position: 2,
+  played: 36,
+  points: 63,
+  goal_difference: 11,
+  form: 'LWDWW',
+  recent: [],
+};
+
+describe('PickCard — inline football context', () => {
+  it('shows each club’s position and form beside the fixture', () => {
+    renderCard({ fixture: { ...FIXTURE, context: { home: FORFAR, away: BRECHIN } } });
+
+    const strip = screen.getByTestId('fixture-context-fx1');
+    expect(within(strip).getByTestId('team-context-t-forfar').textContent).toContain('1st');
+    expect(within(strip).getByTestId('team-context-t-brechin').textContent).toContain('2nd');
+    expect(within(strip).getByLabelText(/Forfar Athletic FC form, oldest first/)).toBeTruthy();
+  });
+
+  it('renders no context strip at all when the fixture has none', () => {
+    renderCard();
+    expect(screen.queryByTestId('fixture-context-fx1')).toBeNull();
+  });
+
+  it('renders no strip when neither club resolved to a known team', () => {
+    renderCard({ fixture: { ...FIXTURE, context: { home: null, away: null } } });
+    expect(screen.queryByTestId('fixture-context-fx1')).toBeNull();
+  });
+
+  it('keeps one club’s data under its own name when the other is unknown', () => {
+    renderCard({ fixture: { ...FIXTURE, context: { home: null, away: BRECHIN } } });
+
+    const strip = screen.getByTestId('fixture-context-fx1');
+    expect(within(strip).queryByTestId('team-context-t-forfar')).toBeNull();
+    // Two grid cells regardless, so the away club cannot slide under the home name.
+    expect(strip.children.length).toBe(2);
+    expect(strip.children[1].textContent).toContain('2nd');
+  });
+
+  it('shows form alone for a club with no table entry — a cup has no table', () => {
+    const cupSide: TeamContext = { ...FORFAR, position: null, played: null, points: null };
+    renderCard({ fixture: { ...FIXTURE, context: { home: cupSide, away: null } } });
+
+    const cell = screen.getByTestId('team-context-t-forfar');
+    expect(cell.textContent).not.toContain('1st');
+    expect(within(cell).getByLabelText(/Forfar Athletic FC form, oldest first/)).toBeTruthy();
+  });
+
+  it('shows nothing for a club with neither a position nor any form', () => {
+    const formless: TeamContext = { ...FORFAR, position: null, form: '' };
+    renderCard({ fixture: { ...FIXTURE, context: { home: formless, away: null } } });
+    expect(screen.queryByTestId('fixture-context-fx1')).toBeNull();
+  });
+
+  it('still renders every selection when the context is present', () => {
+    const { onGrab } = renderCard({
+      fixture: { ...FIXTURE, context: { home: FORFAR, away: BRECHIN } },
+    });
+    fireEvent.click(screen.getByTestId('selection-fx1-MATCH_ODDS-HOME'));
+    expect(onGrab).toHaveBeenCalledWith('fx1', 'MATCH_ODDS', 'HOME');
   });
 });

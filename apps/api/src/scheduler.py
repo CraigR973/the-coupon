@@ -27,6 +27,8 @@ from src.config import settings
 from src.database import AsyncSessionLocal
 from src.models.notification import ActionType, ActorType, AuditLog
 from src.services.backup import create_backup
+from src.services.football_data import backfill_season, season_or_default, sync_football_data
+from src.services.football_session import football_session
 from src.services.gameweek import (
     active_leagues,
     current_open_gameweeks,
@@ -221,6 +223,81 @@ async def run_settle_gameweeks() -> bool:
         return False
 
 
+async def run_sync_football_data() -> bool:
+    """Top up league tables, results and form for the competitions on the card.
+
+    On the same daily rhythm as fixture discovery and half an hour behind it, so the
+    fixture pool it takes its competition list from is the one discovery just refreshed.
+
+    Bounded on purpose. API-Football's free plan allows 100 requests a *day* — a fifth of
+    the odds source's — so a run covers ``football_competitions_per_run`` competitions,
+    least-recently-synced first, and asks for results over a window rather than a season.
+    Nothing here is in the request path; the screens read what this job stores.
+
+    A run with no provider configured is a success that did nothing: ``none`` is the
+    default, and Batch 16 must not turn a deployment that has not opted in into a failing
+    job every morning.
+    """
+    try:
+        provider = await football_session.acquire()
+        if provider is None:
+            log.info("football data sync skipped: no provider configured")
+            return True
+        async with AsyncSessionLocal() as session:
+            reports = await sync_football_data(
+                session,
+                provider,
+                season=season_or_default(settings.football_season),
+                limit=settings.football_competitions_per_run,
+                lookback_days=settings.football_results_lookback_days,
+                today=_uk_today(),
+            )
+            await session.commit()
+        log.info(
+            "football data synced",
+            competitions=len(reports),
+            carried=sum(1 for report in reports if report.carried),
+            table_rows=sum(report.table_rows for report in reports),
+            matches=sum(report.matches for report in reports),
+        )
+        return True
+    except Exception:
+        log.exception("football data sync failed")
+        return False
+
+
+async def run_backfill_football_season() -> bool:
+    """Pull a whole season of results and tables in one pass — the Batch 16 backfill.
+
+    Deliberately **not** on the scheduler: it is a one-off run for a new deployment, a
+    newly added competition, or a season change, and it is unbounded in date, so putting
+    it on a clock would spend the daily allowance on history that cannot change. Invoked
+    through ``python -m src.run_scheduled football-backfill``.
+
+    Set ``FOOTBALL_SEASON`` to backfill a season other than the current one.
+    """
+    try:
+        provider = await football_session.acquire()
+        if provider is None:
+            log.info("football backfill skipped: no provider configured")
+            return True
+        season = season_or_default(settings.football_season)
+        async with AsyncSessionLocal() as session:
+            reports = await backfill_season(session, provider, season=season)
+            await session.commit()
+        log.info(
+            "football season backfilled",
+            season=season,
+            competitions=len(reports),
+            carried=sum(1 for report in reports if report.carried),
+            matches=sum(report.matches for report in reports),
+        )
+        return True
+    except Exception:
+        log.exception("football season backfill failed")
+        return False
+
+
 async def run_pick_reminders() -> bool:
     """Nudge members who still owe a pick, in every league with an open round.
 
@@ -294,6 +371,17 @@ def create_scheduler() -> AsyncIOScheduler:
         minute=0,
         timezone="Europe/London",
         id="refresh_slate",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+    )
+    scheduler.add_job(
+        run_sync_football_data,
+        trigger="cron",
+        hour=6,
+        minute=30,  # half an hour behind discovery, so the fixture pool is already fresh
+        timezone="Europe/London",
+        id="sync_football_data",
         replace_existing=True,
         coalesce=True,
         max_instances=1,

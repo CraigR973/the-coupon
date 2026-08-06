@@ -4,11 +4,15 @@ import { cn } from '@/lib/utils';
 const ITEMS: ReadonlyArray<{ to: string; label: string; exact: boolean }> = [
   { to: '/predictions', label: 'Your pick', exact: true },
   { to: '/predictions/coupon', label: 'Combined coupon', exact: false },
+  { to: '/predictions/football', label: 'Football', exact: false },
 ];
 
 /**
- * Sub-nav across the two weekly-coupon surfaces: the player's own pick screen
- * and the leaderboard's combined accumulator.
+ * Sub-nav across the weekly-coupon surfaces: the player's own pick screen, the
+ * leaderboard's combined accumulator, and the tables and results behind them.
+ *
+ * Football sits here rather than at the top level because it is context for a
+ * pick — the same league scope, reached while deciding — not a section of its own.
  */
 export function CouponSubNav() {
   return (

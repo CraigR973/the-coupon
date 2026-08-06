@@ -6,8 +6,10 @@ import type {
   PickMarket,
   PickOutcome,
   SelectionOption,
+  TeamContext,
 } from '../lib/types';
 import { Badge } from './ui/badge';
+import { FormLine, ordinal } from './FormLine';
 import {
   formatOdds,
   marketLabel,
@@ -29,6 +31,45 @@ const MARKET_ORDER: PickMarket[] = ['MATCH_ODDS', 'BOTH_TEAMS_TO_SCORE'];
 
 function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] || name;
+}
+
+/** A club is worth a context line once it has a table position or a run of form. */
+function worthShowing(team: TeamContext | null | undefined): boolean {
+  return team != null && (team.position !== null || team.form.length > 0);
+}
+
+/**
+ * One club's position and form, sized to sit under its name on the card.
+ *
+ * The club is named only to screen readers: sighted readers get it from the column
+ * (home left, away right, matching the line above), and repeating both names here
+ * would double the card's text for no added meaning.
+ */
+function TeamContextLine({
+  team,
+  align = 'left',
+}: {
+  team: TeamContext | null;
+  align?: 'left' | 'right';
+}) {
+  // An empty cell rather than nothing, so one club's missing data cannot slide the
+  // other's under the wrong name.
+  if (!worthShowing(team) || team === null) return <span aria-hidden />;
+
+  return (
+    <div
+      className={cn('flex min-w-0 items-center gap-1.5', align === 'right' && 'justify-end')}
+      data-testid={`team-context-${team.team_id}`}
+    >
+      {team.position !== null && (
+        <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.15em] text-text-muted">
+          <span className="sr-only">{team.name}, </span>
+          {ordinal(team.position)}
+        </span>
+      )}
+      <FormLine form={team.form} team={team.name} />
+    </div>
+  );
 }
 
 export interface PickCardProps {
@@ -70,6 +111,10 @@ export function PickCard({
   }
   const markets = MARKET_ORDER.filter((m) => byMarket.has(m));
   const claimed = fixture.taken_by_names.length > 0;
+  // Either club may be unresolved, and a resolved one may have nothing worth showing
+  // (a cup has no table; a promoted side starts a season with no form). Nothing to
+  // show means no strip at all rather than an empty row.
+  const hasContext = worthShowing(fixture.context?.home) || worthShowing(fixture.context?.away);
 
   return (
     <div
@@ -87,12 +132,23 @@ export function PickCard({
         </span>
       </div>
 
-      {/* Teams */}
-      <p className="mb-3 text-sm font-sans text-text-primary">
-        <span className="font-medium">{fixture.home}</span>
-        <span className="mx-1.5 text-text-muted">v</span>
-        <span className="font-medium">{fixture.away}</span>
-      </p>
+      {/* Teams, with each club's table position and recent form beneath (Batch 16) */}
+      <div className="mb-3">
+        <p className="text-sm font-sans text-text-primary">
+          <span className="font-medium">{fixture.home}</span>
+          <span className="mx-1.5 text-text-muted">v</span>
+          <span className="font-medium">{fixture.away}</span>
+        </p>
+        {hasContext && (
+          <div
+            className="mt-1.5 grid grid-cols-2 gap-2"
+            data-testid={`fixture-context-${fixture.fixture_id}`}
+          >
+            <TeamContextLine team={fixture.context?.home ?? null} />
+            <TeamContextLine team={fixture.context?.away ?? null} align="right" />
+          </div>
+        )}
+      </div>
 
       {/* Fixture-level marker: who has taken anything on this game */}
       {claimed && (

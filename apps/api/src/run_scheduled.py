@@ -19,6 +19,8 @@ Jobs:
     remind         push a pick reminder to members who haven't picked
     lock           lock any gameweek past its 14:30 deadline
     settle         settle locked gameweeks against provider results + recompute standings
+    sync-football  top up league tables, results and form for the competitions on the card
+    football-backfill  pull a whole season of results and tables in one pass (one-off)
 """
 
 from __future__ import annotations
@@ -28,12 +30,14 @@ import asyncio
 from collections.abc import Awaitable, Callable
 
 from src.scheduler import (
+    run_backfill_football_season,
     run_discover_fixtures,
     run_lock_gameweeks,
     run_pick_reminders,
     run_refresh_slate,
     run_scheduled_backup,
     run_settle_gameweeks,
+    run_sync_football_data,
 )
 
 JOBS: dict[str, Callable[[], Awaitable[bool]]] = {
@@ -43,6 +47,8 @@ JOBS: dict[str, Callable[[], Awaitable[bool]]] = {
     "remind": run_pick_reminders,
     "lock": run_lock_gameweeks,
     "settle": run_settle_gameweeks,
+    "sync-football": run_sync_football_data,
+    "football-backfill": run_backfill_football_season,
 }
 
 

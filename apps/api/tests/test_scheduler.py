@@ -94,6 +94,7 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
             "pick_reminders",
             "lock_gameweeks",
             "settle_gameweeks",
+            "sync_football_data",
         }
 
         backup = scheduler.get_job("daily_backup")
