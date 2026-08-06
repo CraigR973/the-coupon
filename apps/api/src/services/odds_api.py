@@ -45,6 +45,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from src.config import settings
 from src.services.odds_provider import (
+    Competition,
     EventSettlement,
     FixtureOdds,
     Market,
@@ -389,7 +390,7 @@ class OddsApiProvider(OddsProvider):
         by range and the default window is a single instant.
         """
         from_utc, to_utc = window.query_bounds(starts_on)
-        leagues = [lg for lg in await self._all_leagues() if _is_uk(lg) and lg.id]
+        leagues = await self._uk_leagues()
 
         fixtures: list[SlateFixture] = []
         for league in leagues:
@@ -423,6 +424,25 @@ class OddsApiProvider(OddsProvider):
             fixtures=len(fixtures),
         )
         return Slate(starts_on=starts_on, fixtures=fixtures)
+
+    async def fetch_competitions(self) -> list[Competition]:
+        """Every UK competition the provider carries, in name order.
+
+        The same catalogue :meth:`fetch_slate` opens with, and the same ``_is_uk`` rule —
+        roughly thirty of the live 728 — so the picker offers exactly the competitions a
+        slate could ever draw from, including the ones this league has never played.
+
+        This does not run into the slate's rate limit. The slate costs one ``/events`` per
+        competition; this is :meth:`_all_leagues`, a single ``/leagues`` call memoised on
+        the client, so opening the picker is free for the life of the process after the
+        first fetch of either.
+        """
+        competitions = [
+            Competition(competition_id=league.id, competition=league.name or league.id)
+            for league in await self._uk_leagues()
+        ]
+        competitions.sort(key=lambda c: c.competition)
+        return competitions
 
     async def fetch_odds(
         self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
@@ -526,6 +546,14 @@ class OddsApiProvider(OddsProvider):
             result = await self._get("/leagues", {"sport": SPORT_FOOTBALL})
             self._leagues = [OALeague.model_validate(item) for item in _as_items(result)]
         return self._leagues
+
+    async def _uk_leagues(self) -> list[OALeague]:
+        """The catalogue narrowed to the four home nations, entries without an id dropped.
+
+        Shared by the slate and the competition catalogue so the picker can never offer a
+        competition the slate would not consider, or hide one it would.
+        """
+        return [lg for lg in await self._all_leagues() if _is_uk(lg) and lg.id]
 
     async def _event_by_id(self, event_id: str) -> OAEvent | None:
         """One event with its ``status`` and ``scores`` — the settlement source.

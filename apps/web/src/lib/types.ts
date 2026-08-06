@@ -295,7 +295,7 @@ export interface CompetitionRef {
 export interface CompetitionCatalogue {
   /** True when the league is on the default group (every UK competition). */
   all_uk: boolean;
-  /** Every competition discovery has pooled — the set to choose from. */
+  /** Every UK competition the odds provider carries — the set to choose from. */
   available: CompetitionRef[];
   /** The league's explicit selection (empty when `all_uk`). */
   selected: CompetitionRef[];

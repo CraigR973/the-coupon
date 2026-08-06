@@ -1,11 +1,13 @@
 """The odds port — what The Coupon needs from any odds source, in its own vocabulary.
 
-The game needs three things from a provider, and nothing else:
+The game needs four things from a provider, and nothing else:
 
-* ``fetch_slate(saturday)`` — that Saturday's British 15:00 kick-offs → :class:`Slate`.
-* ``fetch_odds(event_ids)`` — the Match Odds + BTTS selections the provider actually
+* ``fetch_slate(saturday)``  — that Saturday's British 15:00 kick-offs → :class:`Slate`.
+* ``fetch_odds(event_ids)``  — the Match Odds + BTTS selections the provider actually
   prices → :class:`FixtureOdds`.
-* ``settle(event_ids)``     — the finished result per event → :class:`EventSettlement`.
+* ``settle(event_ids)``      — the finished result per event → :class:`EventSettlement`.
+* ``fetch_competitions()``   — the competitions it carries → :class:`Competition`, which
+  is what a league admin's competition picker offers.
 
 plus a ``login`` / ``keep_alive`` / ``close`` lifecycle, which a session-based provider
 uses and a key-based one no-ops.
@@ -101,6 +103,18 @@ class FixtureOdds(BaseModel):
     home: str
     away: str
     selections: list[Selection]
+
+
+class Competition(BaseModel):
+    """One competition a provider carries — a catalogue entry, not a fixture.
+
+    The field names match :class:`SlateFixture`'s pair deliberately: what an admin ticks
+    in the picker is the same identifier a fixture is later tagged with, so a stored
+    selection can be compared against a slate without a translation step.
+    """
+
+    competition_id: str
+    competition: str
 
 
 class SlateFixture(BaseModel):
@@ -305,7 +319,7 @@ def outcomes_from_score(home_goals: int, away_goals: int) -> list[OutcomeResult]
 class OddsProvider(ABC):
     """What The Coupon requires of an odds source.
 
-    Three domain operations plus a session lifecycle. Providers authenticated by an API
+    Four domain operations plus a session lifecycle. Providers authenticated by an API
     key implement ``login`` / ``keep_alive`` as no-ops; the shared session
     (:mod:`src.services.odds_session`) drives the lifecycle identically either way.
     """
@@ -329,6 +343,21 @@ class OddsProvider(ABC):
         Takes the window rather than a bare date because since Batch 14 the slate rule
         is per-league: what counts as "this round's fixtures" is the league's setting,
         not a constant.
+        """
+
+    @abstractmethod
+    async def fetch_competitions(self) -> list[Competition]:
+        """Every competition this provider carries for the countries the game plays.
+
+        The catalogue a league admin picks from. Deliberately *not* derived from stored
+        fixtures: until Batch 21 it was, so a league whose slate had never run had
+        nothing to tick and "all UK leagues" was the only usable setting.
+
+        Abstract rather than a non-abstract default returning ``[]``, because an empty
+        catalogue is indistinguishable from "this source carries nothing" and the picker
+        would silently show the very emptiness this replaced. Every implementation
+        answers for itself, and it is cheap on both: one already-memoised ``/leagues``
+        call on odds-api.io, one ``listCompetitions`` on the Exchange.
         """
 
     @abstractmethod

@@ -150,6 +150,24 @@ describe('LeagueSettingsPage — admin configuration (Batch 15)', () => {
     expect(api.patch?.slate_start_weekday).toBe(4);
   });
 
+  it('keeps a stored selection the provider no longer lists ticked and saveable', async () => {
+    // Batch 21: `available` is the provider's catalogue, so a competition it has dropped
+    // survives only by being unioned back in from `selected`.
+    const api = stubApi({
+      all_uk: false,
+      available: [{ slug: 'epl', name: 'English Premier League' }],
+      selected: [{ slug: 'retired', name: 'Retired Cup' }],
+    });
+    renderPage();
+
+    const retired = await screen.findByLabelText(/retired cup/i);
+    expect((retired as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(api.patch).not.toBeNull());
+    expect(api.patch?.competitions).toEqual([{ slug: 'retired', name: 'Retired Cup' }]);
+  });
+
   it('creates an ad-hoc round for a chosen date', async () => {
     const api = stubApi();
     renderPage();

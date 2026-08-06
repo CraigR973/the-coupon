@@ -48,6 +48,7 @@ from src.services.betfair import (
     FakeBetfair,
 )
 from src.services.gameweek import fixtures_for, members_missing_picks, sync_slate, window_for
+from src.services.odds_provider import Competition, OddsProviderAPIError
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -56,6 +57,10 @@ pytestmark = pytest.mark.skipif(
 # Canned sample winners: Arsenal (home, EPL) and Forfar (home, SL2).
 SAMPLE_ARSENAL_SEL = 1001
 SAMPLE_FORFAR_SEL = 2001
+
+# The canned non-British competition. `fetch_slate` drops it on the country rule, so no
+# round ever pools it and it can only reach a surface from the provider's own catalogue.
+SAMPLE_LA_LIGA_ID = "99999"
 
 
 def _now() -> datetime:
@@ -1161,15 +1166,21 @@ async def test_offered_markets_hide_from_the_slate_and_block_submit(
     assert (await _submit(client, slug, alice, epl, "MATCH_ODDS", "HOME")).status_code == 201
 
 
-async def test_competition_catalogue_lists_pooled_competitions(
+async def test_competition_catalogue_comes_from_the_provider_not_from_fixtures(
     client_and_fake: tuple[AsyncClient, FakeBetfair],
 ) -> None:
-    """The picker offers the competitions discovery has pooled — no provider round-trip."""
-    client, fake = client_and_fake
+    """Batch 21: the picker is populated without this league having run a slate.
+
+    `fixtures` is a pool shared by every league, so "empty" is not assertable in this
+    committed database. The discriminator is `SAMPLE_LA_LIGA_ID` instead: `fetch_slate`
+    drops it on the country rule, so no round can ever pool it and its presence in the
+    catalogue can only mean the provider was asked.
+    """
+    client, _ = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice,), league = await _seed_league(session, ["cataloguer"])
-        # Pool the sample fixtures into the shared table via this league's round.
-        await _open_sample_gameweek(session, fake, league)
+        rows = await session.execute(select(Fixture.competition_id).distinct())
+        pooled = set(rows.scalars().all())
     await _make_admin(league, alice)
 
     cat = (
@@ -1180,6 +1191,42 @@ async def test_competition_catalogue_lists_pooled_competitions(
     by_slug = {c["slug"]: c["name"] for c in cat["available"]}
     assert by_slug.get(SAMPLE_EPL_ID) == "English Premier League"
     assert by_slug.get(SAMPLE_SL2_ID) == "Scottish League Two"
+    assert SAMPLE_LA_LIGA_ID not in pooled
+    assert by_slug.get(SAMPLE_LA_LIGA_ID) == "Spanish La Liga"
+
+
+async def test_competition_catalogue_falls_back_to_pooled_when_the_provider_is_down(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """An upstream failure degrades to the old catalogue rather than locking the admin out.
+
+    The picker is also how a league *un*-narrows itself, so a 503 here would leave an
+    admin unable to change a selection they can no longer see.
+    """
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["degrader"])
+        # Pool the sample fixtures into the shared table via this league's round.
+        await _open_sample_gameweek(session, fake, league)
+    await _make_admin(league, alice)
+
+    app.dependency_overrides[get_odds_provider] = lambda: _BrokenCatalogue()
+    try:
+        r = await client.get(f"/api/v1/leagues/{league.slug}/competitions", headers=_auth(alice))
+    finally:
+        app.dependency_overrides[get_odds_provider] = lambda: fake
+
+    assert r.status_code == 200
+    by_slug = {c["slug"]: c["name"] for c in r.json()["available"]}
+    assert by_slug.get(SAMPLE_EPL_ID) == "English Premier League"
+    assert by_slug.get(SAMPLE_SL2_ID) == "Scottish League Two"
+
+
+class _BrokenCatalogue(FakeBetfair):
+    """The canned provider with an unreachable competition catalogue."""
+
+    async def fetch_competitions(self, **_: object) -> list[Competition]:
+        raise OddsProviderAPIError("upstream unreachable")
 
 
 async def test_ad_hoc_gameweek_creates_a_filtered_round_and_is_idempotent(

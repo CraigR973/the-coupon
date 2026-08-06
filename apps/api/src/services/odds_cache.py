@@ -31,6 +31,7 @@ from datetime import date
 import structlog
 
 from src.services.odds_provider import (
+    Competition,
     EventSettlement,
     FixtureOdds,
     OddsProvider,
@@ -96,6 +97,13 @@ class CachingOddsProvider(OddsProvider):
 
     async def settle(self, event_ids: Sequence[str]) -> list[EventSettlement]:
         return await self._inner.settle(event_ids)
+
+    async def fetch_competitions(self) -> list[Competition]:
+        # Delegated without a TTL of its own. The catalogue turns over between seasons,
+        # not between page loads, and the wrapped provider already memoises it per client
+        # (``OddsApiProvider._all_leagues``), so a second cache here would duplicate that
+        # while adding an expiry the underlying one does not have.
+        return await self._inner.fetch_competitions()
 
     # -- the cached one --------------------------------------------------------
 

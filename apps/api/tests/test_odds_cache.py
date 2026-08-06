@@ -18,6 +18,7 @@ from decimal import Decimal
 from src.services.odds_cache import CachingOddsProvider
 from src.services.odds_provider import (
     SATURDAY_THREE_PM,
+    Competition,
     EventSettlement,
     FixtureOdds,
     Market,
@@ -53,6 +54,7 @@ class _CountingProvider(OddsProvider):
         self.odds_calls: list[list[str]] = []
         self.slate_calls = 0
         self.settle_calls = 0
+        self.competition_calls = 0
         self.login_calls = 0
         self.closed = False
         self.priced = priced
@@ -83,6 +85,12 @@ class _CountingProvider(OddsProvider):
                 )
             ],
         )
+
+    async def fetch_competitions(self) -> list[Competition]:
+        self.competition_calls += 1
+        return [
+            Competition(competition_id="scotland-league-one", competition="Scotland - League One")
+        ]
 
     async def fetch_odds(
         self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
@@ -233,6 +241,22 @@ async def test_slate_and_settlement_are_not_cached() -> None:
 
     assert inner.slate_calls == 2
     assert inner.settle_calls == 2
+
+
+async def test_the_competition_catalogue_is_delegated_uncached() -> None:
+    """The decorator must not swallow the catalogue — the picker reads it through here.
+
+    Uncached on purpose: ``OddsApiProvider`` already memoises ``/leagues`` on the client,
+    so a TTL here would only add an expiry that one does not have.
+    """
+    inner = _CountingProvider()
+    cache = _cache(inner, _Clock())
+
+    first = await cache.fetch_competitions()
+    await cache.fetch_competitions()
+
+    assert [c.competition_id for c in first] == ["scotland-league-one"]
+    assert inner.competition_calls == 2
 
 
 async def test_lifecycle_is_delegated_and_close_drops_the_cache() -> None:

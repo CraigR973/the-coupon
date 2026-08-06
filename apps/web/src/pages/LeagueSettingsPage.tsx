@@ -40,7 +40,8 @@ export function LeagueSettingsPage() {
     queryFn: () => apiFetch<LeagueSummary>(`/api/v1/leagues/${slug}`),
   });
 
-  // The competition picker's catalogue — admin-only, costs no provider request.
+  // The competition picker's catalogue — admin-only, and the provider memoises it, so
+  // opening settings costs no upstream request on the common path.
   const { data: catalogue } = useQuery<CompetitionCatalogue>({
     queryKey: ['league', slug, 'competitions'],
     queryFn: () => apiFetch<CompetitionCatalogue>(`/api/v1/leagues/${slug}/competitions`),
@@ -83,8 +84,8 @@ export function LeagueSettingsPage() {
     }
   }, [catalogue]);
 
-  // The choosable competitions: what discovery has pooled, unioned with any stored
-  // selection (so a competition that has dropped out of the pool still shows as ticked).
+  // The choosable competitions: what the provider carries, unioned with any stored
+  // selection (so a competition dropped from the provider's list still shows as ticked).
   const competitionOptions = useMemo<CompetitionRef[]>(() => {
     const bySlug = new Map<string, CompetitionRef>();
     for (const c of catalogue?.available ?? []) bySlug.set(c.slug, c);

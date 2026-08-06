@@ -48,6 +48,7 @@ from src.config import settings
 from src.services.odds_provider import (
     MARKET_BTTS,
     MARKET_MATCH_ODDS,
+    Competition,
     EventSettlement,
     FixtureOdds,
     Market,
@@ -327,6 +328,26 @@ class BetfairAdapter(OddsProvider):
     async def list_market_book(self, *, market_ids: Sequence[str]) -> list[BFMarketBook]: ...
 
     # -- domain operations (shared) --------------------------------------------
+
+    async def fetch_competitions(
+        self, *, countries: Collection[str] = SLATE_COUNTRIES
+    ) -> list[Competition]:
+        """Every British competition the Exchange carries, in name order.
+
+        The primitive :meth:`fetch_slate` opens with, minus the time bounds: the picker
+        is choosing what a league plays in general, so a competition out of season this
+        week still belongs in it. One request, and no ``listEvents`` fan-out.
+        """
+        results = await self.list_competitions(
+            event_type_id=SOCCER_EVENT_TYPE_ID,
+            market_countries=sorted({c.strip().upper() for c in countries}),
+        )
+        by_id = {r.competition.id: r.competition.name for r in results}
+        competitions = [
+            Competition(competition_id=cid, competition=name) for cid, name in by_id.items()
+        ]
+        competitions.sort(key=lambda c: c.competition)
+        return competitions
 
     async def fetch_slate(
         self,

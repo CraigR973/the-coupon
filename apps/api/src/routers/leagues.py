@@ -34,6 +34,7 @@ from src.models.profile import Profile, UserRole
 from src.rate_limit import limiter, per_user_key
 from src.services.gameweek import refresh_slate
 from src.services.notification_triggers import notify_member_joined
+from src.services.odds_provider import OddsProviderError
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -932,15 +933,29 @@ async def update_league(
 class CompetitionsResponse(BaseModel):
     """What the settings screen needs to render the competition picker.
 
-    ``available`` is the catalogue to choose from — every competition discovery has ever
-    pooled, which is the UK set the provider carries, derived from ``fixtures`` so opening
-    the picker costs no provider request. ``all_uk`` is true when the league is on the
-    default group; ``selected`` is its explicit list otherwise (empty when ``all_uk``).
+    ``available`` is the catalogue to choose from — every UK competition the odds provider
+    carries. ``all_uk`` is true when the league is on the default group; ``selected`` is
+    its explicit list otherwise (empty when ``all_uk``). A stored selection the provider
+    has since dropped stays in ``selected`` and is unioned back in by the picker, so it
+    still shows as ticked rather than vanishing.
     """
 
     all_uk: bool
     available: list[CompetitionRef]
     selected: list[CompetitionRef]
+
+
+async def _pooled_competitions(db: AsyncSession) -> list[CompetitionRef]:
+    """The competitions discovery has already pooled into ``fixtures``.
+
+    What the catalogue used to be built from, kept as the degraded answer when the
+    provider cannot be reached: a subset of the real catalogue, but never worse than the
+    behaviour this endpoint shipped with.
+    """
+    rows = await db.execute(
+        select(Fixture.competition_id, Fixture.competition).distinct().order_by(Fixture.competition)
+    )
+    return [CompetitionRef(slug=slug_, name=name) for slug_, name in rows.all()]
 
 
 @router.get("/{slug}/competitions", response_model=CompetitionsResponse)
@@ -949,13 +964,28 @@ async def league_competitions(
     request: Request,
     slug: str,
     admin_ctx: LeagueAdminDep,
+    provider: OddsProviderDep,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CompetitionsResponse:
+    """The competition picker's catalogue, sourced from the odds provider.
+
+    Batch 15 shipped the picker against ``SELECT DISTINCT … FROM fixtures``, which is only
+    what discovery had already pooled — so a league whose slate had never run saw an empty
+    list and could not narrow at all. The provider's own catalogue is the right source and
+    costs nothing on the common path: it is one ``/leagues`` call, memoised on the shared
+    client, not the per-competition ``/events`` fan-out the slate pays for.
+    """
     _, league = admin_ctx
-    rows = await db.execute(
-        select(Fixture.competition_id, Fixture.competition).distinct().order_by(Fixture.competition)
-    )
-    available = [CompetitionRef(slug=slug_, name=name) for slug_, name in rows.all()]
+    try:
+        available = [
+            CompetitionRef(slug=c.competition_id, name=c.competition)
+            for c in await provider.fetch_competitions()
+        ]
+    except OddsProviderError as exc:
+        # The picker is how an admin *un*-narrows a league, so an upstream failure must not
+        # lock them out of their own settings. Fall back to the pooled set.
+        log.warning("competition catalogue unavailable; falling back to pooled", error=repr(exc))
+        available = await _pooled_competitions(db)
     selected = _competitions_out(league)
     return CompetitionsResponse(
         all_uk=selected is None,

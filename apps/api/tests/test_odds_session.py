@@ -22,6 +22,7 @@ from fastapi import HTTPException
 from src.config import Environment, OddsProviderName
 from src.services.odds_cache import CachingOddsProvider
 from src.services.odds_provider import (
+    Competition,
     EventSettlement,
     FixtureOdds,
     OddsProvider,
@@ -59,6 +60,9 @@ class _StubClient(OddsProvider):
 
     async def fetch_slate(self, window: SlateWindow, starts_on: date) -> Slate:
         return Slate(starts_on=starts_on, fixtures=[])
+
+    async def fetch_competitions(self) -> list[Competition]:
+        return []
 
     async def fetch_odds(self, event_ids: Sequence[str]) -> list[FixtureOdds]:
         return []

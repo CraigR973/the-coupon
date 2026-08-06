@@ -11,6 +11,7 @@ keepAlive, JSON-RPC parsing, error + retry handling) is driven with an
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -26,15 +27,18 @@ from src.services.betfair import (
     SAMPLE_BTTS_YES_SEL,
     SAMPLE_EPL_BTTS_MKT,
     SAMPLE_EPL_EVENT_ID,
+    SAMPLE_EPL_ID,
     SAMPLE_EPL_MATCH_ODDS_MKT,
     SAMPLE_FORFAR_SEL,
     SAMPLE_SATURDAY,
     SAMPLE_SL2_EVENT_ID,
+    SAMPLE_SL2_ID,
     SAMPLE_SL2_MATCH_ODDS_MKT,
     TARGET_COMPETITION_NAMES,
     Betfair,
     BetfairAPIError,
     BetfairAuthError,
+    BFCompetitionResult,
     FakeBetfair,
 )
 from src.services.odds_provider import SATURDAY_THREE_PM, Market, Outcome
@@ -101,6 +105,65 @@ class TestFetchSlate:
         assert all(
             f.competition in {"English Premier League", "Scottish League Two"}
             for f in slate.fixtures
+        )
+
+
+# ══ FakeBetfair — competition catalogue (Batch 21) ══════════════════════════════
+
+
+class TestFetchCompetitions:
+    async def test_lists_the_competitions_without_a_slate(self) -> None:
+        """The picker's catalogue, name-ordered and independent of any round having run."""
+        competitions = await FakeBetfair.with_sample_data().fetch_competitions()
+
+        assert [(c.competition_id, c.competition) for c in competitions] == [
+            (SAMPLE_EPL_ID, "English Premier League"),
+            (SAMPLE_SL2_ID, "Scottish League Two"),
+            # The canned competitions carry no country of their own, so the fake returns
+            # its list verbatim — the live client's `listCompetitions` applies
+            # `marketCountries` server-side, and `fetch_slate` enforces the rule per event.
+            ("99999", "Spanish La Liga"),
+        ]
+
+    async def test_asks_for_football_in_the_slate_countries_without_time_bounds(self) -> None:
+        """One `listCompetitions`, unbounded in time: out of season is still pickable."""
+        fake = _RecordingFake()
+
+        await fake.fetch_competitions()
+
+        assert fake.competition_calls == [
+            {"event_type_id": "1", "market_countries": ["GB"], "from_utc": None, "to_utc": None}
+        ]
+
+
+class _RecordingFake(FakeBetfair):
+    """A fake that records the arguments `fetch_competitions` passes to the primitive."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.competition_calls: list[dict[str, Any]] = []
+
+    async def list_competitions(
+        self,
+        *,
+        event_type_id: str,
+        market_countries: Sequence[str] = (),
+        from_utc: datetime | None = None,
+        to_utc: datetime | None = None,
+    ) -> list[BFCompetitionResult]:
+        self.competition_calls.append(
+            {
+                "event_type_id": event_type_id,
+                "market_countries": list(market_countries),
+                "from_utc": from_utc,
+                "to_utc": to_utc,
+            }
+        )
+        return await super().list_competitions(
+            event_type_id=event_type_id,
+            market_countries=market_countries,
+            from_utc=from_utc,
+            to_utc=to_utc,
         )
 
 

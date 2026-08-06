@@ -271,6 +271,67 @@ class TestFetchSlate:
         assert events_request.url.params["to"] == "2026-08-08T23:00:00Z"
 
 
+class TestFetchCompetitions:
+    """Batch 21 — the admin picker's catalogue, sourced here instead of from `fixtures`."""
+
+    async def test_lists_every_uk_competition_the_provider_carries(self) -> None:
+        competitions = await _provider(_routed(SLATE_ROUTES)).fetch_competitions()
+
+        assert {c.competition_id for c in competitions} == {
+            "england-amateur-national-league-north",
+            "england-premier-league",
+            "northern-ireland-premiership",
+            SL1,
+            "scotland-league-two",
+            "wales-cymru-premier",
+        }
+        # The slug is what `/events?league=` and a stored selection both key on; the name
+        # is what the admin reads, and the list arrives name-ordered for the picker.
+        by_id = {c.competition_id: c.competition for c in competitions}
+        assert by_id[SL1] == "Scotland - League One"
+        assert [c.competition for c in competitions] == sorted(c.competition for c in competitions)
+
+    async def test_excludes_competitions_outside_the_home_nations(self) -> None:
+        """Same `_is_uk` rule the slate uses — a picker entry the slate ignores is a trap."""
+        competitions = await _provider(_routed(SLATE_ROUTES)).fetch_competitions()
+
+        ids = {c.competition_id for c in competitions}
+        assert "spain-la-liga" not in ids
+        # "Ukraine" begins with "uk"; a prefix test would offer it.
+        assert "ukraine-premier-league" not in ids
+
+    async def test_offers_competitions_no_slate_has_ever_pooled(self) -> None:
+        """The defect Batch 21 fixes, in one comparison.
+
+        Three of these six competitions have fixtures on the canned Saturday, so a
+        `fixtures`-derived catalogue could only ever offer those three — and none at all
+        before a league's first slate ran. The provider's catalogue offers all six.
+        """
+        provider = _provider(_routed(SLATE_ROUTES))
+        competitions = await provider.fetch_competitions()
+        slate = await provider.fetch_slate(SATURDAY_THREE_PM, SATURDAY)
+
+        pooled = {f.competition_id for f in slate.fixtures}
+        offered = {c.competition_id for c in competitions}
+
+        assert pooled < offered
+        assert "scotland-league-two" in offered - pooled
+
+    async def test_costs_one_request_and_none_at_all_after_a_slate(self) -> None:
+        """`_all_leagues` is memoised per client, so the picker is free on the common path."""
+        record: list[httpx.Request] = []
+        provider = _provider(_routed(SLATE_ROUTES, record=record))
+
+        await provider.fetch_competitions()
+        assert len(record) == 1 and record[0].url.path.endswith("/leagues")
+
+        await provider.fetch_slate(SATURDAY_THREE_PM, SATURDAY)
+        before = len(record)
+        await provider.fetch_competitions()
+        await provider.fetch_competitions()
+        assert len(record) == before
+
+
 class TestUkDetection:
     @pytest.mark.parametrize(
         ("name", "expected"),
