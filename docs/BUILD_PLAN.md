@@ -205,7 +205,7 @@ feedback pass; it is a live production defect found while reconciling it.
   change. While here: `SettingsPage` links to `/about`, which has no route and no
   page, so the catch-all bounces it to home.
 
-- [ ] **Batch 21 — Competition catalogue from the provider** *(Opus)* — Batch 15 shipped
+- [x] **Batch 21 — Competition catalogue from the provider** ✅ 2026-08-06 *(Opus)* — Batch 15 shipped
   per-competition selection and it works, but the picker is empty for most
   leagues, so "all UK leagues" is the only usable choice. The cause is the
   catalogue, not the UI: `GET /{slug}/competitions` builds `available` from

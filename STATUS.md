@@ -2,8 +2,7 @@
 
 ## Now
 
-Build batches 1–20 are closed. Batch 21 comes from the owner's 2026-08-06
-feedback pass and remains open. The Coupon is a
+Build batches 1–21 are closed — no build batch remains open. The Coupon is a
 verified private weekly
 football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
@@ -151,12 +150,25 @@ Also fixed in passing: `SettingsPage`'s dangling `/about` link, which had no
 route and silently bounced through the catch-all to home, now resolves to a
 new `AboutPage` reusing the existing scoring-rules copy.
 
+Batch 21 fixed the competition picker Batch 15 shipped, which was empty for
+most leagues so "all UK leagues" was the only usable choice. The cause was the
+catalogue, not the UI: `GET /{slug}/competitions` built its list from
+`SELECT DISTINCT … FROM fixtures`, which is only what discovery had already
+pooled, so a league whose slate had never run had nothing to tick. The odds
+port gained `fetch_competitions()` as an `@abstractmethod` — a default
+returning `[]` would have left `FakeBetfair`, which backs staging and the
+browser flow, showing that same emptiness. It costs no upstream request on the
+common path: the catalogue is one `/leagues` call memoised on the shared
+client, not the per-competition `/events` fan-out the slate pays for. The
+pooled-fixtures query survives as the fallback when the provider is
+unreachable, because the picker is also how an admin *un*-narrows a league.
+
 ## Verified
 
-- Backend: 375 pytest (453 with a database), Ruff check/format, and strict mypy
+- Backend: 382 pytest (461 with a database), Ruff check/format, and strict mypy
 - Database: clean `pgserver` migration through revision `011`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 13 public tables under a Supabase-like role setup
-- Frontend: Node 20 production build, TypeScript, ESLint, and 234 Vitest
+- Frontend: Node 20 production build, TypeScript, ESLint, and 235 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
   coupon, phone push, and PWA update behavior
@@ -187,9 +199,8 @@ new `AboutPage` reusing the existing scoring-rules copy.
 
 ## Next
 
-Batch 21 is open in `docs/BUILD_PLAN.md` (competition catalogue from the
-provider, Opus). Alongside that, Launch L5 —
-launch and first-Saturday watch — is the only open launch phase.
+No build batch remains open in `docs/BUILD_PLAN.md`. Launch L5 — launch and
+first-Saturday watch — is the only open phase of any kind.
 Batch 7 shipped the odds source, so the remaining launch work is deployment and
 configuration:
 

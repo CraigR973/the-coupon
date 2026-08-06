@@ -452,3 +452,30 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   `TopBar.test.tsx`, `TabBar.test.tsx`, and `accessibility.test.tsx` accordingly.
 
 **Next:** Batch 21 — Competition catalogue from the provider.
+
+## Batch 21 — Competition catalogue from the provider
+**Commits:** `74378f8` · verified: Ruff 0.5.4 check/format · strict mypy · 382 pytest (461 on clean `pgserver` through `011`) · lint · typecheck · build · 235 Vitest · browser picker against `tests/e2e_server`
+
+### Key facts for future sessions
+- `fetch_competitions()` is an `@abstractmethod` on `OddsProvider`, chosen over a
+  non-abstract default returning `[]`: a default would have left `FakeBetfair` — which
+  backs every test, staging, and the browser flow — showing exactly the empty picker the
+  batch existed to fix. The cost is four implementations, all a few lines.
+- **Do not name a port method `list_competitions`** — `BetfairAdapter` already has one as
+  a raw primitive with a different signature, so the port method is `fetch_competitions`.
+- `OddsApiProvider._uk_leagues()` is now shared by `fetch_slate` and `fetch_competitions`,
+  so the picker cannot offer a competition the slate ignores or hide one it takes.
+  `_all_leagues()`'s per-client memo is what keeps the endpoint free of an upstream
+  request; `CachingOddsProvider` therefore delegates it *uncached* on purpose.
+- The endpoint keeps the old `SELECT DISTINCT … FROM fixtures` query as an
+  `OddsProviderError` fallback. The picker is also how an admin *un*-narrows a league, so
+  a 503 would leave them unable to change a selection they can no longer see.
+- `fixtures` is a pool shared by every league, so "this league has pooled nothing" is not
+  assertable in the committed test database. The discriminator is the canned
+  `Spanish La Liga` (`99999`): `fetch_slate` drops it on the country rule, so no round can
+  ever pool it and its presence proves the catalogue came from the provider.
+- **`apps/web/.env.local` points the dev server at the production Railway API.** Any local
+  browser check must override it (a `.env.development.local` wins and is gitignored) or it
+  silently drives production.
+
+**Next:** no build batches remain open; Launch L5 — launch and first-Saturday watch.
