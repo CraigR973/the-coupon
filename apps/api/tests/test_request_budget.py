@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 
-from src.services.gameweek import slate_odds_max_age, upcoming_saturdays
+from src.services.gameweek import slate_odds_max_age, upcoming_slate_dates
 from src.services.odds_cache import CachingOddsProvider
 from tests.test_odds_cache import _Clock, _CountingProvider
 
@@ -96,8 +96,11 @@ def upcoming_saturdays_for_budget() -> list[object]:
     from datetime import date
 
     from src.config import settings
+    from src.services.odds_provider import SATURDAY_THREE_PM
 
-    return list(upcoming_saturdays(date(2026, 8, 5), settings.slate_horizon_weeks))
+    return list(
+        upcoming_slate_dates(date(2026, 8, 5), SATURDAY_THREE_PM, settings.slate_horizon_weeks)
+    )
 
 
 async def test_freezing_every_members_pick_costs_one_request_each() -> None:
@@ -127,6 +130,28 @@ async def test_discovery_is_a_fixed_daily_cost_independent_of_traffic() -> None:
     assert burst <= HOURLY_LIMIT, why
 
 
+def test_discovery_cost_scales_with_windows_not_leagues() -> None:
+    """Batch 14's per-league windows must not multiply the provider bill.
+
+    Discovery groups leagues by window and fetches each ``(window, date)`` once, so
+    a league added on the default Saturday is free and only a genuinely different
+    window costs anything. Stated as arithmetic here; exercised against a real
+    provider in ``test_scheduler_jobs.py``.
+    """
+    from src.services.odds_provider import SATURDAY_THREE_PM, SlateWindow
+
+    dates = len(upcoming_saturdays_for_budget())
+    friday_night = SlateWindow(start_weekday=4, start_minute=19 * 60, end_weekday=0)
+
+    fifteen_leagues_one_window = {SATURDAY_THREE_PM for _ in range(15)}
+    assert UK_COMPETITIONS * len(fifteen_leagues_one_window) * dates <= HOURLY_LIMIT
+
+    # Two distinct windows cost two, not two-per-league.
+    mixed = {SATURDAY_THREE_PM, SATURDAY_THREE_PM, friday_night}
+    assert len(mixed) == 2
+    assert UK_COMPETITIONS * len(mixed) * dates <= DAILY_LIMIT
+
+
 def test_the_configured_defaults_are_the_ones_this_module_budgets_for() -> None:
     """The budget above is only meaningful if it describes the shipped settings."""
     from src.config import settings
@@ -146,7 +171,7 @@ def test_the_tiers_are_ordered_loosest_first() -> None:
 
     def ceiling(hours: float) -> float:
         gameweek = Gameweek(
-            saturday_date=now.date(),
+            starts_on=now.date(),
             status=GameweekStatus.open,
             locks_at_utc=now + timedelta(hours=hours),
         )

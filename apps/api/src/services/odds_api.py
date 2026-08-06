@@ -56,11 +56,10 @@ from src.services.odds_provider import (
     Selection,
     Slate,
     SlateFixture,
+    SlateWindow,
     as_utc,
-    is_saturday_kickoff,
     iso_z,
     outcomes_from_score,
-    saturday_window,
     split_event_name,
 )
 
@@ -377,22 +376,26 @@ class OddsApiProvider(OddsProvider):
 
     # -- domain operations -----------------------------------------------------
 
-    async def fetch_slate(self, saturday: date) -> Slate:
-        """Every British 15:00 kick-off that Saturday, across every UK competition.
+    async def fetch_slate(self, window: SlateWindow, starts_on: date) -> Slate:
+        """Every British kick-off inside ``window``, across every UK competition.
 
         The slate is defined by *country and kick-off time*, not by a list of divisions —
         a first-round cup Saturday is as playable as a league Saturday. UK leagues are
         discovered from the provider's own catalogue each run, so a renamed or newly
         carried division is picked up without a code change.
+
+        The window is the league's, not a constant, since Batch 14. It is queried a
+        whole day at a time and filtered precisely afterwards, because providers filter
+        by range and the default window is a single instant.
         """
-        from_utc, to_utc = saturday_window(saturday)
+        from_utc, to_utc = window.query_bounds(starts_on)
         leagues = [lg for lg in await self._all_leagues() if _is_uk(lg) and lg.id]
 
         fixtures: list[SlateFixture] = []
         for league in leagues:
             events = await self._league_events(league.id, from_utc, to_utc)
             for event in events:
-                if event.date is None or not is_saturday_kickoff(event.date):
+                if event.date is None or not window.contains(event.date, starts_on):
                     continue
                 if not event.id:
                     continue
@@ -415,11 +418,11 @@ class OddsApiProvider(OddsProvider):
         fixtures.sort(key=lambda f: (f.competition, f.kickoff_utc, f.home))
         log.info(
             "odds-api slate fetched",
-            saturday=str(saturday),
+            starts_on=str(starts_on),
             uk_leagues=len(leagues),
             fixtures=len(fixtures),
         )
-        return Slate(saturday=saturday, fixtures=fixtures)
+        return Slate(starts_on=starts_on, fixtures=fixtures)
 
     async def fetch_odds(
         self, event_ids: Sequence[str], *, max_age_seconds: float | None = None

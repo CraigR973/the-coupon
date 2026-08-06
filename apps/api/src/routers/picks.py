@@ -4,7 +4,7 @@
 pick for the gameweek. The endpoint snapshots the odds itself, so the frozen price is
 authoritative rather than client-supplied, and it enforces both game rules:
 
-* one pick per member per gameweek (a re-pick updates in place, freeing the old selection);
+* one pick per member per round (a re-pick updates in place, freeing the old selection);
 * no two members holding the same claim (first-come; a taken claim → 409).
 
 How much a claim covers is the league's ``pick_scope``: one ``(fixture, market,
@@ -31,7 +31,7 @@ from src.config import settings
 from src.database import get_db
 from src.deps import LeagueMemberDep, OddsProviderDep
 from src.models.fixture import Fixture
-from src.models.gameweek import Gameweek
+from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
 from src.models.league import League, PickScope
 from src.models.pick import Pick, PickMarket, PickOutcome
 from src.rate_limit import limiter, per_user_key
@@ -107,9 +107,7 @@ async def submit_pick(
     db: Db,
 ) -> PickResponse:
     fixture = await _resolve_fixture(body.fixture_id, db)
-    gameweek = await db.get(Gameweek, fixture.gameweek_id)
-    if gameweek is None:  # FK guarantees this, but keep mypy + runtime honest
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gameweek not found")
+    gameweek = await _round_playing(db, league, fixture)
     if not is_open_for_picks(gameweek, _now()):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="PICKS_LOCKED")
 
@@ -189,6 +187,42 @@ async def _resolve_fixture(fixture_id: str, db: AsyncSession) -> Fixture:
     if fixture is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixture not found")
     return fixture
+
+
+async def _round_playing(db: AsyncSession, league: League, fixture: Fixture) -> Gameweek:
+    """The round of *this league* that has this fixture on its card.
+
+    Fixtures are pooled since Batch 14, so a fixture no longer names the round it
+    belongs to — it can be on several leagues' cards at once. The round has to be
+    found from the league and the fixture together.
+
+    A fixture the league is not playing is a 404 rather than a lock error: as far as
+    this league is concerned that match is not on the card at all. The pick uniqueness
+    rules are keyed on the round, so picking through a fixture the league never
+    selected would otherwise write a pick nothing could settle.
+
+    A league can carry the same fixture on two rounds — ``sync_slate`` never unlinks,
+    so a match that moves between windows stays on the round it was first discovered
+    for. **Still-open rounds win**, newest first: a pick can only ever land on an open
+    round, so resolving to a locked one would refuse a submission the member could
+    legitimately make.
+    """
+    result = await db.execute(
+        select(Gameweek)
+        .join(GameweekFixture, GameweekFixture.gameweek_id == Gameweek.id)
+        .where(GameweekFixture.fixture_id == fixture.id, Gameweek.league_id == league.id)
+        .order_by(
+            (Gameweek.status == GameweekStatus.open).desc(),
+            Gameweek.starts_on.desc(),
+        )
+        .limit(1)
+    )
+    gameweek = result.scalar_one_or_none()
+    if gameweek is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Fixture is not on this league's slate"
+        )
+    return gameweek
 
 
 async def _snapshot_selection(

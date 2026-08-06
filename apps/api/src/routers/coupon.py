@@ -32,7 +32,7 @@ Db = Annotated[AsyncSession, Depends(get_db)]
 async def combined_coupon(
     slug: str, league: LeagueMemberDep, db: Db, gameweek_id: str | None = None
 ) -> Coupon:
-    gameweek = await resolve_gameweek(db, gameweek_id)
+    gameweek = await resolve_gameweek(db, league.id, gameweek_id)
     return await build_coupon(db, league.id, gameweek)
 
 

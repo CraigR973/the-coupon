@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
@@ -103,7 +104,7 @@ class FixtureOdds(BaseModel):
 
 
 class SlateFixture(BaseModel):
-    """One Saturday-15:00 British match."""
+    """One British match inside a league's slate window."""
 
     provider_event_id: str
     home: str
@@ -114,9 +115,9 @@ class SlateFixture(BaseModel):
 
 
 class Slate(BaseModel):
-    """A gameweek's worth of fixtures — one Saturday's 15:00 kick-offs."""
+    """A round's worth of fixtures — everything inside one league's window."""
 
-    saturday: date
+    starts_on: date
     fixtures: list[SlateFixture]
 
 
@@ -161,21 +162,77 @@ def iso_z(value: datetime) -> str:
     return as_utc(value).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def saturday_window(saturday: date) -> tuple[datetime, datetime]:
-    """UTC [start, end) covering the whole of ``saturday`` in UK local time.
+@dataclass(frozen=True)
+class SlateWindow:
+    """When a league's round runs — a range in UK local time, plus its lock.
 
-    Anchored in ``Europe/London`` so the window is correct under both BST and GMT — the
-    season spans August (BST) to May (GMT).
+    Batch 14 lifted this out of module constants so leagues can differ. The product
+    shipped with a single Saturday 15:00 kick-off, which is this range with its start
+    equal to its end; a league playing Friday 19:00 to Monday 22:00 is
+    ``(FRIDAY, 19*60) → (MONDAY, 22*60)``. Weekdays follow ``date.weekday()``, minutes
+    are from local midnight.
+
+    Anchored in ``Europe/London`` throughout, so a window is correct under both BST
+    and GMT — the season spans August (BST) to May (GMT).
     """
-    start_local = datetime(saturday.year, saturday.month, saturday.day, tzinfo=UK_TZ)
-    end_local = start_local + timedelta(days=1)
-    return start_local.astimezone(UTC), end_local.astimezone(UTC)
+
+    start_weekday: int = SATURDAY
+    start_minute: int = KICKOFF_HOUR * 60
+    end_weekday: int = SATURDAY
+    end_minute: int = KICKOFF_HOUR * 60
+    lock_offset_minutes: int = 30
+
+    @property
+    def span_days(self) -> int:
+        """Whole days from the window's start weekday to its end weekday."""
+        return (self.end_weekday - self.start_weekday) % 7
+
+    def first_start_on_or_after(self, today: date) -> date:
+        """The next date this window opens on, today included."""
+        return today + timedelta(days=(self.start_weekday - today.weekday()) % 7)
+
+    def opens_at(self, starts_on: date) -> datetime:
+        """Aware local instant the window opens for a round starting ``starts_on``."""
+        return datetime(starts_on.year, starts_on.month, starts_on.day, tzinfo=UK_TZ) + timedelta(
+            minutes=self.start_minute
+        )
+
+    def closes_at(self, starts_on: date) -> datetime:
+        """Aware local instant the window closes — may be days after it opened."""
+        end_day = starts_on + timedelta(days=self.span_days)
+        return datetime(end_day.year, end_day.month, end_day.day, tzinfo=UK_TZ) + timedelta(
+            minutes=self.end_minute
+        )
+
+    def locks_at(self, starts_on: date) -> datetime:
+        """Naive-UTC instant picks lock: ``lock_offset_minutes`` before it opens."""
+        local = self.opens_at(starts_on) - timedelta(minutes=self.lock_offset_minutes)
+        return local.astimezone(UTC).replace(tzinfo=None)
+
+    def query_bounds(self, starts_on: date) -> tuple[datetime, datetime]:
+        """UTC [start, end) covering every local day the window touches.
+
+        Deliberately wider than the window itself: providers filter by time range, so
+        this asks for whole days and :meth:`contains` decides which of the returned
+        kick-offs actually qualify. A window whose start equals its end would
+        otherwise be an empty query.
+        """
+        start_local = datetime(starts_on.year, starts_on.month, starts_on.day, tzinfo=UK_TZ)
+        end_local = start_local + timedelta(days=self.span_days + 1)
+        return start_local.astimezone(UTC), end_local.astimezone(UTC)
+
+    def contains(self, kickoff_utc: datetime, starts_on: date) -> bool:
+        """True when a kick-off falls inside the window, endpoints included.
+
+        Inclusive at both ends so the default point window — start equal to end —
+        still matches the 15:00 kick-offs it describes.
+        """
+        local = as_utc(kickoff_utc).astimezone(UK_TZ)
+        return self.opens_at(starts_on) <= local <= self.closes_at(starts_on)
 
 
-def is_saturday_kickoff(kickoff_utc: datetime) -> bool:
-    """True when the kick-off is 15:00 on a Saturday in UK local time."""
-    local = as_utc(kickoff_utc).astimezone(UK_TZ)
-    return local.weekday() == SATURDAY and local.hour == KICKOFF_HOUR and local.minute == 0
+#: The rule the product shipped with, and the default every league still gets.
+SATURDAY_THREE_PM = SlateWindow()
 
 
 def split_event_name(name: str) -> tuple[str, str] | None:
@@ -266,8 +323,13 @@ class OddsProvider(ABC):
         """Release any client resources held by the provider."""
 
     @abstractmethod
-    async def fetch_slate(self, saturday: date) -> Slate:
-        """Return that Saturday's British 15:00 kick-offs."""
+    async def fetch_slate(self, window: SlateWindow, starts_on: date) -> Slate:
+        """Return the British kick-offs inside ``window`` for the round on ``starts_on``.
+
+        Takes the window rather than a bare date because since Batch 14 the slate rule
+        is per-league: what counts as "this round's fixtures" is the league's setting,
+        not a constant.
+        """
 
     @abstractmethod
     async def fetch_odds(

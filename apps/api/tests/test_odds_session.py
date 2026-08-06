@@ -28,6 +28,7 @@ from src.services.odds_provider import (
     OddsProviderAuthError,
     OddsProviderError,
     Slate,
+    SlateWindow,
 )
 from src.services.odds_session import _KEEPALIVE_AFTER, OddsProviderSession, build_provider
 
@@ -56,8 +57,8 @@ class _StubClient(OddsProvider):
     async def close(self) -> None:
         self.closed = True
 
-    async def fetch_slate(self, saturday: date) -> Slate:
-        return Slate(saturday=saturday, fixtures=[])
+    async def fetch_slate(self, window: SlateWindow, starts_on: date) -> Slate:
+        return Slate(starts_on=starts_on, fixtures=[])
 
     async def fetch_odds(self, event_ids: Sequence[str]) -> list[FixtureOdds]:
         return []

@@ -28,18 +28,16 @@ from src.database import AsyncSessionLocal
 from src.models.notification import ActionType, ActorType, AuditLog
 from src.services.backup import create_backup
 from src.services.gameweek import (
-    current_open_gameweek,
+    active_leagues,
+    current_open_gameweeks,
     discover_fixtures,
     lock_due_gameweeks,
-    refresh_slate,
     settleable_gameweeks,
-    upcoming_saturday,
-    upcoming_saturdays,
+    window_for,
 )
 from src.services.notification_triggers import send_pick_reminders
 from src.services.odds_session import odds_session
 from src.services.scoring import (
-    participating_league_ids,
     settle_gameweek_via_provider,
     standings,
 )
@@ -117,14 +115,18 @@ async def run_discover_fixtures() -> bool:
     """
     try:
         provider = await odds_session.acquire()
-        saturdays = upcoming_saturdays(_uk_today(), settings.slate_horizon_weeks)
         async with AsyncSessionLocal() as session:
-            gameweeks = await discover_fixtures(session, provider, saturdays)
+            leagues = await active_leagues(session)
+            gameweeks = await discover_fixtures(
+                session, provider, leagues, _uk_today(), settings.slate_horizon_weeks
+            )
             gameweek_ids = [str(g.id) for g in gameweeks]
+            windows = len({window_for(league) for league in leagues})
             await session.commit()
         log.info(
             "fixtures discovered",
-            saturdays=[str(d) for d in saturdays],
+            leagues=len(leagues),
+            distinct_windows=windows,
             gameweeks=len(gameweek_ids),
         )
         return True
@@ -134,24 +136,28 @@ async def run_discover_fixtures() -> bool:
 
 
 async def run_refresh_slate() -> bool:
-    """Firm up match day's card shortly before lock.
+    """Firm up the imminent card shortly before lock.
 
-    Discovery already walked this Saturday in days ago; this is the late pass that
-    catches a postponement or a kick-off change. Odds themselves are snapshotted onto
-    each pick at pick time and served through the provider's own TTL cache, so there
-    is nothing to warm here.
+    Discovery already walked this round in days ago; this is the late pass that catches
+    a postponement or a kick-off change. It covers only the *nearest* date of each
+    league's window rather than the whole horizon, because the far weeks have not
+    firmed up yet and re-fetching them would spend the provider budget on nothing.
+
+    Odds themselves are snapshotted onto each pick at pick time and served through the
+    provider's own TTL cache, so there is nothing to warm here.
     """
     try:
         provider = await odds_session.acquire()
-        saturday = upcoming_saturday(_uk_today())
         async with AsyncSessionLocal() as session:
-            gameweek = await refresh_slate(session, provider, saturday)
-            gameweek_id = str(gameweek.id) if gameweek is not None else None
+            leagues = await active_leagues(session)
+            # Horizon of 1: only the round about to be played.
+            gameweeks = await discover_fixtures(session, provider, leagues, _uk_today(), 1)
+            refreshed = len(gameweeks)
             await session.commit()
-        if gameweek_id is not None:
-            log.info("slate refreshed", saturday=str(saturday), gameweek_id=gameweek_id)
+        if refreshed:
+            log.info("slate refreshed", leagues=len(leagues), gameweeks=refreshed)
         else:
-            log.info("slate refresh: no target fixtures", saturday=str(saturday))
+            log.info("slate refresh: no target fixtures", leagues=len(leagues))
         return True
     except Exception:
         log.exception("slate refresh failed")
@@ -194,17 +200,19 @@ async def run_settle_gameweeks() -> bool:
                 resolved_by_gameweek[str(gameweek.id)] = resolved
             await session.commit()
 
+            # A round belongs to one league since Batch 14, so its league is the
+            # only table a settlement can move — no lookup of "who played this
+            # round" is needed any more.
             for gameweek in gameweeks:
-                for league_id in await participating_league_ids(session, gameweek):
-                    table = await standings(session, league_id)
-                    leader = table[0] if table else None
-                    log.info(
-                        "standings recomputed",
-                        gameweek_id=str(gameweek.id),
-                        league_id=str(league_id),
-                        leader_present=leader is not None,
-                        leader_points=leader.total_points if leader else None,
-                    )
+                table = await standings(session, gameweek.league_id)
+                leader = table[0] if table else None
+                log.info(
+                    "standings recomputed",
+                    gameweek_id=str(gameweek.id),
+                    league_id=str(gameweek.league_id),
+                    leader_present=leader is not None,
+                    leader_points=leader.total_points if leader else None,
+                )
         if resolved_by_gameweek:
             log.info("gameweeks settled", resolved=resolved_by_gameweek)
         return True
@@ -214,17 +222,23 @@ async def run_settle_gameweeks() -> bool:
 
 
 async def run_pick_reminders() -> bool:
-    """Nudge members who still owe a pick for the current open gameweek (fires pre-lock)."""
+    """Nudge members who still owe a pick, in every league with an open round.
+
+    Iterates rather than taking "the" open round: since Batch 14 each league has its
+    own, so reminding only one would silently leave every other league unreminded.
+    """
     try:
         async with AsyncSessionLocal() as session:
-            gameweek = await current_open_gameweek(session, _utc_now())
-            if gameweek is None:
+            gameweeks = await current_open_gameweeks(session, _utc_now())
+            if not gameweeks:
                 log.info("pick reminder: no open gameweek")
                 return True
-            gameweek_id = str(gameweek.id)
-            reminded = await send_pick_reminders(session, gameweek)
+            reminded = {
+                str(gameweek.id): await send_pick_reminders(session, gameweek)
+                for gameweek in gameweeks
+            }
             await session.commit()
-        log.info("pick reminders sent", gameweek_id=gameweek_id, count=reminded)
+        log.info("pick reminders sent", gameweeks=len(reminded), by_gameweek=reminded)
         return True
     except Exception:
         log.exception("pick reminder failed")
@@ -254,10 +268,14 @@ def create_scheduler() -> AsyncIOScheduler:
         max_instances=1,
     )
     # --- Coupon domain jobs (Batch 4) ---
-    # Wall-clock schedules in Europe/London — APScheduler handles the BST/GMT shift, so the
-    # 14:30 lock stays aligned with ``gameweek.compute_locks_at`` across the season. The
-    # per-gameweek ``locks_at_utc`` predicate is the real source of truth, so an off-by-a-run
-    # firing still resolves correctly; the cron just decides when to look.
+    # Wall-clock schedules in Europe/London — APScheduler handles the BST/GMT shift, so a
+    # league's lock stays aligned with its window across the season.
+    #
+    # None of these filter on a weekday any more. They did when every league played the
+    # same Saturday; since Batch 14 a league may play any day, and a Saturday-only lock
+    # job would simply never lock a Friday league's round. The per-round predicates
+    # (``locks_at_utc <= now``, ``status != settled``) are the real source of truth, so
+    # firing more often costs a cheap query and firing late still self-heals.
     scheduler.add_job(
         run_discover_fixtures,
         trigger="cron",
@@ -272,8 +290,7 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(
         run_refresh_slate,
         trigger="cron",
-        day_of_week="sat",
-        hour="9,13",  # the late pass on match day — midweek is the daily discovery job's
+        hour="9,13",  # twice daily: leagues may play any day, so no day_of_week filter
         minute=0,
         timezone="Europe/London",
         id="refresh_slate",
@@ -284,8 +301,7 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(
         run_pick_reminders,
         trigger="cron",
-        day_of_week="sat",
-        hour=11,
+        hour=11,  # daily; the job itself only reminds leagues with an open round
         minute=0,
         timezone="Europe/London",
         id="pick_reminders",
@@ -296,9 +312,7 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(
         run_lock_gameweeks,
         trigger="cron",
-        day_of_week="sat",
-        hour=14,
-        minute=30,  # picks lock 14:30 UK
+        minute=0,  # hourly: each round carries its own lock, this only decides when to look
         timezone="Europe/London",
         id="lock_gameweeks",
         replace_existing=True,
@@ -308,8 +322,7 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(
         run_settle_gameweeks,
         trigger="cron",
-        day_of_week="sat,sun,mon",
-        hour="18,20,22",  # Saturday evening plus Sunday/Monday retries for late markets
+        hour="18,20,22",  # evening sweeps, every day — leagues may finish on any of them
         minute=0,
         timezone="Europe/London",
         id="settle_gameweeks",

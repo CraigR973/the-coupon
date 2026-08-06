@@ -60,12 +60,11 @@ from src.services.odds_provider import (
     Selection,
     Slate,
     SlateFixture,
+    SlateWindow,
     as_utc,
     btts_outcome,
-    is_saturday_kickoff,
     iso_z,
     match_odds_outcome,
-    saturday_window,
     split_event_name,
 )
 
@@ -331,12 +330,13 @@ class BetfairAdapter(OddsProvider):
 
     async def fetch_slate(
         self,
-        saturday: date,
+        window: SlateWindow,
+        starts_on: date,
         *,
         competition_names: Collection[str] | None = None,
         countries: Collection[str] = SLATE_COUNTRIES,
     ) -> Slate:
-        """Return that Saturday's 15:00 kick-offs across every qualifying competition.
+        """Return the kick-offs inside ``window`` across every qualifying competition.
 
         The slate is defined by *country and kick-off time*, not by a fixed list of
         divisions. Any British competition — league, cup, or non-league — counts, so a
@@ -347,7 +347,7 @@ class BetfairAdapter(OddsProvider):
         ``competition_names`` narrows to specific competitions when a caller needs the
         old behaviour; it is ``None`` (no restriction) by default.
         """
-        from_utc, to_utc = saturday_window(saturday)
+        from_utc, to_utc = window.query_bounds(starts_on)
         wanted_countries = {c.strip().upper() for c in countries}
         competitions = await self.list_competitions(
             event_type_id=SOCCER_EVENT_TYPE_ID,
@@ -369,7 +369,7 @@ class BetfairAdapter(OddsProvider):
             )
             for result in events:
                 event = result.event
-                if not is_saturday_kickoff(event.openDate):
+                if not window.contains(event.openDate, starts_on):
                     continue
                 # Enforce the country rule on the event as well as in the query. The
                 # market-country filter narrows the request; this makes the outcome
@@ -393,7 +393,7 @@ class BetfairAdapter(OddsProvider):
                 )
 
         fixtures.sort(key=lambda f: (f.competition, f.kickoff_utc, f.home))
-        return Slate(saturday=saturday, fixtures=fixtures)
+        return Slate(starts_on=starts_on, fixtures=fixtures)
 
     async def fetch_odds(
         self, event_ids: Sequence[str], *, max_age_seconds: float | None = None

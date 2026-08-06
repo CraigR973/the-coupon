@@ -45,7 +45,7 @@ class SettledPick(BaseModel):
     """One resolved pick — a row of the member's history."""
 
     gameweek_id: str
-    saturday_date: str
+    starts_on: str
     fixture_id: str
     home: str
     away: str
@@ -133,12 +133,12 @@ async def _settled_history(
             Pick.player_id == player_id,
             Pick.status.in_(_SETTLED),
         )
-        .order_by(Gameweek.saturday_date.desc(), Fixture.kickoff_utc)
+        .order_by(Gameweek.starts_on.desc(), Fixture.kickoff_utc)
     )
     return [
         SettledPick(
             gameweek_id=str(gameweek.id),
-            saturday_date=gameweek.saturday_date.isoformat(),
+            starts_on=gameweek.starts_on.isoformat(),
             fixture_id=str(fixture.id),
             home=fixture.home,
             away=fixture.away,

@@ -9,13 +9,14 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
-from sqlalchemy import text
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import hash_pin
 from src.database import AsyncSessionLocal
 from src.deps import get_odds_provider
 from src.main import app
-from src.models.gameweek import GameweekStatus
+from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.league import League
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.profile import Profile, UserRole
@@ -26,7 +27,7 @@ from src.services.betfair import (
     SAMPLE_SL2_MATCH_ODDS_MKT,
     FakeBetfair,
 )
-from src.services.gameweek import latest_gameweek, sync_slate
+from src.services.gameweek import latest_gameweek, sync_slate, window_for
 from src.services.scoring import settle_gameweek_via_provider
 
 E2E_LEAGUE_SLUG = "the-coupon"
@@ -50,7 +51,9 @@ async def seed_coupon_flow() -> dict[str, object]:
     async with AsyncSessionLocal() as db:
         # This module is test-only and always targets a disposable database.
         # Reset the complete domain graph so the browser flow is repeatable.
-        await db.execute(text("TRUNCATE TABLE profiles, gameweeks CASCADE"))
+        # `gameweeks` cascades from `leagues` since Batch 14, and `fixtures` are now
+        # a pool no gameweek owns, so both roots have to be named explicitly.
+        await db.execute(text("TRUNCATE TABLE profiles, leagues, fixtures CASCADE"))
 
         alice = Profile(
             display_name="Alice",
@@ -92,8 +95,8 @@ async def seed_coupon_flow() -> dict[str, object]:
             ]
         )
 
-        slate = await fake_betfair.fetch_slate(SAMPLE_SATURDAY)
-        gameweek = await sync_slate(db, slate)
+        slate = await fake_betfair.fetch_slate(window_for(league), SAMPLE_SATURDAY)
+        gameweek = await sync_slate(db, league, slate)
         gameweek.status = GameweekStatus.open
         gameweek.locks_at_utc = _now() + timedelta(hours=2)
         await db.commit()
@@ -105,12 +108,26 @@ async def seed_coupon_flow() -> dict[str, object]:
         }
 
 
+async def _seeded_gameweek(db: AsyncSession) -> Gameweek | None:
+    """The seeded league's latest round.
+
+    Rounds are per-league since Batch 14, so there is no global "latest" to ask for
+    — the league has to be resolved first.
+    """
+    league = (
+        await db.execute(select(League).where(League.slug == E2E_LEAGUE_SLUG))
+    ).scalar_one_or_none()
+    if league is None:
+        return None
+    return await latest_gameweek(db, league.id)
+
+
 @app.post("/__e2e/lock")
 async def lock_coupon_flow() -> dict[str, str]:
-    """Lock the seeded gameweek exactly as the Saturday job would."""
+    """Lock the seeded round exactly as the scheduled job would."""
 
     async with AsyncSessionLocal() as db:
-        gameweek = await latest_gameweek(db)
+        gameweek = await _seeded_gameweek(db)
         if gameweek is None:
             raise HTTPException(status_code=404, detail="E2E_NOT_SEEDED")
         gameweek.status = GameweekStatus.locked
@@ -130,7 +147,7 @@ async def settle_coupon_flow() -> dict[str, object]:
         }
     )
     async with AsyncSessionLocal() as db:
-        gameweek = await latest_gameweek(db)
+        gameweek = await _seeded_gameweek(db)
         if gameweek is None:
             raise HTTPException(status_code=404, detail="E2E_NOT_SEEDED")
         resolved = await settle_gameweek_via_provider(db, fake_betfair, gameweek)

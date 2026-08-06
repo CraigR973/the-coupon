@@ -110,7 +110,7 @@ export function CouponPickPage() {
       <PageHeader
         title={history.isLatest ? "This week's coupon" : 'Past coupon'}
         eyebrow={
-          slate ? formatInTimeZone(new Date(slate.saturday_date), timezone, 'EEE d MMM yyyy') : 'Saturday slate'
+          slate ? formatInTimeZone(new Date(slate.starts_on), timezone, 'EEE d MMM yyyy') : 'This round'
         }
       />
       <CouponSubNav />
@@ -176,7 +176,7 @@ export function CouponPickPage() {
           description={
             error instanceof Error && error.message !== 'API error 404'
               ? error.message
-              : "This Saturday's slate hasn't been published yet. Check back soon."
+              : "This round's slate hasn't been published yet. Check back soon."
           }
         />
       )}

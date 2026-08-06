@@ -13,16 +13,17 @@ production could build no slate at all.
 from __future__ import annotations
 
 import os
+import uuid
 from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import AsyncSessionLocal
-from src.models.fixture import Fixture
-from src.services.gameweek import sync_slate
+from src.models.league import League
+from src.models.profile import Profile, UserRole
+from src.services.gameweek import fixtures_for, sync_slate
 from src.services.odds_provider import Slate, SlateFixture
 
 pytestmark = pytest.mark.skipif(
@@ -47,9 +48,21 @@ async def session() -> AsyncSession:
             await s.rollback()
 
 
+async def _league(session: AsyncSession) -> League:
+    """A league to own the round — rounds are per-league since Batch 14."""
+    tag = uuid.uuid4().hex[:8]
+    owner = Profile(display_name=f"owner-{tag}", pin_hash="x", role=UserRole.player)
+    session.add(owner)
+    await session.flush()
+    league = League(slug=f"slate-{tag}", name=f"Slate {tag}", created_by=owner.id)
+    session.add(league)
+    await session.flush()
+    return league
+
+
 def _slate(saturday: datetime, *, competition: str, competition_id: str) -> Slate:
     return Slate(
-        saturday=saturday.date(),
+        starts_on=saturday.date(),
         fixtures=[
             SlateFixture(
                 provider_event_id="90000001",
@@ -68,12 +81,11 @@ async def test_persists_the_longest_real_league_slug(session: AsyncSession) -> N
     saturday = datetime(2027, 3, 6, 15, 0, tzinfo=UTC)
     gameweek = await sync_slate(
         session,
+        await _league(session),
         _slate(saturday, competition=LONGEST_UK_NAME, competition_id=LONGEST_UK_SLUG),
     )
 
-    stored = (
-        await session.execute(select(Fixture).where(Fixture.gameweek_id == gameweek.id))
-    ).scalar_one()
+    stored = (await fixtures_for(session, gameweek.id))[0]
     assert stored.competition_id == LONGEST_UK_SLUG
     assert stored.competition == LONGEST_UK_NAME
 
@@ -89,10 +101,10 @@ async def test_column_admits_the_longest_slug_the_provider_can_return(
     saturday = datetime(2027, 3, 13, 15, 0, tzinfo=UTC)
     slug = "x" * 66
     gameweek = await sync_slate(
-        session, _slate(saturday, competition="Some Long Competition", competition_id=slug)
+        session,
+        await _league(session),
+        _slate(saturday, competition="Some Long Competition", competition_id=slug),
     )
 
-    stored = (
-        await session.execute(select(Fixture).where(Fixture.gameweek_id == gameweek.id))
-    ).scalar_one()
+    stored = (await fixtures_for(session, gameweek.id))[0]
     assert stored.competition_id == slug

@@ -115,14 +115,16 @@ def test_create_scheduler_domain_jobs_fire_on_uk_wall_clock() -> None:
     """The Coupon jobs run on Europe/London wall-clock so 14:30 lock survives BST/GMT."""
     scheduler = create_scheduler()
     try:
+        # None of these filter on a weekday. They did when every league played the
+        # same Saturday; since Batch 14 a league may play any day, and a Saturday-only
+        # lock job would never lock a Friday league's round.
         expected = {
             # Discovery is daily and early — the pre-fetch half of the Batch 11 split.
             "discover_fixtures": "cron[hour='6', minute='0']",
-            # Match day only; midweek fixtures are discovery's job now.
-            "refresh_slate": "cron[day_of_week='sat', hour='9,13', minute='0']",
-            "pick_reminders": "cron[day_of_week='sat', hour='11', minute='0']",
-            "lock_gameweeks": "cron[day_of_week='sat', hour='14', minute='30']",
-            "settle_gameweeks": "cron[day_of_week='sat,sun,mon', hour='18,20,22', minute='0']",
+            "refresh_slate": "cron[hour='9,13', minute='0']",
+            "pick_reminders": "cron[hour='11', minute='0']",
+            "lock_gameweeks": "cron[minute='0']",
+            "settle_gameweeks": "cron[hour='18,20,22', minute='0']",
         }
         for job_id, trigger_repr in expected.items():
             job = scheduler.get_job(job_id)
@@ -150,6 +152,7 @@ async def test_run_discover_fixtures_walks_the_horizon_and_commits() -> None:
     with (
         patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.active_leagues", new=AsyncMock(return_value=[MagicMock()])),
         patch(
             "src.scheduler.discover_fixtures", new=AsyncMock(return_value=[gameweek])
         ) as discover,
@@ -157,9 +160,8 @@ async def test_run_discover_fixtures_walks_the_horizon_and_commits() -> None:
         assert await run_discover_fixtures() is True
 
     session.commit.assert_awaited_once()
-    saturdays = discover.await_args.args[2]
-    assert len(saturdays) == settings.slate_horizon_weeks
-    assert all(d.weekday() == 5 for d in saturdays), "every discovered date is a Saturday"
+    # discover_fixtures(session, provider, leagues, today, horizon)
+    assert discover.await_args.args[4] == settings.slate_horizon_weeks
 
 
 @pytest.mark.asyncio
@@ -172,28 +174,33 @@ async def test_run_discover_fixtures_swallows_provider_failure() -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_refresh_slate_syncs_and_commits() -> None:
+async def test_run_refresh_slate_covers_only_the_imminent_round() -> None:
+    """The late match-day pass must not re-walk the whole horizon."""
     session = AsyncMock()
     gameweek = MagicMock()
     gameweek.id = uuid.uuid4()
     with (
         patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
-        patch("src.scheduler.refresh_slate", new=AsyncMock(return_value=gameweek)) as refresh,
+        patch("src.scheduler.active_leagues", new=AsyncMock(return_value=[MagicMock()])),
+        patch(
+            "src.scheduler.discover_fixtures", new=AsyncMock(return_value=[gameweek])
+        ) as discover,
     ):
         await run_refresh_slate()
-    refresh.assert_awaited_once()
+    assert discover.await_args.args[4] == 1, "horizon of one — the far weeks are not firm yet"
     session.commit.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_run_refresh_slate_empty_slate_still_commits() -> None:
-    """No target fixtures → no gameweek created, but the (no-op) tx still closes cleanly."""
+    """No target fixtures → no round created, but the (no-op) tx still closes cleanly."""
     session = AsyncMock()
     with (
         patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
-        patch("src.scheduler.refresh_slate", new=AsyncMock(return_value=None)),
+        patch("src.scheduler.active_leagues", new=AsyncMock(return_value=[])),
+        patch("src.scheduler.discover_fixtures", new=AsyncMock(return_value=[])),
     ):
         await run_refresh_slate()
     session.commit.assert_awaited_once()
@@ -246,7 +253,6 @@ async def test_run_settle_gameweeks_settles_then_recomputes_standings() -> None:
         patch(
             "src.scheduler.settle_gameweek_via_provider", new=AsyncMock(return_value=3)
         ) as settle,
-        patch("src.scheduler.participating_league_ids", new=AsyncMock(return_value=[uuid.uuid4()])),
         patch("src.scheduler.standings", new=AsyncMock(return_value=[leader])) as recompute,
     ):
         ok = await run_settle_gameweeks()
@@ -273,7 +279,7 @@ async def test_run_pick_reminders_sends_and_commits() -> None:
     gameweek.id = uuid.uuid4()
     with (
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
-        patch("src.scheduler.current_open_gameweek", new=AsyncMock(return_value=gameweek)),
+        patch("src.scheduler.current_open_gameweeks", new=AsyncMock(return_value=[gameweek])),
         patch("src.scheduler.send_pick_reminders", new=AsyncMock(return_value=2)) as remind,
     ):
         await run_pick_reminders()
@@ -287,7 +293,7 @@ async def test_run_pick_reminders_no_open_gameweek_is_noop() -> None:
     session = AsyncMock()
     with (
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
-        patch("src.scheduler.current_open_gameweek", new=AsyncMock(return_value=None)),
+        patch("src.scheduler.current_open_gameweeks", new=AsyncMock(return_value=[])),
         patch("src.scheduler.send_pick_reminders", new=AsyncMock()) as remind,
     ):
         await run_pick_reminders()

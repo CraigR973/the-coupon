@@ -36,6 +36,7 @@ from src.services.odds_api import (
     _market_of,
 )
 from src.services.odds_provider import (
+    SATURDAY_THREE_PM,
     Market,
     OddsProviderAPIError,
     OddsProviderAuthError,
@@ -208,7 +209,7 @@ def _routed(
 class TestFetchSlate:
     async def test_scottish_league_one_fixture_reaches_the_slate(self) -> None:
         """The exact case the Exchange could not serve — ADR 0002's reason to exist."""
-        slate = await _provider(_routed(SLATE_ROUTES)).fetch_slate(SATURDAY)
+        slate = await _provider(_routed(SLATE_ROUTES)).fetch_slate(SATURDAY_THREE_PM, SATURDAY)
 
         airdrie = next(f for f in slate.fixtures if f.provider_event_id == AIRDRIE_ID)
         assert airdrie.competition == "Scotland - League One"
@@ -218,7 +219,7 @@ class TestFetchSlate:
 
     async def test_numeric_event_id_becomes_a_string(self) -> None:
         """`id` is a JSON number. Without coercion every event fails validation."""
-        slate = await _provider(_routed(SLATE_ROUTES)).fetch_slate(SATURDAY)
+        slate = await _provider(_routed(SLATE_ROUTES)).fetch_slate(SATURDAY_THREE_PM, SATURDAY)
         assert all(isinstance(f.provider_event_id, str) for f in slate.fixtures)
         assert AIRDRIE_ID in {f.provider_event_id for f in slate.fixtures}
 
@@ -228,16 +229,18 @@ class TestFetchSlate:
         Reading the whole name prefix as the country drops eight competitions from the
         live catalogue — including the two National League divisions that fill a Saturday.
         """
-        slate = await _provider(_routed(SLATE_ROUTES)).fetch_slate(SATURDAY)
+        slate = await _provider(_routed(SLATE_ROUTES)).fetch_slate(SATURDAY_THREE_PM, SATURDAY)
         assert "England Amateur - National League North" in {f.competition for f in slate.fixtures}
 
     async def test_drops_non_saturday_3pm_kickoffs(self) -> None:
-        slate = await _provider(_routed(SLATE_ROUTES)).fetch_slate(SATURDAY)
+        slate = await _provider(_routed(SLATE_ROUTES)).fetch_slate(SATURDAY_THREE_PM, SATURDAY)
         assert all(f.provider_event_id != "72203848" for f in slate.fixtures)
 
     async def test_asks_only_about_british_leagues(self) -> None:
         record: list[httpx.Request] = []
-        slate = await _provider(_routed(SLATE_ROUTES, record=record)).fetch_slate(SATURDAY)
+        slate = await _provider(_routed(SLATE_ROUTES, record=record)).fetch_slate(
+            SATURDAY_THREE_PM, SATURDAY
+        )
 
         requested = {r.url.params.get("league") for r in record if r.url.path.endswith("/events")}
         assert "spain-la-liga" not in requested
@@ -249,14 +252,16 @@ class TestFetchSlate:
         """The catalogue changes between seasons, not between refreshes."""
         record: list[httpx.Request] = []
         provider = _provider(_routed(SLATE_ROUTES, record=record))
-        await provider.fetch_slate(SATURDAY)
-        await provider.fetch_slate(SATURDAY)
+        await provider.fetch_slate(SATURDAY_THREE_PM, SATURDAY)
+        await provider.fetch_slate(SATURDAY_THREE_PM, SATURDAY)
 
         assert len([r for r in record if r.url.path.endswith("/leagues")]) == 1
 
     async def test_sends_the_api_key_and_saturday_window(self) -> None:
         record: list[httpx.Request] = []
-        await _provider(_routed(SLATE_ROUTES, record=record)).fetch_slate(SATURDAY)
+        await _provider(_routed(SLATE_ROUTES, record=record)).fetch_slate(
+            SATURDAY_THREE_PM, SATURDAY
+        )
 
         events_request = next(r for r in record if r.url.path.endswith("/events"))
         assert events_request.url.params["apiKey"] == "test-key"

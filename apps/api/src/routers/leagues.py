@@ -13,7 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser, generate_join_code
 from src.database import get_db
-from src.models.league import League, LeaguePrivacy, PickScope
+from src.models.league import (
+    DEFAULT_LOCK_OFFSET_MINUTES,
+    SATURDAY,
+    THREE_PM,
+    League,
+    LeaguePrivacy,
+    PickScope,
+)
 from src.models.league_join_request import JoinRequestStatus, LeagueJoinRequest
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.notification import ActionType, ActorType, AuditLog
@@ -154,6 +161,13 @@ class CreateLeagueRequest(BaseModel):
     max_members: int = Field(default=15, ge=2, le=50)
     # Defaults to the original rule so a league's behaviour is never a surprise.
     pick_scope: PickScope = PickScope.selection
+    # The weekly window. Defaults reproduce the Saturday 15:00 slate locking at 14:30;
+    # editing them afterwards is Batch 15's admin surface.
+    slate_start_weekday: int = Field(default=SATURDAY, ge=0, le=6)
+    slate_start_minute: int = Field(default=THREE_PM, ge=0, le=1439)
+    slate_end_weekday: int = Field(default=SATURDAY, ge=0, le=6)
+    slate_end_minute: int = Field(default=THREE_PM, ge=0, le=1439)
+    lock_offset_minutes: int = Field(default=DEFAULT_LOCK_OFFSET_MINUTES, ge=0)
 
 
 class UpdateLeagueRequest(BaseModel):
@@ -164,6 +178,26 @@ class UpdateLeagueRequest(BaseModel):
     pick_scope: PickScope | None = None
 
 
+class SlateWindowOut(BaseModel):
+    """The weekly window a league plays, as stored."""
+
+    start_weekday: int
+    start_minute: int
+    end_weekday: int
+    end_minute: int
+    lock_offset_minutes: int
+
+
+def _window_out(league: League) -> SlateWindowOut:
+    return SlateWindowOut(
+        start_weekday=league.slate_start_weekday,
+        start_minute=league.slate_start_minute,
+        end_weekday=league.slate_end_weekday,
+        end_minute=league.slate_end_minute,
+        lock_offset_minutes=league.lock_offset_minutes,
+    )
+
+
 class LeagueResponse(BaseModel):
     id: str
     slug: str
@@ -172,6 +206,7 @@ class LeagueResponse(BaseModel):
     privacy: str
     max_members: int
     pick_scope: str
+    slate_window: SlateWindowOut
     member_count: int
     created_by: str
     created_at: datetime
@@ -361,6 +396,11 @@ async def create_league(
         privacy=body.privacy,
         max_members=body.max_members,
         pick_scope=body.pick_scope,
+        slate_start_weekday=body.slate_start_weekday,
+        slate_start_minute=body.slate_start_minute,
+        slate_end_weekday=body.slate_end_weekday,
+        slate_end_minute=body.slate_end_minute,
+        lock_offset_minutes=body.lock_offset_minutes,
         created_by=player.id,
         created_at=_now(),
         join_code=generate_join_code(),
@@ -399,6 +439,7 @@ async def create_league(
         privacy=league.privacy.value,
         max_members=league.max_members,
         pick_scope=league.pick_scope.value,
+        slate_window=_window_out(league),
         member_count=1,
         created_by=str(league.created_by),
         created_at=league.created_at,
@@ -584,6 +625,7 @@ class LeagueDetailResponse(BaseModel):
     privacy: str
     max_members: int
     pick_scope: str
+    slate_window: SlateWindowOut
     member_count: int
     created_by: str
     created_at: datetime
@@ -645,6 +687,7 @@ async def get_league(
         privacy=league.privacy.value,
         max_members=league.max_members,
         pick_scope=league.pick_scope.value,
+        slate_window=_window_out(league),
         member_count=member_count,
         created_by=str(league.created_by),
         created_at=league.created_at,
@@ -731,6 +774,7 @@ async def update_league(
         privacy=league.privacy.value,
         max_members=league.max_members,
         pick_scope=league.pick_scope.value,
+        slate_window=_window_out(league),
         member_count=member_count,
         created_by=str(league.created_by),
         created_at=league.created_at,

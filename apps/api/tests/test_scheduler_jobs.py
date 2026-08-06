@@ -9,7 +9,7 @@ Covers the pieces the pure/unit tests can't — the DB-driven halves of the four
   end-to-end: canned results settle the picks and the season table updates (the Batch 4
   slice of the acceptance e2e);
 * ``members_missing_picks``    — only members without a pick are reminder candidates;
-* gameweek selection helpers   — ``current_open_gameweek`` / ``settleable_gameweeks``.
+* gameweek selection helpers   — ``current_open_gameweeks`` / ``settleable_gameweeks``.
 
 Skipped unless ``DATABASE_URL`` points at a migrated database (the repo runs it via the
 pgserver harness). Each test does all its work inside one session and never commits, so the
@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth import hash_pin
 from src.database import AsyncSessionLocal
 from src.models.fixture import Fixture
-from src.models.gameweek import Gameweek, GameweekStatus
+from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
 from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
@@ -48,13 +48,14 @@ from src.services.betfair import (
     FakeBetfair,
 )
 from src.services.gameweek import (
-    compute_locks_at,
-    current_open_gameweek,
+    current_open_gameweeks,
     discover_fixtures,
+    fixtures_for,
     lock_due_gameweeks,
     members_missing_picks,
     refresh_slate,
     settleable_gameweeks,
+    window_for,
 )
 from src.services.scoring import settle_gameweek_via_provider, standings
 
@@ -93,37 +94,52 @@ async def _seed_league(db: AsyncSession, names: list[str]) -> tuple[dict[str, Pr
     return players, league
 
 
-async def _open_gameweek(db: AsyncSession, saturday: date) -> tuple[Gameweek, Fixture, Fixture]:
-    """An open gameweek + the two sample fixtures (EPL, SL2), keyed by ``saturday``."""
+async def _open_gameweek(
+    db: AsyncSession, league: League, starts_on: date
+) -> tuple[Gameweek, Fixture, Fixture]:
+    """An open round for ``league`` playing the two sample fixtures (EPL, SL2).
+
+    Fixtures go into the shared pool and are linked to the round, which is how a
+    second league can be given the same card without a second row.
+    """
     gameweek = Gameweek(
-        saturday_date=saturday,
+        league_id=league.id,
+        starts_on=starts_on,
         status=GameweekStatus.open,
-        locks_at_utc=compute_locks_at(saturday),
+        locks_at_utc=window_for(league).locks_at(starts_on),
     )
     db.add(gameweek)
     await db.flush()
-    kickoff = datetime(saturday.year, saturday.month, saturday.day, 14, 0)
-    epl = Fixture(
-        gameweek_id=gameweek.id,
-        provider_event_id=SAMPLE_EPL_EVENT_ID,
-        home="Arsenal",
-        away="Chelsea",
-        kickoff_utc=kickoff,
-        competition="English Premier League",
-        competition_id="10932509",
-    )
-    sl2 = Fixture(
-        gameweek_id=gameweek.id,
-        provider_event_id=SAMPLE_SL2_EVENT_ID,
-        home="Forfar Athletic",
-        away="Brechin City",
-        kickoff_utc=kickoff,
-        competition="Scottish League Two",
-        competition_id="10932510",
-    )
-    db.add_all([epl, sl2])
+    kickoff = datetime(starts_on.year, starts_on.month, starts_on.day, 14, 0)
+
+    fixtures = []
+    for event_id, home, away, competition, competition_id in (
+        (SAMPLE_EPL_EVENT_ID, "Arsenal", "Chelsea", "English Premier League", "10932509"),
+        (
+            SAMPLE_SL2_EVENT_ID,
+            "Forfar Athletic",
+            "Brechin City",
+            "Scottish League Two",
+            "10932510",
+        ),
+    ):
+        existing = await db.execute(select(Fixture).where(Fixture.provider_event_id == event_id))
+        fixture = existing.scalar_one_or_none()
+        if fixture is None:
+            fixture = Fixture(
+                provider_event_id=event_id,
+                home=home,
+                away=away,
+                kickoff_utc=kickoff,
+                competition=competition,
+                competition_id=competition_id,
+            )
+            db.add(fixture)
+            await db.flush()
+        db.add(GameweekFixture(gameweek_id=gameweek.id, fixture_id=fixture.id))
+        fixtures.append(fixture)
     await db.flush()
-    return gameweek, epl, sl2
+    return gameweek, fixtures[0], fixtures[1]
 
 
 def _pick(
@@ -151,64 +167,107 @@ def _pick(
 
 
 async def test_refresh_slate_syncs_fixtures_and_skips_empty(session: AsyncSession) -> None:
+    _, league = await _seed_league(session, ["solo"])
     fake = FakeBetfair.with_sample_data()
 
-    gameweek = await refresh_slate(session, fake, SAMPLE_SATURDAY)
+    gameweek = await refresh_slate(session, fake, league, SAMPLE_SATURDAY)
     assert gameweek is not None
-    assert gameweek.saturday_date == SAMPLE_SATURDAY
-    fixtures = (
-        (await session.execute(select(Fixture).where(Fixture.gameweek_id == gameweek.id)))
-        .scalars()
-        .all()
-    )
+    assert gameweek.starts_on == SAMPLE_SATURDAY
+    assert gameweek.league_id == league.id
+    fixtures = await fixtures_for(session, gameweek.id)
     assert {"Arsenal", "Forfar Athletic"} <= {f.home for f in fixtures}
 
-    # A Saturday the provider prices nothing for → no gameweek is created.
-    assert await refresh_slate(session, fake, date(2030, 1, 5)) is None
+    # A date the provider prices nothing for → no round is created.
+    assert await refresh_slate(session, fake, league, date(2030, 1, 5)) is None
 
 
-async def test_discovery_walks_the_horizon_and_skips_barren_saturdays(
+async def test_discovery_walks_the_horizon_and_skips_barren_dates(
     session: AsyncSession,
 ) -> None:
     """The daily job pre-fetches fixtures ahead of time, without pricing them."""
+    _, league = await _seed_league(session, ["solo"])
     fake = FakeBetfair.with_sample_data()
 
+    # A horizon starting the week before the sample Saturday: the first date carries
+    # the canned card, the rest carry nothing.
     discovered = await discover_fixtures(
-        session, fake, [SAMPLE_SATURDAY, date(2030, 1, 5), date(2030, 1, 12)]
+        session, fake, [league], SAMPLE_SATURDAY - timedelta(days=2), 3
     )
 
-    # Only the Saturday the provider carries a card for becomes a gameweek.
-    assert [g.saturday_date for g in discovered] == [SAMPLE_SATURDAY]
-    fixtures = (
-        (await session.execute(select(Fixture).where(Fixture.gameweek_id == discovered[0].id)))
-        .scalars()
-        .all()
-    )
-    assert len(fixtures) >= 2
-    # Discovery is fixtures only — no odds were requested for any of them.
-    assert fake.odds_calls == [] if hasattr(fake, "odds_calls") else True
+    assert [g.starts_on for g in discovered] == [SAMPLE_SATURDAY]
+    assert len(await fixtures_for(session, discovered[0].id)) >= 2
 
 
 async def test_discovery_is_idempotent_across_days(session: AsyncSession) -> None:
-    """It runs daily against the same Saturday, so a re-run must not duplicate rows."""
+    """It runs daily against the same round, so a re-run must not duplicate rows."""
+    _, league = await _seed_league(session, ["solo"])
     fake = FakeBetfair.with_sample_data()
 
-    first = await discover_fixtures(session, fake, [SAMPLE_SATURDAY])
-    before = (
-        (await session.execute(select(Fixture).where(Fixture.gameweek_id == first[0].id)))
-        .scalars()
-        .all()
-    )
+    first = await discover_fixtures(session, fake, [league], SAMPLE_SATURDAY, 1)
+    before = await fixtures_for(session, first[0].id)
 
-    second = await discover_fixtures(session, fake, [SAMPLE_SATURDAY])
-    after = (
-        (await session.execute(select(Fixture).where(Fixture.gameweek_id == second[0].id)))
-        .scalars()
-        .all()
-    )
+    second = await discover_fixtures(session, fake, [league], SAMPLE_SATURDAY, 1)
+    after = await fixtures_for(session, second[0].id)
 
     assert second[0].id == first[0].id
     assert len(after) == len(before)
+
+
+async def test_two_leagues_on_one_window_cost_a_single_provider_fetch(
+    session: AsyncSession,
+) -> None:
+    """The whole point of the shared pool: a second league on the same window is free.
+
+    This is the property the request budget depends on. If discovery ever fetches
+    per league instead of per window, the provider bill scales with membership and
+    the free plan stops being enough.
+    """
+    _, first = await _seed_league(session, ["alice"])
+    _, second = await _seed_league(session, ["bob"])
+    fake = FakeBetfair.with_sample_data()
+    calls: list[date] = []
+
+    original = fake.fetch_slate
+
+    async def counting_fetch_slate(window: object, starts_on: date) -> object:
+        calls.append(starts_on)
+        return await original(window, starts_on)  # type: ignore[arg-type]
+
+    fake.fetch_slate = counting_fetch_slate  # type: ignore[method-assign]
+
+    discovered = await discover_fixtures(session, fake, [first, second], SAMPLE_SATURDAY, 1)
+
+    assert len(calls) == 1, "one window, one date — one fetch, however many leagues"
+    assert len(discovered) == 2, "but both leagues get their own round"
+    assert {g.league_id for g in discovered} == {first.id, second.id}
+
+    # …drawing on the same pooled fixture rows, not copies.
+    first_fixtures = {f.id for f in await fixtures_for(session, discovered[0].id)}
+    second_fixtures = {f.id for f in await fixtures_for(session, discovered[1].id)}
+    assert first_fixtures == second_fixtures
+    assert first_fixtures, "the round is not empty"
+
+
+async def test_a_different_window_costs_its_own_fetch(session: AsyncSession) -> None:
+    """Only a genuinely different window adds provider cost."""
+    _, saturday_league = await _seed_league(session, ["alice"])
+    _, friday_league = await _seed_league(session, ["bob"])
+    friday_league.slate_start_weekday = 4  # Friday
+    friday_league.slate_end_weekday = 0  # through Monday
+    await session.flush()
+
+    fake = FakeBetfair.with_sample_data()
+    calls: list[date] = []
+    original = fake.fetch_slate
+
+    async def counting_fetch_slate(window: object, starts_on: date) -> object:
+        calls.append(starts_on)
+        return await original(window, starts_on)  # type: ignore[arg-type]
+
+    fake.fetch_slate = counting_fetch_slate  # type: ignore[method-assign]
+
+    await discover_fixtures(session, fake, [saturday_league, friday_league], SAMPLE_SATURDAY, 1)
+    assert len(calls) == 2, "two distinct windows, two fetches"
 
 
 # ── lock → settle → leaderboard (the Batch 4 e2e slice) ─────────────────────────
@@ -216,7 +275,7 @@ async def test_discovery_is_idempotent_across_days(session: AsyncSession) -> Non
 
 async def test_lock_then_settle_updates_leaderboard(session: AsyncSession) -> None:
     players, league = await _seed_league(session, ["alice", "bob", "carol"])
-    gameweek, epl, sl2 = await _open_gameweek(session, date(2027, 3, 6))
+    gameweek, epl, sl2 = await _open_gameweek(session, league, date(2027, 3, 6))
 
     # alice → Arsenal (home), bob → Chelsea (away), carol → Forfar (home).
     session.add_all(
@@ -296,13 +355,13 @@ async def test_lock_then_settle_updates_leaderboard(session: AsyncSession) -> No
 
 
 async def test_open_and_settleable_selection(session: AsyncSession) -> None:
-    gameweek, _epl, _sl2 = await _open_gameweek(session, date(2027, 5, 8))
+    _, league = await _seed_league(session, ["solo"])
+    gameweek, _epl, _sl2 = await _open_gameweek(session, league, date(2027, 5, 8))
     before = gameweek.locks_at_utc - timedelta(hours=1)
     after = gameweek.locks_at_utc + timedelta(hours=1)
 
     # Before lock: open and remindable, not yet settleable.
-    current = await current_open_gameweek(session, before)
-    assert current is not None and current.id == gameweek.id
+    assert gameweek.id in {g.id for g in await current_open_gameweeks(session, before)}
     assert gameweek.id not in {g.id for g in await settleable_gameweeks(session, before)}
 
     # After lock: settleable even while still 'open' (defensive if the lock job missed a run).
@@ -314,7 +373,7 @@ async def test_open_and_settleable_selection(session: AsyncSession) -> None:
 
 async def test_members_missing_picks_targets_only_non_pickers(session: AsyncSession) -> None:
     players, league = await _seed_league(session, ["alice", "bob", "carol"])
-    gameweek, epl, _sl2 = await _open_gameweek(session, date(2027, 4, 3))
+    gameweek, epl, _sl2 = await _open_gameweek(session, league, date(2027, 4, 3))
 
     # Only alice has picked.
     session.add(

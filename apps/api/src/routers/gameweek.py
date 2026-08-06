@@ -26,11 +26,17 @@ from src.config import settings
 from src.database import get_db
 from src.deps import LeagueMemberDep, OddsProviderDep
 from src.models.fixture import Fixture
+from src.models.gameweek import GameweekFixture
 from src.models.league import PickScope
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
-from src.services.gameweek import all_gameweeks, resolve_gameweek, slate_odds_max_age
+from src.services.gameweek import (
+    all_gameweeks,
+    fixtures_for,
+    resolve_gameweek,
+    slate_odds_max_age,
+)
 from src.services.odds_provider import FixtureOdds
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -92,7 +98,7 @@ class GameweekListEntry(BaseModel):
     """One row of the season's history — enough to label and choose it."""
 
     gameweek_id: str
-    saturday_date: date
+    starts_on: date
     status: str
     locks_at_utc: datetime
     fixture_count: int
@@ -102,7 +108,7 @@ class GameweekListEntry(BaseModel):
 
 class GameweekSlateResponse(BaseModel):
     gameweek_id: str
-    saturday_date: date
+    starts_on: date
     status: str
     locks_at_utc: datetime
     fixtures: list[FixtureSlate]
@@ -124,14 +130,14 @@ async def list_gameweeks(
     with nothing to backfill. Counts are per league, because the same Saturday has
     a different set of picks in each one.
     """
-    gameweeks = await all_gameweeks(db)
+    gameweeks = await all_gameweeks(db, league.id)
     if not gameweeks:
         return []
 
     fixture_rows = await db.execute(
-        select(Fixture.gameweek_id, func.count())
-        .where(Fixture.gameweek_id.in_([g.id for g in gameweeks]))
-        .group_by(Fixture.gameweek_id)
+        select(GameweekFixture.gameweek_id, func.count())
+        .where(GameweekFixture.gameweek_id.in_([g.id for g in gameweeks]))
+        .group_by(GameweekFixture.gameweek_id)
     )
     fixture_counts: dict[uuid.UUID, int] = {row[0]: row[1] for row in fixture_rows.all()}
 
@@ -144,7 +150,7 @@ async def list_gameweeks(
     return [
         GameweekListEntry(
             gameweek_id=str(gameweek.id),
-            saturday_date=gameweek.saturday_date,
+            starts_on=gameweek.starts_on,
             status=gameweek.status.value,
             locks_at_utc=gameweek.locks_at_utc,
             fixture_count=fixture_counts.get(gameweek.id, 0),
@@ -164,14 +170,9 @@ async def current_gameweek(
     gameweek_id: str | None = None,
 ) -> GameweekSlateResponse:
     """A gameweek's slate — the latest by default, or ``gameweek_id`` when browsing back."""
-    gameweek = await resolve_gameweek(db, gameweek_id)
+    gameweek = await resolve_gameweek(db, league.id, gameweek_id)
 
-    fixtures_result = await db.execute(
-        select(Fixture)
-        .where(Fixture.gameweek_id == gameweek.id)
-        .order_by(Fixture.kickoff_utc, Fixture.home)
-    )
-    fixtures = list(fixtures_result.scalars().all())
+    fixtures = await fixtures_for(db, gameweek.id)
 
     taken = await _taken_selections(db, league.id, gameweek.id)
     # Browsing tolerates a stale-ish price; the ceiling tightens as lock nears, and the
@@ -213,7 +214,7 @@ async def current_gameweek(
     members = await _gameweek_members(db, league.id, gameweek.id, fixtures)
     return GameweekSlateResponse(
         gameweek_id=str(gameweek.id),
-        saturday_date=gameweek.saturday_date,
+        starts_on=gameweek.starts_on,
         status=gameweek.status.value,
         locks_at_utc=gameweek.locks_at_utc,
         fixtures=slate,

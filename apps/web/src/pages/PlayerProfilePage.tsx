@@ -167,7 +167,7 @@ function HistoryRow({
         <p className="truncate font-sans text-xs text-text-muted">
           {pick.home} v {pick.away}
           <span className="mx-1.5">·</span>
-          {formatInTimeZone(new Date(pick.saturday_date), timezone, 'd MMM yyyy')}
+          {formatInTimeZone(new Date(pick.starts_on), timezone, 'd MMM yyyy')}
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5">

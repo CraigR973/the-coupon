@@ -99,12 +99,16 @@ def resolve_pick(
 async def settle_gameweek(
     db: AsyncSession, gameweek: Gameweek, settlements: list[EventSettlement]
 ) -> int:
-    """Apply event settlements to a gameweek's pending picks; returns the count resolved.
+    """Apply event settlements to a round's pending picks; returns the count resolved.
 
     Idempotent and incremental: only pending picks whose fixture has a result are scored,
     so the scheduler can call this repeatedly as results land. Once no pending picks
-    remain, the gameweek flips to ``settled``. Does not commit — the caller owns the
+    remain, the round flips to ``settled``. Does not commit — the caller owns the
     transaction.
+
+    Since Batch 14 a round belongs to one league, so "no pending picks remain" means
+    that league's picks. It used to mean *every* league's, which held one league's
+    round open until an unrelated league had also finished settling.
     """
     by_event = {s.provider_event_id: s for s in settlements if s.settled}
 
@@ -172,14 +176,6 @@ async def settle_gameweek_via_provider(
         return 0
     settlements = await provider.settle(event_ids)
     return await settle_gameweek(db, gameweek, settlements)
-
-
-async def participating_league_ids(db: AsyncSession, gameweek: Gameweek) -> list[uuid.UUID]:
-    """League ids holding ≥1 pick in ``gameweek`` — whose standings the settle job recomputes."""
-    result = await db.execute(
-        select(Pick.league_id).where(Pick.gameweek_id == gameweek.id).distinct()
-    )
-    return list(result.scalars().all())
 
 
 class Standing(BaseModel):

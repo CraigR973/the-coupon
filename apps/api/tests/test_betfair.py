@@ -37,7 +37,7 @@ from src.services.betfair import (
     BetfairAuthError,
     FakeBetfair,
 )
-from src.services.odds_provider import Market, Outcome
+from src.services.odds_provider import SATURDAY_THREE_PM, Market, Outcome
 
 
 def test_target_competitions_include_betfair_sponsored_english_names() -> None:
@@ -65,9 +65,9 @@ def test_target_competitions_are_matched_case_insensitively_without_duplicates()
 
 class TestFetchSlate:
     async def test_returns_only_saturday_3pm_fixtures(self) -> None:
-        slate = await FakeBetfair.with_sample_data().fetch_slate(SAMPLE_SATURDAY)
+        slate = await FakeBetfair.with_sample_data().fetch_slate(SATURDAY_THREE_PM, SAMPLE_SATURDAY)
 
-        assert slate.saturday == date(2026, 8, 1)
+        assert slate.starts_on == date(2026, 8, 1)
         # Two 15:00 kick-offs; the 12:30 "Liverpool v Everton" decoy is dropped.
         matchups = [(f.home, f.away) for f in slate.fixtures]
         assert matchups == [
@@ -77,7 +77,7 @@ class TestFetchSlate:
         assert not any(f.home == "Liverpool" for f in slate.fixtures)
 
     async def test_fixture_fields_are_populated(self) -> None:
-        slate = await FakeBetfair.with_sample_data().fetch_slate(SAMPLE_SATURDAY)
+        slate = await FakeBetfair.with_sample_data().fetch_slate(SATURDAY_THREE_PM, SAMPLE_SATURDAY)
 
         epl = next(f for f in slate.fixtures if f.provider_event_id == SAMPLE_EPL_EVENT_ID)
         assert epl.competition == "English Premier League"
@@ -89,7 +89,7 @@ class TestFetchSlate:
     async def test_canned_lower_league_fixture_is_carried(self) -> None:
         # The lower-division case the game needs. This is canned data only: the live
         # Exchange never carried these divisions, which is why odds-api.io is production.
-        slate = await FakeBetfair.with_sample_data().fetch_slate(SAMPLE_SATURDAY)
+        slate = await FakeBetfair.with_sample_data().fetch_slate(SATURDAY_THREE_PM, SAMPLE_SATURDAY)
 
         sl2 = next(f for f in slate.fixtures if f.provider_event_id == SAMPLE_SL2_EVENT_ID)
         assert sl2.competition == "Scottish League Two"
@@ -97,7 +97,7 @@ class TestFetchSlate:
 
     async def test_non_target_competition_is_ignored(self) -> None:
         # "Spanish La Liga" is in the canned competitions but not a British one.
-        slate = await FakeBetfair.with_sample_data().fetch_slate(SAMPLE_SATURDAY)
+        slate = await FakeBetfair.with_sample_data().fetch_slate(SATURDAY_THREE_PM, SAMPLE_SATURDAY)
         assert all(
             f.competition in {"English Premier League", "Scottish League Two"}
             for f in slate.fixtures
@@ -502,7 +502,7 @@ class TestLiveRpc:
 
         client = _client(betting_handler=httpx.MockTransport(handler))
         await client.login()
-        slate = await client.fetch_slate(date(2026, 8, 1))
+        slate = await client.fetch_slate(SATURDAY_THREE_PM, date(2026, 8, 1))
 
         assert len(slate.fixtures) == 1
         assert slate.fixtures[0].competition == "Scottish League Two"
@@ -551,7 +551,7 @@ class TestLiveRpc:
 
         client = _client(betting_handler=httpx.MockTransport(handler))
         await client.login()
-        slate = await client.fetch_slate(date(2026, 8, 1))
+        slate = await client.fetch_slate(SATURDAY_THREE_PM, date(2026, 8, 1))
 
         assert [f.competition for f in slate.fixtures] == ["English Football League Cup"]
         assert slate.fixtures[0].home == "Burnley"

@@ -17,6 +17,7 @@ from decimal import Decimal
 
 from src.services.odds_cache import CachingOddsProvider
 from src.services.odds_provider import (
+    SATURDAY_THREE_PM,
     EventSettlement,
     FixtureOdds,
     Market,
@@ -25,6 +26,7 @@ from src.services.odds_provider import (
     Selection,
     Slate,
     SlateFixture,
+    SlateWindow,
 )
 
 
@@ -66,10 +68,10 @@ class _CountingProvider(OddsProvider):
     async def close(self) -> None:
         self.closed = True
 
-    async def fetch_slate(self, saturday: date) -> Slate:
+    async def fetch_slate(self, window: SlateWindow, starts_on: date) -> Slate:
         self.slate_calls += 1
         return Slate(
-            saturday=saturday,
+            starts_on=starts_on,
             fixtures=[
                 SlateFixture(
                     provider_event_id="a",
@@ -224,8 +226,8 @@ async def test_slate_and_settlement_are_not_cached() -> None:
     inner = _CountingProvider()
     cache = _cache(inner, _Clock())
 
-    await cache.fetch_slate(date(2026, 8, 8))
-    await cache.fetch_slate(date(2026, 8, 8))
+    await cache.fetch_slate(SATURDAY_THREE_PM, date(2026, 8, 8))
+    await cache.fetch_slate(SATURDAY_THREE_PM, date(2026, 8, 8))
     await cache.settle(["a"])
     await cache.settle(["a"])
 

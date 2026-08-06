@@ -25,7 +25,7 @@ const PROFILE: PlayerProfile = {
   history: [
     {
       gameweek_id: 'gw1',
-      saturday_date: '2026-08-08',
+      starts_on: '2026-08-08',
       fixture_id: 'fx1',
       home: 'Arsenal',
       away: 'Chelsea',
@@ -39,7 +39,7 @@ const PROFILE: PlayerProfile = {
     },
     {
       gameweek_id: 'gw0',
-      saturday_date: '2026-08-01',
+      starts_on: '2026-08-01',
       fixture_id: 'fx2',
       home: 'Forfar Athletic',
       away: 'Brechin City',

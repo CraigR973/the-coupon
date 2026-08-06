@@ -55,9 +55,14 @@ def _require_safe_staging() -> None:
 
 
 async def _sample_gameweek(db) -> Gameweek:
+    """The canned round. Rounds are per-league since Batch 14, so this picks the
+    oldest league's — staging runs a single league."""
     gameweek = (
         await db.execute(
-            select(Gameweek).where(Gameweek.saturday_date == SAMPLE_SATURDAY)
+            select(Gameweek)
+            .where(Gameweek.starts_on == SAMPLE_SATURDAY)
+            .order_by(Gameweek.created_at)
+            .limit(1)
         )
     ).scalar_one_or_none()
     if gameweek is None:
@@ -182,7 +187,7 @@ async def summary() -> None:
                 .where(Pick.gameweek_id == gameweek.id, Pick.status == PickStatus.won)
             ),
         }
-        revision = await db.scalar(select(func.max(Gameweek.saturday_date)))
+        revision = await db.scalar(select(func.max(Gameweek.starts_on)))
 
     print(
         json.dumps(

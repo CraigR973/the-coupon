@@ -45,7 +45,7 @@ export function GameweekNav({ history, timezone }: GameweekNavProps) {
 
       <div className="flex min-w-0 flex-col items-center gap-0.5">
         <span className="truncate font-mono text-[11px] uppercase tracking-[0.2em] text-text-primary">
-          {formatInTimeZone(new Date(current.saturday_date), timezone, 'EEE d MMM yyyy')}
+          {formatInTimeZone(new Date(current.starts_on), timezone, 'EEE d MMM yyyy')}
         </span>
         <span className="flex items-center gap-1.5">
           <Badge variant={current.status === 'open' ? 'success' : 'muted'}>

@@ -23,7 +23,7 @@ const STORED_PLAYER = JSON.stringify({ id: 'p1', displayName: 'Alice', role: 'pl
 
 const SLATE: GameweekSlate = {
   gameweek_id: 'gw1',
-  saturday_date: '2026-08-08',
+  starts_on: '2026-08-08',
   status: 'open',
   locks_at_utc: '2999-01-01T14:30:00Z',
   fixtures: [
@@ -88,7 +88,7 @@ const SLATE: GameweekSlate = {
 const GAMEWEEKS = [
   {
     gameweek_id: 'gw1',
-    saturday_date: '2026-08-08',
+    starts_on: '2026-08-08',
     status: 'open',
     locks_at_utc: '2999-01-01T14:30:00Z',
     fixture_count: 2,
@@ -96,7 +96,7 @@ const GAMEWEEKS = [
   },
   {
     gameweek_id: 'gw0',
-    saturday_date: '2026-08-01',
+    starts_on: '2026-08-01',
     status: 'settled',
     locks_at_utc: '2026-08-01T13:30:00Z',
     fixture_count: 3,

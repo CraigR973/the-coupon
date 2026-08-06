@@ -35,6 +35,7 @@ from src.services.odds_provider import (
     FixtureOdds,
     OddsProvider,
     Slate,
+    SlateWindow,
 )
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -90,8 +91,8 @@ class CachingOddsProvider(OddsProvider):
 
     # -- uncached domain operations -------------------------------------------
 
-    async def fetch_slate(self, saturday: date) -> Slate:
-        return await self._inner.fetch_slate(saturday)
+    async def fetch_slate(self, window: SlateWindow, starts_on: date) -> Slate:
+        return await self._inner.fetch_slate(window, starts_on)
 
     async def settle(self, event_ids: Sequence[str]) -> list[EventSettlement]:
         return await self._inner.settle(event_ids)

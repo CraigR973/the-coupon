@@ -69,7 +69,8 @@ export interface GameweekMember {
 /** One row of the season's history — GET /leagues/{slug}/gameweeks. */
 export interface GameweekSummary {
   gameweek_id: string;
-  saturday_date: string; // ISO date (yyyy-mm-dd)
+  /** The date this league's window opens. Not necessarily a Saturday. */
+  starts_on: string; // ISO date (yyyy-mm-dd)
   status: GameweekStatus;
   locks_at_utc: string;
   fixture_count: number;
@@ -79,7 +80,8 @@ export interface GameweekSummary {
 
 export interface GameweekSlate {
   gameweek_id: string;
-  saturday_date: string; // ISO date (yyyy-mm-dd)
+  /** The date this league's window opens. Not necessarily a Saturday. */
+  starts_on: string; // ISO date (yyyy-mm-dd)
   status: GameweekStatus;
   locks_at_utc: string;
   fixtures: FixtureSlate[];
@@ -155,7 +157,8 @@ export interface Standing {
 /** One resolved pick — a row of a member's history. */
 export interface SettledPick {
   gameweek_id: string;
-  saturday_date: string; // ISO date (yyyy-mm-dd)
+  /** The date this league's window opens. Not necessarily a Saturday. */
+  starts_on: string; // ISO date (yyyy-mm-dd)
   fixture_id: string;
   home: string;
   away: string;

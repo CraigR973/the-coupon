@@ -12,7 +12,6 @@ pgserver harness, mirroring Batch 1). It proves the pieces the pure tests can't:
 
 from __future__ import annotations
 
-import itertools
 import os
 import uuid
 from collections.abc import AsyncIterator
@@ -31,7 +30,7 @@ from src.database import AsyncSessionLocal
 from src.deps import get_odds_provider
 from src.main import app
 from src.models.fixture import Fixture
-from src.models.gameweek import Gameweek, GameweekStatus
+from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
 from src.models.league import League, PickScope
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
@@ -46,7 +45,7 @@ from src.services.betfair import (
     SAMPLE_SL2_MATCH_ODDS_MKT,
     FakeBetfair,
 )
-from src.services.gameweek import sync_slate
+from src.services.gameweek import fixtures_for, members_missing_picks, sync_slate, window_for
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -97,10 +96,25 @@ async def _seed_league(session: AsyncSession, names: list[str]) -> tuple[list[Pr
     return players, league
 
 
-async def _open_sample_gameweek(session: AsyncSession, fake: FakeBetfair) -> Gameweek:
-    """Sync the sample slate and force it open (lock in the future, independent of now)."""
-    slate = await fake.fetch_slate(SAMPLE_SATURDAY)
-    gameweek = await sync_slate(session, slate)
+async def _open_sample_gameweek(
+    session: AsyncSession, fake: FakeBetfair, league: League, *, weeks_later: int = 0
+) -> Gameweek:
+    """Give ``league`` the canned card as an open round (lock in the future).
+
+    Rounds are per-league since Batch 14, so every test's freshly seeded league gets
+    its own and no test can collide with another's. ``weeks_later`` shifts the round
+    forward for tests that need a league to have more than one — the canned slate
+    only exists on ``SAMPLE_SATURDAY``, so the card is synced from there and the date
+    moved afterwards.
+    """
+    slate = await fake.fetch_slate(window_for(league), SAMPLE_SATURDAY)
+    if weeks_later:
+        # Shift the *slate* rather than the synced round: moving the round afterwards
+        # would find and rename the one already there instead of making a second.
+        slate = slate.model_copy(
+            update={"starts_on": SAMPLE_SATURDAY + timedelta(weeks=weeks_later)}
+        )
+    gameweek = await sync_slate(session, league, slate)
     gameweek.status = GameweekStatus.open
     gameweek.locks_at_utc = _now() + timedelta(hours=2)
     await session.commit()
@@ -108,9 +122,55 @@ async def _open_sample_gameweek(session: AsyncSession, fake: FakeBetfair) -> Gam
     return gameweek
 
 
+async def _round_with_one_fixture(
+    session: AsyncSession,
+    league: League,
+    starts_on: date,
+    *,
+    locks_at: datetime,
+    event_id: str,
+    home: str,
+    away: str,
+    competition: str,
+    competition_id: str,
+) -> tuple[Gameweek, Fixture]:
+    """A hand-built round playing exactly one pooled fixture.
+
+    For the edge cases that need a card the canned provider does not offer. Reuses
+    a pooled fixture if another league already discovered the same event, since
+    ``provider_event_id`` is unique across the pool.
+    """
+    gameweek = Gameweek(
+        league_id=league.id,
+        starts_on=starts_on,
+        status=GameweekStatus.open,
+        locks_at_utc=locks_at,
+    )
+    session.add(gameweek)
+    await session.flush()
+
+    existing = await session.execute(select(Fixture).where(Fixture.provider_event_id == event_id))
+    fixture = existing.scalar_one_or_none()
+    if fixture is None:
+        fixture = Fixture(
+            provider_event_id=event_id,
+            home=home,
+            away=away,
+            kickoff_utc=_now(),
+            competition=competition,
+            competition_id=competition_id,
+        )
+        session.add(fixture)
+        await session.flush()
+    session.add(GameweekFixture(gameweek_id=gameweek.id, fixture_id=fixture.id))
+    await session.commit()
+    await session.refresh(gameweek)
+    await session.refresh(fixture)
+    return gameweek, fixture
+
+
 async def _fixture_ids(session: AsyncSession, gameweek_id: uuid.UUID) -> dict[str, str]:
-    result = await session.execute(select(Fixture).where(Fixture.gameweek_id == gameweek_id))
-    return {f.provider_event_id: str(f.id) for f in result.scalars().all()}
+    return {f.provider_event_id: str(f.id) for f in await fixtures_for(session, gameweek_id)}
 
 
 async def _submit(
@@ -132,7 +192,7 @@ async def test_full_pick_flow(client_and_fake: tuple[AsyncClient, FakeBetfair]) 
         (alice, bob, carol, dave), league = await _seed_league(
             session, ["alice", "bob", "carol", "dave"]
         )
-        gameweek = await _open_sample_gameweek(session, fake)
+        gameweek = await _open_sample_gameweek(session, fake, league)
         fixtures = await _fixture_ids(session, gameweek.id)
     epl, sl2 = fixtures[SAMPLE_EPL_EVENT_ID], fixtures[SAMPLE_SL2_EVENT_ID]
     slug = league.slug
@@ -273,24 +333,17 @@ async def test_unpriced_selection_is_refused(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice,), league = await _seed_league(session, ["solo"])
-        gameweek = Gameweek(
-            saturday_date=date(2026, 8, 15),
-            status=GameweekStatus.open,
-            locks_at_utc=_now() + timedelta(hours=2),
-        )
-        session.add(gameweek)
-        await session.flush()
-        fixture = Fixture(
-            gameweek_id=gameweek.id,
-            provider_event_id=SAMPLE_SL2_EVENT_ID,
+        gameweek, fixture = await _round_with_one_fixture(
+            session,
+            league,
+            date(2026, 8, 15),
+            locks_at=_now() + timedelta(hours=2),
+            event_id=SAMPLE_SL2_EVENT_ID,
             home="Forfar Athletic",
             away="Brechin City",
-            kickoff_utc=_now(),
             competition="Scottish League Two",
             competition_id="10932510",
         )
-        session.add(fixture)
-        await session.commit()
         fixture_id = str(fixture.id)
 
     # BTTS "No" is unpriced in the sample SL2 market → not offerable.
@@ -304,24 +357,17 @@ async def test_locked_gameweek_rejects_submit(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice,), league = await _seed_league(session, ["latecomer"])
-        gameweek = Gameweek(
-            saturday_date=date(2026, 8, 22),
-            status=GameweekStatus.open,
-            locks_at_utc=_now() - timedelta(minutes=1),  # already past 14:30
-        )
-        session.add(gameweek)
-        await session.flush()
-        fixture = Fixture(
-            gameweek_id=gameweek.id,
-            provider_event_id=SAMPLE_EPL_EVENT_ID,
+        gameweek, fixture = await _round_with_one_fixture(
+            session,
+            league,
+            date(2026, 8, 22),
+            locks_at=_now() - timedelta(minutes=1),  # already past the deadline
+            event_id=SAMPLE_EPL_EVENT_ID,
             home="Arsenal",
             away="Chelsea",
-            kickoff_utc=_now(),
             competition="English Premier League",
             competition_id="10932509",
         )
-        session.add(fixture)
-        await session.commit()
         fixture_id = str(fixture.id)
 
     r = await _submit(client, league.slug, alice, fixture_id, "MATCH_ODDS", "HOME")
@@ -329,26 +375,6 @@ async def test_locked_gameweek_rejects_submit(
 
 
 # ── Batch 9: the slate's member roster and fixture-level picked marker ────────
-
-# Distinct far-future Saturdays for the tests below. ``saturday_date`` is unique,
-# so each caller needs its own.
-_LATEST_SATURDAYS = itertools.count()
-
-
-async def _open_sample_gameweek_as_latest(session: AsyncSession, fake: FakeBetfair) -> Gameweek:
-    """Open the sample slate and make it unambiguously the newest gameweek.
-
-    ``latest_gameweek`` — which is what ``GET .../gameweek/current`` reads — takes
-    the maximum ``saturday_date``, and the edge-case tests above commit gameweeks
-    dated after ``SAMPLE_SATURDAY``. Any test that reads the slate endpoint has to
-    out-date every other gameweek in the shared database or it silently asserts
-    against someone else's gameweek.
-    """
-    gameweek = await _open_sample_gameweek(session, fake)
-    gameweek.saturday_date = date(2090, 1, 7) + timedelta(weeks=next(_LATEST_SATURDAYS))
-    await session.commit()
-    await session.refresh(gameweek)
-    return gameweek
 
 
 async def test_slate_reports_roster_and_fixture_level_marker(
@@ -358,7 +384,7 @@ async def test_slate_reports_roster_and_fixture_level_marker(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice, bob, carol), league = await _seed_league(session, ["alice", "bob", "carol"])
-        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        gameweek = await _open_sample_gameweek(session, fake, league)
         fixtures = await _fixture_ids(session, gameweek.id)
     epl, sl2 = fixtures[SAMPLE_EPL_EVENT_ID], fixtures[SAMPLE_SL2_EVENT_ID]
     slug = league.slug
@@ -417,7 +443,7 @@ async def test_one_member_holding_two_selections_is_named_once(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice,), league = await _seed_league(session, ["solo"])
-        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        gameweek = await _open_sample_gameweek(session, fake, league)
         fixtures = await _fixture_ids(session, gameweek.id)
     epl = fixtures[SAMPLE_EPL_EVENT_ID]
 
@@ -446,7 +472,7 @@ async def test_fixture_scope_takes_the_whole_game(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice, bob), league = await _seed_league(session, ["alice", "bob"])
-        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        gameweek = await _open_sample_gameweek(session, fake, league)
         fixtures = await _fixture_ids(session, gameweek.id)
     await _set_pick_scope(league, PickScope.fixture)
     epl, sl2 = fixtures[SAMPLE_EPL_EVENT_ID], fixtures[SAMPLE_SL2_EVENT_ID]
@@ -476,7 +502,7 @@ async def test_fixture_scope_hides_every_selection_on_a_claimed_game(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice, bob), league = await _seed_league(session, ["alice", "bob"])
-        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        gameweek = await _open_sample_gameweek(session, fake, league)
         fixtures = await _fixture_ids(session, gameweek.id)
     await _set_pick_scope(league, PickScope.fixture)
     epl = fixtures[SAMPLE_EPL_EVENT_ID]
@@ -508,7 +534,7 @@ async def test_fixture_scope_still_lets_a_member_repick_within_their_own_game(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice,), league = await _seed_league(session, ["solo"])
-        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        gameweek = await _open_sample_gameweek(session, fake, league)
         fixtures = await _fixture_ids(session, gameweek.id)
     await _set_pick_scope(league, PickScope.fixture)
     epl = fixtures[SAMPLE_EPL_EVENT_ID]
@@ -526,7 +552,7 @@ async def test_the_fixture_index_is_the_race_backstop(
     _, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice, bob), league = await _seed_league(session, ["alice", "bob"])
-        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        gameweek = await _open_sample_gameweek(session, fake, league)
         fixtures = await _fixture_ids(session, gameweek.id)
     await _set_pick_scope(league, PickScope.fixture)
     epl = fixtures[SAMPLE_EPL_EVENT_ID]
@@ -575,7 +601,7 @@ async def test_tightening_to_fixture_scope_is_refused_when_it_would_break(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice, bob), league = await _seed_league(session, ["alice", "bob"])
-        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        gameweek = await _open_sample_gameweek(session, fake, league)
         fixtures = await _fixture_ids(session, gameweek.id)
     epl = fixtures[SAMPLE_EPL_EVENT_ID]
     slug = league.slug
@@ -614,7 +640,7 @@ async def test_switching_scope_restamps_pending_picks(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice, bob), league = await _seed_league(session, ["alice", "bob"])
-        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        gameweek = await _open_sample_gameweek(session, fake, league)
         fixtures = await _fixture_ids(session, gameweek.id)
     epl, sl2 = fixtures[SAMPLE_EPL_EVENT_ID], fixtures[SAMPLE_SL2_EVENT_ID]
     slug = league.slug
@@ -659,8 +685,8 @@ async def test_gameweek_list_counts_fixtures_and_this_leagues_picks(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice, bob), league = await _seed_league(session, ["alice", "bob"])
-        older = await _open_sample_gameweek_as_latest(session, fake)
-        newer = await _open_sample_gameweek_as_latest(session, fake)
+        older = await _open_sample_gameweek(session, fake, league)
+        newer = await _open_sample_gameweek(session, fake, league, weeks_later=1)
         newer_fixtures = await _fixture_ids(session, newer.id)
     slug = league.slug
 
@@ -679,13 +705,14 @@ async def test_gameweek_list_counts_fixtures_and_this_leagues_picks(
     assert by_id[str(older.id)]["pick_count"] == 0
     assert by_id[str(newer.id)]["fixture_count"] >= 2
 
-    # Picks are league-scoped, so another league sees the same gameweeks with no picks.
+    # Rounds are per-league since Batch 14, so another league does not merely see
+    # these rounds empty — it does not see them at all.
     async with AsyncSessionLocal() as session:
         (carol,), other_league = await _seed_league(session, ["carol"])
     other = (
         await client.get(f"/api/v1/leagues/{other_league.slug}/gameweeks", headers=_auth(carol))
     ).json()
-    assert {row["gameweek_id"]: row["pick_count"] for row in other}[str(newer.id)] == 0
+    assert {row["gameweek_id"] for row in other}.isdisjoint({str(newer.id), str(older.id)})
 
 
 async def test_slate_and_coupon_read_a_named_gameweek(
@@ -695,17 +722,25 @@ async def test_slate_and_coupon_read_a_named_gameweek(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice,), league = await _seed_league(session, ["alice"])
-        older = await _open_sample_gameweek_as_latest(session, fake)
+        older = await _open_sample_gameweek(session, fake, league)
         older_fixtures = await _fixture_ids(session, older.id)
-        newer = await _open_sample_gameweek_as_latest(session, fake)
     slug = league.slug
 
-    # A pick on the *older* gameweek only.
+    # Pick while only the older round exists — next week's card appears afterwards,
+    # which is both the realistic order and the only unambiguous one: the two rounds
+    # draw on the same pooled fixtures, so a fixture id alone cannot say which round
+    # a submission means.
     assert (
         await _submit(
             client, slug, alice, older_fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME"
         )
     ).status_code == 201
+
+    async with AsyncSessionLocal() as session:
+        # Re-fetch: the league instance above belongs to a session that has closed.
+        newer = await _open_sample_gameweek(
+            session, fake, await session.get(League, league.id), weeks_later=1
+        )
 
     # Default: the latest gameweek, which has no picks.
     default_slate = (
@@ -746,7 +781,7 @@ async def test_an_unknown_or_malformed_gameweek_id_is_a_404(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice,), league = await _seed_league(session, ["alice"])
-        await _open_sample_gameweek_as_latest(session, fake)
+        await _open_sample_gameweek(session, fake, league)
     slug = league.slug
 
     for bad in (str(uuid.uuid4()), "not-a-uuid", ""):
@@ -770,7 +805,7 @@ async def test_profile_reports_this_leagues_record_and_settled_history(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice, bob), league = await _seed_league(session, ["alice", "bob"])
-        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        gameweek = await _open_sample_gameweek(session, fake, league)
         fixtures = await _fixture_ids(session, gameweek.id)
     epl, sl2 = fixtures[SAMPLE_EPL_EVENT_ID], fixtures[SAMPLE_SL2_EVENT_ID]
     slug = league.slug
@@ -821,7 +856,7 @@ async def test_profile_is_scoped_to_the_league_it_is_read_through(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice, bob), first = await _seed_league(session, ["alice", "bob"])
-        gameweek = await _open_sample_gameweek_as_latest(session, fake)
+        gameweek = await _open_sample_gameweek(session, fake, first)
         fixtures = await _fixture_ids(session, gameweek.id)
         # A second league Alice also belongs to, but has not picked in.
         second = League(slug=f"cpn2-{uuid.uuid4().hex[:8]}", name="Second", created_by=alice.id)
@@ -868,3 +903,129 @@ async def test_profile_rejects_a_non_member_caller_and_a_malformed_id(
         f"/api/v1/leagues/{league.slug}/players/not-a-uuid/profile", headers=_auth(alice)
     )
     assert malformed.status_code == 404
+
+
+# ── Batch 14: per-league rounds and per-league windows ───────────────────────
+
+
+async def test_two_leagues_play_different_cards_at_the_same_time(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The change Batch 14 exists for: one global round no longer binds everyone."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), saturday_league = await _seed_league(session, ["alice"])
+        (bob,), friday_league = await _seed_league(session, ["bob"])
+        # A Friday-to-Monday league. The canned card sits on a Saturday, which is
+        # inside that range, so both leagues can be given a real slate.
+        friday_league.slate_start_weekday = 4
+        friday_league.slate_start_minute = 19 * 60
+        friday_league.slate_end_weekday = 0
+        friday_league.slate_end_minute = 22 * 60
+        friday_league.lock_offset_minutes = 60
+        await session.commit()
+        await session.refresh(friday_league)
+
+        saturday_round = await _open_sample_gameweek(session, fake, saturday_league)
+        friday_slate = await fake.fetch_slate(
+            window_for(friday_league), SAMPLE_SATURDAY - timedelta(days=1)
+        )
+        friday_round = await sync_slate(session, friday_league, friday_slate)
+        friday_round.status = GameweekStatus.open
+        friday_round.locks_at_utc = _now() + timedelta(hours=2)
+        await session.commit()
+        await session.refresh(friday_round)
+
+    # Each league's slate is its own round, on its own date.
+    for player, league, expected in (
+        (alice, saturday_league, saturday_round),
+        (bob, friday_league, friday_round),
+    ):
+        slate = (
+            await client.get(
+                f"/api/v1/leagues/{league.slug}/gameweek/current", headers=_auth(player)
+            )
+        ).json()
+        assert slate["gameweek_id"] == str(expected.id)
+        assert slate["starts_on"] == expected.starts_on.isoformat()
+
+    assert saturday_round.starts_on != friday_round.starts_on, "different windows, different dates"
+
+    # The Friday league's lock is an hour before Friday 19:00, not 14:30 Saturday.
+    assert friday_round.id != saturday_round.id
+
+
+async def test_a_league_cannot_read_another_leagues_round(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Knowing a round's id must not be enough to read it.
+
+    Before Batch 14 ``gameweek_by_id`` was a bare primary-key lookup, so any member
+    of any league could read any round by id. Rounds are league-owned now and the
+    lookup is scoped, so someone else's round is indistinguishable from one that
+    does not exist.
+    """
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), theirs = await _seed_league(session, ["alice"])
+        (mallory,), mine = await _seed_league(session, ["mallory"])
+        their_round = await _open_sample_gameweek(session, fake, theirs)
+        await _open_sample_gameweek(session, fake, await session.get(League, mine.id))
+
+    for path in ("gameweek/current", "coupon"):
+        peek = await client.get(
+            f"/api/v1/leagues/{mine.slug}/{path}?gameweek_id={their_round.id}",
+            headers=_auth(mallory),
+        )
+        assert peek.status_code == 404, f"{path} leaked another league's round: {peek.text}"
+
+    # And the owner can still read it perfectly well.
+    ok = await client.get(
+        f"/api/v1/leagues/{theirs.slug}/gameweek/current?gameweek_id={their_round.id}",
+        headers=_auth(alice),
+    )
+    assert ok.status_code == 200
+
+
+async def test_a_fixture_off_this_leagues_card_cannot_be_picked(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Pooled fixtures are shared, so membership of a card has to be checked."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), playing = await _seed_league(session, ["alice"])
+        (bob,), not_playing = await _seed_league(session, ["bob"])
+        gameweek = await _open_sample_gameweek(session, fake, playing)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    epl = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    # Bob's league has no rounds at all, so the pooled fixture is not on his card.
+    refused = await _submit(client, not_playing.slug, bob, epl, "MATCH_ODDS", "HOME")
+    assert refused.status_code == 404
+    assert refused.json()["detail"] == "Fixture is not on this league's slate"
+
+    # Alice's league is playing it.
+    assert (
+        await _submit(client, playing.slug, alice, epl, "MATCH_ODDS", "HOME")
+    ).status_code == 201
+
+
+async def test_reminders_reach_every_league_not_just_one(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """``members_missing_picks`` had no league filter before Batch 14.
+
+    A reminder for one round went to every member of every league in the database.
+    """
+    _, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), first = await _seed_league(session, ["alice"])
+        (bob,), second = await _seed_league(session, ["bob"])
+        first_round = await _open_sample_gameweek(session, fake, first)
+        await _open_sample_gameweek(session, fake, await session.get(League, second.id))
+
+        recipients = await members_missing_picks(session, first_round)
+
+    names = {r.player_id for r in recipients}
+    assert str(alice.id) in names
+    assert str(bob.id) not in names, "another league's members must not be reminded"
