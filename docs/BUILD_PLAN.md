@@ -186,7 +186,7 @@ feedback pass; it is a live production defect found while reconciling it.
   console wins. Timeboxed like Batch 17: if it cannot be reproduced, the
   deliverable is an ADR and a reload path, not a speculative patch.
 
-- [ ] **Batch 20 — League identity, profile and invite wayfinding** *(Sonnet)* — three
+- [x] **Batch 20 — League identity, profile and invite wayfinding** ✅ 2026-08-06 *(Sonnet)* — three
   reported gaps, all of them surfaces that exist but cannot be reached or read.
   The home page never names the league it is showing: `DashboardPage` binds every
   query to `LeagueContext`'s `activeSlug` — last-viewed, else the member's first —

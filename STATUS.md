@@ -2,8 +2,8 @@
 
 ## Now
 
-Build batches 1–19 are closed. Batches 20–21 come from the owner's 2026-08-06
-feedback pass and remain open. The Coupon is a
+Build batches 1–20 are closed. Batch 21 comes from the owner's 2026-08-06
+feedback pass and remains open. The Coupon is a
 verified private weekly
 football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
@@ -141,6 +141,16 @@ route change after a deploy 404s. `lib/lazyRoute.ts` (ADR 0005) wraps
 `React.lazy` for all eighteen routes and `Layout`, reloading once on a
 recognized chunk-load failure and otherwise letting `ErrorBoundary` explain.
 
+Batch 20 fixed three reported wayfinding gaps, all frontend-only with no API
+change: the home page now names the active league in its `PageHeader` eyebrow
+(covering all three home cards); a self-profile route now exists, reachable
+from both `TopBar`'s avatar menu and `TabBar`'s mobile More sheet as "My
+profile"; and the already-built `LeagueJoinRequestsPage` and
+`LeagueAdminInvitesPage` gained admin-only buttons in `LeagueActionsMenu`.
+Also fixed in passing: `SettingsPage`'s dangling `/about` link, which had no
+route and silently bounced through the catch-all to home, now resolves to a
+new `AboutPage` reusing the existing scoring-rules copy.
+
 ## Verified
 
 - Backend: 375 pytest (453 with a database), Ruff check/format, and strict mypy
@@ -177,9 +187,8 @@ recognized chunk-load failure and otherwise letting `ErrorBoundary` explain.
 
 ## Next
 
-Batches 20–21 are open in `docs/BUILD_PLAN.md`: Batch 20 (league identity,
-profile and invite wayfinding, Sonnet), and Batch 21 (competition catalogue
-from the provider, Opus). Alongside that, Launch L5 —
+Batch 21 is open in `docs/BUILD_PLAN.md` (competition catalogue from the
+provider, Opus). Alongside that, Launch L5 —
 launch and first-Saturday watch — is the only open launch phase.
 Batch 7 shipped the odds source, so the remaining launch work is deployment and
 configuration:

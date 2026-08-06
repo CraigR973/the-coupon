@@ -433,3 +433,22 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   simply the first tap after a deploy, not a special case.
 
 **Next:** Batch 20 — League identity, profile and invite wayfinding.
+
+## Batch 20 — League identity, profile and invite wayfinding
+**Commits:** `a784ca6` · verified: Ruff 0.5.4 check/format · strict mypy · 375 pytest · lint · typecheck · build · 234 Vitest
+
+### Key facts for future sessions
+- Three built-but-unreachable surfaces, no API change: `DashboardPage` never named the
+  active league (fixed via the `PageHeader` eyebrow, which covers all three home cards, not
+  just one); there was no self-profile route (added "My profile" to both `TopBar`'s avatar
+  menu and `TabBar`'s mobile More sheet, pointing at `/leagues/${activeSlug}/players/${player.id}`);
+  and `LeagueJoinRequestsPage`/`LeagueAdminInvitesPage` were routed but linked from nowhere
+  (added admin-only buttons to `LeagueActionsMenu`, behind its existing `isAdmin` guard).
+- `SettingsPage` already linked to `/about`, which had no route — the catch-all silently
+  bounced it home. Added `AboutPage.tsx` reusing the existing scoring-rules copy from
+  `OddsGuide.tsx` rather than writing new copy.
+- `TopBar`/`TabBar` now call `useLeague()`, so any test rendering them needs a
+  `LeagueProvider` (or a `@/contexts/LeagueContext` mock) in the tree — updated
+  `TopBar.test.tsx`, `TabBar.test.tsx`, and `accessibility.test.tsx` accordingly.
+
+**Next:** Batch 21 — Competition catalogue from the provider.
