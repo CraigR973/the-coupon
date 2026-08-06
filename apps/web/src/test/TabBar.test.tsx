@@ -4,6 +4,22 @@ import { MemoryRouter } from 'react-router-dom';
 import type { HTMLAttributes, ReactNode } from 'react';
 import { TabBar } from '@/components/TabBar';
 
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({
+    player: { id: 'p1', displayName: 'Alice', role: 'player', timezone: 'UTC' },
+    logout: vi.fn(),
+  }),
+}));
+
+vi.mock('@/contexts/LeagueContext', () => ({
+  useLeague: () => ({
+    leagues: [],
+    isLoading: false,
+    refetch: vi.fn(),
+    activeSlug: 'the-coupon',
+  }),
+}));
+
 vi.mock('framer-motion', () => ({
   motion: {
     span: ({

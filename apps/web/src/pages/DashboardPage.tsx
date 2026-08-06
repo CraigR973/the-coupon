@@ -38,7 +38,8 @@ function Card({ children, className }: { children: React.ReactNode; className?: 
 export function DashboardPage() {
   const { player } = useAuth();
   const oddsFormat = useOddsFormat();
-  const { activeSlug: slug } = useLeague();
+  const { activeSlug: slug, leagues } = useLeague();
+  const leagueName = leagues.find((l) => l.slug === slug)?.name;
 
   const { data: slate, isLoading: slateLoading } = useQuery<GameweekSlate>({
     queryKey: gameweekKey(slug),
@@ -69,7 +70,7 @@ export function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title={`Hi ${player?.displayName ?? 'there'}`} eyebrow="The Coupon" />
+      <PageHeader title={`Hi ${player?.displayName ?? 'there'}`} eyebrow={leagueName ?? 'The Coupon'} />
 
       <div className="flex flex-col gap-4">
         {/* This week's pick */}

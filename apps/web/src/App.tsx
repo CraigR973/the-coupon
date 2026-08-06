@@ -32,6 +32,7 @@ const LeaderboardPage = lazyRoute(() => import('./pages/LeaderboardPage').then((
 const PlayerProfilePage = lazyRoute(() => import('./pages/PlayerProfilePage').then((m) => ({ default: m.PlayerProfilePage })));
 const OfflinePage = lazyRoute(() => import('./pages/OfflinePage').then((m) => ({ default: m.OfflinePage })));
 const SettingsPage = lazyRoute(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const AboutPage = lazyRoute(() => import('./pages/AboutPage').then((m) => ({ default: m.AboutPage })));
 
 // League management
 const MyLeaguesPage = lazyRoute(() => import('./pages/MyLeaguesPage').then((m) => ({ default: m.MyLeaguesPage })));
@@ -136,6 +137,7 @@ export function App() {
                         <Route path="/predictions/coupon" element={<CouponCombinedPage />} />
                         <Route path="/predictions/football" element={<FootballPage />} />
                         <Route path="/settings" element={<SettingsPage />} />
+                        <Route path="/about" element={<AboutPage />} />
                         <Route path="/offline" element={<OfflinePage />} />
 
                         {/* Old top-level routes → redirect to the Leagues hub */}

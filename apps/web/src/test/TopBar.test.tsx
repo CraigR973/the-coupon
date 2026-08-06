@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { LeagueProvider } from '@/contexts/LeagueContext';
 import { TopBar } from '@/components/TopBar';
 
 vi.mock('@/components/ui/dropdown-menu', () => ({
@@ -46,10 +47,12 @@ function renderTopBar() {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={['/']}>
         <AuthProvider>
-          <Routes>
-            <Route path="/" element={<TopBar />} />
-            <Route path="/settings" element={<div>Settings route</div>} />
-          </Routes>
+          <LeagueProvider>
+            <Routes>
+              <Route path="/" element={<TopBar />} />
+              <Route path="/settings" element={<div>Settings route</div>} />
+            </Routes>
+          </LeagueProvider>
         </AuthProvider>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -61,8 +64,8 @@ describe('TopBar avatar menu', () => {
     renderTopBar();
 
     fireEvent.click(screen.getAllByRole('button', { name: /account menu/i })[0]);
-    // No profile/about entries after the reshape — Settings + Sign out only.
     expect(screen.queryByRole('link', { name: /about/i })).toBeNull();
+    expect(screen.getAllByRole('link', { name: /my profile/i })[0]).toBeTruthy();
     fireEvent.click(screen.getAllByRole('link', { name: /settings/i })[0]);
 
     expect(screen.getByText('Settings route')).toBeTruthy();

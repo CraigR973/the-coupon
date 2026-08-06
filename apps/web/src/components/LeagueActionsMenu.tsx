@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { LogOut, Settings, Trash2, Users } from 'lucide-react';
+import { LogOut, Mail, Settings, Trash2, UserCheck, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -105,6 +105,18 @@ export function LeagueActionsMenu({
         </Button>
         {isAdmin && (
           <>
+            <Button asChild size="sm" variant="outline" className="gap-1.5">
+              <Link to={`/leagues/${slug}/admin/requests`}>
+                <UserCheck className="h-3.5 w-3.5" aria-hidden />
+                Requests
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="gap-1.5">
+              <Link to={`/leagues/${slug}/admin/invites`}>
+                <Mail className="h-3.5 w-3.5" aria-hidden />
+                Invites
+              </Link>
+            </Button>
             <Button asChild size="sm" variant="outline" className="gap-1.5">
               <Link to={`/leagues/${slug}/admin/settings`}>
                 <Settings className="h-3.5 w-3.5" aria-hidden />

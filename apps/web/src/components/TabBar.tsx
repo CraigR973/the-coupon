@@ -7,10 +7,12 @@ import {
   Trophy,
   MoreHorizontal,
   Settings as SettingsIcon,
+  User,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLeague } from '@/contexts/LeagueContext';
 import { Sheet } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
@@ -27,10 +29,6 @@ const PRIMARY: ReadonlyArray<TabDef> = [
   { to: '/leagues', label: 'Leagues', Icon: Trophy, matchPrefix: ['/leagues'] },
 ];
 
-const SECONDARY: ReadonlyArray<TabDef> = [
-  { to: '/settings', label: 'Settings', Icon: SettingsIcon, matchPrefix: ['/settings'] },
-];
-
 function isActive(pathname: string, tab: TabDef): boolean {
   if (tab.to === '/') return pathname === '/';
   if (tab.matchPrefix) return tab.matchPrefix.some((p) => pathname.startsWith(p));
@@ -39,7 +37,8 @@ function isActive(pathname: string, tab: TabDef): boolean {
 
 export function TabBar() {
   const { pathname } = useLocation();
-  const { logout } = useAuth();
+  const { player, logout } = useAuth();
+  const { activeSlug } = useLeague();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
   const layoutId = useId();
@@ -49,6 +48,18 @@ export function TabBar() {
   useEffect(() => {
     setMoreOpen(false);
   }, [pathname]);
+
+  const SECONDARY: ReadonlyArray<TabDef> = player
+    ? [
+        {
+          to: `/leagues/${activeSlug}/players/${player.id}`,
+          label: 'My profile',
+          Icon: User,
+          matchPrefix: [`/leagues/${activeSlug}/players/${player.id}`],
+        },
+        { to: '/settings', label: 'Settings', Icon: SettingsIcon, matchPrefix: ['/settings'] },
+      ]
+    : [{ to: '/settings', label: 'Settings', Icon: SettingsIcon, matchPrefix: ['/settings'] }];
 
   const isMoreActive = SECONDARY.some((t) => isActive(pathname, t));
 

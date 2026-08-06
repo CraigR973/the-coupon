@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { axe } from 'jest-axe';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { LeagueProvider } from '@/contexts/LeagueContext';
 import { LoginPage } from '@/pages/LoginPage';
 import { TopBar } from '@/components/TopBar';
 import { SettingsPage } from '@/pages/SettingsPage';
@@ -116,7 +117,9 @@ describe('Accessibility — TopBar', () => {
       <QueryClientProvider client={makeQueryClient()}>
         <MemoryRouter>
           <AuthProvider>
-            <TopBar />
+            <LeagueProvider>
+              <TopBar />
+            </LeagueProvider>
           </AuthProvider>
         </MemoryRouter>
       </QueryClientProvider>,
@@ -132,7 +135,9 @@ describe('Accessibility — TopBar', () => {
       <QueryClientProvider client={makeQueryClient()}>
         <MemoryRouter>
           <AuthProvider>
-            <TopBar />
+            <LeagueProvider>
+              <TopBar />
+            </LeagueProvider>
           </AuthProvider>
         </MemoryRouter>
       </QueryClientProvider>,

@@ -1,6 +1,7 @@
 import { NavLink, Link } from 'react-router-dom';
-import { Moon, Sun, Settings, LogOut } from 'lucide-react';
+import { Moon, Sun, Settings, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLeague } from '@/contexts/LeagueContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Brand } from '@/components/Brand';
 import { Avatar } from '@/components/ui/avatar';
@@ -22,6 +23,7 @@ const DESKTOP_NAV = [
 
 export function TopBar() {
   const { player, logout } = useAuth();
+  const { activeSlug } = useLeague();
   const { resolved, setMode } = useTheme();
   function toggleTheme() {
     setMode(resolved === 'dark' ? 'light' : 'dark');
@@ -54,6 +56,12 @@ export function TopBar() {
         <Avatar name={player.displayName} size="sm" src={player.avatarUrl} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link to={`/leagues/${activeSlug}/players/${player.id}`}>
+            <User className="h-4 w-4" aria-hidden />
+            My profile
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to="/settings">
             <Settings className="h-4 w-4" aria-hidden />
