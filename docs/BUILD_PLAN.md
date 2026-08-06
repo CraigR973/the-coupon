@@ -143,6 +143,89 @@ radius, not a rule — `/next-batch-prompt` still leaves the choice to the user.
   every batch above, and to be weighed against the "never places a wager"
   contract bullet.
 
+Batches 18 onward come from the owner's 2026-08-06 feedback pass, reconciled
+against the code before being written up. Two of the five reported points were
+not what they looked like: the competition picker is built and reachable but
+starved of data (Batch 21), and the missing league label is the *mini-league*
+name, not the football competition — the owner confirmed the reading, and the
+competition is already on every leg's fixture row. Batch 18 is not from the
+feedback pass; it is a live production defect found while reconciling it.
+
+- [ ] **Batch 18 — Production static assets** *(Sonnet)* — the `vercel.json` rewrite
+  sends everything that is not `assets/`, `icons/`, `favicon`, `robots.txt`,
+  `manifest.webmanifest`, `workbox-` or `sw.js` to `index.html`, but the app's
+  static files do not match that list. The four self-hosted `fonts/*.woff2`, all
+  five `icon-*.png`, `apple-touch-icon.png` and `coupon-icon.svg` live at the
+  document root, so production serves HTML for every font and every PWA icon —
+  the app falls back to system fonts and the installed-app icon is broken.
+  `icons/` is excluded and no such directory exists. All eleven are in the built
+  precache manifest (verified in `dist/sw.js` after `vite build`), so the service
+  worker stores the HTML too and the fault survives into the installed app rather
+  than being a first-load miss. Broken in production now, which is why it goes
+  ahead of the feedback items; the fix is the rewrite's negative lookahead, and
+  the gate is that each of the eleven returns its own content type.
+
+- [ ] **Batch 19 — Coupon page crash** *(Opus)* — the owner reports the coupon page
+  rendering `ErrorBoundary`'s "Something went wrong". Diagnosis is the batch:
+  reconciliation cleared the whole render path — `CouponPickPage`,
+  `CouponCombinedPage`, `CouponSubNav`, `GameweekNav`, `MemberRoster`,
+  `PickCard`, `FormLine`, `CombinedAccaView`, `lib/coupon.ts`,
+  `useGameweekHistory` — and the API models behind it, where the fields the
+  frontend dereferences without a guard are all non-nullable (`CouponLeg.odds`,
+  `Coupon.combined_odds`, `Standing.form`). Typecheck, 217 Vitest and a
+  production build all pass, so the throw is not in the source and this cannot be
+  specified as a code change yet. Start by capturing the console — the boundary
+  already logs `render failed` with the component stack — plus the failing URL
+  (`/predictions` or `/predictions/coupon`) and whether a hard reload clears it.
+  Leading hypothesis is a stale lazy chunk after a redeploy: every route is
+  `lazy()`, the service worker calls `skipWaiting()`, `clientsClaim()` and
+  `cleanupOutdatedCaches()`, so a tab held open across a deploy requests a
+  deleted chunk and the rejected `import()` surfaces at exactly that boundary. If
+  that is confirmed the fix is chunk-error recovery, not coupon code, and it
+  protects every route rather than this one. If the console says otherwise, the
+  console wins. Timeboxed like Batch 17: if it cannot be reproduced, the
+  deliverable is an ADR and a reload path, not a speculative patch.
+
+- [ ] **Batch 20 — League identity, profile and invite wayfinding** *(Sonnet)* — three
+  reported gaps, all of them surfaces that exist but cannot be reached or read.
+  The home page never names the league it is showing: `DashboardPage` binds every
+  query to `LeagueContext`'s `activeSlug` — last-viewed, else the member's first —
+  so a member in several leagues cannot tell whose coupon, pick and standings
+  they are looking at, and `LeagueSwitchStrip` only ever renders on
+  `LeaderboardPage`. The name is already in context beside the slug; decide
+  whether it labels the combined-coupon card alone or the page header, which
+  covers all three cards. There is no route to one's own profile: `PlayerProfilePage`
+  is league-scoped at `/leagues/:slug/players/:playerId` and reachable only by
+  tapping someone else on the leaderboard, the `TopBar` avatar menu holds only
+  Settings and Log out, and the mobile More sheet holds the same two — a
+  self-profile entry needs a slug, and `activeSlug` is the one to use. And
+  `LeagueAdminInvitesPage` and `LeagueJoinRequestsPage` are both fully built,
+  routed, and linked from nowhere in the app; both want buttons in
+  `LeagueActionsMenu` behind its existing `isAdmin` guard. Frontend only, no API
+  change. While here: `SettingsPage` links to `/about`, which has no route and no
+  page, so the catch-all bounces it to home.
+
+- [ ] **Batch 21 — Competition catalogue from the provider** *(Opus)* — Batch 15 shipped
+  per-competition selection and it works, but the picker is empty for most
+  leagues, so "all UK leagues" is the only usable choice. The cause is the
+  catalogue, not the UI: `GET /{slug}/competitions` builds `available` from
+  `SELECT DISTINCT competition_id, competition FROM fixtures`, which is only what
+  discovery has already pooled, so a league whose slate has never run has nothing
+  to tick and gets the "appears once the first slate has been fetched" message.
+  Source it from the provider instead. This does not run into Batch 15's rate
+  limit, which is about the *slate* costing one `/events` per competition: the
+  catalogue is `_all_leagues()`, a single `/leagues?sport=football` call already
+  cached per client, and `_is_uk()` already narrows it to the four home nations —
+  roughly thirty competitions. The cost is the port. `OddsProvider` exposes no
+  competition listing, and adding one as an `@abstractmethod` touches every
+  implementation — `OddsApiProvider`, `BetfairAdapter`, the `CachingOddsProvider`
+  decorator, which must delegate, and the stubs in `test_odds_session.py` and
+  `test_odds_cache.py`. A non-abstract default returning `[]` confines the change
+  to `OddsApiProvider` at the cost of a silently empty picker on any other
+  provider; pick one deliberately. Keep unioning the stored selection in, so a
+  competition that has dropped out of the provider's list still shows as ticked,
+  and keep the endpoint free of an upstream request on the common path.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
