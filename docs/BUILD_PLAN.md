@@ -124,7 +124,7 @@ radius, not a rule — `/next-batch-prompt` still leaves the choice to the user.
   a PostgreSQL enum, so widening the set is a migration, not configuration
   alone.
 
-- [ ] **Batch 16 — Football data** *(Opus)* — real league tables, previous
+- [x] **Batch 16 — Football data** ✅ 2026-08-06 *(Opus)* — real league tables, previous
   results, and recent form, both as their own section and inline on the pick
   screen. Needs a second provider, because odds-api.io publishes no standings;
   `teams` / `matches` / `standings` tables; ingestion on the Batch 11 schedule;

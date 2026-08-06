@@ -2,7 +2,7 @@
 
 ## Now
 
-Build batches 1–15 are closed. The Coupon is a verified private weekly
+Build batches 1–16 are closed. The Coupon is a verified private weekly
 football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
 compare standings, and view the shared combined coupon.
@@ -96,6 +96,21 @@ leagues" group or an explicit list applied as a link-time filter in `sync_slate`
 narrowing costs no extra provider requests — and its offered markets, a subset of the
 `pick_market` enum stored as an array. Admins can add a one-off round for a date off
 the usual cadence, such as Boxing Day. All of it is gated by `LeagueAdminDep`.
+
+Batch 16 added real football. Tables, previous results, and form come from a
+second, independent provider (API-Football, ADR 0003) because `odds-api.io`
+publishes no standings, and our own fixtures could not supply a table — the slate
+has only ever stored Saturday 15:00 kick-offs, and scores were never persisted.
+Migration `011` adds `teams`, `team_aliases`, `matches`, and `standings`; a match
+is a separate record from a fixture, since most matches are neither pickable nor
+picked. The free plan allows **100 requests a day**, so no screen ever reaches a
+provider: a capped, rotating 06:30 job writes the tables and every read serves
+them. Team names are reconciled between the two providers' spellings by an alias
+layer that refuses to guess. Two surfaces — a Football section at
+`/predictions/football`, and each club's position and form inline on the pick card,
+which degrades to the pre-batch card when a club does not resolve.
+`FOOTBALL_DATA_PROVIDER` defaults to `none`, so production is unchanged until the
+owner runs a live probe and seals a key.
 
 ## Verified
 

@@ -327,3 +327,35 @@ A green local gate is not evidence of a green CI until this is reconciled.
 
 **Next:** Batch 16 — Football data (real tables/results/form; needs a second provider). Launch
 L5 — launch and first-Saturday watch runs in parallel.
+
+## Batch 16 — Football data
+**Commits:** `10f11f4` · verified: 375 pytest + Ruff 0.5.4 check/format + strict mypy · 453 pytest on clean `pgserver` through `011` · Node build/TypeScript/ESLint (0 errors) + 217 Vitest · browser flow driven locally against `tests/e2e_server` (`ODDS_PROVIDER=fake`, canned football), mobile + desktop, light + dark
+
+### Key facts for future sessions
+- **The 100-requests-a-*day* free plan is the whole design, not a caveat.** Nothing may
+  reach a football provider from the request path — ingestion writes `teams`/`matches`/
+  `standings` on the 06:30 job and every screen reads those. `tests/test_football_router.py`
+  booby-traps `football_session.acquire` and asserts both endpoints still answer, so a
+  future provider call in a read path fails loudly.
+- **A competition costs exactly two requests** (`/standings` + `/fixtures`), so 30 UK
+  competitions is 61 with the memoised catalogue. `FOOTBALL_COMPETITIONS_PER_RUN` caps a
+  run and `pooled_competitions` orders least-recently-synced first; the season backfill is
+  a deliberate one-off (`python -m src.run_scheduled football-backfill`), never scheduled.
+- **`standings.updated_at` is stamped by hand in `sync_table`.** `UpdatedAtMixin` has no
+  `onupdate` and there is no trigger, so it froze at insert — which broke the "as of" line
+  *and* froze the rotation ordering, starving every competition past the cap after the
+  first pass. A server default is no use either: `NOW()` is the transaction's start time,
+  so one run's competitions would share an indistinguishable timestamp.
+- **Aliases are learned at ingestion, not read time**, which is what makes the pick screen's
+  inline form a primary-key lookup. `resolve_names` refuses ambiguous names outright — two
+  clubs equally close resolve to nothing, because no form line beats the wrong club's.
+- **`FOOTBALL_DATA_PROVIDER` defaults to `none`** so sealed production is untouched; `none`
+  disables *ingestion* only and the screens still read what is stored. The canned data is
+  season 2025 while the canned slate is 2026-27, so anything using `FakeFootballData` must
+  pin `FOOTBALL_SEASON=2025` (`tests/e2e_server.py` sets it directly).
+- **`apps/web/.env.local` on this machine points at a dead wc2026 Railway URL**, so the web
+  dev server never reaches a local API until it is repointed. It is gitignored, so this is a
+  machine artifact rather than a repo bug — but it silently renders every screen empty.
+
+**Next:** Batch 17 — Betslip export spike (timeboxed, ends in an ADR). Launch L5 — launch and
+first-Saturday watch runs in parallel.
