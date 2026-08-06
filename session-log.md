@@ -399,3 +399,18 @@ first-Saturday watch runs in parallel.
 **Next:** the build plan is complete — Batches 1–17 all struck. Launch L5 — launch and
 first-Saturday watch is the only open phase, and production is still not playable: it runs
 the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
+
+## Batch 18 — Production static assets
+**Commits:** `e28155c` · verified: lint · typecheck · build (precache manifest checked) · 217 Vitest
+
+### Key facts for future sessions
+- `vercel.json`'s SPA-fallback rewrite excluded `icons/`, a directory that never existed;
+  the eleven root-level static files (`fonts/*.woff2`, five `icon-*.png` in the manifest,
+  `apple-touch-icon.png`, `coupon-icon.svg`) all fell through to `index.html` in
+  production and were precached as HTML by the service worker, breaking fonts and the
+  installed-app icon.
+- Fix is `fonts/|icon-|apple-touch-icon\.png|coupon-icon\.svg` added to the negative
+  lookahead — verified with a regex simulation against all eleven paths plus the existing
+  SPA and static-passthrough cases, not by deploying.
+
+**Next:** Batch 19 — Coupon page crash.

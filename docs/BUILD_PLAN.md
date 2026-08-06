@@ -151,7 +151,7 @@ name, not the football competition — the owner confirmed the reading, and the
 competition is already on every leg's fixture row. Batch 18 is not from the
 feedback pass; it is a live production defect found while reconciling it.
 
-- [ ] **Batch 18 — Production static assets** *(Sonnet)* — the `vercel.json` rewrite
+- [x] **Batch 18 — Production static assets** ✅ 2026-08-06 *(Sonnet)* — the `vercel.json` rewrite
   sends everything that is not `assets/`, `icons/`, `favicon`, `robots.txt`,
   `manifest.webmanifest`, `workbox-` or `sw.js` to `index.html`, but the app's
   static files do not match that list. The four self-hosted `fonts/*.woff2`, all

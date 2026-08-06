@@ -2,7 +2,8 @@
 
 ## Now
 
-Build batches 1–17 are closed — the build plan is complete. The Coupon is a
+Build batches 1–18 are closed. Batches 19–21 come from the owner's 2026-08-06
+feedback pass and remain open. The Coupon is a
 verified private weekly
 football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
@@ -123,6 +124,15 @@ book and disagrees with the coupon's headline number. An outbound bet link would
 also make this gambling advertising, and there is no age gate anywhere in the
 application. The combined coupon stays a scoreboard.
 
+Batches 18 onward come from the owner's 2026-08-06 feedback pass, reconciled
+against the code before being written up. Batch 18 was a live production defect
+found while reconciling it, not one of the five reported points: `vercel.json`'s
+SPA rewrite sent every self-hosted font and PWA icon to `index.html` because its
+negative lookahead excluded a directory (`icons/`) that never existed rather
+than the actual root-level paths, and the service worker precached the HTML
+substitutes into the installed app. Fixed by correcting the lookahead to match
+`fonts/`, `icon-`, `apple-touch-icon.png`, and `coupon-icon.svg`.
+
 ## Verified
 
 - Backend: 375 pytest (453 with a database), Ruff check/format, and strict mypy
@@ -159,8 +169,11 @@ application. The combined coupon stays a scoreboard.
 
 ## Next
 
-There is no next build batch — 1–17 are all struck and `docs/BUILD_PLAN.md` is
-complete. The only open phase is Launch L5 — launch and first-Saturday watch.
+Batches 19–21 are open in `docs/BUILD_PLAN.md`: Batch 19 (coupon page crash,
+Opus — timeboxed diagnosis, may end in an ADR rather than a fix), Batch 20
+(league identity, profile and invite wayfinding, Sonnet), and Batch 21
+(competition catalogue from the provider, Opus). Alongside that, Launch L5 —
+launch and first-Saturday watch — is the only open launch phase.
 Batch 7 shipped the odds source, so the remaining launch work is deployment and
 configuration:
 
