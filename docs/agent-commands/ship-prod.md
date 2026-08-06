@@ -44,11 +44,17 @@ deployment. It must not be used to finish provisioning L4.
    production target from `.railway`, `.vercel`, MCP, or cached CLI state.
    Production Supabase must never be attached to MCP.
 5. Confirm the required Railway variable names without displaying values:
-   `BF_APP_KEY`, `BF_CERT_FILE`, `BF_CERT_PEM_B64`, `BF_KEY_FILE`,
-   `BF_KEY_PEM_B64`, `BF_PASS`, `BF_USER`, `DATABASE_URL`, `ENVIRONMENT`,
-   `FRONTEND_ORIGIN`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `LOG_LEVEL`,
-   `SCHEDULER_ENABLED`, `VAPID_CONTACT_EMAIL`, `VAPID_PRIVATE_KEY`, and
-   `VAPID_PUBLIC_KEY`. Require `BF_FAKE_MODE` to be absent or false.
+   `DATABASE_URL`, `ENVIRONMENT`, `FRONTEND_ORIGIN`, `JWT_ACCESS_SECRET`,
+   `JWT_REFRESH_SECRET`, `LOG_LEVEL`, `ODDS_API_BOOKMAKER`, `ODDS_API_KEY`,
+   `ODDS_PROVIDER`, `SCHEDULER_ENABLED`, `VAPID_CONTACT_EMAIL`,
+   `VAPID_PRIVATE_KEY`, and `VAPID_PUBLIC_KEY`.
+
+   Under ADR 0002 the odds source is `oddsapi`, so `ODDS_API_KEY` is the
+   credential that matters and the `BF_*` set is **not** required — `config.py`
+   reads Betfair's certificate pair only when `odds_provider` is `betfair`. The
+   eight `BF_*` variables still sealed from L1/L4 are inert; leave them or
+   remove them deliberately, but do not treat their presence as a gate.
+
    Secret-bearing variable commands include raw values; pipe output into a
    key-only in-memory validator and never echo, log, persist, or return raw
    output.
@@ -76,12 +82,36 @@ At minimum, run Ruff check and format verification, mypy, the full API test
 suite, frontend lint/typecheck/tests/build, the deployment-config assertions in
 `.github/workflows/ci.yml`, and `git diff --check`.
 
+`scripts/ci-local.sh` runs exactly that set. Use it rather than trusting a green
+tick on GitHub: Actions is not always scheduling runs (a major outage on
+2026-08-06 let two pushes to main land with no run created at all), and a
+*missing* run reads the same as a passing one unless you look for it. Confirm a
+run exists for the commit being shipped — not merely that none failed.
+
 Do not run the test suite, destructive probes, or rollback rehearsals against
 production. The owner performs any required live Betfair probe.
 
 ## 3. Deploy the API
 
-Run Railway from the repository root with every selector explicit:
+First stamp the commit being shipped so `/api/v1/health` can report what is
+actually running. Railway injects `RAILWAY_GIT_COMMIT_SHA` only for
+GitHub-connected services, and this one deploys by CLI, so it must be set
+explicitly on every shipment or it goes stale and
+`scripts/check-deploy-drift.sh` cannot resolve the deployed commit:
+
+```bash
+/Users/craigrobinson/.nvm/versions/node/v20.20.2/lib/node_modules/@railway/cli/bin/railway \
+  variables --set "RAILWAY_GIT_COMMIT_SHA=$(git -C /Users/craigrobinson/the-coupon rev-parse HEAD)" \
+  --skip-deploys \
+  --project e030ebe3-e7fc-43c9-9478-4e80cafaa126 \
+  --environment 8f18cb49-5137-4557-900a-031bcab4ac38 \
+  --service d59f4f17-3e7d-4b3b-bf40-30620150fa2f
+```
+
+Then run Railway from the repository root with every selector explicit.
+**`railway up` uploads the working directory, not the git commit** — re-check
+`git status --porcelain` immediately before this line, or uncommitted work ships
+to production:
 
 ```bash
 /Users/craigrobinson/.nvm/versions/node/v20.20.2/lib/node_modules/@railway/cli/bin/railway \
@@ -91,6 +121,9 @@ Run Railway from the repository root with every selector explicit:
   --service d59f4f17-3e7d-4b3b-bf40-30620150fa2f \
   --detach --json --message "<deployment-message>"
 ```
+
+Poll for a terminal status with a delay between requests; a tight loop against
+the deployment API will rate-limit.
 
 Capture the new deployment ID. Poll its status with the same explicit project,
 environment, and service selectors until it is `SUCCESS`, or stop and roll
@@ -129,6 +162,19 @@ database session that does not expose values. Do not use MCP or run a
 downgrade.
 
 ## 4. Deploy the web app
+
+**Usually a no-op.** The Vercel project is connected to GitHub and auto-deploys
+`main` on every push, so by the time this workflow runs the web app is normally
+already serving the target commit. Check first — if production already serves
+this commit, skip this section rather than minting a duplicate CLI deployment
+and moving the alias off the GitHub-linked one.
+
+**The repository's `.vercel/project.json` points at `the-coupon-staging`**
+(`prj_r9VsE4xnCj53S3OiOUH7GSzQsn2c`). Any Vercel command without an explicit
+target therefore acts on **staging**, silently — `vercel env ls` has no
+`--project` flag and will read the wrong project. `vercel deploy` does accept
+`--project`, which is why the command below is safe; for anything else, set
+`VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` in the environment instead.
 
 Deploy from the repository root. The Vercel project already has `apps/web` as
 its configured root, so passing `apps/web` as the upload root would incorrectly

@@ -48,4 +48,18 @@ This workflow runs only when the user explicitly invokes
    report if the push is rejected (e.g. `origin/main` has diverged); never
    force past a rejection.
 
+9. Report the deployed-API gap, without acting on it:
+
+   ```bash
+   /Users/craigrobinson/the-coupon/scripts/check-deploy-drift.sh
+   ```
+
+   Pushing `main` auto-deploys the **web app** through Vercel's GitHub
+   integration, but the **API** only moves when `/ship-prod` runs. Nothing else
+   surfaces that gap, and it is invisible from the browser until a batch changes
+   a field both sides read: Batches 8–21 shipped frontend-only that way, and the
+   Coupon tab broke on 2026-08-06 because Batch 14 renamed the slate's date
+   field and only the web half reached production. Print the result and say
+   whether a `/ship-prod` is owed. Do not deploy here.
+
 Do not poll CI or deploy — those remain separate, explicit actions.

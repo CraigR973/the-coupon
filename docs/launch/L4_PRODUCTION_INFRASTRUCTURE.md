@@ -5,6 +5,14 @@ Started: 2026-07-30
 This is the non-secret implementation record for L4. It does not mark the
 phase complete. Only `/launch-closeout L4` may close the gate.
 
+> **Reading this record.** Everything below the budget section is dated
+> evidence — it describes what was true when the gate was verified
+> (2026-07-31 to 2026-08-03), not what is true now. In particular, statements
+> that migration `004` is "the repository's sole head" were accurate then; the
+> head is now `011`. For current deployment IDs, migration head, and rollback
+> baselines, read **Shipment history** near the end and treat it as
+> authoritative wherever it disagrees with the dated sections.
+
 ## Approved budget and owner boundary
 
 Revised by owner decision on 2026-07-30. The earlier Supabase Pro estimate is
@@ -112,8 +120,11 @@ off**.
 
 First deployment: `8d77e4a4-5532-4036-9d1a-7f78afc0a182`, status `SUCCESS`,
 built from the L4 branch working tree, which is the source that carries
-`runtime_secrets.py` and the production start command. This is the rollback
-baseline for the next shipment.
+`runtime_secrets.py` and the production start command.
+
+> **Superseded.** That deployment is now `REMOVED`. Current deployment IDs,
+> migration head, and rollback baselines live in **Shipment history** below;
+> this section records the state at the L4 gate, not today's.
 
 The committed topology is unchanged: exactly one always-on replica in
 `europe-west4-drams3a`, IPv6 egress, 0.25 vCPU, 500 MB, and the
@@ -124,6 +135,9 @@ at the owner's direction. The reason is the L4 boundary below: with real
 credentials present, a started scheduler would perform a Betfair certificate
 login against the owner's account, and only the owner may cause that. **It
 must be restored to `true` before launch**, after the owner has run the probe.
+
+> **Done.** `SCHEDULER_ENABLED` was restored to `true` (recorded further down
+> with the defect fixes) and was confirmed still `true` on 2026-08-06.
 
 Verification on 2026-08-03:
 
@@ -231,7 +245,11 @@ and `VITE_VAPID_PUBLIC_KEY` matches the fresh Railway production key.
 First production deployment on 2026-08-03: `dpl_3XT8vw21NnDVrpjuZF17ZjzmA6U3`,
 immutable URL
 `https://the-coupon-production-3ahn2tihg-craigr973s-projects.vercel.app`,
-state `READY`. This is the rollback baseline for the next shipment.
+state `READY`.
+
+> **Superseded.** This project is connected to GitHub and auto-deploys `main`
+> on every push, so it has redeployed on every batch close-out since. See
+> **Shipment history** below for the current deployment and rollback baseline.
 
 The intended stable alias `https://the-coupon-production.vercel.app` **was**
 assigned, alongside two project-scoped aliases. It matches the `FRONTEND_ORIGIN`
@@ -555,25 +573,53 @@ should improve nearer the time and must be re-measured rather than assumed.
 Before committing to a launch Saturday, re-run the fixture report for that date
 and confirm at least fifteen distinct priced selections.
 
-## Rollback baselines
+## Shipment history
 
-Rollback baselines, both recorded 2026-08-03 and both the first healthy
-deployment of their stack:
+The two stacks ship by **different mechanisms**, which is the single most
+important operational fact about this deployment:
 
-| Stack | Deployment ID |
+- **Vercel** is connected to GitHub and auto-deploys `main` on every push.
+- **Railway** is not connected; it moves only when `/ship-prod` runs.
+
+Between 2026-08-04 and 2026-08-06 that gap grew to thirteen batches and broke
+the Coupon tab in production. `scripts/check-deploy-drift.sh` now reports the
+gap, and `/phase-closeout` step 9 runs it.
+
+| Date | Stack | Deployment | Commit | Migration head |
+| --- | --- | --- | --- | --- |
+| 2026-08-03 | Railway `api` | `8d77e4a4-…` (`REMOVED`) | L4 branch tree | `004` |
+| 2026-08-04 | Railway `api` | `a43dbcdc-…` (`REMOVED`) | `ea1cc9d` | `006` |
+| 2026-08-06 | Railway `api` | `7a5862cb-1279-4625-b5fa-3603df64c52e` | `aae3b51e` | **`011`** |
+| 2026-08-06 | Vercel web | `dpl_71cUU3Tau76XgoWVZpHcxufGp8vF` | `aae3b51e` | — |
+
+### Current rollback baselines
+
+| Stack | Roll back to |
 | --- | --- |
-| Railway `api` | `8d77e4a4-5532-4036-9d1a-7f78afc0a182` |
-| Vercel web | `dpl_3XT8vw21NnDVrpjuZF17ZjzmA6U3` |
+| Railway `api` | **none viable** — see below |
+| Vercel web | `dpl_2VSqRFZNahpKAByJ17dWKEeo1q88` (Batch 20, `9097839c`) |
 
-Because these are the *first* deployments, there is nothing behind them to roll
-back to. Until a second shipment exists, a failure must be fixed forward.
+**The API cannot be rolled back.** Every prior Railway deployment is `REMOVED`,
+and migration `009` renamed `gameweeks.saturday_date` to `starts_on`, so no
+earlier build can read the current schema even if one were restorable. A failure
+must be fixed forward.
 
 Rollback reverts application deployments only. Under the 2026-07-30 backup
-deferral there is no database restore path at all, so rollback must never
-assume a recoverable database and never downgrades it. A migration
-incompatible with the previous application requires a separately reviewed
-forward recovery plan, written before the migration ships rather than after it
-fails.
+deferral there is no database restore path at all, so rollback must never assume
+a recoverable database and never downgrades it. A migration incompatible with
+the previous application requires a separately reviewed forward recovery plan,
+written before the migration ships rather than after it fails — as was done for
+`007`–`011` before the 2026-08-06 shipment.
+
+### Pre-migration snapshot, 2026-08-06
+
+Because there is no backup, a targeted logical snapshot of the four tables `009`
+rewrites (`leagues`, `gameweeks`, `fixtures`, `picks` — 134 rows) was taken
+immediately before the shipment and kept outside the repository at
+`~/the-coupon-snapshots/`. Note that `pg_dump` was unusable here: production runs
+PostgreSQL 17.6, no SSL-capable `pg_dump` is installed on the operator's machine,
+and the copy bundled with `pgserver` is both older and compiled without SSL. The
+snapshot was taken over `asyncpg` instead.
 
 ## Gate state
 

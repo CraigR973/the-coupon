@@ -5,6 +5,10 @@ on:
     branches: [main, "feat/**", "fix/**", "chore/**"]
   pull_request:
     branches: [main]
+  # Manual trigger. A GitHub Actions outage on 2026-08-06 stopped scheduling runs
+  # entirely — two pushes to main landed ungated and there was no way to ask for a
+  # run after the fact. `scripts/ci-local.sh` runs the same checks off-GitHub.
+  workflow_dispatch:
 
 jobs:
   backend:

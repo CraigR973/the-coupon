@@ -36,13 +36,22 @@ deployed, healthy, and serving at
 `https://api-production-109b1.up.railway.app` and a locked-down London Supabase
 project holding one bootstrapped administrator.
 
-**Production is not yet playable, but the blocker is now deployment, not code.**
 The odds source works: verified live for Saturday 2026-08-08, `odds-api.io`
 carries 30 UK leagues, 131 qualifying 15:00 fixtures, and 280 distinct priced
 selections against the 15 a full league needs, with both Scottish lower
-divisions fully priced. Production still runs the Betfair build and has no
-`ODDS_API_KEY` sealed, so the slate-refresh job keeps failing until Batch 7 is
-deployed and configured.
+divisions fully priced.
+
+**Production runs `aae3b51e` (Batch 21) on both stacks as of 2026-08-06**, at
+migration `011`. `ODDS_API_KEY` is sealed, `ODDS_PROVIDER=oddsapi`, and
+`SCHEDULER_ENABLED=true`; the paragraph above about a Betfair build and an
+unsealed key described the state before the 2026-08-04 and 2026-08-06
+shipments.
+
+Note that the two stacks ship differently: **Vercel auto-deploys `main` on every
+push; Railway moves only when `/ship-prod` runs.** Between 2026-08-04 and
+2026-08-06 that let the API fall thirteen batches behind the web app and broke
+the Coupon tab in production. `scripts/check-deploy-drift.sh` reports the gap
+and `/phase-closeout` now runs it.
 
 Launch also ships with **no database backup**, by owner decision recorded in
 `docs/launch/L0_PROJECT_IDENTITY.md`.
@@ -201,13 +210,17 @@ unreachable, because the picker is also how an admin *un*-narrows a league.
 
 No build batch remains open in `docs/BUILD_PLAN.md`. Launch L5 — launch and
 first-Saturday watch — is the only open phase of any kind.
-Batch 7 shipped the odds source, so the remaining launch work is deployment and
-configuration:
+Batch 7 shipped the odds source. Production is now deployed and configured
+through Batch 21; what remains:
 
-- seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`;
+- ~~seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`~~ — done;
+- ~~ship staging and then production~~ — production is at `aae3b51e` / migration `011`;
 - migrate staging from the deprecated `BF_FAKE_MODE` to `ODDS_PROVIDER=fake`;
-- ship staging and then production, which runs migration `005`;
-- re-run `.launch-private/weekend-fixtures.py` against the launch Saturday.
+- re-run `.launch-private/weekend-fixtures.py` against the launch Saturday;
+- decide whether to enable the football-data provider — `FOOTBALL_DATA_PROVIDER`
+  is unsealed so it defaults to `none`, which leaves Batch 16's tables, results
+  and form surfaces empty (not broken). Enabling it needs an api-sports.io key
+  sealed as `FOOTBALL_API_KEY`.
 
 The `BF_*` variables and the Betfair certificate are no longer required in
 production; they apply only if `ODDS_PROVIDER=betfair` is ever selected.
