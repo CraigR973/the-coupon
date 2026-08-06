@@ -2,7 +2,7 @@
 
 ## Now
 
-Build batches 1–18 are closed. Batches 19–21 come from the owner's 2026-08-06
+Build batches 1–19 are closed. Batches 20–21 come from the owner's 2026-08-06
 feedback pass and remain open. The Coupon is a
 verified private weekly
 football accumulator PWA: members sign in with display name and
@@ -133,12 +133,20 @@ than the actual root-level paths, and the service worker precached the HTML
 substitutes into the installed app. Fixed by correcting the lookahead to match
 `fonts/`, `icon-`, `apple-touch-icon.png`, and `coupon-icon.svg`.
 
+Batch 19 diagnosed and fixed the owner's coupon-page crash report: not coupon
+code, but a stale route chunk. Every route is `lazy()`, a deploy drops the
+previous build's chunk hashes, and `sw.ts`'s `skipWaiting()`/`clientsClaim()`
+hands an open tab to the new worker while it still runs old JS, so the first
+route change after a deploy 404s. `lib/lazyRoute.ts` (ADR 0005) wraps
+`React.lazy` for all eighteen routes and `Layout`, reloading once on a
+recognized chunk-load failure and otherwise letting `ErrorBoundary` explain.
+
 ## Verified
 
 - Backend: 375 pytest (453 with a database), Ruff check/format, and strict mypy
 - Database: clean `pgserver` migration through revision `011`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 13 public tables under a Supabase-like role setup
-- Frontend: Node 20 production build, TypeScript, ESLint, and 217 Vitest
+- Frontend: Node 20 production build, TypeScript, ESLint, and 234 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
   coupon, phone push, and PWA update behavior
@@ -169,10 +177,9 @@ substitutes into the installed app. Fixed by correcting the lookahead to match
 
 ## Next
 
-Batches 19–21 are open in `docs/BUILD_PLAN.md`: Batch 19 (coupon page crash,
-Opus — timeboxed diagnosis, may end in an ADR rather than a fix), Batch 20
-(league identity, profile and invite wayfinding, Sonnet), and Batch 21
-(competition catalogue from the provider, Opus). Alongside that, Launch L5 —
+Batches 20–21 are open in `docs/BUILD_PLAN.md`: Batch 20 (league identity,
+profile and invite wayfinding, Sonnet), and Batch 21 (competition catalogue
+from the provider, Opus). Alongside that, Launch L5 —
 launch and first-Saturday watch — is the only open launch phase.
 Batch 7 shipped the odds source, so the remaining launch work is deployment and
 configuration:

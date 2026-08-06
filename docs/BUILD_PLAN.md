@@ -165,7 +165,7 @@ feedback pass; it is a live production defect found while reconciling it.
   ahead of the feedback items; the fix is the rewrite's negative lookahead, and
   the gate is that each of the eleven returns its own content type.
 
-- [ ] **Batch 19 — Coupon page crash** *(Opus)* — the owner reports the coupon page
+- [x] **Batch 19 — Coupon page crash** ✅ 2026-08-06 *(Opus)* — the owner reports the coupon page
   rendering `ErrorBoundary`'s "Something went wrong". Diagnosis is the batch:
   reconciliation cleared the whole render path — `CouponPickPage`,
   `CouponCombinedPage`, `CouponSubNav`, `GameweekNav`, `MemberRoster`,

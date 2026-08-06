@@ -414,3 +414,22 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   SPA and static-passthrough cases, not by deploying.
 
 **Next:** Batch 19 — Coupon page crash.
+
+## Batch 19 — Coupon page crash
+**Commits:** `6c71163` · verified: lint · typecheck · build · 234 Vitest
+
+### Key facts for future sessions
+- The "Something went wrong" report was a stale route chunk, not coupon code: every route
+  is `lazy()`, a deploy drops the previous build's chunk hashes, and `sw.ts`'s
+  `skipWaiting()`/`clientsClaim()` hands an open tab to the new worker while it still runs
+  old JS — so the *first* route change after a deploy 404s.
+- Reproduced against a real production bundle (`vite build` → `vite preview`) by deleting
+  a built chunk after load and navigating to it — see `docs/adr/0005-stale-chunk-recovery.md`.
+- Fix is `lib/lazyRoute.ts`: wraps `React.lazy`, matches the rejected-import wording across
+  Chrome/Firefox/Safari/Vite, reloads once (skipped offline or within a 30s cooldown), and
+  lets `ErrorBoundary` show a "Coupon has been updated" message with only Reload — not "Try
+  again", since React caches a rejected `lazy` payload permanently.
+- Applies to all eighteen routes and `Layout`, not just the coupon pages — the coupon was
+  simply the first tap after a deploy, not a special case.
+
+**Next:** Batch 20 — League identity, profile and invite wayfinding.
