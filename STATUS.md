@@ -2,7 +2,8 @@
 
 ## Now
 
-Build batches 1–16 are closed. The Coupon is a verified private weekly
+Build batches 1–17 are closed — the build plan is complete. The Coupon is a
+verified private weekly
 football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
 compare standings, and view the shared combined coupon.
@@ -112,12 +113,22 @@ which degrades to the pre-batch card when a club does not resolve.
 `FOOTBALL_DATA_PROVIDER` defaults to `none`, so production is unchanged until the
 owner runs a live probe and seals a key.
 
+Batch 17 was a timeboxed spike and ships no code — its output is ADR 0004, which
+decides **not** to build betslip export. Bet365 publishes no betslip API; Bet Share
+carries a full accumulator but only a logged-in Bet365 customer can mint one; the
+affiliate add-to-betslip link is one we could create and carries a single
+selection. Two walls settle it either way: nothing we can generate composes an
+accumulator, and `odds_at_pick` is frozen, so an exported acca prices live at the
+book and disagrees with the coupon's headline number. An outbound bet link would
+also make this gambling advertising, and there is no age gate anywhere in the
+application. The combined coupon stays a scoreboard.
+
 ## Verified
 
-- Backend: 331 pytest (378 with a database), Ruff check/format, and strict mypy
-- Database: clean `pgserver` migration through revision `010`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
+- Backend: 375 pytest (453 with a database), Ruff check/format, and strict mypy
+- Database: clean `pgserver` migration through revision `011`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 13 public tables under a Supabase-like role setup
-- Frontend: Node 20 production build, TypeScript, ESLint, and 192 Vitest
+- Frontend: Node 20 production build, TypeScript, ESLint, and 217 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
   coupon, phone push, and PWA update behavior
@@ -148,10 +159,10 @@ owner runs a live probe and seals a key.
 
 ## Next
 
-Batch 16 — Football data is the next unchecked build batch: real league tables,
-previous results, and recent form, which need a second provider. In parallel,
-Launch L5 — launch and first-Saturday watch. Batch 7 shipped the odds source,
-so the remaining launch work is deployment and configuration:
+There is no next build batch — 1–17 are all struck and `docs/BUILD_PLAN.md` is
+complete. The only open phase is Launch L5 — launch and first-Saturday watch.
+Batch 7 shipped the odds source, so the remaining launch work is deployment and
+configuration:
 
 - seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`;
 - migrate staging from the deprecated `BF_FAKE_MODE` to `ODDS_PROVIDER=fake`;

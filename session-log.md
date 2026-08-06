@@ -359,3 +359,43 @@ L5 — launch and first-Saturday watch runs in parallel.
 
 **Next:** Batch 17 — Betslip export spike (timeboxed, ends in an ADR). Launch L5 — launch and
 first-Saturday watch runs in parallel.
+
+## Batch 17 — Betslip export spike
+**Commits:** `12ffcb4` · verified: 375 pytest + Ruff 0.5.4 check/format + strict mypy · Node build/TypeScript/ESLint (0 errors) + 217 Vitest · no DB or browser gate — the batch ships no code, so neither is in scope
+
+### Key facts for future sessions
+- **The decision is not to build betslip export**, and the ADR is the whole batch —
+  `docs/adr/0004-betslip-export.md`. Two walls, either sufficient alone: nothing we can
+  generate composes an accumulator, and `odds_at_pick` is frozen, so any exported acca
+  prices live at the book and disagrees with the coupon's headline number every week.
+- **Bet Share and the affiliate link split the two capabilities and never combine them.**
+  Bet Share carries a full acca but is minted inside an authenticated Bet365 session, from
+  a bet the customer already holds — only they can create it. The affiliate
+  add-to-betslip link is one we *could* create, with a Bet365 Partners account, and carries
+  exactly one selection. Booking codes elsewhere (Betway Book-a-Bet, Betano) are the same
+  shape: customer-minted, multi-leg. That is why the only low-friction design is a captain
+  relaying their own link, not us generating one.
+- **odds-api.io already returns bookmaker links and we discard them.** `/odds` carries an
+  event-level `urls` map (`{"Bet365": ...}`) plus `homeLink`/`drawLink`/`awayLink` per
+  entry. `OAEventOdds` doesn't declare `urls` so pydantic drops it, and `_selections_for`
+  (`services/odds_api.py:494`) reads only the price keys, so the links sit unread in dicts
+  we already hold. Surfacing one costs zero extra requests — cost was never the obstacle.
+  There is no `yesLink`/`noLink`, so BTTS is unlinkable regardless.
+- **Logging into a member's Bet365 from the app was considered and rejected.** PINs are
+  bcrypt-hashed and unrecoverable; replaying a bookmaker login needs a *reversible* secret,
+  which this app has never held, guarded by a 4-digit PIN. Bet365's terms also prohibit
+  automated access, and the realistic outcome is a member's account suspended with funds
+  frozen. Not in the ADR — worth adding if it is asked again.
+- **An outbound bet link changes the product's regulatory category.** There is no age gate,
+  no date of birth, and no responsible-gambling copy anywhere in `apps/web/src` or
+  `apps/api/src`, which is fine for a points game and not fine for a surface that routes
+  people to a bookmaker. Age-gating is the precondition for any bookmaker link, not a
+  follow-up to it.
+- **The odds-api.io Zscaler block is gone** (rechecked 2026-08-06: `api`, `api2` and `docs`
+  all answer from their real origins). Live probes are still owner-run, but because no
+  `ODDS_API_KEY` exists on this machine — a credentials problem a key would fix, not a
+  network one needing a different connection.
+
+**Next:** the build plan is complete — Batches 1–17 all struck. Launch L5 — launch and
+first-Saturday watch is the only open phase, and production is still not playable: it runs
+the pre-Batch-7 build with no `ODDS_API_KEY` sealed.

@@ -136,7 +136,7 @@ radius, not a rule — `/next-batch-prompt` still leaves the choice to the user.
   consumes the result and writes only pick status and points. The largest batch
   on this list.
 
-- [ ] **Batch 17 — Betslip export spike** *(Opus)* — timeboxed investigation
+- [x] **Batch 17 — Betslip export spike** ✅ 2026-08-06 *(Opus)* — timeboxed investigation
   into pushing a completed coupon to a bookmaker account, Bet365 first, ending
   in an ADR rather than a feature. Bet365 publishes no betslip API; the likely
   finding is a shareable betslip link for books that support one. Independent of
