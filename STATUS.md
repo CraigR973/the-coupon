@@ -2,7 +2,7 @@
 
 ## Now
 
-Build batches 1–13 are closed. The Coupon is a verified private weekly
+Build batches 1–14 are closed. The Coupon is a verified private weekly
 football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
 compare standings, and view the shared combined coupon.
@@ -81,10 +81,18 @@ season figures taken from `standings()` so the two cannot disagree, a win rate,
 and every settled pick behind them. Per-league rather than career-wide, because
 picks are league-scoped and the claim rule is too.
 
+Batch 14 split the schema so leagues can play different football. `gameweeks` is
+per-league (migration `009`, `saturday_date` renamed `starts_on`), fixtures are a
+shared pool joined through `gameweek_fixtures`, and the weekly window — which days,
+which kick-off times, how long before lock — is per-league configuration stored as
+a range. Defaults reproduce the Saturday 15:00 slate exactly. Discovery groups
+leagues by window so a second league on the default costs no extra provider
+requests.
+
 ## Verified
 
-- Backend: 314 pytest (340 with a database), Ruff check/format, and strict mypy
-- Database: clean `pgserver` migration through revision `008`, with forced RLS
+- Backend: 331 pytest (365 with a database), Ruff check/format, and strict mypy
+- Database: clean `pgserver` migration through revision `009`, including a pre-009 backfill and downgrade round-trip, with forced RLS
   on all 13 public tables under a Supabase-like role setup
 - Frontend: Node 20 production build, TypeScript, ESLint, and 186 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
@@ -117,8 +125,8 @@ picks are league-scoped and the claim rule is too.
 
 ## Next
 
-Batch 14 — Per-league gameweeks is the next unchecked build batch, and it pairs
-with Batch 15, which builds admin configuration on top of it. In parallel,
+Batch 15 — League admin configuration is the next unchecked build batch; it
+builds directly on Batch 14's migration. In parallel,
 Launch L5 — launch and first-Saturday watch. Batch 7 shipped the odds source,
 so the remaining launch work is deployment and configuration:
 

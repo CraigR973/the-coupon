@@ -103,7 +103,7 @@ radius, not a rule — `/next-batch-prompt` still leaves the choice to the user.
   `standings()` already computes. Decide career-wide versus per-league framing:
   picks are league-scoped, so a member in three leagues has three records.
 
-- [ ] **Batch 14 — Per-league gameweeks** *(Opus)* — the architectural change
+- [x] **Batch 14 — Per-league gameweeks** ✅ 2026-08-06 *(Opus)* — the architectural change
   the configuration work depends on. `gameweeks` is global and unique on
   `saturday_date`, so two leagues cannot play different fixtures. Split it into
   a shared fixture pool and a per-league gameweek selecting from that pool, and

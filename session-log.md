@@ -270,3 +270,33 @@ Check formatting with the pinned version, not the venv:
     cd apps/api && uvx ruff@0.5.4 format --check . && uvx ruff@0.5.4 check .
 
 A green local gate is not evidence of a green CI until this is reconciled.
+
+## Batch 14 — Per-league gameweeks
+**Commits:** `3d95e5e` · verified: 331 pytest + Ruff/mypy · 365 pytest on clean `pgserver` through `009` · pre-009 backfill + downgrade round-trip · Node build/TypeScript/ESLint + 186 Vitest · production-bundle browser flow
+
+### Key facts for future sessions
+- **`saturday_date` is now `starts_on`, and it is not necessarily a Saturday.**
+  `gameweeks` is unique on `(league_id, starts_on)`; `fixtures` is a pool unique
+  on `provider_event_id`; `gameweek_fixtures` says which pooled fixtures a round
+  plays. A fixture no longer names its round.
+- `SlateWindow` (in `odds_provider.py`, so the port stays ORM-free) replaced
+  `SATURDAY`/`KICKOFF_HOUR`/`_LOCK_HOUR`/`_LOCK_MINUTE`/`_SATURDAY`. It is a
+  **range**, and today's rule is the degenerate case where start equals end.
+  `query_bounds` is deliberately wider than `contains` — providers filter by
+  range, so a point window still has to be asked for as a whole day.
+- **Discovery groups by window, not by league.** That is the only reason
+  per-league windows do not multiply the provider bill. Anything that adds a
+  provider call per league will break the 500/day budget; there is a test.
+- `POST /picks` resolves the round from **league + fixture**, preferring a
+  still-open one. If Batch 15 lets windows overlap more, an explicit
+  `gameweek_id` on submit may become the better API.
+- A clean-DB `alembic upgrade head` proves nothing about a data migration.
+  `tests/test_migration_009.py` builds its **own** database, migrates to `008`,
+  writes pre-split shapes, then upgrades — and that is what caught 009 dropping
+  the old global unique key *after* the clones that violate it.
+- The scheduler crons no longer filter on a weekday. A Saturday-only
+  `lock_gameweeks` would never lock a Friday league's round.
+- Deleted `_open_sample_gameweek_as_latest` (Batch 9) — it only existed because
+  `saturday_date` was globally unique.
+
+**Next:** Batch 15 — League admin configuration (builds directly on this migration)
