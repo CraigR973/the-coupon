@@ -47,8 +47,21 @@ Backend:
 
 ```text
 PYTHONPATH=/Users/craigrobinson/the-coupon/apps/api
-/Users/craigrobinson/app-starter/apps/api/.venv/bin/{python,ruff,mypy}
+/Users/craigrobinson/app-starter/apps/api/.venv/bin/{python,mypy}
 ```
+
+**Ruff is the exception — run the pinned version, not the venv's.** The borrowed
+venv ships a far newer ruff than `apps/api/requirements-dev.txt` pins, and they
+format differently, so the venv's copy can pass locally and still fail CI:
+
+```text
+RUFF="ruff==$(sed -n 's/^ruff==//p' /Users/craigrobinson/the-coupon/apps/api/requirements-dev.txt)"
+uvx "$RUFF" check /Users/craigrobinson/the-coupon/apps/api
+uvx "$RUFF" format --check /Users/craigrobinson/the-coupon/apps/api
+```
+
+`mypy` also diverges from its pin (venv 2.x versus a 1.11 pin) but currently
+agrees; see `docs/agent-commands/batch-verify.md` for why that one is left alone.
 
 Frontend:
 
