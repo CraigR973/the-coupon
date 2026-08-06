@@ -2,7 +2,7 @@
 
 ## Now
 
-Build batches 1–14 are closed. The Coupon is a verified private weekly
+Build batches 1–15 are closed. The Coupon is a verified private weekly
 football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
 compare standings, and view the shared combined coupon.
@@ -89,12 +89,20 @@ a range. Defaults reproduce the Saturday 15:00 slate exactly. Discovery groups
 leagues by window so a second league on the default costs no extra provider
 requests.
 
+Batch 15 put those settings under admin control and added two more. The fixture
+window is now editable (Batch 14 only stored it); a league also chooses its
+competitions — `leagues.competitions` (migration `010`), `NULL` for the "all UK
+leagues" group or an explicit list applied as a link-time filter in `sync_slate`, so
+narrowing costs no extra provider requests — and its offered markets, a subset of the
+`pick_market` enum stored as an array. Admins can add a one-off round for a date off
+the usual cadence, such as Boxing Day. All of it is gated by `LeagueAdminDep`.
+
 ## Verified
 
-- Backend: 331 pytest (365 with a database), Ruff check/format, and strict mypy
-- Database: clean `pgserver` migration through revision `009`, including a pre-009 backfill and downgrade round-trip, with forced RLS
+- Backend: 331 pytest (378 with a database), Ruff check/format, and strict mypy
+- Database: clean `pgserver` migration through revision `010`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 13 public tables under a Supabase-like role setup
-- Frontend: Node 20 production build, TypeScript, ESLint, and 186 Vitest
+- Frontend: Node 20 production build, TypeScript, ESLint, and 192 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
   coupon, phone push, and PWA update behavior
@@ -125,8 +133,8 @@ requests.
 
 ## Next
 
-Batch 15 — League admin configuration is the next unchecked build batch; it
-builds directly on Batch 14's migration. In parallel,
+Batch 16 — Football data is the next unchecked build batch: real league tables,
+previous results, and recent form, which need a second provider. In parallel,
 Launch L5 — launch and first-Saturday watch. Batch 7 shipped the odds source,
 so the remaining launch work is deployment and configuration:
 

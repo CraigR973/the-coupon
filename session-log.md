@@ -300,3 +300,30 @@ A green local gate is not evidence of a green CI until this is reconciled.
   `saturday_date` was globally unique.
 
 **Next:** Batch 15 — League admin configuration (builds directly on this migration)
+
+## Batch 15 — League admin configuration
+**Commits:** `4cb6267` · verified: 331 pytest + Ruff/mypy · 378 pytest on clean `pgserver` through `010` · 010 up/down round-trip + defaults + non-empty check · Node build/TypeScript/ESLint + 192 Vitest · browser e2e is owner-run (`ODDS_PROVIDER=fake`)
+
+### Key facts for future sessions
+- **Competition selection is a link-time filter in `sync_slate`, never a provider-query
+  change.** `leagues.competitions` is JSONB: `NULL` = all UK, a `[{slug,name}]` list narrows
+  which pooled fixtures a round links. The per-window fetch is still all-UK, so the request
+  budget and the "discovery groups by window" tests are untouched. `sync_slate` now returns
+  `Gameweek | None` (no empty round for an excluded window) and still never unlinks.
+- **`offered_markets` is `pick_market[]` — an array of the *existing* enum, not new values.**
+  Widening the markets themselves is still a migration. Enforced twice: the slate read
+  (`_selection_options`) hides them, and submit rejects with `MARKET_NOT_OFFERED`.
+- **`PickMarket` now lives in `models/league.py`** (re-exported from `pick.py`, so
+  `from src.models.pick import PickMarket` still works). It moved to let `League.offered_markets`
+  type against it without a league↔pick import cycle.
+- **The competition catalogue (`GET /{slug}/competitions`) is `SELECT DISTINCT competition_id,
+  competition FROM fixtures`** — zero provider cost, but empty until discovery has pooled
+  fixtures (production had none at close-out; the default all-UK works without it).
+- **Ad-hoc round `POST /{slug}/gameweeks` walks the provider in the request path** (~one
+  `/events` per UK competition), so it is rate-limited to 6/hour. A past date gives an
+  already-locked (unpickable) round; a date with no qualifying fixtures is `422 NO_FIXTURES`.
+- **`competitions` on PATCH uses `model_fields_set`** to separate "omitted (unchanged)" from
+  "explicit `null` (all UK)"; every other field keeps the null-means-unchanged convention.
+
+**Next:** Batch 16 — Football data (real tables/results/form; needs a second provider). Launch
+L5 — launch and first-Saturday watch runs in parallel.

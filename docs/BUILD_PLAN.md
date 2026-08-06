@@ -112,7 +112,7 @@ radius, not a rule — `/next-batch-prompt` still leaves the choice to the user.
   per-league configuration. Supersedes the "one global gameweek" bullet in the
   product contract.
 
-- [ ] **Batch 15 — League admin configuration** *(Opus)* — admin surfaces on
+- [x] **Batch 15 — League admin configuration** ✅ 2026-08-06 *(Opus)* — admin surfaces on
   Batch 14: fixture window (the 15:00 Saturday slate, or an arbitrary range such
   as Friday 19:00 to Monday 22:00), competition selection both individually and
   by group ("all UK leagues"), the offered market set, and ad-hoc gameweeks for
