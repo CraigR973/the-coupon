@@ -16,17 +16,12 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base, UpdatedAtMixin, UUIDPrimaryKeyMixin
-from src.models.league import PickScope
 
+# ``PickMarket`` moved to league.py in Batch 15 (a league now chooses which markets it
+# offers), and is re-exported here so ``from src.models.pick import PickMarket`` still works.
+from src.models.league import PickMarket, PickScope
 
-class PickMarket(StrEnum):
-    """The two markets The Coupon offers. Values mirror
-    :class:`src.services.odds_provider.Market` so a snapshotted selection round-trips by
-    value, whichever provider priced it.
-    """
-
-    MATCH_ODDS = "MATCH_ODDS"
-    BOTH_TEAMS_TO_SCORE = "BOTH_TEAMS_TO_SCORE"
+__all__ = ["Pick", "PickMarket", "PickOutcome", "PickScope", "PickStatus"]
 
 
 class PickOutcome(StrEnum):

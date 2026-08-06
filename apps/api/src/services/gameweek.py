@@ -68,6 +68,25 @@ def window_for(league: League) -> SlateWindow:
     )
 
 
+def selected_competition_slugs(league: League) -> frozenset[str] | None:
+    """The competition slugs this league plays, or ``None`` for *all UK leagues*.
+
+    ``None`` (``leagues.competitions`` unset) is the group the slate has always used —
+    every UK competition the provider carries. A configured list narrows the round to
+    those slugs, matched against ``fixtures.competition_id``. Applied at link time
+    (:func:`sync_slate`) rather than by asking the provider for fewer competitions, so
+    the shared per-window fetch — and the request budget that depends on it — is
+    untouched: narrowing changes what a league *plays*, not what discovery *costs*.
+    """
+    if league.competitions is None:
+        return None
+    return frozenset(
+        entry["slug"]
+        for entry in league.competitions
+        if isinstance(entry, dict) and entry.get("slug")
+    )
+
+
 async def latest_gameweek(db: AsyncSession, league_id: uuid.UUID) -> Gameweek | None:
     """This league's most recent round — what the pick screen defaults to."""
     result = await db.execute(
@@ -139,13 +158,20 @@ async def all_gameweeks(db: AsyncSession, league_id: uuid.UUID) -> list[Gameweek
     return list(result.scalars().all())
 
 
-async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek:
+async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek | None:
     """Upsert this league's round for ``slate.starts_on`` and the fixtures it plays.
 
     Fixtures go into the **shared pool**, keyed on ``provider_event_id``: a match another
     league already discovered is updated rather than duplicated, and this league's round
     simply links to it. That is what keeps a second league on the same window free —
     no extra rows, and no extra provider request.
+
+    The slate is first filtered to the league's competition selection
+    (:func:`selected_competition_slugs`; ``None`` = all UK). A league that plays none of
+    this window's competitions gets **no** new round — ``None`` is returned — but an
+    existing round is left exactly as it is, because a member may already hold a pick on
+    it. This is the only place the selection is applied, so two leagues sharing a window
+    but not a selection still cost one fetch and simply link different subsets of it.
 
     Links are added, never removed. A fixture that drops off a later refresh — postponed,
     or re-scheduled out of the window — stays on the round, because a member may already
@@ -154,6 +180,13 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
     Flushes so the returned gameweek and fixtures have ids, but does **not** commit —
     the caller owns the transaction boundary.
     """
+    wanted = selected_competition_slugs(league)
+    selected = (
+        slate.fixtures
+        if wanted is None
+        else [sf for sf in slate.fixtures if sf.competition_id in wanted]
+    )
+
     window = window_for(league)
     result = await db.execute(
         select(Gameweek).where(
@@ -162,6 +195,9 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
     )
     gameweek = result.scalar_one_or_none()
     if gameweek is None:
+        # Nothing this league plays on this date, and no round to preserve — create none.
+        if not selected:
+            return None
         gameweek = Gameweek(
             league_id=league.id,
             starts_on=slate.starts_on,
@@ -170,14 +206,14 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
         db.add(gameweek)
         await db.flush()
 
-    if not slate.fixtures:
+    if not selected:
         return gameweek
 
-    events = [sf.provider_event_id for sf in slate.fixtures]
+    events = [sf.provider_event_id for sf in selected]
     pooled = await db.execute(select(Fixture).where(Fixture.provider_event_id.in_(events)))
     by_event = {f.provider_event_id: f for f in pooled.scalars().all()}
 
-    for sf in slate.fixtures:
+    for sf in selected:
         fixture = by_event.get(sf.provider_event_id)
         if fixture is None:
             fixture = Fixture(provider_event_id=sf.provider_event_id)
@@ -281,7 +317,11 @@ async def discover_fixtures(
             if not slate.fixtures:
                 continue
             for league in sharing:
-                discovered.append(await sync_slate(db, league, slate))
+                # ``None`` when the league's competition selection excludes the whole
+                # window — no round to record, but the shared fetch is unaffected.
+                gameweek = await sync_slate(db, league, slate)
+                if gameweek is not None:
+                    discovered.append(gameweek)
     return discovered
 
 
@@ -290,9 +330,10 @@ async def refresh_slate(
 ) -> Gameweek | None:
     """Fetch one league's card for ``starts_on`` and upsert it as a round.
 
-    Returns the synced round, or ``None`` when the provider carries no qualifying
-    fixtures (so the periodic job never leaves an empty round behind, e.g. out of
-    season). Flushes but does not commit — the scheduler job owns the transaction.
+    Returns the synced round, or ``None`` when there is nothing to record — either the
+    provider carries no qualifying fixtures (e.g. out of season) or the league's
+    competition selection excludes every one it does. Either way no empty round is left
+    behind. Flushes but does not commit — the scheduler job owns the transaction.
     """
     slate = await provider.fetch_slate(window_for(league), starts_on)
     if not slate.fixtures:

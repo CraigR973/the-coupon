@@ -70,3 +70,30 @@ describe('CreateLeaguePage — privacy payload maps to backend enum', () => {
     expect(req.get()?.privacy).toBe('public_request');
   });
 });
+
+describe('CreateLeaguePage — admin config payload (Batch 15)', () => {
+  it('defaults to the Saturday 3pm window and both markets', async () => {
+    const req = stubCreate();
+    renderPage();
+    fireEvent.change(screen.getByLabelText(/league name/i), { target: { value: 'My League' } });
+    fireEvent.click(screen.getByRole('button', { name: /create league/i }));
+    await waitFor(() => expect(req.get()).not.toBeNull());
+    const body = req.get()!;
+    expect(body.offered_markets).toEqual(['MATCH_ODDS', 'BOTH_TEAMS_TO_SCORE']);
+    expect(body.slate_start_weekday).toBe(5);
+    expect(body.slate_start_minute).toBe(900);
+    expect(body.lock_offset_minutes).toBe(30);
+    // Competitions are not sent at creation — the backend defaults them to the all-UK group.
+    expect('competitions' in body).toBe(false);
+  });
+
+  it('drops a market the creator unticks', async () => {
+    const req = stubCreate();
+    renderPage();
+    fireEvent.change(screen.getByLabelText(/league name/i), { target: { value: 'My League' } });
+    fireEvent.click(screen.getByLabelText(/both teams to score/i));
+    fireEvent.click(screen.getByRole('button', { name: /create league/i }));
+    await waitFor(() => expect(req.get()).not.toBeNull());
+    expect(req.get()?.offered_markets).toEqual(['MATCH_ODDS']);
+  });
+});

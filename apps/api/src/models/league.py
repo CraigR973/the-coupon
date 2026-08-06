@@ -14,7 +14,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base, UpdatedAtMixin, UUIDPrimaryKeyMixin
@@ -24,6 +24,20 @@ class LeaguePrivacy(StrEnum):
     private = "private"
     public_request = "public_request"
     public_open = "public_open"
+
+
+class PickMarket(StrEnum):
+    """The two markets The Coupon can offer. Values mirror
+    :class:`src.services.odds_provider.Market` so a snapshotted selection round-trips by
+    value, whichever provider priced it.
+
+    Defined here rather than on :class:`~src.models.pick.Pick` (which re-exports it)
+    because a league now *chooses* which of these it offers — ``League.offered_markets``
+    — so the enum is a league-configuration concept, not only a pick one.
+    """
+
+    MATCH_ODDS = "MATCH_ODDS"
+    BOTH_TEAMS_TO_SCORE = "BOTH_TEAMS_TO_SCORE"
 
 
 class PickScope(StrEnum):
@@ -47,6 +61,11 @@ SATURDAY = 5
 THREE_PM = 15 * 60
 #: Picks lock this long before the window opens. 30 minutes before 15:00 is 14:30.
 DEFAULT_LOCK_OFFSET_MINUTES = 30
+#: The market set every league offered before Batch 15, and the default a new one gets.
+DEFAULT_OFFERED_MARKETS: tuple[PickMarket, ...] = (
+    PickMarket.MATCH_ODDS,
+    PickMarket.BOTH_TEAMS_TO_SCORE,
+)
 
 
 class League(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
@@ -69,6 +88,10 @@ class League(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
             "lock_offset_minutes >= 0",
             name="ck_leagues_lock_offset_non_negative",
         ),
+        CheckConstraint(
+            "cardinality(offered_markets) >= 1",
+            name="ck_leagues_offered_markets_nonempty",
+        ),
     )
 
     slug: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -84,6 +107,25 @@ class League(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
         Enum(PickScope, name="pick_scope", create_type=False),
         nullable=False,
         server_default="selection",
+    )
+
+    # ── What this league offers (Batch 15) ────────────────────────────────────
+    #
+    # ``competitions`` is the competition selection. ``None`` is the group *all UK
+    # leagues* — the rule the slate always used — so an unset league is unchanged.
+    # A non-null value is an explicit ``[{"slug", "name"}]`` list and the round plays
+    # only those, filtered at link time in ``sync_slate``. A value blob rather than a
+    # join table because it is read and written whole, never queried by competition,
+    # and kept small by the provider's rate limit.
+    #
+    # ``offered_markets`` is which of the two markets the league offers — a subset of
+    # the existing ``pick_market`` enum, never new values (widening the markets
+    # themselves would be a migration). The check keeps it non-empty.
+    competitions: Mapped[list[dict[str, str]] | None] = mapped_column(JSONB, nullable=True)
+    offered_markets: Mapped[list[PickMarket]] = mapped_column(
+        ARRAY(Enum(PickMarket, name="pick_market", create_type=False)),
+        nullable=False,
+        server_default=sa.text("ARRAY['MATCH_ODDS', 'BOTH_TEAMS_TO_SCORE']::pick_market[]"),
     )
 
     # ── The weekly window this league plays (Batch 14) ────────────────────────

@@ -39,9 +39,11 @@ from src.services import coupon as coupon_svc
 from src.services import scoring
 from src.services.betfair import (
     SAMPLE_EPL_EVENT_ID,
+    SAMPLE_EPL_ID,
     SAMPLE_EPL_MATCH_ODDS_MKT,
     SAMPLE_SATURDAY,
     SAMPLE_SL2_EVENT_ID,
+    SAMPLE_SL2_ID,
     SAMPLE_SL2_MATCH_ODDS_MKT,
     FakeBetfair,
 )
@@ -1029,3 +1031,246 @@ async def test_reminders_reach_every_league_not_just_one(
     names = {r.player_id for r in recipients}
     assert str(alice.id) in names
     assert str(bob.id) not in names, "another league's members must not be reminded"
+
+
+# ── Batch 15: league admin configuration ─────────────────────────────────────
+
+
+async def _make_admin(league: League, player: Profile) -> None:
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(LeagueMembership)
+            .where(
+                LeagueMembership.league_id == league.id,
+                LeagueMembership.player_id == player.id,
+            )
+            .values(role=LeagueMemberRole.admin)
+        )
+        await session.commit()
+
+
+async def test_create_league_carries_window_markets_and_competitions(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Everything an admin configures is settable at creation, and echoed back."""
+    client, _ = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (creator,), _throwaway = await _seed_league(session, ["founder"])
+
+    body = {
+        "name": f"Config Crew {uuid.uuid4().hex[:6]}",
+        "offered_markets": ["MATCH_ODDS"],
+        "competitions": [{"slug": SAMPLE_EPL_ID, "name": "English Premier League"}],
+        "slate_start_weekday": 4,
+        "slate_start_minute": 19 * 60,
+        "slate_end_weekday": 0,
+        "slate_end_minute": 22 * 60,
+        "lock_offset_minutes": 60,
+    }
+    r = await client.post("/api/v1/leagues", json=body, headers=_auth(creator))
+    assert r.status_code == 201, r.text
+    data = r.json()
+    assert data["offered_markets"] == ["MATCH_ODDS"]
+    assert data["competitions"] == [{"slug": SAMPLE_EPL_ID, "name": "English Premier League"}]
+    assert data["slate_window"] == {
+        "start_weekday": 4,
+        "start_minute": 1140,
+        "end_weekday": 0,
+        "end_minute": 1320,
+        "lock_offset_minutes": 60,
+    }
+
+    # A league created with no config takes the old defaults: all UK, both markets, Sat 15:00.
+    plain = await client.post(
+        "/api/v1/leagues",
+        json={"name": f"Plain {uuid.uuid4().hex[:6]}"},
+        headers=_auth(creator),
+    )
+    pd = plain.json()
+    assert pd["competitions"] is None
+    assert pd["offered_markets"] == ["MATCH_ODDS", "BOTH_TEAMS_TO_SCORE"]
+    assert pd["slate_window"]["start_weekday"] == 5 and pd["slate_window"]["start_minute"] == 900
+
+
+async def test_admin_edits_window_markets_and_competitions(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The same fields are editable after creation via PATCH, gated by LeagueAdminDep."""
+    client, _ = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["boss"])
+    await _make_admin(league, alice)
+    slug = league.slug
+
+    r = await client.patch(
+        f"/api/v1/leagues/{slug}",
+        json={
+            "slate_start_weekday": 4,
+            "lock_offset_minutes": 120,
+            "offered_markets": ["BOTH_TEAMS_TO_SCORE"],
+            "competitions": [{"slug": SAMPLE_SL2_ID, "name": "Scottish League Two"}],
+        },
+        headers=_auth(alice),
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["slate_window"]["start_weekday"] == 4
+    assert data["slate_window"]["lock_offset_minutes"] == 120
+    assert data["offered_markets"] == ["BOTH_TEAMS_TO_SCORE"]
+    assert data["competitions"] == [{"slug": SAMPLE_SL2_ID, "name": "Scottish League Two"}]
+
+    # Passing competitions: null returns to the all-UK group (distinct from "unchanged").
+    back = await client.patch(
+        f"/api/v1/leagues/{slug}", json={"competitions": None}, headers=_auth(alice)
+    )
+    assert back.status_code == 200 and back.json()["competitions"] is None
+    # Omitting competitions leaves the all-UK setting untouched.
+    untouched = await client.patch(
+        f"/api/v1/leagues/{slug}", json={"lock_offset_minutes": 45}, headers=_auth(alice)
+    )
+    assert untouched.json()["competitions"] is None
+
+
+async def test_offered_markets_hide_from_the_slate_and_block_submit(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """A market the league does not offer is neither shown nor accepted."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["mo-only"])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+        # Restrict this league to Match Odds only.
+        stored = await session.get(League, league.id)
+        assert stored is not None
+        stored.offered_markets = [PickMarket.MATCH_ODDS]
+        await session.commit()
+    epl = fixtures[SAMPLE_EPL_EVENT_ID]
+    slug = league.slug
+
+    slate = (
+        await client.get(f"/api/v1/leagues/{slug}/gameweek/current", headers=_auth(alice))
+    ).json()
+    epl_fixture = {f["fixture_id"]: f for f in slate["fixtures"]}[epl]
+    assert {s["market"] for s in epl_fixture["selections"]} == {"MATCH_ODDS"}, "BTTS must be hidden"
+
+    # Submitting the hidden market is refused even posted directly.
+    refused = await _submit(client, slug, alice, epl, "BOTH_TEAMS_TO_SCORE", "YES")
+    assert refused.status_code == 422 and refused.json()["detail"] == "MARKET_NOT_OFFERED"
+    # The offered market is still pickable.
+    assert (await _submit(client, slug, alice, epl, "MATCH_ODDS", "HOME")).status_code == 201
+
+
+async def test_competition_catalogue_lists_pooled_competitions(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The picker offers the competitions discovery has pooled — no provider round-trip."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["cataloguer"])
+        # Pool the sample fixtures into the shared table via this league's round.
+        await _open_sample_gameweek(session, fake, league)
+    await _make_admin(league, alice)
+
+    cat = (
+        await client.get(f"/api/v1/leagues/{league.slug}/competitions", headers=_auth(alice))
+    ).json()
+    assert cat["all_uk"] is True
+    assert cat["selected"] == []
+    by_slug = {c["slug"]: c["name"] for c in cat["available"]}
+    assert by_slug.get(SAMPLE_EPL_ID) == "English Premier League"
+    assert by_slug.get(SAMPLE_SL2_ID) == "Scottish League Two"
+
+
+async def test_ad_hoc_gameweek_creates_a_filtered_round_and_is_idempotent(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """An admin can create a round on an arbitrary date; the competition filter applies."""
+    client, _ = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["adhoc"])
+    await _make_admin(league, alice)
+    slug = league.slug
+
+    # Narrow to the EPL before creating the round, so the filter is exercised on a fresh card.
+    await client.patch(
+        f"/api/v1/leagues/{slug}",
+        json={"competitions": [{"slug": SAMPLE_EPL_ID, "name": "English Premier League"}]},
+        headers=_auth(alice),
+    )
+
+    r = await client.post(
+        f"/api/v1/leagues/{slug}/gameweeks",
+        json={"starts_on": SAMPLE_SATURDAY.isoformat()},
+        headers=_auth(alice),
+    )
+    assert r.status_code == 201, r.text
+    created = r.json()
+    assert created["created"] is True
+    assert created["fixture_count"] == 1, "only the EPL fixture, not the Scottish one"
+    gwid = created["gameweek_id"]
+
+    # The single fixture on the round is the EPL one.
+    slate = (
+        await client.get(
+            f"/api/v1/leagues/{slug}/gameweek/current?gameweek_id={gwid}", headers=_auth(alice)
+        )
+    ).json()
+    assert [f["home"] for f in slate["fixtures"]] == ["Arsenal"]
+
+    # Re-posting the same date refreshes in place — same round, created=false.
+    again = await client.post(
+        f"/api/v1/leagues/{slug}/gameweeks",
+        json={"starts_on": SAMPLE_SATURDAY.isoformat()},
+        headers=_auth(alice),
+    )
+    assert again.status_code == 201
+    assert again.json()["gameweek_id"] == gwid and again.json()["created"] is False
+
+
+async def test_ad_hoc_gameweek_with_no_fixtures_is_a_422(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """A date the provider prices nothing for is a clear error, not an empty round."""
+    client, _ = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["barren"])
+    await _make_admin(league, alice)
+
+    r = await client.post(
+        f"/api/v1/leagues/{league.slug}/gameweeks",
+        json={"starts_on": date(2030, 1, 5).isoformat()},
+        headers=_auth(alice),
+    )
+    assert r.status_code == 422 and r.json()["detail"] == "NO_FIXTURES"
+
+
+async def test_config_surfaces_are_gated_to_admins(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """A plain member cannot edit config, read the catalogue, or create a round."""
+    client, _ = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), league = await _seed_league(session, ["admin", "member"])
+    await _make_admin(league, alice)  # bob stays a plain member
+    slug = league.slug
+
+    assert (
+        await client.patch(
+            f"/api/v1/leagues/{slug}", json={"lock_offset_minutes": 45}, headers=_auth(bob)
+        )
+    ).status_code == 403
+    assert (
+        await client.get(f"/api/v1/leagues/{slug}/competitions", headers=_auth(bob))
+    ).status_code == 403
+    assert (
+        await client.post(
+            f"/api/v1/leagues/{slug}/gameweeks",
+            json={"starts_on": "2027-12-26"},
+            headers=_auth(bob),
+        )
+    ).status_code == 403
+    # The admin is allowed the catalogue.
+    assert (
+        await client.get(f"/api/v1/leagues/{slug}/competitions", headers=_auth(alice))
+    ).status_code == 200

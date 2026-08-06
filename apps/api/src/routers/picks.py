@@ -111,6 +111,14 @@ async def submit_pick(
     if not is_open_for_picks(gameweek, _now()):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="PICKS_LOCKED")
 
+    # The league may offer only a subset of the two markets. A market it does not offer
+    # is refused here as well as hidden from the slate, so the rule holds even if a
+    # client posts a fixture id and market straight past the pick screen.
+    if body.market not in league.offered_markets:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="MARKET_NOT_OFFERED"
+        )
+
     selection = await _snapshot_selection(provider, fixture, body.market, body.outcome)
 
     # Pre-check: has another member already claimed this? How much of the fixture a

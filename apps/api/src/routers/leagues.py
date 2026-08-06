@@ -2,23 +2,28 @@
 
 import re
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser, generate_join_code
 from src.database import get_db
+from src.deps import OddsProviderDep
+from src.models.fixture import Fixture
+from src.models.gameweek import Gameweek, GameweekFixture
 from src.models.league import (
     DEFAULT_LOCK_OFFSET_MINUTES,
+    DEFAULT_OFFERED_MARKETS,
     SATURDAY,
     THREE_PM,
     League,
     LeaguePrivacy,
+    PickMarket,
     PickScope,
 )
 from src.models.league_join_request import JoinRequestStatus, LeagueJoinRequest
@@ -27,6 +32,7 @@ from src.models.notification import ActionType, ActorType, AuditLog
 from src.models.pick import Pick, PickStatus
 from src.models.profile import Profile, UserRole
 from src.rate_limit import limiter, per_user_key
+from src.services.gameweek import refresh_slate
 from src.services.notification_triggers import notify_member_joined
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -154,6 +160,52 @@ LeagueMemberDep = Annotated[tuple[Profile, League], Depends(require_league_membe
 # ---------------------------------------------------------------------------
 
 
+# The competition selection is a small value blob, not a relation, so it is bounded
+# rather than paged: comfortably above the ~30 UK divisions the provider carries, and
+# small enough that storing it inline on the league stays sensible.
+MAX_COMPETITIONS = 40
+
+
+class CompetitionRef(BaseModel):
+    """One competition a league plays, by the provider's own slug plus a display name.
+
+    ``slug`` is matched against ``fixtures.competition_id`` at link time; ``name`` is
+    carried so the settings screen can label a selection without a provider round-trip.
+    """
+
+    slug: str = Field(min_length=1, max_length=120)
+    name: str = Field(min_length=1, max_length=120)
+
+
+def _validate_competitions(value: list[CompetitionRef] | None) -> list[CompetitionRef] | None:
+    """A competition selection is either *all UK* (``None``) or a non-empty, bounded list.
+
+    An empty list would be a league that can never have a slate, which is a mistake
+    rather than a choice — say ``None`` for "all UK leagues" instead.
+    """
+    if value is None:
+        return None
+    if not value:
+        raise ValueError("competitions must be null (all UK leagues) or a non-empty list")
+    if len(value) > MAX_COMPETITIONS:
+        raise ValueError(f"at most {MAX_COMPETITIONS} competitions")
+    return value
+
+
+def _clean_markets(value: list[PickMarket]) -> list[PickMarket]:
+    """De-duplicate an offered-market set, preserving order; reject the empty set."""
+    seen: list[PickMarket] = []
+    for market in value:
+        if market not in seen:
+            seen.append(market)
+    if not seen:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="offered_markets must contain at least one market",
+        )
+    return seen
+
+
 class CreateLeagueRequest(BaseModel):
     name: str = Field(min_length=2, max_length=100)
     description: str | None = Field(default=None, max_length=500)
@@ -168,6 +220,15 @@ class CreateLeagueRequest(BaseModel):
     slate_end_weekday: int = Field(default=SATURDAY, ge=0, le=6)
     slate_end_minute: int = Field(default=THREE_PM, ge=0, le=1439)
     lock_offset_minutes: int = Field(default=DEFAULT_LOCK_OFFSET_MINUTES, ge=0)
+    # Config settable at creation and editable afterwards. ``competitions=None`` is the
+    # group "all UK leagues"; ``offered_markets=None`` takes the default (both markets).
+    competitions: list[CompetitionRef] | None = None
+    offered_markets: list[PickMarket] | None = None
+
+    @field_validator("competitions")
+    @classmethod
+    def _check_competitions(cls, value: list[CompetitionRef] | None) -> list[CompetitionRef] | None:
+        return _validate_competitions(value)
 
 
 class UpdateLeagueRequest(BaseModel):
@@ -176,6 +237,22 @@ class UpdateLeagueRequest(BaseModel):
     privacy: LeaguePrivacy | None = None
     max_members: int | None = Field(default=None, ge=2, le=50)
     pick_scope: PickScope | None = None
+    # The weekly window — each field independently editable (``None`` = unchanged).
+    slate_start_weekday: int | None = Field(default=None, ge=0, le=6)
+    slate_start_minute: int | None = Field(default=None, ge=0, le=1439)
+    slate_end_weekday: int | None = Field(default=None, ge=0, le=6)
+    slate_end_minute: int | None = Field(default=None, ge=0, le=1439)
+    lock_offset_minutes: int | None = Field(default=None, ge=0)
+    # ``competitions`` needs "not provided" and "explicitly all UK (null)" to differ, so
+    # it is read via ``model_fields_set`` in the handler rather than defaulting-to-unchanged.
+    # ``offered_markets`` never has a meaningful null, so null there simply means unchanged.
+    competitions: list[CompetitionRef] | None = None
+    offered_markets: list[PickMarket] | None = None
+
+    @field_validator("competitions")
+    @classmethod
+    def _check_competitions(cls, value: list[CompetitionRef] | None) -> list[CompetitionRef] | None:
+        return _validate_competitions(value)
 
 
 class SlateWindowOut(BaseModel):
@@ -198,6 +275,18 @@ def _window_out(league: League) -> SlateWindowOut:
     )
 
 
+def _competitions_out(league: League) -> list[CompetitionRef] | None:
+    """The league's competition selection, or ``None`` for the all-UK group."""
+    if league.competitions is None:
+        return None
+    return [CompetitionRef(slug=c["slug"], name=c["name"]) for c in league.competitions]
+
+
+def _markets_out(league: League) -> list[str]:
+    """The league's offered markets as wire values, whatever the array column yields."""
+    return [PickMarket(m).value for m in league.offered_markets]
+
+
 class LeagueResponse(BaseModel):
     id: str
     slug: str
@@ -207,6 +296,8 @@ class LeagueResponse(BaseModel):
     max_members: int
     pick_scope: str
     slate_window: SlateWindowOut
+    competitions: list[CompetitionRef] | None
+    offered_markets: list[str]
     member_count: int
     created_by: str
     created_at: datetime
@@ -389,6 +480,11 @@ async def create_league(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> LeagueResponse:
     slug = await _unique_slug(db, body.name)
+    markets = (
+        _clean_markets(body.offered_markets)
+        if body.offered_markets is not None
+        else list(DEFAULT_OFFERED_MARKETS)
+    )
     league = League(
         slug=slug,
         name=body.name,
@@ -401,6 +497,10 @@ async def create_league(
         slate_end_weekday=body.slate_end_weekday,
         slate_end_minute=body.slate_end_minute,
         lock_offset_minutes=body.lock_offset_minutes,
+        competitions=(
+            [c.model_dump() for c in body.competitions] if body.competitions is not None else None
+        ),
+        offered_markets=markets,
         created_by=player.id,
         created_at=_now(),
         join_code=generate_join_code(),
@@ -440,6 +540,8 @@ async def create_league(
         max_members=league.max_members,
         pick_scope=league.pick_scope.value,
         slate_window=_window_out(league),
+        competitions=_competitions_out(league),
+        offered_markets=_markets_out(league),
         member_count=1,
         created_by=str(league.created_by),
         created_at=league.created_at,
@@ -626,6 +728,8 @@ class LeagueDetailResponse(BaseModel):
     max_members: int
     pick_scope: str
     slate_window: SlateWindowOut
+    competitions: list[CompetitionRef] | None
+    offered_markets: list[str]
     member_count: int
     created_by: str
     created_at: datetime
@@ -688,6 +792,8 @@ async def get_league(
         max_members=league.max_members,
         pick_scope=league.pick_scope.value,
         slate_window=_window_out(league),
+        competitions=_competitions_out(league),
+        offered_markets=_markets_out(league),
         member_count=member_count,
         created_by=str(league.created_by),
         created_at=league.created_at,
@@ -736,6 +842,40 @@ async def update_league(
         changes["pick_scope"] = {"from": league.pick_scope.value, "to": body.pick_scope.value}
         league.pick_scope = body.pick_scope
 
+    # Weekly window — each of the five fields independently editable. Existing rounds
+    # keep the ``locks_at_utc`` they were synced with; only rounds discovered from now on
+    # use the new window, exactly as a window change has always applied.
+    window_fields = {
+        "slate_start_weekday": body.slate_start_weekday,
+        "slate_start_minute": body.slate_start_minute,
+        "slate_end_weekday": body.slate_end_weekday,
+        "slate_end_minute": body.slate_end_minute,
+        "lock_offset_minutes": body.lock_offset_minutes,
+    }
+    for attr, new_value in window_fields.items():
+        if new_value is not None and new_value != getattr(league, attr):
+            changes[attr] = {"from": getattr(league, attr), "to": new_value}
+            setattr(league, attr, new_value)
+
+    # Offered markets — null means unchanged; a list replaces the set (deduped, non-empty).
+    if body.offered_markets is not None:
+        new_markets = _clean_markets(body.offered_markets)
+        current_markets = _markets_out(league)
+        wanted_markets = [m.value for m in new_markets]
+        if wanted_markets != current_markets:
+            changes["offered_markets"] = {"from": current_markets, "to": wanted_markets}
+            league.offered_markets = new_markets
+
+    # Competition selection — "not provided" and "explicitly all UK (null)" differ, so it
+    # is read from ``model_fields_set`` rather than defaulting-to-unchanged like the rest.
+    if "competitions" in body.model_fields_set:
+        new_comps = (
+            [c.model_dump() for c in body.competitions] if body.competitions is not None else None
+        )
+        if new_comps != league.competitions:
+            changes["competitions"] = {"from": league.competitions, "to": new_comps}
+            league.competitions = new_comps
+
     privacy_changed = body.privacy is not None and body.privacy != league.privacy
     if privacy_changed:
         old_privacy = league.privacy
@@ -775,10 +915,130 @@ async def update_league(
         max_members=league.max_members,
         pick_scope=league.pick_scope.value,
         slate_window=_window_out(league),
+        competitions=_competitions_out(league),
+        offered_markets=_markets_out(league),
         member_count=member_count,
         created_by=str(league.created_by),
         created_at=league.created_at,
         join_code=league.join_code,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/leagues/{slug}/competitions  — the admin's competition catalogue
+# ---------------------------------------------------------------------------
+
+
+class CompetitionsResponse(BaseModel):
+    """What the settings screen needs to render the competition picker.
+
+    ``available`` is the catalogue to choose from — every competition discovery has ever
+    pooled, which is the UK set the provider carries, derived from ``fixtures`` so opening
+    the picker costs no provider request. ``all_uk`` is true when the league is on the
+    default group; ``selected`` is its explicit list otherwise (empty when ``all_uk``).
+    """
+
+    all_uk: bool
+    available: list[CompetitionRef]
+    selected: list[CompetitionRef]
+
+
+@router.get("/{slug}/competitions", response_model=CompetitionsResponse)
+@limiter.limit("60/minute", key_func=per_user_key)
+async def league_competitions(
+    request: Request,
+    slug: str,
+    admin_ctx: LeagueAdminDep,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CompetitionsResponse:
+    _, league = admin_ctx
+    rows = await db.execute(
+        select(Fixture.competition_id, Fixture.competition).distinct().order_by(Fixture.competition)
+    )
+    available = [CompetitionRef(slug=slug_, name=name) for slug_, name in rows.all()]
+    selected = _competitions_out(league)
+    return CompetitionsResponse(
+        all_uk=selected is None,
+        available=available,
+        selected=selected or [],
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/leagues/{slug}/gameweeks  — an ad-hoc round (e.g. Boxing Day)
+# ---------------------------------------------------------------------------
+
+
+class CreateGameweekRequest(BaseModel):
+    starts_on: date
+
+
+class AdHocGameweekResponse(BaseModel):
+    gameweek_id: str
+    starts_on: date
+    status: str
+    locks_at_utc: datetime
+    fixture_count: int
+    # True when this call created the round; false when it refreshed an existing one.
+    created: bool
+
+
+@router.post(
+    "/{slug}/gameweeks", response_model=AdHocGameweekResponse, status_code=status.HTTP_201_CREATED
+)
+@limiter.limit("6/hour", key_func=per_user_key)
+async def create_gameweek(
+    request: Request,
+    slug: str,
+    body: CreateGameweekRequest,
+    admin_ctx: LeagueAdminDep,
+    provider: OddsProviderDep,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> AdHocGameweekResponse:
+    """Create a round on a date outside the league's normal cadence — Boxing Day, say.
+
+    Fetches that date's slate with the league's own window (its kick-off times, anchored
+    on the requested date, so the weekday need not be the league's usual one) and its
+    competition selection, then upserts it as a round. This walks the provider in the
+    request path — one ``/events`` request per UK competition, the cost of one discovery
+    run — so it is tightly rate-limited; it is an occasional admin action, not a hot path.
+
+    A date the provider carries no qualifying fixtures for (or one the league's competition
+    selection excludes entirely) is a 422 rather than an empty round. A round already on
+    the date is refreshed in place and returned with ``created=false``. A date in the past
+    yields an already-locked, unpickable round — harmless, and simplest not to forbid.
+    """
+    player, league = admin_ctx
+
+    existing = await db.execute(
+        select(Gameweek.id).where(
+            Gameweek.league_id == league.id, Gameweek.starts_on == body.starts_on
+        )
+    )
+    already = existing.scalar_one_or_none()
+
+    gameweek = await refresh_slate(db, provider, league, body.starts_on)
+    if gameweek is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="NO_FIXTURES")
+    await db.commit()
+    await db.refresh(gameweek)
+
+    count = await db.execute(select(func.count()).where(GameweekFixture.gameweek_id == gameweek.id))
+    log.info(
+        "ad-hoc gameweek synced",
+        league_id=str(league.id),
+        gameweek_id=str(gameweek.id),
+        starts_on=str(body.starts_on),
+        created=already is None,
+        player_id=str(player.id),
+    )
+    return AdHocGameweekResponse(
+        gameweek_id=str(gameweek.id),
+        starts_on=gameweek.starts_on,
+        status=gameweek.status.value,
+        locks_at_utc=gameweek.locks_at_utc,
+        fixture_count=count.scalar_one(),
+        created=already is None,
     )
 
 

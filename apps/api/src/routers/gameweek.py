@@ -27,7 +27,7 @@ from src.database import get_db
 from src.deps import LeagueMemberDep, OddsProviderDep
 from src.models.fixture import Fixture
 from src.models.gameweek import GameweekFixture
-from src.models.league import PickScope
+from src.models.league import PickMarket, PickScope
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
@@ -188,6 +188,10 @@ async def current_gameweek(
     )
 
     holders_by_fixture = _holders_by_fixture(taken)
+    # The markets this league offers — the slate must not show a selection the submit
+    # endpoint would refuse with MARKET_NOT_OFFERED. Coerced through PickMarket so it
+    # holds whether the array column yields enum members or bare strings.
+    offered = frozenset(PickMarket(market).value for market in league.offered_markets)
     slate = [
         FixtureSlate(
             fixture_id=str(fixture.id),
@@ -203,6 +207,7 @@ async def current_gameweek(
                 player.id,
                 league.pick_scope,
                 holders_by_fixture.get(str(fixture.id), []),
+                offered,
             ),
             taken_by_names=[name for _, name in holders_by_fixture.get(str(fixture.id), [])],
             mine=any(
@@ -345,8 +350,13 @@ def _selection_options(
     my_id: object,
     scope: PickScope,
     fixture_holders: list[tuple[str, str]],
+    offered: frozenset[str],
 ) -> list[SelectionOption]:
     """Price every offered selection and mark who, if anyone, holds it.
+
+    ``offered`` is the league's market set: a selection whose market it does not offer
+    is dropped, so the slate never shows a pick the submit endpoint would refuse with
+    ``MARKET_NOT_OFFERED``.
 
     Under ``fixture`` scope a claim takes the whole game, so *every* selection on
     a claimed fixture reports that holder — otherwise the slate would offer
@@ -358,6 +368,8 @@ def _selection_options(
 
     options: list[SelectionOption] = []
     for selection in fixture_odds.selections:
+        if selection.market.value not in offered:
+            continue
         key = (str(fixture.id), selection.market.value, selection.outcome.value)
         holder = whole_fixture or taken.get(key)
         options.append(

@@ -40,10 +40,12 @@ from src.models.profile import Profile, UserRole
 from src.services.betfair import (
     SAMPLE_ARSENAL_SEL,
     SAMPLE_EPL_EVENT_ID,
+    SAMPLE_EPL_ID,
     SAMPLE_EPL_MATCH_ODDS_MKT,
     SAMPLE_FORFAR_SEL,
     SAMPLE_SATURDAY,
     SAMPLE_SL2_EVENT_ID,
+    SAMPLE_SL2_ID,
     SAMPLE_SL2_MATCH_ODDS_MKT,
     FakeBetfair,
 )
@@ -268,6 +270,73 @@ async def test_a_different_window_costs_its_own_fetch(session: AsyncSession) -> 
 
     await discover_fixtures(session, fake, [saturday_league, friday_league], SAMPLE_SATURDAY, 1)
     assert len(calls) == 2, "two distinct windows, two fetches"
+
+
+# ── Batch 15: the per-league competition selection (link-time filter) ────────────
+
+
+async def test_sync_slate_plays_only_the_leagues_selected_competitions(
+    session: AsyncSession,
+) -> None:
+    """A league that plays only the EPL gets the EPL fixture and not the Scottish one.
+
+    The selection is applied at link time, so the same shared fetch feeds a narrowed
+    league a subset of its fixtures without a second provider request.
+    """
+    _, league = await _seed_league(session, ["epl-only"])
+    league.competitions = [{"slug": SAMPLE_EPL_ID, "name": "English Premier League"}]
+    await session.flush()
+    fake = FakeBetfair.with_sample_data()
+
+    gameweek = await refresh_slate(session, fake, league, SAMPLE_SATURDAY)
+    assert gameweek is not None
+    fixtures = await fixtures_for(session, gameweek.id)
+    assert {f.competition_id for f in fixtures} == {SAMPLE_EPL_ID}
+    assert [f.home for f in fixtures] == ["Arsenal"], "the Scottish fixture must be excluded"
+
+
+async def test_sync_slate_records_no_round_when_the_selection_excludes_every_fixture(
+    session: AsyncSession,
+) -> None:
+    """A league playing none of a window's competitions gets no round, not an empty one."""
+    _, league = await _seed_league(session, ["none-of-these"])
+    league.competitions = [{"slug": "a-competition-not-on-this-slate", "name": "Elsewhere"}]
+    await session.flush()
+    fake = FakeBetfair.with_sample_data()
+
+    # The provider *does* carry fixtures for this date — they are just not this league's.
+    assert await refresh_slate(session, fake, league, SAMPLE_SATURDAY) is None
+    # And an all-UK league on the same date still gets its round from the same data.
+    _, all_uk = await _seed_league(session, ["all-uk"])
+    assert await refresh_slate(session, fake, all_uk, SAMPLE_SATURDAY) is not None
+
+
+async def test_narrowing_after_a_round_exists_keeps_the_round_but_stops_adding(
+    session: AsyncSession,
+) -> None:
+    """Links are added, never removed — narrowing does not strip a fixture a member may hold.
+
+    The Scottish fixture linked while the league was all-UK stays put; a later refresh
+    under an EPL-only selection simply adds nothing new.
+    """
+    _, league = await _seed_league(session, ["was-broad"])
+    fake = FakeBetfair.with_sample_data()
+
+    first = await refresh_slate(session, fake, league, SAMPLE_SATURDAY)
+    assert first is not None
+    assert {SAMPLE_EPL_ID, SAMPLE_SL2_ID} == {
+        f.competition_id for f in await fixtures_for(session, first.id)
+    }
+
+    league.competitions = [{"slug": SAMPLE_EPL_ID, "name": "English Premier League"}]
+    await session.flush()
+    again = await refresh_slate(session, fake, league, SAMPLE_SATURDAY)
+    assert again is not None and again.id == first.id
+    # Both fixtures remain: the existing SL2 link is preserved even though it is no
+    # longer selected, because a pick may already stand on it.
+    assert {SAMPLE_EPL_ID, SAMPLE_SL2_ID} == {
+        f.competition_id for f in await fixtures_for(session, again.id)
+    }
 
 
 # ── lock → settle → leaderboard (the Batch 4 e2e slice) ─────────────────────────

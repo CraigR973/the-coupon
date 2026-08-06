@@ -191,6 +191,44 @@ export interface PlayerProfile {
 // Leagues (the social "leaderboard" layer — kept from the shared spine).
 // ---------------------------------------------------------------------------
 
+/** The weekly window a league plays — a range in Europe/London plus its lock offset. */
+export interface SlateWindow {
+  /** `date.weekday()`: Monday 0 … Sunday 6. */
+  start_weekday: number;
+  /** Minutes from local midnight. */
+  start_minute: number;
+  end_weekday: number;
+  end_minute: number;
+  lock_offset_minutes: number;
+}
+
+/** One competition a league plays, by the provider's slug plus a display name. */
+export interface CompetitionRef {
+  slug: string;
+  name: string;
+}
+
+/** GET /leagues/{slug}/competitions — the admin's competition picker. */
+export interface CompetitionCatalogue {
+  /** True when the league is on the default group (every UK competition). */
+  all_uk: boolean;
+  /** Every competition discovery has pooled — the set to choose from. */
+  available: CompetitionRef[];
+  /** The league's explicit selection (empty when `all_uk`). */
+  selected: CompetitionRef[];
+}
+
+/** POST /leagues/{slug}/gameweeks — the result of creating an ad-hoc round. */
+export interface AdHocGameweekResult {
+  gameweek_id: string;
+  starts_on: string;
+  status: GameweekStatus;
+  locks_at_utc: string;
+  fixture_count: number;
+  /** True when this call created the round; false when it refreshed an existing one. */
+  created: boolean;
+}
+
 export interface LeagueSummary {
   slug: string;
   name: string;
@@ -200,6 +238,12 @@ export interface LeagueSummary {
   max_members: number | null;
   pick_scope: PickScope;
   created_at: string;
+  // Admin configuration (Batch 15). Present on the single-league read (GET /{slug}) and on
+  // create/update responses; absent from the `/mine` summary, hence optional here.
+  slate_window?: SlateWindow;
+  /** null = the "all UK leagues" group; a list = an explicit selection. */
+  competitions?: CompetitionRef[] | null;
+  offered_markets?: PickMarket[];
 }
 
 /** Shape returned by GET /api/v1/leagues/{slug} — includes member list with roles. */
