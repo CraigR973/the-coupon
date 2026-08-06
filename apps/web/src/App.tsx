@@ -1,8 +1,9 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { installResumeRefetch } from './lib/resumeRefetch';
+import { lazyRoute } from './lib/lazyRoute';
 import { AuthProvider } from './contexts/AuthContext';
 import { LeagueProvider } from './contexts/LeagueContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -18,41 +19,41 @@ import { DEFAULT_LEAGUE_SLUG } from './lib/api';
 
 // Layout pulls in framer-motion via NavBar/OfflineBanner; lazy-loading it keeps
 // those deps out of the unauthenticated /login chunk.
-const Layout = lazy(() => import('./components/Layout').then((m) => ({ default: m.Layout })));
+const Layout = lazyRoute(() => import('./components/Layout').then((m) => ({ default: m.Layout })));
 
 // Lazy-loaded routes: only login + join ship eagerly so the unauth entry is fast.
-const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
-const CouponPickPage = lazy(() => import('./pages/CouponPickPage').then((m) => ({ default: m.CouponPickPage })));
-const CouponCombinedPage = lazy(() =>
+const DashboardPage = lazyRoute(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const CouponPickPage = lazyRoute(() => import('./pages/CouponPickPage').then((m) => ({ default: m.CouponPickPage })));
+const CouponCombinedPage = lazyRoute(() =>
   import('./pages/CouponCombinedPage').then((m) => ({ default: m.CouponCombinedPage })),
 );
-const FootballPage = lazy(() => import('./pages/FootballPage').then((m) => ({ default: m.FootballPage })));
-const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
-const PlayerProfilePage = lazy(() => import('./pages/PlayerProfilePage').then((m) => ({ default: m.PlayerProfilePage })));
-const OfflinePage = lazy(() => import('./pages/OfflinePage').then((m) => ({ default: m.OfflinePage })));
-const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const FootballPage = lazyRoute(() => import('./pages/FootballPage').then((m) => ({ default: m.FootballPage })));
+const LeaderboardPage = lazyRoute(() => import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
+const PlayerProfilePage = lazyRoute(() => import('./pages/PlayerProfilePage').then((m) => ({ default: m.PlayerProfilePage })));
+const OfflinePage = lazyRoute(() => import('./pages/OfflinePage').then((m) => ({ default: m.OfflinePage })));
+const SettingsPage = lazyRoute(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 
 // League management
-const MyLeaguesPage = lazy(() => import('./pages/MyLeaguesPage').then((m) => ({ default: m.MyLeaguesPage })));
-const CreateLeaguePage = lazy(() => import('./pages/CreateLeaguePage').then((m) => ({ default: m.CreateLeaguePage })));
-const DiscoverLeaguesPage = lazy(() =>
+const MyLeaguesPage = lazyRoute(() => import('./pages/MyLeaguesPage').then((m) => ({ default: m.MyLeaguesPage })));
+const CreateLeaguePage = lazyRoute(() => import('./pages/CreateLeaguePage').then((m) => ({ default: m.CreateLeaguePage })));
+const DiscoverLeaguesPage = lazyRoute(() =>
   import('./pages/DiscoverLeaguesPage').then((m) => ({ default: m.DiscoverLeaguesPage })),
 );
-const JoinByCodePage = lazy(() => import('./pages/JoinByCodePage').then((m) => ({ default: m.JoinByCodePage })));
-const LeagueMembersPage = lazy(() => import('./pages/LeagueMembersPage').then((m) => ({ default: m.LeagueMembersPage })));
-const LeagueSettingsPage = lazy(() =>
+const JoinByCodePage = lazyRoute(() => import('./pages/JoinByCodePage').then((m) => ({ default: m.JoinByCodePage })));
+const LeagueMembersPage = lazyRoute(() => import('./pages/LeagueMembersPage').then((m) => ({ default: m.LeagueMembersPage })));
+const LeagueSettingsPage = lazyRoute(() =>
   import('./pages/LeagueSettingsPage').then((m) => ({ default: m.LeagueSettingsPage })),
 );
-const LeagueJoinRequestsPage = lazy(() =>
+const LeagueJoinRequestsPage = lazyRoute(() =>
   import('./pages/LeagueJoinRequestsPage').then((m) => ({ default: m.LeagueJoinRequestsPage })),
 );
-const LeagueAdminInvitesPage = lazy(() =>
+const LeagueAdminInvitesPage = lazyRoute(() =>
   import('./pages/LeagueAdminInvitesPage').then((m) => ({ default: m.LeagueAdminInvitesPage })),
 );
 
 // Auth / onboarding
-const ForgotPinPage = lazy(() => import('./pages/ForgotPinPage').then((m) => ({ default: m.ForgotPinPage })));
-const WelcomePage = lazy(() => import('./pages/WelcomePage').then((m) => ({ default: m.WelcomePage })));
+const ForgotPinPage = lazyRoute(() => import('./pages/ForgotPinPage').then((m) => ({ default: m.ForgotPinPage })));
+const WelcomePage = lazyRoute(() => import('./pages/WelcomePage').then((m) => ({ default: m.WelcomePage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
