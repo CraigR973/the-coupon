@@ -226,6 +226,101 @@ feedback pass; it is a live production defect found while reconciling it.
   competition that has dropped out of the provider's list still shows as ticked,
   and keep the endpoint free of an upstream request on the common path.
 
+Batches 22 onward come from the owner's 2026-08-15 feedback pass, reconciled
+against the code before being written up. Two of those points need no batch: the
+pick screen and the combined coupon stay separate surfaces, because they answer
+different questions at different moments and merging them would put a
+hundred-fixture slate above the thing you read after lock; and each club's
+position and form beside a fixture is already built and shipped by Batch 16 —
+it renders blank only because `FOOTBALL_DATA_PROVIDER` is unsealed, which is an
+owner action rather than work. Whether that strip is too congested to keep is a
+judgement to make against real data once the key is sealed, not before.
+
+- [ ] **Batch 22 — Wayfinding and layout** *(Sonnet)* — four reported gaps, all
+  frontend-only with no API change. `FootballPage` is reachable only from
+  `CouponSubNav`, so a member who never opens the coupon never learns it exists;
+  `TabBar` has room for it in `PRIMARY` or in the More sheet. `PageHeader` wraps
+  its `action` slot in `shrink-0`, so `LeagueActionsMenu`'s own `flex-wrap` never
+  engages and six buttons run off the side of a phone — the wrapper is the fix,
+  not the menu. The Members button is shown to every member but points at
+  `/leagues/{slug}/admin/members`, whose only non-list content is promote, demote
+  and remove, all admin-gated: put it behind `isAdmin` and let the leaderboard be
+  the member list, since it already is one. And `CouponLeg` and `SettledPick`
+  both already carry `competition`, which neither `CombinedAccaView` nor
+  `PlayerProfilePage`'s `HistoryRow` renders.
+
+- [ ] **Batch 23 — Slate ordering and collapse** *(Sonnet)* — the slate opens
+  every competition expanded and orders them by earliest kick-off
+  (`groupByCompetition` in `CouponPickPage`), so a hundred-fixture card means
+  scrolling past whatever happens to lock first to reach the Premier League.
+  Collapse every group by default and order by the league pyramid: England's top
+  four tiers, then Scotland's top four, then each nation's remaining
+  competitions highest to lowest, then everything else. Order on
+  `fixtures.competition_id` — the provider's slug — and not on the display name,
+  which carries sponsors and has already changed under this codebase once; the
+  slug is on the model and needs adding to `FixtureSlate`. Anything the table
+  does not name falls to the end, so an unrecognised competition degrades
+  instead of blocking, and the catalogue never has to be enumerated up front.
+  While in `routers/gameweek.py`: `GameweekMember` is the one pick-bearing
+  response with no `competition` field, which is why `MemberRoster` can show
+  another member's selection without saying which league it came from.
+
+- [ ] **Batch 24 — Share the coupon as text** *(Sonnet)* — the one thing ADR 0004
+  left standing when it rejected betslip export. Render the combined coupon's
+  legs, selections, prices and combined odds as plain text a member can copy into
+  a group chat and type into whatever book they use, then share that book's own
+  link back themselves. No bookmaker integration and no outbound bet link, so
+  none of the gambling-advertising and age-gating obligations that decided the
+  ADR are incurred. Frontend only: `CombinedAccaView` already holds every field
+  and `GET /leagues/{slug}/coupon` needs no export-shaped addition. The ADR's
+  second wall still applies to the text itself — `odds_at_pick` is frozen, so the
+  combined figure is historical and the copy must say so rather than implying the
+  acca prices at that number today.
+
+- [ ] **Batch 25 — Gameweek results** *(Sonnet)* — a settled week is reachable
+  today only by stepping back through `GameweekNav` one round at a time, and only
+  once two rounds exist, which is not how anyone looks up what happened last
+  week. Add a results view to the coupon tab listing every settled gameweek with
+  its winner, points and combined-coupon outcome, each row opening that week's
+  coupon; the reads are already parameterised by `gameweek_id` from Batch 12, so
+  this is mostly presentation over endpoints that exist. Reach it from the
+  profile as well — `PlayerProfilePage` lists a member's settled picks but never
+  says how the week went around them. Previous *football* results are explicitly
+  not this: they stay in the Football tab where Batch 16 put them.
+
+- [ ] **Batch 26 — Multi-league home and profile** *(Opus)* — the home page and
+  the profile each answer for one league at a time, which is wrong for a member
+  in several: `DashboardPage` renders one pick, one coupon peek and one standings
+  card for `activeSlug`, and `TabBar`'s My profile silently binds to the same
+  slug. Port the shape from `~/wc_2026_predictor`'s
+  `GET /api/v1/me/cross-league-summary` in `routers/me.py` — `avg_rank`,
+  `total_points`, and a `per_league` breakdown of slug, name, rank and member
+  count, in fixed queries rather than one per league. One adaptation: wc2026
+  reads rank from a `LeaderboardSnapshot` table this codebase does not have, so
+  rank comes from `scoring.standings()` per league instead. Home becomes a card
+  per league carrying that league's pick and standing, one tap to that week's
+  coupon. Batch 13's per-league framing for the profile is deliberate and should
+  survive — picks are league-scoped and leagues may run different claim rules, so
+  the fix is making the league context visible and switchable, not summing
+  records that do not add up.
+
+- [ ] **Batch 27 — Configurable pick-open time** *(Opus)* — let a league admin
+  choose when picks open for a round. No such concept exists: a gameweek is
+  created `open` and only `locks_at_utc` is stored, so picks become claimable
+  whenever `run_refresh_slate` next runs (09:00 and 13:00 daily), which is
+  neither announced nor the same each week. Beware the naming collision —
+  `SlateWindow.opens_at` in `services/odds_provider.py` is when the *fixture
+  window* opens (Saturday 15:00, the thing locking is measured back from), not
+  when picks open; this is a third instant and needs its own name. Add it to
+  `gameweeks` derived from a per-league offset stored beside
+  `lock_offset_minutes`, gate `POST /leagues/{slug}/picks` on it, and put the
+  control in `LeagueSettingsPage` behind `LeagueAdminDep` with the rest of the
+  Batch 15 window settings. `GameweekStatus` needs a state for a round that
+  exists but has not opened — `open` currently means both. Discovery and pricing
+  must stay on their existing schedule: this gates when members may *claim*, not
+  when fixtures are fetched, and coupling the two would put Batch 11's request
+  budget under a configuration knob.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

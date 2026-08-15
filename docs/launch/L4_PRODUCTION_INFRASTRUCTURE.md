@@ -704,8 +704,12 @@ PIN is currently a known value and must be changed at first login.
 > `SCHEDULER_ENABLED` has been `true` since 2026-08-04. Read **Shipment
 > history** for what is actually deployed.
 
-The phase remains unchecked pending `/launch-verify L4` and explicit
-`/launch-closeout L4`.
+**The phase was closed on 2026-08-04.** `docs/LAUNCH_PLAN.md` is the canonical
+record and carries the tick. This line previously read that the phase remained
+unchecked pending `/launch-verify L4` and `/launch-closeout L4`, which was true
+when written and went stale at close-out. Corrected rather than deleted because
+`/ship-prod` §1.2 requires L4 to be checked and a reader confirming that gate
+lands here.
 
 `apps/api/src/config.py` fails closed in production on empty `bf_app_key`,
 `bf_user`, `bf_pass`, `bf_cert_file`, or `bf_key_file`. The successful
