@@ -592,6 +592,14 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-08-06 | Railway `api` | `7a5862cb-1279-4625-b5fa-3603df64c52e` | `aae3b51e` | **`011`** |
 | 2026-08-06 | Vercel web | `dpl_71cUU3Tau76XgoWVZpHcxufGp8vF` | `aae3b51e` | — |
 
+Confirmed against Railway's GraphQL API on 2026-08-15: deployment `7a5862cb` is
+`SUCCESS` and current, its `cliMessage` reads `ship production aae3b51e`, and
+no deployment has been created since. The API is therefore **not** behind — the
+only commit on `origin/main` after `aae3b51e` is `bce1f3c`, which touches no
+`apps/api` file. `/health` reported `sha: unknown` throughout, because that
+image predates the `/ship-prod` step that stamps `RAILWAY_GIT_COMMIT_SHA`; a
+blank `sha` is a reporting gap, not evidence of drift.
+
 ### Current rollback baselines
 
 | Stack | Roll back to |
@@ -599,10 +607,15 @@ gap, and `/phase-closeout` step 9 runs it.
 | Railway `api` | **none viable** — see below |
 | Vercel web | `dpl_2VSqRFZNahpKAByJ17dWKEeo1q88` (Batch 20, `9097839c`) |
 
-**The API cannot be rolled back.** Every prior Railway deployment is `REMOVED`,
-and migration `009` renamed `gameweeks.saturday_date` to `starts_on`, so no
-earlier build can read the current schema even if one were restorable. A failure
-must be fixed forward.
+**The API cannot be rolled back.** Migration `009` renamed
+`gameweeks.saturday_date` to `starts_on`, so no earlier build can read the
+current schema. A failure must be fixed forward.
+
+The binding constraint is the schema, not the deployment state. Every prior
+deployment is `REMOVED`, but Railway reports `canRedeploy: true` on all five, so
+the platform will *offer* a rollback that cannot work — verified 2026-08-15.
+Treat the offer as a trap: restoring one of those images would leave the API
+reading a column that no longer exists.
 
 Rollback reverts application deployments only. Under the 2026-07-30 backup
 deferral there is no database restore path at all, so rollback must never assume
@@ -660,12 +673,24 @@ The gate is blocked on three remaining items:
 3. **Sufficient selections for the first live gameweek**, per the launch-timing
    constraint recorded above. Six selections cannot seat fifteen members.
 
-Two follow-ups are not gate-blocking but must not be forgotten: the
-administrator PIN is currently a known value and must be changed at first
-login, and the fix to `BFIdentityResponse` has never run in production, because
-the deployed image predates it. **Production is currently running the broken
-certificate-login code.** Redeploy before enabling the scheduler, or the first
-scheduled Betfair call will fail.
+One follow-up is not gate-blocking but must not be forgotten: the administrator
+PIN is currently a known value and must be changed at first login.
+
+> **Superseded, 2026-08-15.** Everything in this section that turns on Betfair
+> is dated. Batch 7 replaced the Exchange with `odds-api.io` behind the
+> `OddsProvider` port, and production has run `ODDS_PROVIDER=oddsapi` with
+> `ODDS_API_KEY` sealed since 2026-08-04. In particular:
+>
+> - The warning that production runs the broken `BFIdentityResponse`
+>   certificate-login code no longer applies. That code is not on the request
+>   path for any provider production uses, and the 2026-08-06 shipment
+>   (`aae3b51e`) carries the fix regardless.
+> - Blocker 1 (`BOTH_TEAMS_TO_SCORE` pricing) and blocker 2 (log attestation via
+>   a scheduled Betfair call) were both written against the Exchange. Re-state
+>   them against `odds-api.io` before treating either as a gate.
+>
+> `SCHEDULER_ENABLED` has been `true` since 2026-08-04. Read **Shipment
+> history** for what is actually deployed.
 
 The phase remains unchecked pending `/launch-verify L4` and explicit
 `/launch-closeout L4`.

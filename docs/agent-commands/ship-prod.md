@@ -93,11 +93,24 @@ production. The owner performs any required live Betfair probe.
 
 ## 3. Deploy the API
 
+**The repository's Railway link points at `the-coupon-staging`**
+(`cc2fc994-87c3-4e2e-8d9b-5bcafa496350`, API origin
+`https://api-production-0641.up.railway.app`) — the same trap as `.vercel`
+below, and easier to miss because the staging origin is also named
+`api-production-*`. `railway status`, `logs`, `variables`, `redeploy`, and
+`down` all act on **staging** when run from this repository without explicit
+selectors. Every command in this section passes `--project`, `--environment`,
+and `--service`, which is what makes it safe; never drop them, and never read
+the deployed state from a bare `railway status`. For read-only inspection of
+production outside this workflow, `railway api` takes the IDs as GraphQL
+variables and needs no link at all.
+
 First stamp the commit being shipped so `/api/v1/health` can report what is
 actually running. Railway injects `RAILWAY_GIT_COMMIT_SHA` only for
 GitHub-connected services, and this one deploys by CLI, so it must be set
 explicitly on every shipment or it goes stale and
-`scripts/check-deploy-drift.sh` cannot resolve the deployed commit:
+`scripts/check-deploy-drift.sh` falls back to the weaker migration and probe
+tiers:
 
 ```bash
 /Users/craigrobinson/.nvm/versions/node/v20.20.2/lib/node_modules/@railway/cli/bin/railway \
@@ -155,8 +168,10 @@ GET https://api-production-109b1.up.railway.app/api/v1/health/ready
 ```
 
 Both must return HTTP `200`, and readiness must report database status `ok`.
-Use Railway's scoped variables with the repository API virtualenv to run
-`alembic current`; it must equal the repository's sole head. Recheck RLS and
+`/health` must report the `sha` just stamped, and its `migration` — the head
+bundled in the image — must equal the repository's sole head. `/health/ready`
+reports the head the *database* is at; the two must agree, and a disagreement
+means the boot-time `alembic upgrade head` did not complete. Recheck RLS and
 effective `anon`/`authenticated`/`PUBLIC` grants with a direct production
 database session that does not expose values. Do not use MCP or run a
 downgrade.
