@@ -259,13 +259,20 @@ answered until it lands, because until then there is no data to look at.
   (`groupByCompetition` in `CouponPickPage`), so a hundred-fixture card means
   scrolling past whatever happens to lock first to reach the Premier League.
   Collapse every group by default and order by the league pyramid: England's top
-  four tiers, then Scotland's top four, then each nation's remaining
-  competitions highest to lowest, then everything else. Order on
+  four tiers, then Scotland's top four, then each nation's remaining league
+  tiers highest to lowest, then everything else. Order on
   `fixtures.competition_id` — the provider's slug — and not on the display name,
   which carries sponsors and has already changed under this codebase once; the
-  slug is on the model and needs adding to `FixtureSlate`. Anything the table
-  does not name falls to the end, so an unrecognised competition degrades
-  instead of blocking, and the catalogue never has to be enumerated up front.
+  slug is on the model and needs adding to `FixtureSlate`.
+
+  Cups have no tier, so the pyramid cannot place them, and neither can it place
+  a competition the table does not name. Both fall to a second sort: **most
+  fixtures on this slate first**. A thirty-two-tie cup round outranks a
+  four-tie one, which is the order a member scanning the card wants, and it
+  needs no catalogue — the count is already in hand from the grouping. It also
+  means an unrecognised competition degrades into a sensible position rather
+  than blocking, so the provider's roughly thirty UK competitions never have to
+  be enumerated up front.
   While in `routers/gameweek.py`: `GameweekMember` is the one pick-bearing
   response with no `competition` field, which is why `MemberRoster` can show
   another member's selection without saying which league it came from.
@@ -304,10 +311,26 @@ answered until it lands, because until then there is no data to look at.
   reads rank from a `LeaderboardSnapshot` table this codebase does not have, so
   rank comes from `scoring.standings()` per league instead. Home becomes a card
   per league carrying that league's pick and standing, one tap to that week's
-  coupon. Batch 13's per-league framing for the profile is deliberate and should
-  survive — picks are league-scoped and leagues may run different claim rules, so
-  the fix is making the league context visible and switchable, not summing
-  records that do not add up.
+  coupon.
+
+  For the profile, split the question by figure rather than answering it once.
+  Batch 13 rejected career-wide framing wholesale, and that was too broad:
+  **points and win rate aggregate cleanly** — every league scores
+  `round(odds × 10)` off the same scale, so a season total across three leagues
+  is a real number — while **rank does not**, because first of three and first
+  of fifteen are not the same achievement. wc2026 already solved exactly this
+  and the guard is worth porting with the endpoint: `_MIN_MEMBERS_FOR_AVG = 3`
+  excludes leagues too small to rank against from the average, so a two-person
+  league cannot flatter it.
+
+  So: `TabBar`'s My profile stops binding to `activeSlug` and goes to a new
+  career-scoped route carrying the aggregate header and a per-league breakdown
+  that links into each league's own profile. The existing
+  `/leagues/:slug/players/:playerId` stays exactly as it is and stays reachable
+  from that league's leaderboard, because clicking a name in a table should show
+  that member's record *in that table*. Settled-pick history stays league-scoped
+  too — a pick's meaning is partly who else could have taken it, which is a
+  league-local fact.
 
 - [ ] **Batch 27 — Configurable pick-open time** *(Opus)* — let a league admin
   choose when picks open for a round. No such concept exists: a gameweek is
