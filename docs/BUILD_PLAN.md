@@ -227,14 +227,19 @@ feedback pass; it is a live production defect found while reconciling it.
   and keep the endpoint free of an upstream request on the common path.
 
 Batches 22 onward come from the owner's 2026-08-15 feedback pass, reconciled
-against the code before being written up. Two of those points need no batch: the
-pick screen and the combined coupon stay separate surfaces, because they answer
-different questions at different moments and merging them would put a
-hundred-fixture slate above the thing you read after lock; and each club's
-position and form beside a fixture is already built and shipped by Batch 16 —
-it renders blank only because `FOOTBALL_DATA_PROVIDER` is unsealed, which is an
-owner action rather than work. Whether that strip is too congested to keep is a
-judgement to make against real data once the key is sealed, not before.
+against the code before being written up. One of those points needs no batch:
+the pick screen and the combined coupon stay separate surfaces, because they
+answer different questions at different moments and merging them would put a
+hundred-fixture slate above the thing you read after lock.
+
+A second point was written up as needing none, and that was wrong. Each club's
+position and form beside a fixture is already built and shipped by Batch 16, and
+both surfaces render blank only for want of ingested data — which read as an
+owner action rather than work. Sealing `FOOTBALL_API_KEY` on 2026-08-15
+disproved it: the key is valid and the ingestion still writes nothing, because
+it cannot complete against a per-minute ceiling nobody had recorded. That is
+Batch 28, and the congestion question this paragraph used to defer cannot be
+answered until it lands, because until then there is no data to look at.
 
 - [ ] **Batch 22 — Wayfinding and layout** *(Sonnet)* — four reported gaps, all
   frontend-only with no API change. `FootballPage` is reachable only from
@@ -320,6 +325,29 @@ judgement to make against real data once the key is sealed, not before.
   must stay on their existing schedule: this gates when members may *claim*, not
   when fixtures are fetched, and coupling the two would put Batch 11's request
   budget under a configuration knob.
+
+- [ ] **Batch 28 — Football ingestion rate limiting** *(Sonnet)* — **run this
+  first, ahead of Batch 22.** The football provider is configured and its key is
+  valid, and the ingestion still writes nothing: `sync-football` run against
+  production on 2026-08-15 returned
+  `carried=0 competitions=0 matches=0 table_rows=0`. API-Football's free plan
+  enforces **10 requests per minute** as well as the 100 per day that ADR 0003
+  is built around, and `sync_football_data` fires its two-requests-per-competition
+  loop with no pacing, so the minute allowance is gone in seconds. The failure is
+  hard rather than transient because of how the limit arrives: api-football
+  reports it as **HTTP 200 carrying an `errors` object**, so the 429-and-5xx
+  backoff in `_request` never engages, and `_raise_for_errors` sorts `rateLimit`
+  into the unretried `FootballDataAPIError` branch beside genuine faults — the
+  same function already special-cases the daily-quota key, so the shape of the
+  fix is established. Add `rateLimit` to the transient set so it backs off, and
+  pace the sweep below ten a minute: at two requests per competition that is
+  roughly a twelve-second gap, putting a thirty-competition sweep near six
+  minutes, which is fine for a 06:30 job and is precisely why the sweep belongs
+  on the scheduler rather than in an interactive run. Correct ADR 0003 while
+  here — it records only the daily ceiling, and recording one of two limits is
+  what produced this. Until this lands, the Football tab and the pick card's
+  position-and-form strip are both dark, so Batch 22's football wayfinding and
+  the deferred congestion judgement have nothing to act on.
 
 ## Verification
 
