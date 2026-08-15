@@ -589,33 +589,45 @@ gap, and `/phase-closeout` step 9 runs it.
 | --- | --- | --- | --- | --- |
 | 2026-08-03 | Railway `api` | `8d77e4a4-…` (`REMOVED`) | L4 branch tree | `004` |
 | 2026-08-04 | Railway `api` | `a43dbcdc-…` (`REMOVED`) | `ea1cc9d` | `006` |
-| 2026-08-06 | Railway `api` | `7a5862cb-1279-4625-b5fa-3603df64c52e` | `aae3b51e` | **`011`** |
+| 2026-08-06 | Railway `api` | `7a5862cb-1279-4625-b5fa-3603df64c52e` (`REMOVED`) | `aae3b51e` | `011` |
 | 2026-08-06 | Vercel web | `dpl_71cUU3Tau76XgoWVZpHcxufGp8vF` | `aae3b51e` | — |
+| 2026-08-15 | Railway `api` | `4f993b38-181b-4379-ad67-a51b9bdafb13` | `634467c8` | **`011`** |
+| 2026-08-15 | Vercel web | `dpl_bvZ8sB5xhtrH66L7RVsVvRhx2Sjy` | `634467c8` | — |
 
-Confirmed against Railway's GraphQL API on 2026-08-15: deployment `7a5862cb` is
-`SUCCESS` and current, its `cliMessage` reads `ship production aae3b51e`, and
-no deployment has been created since. The API is therefore **not** behind — the
-only commit on `origin/main` after `aae3b51e` is `bce1f3c`, which touches no
-`apps/api` file. `/health` reported `sha: unknown` throughout, because that
-image predates the `/ship-prod` step that stamps `RAILWAY_GIT_COMMIT_SHA`; a
-blank `sha` is a reporting gap, not evidence of drift.
+The 2026-08-15 shipment closed a nine-day reporting gap rather than a drift.
+Investigation that morning confirmed against Railway's GraphQL API that
+`7a5862cb` was still current and carried `aae3b51e`, so the API had never fallen
+behind; `/health` reported `sha: unknown` only because that image predated the
+`/ship-prod` step that stamps `RAILWAY_GIT_COMMIT_SHA`. A blank `sha` is a
+reporting gap, not evidence of drift — but it is indistinguishable from one from
+the outside, which is why `/health` now also reports the migration head bundled
+in the image. Since this shipment `/health` reports the exact commit and
+`check-deploy-drift.sh` answers from tier 1: `in sync`, exit 0.
+
+The Vercel deployment above was **not** minted by `/ship-prod`. It is the
+GitHub-linked auto-deploy of the same push, which already held the stable alias
+by the time the API shipped; section 4 was skipped by design.
 
 ### Current rollback baselines
 
 | Stack | Roll back to |
 | --- | --- |
-| Railway `api` | **none viable** — see below |
-| Vercel web | `dpl_2VSqRFZNahpKAByJ17dWKEeo1q88` (Batch 20, `9097839c`) |
+| Railway `api` | `7a5862cb-1279-4625-b5fa-3603df64c52e` (`aae3b51e`, migration `011`) — schema-compatible, but `REMOVED`; see below |
+| Vercel web | `dpl_71cUU3Tau76XgoWVZpHcxufGp8vF` (Batch 21, `aae3b51e`) |
 
-**The API cannot be rolled back.** Migration `009` renamed
-`gameweeks.saturday_date` to `starts_on`, so no earlier build can read the
-current schema. A failure must be fixed forward.
+**The API has a schema-compatible predecessor for the first time.** Migration
+`009` renamed `gameweeks.saturday_date` to `starts_on`, so every deployment
+before it is unusable against the current database whatever Railway offers. But
+`7a5862cb` is at migration `011`, the same head the 2026-08-15 shipment carries,
+so it is the first predecessor that could actually read the live schema.
 
-The binding constraint is the schema, not the deployment state. Every prior
-deployment is `REMOVED`, but Railway reports `canRedeploy: true` on all five, so
-the platform will *offer* a rollback that cannot work — verified 2026-08-15.
-Treat the offer as a trap: restoring one of those images would leave the API
-reading a column that no longer exists.
+Two caveats before relying on it. It is `REMOVED`, so its image may have been
+pruned even though Railway reports `canRedeploy: true` — that flag is reported
+for all five prior deployments including the pre-`009` ones it cannot possibly
+restore, so it is not evidence of anything. And this only holds while the head
+stays `011`: the next shipment that adds a migration returns the API to
+fix-forward-only until a successor at that new head exists. Verified
+2026-08-15.
 
 Rollback reverts application deployments only. Under the 2026-07-30 backup
 deferral there is no database restore path at all, so rollback must never assume

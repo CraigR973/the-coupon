@@ -41,11 +41,13 @@ carries 30 UK leagues, 131 qualifying 15:00 fixtures, and 280 distinct priced
 selections against the 15 a full league needs, with both Scottish lower
 divisions fully priced.
 
-**Production runs `aae3b51e` (Batch 21) on both stacks as of 2026-08-06**, at
-migration `011`. `ODDS_API_KEY` is sealed, `ODDS_PROVIDER=oddsapi`, and
-`SCHEDULER_ENABLED=true`; the paragraph above about a Betfair build and an
-unsealed key described the state before the 2026-08-04 and 2026-08-06
-shipments.
+**Production runs `634467c8` on both stacks as of 2026-08-15**, at migration
+`011`. `/api/v1/health` reports that commit and the migration head bundled in
+the image, so `scripts/check-deploy-drift.sh` now answers exactly (`in sync`)
+rather than falling back to probing. `ODDS_API_KEY` is sealed,
+`ODDS_PROVIDER=oddsapi`, and `SCHEDULER_ENABLED=true`; the paragraph above about
+a Betfair build and an unsealed key described the state before the 2026-08-04
+and 2026-08-06 shipments.
 
 Note that the two stacks ship differently: **Vercel auto-deploys `main` on every
 push; Railway moves only when `/ship-prod` runs.** Between 2026-08-04 and
