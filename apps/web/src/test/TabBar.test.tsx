@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { HTMLAttributes, ReactNode } from 'react';
 import { TabBar } from '@/components/TabBar';
@@ -59,5 +59,20 @@ describe('TabBar mobile positioning', () => {
     expect(nav?.className).toContain('bottom-0');
     expect(nav?.className).toContain('inset-x-0');
     expect(nav?.className).toContain('z-tabbar');
+  });
+
+  it('puts Football in primary navigation', () => {
+    render(
+      <MemoryRouter initialEntries={['/predictions/football']}>
+        <TabBar />
+      </MemoryRouter>,
+    );
+
+    const football = screen.getByRole('link', { name: /football/i });
+    const coupon = screen.getByRole('link', { name: /coupon/i });
+
+    expect(football.getAttribute('href')).toBe('/predictions/football');
+    expect(football.getAttribute('aria-current')).toBe('page');
+    expect(coupon.getAttribute('aria-current')).toBeNull();
   });
 });

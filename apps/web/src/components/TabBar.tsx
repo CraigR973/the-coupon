@@ -1,8 +1,9 @@
 import { useState, useId, useEffect } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Home,
+  Goal,
   Ticket,
   Trophy,
   MoreHorizontal,
@@ -21,15 +22,29 @@ interface TabDef {
   label: string;
   Icon: LucideIcon;
   matchPrefix?: string[];
+  excludePrefix?: string[];
 }
 
 const PRIMARY: ReadonlyArray<TabDef> = [
   { to: '/', label: 'Home', Icon: Home },
-  { to: '/predictions', label: 'Coupon', Icon: Ticket, matchPrefix: ['/predictions'] },
+  {
+    to: '/predictions',
+    label: 'Coupon',
+    Icon: Ticket,
+    matchPrefix: ['/predictions'],
+    excludePrefix: ['/predictions/football'],
+  },
+  {
+    to: '/predictions/football',
+    label: 'Football',
+    Icon: Goal,
+    matchPrefix: ['/predictions/football'],
+  },
   { to: '/leagues', label: 'Leagues', Icon: Trophy, matchPrefix: ['/leagues'] },
 ];
 
 function isActive(pathname: string, tab: TabDef): boolean {
+  if (tab.excludePrefix?.some((p) => pathname.startsWith(p))) return false;
   if (tab.to === '/') return pathname === '/';
   if (tab.matchPrefix) return tab.matchPrefix.some((p) => pathname.startsWith(p));
   return pathname === tab.to || pathname.startsWith(`${tab.to}/`);
@@ -135,14 +150,13 @@ export function TabBar() {
                     {content}
                   </button>
                 ) : (
-                  <NavLink
+                  <Link
                     to={to}
-                    end={to === '/'}
                     className={baseClass}
                     aria-current={isCurrent ? 'page' : undefined}
                   >
                     {content}
-                  </NavLink>
+                  </Link>
                 )}
               </li>
             );

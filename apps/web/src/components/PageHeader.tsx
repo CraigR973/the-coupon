@@ -71,7 +71,7 @@ export function PageHeader({ title, eyebrow, showBack, back, action, className, 
             {title}
           </h1>
         </div>
-        {action && <div className="shrink-0">{action}</div>}
+        {action && <div className="min-w-0 max-w-full">{action}</div>}
       </div>
     </div>
   );

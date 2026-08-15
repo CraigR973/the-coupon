@@ -54,6 +54,7 @@ describe('CombinedAccaView', () => {
     expect(screen.getByText('3.50')).toBeTruthy(); // combined odds
     // "Forfar" is both leg A's selection label and part of its "Forfar v Brechin" subline.
     expect(screen.getAllByText('Forfar').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Scottish League 2/)).toBeTruthy();
     expect(screen.getByText('Both teams score')).toBeTruthy(); // leg B selection label
     expect(screen.getAllByTestId(/^acca-leg-/)).toHaveLength(2);
   });

@@ -111,11 +111,13 @@ describe('PlayerProfilePage', () => {
     const history = await screen.findByTestId('profile-history');
     const won = within(history).getByTestId('history-fx1');
     expect(won.textContent).toContain('Arsenal');
+    expect(won.textContent).toContain('English Premier League');
     expect(won.textContent).toContain('19 pts');
     expect(won.textContent).toContain('Won');
 
     const lost = within(history).getByTestId('history-fx2');
     expect(lost.textContent).toContain('Both teams score');
+    expect(lost.textContent).toContain('Scottish League Two');
     expect(lost.textContent).toContain('Lost');
   });
 

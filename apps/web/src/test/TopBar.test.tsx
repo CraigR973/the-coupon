@@ -38,18 +38,37 @@ function stubAuth() {
   });
 }
 
-function renderTopBar() {
+function renderTopBar(initialEntry = '/') {
   stubAuth();
-  vi.stubGlobal('fetch', () => Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) }));
+  vi.stubGlobal('fetch', () =>
+    Promise.resolve({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve([
+          {
+            slug: 'the-coupon',
+            name: 'The Coupon',
+            description: null,
+            privacy: 'private',
+            member_count: 2,
+            max_members: null,
+            pick_scope: 'selection',
+            created_at: '2026-08-01T00:00:00Z',
+          },
+        ]),
+    }),
+  );
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/']}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <AuthProvider>
           <LeagueProvider>
             <Routes>
               <Route path="/" element={<TopBar />} />
+              <Route path="/predictions/football" element={<TopBar />} />
               <Route path="/settings" element={<div>Settings route</div>} />
             </Routes>
           </LeagueProvider>
@@ -94,5 +113,19 @@ describe('TopBar avatar menu', () => {
     expect(header?.className).toContain('pt-[calc(env(safe-area-inset-top,0px)+1rem)]');
     expect(navRow?.className).toContain('h-16');
     expect(mobileBrandLink?.className).toContain('inset-y-0');
+  });
+
+  it('puts Football in desktop navigation', () => {
+    renderTopBar('/predictions/football');
+
+    const football = screen.getByRole('link', { name: /^football$/i });
+    const coupon = screen.getByRole('link', { name: /^coupon$/i });
+
+    expect(football.getAttribute('href')).toBe('/predictions/football');
+    expect(football.getAttribute('aria-current')).toBe('page');
+    expect(football.className).toContain('bg-primary/15');
+    expect(football.className).toContain('text-primary');
+    expect(coupon.getAttribute('aria-current')).toBeNull();
+    expect(coupon.className).not.toContain('bg-primary/15');
   });
 });

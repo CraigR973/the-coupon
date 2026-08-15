@@ -83,7 +83,7 @@ function LegRow({ leg, index, settled }: { leg: CouponLeg; index: number; settle
           <Badge variant="muted">{marketTag(leg.market)}</Badge>
         </div>
         <p className="truncate text-xs font-sans text-text-muted">
-          {leg.home} v {leg.away} · {leg.player_name}
+          {leg.competition} · {leg.home} v {leg.away} · {leg.player_name}
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5">

@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PageTransition } from '@/components/PageTransition';
+import { PageHeader } from '@/components/PageHeader';
 
 const AXE_CONFIG = { rules: { 'color-contrast': { enabled: false } } };
 
@@ -148,5 +149,24 @@ describe('PageTransition', () => {
       </MemoryRouter>,
     );
     expect(screen.getByText('hello')).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PageHeader
+// ---------------------------------------------------------------------------
+
+describe('PageHeader', () => {
+  it('lets action content shrink and wrap on narrow screens', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <PageHeader title="Standings" action={<div data-testid="header-actions">Actions</div>} />
+      </MemoryRouter>,
+    );
+
+    const wrapper = screen.getByTestId('header-actions').parentElement;
+    expect(wrapper?.className).toContain('min-w-0');
+    expect(wrapper?.className).toContain('max-w-full');
+    expect(wrapper?.className).not.toContain('shrink-0');
   });
 });

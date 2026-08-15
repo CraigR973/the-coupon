@@ -88,12 +88,6 @@ export function LeagueActionsMenu({
   return (
     <>
       <div className={cn('flex flex-wrap items-center gap-2', className)}>
-        <Button asChild size="sm" variant="outline" className="gap-1.5">
-          <Link to={`/leagues/${slug}/admin/members`}>
-            <Users className="h-3.5 w-3.5" aria-hidden />
-            Members
-          </Link>
-        </Button>
         <Button
           size="sm"
           variant="outline"
@@ -105,6 +99,12 @@ export function LeagueActionsMenu({
         </Button>
         {isAdmin && (
           <>
+            <Button asChild size="sm" variant="outline" className="gap-1.5">
+              <Link to={`/leagues/${slug}/admin/members`}>
+                <Users className="h-3.5 w-3.5" aria-hidden />
+                Members
+              </Link>
+            </Button>
             <Button asChild size="sm" variant="outline" className="gap-1.5">
               <Link to={`/leagues/${slug}/admin/requests`}>
                 <UserCheck className="h-3.5 w-3.5" aria-hidden />

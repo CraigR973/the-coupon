@@ -1,4 +1,4 @@
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 import { Moon, Sun, Settings, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLeague } from '@/contexts/LeagueContext';
@@ -14,17 +14,42 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
-const DESKTOP_NAV = [
-  { to: '/', label: 'Home', exact: true },
-  { to: '/predictions', label: 'Coupon', exact: false },
-  { to: '/leagues', label: 'Leagues', exact: false },
-  { to: '/settings', label: 'Settings', exact: false },
+interface DesktopNavItem {
+  to: string;
+  label: string;
+  matchPrefix?: string[];
+  excludePrefix?: string[];
+}
+
+const DESKTOP_NAV: ReadonlyArray<DesktopNavItem> = [
+  { to: '/', label: 'Home' },
+  {
+    to: '/predictions',
+    label: 'Coupon',
+    matchPrefix: ['/predictions'],
+    excludePrefix: ['/predictions/football'],
+  },
+  {
+    to: '/predictions/football',
+    label: 'Football',
+    matchPrefix: ['/predictions/football'],
+  },
+  { to: '/leagues', label: 'Leagues' },
+  { to: '/settings', label: 'Settings' },
 ];
+
+function desktopNavActive(pathname: string, item: DesktopNavItem): boolean {
+  if (item.excludePrefix?.some((prefix) => pathname.startsWith(prefix))) return false;
+  if (item.matchPrefix) return item.matchPrefix.some((prefix) => pathname.startsWith(prefix));
+  if (item.to === '/') return pathname === '/';
+  return pathname === item.to || pathname.startsWith(`${item.to}/`);
+}
 
 export function TopBar() {
   const { player, logout } = useAuth();
   const { activeSlug } = useLeague();
   const { resolved, setMode } = useTheme();
+  const { pathname } = useLocation();
   function toggleTheme() {
     setMode(resolved === 'dark' ? 'light' : 'dark');
   }
@@ -105,23 +130,21 @@ export function TopBar() {
         </NavLink>
 
         <nav aria-label="Main navigation" className="hidden md:flex items-center gap-1 flex-1">
-          {DESKTOP_NAV.map(({ to, label, exact }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={exact}
-              className={({ isActive }) =>
-                cn(
-                  'px-3 py-1.5 rounded-sm text-sm font-medium font-sans tracking-tight transition-colors press-down',
-                  'focus-visible:outline-none focus-visible:shadow-glow',
-                  isActive
-                    ? 'bg-primary/15 text-primary'
-                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated',
-                )
-              }
+          {DESKTOP_NAV.map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              aria-current={desktopNavActive(pathname, item) ? 'page' : undefined}
+              className={cn(
+                'px-3 py-1.5 rounded-sm text-sm font-medium font-sans tracking-tight transition-colors press-down',
+                'focus-visible:outline-none focus-visible:shadow-glow',
+                desktopNavActive(pathname, item)
+                  ? 'bg-primary/15 text-primary'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated',
+              )}
             >
-              {label}
-            </NavLink>
+              {item.label}
+            </Link>
           ))}
         </nav>
 

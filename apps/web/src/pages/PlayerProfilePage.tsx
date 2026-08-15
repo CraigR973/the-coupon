@@ -165,6 +165,8 @@ function HistoryRow({
           <Badge variant="muted">{marketTag(pick.market)}</Badge>
         </div>
         <p className="truncate font-sans text-xs text-text-muted">
+          {pick.competition}
+          <span className="mx-1.5">·</span>
           {pick.home} v {pick.away}
           <span className="mx-1.5">·</span>
           {formatInTimeZone(new Date(pick.starts_on), timezone, 'd MMM yyyy')}
