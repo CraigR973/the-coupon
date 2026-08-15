@@ -19,11 +19,22 @@
 #                  2026-08-06, where the breaking change *was* a migration.
 #   3. probe     — ask for a route added in a known batch. A 404 dates the image.
 #
-# Exit 0 in sync · 1 drifted · 2 could not tell.
+# The question is "is a /ship-prod owed?", not "are the two SHAs equal", so a
+# commit behind that cannot reach the API image does not count as drift. Tier 1
+# is commit-exact and would otherwise report every docs push as DRIFTED, which
+# trains you to ignore it.
+#
+# Exit 0 nothing to ship · 1 a /ship-prod is owed · 2 could not tell.
 set -uo pipefail
 
 ROOT="/Users/craigrobinson/the-coupon"
 API="${API_ORIGIN:-https://api-production-109b1.up.railway.app}"
+
+# Paths that end up in the API image. `railway up` uploads the whole working
+# directory, but only these change what the service runs: apps/api is the
+# source (requirements*.txt included), migrations is the schema, and the two
+# TOML files drive the build and start command.
+API_PATHS=(apps/api migrations nixpacks.toml railway.toml)
 
 # Routes that only exist from a given batch onward. A 404 here means the API
 # predates that batch; anything else (403 behind auth, 200) means it is present.
@@ -65,14 +76,32 @@ if [[ -n "$DEPLOYED" && "$DEPLOYED" != "unknown" ]]; then
     echo "in sync"
     exit 0
   fi
-  if git -C "$ROOT" cat-file -e "$DEPLOYED^{commit}" 2>/dev/null; then
-    BEHIND="$(git -C "$ROOT" rev-list --count "$DEPLOYED..origin/main" 2>/dev/null)"
-    echo "DRIFTED — the API is $BEHIND commit(s) behind origin/main"
-    git -C "$ROOT" log --oneline "$DEPLOYED..origin/main" 2>/dev/null | head -15 | sed 's/^/    /'
-  else
+  if ! git -C "$ROOT" cat-file -e "$DEPLOYED^{commit}" 2>/dev/null; then
     echo "DRIFTED — deployed commit is not in this checkout (fetch, or it was never pushed)"
+    echo
+    echo "Ship it with /ship-prod, which also refreshes RAILWAY_GIT_COMMIT_SHA."
+    exit 1
   fi
+
+  BEHIND="$(git -C "$ROOT" rev-list --count "$DEPLOYED..origin/main" 2>/dev/null)"
+  # Same revision walk as the count, so history simplification treats both alike.
+  TOUCHING_SHAS="$(git -C "$ROOT" rev-list "$DEPLOYED..origin/main" -- "${API_PATHS[@]}" 2>/dev/null)"
+  TOUCHING="$(printf '%s' "$TOUCHING_SHAS" | grep -c . || true)"
+
+  # `*` marks a commit that reaches the API image.
+  while read -r sha subject; do
+    [[ -z "$sha" ]] && continue
+    if printf '%s\n' "$TOUCHING_SHAS" | grep -q "^$sha$"; then mark="*"; else mark=" "; fi
+    printf '    %s %s %s\n' "$mark" "${sha:0:8}" "$subject"
+  done < <(git -C "$ROOT" log --format='%H %s' "$DEPLOYED..origin/main" 2>/dev/null | head -15)
   echo
+
+  if [[ "$TOUCHING" -eq 0 ]]; then
+    echo "behind by $BEHIND commit(s), none of which reach the API image"
+    echo "Nothing to ship — redeploying would rebuild the same service."
+    exit 0
+  fi
+  echo "DRIFTED — $TOUCHING of $BEHIND commit(s) behind origin/main reach the API image"
   echo "Ship it with /ship-prod, which also refreshes RAILWAY_GIT_COMMIT_SHA."
   exit 1
 fi
