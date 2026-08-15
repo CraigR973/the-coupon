@@ -2,9 +2,9 @@
 
 ## Now
 
-Build batches 1–22 and 28 are closed. Batch 28 intentionally ran ahead of the
+Build batches 1–23 and 28 are closed. Batch 28 intentionally ran ahead of the
 remaining feedback batches because football ingestion was dark in production;
-Batch 23 is the next unchecked build batch. The Coupon is a verified private
+Batch 24 is the next unchecked build batch. The Coupon is a verified private
 weekly football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
 compare standings, and view the shared combined coupon.
@@ -186,6 +186,14 @@ non-ASCII comment that made Alembic config parsing fail under an ASCII locale,
 so `/health` could report `migration: unknown` even though revision `011` was
 bundled.
 
+Batch 23 made the large-slate picker scan by competition first. The gameweek
+API now includes `fixtures.competition_id` in each `FixtureSlate`, and the web
+groups on that stable provider slug rather than display names that may carry
+sponsor text. Groups start collapsed and sort by the UK league pyramid —
+England's top four tiers, Scotland's top four, then each nation's remaining
+tiers, then everything else by fixture count. The member roster also carries
+and renders the picked fixture's competition.
+
 Batch 28 fixed API-Football ingestion rate limiting, deliberately ahead of
 Batch 22. API-Football's free plan is not just 100/day; it is also 10/minute,
 and the minute limit arrives as HTTP 200 with `errors.rateLimit`, so the old
@@ -201,7 +209,7 @@ ADR 0003 now records both limits.
   Batch 28 close-out also passed `scripts/ci-local.sh` end-to-end (11 checks)
 - Database: clean `pgserver` migration through revision `011`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 13 public tables under a Supabase-like role setup
-- Frontend: Node 20 production build, TypeScript, ESLint, and 240 Vitest
+- Frontend: Node 20 production build, TypeScript, ESLint, and 241 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
   coupon, phone push, and PWA update behavior
@@ -232,10 +240,11 @@ ADR 0003 now records both limits.
 
 ## Next
 
-Batch 23 — Slate ordering and collapse — is the first unchecked build batch in
+Batch 24 — Share the coupon as text — is the first unchecked build batch in
 `docs/BUILD_PLAN.md`. Launch L5 — launch and first-Saturday watch — remains
 open too. Batch 7 shipped the odds source. Production is now deployed and
-configured through Batch 22; what remains:
+configured through Batch 22, with Batch 23 on local `main` pending the close-out
+push and a later `/ship-prod` for the API contract change; what remains:
 
 - ~~seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`~~ — done;
 - ~~ship staging and then production~~ — production is at `aae3b51e` / migration `011`;

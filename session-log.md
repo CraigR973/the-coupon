@@ -517,3 +517,15 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   `migration: unknown`; the file is ASCII now and reports `011`.
 
 **Next:** Batch 23 — Slate ordering and collapse.
+
+## Batch 23 — Slate ordering and collapse
+**Commits:** `f5496e1` · verified: Ruff 0.5.4 check/format · strict mypy · 387 pytest · clean pgserver migration + DB slate test · lint · typecheck · build · 241 Vitest · production-preview Playwright coupon flow
+
+### Key facts for future sessions
+- `FixtureSlate` now exposes `competition_id`; the picker groups and sorts on that stable provider slug, not sponsor-prone display names.
+- Competition groups are closed by default so a large slate scans as league headers first.
+- The picker order is England top four, Scotland top four, remaining England/Scotland tiers, then everything else by fixture count.
+- `GameweekMember` now carries `competition`, and the roster renders it beside the picked market.
+- The browser flow opens competition sections explicitly and stores Batch 23 screenshots in `artifacts/batch-23/`.
+
+**Next:** Batch 24 — Share the coupon as text.

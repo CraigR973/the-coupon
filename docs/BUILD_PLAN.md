@@ -254,7 +254,7 @@ answered until it lands, because until then there is no data to look at.
   both already carry `competition`, which neither `CombinedAccaView` nor
   `PlayerProfilePage`'s `HistoryRow` renders.
 
-- [ ] **Batch 23 — Slate ordering and collapse** *(Sonnet)* — the slate opens
+- [x] **Batch 23 — Slate ordering and collapse** ✅ 2026-08-15 *(Sonnet)* — the slate opens
   every competition expanded and orders them by earliest kick-off
   (`groupByCompetition` in `CouponPickPage`), so a hundred-fixture card means
   scrolling past whatever happens to lock first to reach the Premier League.
