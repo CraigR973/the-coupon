@@ -241,7 +241,7 @@ it cannot complete against a per-minute ceiling nobody had recorded. That is
 Batch 28, and the congestion question this paragraph used to defer cannot be
 answered until it lands, because until then there is no data to look at.
 
-- [ ] **Batch 22 — Wayfinding and layout** *(Sonnet)* — four reported gaps, all
+- [x] **Batch 22 — Wayfinding and layout** ✅ 2026-08-15 *(Sonnet)* — four reported gaps, all
   frontend-only with no API change. `FootballPage` is reachable only from
   `CouponSubNav`, so a member who never opens the coupon never learns it exists;
   `TabBar` has room for it in `PRIMARY` or in the More sheet. `PageHeader` wraps

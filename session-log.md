@@ -496,3 +496,24 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   06:30 scheduler job and is why this belongs off the request path.
 
 **Next:** Batch 22 — Wayfinding and layout.
+
+## Batch 22 — Wayfinding and layout
+**Commits:** `ee888f7` · verified: Ruff 0.5.4 check/format · strict mypy · 387 pytest · lint · typecheck · build · 240 Vitest
+
+### Key facts for future sessions
+- Football is now top-level wayfinding on both desktop `TopBar` and mobile `TabBar`,
+  while `CouponSubNav` still keeps it beside the pick and combined-coupon surfaces.
+- The Coupon nav item excludes `/predictions/football`, and both navs set current state
+  explicitly so Football does not double-highlight Coupon for sighted users or screen readers.
+- `PageHeader`'s action wrapper changed from `shrink-0` to a shrinkable max-width wrapper;
+  `LeagueActionsMenu` keeps its own `flex-wrap`, so future phone overflow fixes should avoid
+  reintroducing a non-shrinking parent.
+- Members administration is now behind the existing `isAdmin` prop; regular members should
+  use the leaderboard as the member list.
+- Combined coupon rows and profile history rows now render the `competition` field that the
+  API already supplied on `CouponLeg` and `SettledPick`.
+- The close-out gate exposed an ASCII-locale health bug: `apps/api/alembic.ini` had a
+  non-ASCII comment, so Alembic config parsing failed and `/health` reported
+  `migration: unknown`; the file is ASCII now and reports `011`.
+
+**Next:** Batch 23 — Slate ordering and collapse.

@@ -2,9 +2,9 @@
 
 ## Now
 
-Build batches 1–21 and 28 are closed. Batch 28 intentionally ran ahead of the
+Build batches 1–22 and 28 are closed. Batch 28 intentionally ran ahead of the
 remaining feedback batches because football ingestion was dark in production;
-Batch 22 is the next unchecked build batch. The Coupon is a verified private
+Batch 23 is the next unchecked build batch. The Coupon is a verified private
 weekly football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
 compare standings, and view the shared combined coupon.
@@ -175,6 +175,17 @@ client, not the per-competition `/events` fan-out the slate pays for. The
 pooled-fixtures query survives as the fallback when the provider is
 unreachable, because the picker is also how an admin *un*-narrows a league.
 
+Batch 22 fixed the 2026-08-15 wayfinding and layout feedback without changing
+the API contract. Football is now in primary navigation on both desktop and
+mobile, with active state kept distinct from Coupon. `PageHeader` lets its
+action slot shrink so `LeagueActionsMenu` can wrap on phones; Members is
+admin-only; and both combined-coupon legs and player history rows render the
+competition already present on `CouponLeg` and `SettledPick`. The close-out gate
+also found and fixed a backend config trap: `apps/api/alembic.ini` had a
+non-ASCII comment that made Alembic config parsing fail under an ASCII locale,
+so `/health` could report `migration: unknown` even though revision `011` was
+bundled.
+
 Batch 28 fixed API-Football ingestion rate limiting, deliberately ahead of
 Batch 22. API-Football's free plan is not just 100/day; it is also 10/minute,
 and the minute limit arrives as HTTP 200 with `errors.rateLimit`, so the old
@@ -186,11 +197,11 @@ ADR 0003 now records both limits.
 
 ## Verified
 
-- Backend: 382 pytest (467 with a database), Ruff check/format, and strict mypy;
+- Backend: 387 pytest (467 with a database), Ruff check/format, and strict mypy;
   Batch 28 close-out also passed `scripts/ci-local.sh` end-to-end (11 checks)
 - Database: clean `pgserver` migration through revision `011`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 13 public tables under a Supabase-like role setup
-- Frontend: Node 20 production build, TypeScript, ESLint, and 235 Vitest
+- Frontend: Node 20 production build, TypeScript, ESLint, and 240 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
   coupon, phone push, and PWA update behavior
@@ -221,10 +232,10 @@ ADR 0003 now records both limits.
 
 ## Next
 
-Batch 22 — Wayfinding and layout — is the first unchecked build batch in
+Batch 23 — Slate ordering and collapse — is the first unchecked build batch in
 `docs/BUILD_PLAN.md`. Launch L5 — launch and first-Saturday watch — remains
 open too. Batch 7 shipped the odds source. Production is now deployed and
-configured through Batch 21; what remains:
+configured through Batch 22; what remains:
 
 - ~~seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`~~ — done;
 - ~~ship staging and then production~~ — production is at `aae3b51e` / migration `011`;
