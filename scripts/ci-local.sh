@@ -5,15 +5,27 @@
 # two pushes to main landed with no run scheduled at all, so nothing gated them.
 # This is the same gate, independent of GitHub.
 #
-# Needs a Python with apps/api/requirements-dev.txt installed. This repo keeps no
-# venv of its own, so point PYTHON at one:
-#   PYTHON=/path/to/venv/bin/python scripts/ci-local.sh
+# It installs apps/api/requirements-dev.txt into a managed venv and runs
+# everything from that, because "the same gate" has to mean the same versions.
+# Pointing PYTHON at whichever interpreter was handy is exactly how
+# tests/test_football_router.py passed here and failed in CI for nine days
+# straight: `HTTPBearer` answers a missing Authorization header with 403 on the
+# pinned fastapi==0.111.0 and 401 on newer ones, and the ambient venv was 28
+# minor versions ahead of what ships. A local PASS on a commit CI fails is worse
+# than no local gate at all, so the interpreter is no longer configurable.
 #
-# Skip the slowest job with:  SKIP_PROD_BUNDLE=1 scripts/ci-local.sh
+# The venv lives outside the repository deliberately: `railway up` uploads the
+# working directory, so a venv inside it would ship to production.
+#
+# Skip the slowest job with:   SKIP_PROD_BUNDLE=1 scripts/ci-local.sh
+# Rebuild the venv from scratch: CI_LOCAL_REBUILD=1 scripts/ci-local.sh
 set -uo pipefail
 
 ROOT="/Users/craigrobinson/the-coupon"
-PYTHON="${PYTHON:-python3}"
+REQ="$ROOT/apps/api/requirements-dev.txt"
+VENV="${CI_LOCAL_VENV:-$HOME/.cache/the-coupon/ci-local-venv}"
+# Matches actions/setup-python in .github/workflows/ci.yml.
+PY_VERSION="3.12"
 LOG="$(mktemp -t coupon-ci-XXXXXX)"
 FAILED=()
 PASSED=0
@@ -35,26 +47,54 @@ step() {
   fi
 }
 
-# CI pins ruff in requirements-dev.txt, and the pinned version disagrees with
-# newer ones on formatting, so derive it rather than naming it here.
-RUFF_PIN="$(sed -nE 's/^ruff==([0-9.]+).*/\1/p' "$ROOT/apps/api/requirements-dev.txt")"
-if [[ -z "$RUFF_PIN" ]]; then
-  echo "Could not read the ruff pin from apps/api/requirements-dev.txt" >&2
+if ! command -v uv >/dev/null 2>&1; then
+  echo "uv is required to build the pinned venv — https://docs.astral.sh/uv/" >&2
   exit 2
 fi
+
+# Rebuild whenever either requirements file changes; requirements-dev.txt pulls
+# in requirements.txt, so both feed the stamp.
+REQ_HASH="$(cat "$REQ" "$ROOT/apps/api/requirements.txt" | shasum -a 256 | cut -d' ' -f1)"
+STAMP="$VENV/.requirements-sha256"
+
+if [[ -n "${CI_LOCAL_REBUILD:-}" || ! -x "$VENV/bin/python" \
+      || "$(cat "$STAMP" 2>/dev/null)" != "$REQ_HASH" ]]; then
+  echo "building pinned venv at $VENV"
+  rm -rf "$VENV"
+  # --only-binary=cryptography: it is an unpinned transitive of pywebpush, and
+  # the version uv resolves ships no Intel-macOS wheel, so a source build would
+  # need a Rust toolchain. Requiring a wheel for that one package pins it a
+  # little behind CI's Linux resolution. Nothing here exercises it, but it is a
+  # real deviation — the durable fix is the open LAUNCH_PLAN item to pin the
+  # production dependency set so every platform resolves identically.
+  if ! uv venv --python "$PY_VERSION" "$VENV" >/dev/null 2>&1 \
+     || ! VIRTUAL_ENV="$VENV" uv pip install --quiet --only-binary=cryptography -r "$REQ"; then
+    echo "Could not build the pinned venv from $REQ" >&2
+    exit 2
+  fi
+  printf '%s' "$REQ_HASH" >"$STAMP"
+fi
+
+PYTHON="$VENV/bin/python"
+RUFF="$VENV/bin/ruff"
 
 if ! "$PYTHON" -c 'import alembic, pytest, pgserver, mypy' >/dev/null 2>&1; then
-  echo "PYTHON=$PYTHON is missing alembic/pytest/pgserver/mypy." >&2
-  echo "Point PYTHON at an interpreter with apps/api/requirements-dev.txt installed." >&2
+  echo "The pinned venv at $VENV is incomplete. Retry with CI_LOCAL_REBUILD=1." >&2
   exit 2
 fi
 
-echo "ruff $RUFF_PIN · python $("$PYTHON" -c 'import sys; print(sys.version.split()[0])')"
+# Print the versions the gate is actually running, so a mismatch with the pins
+# is visible rather than inferred.
+"$PYTHON" - <<'PY'
+import fastapi, starlette, sys
+print(f"python {sys.version.split()[0]} · fastapi {fastapi.__version__} · starlette {starlette.__version__}", end="")
+PY
+echo " · $("$RUFF" --version)"
 
 echo
 echo "backend"
-step "ruff check"          "$ROOT/apps/api" uvx "ruff@$RUFF_PIN" check .
-step "ruff format --check" "$ROOT/apps/api" uvx "ruff@$RUFF_PIN" format --check .
+step "ruff check"          "$ROOT/apps/api" "$RUFF" check .
+step "ruff format --check" "$ROOT/apps/api" "$RUFF" format --check .
 step "mypy src"            "$ROOT/apps/api" env PYTHONPATH="$ROOT/apps/api" "$PYTHON" -m mypy src
 
 # alembic + pytest need a database. Start from a clean schema: the HTTP pick-flow

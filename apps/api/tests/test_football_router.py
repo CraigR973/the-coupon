@@ -179,7 +179,13 @@ async def test_a_non_member_cannot_read_a_leagues_football_section(
 
 @pytest.mark.asyncio
 async def test_an_anonymous_caller_is_refused(client: AsyncClient, seed: Seed) -> None:
-    assert (await client.get(seed.tables_url)).status_code == 401
+    # 403, not 401. `HTTPBearer` answers a missing Authorization header with 403
+    # on the pinned fastapi==0.111.0; later versions changed it to 401. This
+    # asserts what `requirements.txt` actually ships, which is what production
+    # runs. Written against a newer FastAPI, it failed every CI run from Batch 16
+    # (2026-08-06) to 2026-08-15 while passing locally — see scripts/ci-local.sh,
+    # which now installs the pins so the two cannot diverge again.
+    assert (await client.get(seed.tables_url)).status_code == 403
 
 
 # ── Results ────────────────────────────────────────────────────────────────────
