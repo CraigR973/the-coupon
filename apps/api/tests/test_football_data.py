@@ -232,9 +232,21 @@ async def _run(
     *,
     today: date,
     limit: int,
+    competition_spacing_seconds: float = 0.0,
+    sleeper: Any = None,
 ) -> list[CompetitionSync]:
+    kwargs: dict[str, Any] = {}
+    if sleeper is not None:
+        kwargs["sleeper"] = sleeper
     return await sync_football_data(
-        session, provider, season=SAMPLE_SEASON, limit=limit, lookback_days=30, today=today
+        session,
+        provider,
+        season=SAMPLE_SEASON,
+        limit=limit,
+        lookback_days=30,
+        today=today,
+        competition_spacing_seconds=competition_spacing_seconds,
+        **kwargs,
     )
 
 
@@ -298,6 +310,32 @@ async def test_a_run_is_capped_and_takes_the_never_synced_competitions_first(
     assert len(second) == 1
     assert {first[0].competition_id, second[0].competition_id} == {epl.slug, sl2.slug}
     assert provider.requests == 4  # two competitions × two requests, nothing spent twice
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_scheduled_sweep_waits_between_competitions(session: AsyncSession) -> None:
+    """Two upstream calls per competition need a gap to stay below ten a minute."""
+    tag = uuid.uuid4().hex[:8]
+    epl, sl2 = _epl(tag), _sl2(tag)
+    await _pool(session, epl, kickoff=FUTURE_KICKOFF)
+    await _pool(session, sl2, kickoff=FUTURE_KICKOFF, teams=(("Forfar Athletic", "Brechin City"),))
+    sleeps: list[float] = []
+
+    async def record_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    reports = await _run(
+        session,
+        CountingFootballData.with_sample_data(),
+        today=FUTURE_TODAY,
+        limit=2,
+        competition_spacing_seconds=12.0,
+        sleeper=record_sleep,
+    )
+
+    assert len(reports) == 2
+    assert sleeps == [12.0]
 
 
 @pytest_db

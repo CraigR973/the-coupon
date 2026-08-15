@@ -30,10 +30,11 @@ the lower British divisions. Choosing it would have reproduced the Betfair
 failure precisely: a provider that serves the top of the game and starves the
 rest of the slate.
 
-## The constraint that shapes everything: 100 requests a day
+## The constraints that shape everything: 100 requests a day, 10 a minute
 
-The free plan allows **100 requests per day** — a fifth of odds-api.io's 500,
-and the single number the whole batch is designed around.
+The free plan allows **100 requests per day** and **10 requests per minute**.
+The daily ceiling is a fifth of odds-api.io's 500; the minute ceiling means a
+successful sweep still has to be paced rather than fired in one burst.
 
 **Nothing may reach a provider from the request path.** Ingestion runs on the
 scheduler and writes `teams` / `matches` / `standings`; every screen, inline or
@@ -47,7 +48,10 @@ answer.
 The arithmetic, for the 30 UK competitions the slate carries: one catalogue
 request per run (memoised on the client), then one `/standings` and one
 `/fixtures` per competition — 61 for a full daily sweep, against 100.
-`FOOTBALL_COMPETITIONS_PER_RUN` caps a run, and competitions are synced
+`FOOTBALL_COMPETITIONS_PER_RUN` caps a run, and
+`FOOTBALL_COMPETITION_SPACING_SECONDS` spaces competition attempts. The default
+12-second gap keeps the two-request competition unit below 10/minute, so a
+30-competition sweep takes about six minutes. Competitions are synced
 least-recently-first so a slate that outgrows the cap rotates rather than
 starving its tail.
 
@@ -107,7 +111,8 @@ Two documented shapes are already known to be traps and are covered by
 `tests/test_api_football.py`:
 
 - **Failures arrive with HTTP 200** and an `errors` object, so a quota
-  exhaustion must not read as "this competition has no table".
+  exhaustion must not read as "this competition has no table". The minute-limit
+  key is `rateLimit`, and is retried with the same backoff path as HTTP 429/5xx.
 - **`standings` is a list *of lists*** — one inner list per group.
 
 Status is the gate rather than the presence of a score, for the same reason it

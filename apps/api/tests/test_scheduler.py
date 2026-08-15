@@ -17,6 +17,7 @@ from src.scheduler import (
     run_refresh_slate,
     run_scheduled_backup,
     run_settle_gameweeks,
+    run_sync_football_data,
 )
 
 
@@ -215,6 +216,24 @@ async def test_run_refresh_slate_swallows_errors() -> None:
     ):
         ok = await run_refresh_slate()  # a failed run must not propagate
     assert ok is False
+
+
+@pytest.mark.asyncio
+async def test_run_sync_football_data_passes_the_minute_pacing_setting() -> None:
+    session = AsyncMock()
+    with (
+        patch("src.scheduler.football_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler._uk_today", return_value=MagicMock()),
+        patch("src.scheduler.sync_football_data", new=AsyncMock(return_value=[])) as sync,
+    ):
+        ok = await run_sync_football_data()
+
+    assert ok is True
+    assert sync.await_args.kwargs["competition_spacing_seconds"] == (
+        settings.football_competition_spacing_seconds
+    )
+    session.commit.assert_awaited_once()
 
 
 @pytest.mark.asyncio

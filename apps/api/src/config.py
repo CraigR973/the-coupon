@@ -122,16 +122,19 @@ class Settings(BaseSettings):
     # ── Football data: tables, previous results, form (Batch 16) ────────────────
     #
     # A separate provider from the odds one, with a far smaller allowance: API-Football's
-    # free plan is **100 requests/day**, against odds-api.io's 500. That single number
-    # decides the whole design — nothing here may run in the request path, so ingestion
-    # writes `teams` / `matches` / `standings` on a schedule and every screen reads those.
+    # free plan is **100 requests/day** and **10 requests/minute**, against odds-api.io's
+    # 500/day. Those two numbers decide the whole design — nothing here may run in the
+    # request path, so ingestion writes `teams` / `matches` / `standings` on a schedule
+    # and every screen reads those.
     #
     # The arithmetic, for the 30 UK competitions the slate carries: one catalogue request
     # per run (cached on the client), then one `/standings` and one `/fixtures` per
-    # competition — 61 requests for a full daily sweep, against 100. `football_
-    # competitions_per_run` is the guard: competitions are synced least-recently-first, so
-    # a slate that grows past the cap rotates through rather than starving its tail.
-    # `tests/test_football_data.py` asserts this against a counting provider.
+    # competition — 61 requests for a full daily sweep, against 100. The scheduled run
+    # spaces competitions by 12 seconds so that two-request unit stays below 10/minute.
+    # `football_competitions_per_run` is the guard: competitions are synced
+    # least-recently-first, so a slate that grows past the cap rotates through rather than
+    # starving its tail. `tests/test_football_data.py` asserts this against a counting
+    # provider.
     football_data_provider: FootballDataProviderName = FootballDataProviderName.none
     football_api_key: str = ""
     football_api_base_url: str = "https://v3.football.api-sports.io"
@@ -140,6 +143,7 @@ class Settings(BaseSettings):
     # backfilling a finished season, or for the canned data, which describes 2025-26.
     football_season: int | None = None
     football_competitions_per_run: int = 30
+    football_competition_spacing_seconds: float = 12.0
     # How far back the scheduled top-up asks for results. Long enough to pick up a match
     # rearranged after the fact; the season backfill is what fills history.
     football_results_lookback_days: int = 30

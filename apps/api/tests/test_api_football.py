@@ -22,6 +22,7 @@ from typing import Any
 import httpx
 import pytest
 
+import src.services.api_football as api_football
 from src.services.api_football import (
     DEFAULT_BASE_URL,
     ApiFootballProvider,
@@ -354,6 +355,36 @@ async def test_an_exhausted_quota_raises_rather_than_looking_like_no_data() -> N
     async with _provider(_router({"/leagues": quota})) as provider:
         with pytest.raises(FootballDataAPIError, match="request limit"):
             await provider.fetch_table(SCOTLAND_L2, SEASON)
+
+
+@pytest.mark.asyncio
+async def test_a_minute_rate_limit_reported_in_a_200_body_is_retried(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rate_limited = {"errors": {"rateLimit": "You have exceeded 10 requests per minute"}}
+    calls: list[str] = []
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path == "/leagues" and calls.count("/leagues") == 1:
+            return httpx.Response(200, json=rate_limited)
+        if request.url.path == "/leagues":
+            return httpx.Response(200, json=LEAGUES)
+        if request.url.path == "/standings":
+            return httpx.Response(200, json=STANDINGS)
+        return httpx.Response(404, json={"errors": ["unrouted"]})
+
+    monkeypatch.setattr(api_football.asyncio, "sleep", fake_sleep)
+    async with _provider(handler) as provider:
+        table = await provider.fetch_table(SCOTLAND_L2, SEASON)
+
+    assert table is not None
+    assert calls == ["/leagues", "/leagues", "/standings"]
+    assert sleeps == [1.0]
 
 
 @pytest.mark.asyncio

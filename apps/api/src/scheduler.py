@@ -229,10 +229,11 @@ async def run_sync_football_data() -> bool:
     On the same daily rhythm as fixture discovery and half an hour behind it, so the
     fixture pool it takes its competition list from is the one discovery just refreshed.
 
-    Bounded on purpose. API-Football's free plan allows 100 requests a *day* — a fifth of
-    the odds source's — so a run covers ``football_competitions_per_run`` competitions,
-    least-recently-synced first, and asks for results over a window rather than a season.
-    Nothing here is in the request path; the screens read what this job stores.
+    Bounded on purpose. API-Football's free plan allows 100 requests a *day* and 10 a
+    minute, so a run covers ``football_competitions_per_run`` competitions,
+    least-recently-synced first, spaces each competition attempt, and asks for results
+    over a window rather than a season. Nothing here is in the request path; the screens
+    read what this job stores.
 
     A run with no provider configured is a success that did nothing: ``none`` is the
     default, and Batch 16 must not turn a deployment that has not opted in into a failing
@@ -251,6 +252,7 @@ async def run_sync_football_data() -> bool:
                 limit=settings.football_competitions_per_run,
                 lookback_days=settings.football_results_lookback_days,
                 today=_uk_today(),
+                competition_spacing_seconds=settings.football_competition_spacing_seconds,
             )
             await session.commit()
         log.info(

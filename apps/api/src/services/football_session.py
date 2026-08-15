@@ -4,7 +4,8 @@ The counterpart to :mod:`src.services.odds_session`, and deliberately much thinn
 is no keep-alive because both implementations are key-authenticated, and there is no cache
 in front because **nothing reads through this in the request path**: ingestion writes
 ``teams`` / ``matches`` / ``standings`` on the scheduler's clock and every screen reads
-those tables. Against a 100/day allowance that is not an optimisation, it is the design.
+those tables. Against 100/day and 10/minute allowances that is not an optimisation, it is
+the design.
 
 ``acquire`` returns ``None`` when no provider is configured, which is the default. That is
 not an error — an unconfigured deployment simply ingests nothing, and the football screens

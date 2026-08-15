@@ -8,8 +8,8 @@ pulls each competition's table and results, reconciles club names, and writes ``
 
 **Reads** (:func:`league_tables`, :func:`recent_results`, :func:`fixture_context`) touch
 only those tables. No screen, inline or otherwise, can cause an upstream request. That is
-not a nicety: API-Football's free plan allows 100 requests a *day*, so a single member
-refreshing the pick screen could exhaust it before lunch.
+not a nicety: API-Football's free plan allows 100 requests a *day* and 10 a minute, so a
+single member refreshing the pick screen could exhaust it before lunch.
 
 What gets ingested is decided by what is already on the card. The competitions are the
 distinct ``fixtures.competition_id`` values in the pool, which means the football data
@@ -21,8 +21,9 @@ starving.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from datetime import UTC, date, datetime, timedelta
 
 import structlog
@@ -50,6 +51,8 @@ from src.services.gameweek import selected_competition_slugs
 from src.services.team_matching import normalise_name, record_alias, resolve_names
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+Sleeper = Callable[[float], Awaitable[None]]
 
 
 def _naive_utc(value: datetime) -> datetime:
@@ -428,6 +431,8 @@ async def sync_football_data(
     limit: int,
     lookback_days: int,
     today: date | None = None,
+    competition_spacing_seconds: float = 0.0,
+    sleeper: Sleeper = asyncio.sleep,
 ) -> list[CompetitionSync]:
     """The scheduled top-up: the least-recently-synced competitions on the card.
 
@@ -438,12 +443,15 @@ async def sync_football_data(
 
     One competition's failure does not take the run down: it is logged and the rest
     continue, because a provider that has stopped carrying one division should not cost
-    the other twenty-nine their tables.
+    the other twenty-nine their tables. ``competition_spacing_seconds`` spaces the
+    scheduled sweep below API-Football's 10-requests/minute cap; it is injected so tests
+    can assert the cadence without waiting.
     """
     day = today or datetime.now(UTC).date()
     competitions = await pooled_competitions(db, since=day - timedelta(days=lookback_days))
+    targets = competitions[: max(limit, 0)]
     reports: list[CompetitionSync] = []
-    for competition in competitions[: max(limit, 0)]:
+    for index, competition in enumerate(targets):
         try:
             reports.append(
                 await sync_competition(
@@ -457,6 +465,8 @@ async def sync_football_data(
             )
         except Exception:
             log.exception("football data sync failed", competition_id=competition.slug)
+        if competition_spacing_seconds > 0 and index < len(targets) - 1:
+            await sleeper(competition_spacing_seconds)
     return reports
 
 

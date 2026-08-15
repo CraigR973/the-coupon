@@ -13,10 +13,10 @@ provider that serves the top of the game and starves the rest of the slate. See
 
 Three things shape the code here:
 
-* **The free plan allows 100 requests a *day*.** That is a fifth of the odds source's
-  daily allowance, so nothing here may run in the request path. Ingestion writes
-  ``teams`` / ``matches`` / ``standings`` on a schedule and every screen reads those.
-  :mod:`src.services.football_data` owns the budget arithmetic.
+* **The free plan allows 100 requests a *day* and 10 requests a minute.** That is a
+  fifth of the odds source's daily allowance, so nothing here may run in the request
+  path. Ingestion writes ``teams`` / ``matches`` / ``standings`` on a schedule and every
+  screen reads those. :mod:`src.services.football_data` owns the budget arithmetic.
 * **Competitions are matched, not configured.** This provider has never heard of
   odds-api.io's slugs, so a :class:`~src.services.football_provider.CompetitionKey` is
   resolved against its own catalogue by country and name, reusing the same normalisation
@@ -82,6 +82,11 @@ _COUNTRY_QUALIFIERS: tuple[str, ...] = ("amateur",)
 # recording a half-time score as final.
 _FINISHED_STATUSES: frozenset[str] = frozenset({"ft", "aet", "pen"})
 _VOID_STATUSES: frozenset[str] = frozenset({"pst", "canc", "abd", "susp", "int", "awd", "wo"})
+_TRANSIENT_BODY_ERROR_KEYS: frozenset[str] = frozenset({"ratelimit"})
+
+
+class _TransientAPIError(FootballDataAPIError):
+    """A 200-body error that should use the same retry path as 429/5xx."""
 
 
 # ── Raw API-Football response models ───────────────────────────────────────────
@@ -427,9 +432,10 @@ class ApiFootballProvider(FootballDataProvider):
     async def _get(self, path: str, params: Mapping[str, str]) -> dict[str, Any]:
         """GET a v3 endpoint with retries, returning the decoded body.
 
-        Retries the transient cases — network errors, ``429`` from the daily quota, and
-        5xx — with exponential backoff. A ``401``/``403`` is an unusable key and raises
-        immediately rather than burning retries against a 100/day plan.
+        Retries the transient cases — network errors, ``429``/``rateLimit`` from the
+        minute quota, and 5xx — with exponential backoff. A ``401``/``403`` is an
+        unusable key and raises immediately rather than burning retries against a 100/day
+        plan.
 
         The body is then checked for the ``errors`` field, because this API reports quota
         and parameter failures **with HTTP 200**. Treating a 200 as success would turn
@@ -485,7 +491,23 @@ class ApiFootballProvider(FootballDataProvider):
                 ) from exc
             if not isinstance(body, dict):
                 raise FootballDataAPIError(f"api-football {path} returned {type(body).__name__}")
-            _raise_for_errors(path, body)
+            try:
+                _raise_for_errors(path, body)
+            except _TransientAPIError as exc:
+                if attempt == _MAX_RETRIES:
+                    raise FootballDataAPIError(
+                        f"api-football {path} returned transient errors "
+                        f"after {_MAX_RETRIES} retries: {exc}"
+                    ) from exc
+                log.warning(
+                    "api-football transient body error",
+                    path=path,
+                    attempt=attempt,
+                    error=str(exc),
+                )
+                await asyncio.sleep(backoff)
+                backoff *= 2
+                continue
             return body
 
         raise FootballDataAPIError(  # pragma: no cover — loop always returns or raises
@@ -500,9 +522,10 @@ def _raise_for_errors(path: str, body: Mapping[str, Any]) -> None:
     """Raise when a 200 response carries an ``errors`` payload.
 
     ``errors`` is ``[]`` on success but an **object** on failure — ``{"token": "..."}``
-    for a bad key, ``{"requests": "..."}`` when the daily allowance is gone — so an empty
-    list and an empty dict both mean "fine". A key or plan complaint is an auth error so
-    it is not retried; anything else is an API error.
+    for a bad key, ``{"requests": "..."}`` when the daily allowance is gone,
+    ``{"rateLimit": "..."}`` when the minute allowance is gone — so an empty list and
+    an empty dict both mean "fine". A key or plan complaint is an auth error so it is not
+    retried; minute-rate complaints are transient; anything else is an API error.
     """
     errors = body.get("errors")
     if not errors:
@@ -515,6 +538,8 @@ def _raise_for_errors(path: str, body: Mapping[str, Any]) -> None:
         keys = set()
     if keys & {"token", "plan", "subscription", "access"}:
         raise FootballDataAuthError(f"api-football {path} rejected the key/plan: {detail[:200]}")
+    if keys & _TRANSIENT_BODY_ERROR_KEYS:
+        raise _TransientAPIError(f"api-football {path} returned errors: {detail[:200]}")
     raise FootballDataAPIError(f"api-football {path} returned errors: {detail[:200]}")
 
 
