@@ -32,6 +32,7 @@ const SLATE: GameweekSlate = {
       provider_event_id: 'ev1',
       home: 'Forfar',
       away: 'Brechin',
+      competition_id: 'scotland-league-two',
       competition: 'Scottish League 2',
       kickoff_utc: '2026-08-08T14:00:00Z',
       selections: [
@@ -46,6 +47,7 @@ const SLATE: GameweekSlate = {
       provider_event_id: 'ev2',
       home: 'Arsenal',
       away: 'Chelsea',
+      competition_id: 'england-premier-league',
       competition: 'English Premier League',
       kickoff_utc: '2026-08-08T12:30:00Z',
       selections: [
@@ -63,6 +65,7 @@ const SLATE: GameweekSlate = {
       fixture_id: 'fx1',
       home: 'Forfar',
       away: 'Brechin',
+      competition: 'Scottish League 2',
       market: 'MATCH_ODDS',
       outcome: 'DRAW',
       runner_name: 'The Draw',
@@ -75,6 +78,7 @@ const SLATE: GameweekSlate = {
       fixture_id: null,
       home: null,
       away: null,
+      competition: null,
       market: null,
       outcome: null,
       runner_name: null,
@@ -156,6 +160,7 @@ beforeEach(() => {
 describe('CouponPickPage', () => {
   it('renders this Saturday’s fixtures from the slate', async () => {
     renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /scottish league 2/i }));
     const card = await screen.findByTestId('pick-card-fx1');
     expect(within(card).getByText('Scottish League 2')).toBeTruthy();
     expect(within(card).getByText('Brechin')).toBeTruthy();
@@ -174,26 +179,95 @@ describe('CouponPickPage', () => {
     expect(banner.textContent).toMatch(/picks lock in/i);
   });
 
-  it('groups the slate by competition, earliest kick-off first', async () => {
+  it('groups the slate by competition slug, pyramid order first', async () => {
     renderPage();
-    await screen.findByTestId('pick-card-fx1');
+    const epl = await screen.findByTestId('competition-england-premier-league');
+    const sl2 = await screen.findByTestId('competition-scotland-league-two');
     const headings = screen
-      .getAllByRole('button', { expanded: true })
-      .map((b) => b.textContent ?? '');
-    // Arsenal v Chelsea kicks off at 12:30, Forfar at 14:00.
+      .getAllByTestId(/^competition-/)
+      .map((section) => within(section).getByRole('button', { expanded: false }).textContent ?? '');
+    // The EPL group ranks above SL2 even when the Scottish game appears first in the payload.
     expect(headings[0]).toContain('English Premier League');
     expect(headings[1]).toContain('Scottish League 2');
+    expect(epl.compareDocumentPosition(sl2) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('collapses a competition without unmounting the others', async () => {
+  it('orders unranked competitions by slate size after pyramid leagues', async () => {
+    vi.stubGlobal('fetch', (url: string) => {
+      if (String(url).includes('/gameweek/current')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              ...SLATE,
+              fixtures: [
+                ...SLATE.fixtures,
+                {
+                  ...SLATE.fixtures[1],
+                  fixture_id: 'fx3',
+                  provider_event_id: 'ev3',
+                  competition_id: 'england-county-cup',
+                  competition: 'English County Cup',
+                  home: 'Barnet',
+                  away: 'York',
+                },
+                {
+                  ...SLATE.fixtures[1],
+                  fixture_id: 'fx4',
+                  provider_event_id: 'ev4',
+                  competition_id: 'england-county-cup',
+                  competition: 'English County Cup',
+                  home: 'Halifax',
+                  away: 'Oldham',
+                },
+                {
+                  ...SLATE.fixtures[1],
+                  fixture_id: 'fx5',
+                  provider_event_id: 'ev5',
+                  competition_id: 'wales-premier-league',
+                  competition: 'Welsh Premier League',
+                  home: 'Bangor',
+                  away: 'Barry',
+                },
+              ],
+            }),
+        });
+      }
+      if (String(url).includes('/gameweeks')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(GAMEWEEKS) });
+      }
+      if (String(url).includes('/leagues/mine')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([MOCK_LEAGUE]) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+
     renderPage();
-    await screen.findByTestId('pick-card-fx1');
+    await screen.findByTestId('competition-england-premier-league');
+    const headings = screen
+      .getAllByTestId(/^competition-/)
+      .map((section) => within(section).getByRole('button', { expanded: false }).textContent ?? '');
+
+    expect(headings).toEqual([
+      expect.stringContaining('English Premier League'),
+      expect.stringContaining('Scottish League 2'),
+      expect.stringContaining('English County Cup'),
+      expect.stringContaining('Welsh Premier League'),
+    ]);
+  });
+
+  it('keeps competitions collapsed until a member opens one', async () => {
+    renderPage();
+    await screen.findByRole('button', { name: /english premier league/i });
+    expect(screen.queryByTestId('pick-card-fx1')).toBeNull();
+    expect(screen.queryByTestId('pick-card-fx2')).toBeNull();
     const epl = screen
-      .getAllByRole('button', { expanded: true })
+      .getAllByRole('button', { expanded: false })
       .find((b) => (b.textContent ?? '').includes('English Premier League'))!;
     fireEvent.click(epl);
-    expect(screen.queryByTestId('pick-card-fx2')).toBeNull();
-    expect(screen.getByTestId('pick-card-fx1')).toBeTruthy();
+    expect(screen.getByTestId('pick-card-fx2')).toBeTruthy();
+    expect(screen.queryByTestId('pick-card-fx1')).toBeNull();
   });
 
   it('reports how many members are still to pick', async () => {
@@ -249,7 +323,8 @@ describe('CouponPickPage', () => {
     renderPage();
     const roster = await screen.findByTestId('member-roster');
     fireEvent.click(within(roster).getByRole('button'));
-    expect(within(screen.getByTestId('roster-p1')).getByText('Draw')).toBeTruthy();
+    expect(screen.getByTestId('roster-p1').textContent).toContain('Draw');
+    expect(screen.getByTestId('roster-p1').textContent).toContain('Scottish League 2');
     expect(within(screen.getByTestId('roster-p2')).getByText('Yet to pick')).toBeTruthy();
   });
 });

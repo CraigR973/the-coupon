@@ -19,7 +19,9 @@ async function login(browser: Browser, displayName: string): Promise<Page> {
   await expect(page).toHaveURL('/');
   await page.goto('/predictions');
   await expect(page.getByRole('heading', { name: "This week's coupon" })).toBeVisible();
-  await expect(page.locator('[data-testid^="pick-card-"]')).toHaveCount(2);
+  await expect(page.getByTestId('competition-10932509')).toBeVisible();
+  await expect(page.getByTestId('competition-10932510')).toBeVisible();
+  await expect(page.locator('[data-testid^="pick-card-"]')).toHaveCount(0);
   return page;
 }
 
@@ -33,22 +35,25 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   expect(seeded.ok(), await seeded.text()).toBeTruthy();
 
   const alice = await login(browser, 'Alice');
+  await alice.getByTestId('competition-10932509').getByRole('button').click();
   await alice.getByRole('button', { name: /Arsenal.*1\.90.*win 19 pts/i }).click();
   await expect(alice.getByTestId('my-pick-summary')).toContainText('Arsenal');
 
   const bob = await login(browser, 'Bob');
+  await bob.getByTestId('competition-10932510').getByRole('button').click();
   await bob.getByRole('button', { name: /Forfar Athletic.*2\.40.*win 24 pts/i }).click();
   await expect(bob.getByTestId('my-pick-summary')).toContainText('Forfar Athletic');
 
   const carol = await login(browser, 'Carol');
+  await carol.getByTestId('competition-10932509').getByRole('button').click();
   const takenArsenal = carol.getByRole('button', { name: /Arsenal.*taken by Alice/i });
   await expect(takenArsenal).toBeDisabled();
 
   // Batch 9 presentation: the slate is grouped by competition, each fixture Alice
   // or Bob has taken carries a fixture-level marker, and the roster counts Carol
   // as the one member still to pick.
-  await expect(carol.getByTestId('competition-English Premier League')).toBeVisible();
-  await expect(carol.getByTestId('competition-Scottish League Two')).toBeVisible();
+  await expect(carol.getByTestId('competition-10932509')).toBeVisible();
+  await expect(carol.getByTestId('competition-10932510')).toBeVisible();
   await expect(carol.getByTestId('member-roster')).toContainText('2 of 3 picked');
   await expect(carol.getByTestId('member-roster')).toContainText('1 to go');
   await carol.getByTestId('member-roster').getByRole('button').click();

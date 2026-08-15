@@ -71,6 +71,12 @@ export function MemberRoster({ members, missingCount, oddsFormat }: MemberRoster
                     )}
                     <span className="mx-1.5">·</span>
                     <span className="font-mono">{marketTag(member.market)}</span>
+                    {member.competition && (
+                      <>
+                        <span className="mx-1.5">·</span>
+                        {member.competition}
+                      </>
+                    )}
                   </span>
                 ) : (
                   <span className="block text-xs font-sans text-warning">Yet to pick</span>

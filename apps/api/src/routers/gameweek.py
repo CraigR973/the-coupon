@@ -65,6 +65,7 @@ class FixtureSlate(BaseModel):
     provider_event_id: str
     home: str
     away: str
+    competition_id: str
     competition: str
     kickoff_utc: datetime
     selections: list[SelectionOption]
@@ -93,6 +94,7 @@ class GameweekMember(BaseModel):
     fixture_id: str | None
     home: str | None
     away: str | None
+    competition: str | None
     market: str | None
     outcome: str | None
     runner_name: str | None
@@ -212,6 +214,7 @@ async def current_gameweek(
             provider_event_id=fixture.provider_event_id,
             home=fixture.home,
             away=fixture.away,
+            competition_id=fixture.competition_id,
             competition=fixture.competition,
             kickoff_utc=fixture.kickoff_utc,
             selections=_selection_options(
@@ -321,6 +324,7 @@ async def _gameweek_members(
                     fixture_id=None,
                     home=None,
                     away=None,
+                    competition=None,
                     market=None,
                     outcome=None,
                     runner_name=None,
@@ -340,6 +344,7 @@ async def _gameweek_members(
                 fixture_id=str(pick.fixture_id),
                 home=fixture.home if fixture else None,
                 away=fixture.away if fixture else None,
+                competition=fixture.competition if fixture else None,
                 market=pick.market.value,
                 outcome=pick.outcome.value,
                 runner_name=pick.runner_name,

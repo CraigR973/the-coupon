@@ -39,6 +39,8 @@ export interface FixtureSlate {
   provider_event_id: string;
   home: string;
   away: string;
+  /** The odds provider's stable competition slug, matching fixtures.competition_id. */
+  competition_id: string;
   competition: string;
   kickoff_utc: string;
   selections: SelectionOption[];
@@ -143,6 +145,7 @@ export interface GameweekMember {
   fixture_id: string | null;
   home: string | null;
   away: string | null;
+  competition: string | null;
   market: PickMarket | null;
   outcome: PickOutcome | null;
   runner_name: string | null;

@@ -415,6 +415,7 @@ async def test_slate_reports_roster_and_fixture_level_marker(
     assert by_name["alice"]["has_picked"] is True
     assert by_name["alice"]["fixture_id"] == epl
     assert by_name["alice"]["home"] == "Arsenal"
+    assert by_name["alice"]["competition"] == "English Premier League"
     assert by_name["alice"]["odds"] == 1.9
     assert by_name["carol"]["has_picked"] is False
     assert by_name["carol"]["fixture_id"] is None and by_name["carol"]["odds"] is None
@@ -427,6 +428,7 @@ async def test_slate_reports_roster_and_fixture_level_marker(
     ]
     assert fixture_by_id[epl]["mine"] is True
     # The untouched fixture carries no marker at all.
+    assert fixture_by_id[sl2]["competition_id"] == SAMPLE_SL2_ID
     assert fixture_by_id[sl2]["taken_by_names"] == []
     assert fixture_by_id[sl2]["mine"] is False
 

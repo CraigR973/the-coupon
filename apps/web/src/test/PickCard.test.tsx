@@ -8,6 +8,7 @@ const FIXTURE: FixtureSlate = {
   provider_event_id: 'ev1',
   home: 'Forfar',
   away: 'Brechin',
+  competition_id: 'scotland-league-two',
   competition: 'Scottish League 2',
   kickoff_utc: '2026-08-08T14:00:00Z',
   selections: [

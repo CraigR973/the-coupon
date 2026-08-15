@@ -49,31 +49,82 @@ function findMyPick(slate: GameweekSlate | undefined) {
 }
 
 interface CompetitionGroup {
+  competition_id: string;
   competition: string;
   fixtures: FixtureSlate[];
 }
 
+const COMPETITION_ORDER = new Map(
+  [
+    'england-premier-league',
+    'england-championship',
+    'england-league-one',
+    'england-league-two',
+    'scotland-premiership',
+    'scotland-championship',
+    'scotland-league-one',
+    'scotland-league-two',
+  ].map((id, index) => [id, index] as const),
+);
+
+const ENGLAND_REMAINING_TIERS: Array<[RegExp, number]> = [
+  [/^england-national-league$/, 0],
+  [/^england-national-league-(north|south)$/, 1],
+  [/^england-(northern-premier|southern|isthmian)-league$/, 2],
+  [/^england-.*division-one/, 3],
+];
+
+const SCOTLAND_REMAINING_TIERS: Array<[RegExp, number]> = [
+  [/^scotland-(highland|lowland)-league$/, 0],
+  [/^scotland-.*division-one/, 1],
+];
+
+function remainingTier(competitionId: string, tiers: Array<[RegExp, number]>): number {
+  return tiers.find(([pattern]) => pattern.test(competitionId))?.[1] ?? 99;
+}
+
+function competitionRank(competitionId: string): [number, number, string] {
+  const ordered = COMPETITION_ORDER.get(competitionId);
+  if (ordered !== undefined) return [0, ordered, competitionId];
+  if (competitionId.startsWith('england-')) {
+    return [1, remainingTier(competitionId, ENGLAND_REMAINING_TIERS), competitionId];
+  }
+  if (competitionId.startsWith('scotland-')) {
+    return [2, remainingTier(competitionId, SCOTLAND_REMAINING_TIERS), competitionId];
+  }
+  return [3, 0, competitionId];
+}
+
 /**
- * The slate grouped by competition, each group ordered by kick-off.
+ * The slate grouped by the provider's competition slug, each group ordered by kick-off.
  *
- * Competitions are ordered by their earliest kick-off rather than
- * alphabetically, so the games that lock first sit at the top. The backend
- * already returns fixtures in kick-off order, so within a group that order is
- * preserved by construction.
+ * Display names can carry sponsor text and have changed before, so the group
+ * identity and ordering use `fixtures.competition_id`.
  */
 function groupByCompetition(fixtures: FixtureSlate[]): CompetitionGroup[] {
   const groups = new Map<string, FixtureSlate[]>();
   for (const fixture of fixtures) {
-    const bucket = groups.get(fixture.competition) ?? [];
+    const bucket = groups.get(fixture.competition_id) ?? [];
     bucket.push(fixture);
-    groups.set(fixture.competition, bucket);
+    groups.set(fixture.competition_id, bucket);
   }
   return [...groups.entries()]
-    .map(([competition, groupFixtures]) => ({
-      competition,
+    .map(([competition_id, groupFixtures]) => ({
+      competition_id,
+      competition: groupFixtures[0].competition,
       fixtures: [...groupFixtures].sort((a, b) => a.kickoff_utc.localeCompare(b.kickoff_utc)),
     }))
-    .sort((a, b) => a.fixtures[0].kickoff_utc.localeCompare(b.fixtures[0].kickoff_utc));
+    .sort((a, b) => {
+      const ar = competitionRank(a.competition_id);
+      const br = competitionRank(b.competition_id);
+      return (
+        ar[0] - br[0] ||
+        ar[1] - br[1] ||
+        b.fixtures.length - a.fixtures.length ||
+        a.competition.localeCompare(b.competition) ||
+        ar[2].localeCompare(br[2])
+      );
+    });
 }
 
 export function CouponPickPage() {
@@ -205,7 +256,7 @@ export function CouponPickPage() {
           )}
           {groups.map((group) => (
             <CompetitionSection
-              key={group.competition}
+              key={group.competition_id}
               group={group}
               timezone={timezone}
               locked={locked}
@@ -224,9 +275,8 @@ export function CouponPickPage() {
 /**
  * One competition's fixtures behind a collapsible header.
  *
- * Open by default: a member arriving at the coupon wants to see games, not a
- * list of league names to expand. Collapsing is for skipping past the
- * competitions they don't follow on a slate that can run past a hundred games.
+ * Closed by default: a hundred-fixture slate should scan as league headers
+ * first, with members opening only the competitions they care about.
  */
 function CompetitionSection({
   group,
@@ -245,11 +295,11 @@ function CompetitionSection({
   oddsFormat: OddsFormat;
   onGrab: (fixtureId: string, market: PickMarket, outcome: PickOutcome) => void;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const claimed = group.fixtures.filter((f) => f.taken_by_names.length > 0).length;
 
   return (
-    <section data-testid={`competition-${group.competition}`}>
+    <section data-testid={`competition-${group.competition_id}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
