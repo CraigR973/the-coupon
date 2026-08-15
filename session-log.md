@@ -479,3 +479,20 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   silently drives production.
 
 **Next:** no build batches remain open; Launch L5 — launch and first-Saturday watch.
+
+## Batch 28 — Football ingestion rate limiting
+**Commits:** `d77062a` · verified: `scripts/ci-local.sh` PASS (11 checks)
+
+### Key facts for future sessions
+- API-Football's free plan has two limits, not one: 100/day and 10/minute. ADR 0003 now
+  records both because missing the minute cap is what made production ingestion write
+  nothing.
+- The minute throttle arrives as HTTP 200 with `errors.rateLimit`, so the adapter now
+  treats that body key as transient and retries through the existing backoff path.
+- Scheduled `sync_football_data` spaces competition attempts by
+  `FOOTBALL_COMPETITION_SPACING_SECONDS` (default 12.0), sleeping only between attempts
+  and injectable in tests.
+- A 30-competition sweep is now expected to take about six minutes, which is fine for the
+  06:30 scheduler job and is why this belongs off the request path.
+
+**Next:** Batch 22 — Wayfinding and layout.

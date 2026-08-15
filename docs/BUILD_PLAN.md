@@ -349,7 +349,7 @@ answered until it lands, because until then there is no data to look at.
   when fixtures are fetched, and coupling the two would put Batch 11's request
   budget under a configuration knob.
 
-- [ ] **Batch 28 — Football ingestion rate limiting** *(Sonnet)* — **run this
+- [x] **Batch 28 — Football ingestion rate limiting** ✅ 2026-08-15 *(Sonnet)* — **run this
   first, ahead of Batch 22.** The football provider is configured and its key is
   valid, and the ingestion still writes nothing: `sync-football` run against
   production on 2026-08-15 returned

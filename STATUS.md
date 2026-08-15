@@ -2,9 +2,10 @@
 
 ## Now
 
-Build batches 1–21 are closed — no build batch remains open. The Coupon is a
-verified private weekly
-football accumulator PWA: members sign in with display name and
+Build batches 1–21 and 28 are closed. Batch 28 intentionally ran ahead of the
+remaining feedback batches because football ingestion was dark in production;
+Batch 22 is the next unchecked build batch. The Coupon is a verified private
+weekly football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
 compare standings, and view the shared combined coupon.
 
@@ -174,9 +175,19 @@ client, not the per-competition `/events` fan-out the slate pays for. The
 pooled-fixtures query survives as the fallback when the provider is
 unreachable, because the picker is also how an admin *un*-narrows a league.
 
+Batch 28 fixed API-Football ingestion rate limiting, deliberately ahead of
+Batch 22. API-Football's free plan is not just 100/day; it is also 10/minute,
+and the minute limit arrives as HTTP 200 with `errors.rateLimit`, so the old
+429/5xx retry path never ran and the two-requests-per-competition sweep burned
+through the minute allowance in seconds. The adapter now treats `rateLimit` as a
+transient body error, and the scheduled sync spaces competition attempts by a
+configurable 12 seconds so a 30-competition sweep takes about six minutes.
+ADR 0003 now records both limits.
+
 ## Verified
 
-- Backend: 382 pytest (461 with a database), Ruff check/format, and strict mypy
+- Backend: 382 pytest (467 with a database), Ruff check/format, and strict mypy;
+  Batch 28 close-out also passed `scripts/ci-local.sh` end-to-end (11 checks)
 - Database: clean `pgserver` migration through revision `011`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 13 public tables under a Supabase-like role setup
 - Frontend: Node 20 production build, TypeScript, ESLint, and 235 Vitest
@@ -210,10 +221,10 @@ unreachable, because the picker is also how an admin *un*-narrows a league.
 
 ## Next
 
-No build batch remains open in `docs/BUILD_PLAN.md`. Launch L5 — launch and
-first-Saturday watch — is the only open phase of any kind.
-Batch 7 shipped the odds source. Production is now deployed and configured
-through Batch 21; what remains:
+Batch 22 — Wayfinding and layout — is the first unchecked build batch in
+`docs/BUILD_PLAN.md`. Launch L5 — launch and first-Saturday watch — remains
+open too. Batch 7 shipped the odds source. Production is now deployed and
+configured through Batch 21; what remains:
 
 - ~~seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`~~ — done;
 - ~~ship staging and then production~~ — production is at `aae3b51e` / migration `011`;
