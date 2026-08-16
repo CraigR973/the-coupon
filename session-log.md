@@ -542,3 +542,23 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
 - Frontend-only batch; backend, migrations and Ruff/mypy/pytest gates were untouched and not rerun.
 
 **Next:** Batch 25 — Gameweek results.
+
+## Batch 25 — Gameweek results
+**Commits:** `51d0258` · verified: Ruff 0.5.4 check/format · strict mypy · clean pgserver migration + 388 pytest (incl. new DB-backed results test) · lint · typecheck · build · Vitest (incl. new ResultsPage suite)
+
+### Key facts for future sessions
+- New `GET /leagues/{slug}/results` (`src/routers/coupon.py`) backed by `scoring.gameweek_results()`:
+  one query over every settled round, winner(s) by top `points_awarded` (ties named together),
+  `all_won`/`combined_odds` computed the same way `coupon.build_coupon` does.
+- A settled round with zero picks in a league still gets a row (`winner_names: []`,
+  `all_won: null`) rather than being silently dropped — the outer-join keeps it visible.
+- Frontend: new `/predictions/results` (`ResultsPage.tsx`) added to `CouponSubNav`; each row
+  navigates to `/predictions/coupon?gw=<id>`, which `useGameweekHistory`'s `gw` query param
+  already resolves to that round.
+- `PlayerProfilePage` now links to Results ("How each week went") — profile still answers
+  per-pick, results answers per-week; neither replaces the other.
+- No browser/Playwright check this batch — a local `pnpm dev` server points at the production
+  Railway API by default (`apps/web/.env.local`), so verification relied on the DB-backed
+  pytest test and the Vitest suite instead of a live preview.
+
+**Next:** Batch 26 — Multi-league home and profile.

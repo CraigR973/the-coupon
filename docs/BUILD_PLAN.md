@@ -289,7 +289,7 @@ answered until it lands, because until then there is no data to look at.
   combined figure is historical and the copy must say so rather than implying the
   acca prices at that number today.
 
-- [ ] **Batch 25 — Gameweek results** *(Sonnet)* — a settled week is reachable
+- [x] **Batch 25 — Gameweek results** ✅ 2026-08-16 *(Sonnet)* — a settled week is reachable
   today only by stepping back through `GameweekNav` one round at a time, and only
   once two rounds exist, which is not how anyone looks up what happened last
   week. Add a results view to the coupon tab listing every settled gameweek with
