@@ -2,9 +2,9 @@
 
 ## Now
 
-Build batches 1–23 and 28 are closed. Batch 28 intentionally ran ahead of the
+Build batches 1–24 and 28 are closed. Batch 28 intentionally ran ahead of the
 remaining feedback batches because football ingestion was dark in production;
-Batch 24 is the next unchecked build batch. The Coupon is a verified private
+Batch 25 is the next unchecked build batch. The Coupon is a verified private
 weekly football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
 compare standings, and view the shared combined coupon.
@@ -203,13 +203,20 @@ transient body error, and the scheduled sync spaces competition attempts by a
 configurable 12 seconds so a 30-competition sweep takes about six minutes.
 ADR 0003 now records both limits.
 
+Batch 24 added a "Copy text" button to the combined coupon rendering every leg,
+selection, price and the combined odds as plain text a member can paste into a
+group chat, with a note that prices were frozen at pick time. No bookmaker
+link and no new API surface — `buildCouponShareText()` is a pure function over
+the fields `GET /leagues/{slug}/coupon` already returns, satisfying the second
+wall ADR 0004 left standing.
+
 ## Verified
 
 - Backend: 387 pytest (467 with a database), Ruff check/format, and strict mypy;
   Batch 28 close-out also passed `scripts/ci-local.sh` end-to-end (11 checks)
 - Database: clean `pgserver` migration through revision `011`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 13 public tables under a Supabase-like role setup
-- Frontend: Node 20 production build, TypeScript, ESLint, and 241 Vitest
+- Frontend: Node 20 production build, TypeScript, ESLint, and 243 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
   coupon, phone push, and PWA update behavior
@@ -240,11 +247,12 @@ ADR 0003 now records both limits.
 
 ## Next
 
-Batch 24 — Share the coupon as text — is the first unchecked build batch in
+Batch 25 — Gameweek results — is the first unchecked build batch in
 `docs/BUILD_PLAN.md`. Launch L5 — launch and first-Saturday watch — remains
 open too. Batch 7 shipped the odds source. Production is now deployed and
-configured through Batch 22, with Batch 23 on local `main` pending the close-out
-push and a later `/ship-prod` for the API contract change; what remains:
+configured through Batch 22; Batches 23 and 24 are on local `main` pending the
+close-out push and a later `/ship-prod` for the API contract change from
+Batch 23 (Batch 24 is frontend-only); what remains:
 
 - ~~seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`~~ — done;
 - ~~ship staging and then production~~ — production is at `aae3b51e` / migration `011`;

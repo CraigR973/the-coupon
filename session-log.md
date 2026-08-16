@@ -529,3 +529,16 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
 - The browser flow opens competition sections explicitly and stores Batch 23 screenshots in `artifacts/batch-23/`.
 
 **Next:** Batch 24 — Share the coupon as text.
+
+## Batch 24 — Share the coupon as text
+**Commits:** `b3139d3` · verified: lint · typecheck · build · 243 Vitest (incl. new clipboard/copy coverage)
+
+### Key facts for future sessions
+- `CombinedAccaView.tsx` exports `buildCouponShareText(coupon)`, a pure function rendering legs,
+  selections, prices and combined odds as plain text with a note that prices were frozen at pick
+  time — no bookmaker link, satisfying ADR 0004's second wall.
+- The "Copy text" button uses `navigator.clipboard.writeText` and toasts success/failure; no new
+  API surface, since `GET /leagues/{slug}/coupon` already carries every field used.
+- Frontend-only batch; backend, migrations and Ruff/mypy/pytest gates were untouched and not rerun.
+
+**Next:** Batch 25 — Gameweek results.

@@ -277,7 +277,7 @@ answered until it lands, because until then there is no data to look at.
   response with no `competition` field, which is why `MemberRoster` can show
   another member's selection without saying which league it came from.
 
-- [ ] **Batch 24 — Share the coupon as text** *(Sonnet)* — the one thing ADR 0004
+- [x] **Batch 24 — Share the coupon as text** ✅ 2026-08-16 *(Sonnet)* — the one thing ADR 0004
   left standing when it rejected betslip export. Render the combined coupon's
   legs, selections, prices and combined odds as plain text a member can copy into
   a group chat and type into whatever book they use, then share that book's own
