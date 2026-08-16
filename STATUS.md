@@ -2,9 +2,9 @@
 
 ## Now
 
-Build batches 1–25 and 28 are closed. Batch 28 intentionally ran ahead of the
+Build batches 1–26 and 28 are closed. Batch 28 intentionally ran ahead of the
 remaining feedback batches because football ingestion was dark in production;
-Batch 26 is the next unchecked build batch. The Coupon is a verified private
+Batch 27 is the next unchecked build batch. The Coupon is a verified private
 weekly football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
 compare standings, and view the shared combined coupon.
@@ -218,13 +218,24 @@ coupon and Football, each row opening that week's coupon; the player profile
 now links to it too, since it previously listed a member's settled picks
 without ever saying how the week went around them.
 
+Batch 26 made home and the profile answer for every league a member plays
+rather than for whichever one was bound. `GET /api/v1/me/cross-league-summary`
+returns the season across all of them in five fixed queries, carrying a
+per-league breakdown plus that league's current round; `scoring.standings()` is
+now a one-league wrapper over a new `standings_by_league()`. Points and win rate
+aggregate (one `round(odds × 10)` scale); rank does not, so the average skips
+leagues with fewer than three members and says how many it covered. Home is a
+card per league — its pick, its standing, one tap to that week's coupon — and My
+profile moved to a career-scoped `/profile`, in the tab bar and the avatar menu
+alike. The per-league record at `/leagues/:slug/players/:playerId` is unchanged.
+
 ## Verified
 
-- Backend: 387 pytest (468 with a database), Ruff check/format, and strict mypy;
-  Batch 28 close-out also passed `scripts/ci-local.sh` end-to-end (11 checks)
+- Backend: 473 pytest with a database, Ruff check/format, and strict mypy;
+  Batch 26 close-out passed `scripts/ci-local.sh` end-to-end (11 checks)
 - Database: clean `pgserver` migration through revision `011`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 13 public tables under a Supabase-like role setup
-- Frontend: Node 20 production build, TypeScript, ESLint, and 247 Vitest
+- Frontend: Node 20 production build, TypeScript, ESLint, and 265 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
   coupon, phone push, and PWA update behavior
@@ -255,12 +266,15 @@ without ever saying how the week went around them.
 
 ## Next
 
-Batch 26 — Multi-league home and profile — is the first unchecked build batch
+Batch 27 — Configurable pick-open time — is the first unchecked build batch
 in `docs/BUILD_PLAN.md`. Launch L5 — launch and first-Saturday watch — remains
 open too. Batch 7 shipped the odds source. Production is now deployed and
-configured through Batch 22; Batches 23, 24 and 25 are on local `main` pending
-the close-out push and a later `/ship-prod` for the API contract changes from
-Batches 23 and 25 (Batch 24 is frontend-only); what remains:
+configured through Batch 22; Batches 23–26 are on local `main` pending a
+`/ship-prod` for the API contract changes from Batches 23, 25 and 26 (Batch 24
+is frontend-only). Batch 26 makes that ship-prod load-bearing rather than
+optional: home now calls `GET /api/v1/me/cross-league-summary`, which does not
+exist on the deployed API, so the web half alone would leave home empty. What
+remains:
 
 - ~~seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`~~ — done;
 - ~~ship staging and then production~~ — production is at `aae3b51e` / migration `011`;

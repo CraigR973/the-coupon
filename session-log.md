@@ -562,3 +562,29 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   pytest test and the Vitest suite instead of a live preview.
 
 **Next:** Batch 26 — Multi-league home and profile.
+
+## Batch 26 — Multi-league home and profile
+**Commits:** `780f70e` · verified: full `scripts/ci-local.sh` PASS (11 checks) — Ruff 0.5.4 check/format · strict mypy · clean pgserver migration + 473 pytest (incl. 5 new DB-backed cross-league tests) · lint · typecheck · build · Vitest 265 (incl. new DashboardPage + CareerProfilePage suites) · prod-bundle Playwright smoke · extended production-preview coupon-flow e2e with screenshots in `artifacts/batch-26/`
+
+### Key facts for future sessions
+- New `GET /api/v1/me/cross-league-summary` (`src/routers/me.py`): five fixed queries whatever the
+  league count. `per_league` carries slug/name/rank/member_count/points **and** `current_round`
+  (status, `locks_at_utc`, `leg_count`, `combined_odds`, `my_pick`), so home is one request rather
+  than three per league.
+- `scoring.standings_by_league(db, league_ids)` is the new primitive — one grouped query for a set
+  of leagues — and `standings(db, league_id)` is now a one-id wrapper over it. Any future
+  multi-league read should use it rather than looping `standings`.
+- Aggregation rule, encoded in the response: points/win rate sum across leagues (same
+  `round(odds × 10)` scale); rank does not. `_MIN_MEMBERS_FOR_AVG = 3` excludes leagues too small
+  to rank against from `avg_rank`, and `avg_rank_leagues` reports how many it actually spanned.
+- `LeagueContext` gained `selectLeague(slug)`. `activeSlug` is *derived*, so writing the recency
+  store alone does not re-render — a screen that opens a league other than the bound one must call
+  this, not `setLastViewedLeague`.
+- My profile is now `/profile` (career-scoped) in **both** `TabBar` and `TopBar`'s avatar menu;
+  `/leagues/:slug/players/:playerId` is unchanged and still reached from that league's leaderboard
+  and from the career breakdown.
+- Browser verification is viable again despite `.env.local` pointing at production: build with
+  `VITE_API_URL=http://127.0.0.1:8000` against `uvicorn tests.e2e_server:app` on a scratch
+  pgserver, then run `playwright.config.ts` (the `coupon-flow` project seeds/locks/settles itself).
+
+**Next:** Batch 27 — Configurable pick-open time.

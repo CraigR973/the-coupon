@@ -300,7 +300,7 @@ answered until it lands, because until then there is no data to look at.
   says how the week went around them. Previous *football* results are explicitly
   not this: they stay in the Football tab where Batch 16 put them.
 
-- [ ] **Batch 26 — Multi-league home and profile** *(Opus)* — the home page and
+- [x] **Batch 26 — Multi-league home and profile** ✅ 2026-08-16 *(Opus)* — the home page and
   the profile each answer for one league at a time, which is wrong for a member
   in several: `DashboardPage` renders one pick, one coupon peek and one standings
   card for `activeSlug`, and `TabBar`'s My profile silently binds to the same
