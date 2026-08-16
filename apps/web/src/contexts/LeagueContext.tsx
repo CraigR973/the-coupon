@@ -3,10 +3,11 @@ import React, {
   useCallback,
   useContext,
   useMemo,
+  useState,
 } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, DEFAULT_LEAGUE_SLUG } from '../lib/api';
-import { getLastViewedLeague } from '../lib/leagueRecency';
+import { getLastViewedLeague, setLastViewedLeague } from '../lib/leagueRecency';
 import type { LeagueSummary } from '../lib/types';
 
 interface LeagueContextValue {
@@ -19,6 +20,13 @@ interface LeagueContextValue {
    * and to `DEFAULT_LEAGUE_SLUG` only while `leagues` is still loading/empty.
    */
   activeSlug: string;
+  /**
+   * Bind those screens to `slug` and remember it. Home's per-league cards need
+   * this: they open one league's coupon while another is bound, and writing the
+   * recency store alone would not re-render — `activeSlug` is derived, so the
+   * choice has to live in state as well. Ignores a slug the member is not in.
+   */
+  selectLeague: (slug: string) => void;
 }
 
 const LeagueContext = createContext<LeagueContextValue | null>(null);
@@ -36,12 +44,24 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
     queryClient.invalidateQueries({ queryKey: ['leagues', 'mine'] });
   }, [queryClient]);
 
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+
+  const selectLeague = useCallback(
+    (slug: string) => {
+      const league = leagues.find((entry) => entry.slug === slug);
+      if (!league) return;
+      setSelectedSlug(league.slug);
+      setLastViewedLeague({ slug: league.slug, name: league.name });
+    },
+    [leagues],
+  );
+
   const activeSlug = useMemo(() => {
     if (leagues.length === 0) return DEFAULT_LEAGUE_SLUG;
-    const lastViewedSlug = getLastViewedLeague()?.slug ?? null;
-    const stillMember = lastViewedSlug && leagues.some((league) => league.slug === lastViewedSlug);
-    return stillMember ? (lastViewedSlug as string) : leagues[0].slug;
-  }, [leagues]);
+    const preferredSlug = selectedSlug ?? getLastViewedLeague()?.slug ?? null;
+    const stillMember = preferredSlug && leagues.some((league) => league.slug === preferredSlug);
+    return stillMember ? (preferredSlug as string) : leagues[0].slug;
+  }, [leagues, selectedSlug]);
 
   return (
     <LeagueContext.Provider
@@ -50,6 +70,7 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         refetch: refetchLeagues,
         activeSlug,
+        selectLeague,
       }}
     >
       {children}

@@ -31,6 +31,7 @@ const FootballPage = lazyRoute(() => import('./pages/FootballPage').then((m) => 
 const ResultsPage = lazyRoute(() => import('./pages/ResultsPage').then((m) => ({ default: m.ResultsPage })));
 const LeaderboardPage = lazyRoute(() => import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
 const PlayerProfilePage = lazyRoute(() => import('./pages/PlayerProfilePage').then((m) => ({ default: m.PlayerProfilePage })));
+const CareerProfilePage = lazyRoute(() => import('./pages/CareerProfilePage').then((m) => ({ default: m.CareerProfilePage })));
 const OfflinePage = lazyRoute(() => import('./pages/OfflinePage').then((m) => ({ default: m.OfflinePage })));
 const SettingsPage = lazyRoute(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const AboutPage = lazyRoute(() => import('./pages/AboutPage').then((m) => ({ default: m.AboutPage })));
@@ -138,6 +139,9 @@ export function App() {
                         <Route path="/predictions/coupon" element={<CouponCombinedPage />} />
                         <Route path="/predictions/results" element={<ResultsPage />} />
                         <Route path="/predictions/football" element={<FootballPage />} />
+                        {/* The member's own record across every league. Per-league
+                            records keep their own route under /leagues/:slug. */}
+                        <Route path="/profile" element={<CareerProfilePage />} />
                         <Route path="/settings" element={<SettingsPage />} />
                         <Route path="/about" element={<AboutPage />} />
                         <Route path="/offline" element={<OfflinePage />} />

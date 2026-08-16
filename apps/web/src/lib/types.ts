@@ -289,6 +289,67 @@ export interface PlayerProfile {
   history: SettledPick[];
 }
 
+// ── Cross-league summary — GET /me/cross-league-summary ────────────────────
+
+/** The caller's own selection in a league's latest round. */
+export interface MyPick {
+  fixture_id: string;
+  home: string;
+  away: string;
+  market: PickMarket;
+  outcome: PickOutcome;
+  runner_name: string;
+  odds: number;
+  status: PickStatus;
+}
+
+/** A league's latest round as it concerns the caller — a home card's body. */
+export interface CurrentRound {
+  gameweek_id: string;
+  /** The date this league's window opens. Not necessarily a Saturday. */
+  starts_on: string; // ISO date (yyyy-mm-dd)
+  status: GameweekStatus;
+  locks_at_utc: string;
+  /** The whole league's acca for the round, not just the caller's leg. */
+  leg_count: number;
+  combined_odds: number;
+  /** null while the caller has yet to claim a selection this round. */
+  my_pick: MyPick | null;
+}
+
+/** One league the caller belongs to, and their record in it. */
+export interface PerLeagueSummary {
+  slug: string;
+  name: string;
+  member_count: number;
+  /** From the league's own season table, so it matches the leaderboard exactly. */
+  rank: number | null;
+  total_points: number;
+  picks_played: number;
+  picks_won: number;
+  /** null when the league has no rounds yet. */
+  current_round: CurrentRound | null;
+}
+
+/**
+ * The caller's season across every league they play.
+ *
+ * Points and win rate aggregate honestly — every league scores `round(odds × 10)`
+ * off the same scale. Rank does not, so `avg_rank` spans only leagues big enough
+ * to rank against and `avg_rank_leagues` says how many that was.
+ */
+export interface CrossLeagueSummary {
+  avg_rank: number | null;
+  avg_rank_leagues: number;
+  total_points: number;
+  picks_played: number;
+  picks_won: number;
+  /** null until something settles — an untested record is not a bad one. */
+  win_rate_pct: number | null;
+  leagues_count: number;
+  per_league: PerLeagueSummary[];
+}
+
 // ---------------------------------------------------------------------------
 // Leagues (the social "leaderboard" layer — kept from the shared spine).
 // ---------------------------------------------------------------------------

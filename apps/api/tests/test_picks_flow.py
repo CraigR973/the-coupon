@@ -1375,3 +1375,204 @@ async def test_config_surfaces_are_gated_to_admins(
     assert (
         await client.get(f"/api/v1/leagues/{slug}/competitions", headers=_auth(alice))
     ).status_code == 200
+
+
+# ── Batch 26: the cross-league summary behind home and the career profile ────
+
+
+async def _also_in(session: AsyncSession, name: str, members: list[Profile]) -> League:
+    """A further league the given players belong to, created by the first of them."""
+    league = League(slug=f"cpn-{uuid.uuid4().hex[:8]}", name=name, created_by=members[0].id)
+    session.add(league)
+    await session.flush()
+    for player in members:
+        session.add(LeagueMembership(league_id=league.id, player_id=player.id))
+    await session.commit()
+    await session.refresh(league)
+    return league
+
+
+async def _settle_all(gameweek: Gameweek, fake: FakeBetfair) -> None:
+    """Settle a round against the canned EPL result (Arsenal win)."""
+    async with AsyncSessionLocal() as session:
+        fake.close_markets({SAMPLE_EPL_MATCH_ODDS_MKT: SAMPLE_ARSENAL_SEL})
+        settlements = await fake.settle([SAMPLE_EPL_EVENT_ID])
+        stored = (
+            await session.execute(select(Gameweek).where(Gameweek.id == gameweek.id))
+        ).scalar_one()
+        await scoring.settle_gameweek(session, stored, settlements)
+        await session.commit()
+
+
+async def test_standings_by_league_keeps_leagues_apart(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The batched table must agree with the per-league one and never pool picks."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), first = await _seed_league(session, ["alice", "bob"])
+        gameweek = await _open_sample_gameweek(session, fake, first)
+        fixtures = await _fixture_ids(session, gameweek.id)
+        second = await _also_in(session, "Second", [alice, bob])
+    epl = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    assert (await _submit(client, first.slug, alice, epl, "MATCH_ODDS", "HOME")).status_code == 201
+    await _settle_all(gameweek, fake)
+
+    async with AsyncSessionLocal() as session:
+        tables = await scoring.standings_by_league(session, [first.id, second.id])
+        assert tables[first.id] == await scoring.standings(session, first.id)
+        assert tables[second.id] == await scoring.standings(session, second.id)
+
+    in_first = next(s for s in tables[first.id] if s.player_id == str(alice.id))
+    in_second = next(s for s in tables[second.id] if s.player_id == str(alice.id))
+    assert in_first.total_points == 19  # round(1.90 × 10)
+    assert in_second.total_points == 0, "the first league's picks must not leak into the second"
+
+
+async def test_cross_league_summary_totals_points_and_breaks_them_down(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Points and win rate sum across leagues; each league keeps its own rank."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob, carol), first = await _seed_league(session, ["alice", "bob", "carol"])
+        first_gw = await _open_sample_gameweek(session, fake, first)
+        first_fixtures = await _fixture_ids(session, first_gw.id)
+        second = await _also_in(session, "Second", [alice, bob, carol])
+        second_gw = await _open_sample_gameweek(session, fake, second)
+        second_fixtures = await _fixture_ids(session, second_gw.id)
+
+    # Alice wins in both leagues; the same fixture is claimable in each because
+    # uniqueness is per league.
+    for slug, fixtures in ((first.slug, first_fixtures), (second.slug, second_fixtures)):
+        submitted = await _submit(
+            client, slug, alice, fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME"
+        )
+        assert submitted.status_code == 201
+    await _settle_all(first_gw, fake)
+    await _settle_all(second_gw, fake)
+
+    summary = (await client.get("/api/v1/me/cross-league-summary", headers=_auth(alice))).json()
+
+    assert summary["leagues_count"] == 2
+    assert summary["total_points"] == 38, "19 in each league — the same scale, so it sums"
+    assert summary["picks_played"] == 2
+    assert summary["picks_won"] == 2
+    assert summary["win_rate_pct"] == 100
+
+    by_slug = {entry["slug"]: entry for entry in summary["per_league"]}
+    assert set(by_slug) == {first.slug, second.slug}
+    for slug in (first.slug, second.slug):
+        assert by_slug[slug]["total_points"] == 19
+        assert by_slug[slug]["rank"] == 1
+        assert by_slug[slug]["member_count"] == 3
+    assert by_slug[second.slug]["name"] == "Second"
+
+    # Ordered by league name, as the breakdown is rendered.
+    assert [entry["name"] for entry in summary["per_league"]] == sorted(
+        entry["name"] for entry in summary["per_league"]
+    )
+
+
+async def test_avg_rank_skips_leagues_too_small_to_rank_against(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """A two-person league is rank 1 by default and must not flatter the average."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob, carol), big = await _seed_league(session, ["alice", "bob", "carol"])
+        gameweek = await _open_sample_gameweek(session, fake, big)
+        fixtures = await _fixture_ids(session, gameweek.id)
+        tiny = await _also_in(session, "Tiny", [alice, bob])
+    epl = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    # Bob scores in the big league, so Alice sits second there.
+    assert (await _submit(client, big.slug, bob, epl, "MATCH_ODDS", "HOME")).status_code == 201
+    await _settle_all(gameweek, fake)
+
+    summary = (await client.get("/api/v1/me/cross-league-summary", headers=_auth(alice))).json()
+
+    by_slug = {entry["slug"]: entry for entry in summary["per_league"]}
+    assert by_slug[big.slug]["rank"] == 2
+    assert by_slug[tiny.slug]["rank"] == 1, "the small league still reports its own rank"
+    assert by_slug[tiny.slug]["member_count"] == 2
+
+    assert summary["avg_rank"] == 2.0, "1.5 would mean the two-person league counted"
+    assert summary["avg_rank_leagues"] == 1
+
+
+async def test_cross_league_summary_carries_each_leagues_current_round(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Home's card needs this week's pick and coupon per league, or says there is none."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), playing = await _seed_league(session, ["alice", "bob"])
+        gameweek = await _open_sample_gameweek(session, fake, playing)
+        fixtures = await _fixture_ids(session, gameweek.id)
+        idle = await _also_in(session, "Idle", [alice, bob])
+    epl, sl2 = fixtures[SAMPLE_EPL_EVENT_ID], fixtures[SAMPLE_SL2_EVENT_ID]
+
+    assert (
+        await _submit(client, playing.slug, alice, epl, "MATCH_ODDS", "HOME")
+    ).status_code == 201
+    assert (await _submit(client, playing.slug, bob, sl2, "MATCH_ODDS", "HOME")).status_code == 201
+
+    summary = (await client.get("/api/v1/me/cross-league-summary", headers=_auth(alice))).json()
+    by_slug = {entry["slug"]: entry for entry in summary["per_league"]}
+
+    current = by_slug[playing.slug]["current_round"]
+    assert current["gameweek_id"] == str(gameweek.id)
+    assert current["status"] == "open"
+    assert current["leg_count"] == 2, "the whole league's acca, not just the caller's leg"
+    assert current["combined_odds"] == 4.56  # 1.9 × 2.4
+    assert current["my_pick"]["home"] == "Arsenal"
+    assert current["my_pick"]["odds"] == 1.9
+    assert current["my_pick"]["status"] == "pending"
+
+    # A league with no rounds yet has nothing to show for the week.
+    assert by_slug[idle.slug]["current_round"] is None
+
+    # Bob has not picked in the round, so his card must show the gap rather than a leg.
+    bob_summary = (await client.get("/api/v1/me/cross-league-summary", headers=_auth(bob))).json()
+    bob_round = {e["slug"]: e for e in bob_summary["per_league"]}[playing.slug]["current_round"]
+    assert bob_round["my_pick"]["home"] == "Forfar Athletic"
+    assert bob_round["leg_count"] == 2
+
+
+async def test_cross_league_summary_shows_an_unpicked_round_and_no_leagues(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """No pick yet is `my_pick: null`; no memberships at all is an empty summary."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["alice"])
+        await _open_sample_gameweek(session, fake, league)
+        loner = Profile(
+            display_name=f"loner-{uuid.uuid4().hex[:8]}",
+            pin_hash=hash_pin("1234"),
+            role=UserRole.player,
+        )
+        session.add(loner)
+        await session.commit()
+        await session.refresh(loner)
+
+    summary = (await client.get("/api/v1/me/cross-league-summary", headers=_auth(alice))).json()
+    current = summary["per_league"][0]["current_round"]
+    assert current["my_pick"] is None
+    assert current["leg_count"] == 0
+    assert current["combined_odds"] == 1.0, "an empty acca prices at evens, not zero"
+    assert summary["win_rate_pct"] is None, "an untested record is not a bad one"
+
+    empty = (await client.get("/api/v1/me/cross-league-summary", headers=_auth(loner))).json()
+    assert empty == {
+        "avg_rank": None,
+        "avg_rank_leagues": 0,
+        "total_points": 0,
+        "picks_played": 0,
+        "picks_won": 0,
+        "win_rate_pct": None,
+        "leagues_count": 0,
+        "per_league": [],
+    }

@@ -1,7 +1,6 @@
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { Moon, Sun, Settings, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useLeague } from '@/contexts/LeagueContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Brand } from '@/components/Brand';
 import { Avatar } from '@/components/ui/avatar';
@@ -47,7 +46,6 @@ function desktopNavActive(pathname: string, item: DesktopNavItem): boolean {
 
 export function TopBar() {
   const { player, logout } = useAuth();
-  const { activeSlug } = useLeague();
   const { resolved, setMode } = useTheme();
   const { pathname } = useLocation();
   function toggleTheme() {
@@ -82,7 +80,9 @@ export function TopBar() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem asChild>
-          <Link to={`/leagues/${activeSlug}/players/${player.id}`}>
+          {/* Career-scoped, matching TabBar's entry — the same label must not
+              mean two different pages depending on which bar you reach it from. */}
+          <Link to="/profile">
             <User className="h-4 w-4" aria-hidden />
             My profile
           </Link>

@@ -1,24 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { HTMLAttributes, ReactNode } from 'react';
 import { TabBar } from '@/components/TabBar';
 
-vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({
-    player: { id: 'p1', displayName: 'Alice', role: 'player', timezone: 'UTC' },
-    logout: vi.fn(),
-  }),
-}));
+const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
 
-vi.mock('@/contexts/LeagueContext', () => ({
-  useLeague: () => ({
-    leagues: [],
-    isLoading: false,
-    refetch: vi.fn(),
-    activeSlug: 'the-coupon',
-  }),
-}));
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return { ...actual, useNavigate: () => navigate };
+});
 
 vi.mock('framer-motion', () => ({
   motion: {
@@ -74,5 +65,30 @@ describe('TabBar mobile positioning', () => {
     expect(football.getAttribute('href')).toBe('/predictions/football');
     expect(football.getAttribute('aria-current')).toBe('page');
     expect(coupon.getAttribute('aria-current')).toBeNull();
+  });
+
+  it('sends My profile to the career record, not to the active league', () => {
+    render(
+      <MemoryRouter>
+        <TabBar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /more/i }));
+    const profile = screen.getByRole('button', { name: /my profile/i });
+    fireEvent.click(profile);
+
+    expect(navigate).toHaveBeenCalledWith('/profile');
+  });
+
+  it('marks More as current while the career profile is open', () => {
+    render(
+      <MemoryRouter initialEntries={['/profile']}>
+        <TabBar />
+      </MemoryRouter>,
+    );
+
+    const more = screen.getByRole('button', { name: /more/i });
+    expect(more.querySelector('span')?.className).toContain('bg-primary');
   });
 });

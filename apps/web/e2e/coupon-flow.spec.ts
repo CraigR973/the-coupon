@@ -117,4 +117,54 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
     path: join(ARTIFACT_DIR, 'combined-coupon-settled.png'),
     fullPage: true,
   });
+
+  // Batch 26: home and My profile answer for every league the member plays, not
+  // for whichever one happens to be bound.
+  await alice.goto('/');
+  const seededCard = alice.getByTestId('home-card-the-coupon');
+  await expect(seededCard).toContainText('Arsenal');
+  await expect(seededCard).toContainText('#2'); // Bob's 24 beat Alice's 19
+  await expect(seededCard).toContainText('of 3');
+  await expect(seededCard).toContainText('19 pts');
+
+  const created = await alice.evaluate(async (api) => {
+    const token = localStorage.getItem('coupon_access');
+    const response = await fetch(`${api}/api/v1/leagues`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Work League', privacy: 'private' }),
+    });
+    return response.status;
+  }, API);
+  expect(created).toBe(201);
+
+  await alice.goto('/');
+  await expect(alice.getByTestId('home-league-cards').locator('> li')).toHaveCount(2);
+  const newCard = alice.getByTestId('home-card-work-league');
+  await expect(newCard).toContainText('No coupon published yet');
+  await expect(newCard).toContainText('of 1');
+  await alice.screenshot({ path: join(ARTIFACT_DIR, 'home-multi-league.png'), fullPage: true });
+
+  // One tap opens that league's coupon, binding the coupon screens to it: the new
+  // league has no round, so the pick screen shows its empty state rather than the
+  // seeded league's settled card.
+  await newCard.getByRole('button').click();
+  await expect(alice).toHaveURL('/predictions');
+  await expect(alice.getByText('No coupon this week yet')).toBeVisible();
+
+  await alice.goto('/profile');
+  await expect(alice.getByTestId('career-stats')).toContainText('19'); // points, both leagues
+  const careerLeagues = alice.getByTestId('career-leagues').locator('> li');
+  await expect(careerLeagues).toHaveCount(2);
+  await expect(careerLeagues.first()).toContainText('#2 of 3');
+  // Rank only averages over leagues big enough to rank against — the new
+  // one-member league is excluded and the page says so.
+  await expect(alice.getByText(/Averaged over 1 of your 2 leagues/)).toBeVisible();
+  await expect(alice.getByTestId('career-league-work-league')).toBeVisible();
+  await alice.screenshot({ path: join(ARTIFACT_DIR, 'career-profile.png'), fullPage: true });
+
+  // The per-league record is still its own page, reached from the breakdown.
+  await alice.getByTestId('career-league-the-coupon').click();
+  await expect(alice.getByTestId('profile-stats')).toContainText('19');
+  await expect(alice.getByTestId('profile-history')).toContainText('Arsenal');
 });

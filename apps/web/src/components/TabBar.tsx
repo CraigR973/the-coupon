@@ -13,7 +13,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useLeague } from '@/contexts/LeagueContext';
 import { Sheet } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
@@ -53,7 +52,6 @@ function isActive(pathname: string, tab: TabDef): boolean {
 export function TabBar() {
   const { pathname } = useLocation();
   const { player, logout } = useAuth();
-  const { activeSlug } = useLeague();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
   const layoutId = useId();
@@ -64,14 +62,14 @@ export function TabBar() {
     setMoreOpen(false);
   }, [pathname]);
 
+  // My profile is career-scoped, not bound to whichever league happens to be
+  // active: a member in three leagues has three records, and silently picking one
+  // of them made the other two unreachable from here. The per-league record is
+  // still a tap away — from that league's leaderboard, and from this page's own
+  // breakdown.
   const SECONDARY: ReadonlyArray<TabDef> = player
     ? [
-        {
-          to: `/leagues/${activeSlug}/players/${player.id}`,
-          label: 'My profile',
-          Icon: User,
-          matchPrefix: [`/leagues/${activeSlug}/players/${player.id}`],
-        },
+        { to: '/profile', label: 'My profile', Icon: User, matchPrefix: ['/profile'] },
         { to: '/settings', label: 'Settings', Icon: SettingsIcon, matchPrefix: ['/settings'] },
       ]
     : [{ to: '/settings', label: 'Settings', Icon: SettingsIcon, matchPrefix: ['/settings'] }];

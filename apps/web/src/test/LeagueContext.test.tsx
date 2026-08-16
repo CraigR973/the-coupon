@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LeagueProvider, useLeague } from '@/contexts/LeagueContext';
@@ -40,7 +40,7 @@ function stubAuth(lastViewedSlug: string | null = null) {
 }
 
 function LeagueDisplay() {
-  const { leagues, isLoading, activeSlug } = useLeague();
+  const { leagues, isLoading, activeSlug, selectLeague } = useLeague();
   if (isLoading) return <div>loading</div>;
   return (
     <div>
@@ -49,6 +49,12 @@ function LeagueDisplay() {
       {leagues.map((l) => (
         <div key={l.slug} data-testid={`league-${l.slug}`}>{l.name}</div>
       ))}
+      <button type="button" onClick={() => selectLeague('friends-league')}>
+        select friends
+      </button>
+      <button type="button" onClick={() => selectLeague('not-mine')}>
+        select stranger
+      </button>
     </div>
   );
 }
@@ -116,6 +122,31 @@ describe('LeagueContext', () => {
     stubAuth('some-old-league');
     renderWithLeague([MOCK_LEAGUE]);
     await waitFor(() => expect(screen.getByTestId('active-slug').textContent).toBe('the-coupon'));
+  });
+
+  it('rebinds activeSlug when a league is selected, and persists the choice', async () => {
+    const second = { ...MOCK_LEAGUE, slug: 'friends-league', name: 'Friends League' };
+    renderWithLeague([MOCK_LEAGUE, second]);
+    await waitFor(() => expect(screen.getByTestId('active-slug').textContent).toBe('the-coupon'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'select friends' }));
+
+    // Home's cards open a league other than the bound one, so the choice has to
+    // re-render — writing the recency store alone would not.
+    expect(screen.getByTestId('active-slug').textContent).toBe('friends-league');
+    expect(localStorage.setItem).toHaveBeenCalledWith(
+      LAST_VIEWED_LEAGUE_KEY,
+      JSON.stringify({ slug: 'friends-league', name: 'Friends League' }),
+    );
+  });
+
+  it('ignores a selection the member is not a member of', async () => {
+    renderWithLeague([MOCK_LEAGUE]);
+    await waitFor(() => expect(screen.getByTestId('active-slug').textContent).toBe('the-coupon'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'select stranger' }));
+
+    expect(screen.getByTestId('active-slug').textContent).toBe('the-coupon');
   });
 
   it('useLeague throws when used outside LeagueProvider', () => {

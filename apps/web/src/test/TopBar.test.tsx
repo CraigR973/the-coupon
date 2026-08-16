@@ -90,6 +90,16 @@ describe('TopBar avatar menu', () => {
     expect(screen.getByText('Settings route')).toBeTruthy();
   });
 
+  it('sends My profile to the career record, not to the active league', () => {
+    renderTopBar();
+
+    fireEvent.click(screen.getAllByRole('button', { name: /account menu/i })[0]);
+
+    expect(screen.getAllByRole('link', { name: /my profile/i })[0].getAttribute('href')).toBe(
+      '/profile',
+    );
+  });
+
   it('uses the larger compact logo size in the top bar only', () => {
     const { container } = renderTopBar();
 

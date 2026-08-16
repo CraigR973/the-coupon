@@ -8,6 +8,7 @@ import { formatOdds, marketTag, outcomeLabel, pickStatusLabel } from '../lib/cou
 import type { PlayerProfile, SettledPick, PickStatus } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
+import { StatCard } from '../components/StatCard';
 import { Avatar } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
@@ -19,20 +20,6 @@ const STATUS_VARIANT: Record<PickStatus, 'success' | 'error' | 'muted' | 'defaul
   void: 'muted',
   pending: 'default',
 };
-
-/** Ported from the wc_2026_predictor profile page — same shape, Coupon's figures. */
-function StatCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4">
-      <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-text-muted">
-        {label}
-      </span>
-      <span className="font-mono text-2xl font-semibold leading-none tabular-nums text-primary">
-        {value}
-      </span>
-    </div>
-  );
-}
 
 /**
  * One member's record in the league they are being viewed through.

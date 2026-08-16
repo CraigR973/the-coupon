@@ -16,8 +16,10 @@ league's uniqueness key and is the same in every provider's vocabulary.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 
 from pydantic import BaseModel
 from sqlalchemy import case, func, select
@@ -190,41 +192,10 @@ class Standing(BaseModel):
     rank: int
 
 
-async def standings(db: AsyncSession, league_id: uuid.UUID) -> list[Standing]:
-    """Season leaderboard for a league: cumulative points per active member, ranked.
-
-    Every current member gets a row (0 until they score). Members tied on total share a
-    rank; display order breaks ties by wins then name.
-    """
-    settled = Pick.status.in_((PickStatus.won, PickStatus.lost, PickStatus.void))
-    display_name = func.coalesce(LeagueMembership.display_name_override, Profile.display_name)
-    rows = await db.execute(
-        select(
-            LeagueMembership.player_id,
-            display_name.label("display_name"),
-            func.coalesce(func.sum(Pick.points_awarded), 0).label("total_points"),
-            func.count(Pick.id).label("picks_played"),
-            func.coalesce(func.sum(case((Pick.status == PickStatus.won, 1), else_=0)), 0).label(
-                "picks_won"
-            ),
-        )
-        .select_from(LeagueMembership)
-        .join(Profile, Profile.id == LeagueMembership.player_id)
-        .outerjoin(
-            Pick,
-            (Pick.player_id == LeagueMembership.player_id)
-            & (Pick.league_id == LeagueMembership.league_id)
-            & settled,
-        )
-        .where(
-            LeagueMembership.league_id == league_id,
-            LeagueMembership.deleted_at.is_(None),
-        )
-        .group_by(LeagueMembership.player_id, display_name)
-    )
-
+def _rank_rows(rows: Sequence[Any]) -> list[Standing]:
+    """Order one league's aggregated rows and assign competition ranks."""
     ranked = sorted(
-        rows.all(),
+        rows,
         key=lambda r: (-int(r.total_points), -int(r.picks_won), r.display_name.lower()),
     )
     standings_out: list[Standing] = []
@@ -243,6 +214,65 @@ async def standings(db: AsyncSession, league_id: uuid.UUID) -> list[Standing]:
             )
         )
     return standings_out
+
+
+async def standings_by_league(
+    db: AsyncSession, league_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, list[Standing]]:
+    """Season tables for several leagues at once, keyed by league id.
+
+    One query for the whole set rather than one per league, so a caller holding a
+    member's leagues — the cross-league summary — costs the same number of round trips
+    whether they are in one league or six. A league with no active members has no key.
+
+    The per-league table is exactly what :func:`standings` returns, because that is
+    now this function over a single id: there is one ranking rule in the codebase and
+    the leaderboard, the profile and the summary all read it.
+    """
+    if not league_ids:
+        return {}
+
+    settled = Pick.status.in_((PickStatus.won, PickStatus.lost, PickStatus.void))
+    display_name = func.coalesce(LeagueMembership.display_name_override, Profile.display_name)
+    rows = await db.execute(
+        select(
+            LeagueMembership.league_id,
+            LeagueMembership.player_id,
+            display_name.label("display_name"),
+            func.coalesce(func.sum(Pick.points_awarded), 0).label("total_points"),
+            func.count(Pick.id).label("picks_played"),
+            func.coalesce(func.sum(case((Pick.status == PickStatus.won, 1), else_=0)), 0).label(
+                "picks_won"
+            ),
+        )
+        .select_from(LeagueMembership)
+        .join(Profile, Profile.id == LeagueMembership.player_id)
+        .outerjoin(
+            Pick,
+            (Pick.player_id == LeagueMembership.player_id)
+            & (Pick.league_id == LeagueMembership.league_id)
+            & settled,
+        )
+        .where(
+            LeagueMembership.league_id.in_(league_ids),
+            LeagueMembership.deleted_at.is_(None),
+        )
+        .group_by(LeagueMembership.league_id, LeagueMembership.player_id, display_name)
+    )
+
+    grouped: dict[uuid.UUID, list[Any]] = {}
+    for row in rows.all():
+        grouped.setdefault(row.league_id, []).append(row)
+    return {league_id: _rank_rows(league_rows) for league_id, league_rows in grouped.items()}
+
+
+async def standings(db: AsyncSession, league_id: uuid.UUID) -> list[Standing]:
+    """Season leaderboard for a league: cumulative points per active member, ranked.
+
+    Every current member gets a row (0 until they score). Members tied on total share a
+    rank; display order breaks ties by wins then name.
+    """
+    return (await standings_by_league(db, [league_id])).get(league_id, [])
 
 
 class GameweekResult(BaseModel):
