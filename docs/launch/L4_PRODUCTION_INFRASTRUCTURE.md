@@ -648,7 +648,7 @@ snapshot was taken over `asyncpg` instead.
 
 ### Forward recovery plan — migration `012`, Batch 27
 
-**Status: drafted, awaiting owner review. Not yet approved to ship.**
+**Status: reviewed and approved by the owner, 2026-08-16. Cleared to ship.**
 
 Required by `/ship-prod` step 1.7 before `012` may be deployed. Production is at
 head `011` (deployment `6fe96f0e`); this shipment moves it to `012`.
