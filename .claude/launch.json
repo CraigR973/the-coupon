@@ -7,6 +7,13 @@
       "runtimeArgs": ["apps/web/dev.sh"],
       "port": 5173,
       "autoPort": true
+    },
+    {
+      "name": "web-preview",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["apps/web/preview.sh"],
+      "port": 4173,
+      "url": "http://127.0.0.1:4173"
     }
   ]
 }
