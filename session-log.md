@@ -588,3 +588,36 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   pgserver, then run `playwright.config.ts` (the `coupon-flow` project seeds/locks/settles itself).
 
 **Next:** Batch 27 — Configurable pick-open time.
+
+## Batch 27 — Configurable pick-open time
+**Commits:** `007ec97` · verified: full `scripts/ci-local.sh` PASS (11 checks) — Ruff 0.5.4 check/format · strict mypy · clean pgserver `alembic upgrade head` (001→012) + pytest · deployment-config assertions · lint · typecheck · build · Vitest 273 · prod-bundle Playwright smoke. Separately: the DB-backed Batch 27 set on its own clean pgserver, 63 passed / 0 skipped.
+
+### Key facts for future sessions
+- Three instants now, and the names matter: `SlateWindow.opens_at` is when the *fixture window*
+  opens (the anchor), `locks_at_utc` is when claiming stops, `picks_open_at_utc` is when it
+  starts. Both offsets are measured back from the anchor via `SlateWindow.utc_before_open`, so a
+  **bigger** offset is **earlier** and `pick_open_offset_minutes >= lock_offset_minutes` is the
+  validity rule (enforced in the API as 422 *and* by a DB check).
+- `pick_refusal(gameweek, now)` in `services/gameweek.py` is the single gate — `is_open_for_picks`
+  is now a thin wrapper. Time decides both ends; `status` only rules out rounds settlement has
+  finished with. So a `scheduled` round past its instant is accepted *before* the hourly open job
+  relabels it, exactly as an `open` round past its lock is refused before the lock job runs. Any
+  new caller should use `pick_refusal`, not read `status == open`.
+- `pick_open_offset_minutes` lives on `League`, deliberately **not** on `SlateWindow`:
+  `discover_fixtures` groups leagues by window, so putting it there would multiply the provider
+  bill by the number of distinct announcements. `test_the_pick_open_offset_is_not_part_of_the_window_identity`
+  pins this — do not "tidy" it into the dataclass.
+- `NULL` on both new columns is the pre-batch rule (claimable from discovery), so 012 needs no
+  backfill. On PATCH, `pick_open_offset_minutes` is read from `model_fields_set` because null is
+  meaningful ("stop announcing"), the same treatment `competitions` already gets.
+- **jsdom form-submit trap, cost ~2h this batch.** `LeagueSettingsPage`'s name input is `required`
+  and is filled by an effect *after* the query resolves. A test that waits only for a rendered
+  element can click Save while it is still empty, and jsdom then refuses to dispatch `submit` at
+  all — no handler, no toast, no PATCH, and a `waitFor` that can only time out (raising the
+  timeout does not help). Await `findByDisplayValue('The Coupon')` before clicking Save. The
+  Batch 15 test `widens the window and saves the new range` still has this latent.
+- `slate_odds_max_age` gives every non-`open` state the loosest tier, so a `scheduled` round whose
+  opening has passed shows browse prices up to `far_ttl` until the hourly job flips it. Display
+  only and bounded by an hour — submits price independently via `odds_cache_pick_ttl_seconds`.
+
+**Next:** all 28 build batches are struck. Launch phase L5 — Launch and first-Saturday watch.

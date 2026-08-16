@@ -332,7 +332,7 @@ answered until it lands, because until then there is no data to look at.
   too — a pick's meaning is partly who else could have taken it, which is a
   league-local fact.
 
-- [ ] **Batch 27 — Configurable pick-open time** *(Opus)* — let a league admin
+- [x] **Batch 27 — Configurable pick-open time** ✅ 2026-08-16 *(Opus)* — let a league admin
   choose when picks open for a round. No such concept exists: a gameweek is
   created `open` and only `locks_at_utc` is stored, so picks become claimable
   whenever `run_refresh_slate` next runs (09:00 and 13:00 daily), which is

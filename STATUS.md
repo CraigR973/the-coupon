@@ -2,12 +2,11 @@
 
 ## Now
 
-Build batches 1–26 and 28 are closed. Batch 28 intentionally ran ahead of the
-remaining feedback batches because football ingestion was dark in production;
-Batch 27 is the next unchecked build batch. The Coupon is a verified private
+All 28 build batches are closed. The Coupon is a verified private
 weekly football accumulator PWA: members sign in with display name and
 PIN, claim one unique Saturday selection, score frozen odds after settlement,
-compare standings, and view the shared combined coupon.
+compare standings, and view the shared combined coupon. `docs/BUILD_PLAN.md`
+has no unchecked rows left; launch phase L5 is the remaining work.
 
 Batch 6 completed the product rebrand, removed inherited surfaces, corrected
 the frontend auth and invite wiring, and added a deterministic production-
@@ -264,17 +263,34 @@ alike. The per-league record at `/leagues/:slug/players/:playerId` is unchanged.
   by live probing were fixed: certlogin field names, sponsored English
   competition names, and a division allow-list that starved the slate.
 
+Batch 27 made the pick-open time a league setting. A round previously became
+claimable at whatever moment `run_refresh_slate` happened to write it, which was
+neither announced nor the same each week. `leagues.pick_open_offset_minutes`
+(nullable) sits beside `lock_offset_minutes` and is measured back from the same
+anchor, so a bigger number is earlier and the two must satisfy
+`pick_open >= lock`. `gameweeks.picks_open_at_utc` is the derived instant, frozen
+at discovery and never re-derived, so editing the setting cannot move a deadline
+members were already told. `GameweekStatus` gained `scheduled` for a round that
+exists but has not opened, and `pick_refusal` is now the single gate, answering
+`PICKS_NOT_OPEN` as well as `PICKS_LOCKED`. Time decides both ends and `status`
+is only the label the hourly open/lock jobs keep up with. `NULL` preserves the
+old behaviour exactly, so migration 012 needs no backfill and no existing league
+changes. The offset stays off `SlateWindow` on purpose — `discover_fixtures`
+groups by window, so putting it there would multiply the provider bill.
+
 ## Next
 
-Batch 27 — Configurable pick-open time — is the first unchecked build batch
-in `docs/BUILD_PLAN.md`. Launch L5 — launch and first-Saturday watch — remains
-open too. Batch 7 shipped the odds source. Production is now deployed and
-configured through Batch 22; Batches 23–26 are on local `main` pending a
-`/ship-prod` for the API contract changes from Batches 23, 25 and 26 (Batch 24
-is frontend-only). Batch 26 makes that ship-prod load-bearing rather than
-optional: home now calls `GET /api/v1/me/cross-league-summary`, which does not
-exist on the deployed API, so the web half alone would leave home empty. What
-remains:
+No unchecked build batches remain in `docs/BUILD_PLAN.md`. Launch L5 — launch
+and first-Saturday watch — is the open work. Batch 7 shipped the odds source.
+Production is now deployed and configured through Batch 22; Batches 23–27 are
+on local `main` pending a `/ship-prod` for the API contract changes from
+Batches 23, 25, 26 and 27 (Batch 24 is frontend-only). That ship-prod is
+load-bearing rather than optional, and Batch 27 raises the stakes twice over:
+home already calls `GET /api/v1/me/cross-league-summary`, which does not exist
+on the deployed API, and Batch 27 adds migration `012` plus a `scheduled`
+gameweek state the deployed API cannot read. Shipping the web half alone would
+leave home empty and the new pick-open control writing to a field production
+does not have. What remains:
 
 - ~~seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`~~ — done;
 - ~~ship staging and then production~~ — production is at `aae3b51e` / migration `011`;
