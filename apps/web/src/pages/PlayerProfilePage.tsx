@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { formatInTimeZone } from 'date-fns-tz';
 import { apiFetch } from '../lib/api';
@@ -115,9 +115,17 @@ export function PlayerProfilePage() {
       </section>
 
       <section>
-        <h2 className="mb-3 font-sans text-base font-semibold tracking-tight text-text-primary">
-          Settled picks
-        </h2>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="font-sans text-base font-semibold tracking-tight text-text-primary">
+            Settled picks
+          </h2>
+          <Link
+            to="/predictions/results"
+            className="shrink-0 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted hover:text-text-primary"
+          >
+            How each week went →
+          </Link>
+        </div>
         {profile.history.length === 0 ? (
           <EmptyState
             title="No settled picks yet"

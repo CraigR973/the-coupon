@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 const ITEMS: ReadonlyArray<{ to: string; label: string; exact: boolean }> = [
   { to: '/predictions', label: 'Your pick', exact: true },
   { to: '/predictions/coupon', label: 'Combined coupon', exact: false },
+  { to: '/predictions/results', label: 'Results', exact: false },
   { to: '/predictions/football', label: 'Football', exact: false },
 ];
 

@@ -28,6 +28,7 @@ const CouponCombinedPage = lazyRoute(() =>
   import('./pages/CouponCombinedPage').then((m) => ({ default: m.CouponCombinedPage })),
 );
 const FootballPage = lazyRoute(() => import('./pages/FootballPage').then((m) => ({ default: m.FootballPage })));
+const ResultsPage = lazyRoute(() => import('./pages/ResultsPage').then((m) => ({ default: m.ResultsPage })));
 const LeaderboardPage = lazyRoute(() => import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
 const PlayerProfilePage = lazyRoute(() => import('./pages/PlayerProfilePage').then((m) => ({ default: m.PlayerProfilePage })));
 const OfflinePage = lazyRoute(() => import('./pages/OfflinePage').then((m) => ({ default: m.OfflinePage })));
@@ -135,6 +136,7 @@ export function App() {
                         <Route path="/" element={<DashboardPage />} />
                         <Route path="/predictions" element={<CouponPickPage />} />
                         <Route path="/predictions/coupon" element={<CouponCombinedPage />} />
+                        <Route path="/predictions/results" element={<ResultsPage />} />
                         <Route path="/predictions/football" element={<FootballPage />} />
                         <Route path="/settings" element={<SettingsPage />} />
                         <Route path="/about" element={<AboutPage />} />

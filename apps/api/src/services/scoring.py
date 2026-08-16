@@ -16,7 +16,7 @@ league's uniqueness key and is the same in every provider's vocabulary.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
 from pydantic import BaseModel
@@ -28,6 +28,7 @@ from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile
+from src.services.coupon import combined_odds
 from src.services.odds_provider import (
     EventSettlement,
     Market,
@@ -242,3 +243,74 @@ async def standings(db: AsyncSession, league_id: uuid.UUID) -> list[Standing]:
             )
         )
     return standings_out
+
+
+class GameweekResult(BaseModel):
+    """One settled round's headline outcome — who won it and how the coupon landed."""
+
+    gameweek_id: str
+    starts_on: date
+    winner_names: list[str]
+    winner_points: int
+    leg_count: int
+    combined_odds: float
+    all_won: bool | None
+
+
+async def gameweek_results(db: AsyncSession, league_id: uuid.UUID) -> list[GameweekResult]:
+    """Every settled round for a league, newest first — the results list.
+
+    The winner is whoever's pick scored the most that round; a tie names every player
+    who shares the top score rather than picking one arbitrarily. ``all_won`` and
+    ``combined_odds`` mirror :func:`src.services.coupon.build_coupon`'s coupon-outcome
+    maths, computed here over every settled round in one query rather than one per row.
+    A settled round with no picks in this league (vacuously settled) still gets a row,
+    with no winner and an empty coupon.
+    """
+    display_name = func.coalesce(LeagueMembership.display_name_override, Profile.display_name)
+    rows = await db.execute(
+        select(
+            Gameweek.id,
+            Gameweek.starts_on,
+            display_name.label("display_name"),
+            Pick.points_awarded,
+            Pick.status,
+            Pick.odds_at_pick,
+        )
+        .select_from(Gameweek)
+        .outerjoin(Pick, (Pick.gameweek_id == Gameweek.id) & (Pick.league_id == league_id))
+        .outerjoin(
+            LeagueMembership,
+            (LeagueMembership.player_id == Pick.player_id)
+            & (LeagueMembership.league_id == league_id),
+        )
+        .outerjoin(Profile, Profile.id == Pick.player_id)
+        .where(Gameweek.league_id == league_id, Gameweek.status == GameweekStatus.settled)
+        .order_by(Gameweek.starts_on.desc())
+    )
+
+    by_gameweek: dict[uuid.UUID, tuple[date, list[tuple[str, int, PickStatus, Decimal]]]] = {}
+    for gw_id, starts_on, name, points, status_, odds in rows.all():
+        _, picks = by_gameweek.setdefault(gw_id, (starts_on, []))
+        if points is not None:
+            picks.append((name, int(points), status_, odds))
+
+    results: list[GameweekResult] = []
+    for gw_id, (starts_on, picks) in by_gameweek.items():
+        top_points = max((p for _, p, _, _ in picks), default=0)
+        winner_names = sorted({name for name, p, _, _ in picks if p == top_points})
+        results.append(
+            GameweekResult(
+                gameweek_id=str(gw_id),
+                starts_on=starts_on,
+                winner_names=winner_names,
+                winner_points=top_points,
+                leg_count=len(picks),
+                combined_odds=float(combined_odds([odds for _, _, _, odds in picks])),
+                all_won=all(status_ == PickStatus.won for _, _, status_, _ in picks)
+                if picks
+                else None,
+            )
+        )
+    results.sort(key=lambda r: r.starts_on, reverse=True)
+    return results

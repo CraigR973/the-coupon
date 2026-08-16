@@ -783,6 +783,58 @@ async def test_slate_and_coupon_read_a_named_gameweek(
     assert default_coupon["leg_count"] == 0
 
 
+async def test_results_lists_only_settled_gameweeks_with_winner_and_outcome(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Batch 25 — a settled week's headline: who won, their points, the coupon outcome."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), league = await _seed_league(session, ["alice", "bob"])
+        older = await _open_sample_gameweek(session, fake, league)
+        older_fixtures = await _fixture_ids(session, older.id)
+    slug = league.slug
+
+    # Alice takes Arsenal (home, wins); Bob takes Brechin (away, loses to Forfar at home).
+    assert (
+        await _submit(
+            client, slug, alice, older_fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME"
+        )
+    ).status_code == 201
+    assert (
+        await _submit(client, slug, bob, older_fixtures[SAMPLE_SL2_EVENT_ID], "MATCH_ODDS", "AWAY")
+    ).status_code == 201
+
+    async with AsyncSessionLocal() as session:
+        # A second, still-open round — must not appear in the results list.
+        newer = await _open_sample_gameweek(
+            session, fake, await session.get(League, league.id), weeks_later=1
+        )
+
+        fake.close_markets(
+            {
+                SAMPLE_EPL_MATCH_ODDS_MKT: SAMPLE_ARSENAL_SEL,
+                SAMPLE_SL2_MATCH_ODDS_MKT: SAMPLE_FORFAR_SEL,
+            }
+        )
+        settlements = await fake.settle([SAMPLE_EPL_EVENT_ID, SAMPLE_SL2_EVENT_ID])
+        gameweek = (
+            await session.execute(select(Gameweek).where(Gameweek.id == older.id))
+        ).scalar_one()
+        await scoring.settle_gameweek(session, gameweek, settlements)
+        await session.commit()
+
+    results = (await client.get(f"/api/v1/leagues/{slug}/results", headers=_auth(alice))).json()
+
+    assert [row["gameweek_id"] for row in results] == [str(older.id)]
+    assert str(newer.id) not in {row["gameweek_id"] for row in results}
+    row = results[0]
+    assert row["winner_names"] == [alice.display_name]
+    assert row["winner_points"] == 19  # round(1.9 × 10)
+    assert row["leg_count"] == 2
+    assert row["combined_odds"] == 5.89  # 1.9 × 3.1
+    assert row["all_won"] is False  # Bob's Brechin lost
+
+
 async def test_an_unknown_or_malformed_gameweek_id_is_a_404(
     client_and_fake: tuple[AsyncClient, FakeBetfair],
 ) -> None:

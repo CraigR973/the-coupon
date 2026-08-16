@@ -227,6 +227,22 @@ export interface Coupon {
   all_won: boolean | null;
 }
 
+// ── Results — GET /leagues/{slug}/results ───────────────────────────────────
+
+/** One settled round's headline — who won it and how the coupon landed. */
+export interface GameweekResult {
+  gameweek_id: string;
+  /** The date this league's window opened. Not necessarily a Saturday. */
+  starts_on: string; // ISO date (yyyy-mm-dd)
+  /** Whoever's pick scored the most that round; more than one on a tie. */
+  winner_names: string[];
+  winner_points: number;
+  leg_count: number;
+  combined_odds: number;
+  /** null when the round had no picks, true only if every leg won. */
+  all_won: boolean | null;
+}
+
 // ── Standings — GET /leagues/{slug}/standings ──────────────────────────────
 
 export interface Standing {

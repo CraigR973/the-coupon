@@ -1,0 +1,111 @@
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { formatInTimeZone } from 'date-fns-tz';
+import { apiFetch } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
+import { useLeague } from '../contexts/LeagueContext';
+import { useOddsFormat } from '../hooks/useOddsFormat';
+import { formatOdds } from '../lib/coupon';
+import type { GameweekResult } from '../lib/types';
+import { PageHeader } from '../components/PageHeader';
+import { CouponSubNav } from '../components/CouponSubNav';
+import { EmptyState } from '../components/EmptyState';
+import { Badge } from '../components/ui/badge';
+import { Skeleton } from '../components/ui/skeleton';
+
+/**
+ * Every settled gameweek this league has played, newest first — the week-by-week
+ * record that stepping back through `GameweekNav` one round at a time never
+ * surfaced on its own. Each row opens that week's combined coupon.
+ */
+export function ResultsPage() {
+  const { player } = useAuth();
+  const timezone = player?.timezone ?? 'UTC';
+  const { activeSlug: slug } = useLeague();
+  const oddsFormat = useOddsFormat();
+  const navigate = useNavigate();
+
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+  } = useQuery<GameweekResult[]>({
+    queryKey: ['results', slug],
+    queryFn: () => apiFetch<GameweekResult[]>(`/api/v1/leagues/${slug}/results`),
+    staleTime: 30_000,
+  });
+  const results = Array.isArray(data) ? data : [];
+
+  return (
+    <div>
+      <PageHeader title="Results" eyebrow="Every settled gameweek" />
+      <CouponSubNav />
+
+      {isLoading && (
+        <div className="space-y-3" aria-label="Loading results">
+          <Skeleton className="h-20 w-full rounded-lg" />
+          <Skeleton className="h-20 w-full rounded-lg" />
+          <Skeleton className="h-20 w-full rounded-lg" />
+        </div>
+      )}
+
+      {isError && (
+        <EmptyState
+          title="Couldn't load results"
+          description={error instanceof Error ? error.message : 'Please try again shortly.'}
+        />
+      )}
+
+      {!isLoading && !isError && results.length === 0 && (
+        <EmptyState
+          title="No results yet"
+          description="A gameweek appears here once it has been settled."
+        />
+      )}
+
+      {results.length > 0 && (
+        <ol className="flex flex-col gap-2" data-testid="results-list">
+          {results.map((result) => (
+            <li key={result.gameweek_id} id={`gw-${result.gameweek_id}`}>
+              <button
+                type="button"
+                onClick={() => navigate(`/predictions/coupon?gw=${result.gameweek_id}`)}
+                className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface p-3 text-left transition-colors press-down hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow"
+                data-testid={`result-${result.gameweek_id}`}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="font-sans text-sm font-medium text-text-primary">
+                    {formatInTimeZone(new Date(result.starts_on), timezone, 'EEEE d MMMM')}
+                  </p>
+                  <p className="truncate font-sans text-xs text-text-muted">
+                    {result.winner_names.length === 0
+                      ? 'No picks made'
+                      : result.winner_names.length === 1
+                        ? `${result.winner_names[0]} won`
+                        : `${result.winner_names.join(', ')} tied`}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="font-mono text-sm tabular-nums text-text-primary">
+                    {result.winner_points} pts
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] tabular-nums text-text-muted">
+                      {formatOdds(result.combined_odds, oddsFormat)}
+                    </span>
+                    {result.all_won !== null && (
+                      <Badge variant={result.all_won ? 'success' : 'muted'}>
+                        {result.all_won ? 'Coupon won' : 'Coupon lost'}
+                      </Badge>
+                    )}
+                  </span>
+                </div>
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}

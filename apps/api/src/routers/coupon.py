@@ -4,8 +4,10 @@
   into one accumulator (legs + combined odds). Defaults to the latest; pass
   ``gameweek_id`` to read back through the season.
 * ``GET /api/v1/leagues/{slug}/standings`` — the season leaderboard.
+* ``GET /api/v1/leagues/{slug}/results``   — every settled round, newest first, each
+  with its winner, points and combined-coupon outcome.
 
-Both are computed on demand from ``picks`` by :mod:`src.services.coupon` /
+All computed on demand from ``picks`` by :mod:`src.services.coupon` /
 :mod:`src.services.scoring`.
 """
 
@@ -19,7 +21,7 @@ from src.database import get_db
 from src.deps import LeagueMemberDep
 from src.services.coupon import Coupon, build_coupon
 from src.services.gameweek import resolve_gameweek
-from src.services.scoring import Standing, standings
+from src.services.scoring import GameweekResult, Standing, gameweek_results, standings
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -39,3 +41,8 @@ async def combined_coupon(
 @router.get("/{slug}/standings", response_model=list[Standing])
 async def league_standings(slug: str, league: LeagueMemberDep, db: Db) -> list[Standing]:
     return await standings(db, league.id)
+
+
+@router.get("/{slug}/results", response_model=list[GameweekResult])
+async def league_results(slug: str, league: LeagueMemberDep, db: Db) -> list[GameweekResult]:
+    return await gameweek_results(db, league.id)
