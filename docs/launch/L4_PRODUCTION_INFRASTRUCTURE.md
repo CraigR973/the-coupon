@@ -646,6 +646,63 @@ PostgreSQL 17.6, no SSL-capable `pg_dump` is installed on the operator's machine
 and the copy bundled with `pgserver` is both older and compiled without SSL. The
 snapshot was taken over `asyncpg` instead.
 
+### Forward recovery plan — migration `012`, Batch 27
+
+**Status: drafted, awaiting owner review. Not yet approved to ship.**
+
+Required by `/ship-prod` step 1.7 before `012` may be deployed. Production is at
+head `011` (deployment `6fe96f0e`); this shipment moves it to `012`.
+
+**No pre-migration snapshot is needed.** Unlike `009`, `012` rewrites no data: it
+adds two nullable columns, one `CHECK`, and one enum value. Every existing row is
+left byte-for-byte as it was, and `NULL` on both new columns is exactly the
+pre-batch behaviour, which is why the migration carries no backfill.
+
+**API rollback is unavailable the moment `012` applies, and not for a data
+reason.** `nixpacks.toml` boots with
+`alembic upgrade head && uvicorn ...`, and every pre-`012` image ships migration
+scripts `001`–`011` only. Started against a database stamped `012`, that image's
+Alembic cannot resolve the revision at all — it fails with `Can't locate revision
+identified by '012'`, the `&&` chain stops, uvicorn never starts, and the
+healthcheck fails. This is the fix-forward-only state the rollback baseline
+section already predicted for the first shipment past `011`. It holds regardless
+of what is in the tables, so **do not attempt a Railway rollback to a pre-`012`
+deployment after this ships.** Vercel rollback is unaffected and stays available;
+the web app degrades independently.
+
+Recovery is therefore forward-only, in increasing order of cost:
+
+1. **Disable the feature without deploying.** The whole batch is inert while no
+   league opts in, so returning to pre-batch behaviour needs no code:
+
+   ```sql
+   UPDATE leagues   SET pick_open_offset_minutes = NULL;
+   UPDATE gameweeks SET status = 'open' WHERE status = 'scheduled';
+   ```
+
+   The second statement is the same mapping `012`'s own downgrade applies, and
+   the pre-batch reading of such a round: it exists, so it is claimable. The
+   consequence is that members may claim earlier than an admin announced —
+   degraded, not broken. Order matters: clearing the offsets first stops
+   `sync_slate` writing new `scheduled` rows behind the second statement.
+
+2. **Deploy a corrected image at head `012` or higher.** The normal path for an
+   application defect. `012` stays applied.
+
+3. **Never run `alembic downgrade` against production.** `012`'s downgrade
+   rebuilds `gameweek_status` to drop `'scheduled'`, because PostgreSQL has no
+   `DROP VALUE`. It is written for local and staging use and is not part of any
+   production procedure.
+
+**Data compatibility, for completeness.** Were the boot-migration problem solved
+by other means, `012` is otherwise backward-compatible with the `011`
+application: it ignores both new columns, and the `CHECK` exempts `NULL` on a
+column it never writes. The single incompatibility is `gameweek_status` gaining
+`'scheduled'`, which the `011` app's `StrEnum` cannot deserialise — but only rows
+the *new* app writes can ever hold it, and only after an admin sets
+`pick_open_offset_minutes` and a round is then discovered ahead of its opening.
+Step 1 above clears exactly those rows.
+
 ## Gate state
 
 The three production stacks are provisioned, isolated, configured, deployed,
