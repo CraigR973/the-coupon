@@ -593,6 +593,10 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-08-06 | Vercel web | `dpl_71cUU3Tau76XgoWVZpHcxufGp8vF` | `aae3b51e` | — |
 | 2026-08-15 | Railway `api` | `4f993b38-181b-4379-ad67-a51b9bdafb13` | `634467c8` | **`011`** |
 | 2026-08-15 | Vercel web | `dpl_bvZ8sB5xhtrH66L7RVsVvRhx2Sjy` | `634467c8` | — |
+| 2026-08-15 | Railway `api` | `df6626e0-c7cf-492e-a5aa-9fb4a6a12988` | `6fe96f0e` | `011` |
+| 2026-08-15 | Vercel web | `dpl_CQoP87t1wXgnqZrrWWvzDCuXro8G` | `6fe96f0e` | — |
+| 2026-08-16 | Railway `api` | `f54fa403-51bc-4fa7-ac53-e2d748bed834` | `13560cdb` | **`012`** |
+| 2026-08-16 | Vercel web | `dpl_2oJN39b62QTWu1tLkctde33yasze` | `13560cdb` | — |
 
 The 2026-08-15 shipment closed a nine-day reporting gap rather than a drift.
 Investigation that morning confirmed against Railway's GraphQL API that
@@ -610,31 +614,52 @@ by the time the API shipped; section 4 was skipped by design.
 
 ### Current rollback baselines
 
+Updated after the 2026-08-16 shipment of `13560cdb` (migration `012`).
+
 | Stack | Roll back to |
 | --- | --- |
-| Railway `api` | `7a5862cb-1279-4625-b5fa-3603df64c52e` (`aae3b51e`, migration `011`) — schema-compatible, but `REMOVED`; see below |
-| Vercel web | `dpl_71cUU3Tau76XgoWVZpHcxufGp8vF` (Batch 21, `aae3b51e`) |
+| Railway `api` | **Nothing. There is no API rollback at head `012`.** See below — this is not a caveat, it is the state. |
+| Vercel web | `dpl_3eNqpZKAFZkAG6DT1HAUiU8aJm8j` (`e43de93`), the immediate predecessor of the live `dpl_2oJN39b62QTWu1tLkctde33yasze` |
 
-**The API has a schema-compatible predecessor for the first time.** Migration
-`009` renamed `gameweeks.saturday_date` to `starts_on`, so every deployment
-before it is unusable against the current database whatever Railway offers. But
-`7a5862cb` is at migration `011`, the same head the 2026-08-15 shipment carries,
-so it is the first predecessor that could actually read the live schema.
+**The API rollback that existed at head `011` is gone, exactly as predicted.**
+The previous version of this section recorded `7a5862cb` as the first
+schema-compatible predecessor, and noted that it held "only while the head stays
+`011`: the next shipment that adds a migration returns the API to
+fix-forward-only". Migration `012` is that shipment.
 
-Two caveats before relying on it. It is `REMOVED`, so its image may have been
-pruned even though Railway reports `canRedeploy: true` — that flag is reported
-for all five prior deployments including the pre-`009` ones it cannot possibly
-restore, so it is not evidence of anything. And this only holds while the head
-stays `011`: the next shipment that adds a migration returns the API to
-fix-forward-only until a successor at that new head exists. Verified
-2026-08-15.
+The reason is the boot sequence, not the schema. `nixpacks.toml` starts with
+`alembic upgrade head && uvicorn ...`, and every pre-`012` image ships migration
+scripts `001`–`011` only. Started against a database stamped `012`, such an image
+cannot resolve the revision at all — it fails with `Can't locate revision
+identified by '012'`, the `&&` chain stops, uvicorn never starts, and the
+healthcheck fails. **This holds regardless of what is in the tables**, so it is
+not something a data fix can unlock. Do not attempt a Railway rollback to
+`df6626e0` or anything older; it will fail its healthcheck rather than serve.
+
+Recovery is forward-only, per the approved plan for `012` below: clear the
+opt-in and remap any `scheduled` rounds without deploying anything, or ship a
+corrected image at head `012` or higher.
+
+An API rollback target will exist again once a *second* deployment sits at head
+`012`, at which point `f54fa403` becomes the baseline. Until then this row stays
+empty. Note also that a `REMOVED` Railway deployment may have had its image
+pruned, and `canRedeploy: true` is reported even for deployments that could not
+possibly restore — it is not evidence of anything.
+
+**Vercel rollback is unaffected and remains available.** The web app degrades
+independently of the API, and the API is now ahead of every web deployment, so
+an older bundle still finds every field and endpoint it expects. Vercel marks
+only the two most recent production deployments `isRollbackCandidate: true`, so
+the practical target is the immediate predecessor named above. Verified
+2026-08-16.
 
 Rollback reverts application deployments only. Under the 2026-07-30 backup
 deferral there is no database restore path at all, so rollback must never assume
 a recoverable database and never downgrades it. A migration incompatible with
 the previous application requires a separately reviewed forward recovery plan,
 written before the migration ships rather than after it fails — as was done for
-`007`–`011` before the 2026-08-06 shipment.
+`007`–`011` before the 2026-08-06 shipment, and for `012` before the 2026-08-16
+one.
 
 ### Pre-migration snapshot, 2026-08-06
 
