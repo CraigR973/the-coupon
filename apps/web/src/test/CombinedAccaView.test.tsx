@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { CombinedAccaView } from '@/components/CombinedAccaView';
+import userEvent from '@testing-library/user-event';
+import { buildCouponShareText, CombinedAccaView } from '@/components/CombinedAccaView';
 import type { Coupon, CouponLeg } from '@/lib/types';
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const LEG_A: CouponLeg = {
   player_id: 'p1',
@@ -52,11 +55,40 @@ describe('CombinedAccaView', () => {
     render(<CombinedAccaView coupon={coupon()} />);
     expect(screen.getByText(/2-fold accumulator/i)).toBeTruthy();
     expect(screen.getByText('3.50')).toBeTruthy(); // combined odds
+    expect(screen.getByText(/frozen combined odds from pick time/i)).toBeTruthy();
     // "Forfar" is both leg A's selection label and part of its "Forfar v Brechin" subline.
     expect(screen.getAllByText('Forfar').length).toBeGreaterThan(0);
     expect(screen.getByText(/Scottish League 2/)).toBeTruthy();
     expect(screen.getByText('Both teams score')).toBeTruthy(); // leg B selection label
     expect(screen.getAllByTestId(/^acca-leg-/)).toHaveLength(2);
+    expect(screen.getByRole('button', { name: /copy text/i })).toBeTruthy();
+  });
+
+  it('builds plain text with frozen prices and no outbound bet link', () => {
+    expect(buildCouponShareText(coupon())).toBe(
+      [
+        'The Coupon: 2-fold accumulator',
+        'Frozen combined odds: 3.50 (historical, from pick time)',
+        '',
+        '1. Forfar @ 2.00 - Forfar v Brechin (Scottish League 2, 1X2) - Alice',
+        '2. Both teams score @ 1.75 - Celtic v Rangers (Scottish Premiership, BTTS) - Bob',
+        '',
+        'Prices were frozen when each member picked. Check your book for current odds before placing anything.',
+      ].join('\n'),
+    );
+  });
+
+  it('copies the plain text coupon to the clipboard', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(<CombinedAccaView coupon={coupon()} />);
+    await userEvent.click(screen.getByRole('button', { name: /copy text/i }));
+
+    expect(writeText).toHaveBeenCalledWith(buildCouponShareText(coupon()));
   });
 
   it('flags a fully-won settled coupon', () => {

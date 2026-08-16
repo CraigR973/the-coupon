@@ -1,5 +1,8 @@
 import type { Coupon, CouponLeg, PickStatus } from '../lib/types';
+import { Copy } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from './ui/badge';
+import { Button } from './ui/button';
 import { EmptyState } from './EmptyState';
 import { formatOdds, marketTag, outcomeLabel, pickStatusLabel } from '../lib/coupon';
 import { useOddsFormat } from '../hooks/useOddsFormat';
@@ -11,6 +14,21 @@ const STATUS_VARIANT: Record<PickStatus, 'success' | 'error' | 'muted' | 'defaul
   void: 'muted',
   pending: 'default',
 };
+
+export function buildCouponShareText(coupon: Coupon): string {
+  const lines = [
+    `The Coupon: ${coupon.leg_count}-fold accumulator`,
+    `Frozen combined odds: ${formatOdds(coupon.combined_odds)} (historical, from pick time)`,
+    '',
+    ...coupon.legs.map((leg, i) => {
+      const selection = outcomeLabel(leg.market, leg.outcome, leg.home, leg.away);
+      return `${i + 1}. ${selection} @ ${formatOdds(leg.odds)} - ${leg.home} v ${leg.away} (${leg.competition}, ${marketTag(leg.market)}) - ${leg.player_name}`;
+    }),
+    '',
+    'Prices were frozen when each member picked. Check your book for current odds before placing anything.',
+  ];
+  return lines.join('\n');
+}
 
 /**
  * The combined per-leaderboard accumulator for a gameweek: every member's one
@@ -31,11 +49,20 @@ export function CombinedAccaView({ coupon }: { coupon: Coupon }) {
 
   const settled = coupon.status === 'settled';
 
+  async function copyCouponText() {
+    try {
+      await navigator.clipboard.writeText(buildCouponShareText(coupon));
+      toast.success('Coupon copied');
+    } catch {
+      toast.error('Could not copy coupon');
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Summary card */}
       <div className="rounded-lg border border-border bg-surface p-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-text-muted">
               {coupon.leg_count}-fold accumulator
@@ -43,13 +70,21 @@ export function CombinedAccaView({ coupon }: { coupon: Coupon }) {
             <p className="mt-1 text-3xl font-semibold tabular-nums text-text-primary">
               {formatOdds(coupon.combined_odds, oddsFormat)}
             </p>
-            <p className="mt-0.5 text-xs font-sans text-text-muted">combined odds</p>
+            <p className="mt-0.5 text-xs font-sans text-text-muted">
+              frozen combined odds from pick time
+            </p>
           </div>
-          {settled && coupon.all_won !== null && (
-            <Badge variant={coupon.all_won ? 'success' : 'muted'}>
-              {coupon.all_won ? 'All legs won 🎉' : 'Not all legs landed'}
-            </Badge>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {settled && coupon.all_won !== null && (
+              <Badge variant={coupon.all_won ? 'success' : 'muted'}>
+                {coupon.all_won ? 'All legs won 🎉' : 'Not all legs landed'}
+              </Badge>
+            )}
+            <Button type="button" variant="outline" size="sm" onClick={copyCouponText}>
+              <Copy className="h-3.5 w-3.5" aria-hidden />
+              Copy text
+            </Button>
+          </div>
         </div>
       </div>
 
