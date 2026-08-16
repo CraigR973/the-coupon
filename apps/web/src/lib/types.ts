@@ -10,7 +10,8 @@
 
 export type PickMarket = 'MATCH_ODDS' | 'BOTH_TEAMS_TO_SCORE';
 export type PickOutcome = 'HOME' | 'DRAW' | 'AWAY' | 'YES' | 'NO';
-export type GameweekStatus = 'open' | 'locked' | 'settled';
+/** `scheduled` (Batch 27) is a round that exists but whose picks have not opened yet. */
+export type GameweekStatus = 'scheduled' | 'open' | 'locked' | 'settled';
 export type PickStatus = 'pending' | 'won' | 'lost' | 'void';
 /** How a member reads prices. Display only — scoring is always decimal. */
 export type OddsFormat = 'decimal' | 'fractional';
@@ -159,6 +160,8 @@ export interface GameweekSummary {
   starts_on: string; // ISO date (yyyy-mm-dd)
   status: GameweekStatus;
   locks_at_utc: string;
+  /** When picks open; null when the league announces no opening. */
+  picks_open_at_utc: string | null;
   fixture_count: number;
   /** Picks made in *this* league, so the same week reads differently per league. */
   pick_count: number;
@@ -170,6 +173,8 @@ export interface GameweekSlate {
   starts_on: string; // ISO date (yyyy-mm-dd)
   status: GameweekStatus;
   locks_at_utc: string;
+  /** When picks open; null when the league announces no opening. */
+  picks_open_at_utc: string | null;
   fixtures: FixtureSlate[];
   members: GameweekMember[];
   members_missing_picks: number;
@@ -310,6 +315,8 @@ export interface CurrentRound {
   starts_on: string; // ISO date (yyyy-mm-dd)
   status: GameweekStatus;
   locks_at_utc: string;
+  /** When picks open; null when the league announces no opening. */
+  picks_open_at_utc: string | null;
   /** The whole league's acca for the round, not just the caller's leg. */
   leg_count: number;
   combined_odds: number;
@@ -363,6 +370,13 @@ export interface SlateWindow {
   end_weekday: number;
   end_minute: number;
   lock_offset_minutes: number;
+  /**
+   * Minutes before the window opens that picks *open* (Batch 27) — the far end of the
+   * claim period whose near end is `lock_offset_minutes`, measured from the same
+   * anchor. `null` means the league announces no opening and a round is claimable as
+   * soon as it is published.
+   */
+  pick_open_offset_minutes: number | null;
 }
 
 /** One competition a league plays, by the provider's slug plus a display name. */
@@ -387,6 +401,8 @@ export interface AdHocGameweekResult {
   starts_on: string;
   status: GameweekStatus;
   locks_at_utc: string;
+  /** When picks open; null when the league announces no opening. */
+  picks_open_at_utc: string | null;
   fixture_count: number;
   /** True when this call created the round; false when it refreshed an existing one. */
   created: boolean;

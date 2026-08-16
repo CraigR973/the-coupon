@@ -21,6 +21,7 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import AsyncSessionLocal
+from src.models.gameweek import GameweekStatus
 from src.models.league import League
 from src.models.profile import Profile, UserRole
 from src.services.gameweek import fixtures_for, sync_slate
@@ -48,13 +49,13 @@ async def session() -> AsyncSession:
             await s.rollback()
 
 
-async def _league(session: AsyncSession) -> League:
+async def _league(session: AsyncSession, **config: object) -> League:
     """A league to own the round — rounds are per-league since Batch 14."""
     tag = uuid.uuid4().hex[:8]
     owner = Profile(display_name=f"owner-{tag}", pin_hash="x", role=UserRole.player)
     session.add(owner)
     await session.flush()
-    league = League(slug=f"slate-{tag}", name=f"Slate {tag}", created_by=owner.id)
+    league = League(slug=f"slate-{tag}", name=f"Slate {tag}", created_by=owner.id, **config)
     session.add(league)
     await session.flush()
     return league
@@ -108,3 +109,57 @@ async def test_column_admits_the_longest_slug_the_provider_can_return(
 
     stored = (await fixtures_for(session, gameweek.id))[0]
     assert stored.competition_id == slug
+
+
+# ── The claim period a discovered round is written with (Batch 27) ───────────
+
+
+async def test_a_league_with_no_announced_opening_writes_an_open_round(
+    session: AsyncSession,
+) -> None:
+    """The pre-batch rule survives untouched for every league that never opts in."""
+    saturday = datetime(2027, 3, 20, 15, 0, tzinfo=UTC)
+    gameweek = await sync_slate(
+        session,
+        await _league(session),
+        _slate(saturday, competition="English Premier League", competition_id="england-premier"),
+    )
+
+    assert gameweek is not None
+    assert gameweek.picks_open_at_utc is None
+    assert gameweek.status is GameweekStatus.open
+
+
+async def test_a_future_round_is_written_scheduled_with_its_opening(
+    session: AsyncSession,
+) -> None:
+    """Both ends of the claim period are frozen onto the round when it is discovered."""
+    # Far enough ahead that the opening is still in the future whenever this runs.
+    saturday = datetime(2099, 3, 20, 15, 0, tzinfo=UTC)
+    league = await _league(session, pick_open_offset_minutes=7 * 24 * 60)
+    gameweek = await sync_slate(
+        session,
+        league,
+        _slate(saturday, competition="English Premier League", competition_id="england-premier"),
+    )
+
+    assert gameweek is not None
+    assert gameweek.status is GameweekStatus.scheduled
+    # A week before Saturday 15:00 GMT is the previous Saturday at 15:00.
+    assert gameweek.picks_open_at_utc == datetime(2099, 3, 13, 15, 0)
+    assert gameweek.picks_open_at_utc < gameweek.locks_at_utc
+
+
+async def test_a_past_round_is_written_open_despite_the_offset(session: AsyncSession) -> None:
+    """An ad-hoc round created after its own opening must not read as "not open yet"."""
+    saturday = datetime(2020, 3, 21, 15, 0, tzinfo=UTC)
+    league = await _league(session, pick_open_offset_minutes=7 * 24 * 60)
+    gameweek = await sync_slate(
+        session,
+        league,
+        _slate(saturday, competition="English Premier League", competition_id="england-premier"),
+    )
+
+    assert gameweek is not None
+    assert gameweek.picks_open_at_utc == datetime(2020, 3, 14, 15, 0)
+    assert gameweek.status is GameweekStatus.open

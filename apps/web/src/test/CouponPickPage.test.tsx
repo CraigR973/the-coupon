@@ -26,6 +26,7 @@ const SLATE: GameweekSlate = {
   starts_on: '2026-08-08',
   status: 'open',
   locks_at_utc: '2999-01-01T14:30:00Z',
+  picks_open_at_utc: null,
   fixtures: [
     {
       fixture_id: 'fx1',
@@ -95,6 +96,7 @@ const GAMEWEEKS = [
     starts_on: '2026-08-08',
     status: 'open',
     locks_at_utc: '2999-01-01T14:30:00Z',
+    picks_open_at_utc: null,
     fixture_count: 2,
     pick_count: 1,
   },
@@ -103,6 +105,7 @@ const GAMEWEEKS = [
     starts_on: '2026-08-01',
     status: 'settled',
     locks_at_utc: '2026-08-01T13:30:00Z',
+    picks_open_at_utc: null,
     fixture_count: 3,
     pick_count: 2,
   },
@@ -125,6 +128,23 @@ function stubFetchWithSlate() {
   vi.stubGlobal('fetch', (url: string) => {
     if (String(url).includes('/gameweek/current')) {
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(SLATE) });
+    }
+    if (String(url).includes('/gameweeks')) {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(GAMEWEEKS) });
+    }
+    if (String(url).includes('/leagues/mine')) {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([MOCK_LEAGUE]) });
+    }
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+  });
+}
+
+/** The same routes, with the slate patched — for the states the default one isn't in. */
+function stubSlate(overrides: Partial<GameweekSlate>) {
+  vi.stubGlobal('fetch', (url: string) => {
+    if (String(url).includes('/gameweek/current')) {
+      const slate = { ...SLATE, ...overrides };
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(slate) });
     }
     if (String(url).includes('/gameweeks')) {
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(GAMEWEEKS) });
@@ -177,6 +197,37 @@ describe('CouponPickPage', () => {
     renderPage();
     const banner = await screen.findByTestId('lock-banner');
     expect(banner.textContent).toMatch(/picks lock in/i);
+  });
+
+  // ── Batch 27: a round that exists but has not opened ─────────────────────
+
+  it('counts down to the opening, not to the lock, before picks open', async () => {
+    stubSlate({ status: 'scheduled', picks_open_at_utc: '2999-01-01T14:00:00Z' });
+    renderPage();
+
+    const banner = await screen.findByTestId('lock-banner');
+    expect(banner.textContent).toMatch(/picks open in/i);
+    expect(banner.textContent).not.toMatch(/locked/i);
+    // Nothing to grab yet, so the "you haven't picked" nudge stays out of the way.
+    expect(screen.queryByText(/haven't grabbed a selection/i)).toBeNull();
+  });
+
+  it('treats a scheduled round whose opening has passed as open', async () => {
+    // The hourly job has not relabelled it yet; the stored instant is the authority,
+    // exactly as it is on the API side.
+    stubSlate({ status: 'scheduled', picks_open_at_utc: '2020-01-01T14:00:00Z' });
+    renderPage();
+
+    const banner = await screen.findByTestId('lock-banner');
+    expect(banner.textContent).toMatch(/picks lock in/i);
+  });
+
+  it('reads a settled round as settled even with an opening still ahead', async () => {
+    stubSlate({ status: 'settled', picks_open_at_utc: '2999-01-01T14:00:00Z' });
+    renderPage();
+
+    const banner = await screen.findByTestId('lock-banner');
+    expect(banner.textContent).toMatch(/settled/i);
   });
 
   it('groups the slate by competition slug, pyramid order first', async () => {

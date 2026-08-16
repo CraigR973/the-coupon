@@ -47,6 +47,8 @@ describe('pickErrorMessage', () => {
     // The fixture rule refuses the whole game, not one selection.
     expect(pickErrorMessage('FIXTURE_TAKEN')).toMatch(/already has that game/i);
     expect(pickErrorMessage('PICKS_LOCKED')).toMatch(/locked/i);
+    // Batch 27's other refusal — "come back later", not "it is over".
+    expect(pickErrorMessage('PICKS_NOT_OPEN')).toMatch(/haven’t opened/i);
     expect(pickErrorMessage('SELECTION_NOT_AVAILABLE')).toMatch(/priced/i);
     expect(pickErrorMessage('')).toMatch(/could not save/i);
     expect(pickErrorMessage('Some other server message')).toBe('Some other server message');

@@ -93,6 +93,7 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
             "discover_fixtures",
             "refresh_slate",
             "pick_reminders",
+            "open_gameweeks",
             "lock_gameweeks",
             "settle_gameweeks",
             "sync_football_data",
@@ -125,6 +126,8 @@ def test_create_scheduler_domain_jobs_fire_on_uk_wall_clock() -> None:
             "discover_fixtures": "cron[hour='6', minute='0']",
             "refresh_slate": "cron[hour='9,13', minute='0']",
             "pick_reminders": "cron[hour='11', minute='0']",
+            # Hourly, a minute clear of the lock sweep so the two never interleave.
+            "open_gameweeks": "cron[minute='1']",
             "lock_gameweeks": "cron[minute='0']",
             "settle_gameweeks": "cron[hour='18,20,22', minute='0']",
         }

@@ -4,6 +4,11 @@ Batch 14 replaced the Saturday-15:00 constants with a per-league
 :class:`~src.services.odds_provider.SlateWindow`. These tests pin both ends of
 that: that the default window still describes exactly the game the product
 shipped with, and that a window spanning several days behaves sensibly.
+
+Batch 27 added the other end of the claim period — when picks *open* — so they
+also pin how that instant is derived, that it stays out of the window's identity
+(and therefore out of the provider's request budget), and which of the two
+refusals a round gives at each point in its life.
 """
 
 from __future__ import annotations
@@ -13,7 +18,15 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 
 from src.models.gameweek import Gameweek, GameweekStatus
-from src.services.gameweek import slate_odds_max_age, upcoming_slate_dates
+from src.models.league import League
+from src.services.gameweek import (
+    initial_status,
+    pick_refusal,
+    picks_open_at,
+    slate_odds_max_age,
+    upcoming_slate_dates,
+    window_for,
+)
 from src.services.odds_provider import SATURDAY_THREE_PM, SlateWindow
 
 FRIDAY, SATURDAY, SUNDAY, MONDAY = 4, 5, 6, 0
@@ -180,9 +193,143 @@ def test_browse_price_freshness_tightens_towards_lock(
     assert slate_odds_max_age(gameweek, now, near_ttl=900.0, far_ttl=3600.0) == expected
 
 
-@pytest.mark.parametrize("status", [GameweekStatus.locked, GameweekStatus.settled])
-def test_a_closed_gameweek_gets_the_loosest_tier(status: GameweekStatus) -> None:
-    """Nothing can move a frozen price, so re-fetching one buys nothing."""
+@pytest.mark.parametrize(
+    "status", [GameweekStatus.scheduled, GameweekStatus.locked, GameweekStatus.settled]
+)
+def test_a_gameweek_that_is_not_open_gets_the_loosest_tier(status: GameweekStatus) -> None:
+    """Nothing can move a frozen price, and nobody can freeze one before picks open."""
     now = datetime(2026, 8, 8, 0, 0)
     gameweek = _gameweek(status, now + timedelta(hours=1))
     assert slate_odds_max_age(gameweek, now, near_ttl=900.0, far_ttl=3600.0) == 3600.0
+
+
+# ── When picks open (Batch 27) ───────────────────────────────────────────────
+
+#: A week, in minutes — picks open as the *previous* week's window does.
+A_WEEK = 7 * 24 * 60
+
+
+def _league(**overrides: object) -> League:
+    """A league carrying only the window columns these tests read."""
+    return League(
+        slate_start_weekday=SATURDAY,
+        slate_start_minute=15 * 60,
+        slate_end_weekday=SATURDAY,
+        slate_end_minute=15 * 60,
+        lock_offset_minutes=30,
+        **overrides,
+    )
+
+
+def test_an_unconfigured_league_announces_no_opening() -> None:
+    """The pre-Batch-27 rule: a round is claimable as soon as it is published."""
+    assert picks_open_at(_league(pick_open_offset_minutes=None), date(2026, 8, 8)) is None
+
+
+def test_picks_open_a_week_before_the_window_on_the_same_clock() -> None:
+    """A week before Saturday 15:00 BST is the previous Saturday 15:00 — 14:00Z."""
+    opens = picks_open_at(_league(pick_open_offset_minutes=A_WEEK), date(2026, 8, 8))
+    assert opens == datetime(2026, 8, 1, 14, 0)
+
+
+def test_the_pick_open_instant_tracks_bst_and_gmt() -> None:
+    """Anchored in Europe/London, so December is an hour later in UTC than August."""
+    december = picks_open_at(_league(pick_open_offset_minutes=A_WEEK), date(2026, 12, 12))
+    assert december == datetime(2026, 12, 5, 15, 0)
+
+
+def test_the_pick_open_offset_is_not_part_of_the_window_identity() -> None:
+    """Two leagues differing only in when picks open must still share one fetch.
+
+    ``discover_fixtures`` groups leagues by :class:`SlateWindow`, so a pick-open offset
+    that reached the window would multiply the provider bill by the number of distinct
+    announcements — the request budget under a configuration knob, which Batch 27 is
+    explicitly not allowed to do.
+    """
+    early = window_for(_league(pick_open_offset_minutes=A_WEEK))
+    late = window_for(_league(pick_open_offset_minutes=60))
+    assert early == late
+    assert len({early, late}) == 1
+
+
+# ── The claim period, both ends ──────────────────────────────────────────────
+
+NOW = datetime(2026, 8, 8, 12, 0)
+
+
+def _round(
+    status: GameweekStatus,
+    *,
+    locks_at: datetime,
+    opens_at: datetime | None = None,
+) -> Gameweek:
+    return Gameweek(
+        starts_on=locks_at.date(),
+        status=status,
+        locks_at_utc=locks_at,
+        picks_open_at_utc=opens_at,
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "opens_at", "expected"),
+    [
+        # No announced opening — unchanged from before the batch.
+        (GameweekStatus.open, None, None),
+        # Announced and passed: accepted, whatever the label says.
+        (GameweekStatus.open, NOW - timedelta(minutes=1), None),
+        (GameweekStatus.scheduled, NOW - timedelta(minutes=1), None),
+        # Announced and still ahead: refused as *not yet*, not as over.
+        (GameweekStatus.scheduled, NOW + timedelta(minutes=1), "PICKS_NOT_OPEN"),
+        (GameweekStatus.open, NOW + timedelta(minutes=1), "PICKS_NOT_OPEN"),
+        # Exactly on the instant counts as open — the announcement is a start, not a gap.
+        (GameweekStatus.scheduled, NOW, None),
+    ],
+)
+def test_the_opening_end_of_the_claim_period(
+    status: GameweekStatus, opens_at: datetime | None, expected: str | None
+) -> None:
+    """Time decides, and ``status`` only says which rounds settlement has finished with.
+
+    A ``scheduled`` round whose instant has passed must be accepted before the hourly
+    open job relabels it, exactly as an ``open`` round past its lock is refused before
+    the lock job does.
+    """
+    gameweek = _round(status, locks_at=NOW + timedelta(hours=2), opens_at=opens_at)
+    assert pick_refusal(gameweek, NOW) == expected
+
+
+@pytest.mark.parametrize("status", [GameweekStatus.locked, GameweekStatus.settled])
+def test_a_finished_round_is_locked_not_unopened(status: GameweekStatus) -> None:
+    """Even with an opening still ahead — a settled round is over, not pending."""
+    gameweek = _round(
+        status, locks_at=NOW + timedelta(hours=2), opens_at=NOW + timedelta(minutes=1)
+    )
+    assert pick_refusal(gameweek, NOW) == "PICKS_LOCKED"
+
+
+def test_the_deadline_still_wins_over_an_opening_that_has_passed() -> None:
+    gameweek = _round(
+        GameweekStatus.open, locks_at=NOW - timedelta(minutes=1), opens_at=NOW - timedelta(days=7)
+    )
+    assert pick_refusal(gameweek, NOW) == "PICKS_LOCKED"
+
+
+# ── The state a round is discovered in ───────────────────────────────────────
+
+
+def test_a_round_discovered_before_its_opening_starts_scheduled() -> None:
+    assert initial_status(NOW + timedelta(days=1), NOW) is GameweekStatus.scheduled
+
+
+@pytest.mark.parametrize(
+    "opens_at",
+    [
+        None,  # no announcement at all
+        NOW - timedelta(minutes=1),  # an ad-hoc round created after its own opening
+        NOW,
+    ],
+)
+def test_a_round_that_is_already_claimable_starts_open(opens_at: datetime | None) -> None:
+    """Otherwise the badge would read "not open" while the endpoint accepted picks."""
+    assert initial_status(opens_at, NOW) is GameweekStatus.open

@@ -381,6 +381,64 @@ async def test_locked_gameweek_rejects_submit(
     assert r.status_code == 409 and r.json()["detail"] == "PICKS_LOCKED"
 
 
+# ── Batch 27: the other end of the claim period ──────────────────────────────
+
+
+async def test_a_round_that_has_not_opened_rejects_submit(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Refused as *not yet*, not as over — the two ask opposite things of a member."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["earlybird"])
+        gameweek, fixture = await _round_with_one_fixture(
+            session,
+            league,
+            date(2026, 8, 29),
+            locks_at=_now() + timedelta(hours=2),
+            event_id=SAMPLE_EPL_EVENT_ID,
+            home="Arsenal",
+            away="Chelsea",
+            competition="English Premier League",
+            competition_id="10932509",
+        )
+        gameweek.status = GameweekStatus.scheduled
+        gameweek.picks_open_at_utc = _now() + timedelta(hours=1)
+        await session.commit()
+        fixture_id = str(fixture.id)
+
+    r = await _submit(client, league.slug, alice, fixture_id, "MATCH_ODDS", "HOME")
+    assert r.status_code == 409 and r.json()["detail"] == "PICKS_NOT_OPEN"
+
+
+async def test_a_scheduled_round_accepts_a_pick_once_its_time_has_passed(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The stored instant is the gate, not the label the hourly job keeps up with."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["punctual"])
+        gameweek, fixture = await _round_with_one_fixture(
+            session,
+            league,
+            date(2026, 9, 5),
+            locks_at=_now() + timedelta(hours=2),
+            event_id=SAMPLE_EPL_EVENT_ID,
+            home="Arsenal",
+            away="Chelsea",
+            competition="English Premier League",
+            competition_id="10932509",
+        )
+        # Still labelled ``scheduled`` because the open job has not run yet.
+        gameweek.status = GameweekStatus.scheduled
+        gameweek.picks_open_at_utc = _now() - timedelta(minutes=1)
+        await session.commit()
+        fixture_id = str(fixture.id)
+
+    r = await _submit(client, league.slug, alice, fixture_id, "MATCH_ODDS", "HOME")
+    assert r.status_code == 201, r.text
+
+
 # ── Batch 9: the slate's member roster and fixture-level picked marker ────────
 
 
@@ -1137,6 +1195,8 @@ async def test_create_league_carries_window_markets_and_competitions(
         "end_weekday": 0,
         "end_minute": 1320,
         "lock_offset_minutes": 60,
+        # Batch 27: unset unless asked for — "claimable as soon as it is published".
+        "pick_open_offset_minutes": None,
     }
 
     # A league created with no config takes the old defaults: all UK, both markets, Sat 15:00.
@@ -1188,6 +1248,82 @@ async def test_admin_edits_window_markets_and_competitions(
         f"/api/v1/leagues/{slug}", json={"lock_offset_minutes": 45}, headers=_auth(alice)
     )
     assert untouched.json()["competitions"] is None
+
+
+async def test_admin_sets_and_clears_the_pick_open_time(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Batch 27's control, alongside the rest of the window settings."""
+    client, _ = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["timekeeper"])
+    await _make_admin(league, alice)
+    slug = league.slug
+
+    # A new league announces no opening — the pre-batch rule.
+    before = await client.get(f"/api/v1/leagues/{slug}", headers=_auth(alice))
+    assert before.json()["slate_window"]["pick_open_offset_minutes"] is None
+
+    a_week = 7 * 24 * 60
+    r = await client.patch(
+        f"/api/v1/leagues/{slug}",
+        json={"pick_open_offset_minutes": a_week},
+        headers=_auth(alice),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["slate_window"]["pick_open_offset_minutes"] == a_week
+
+    # Omitting it leaves the announcement alone…
+    kept = await client.patch(
+        f"/api/v1/leagues/{slug}", json={"lock_offset_minutes": 45}, headers=_auth(alice)
+    )
+    assert kept.json()["slate_window"]["pick_open_offset_minutes"] == a_week
+    # …and null switches it back off, which is why null cannot mean "unchanged" here.
+    cleared = await client.patch(
+        f"/api/v1/leagues/{slug}", json={"pick_open_offset_minutes": None}, headers=_auth(alice)
+    )
+    assert cleared.json()["slate_window"]["pick_open_offset_minutes"] is None
+
+
+async def test_a_claim_period_cannot_close_before_it_opens(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Refused as a 422 in both directions, rather than reaching the database's check."""
+    client, _ = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["backwards"])
+    await _make_admin(league, alice)
+    slug = league.slug
+
+    # Picks opening *after* they lock — both offsets count back from the same anchor.
+    r = await client.patch(
+        f"/api/v1/leagues/{slug}",
+        json={"lock_offset_minutes": 60, "pick_open_offset_minutes": 30},
+        headers=_auth(alice),
+    )
+    assert r.status_code == 422, r.text
+
+    # And a lock moved on its own must still clear an offset it never mentions.
+    ok = await client.patch(
+        f"/api/v1/leagues/{slug}", json={"pick_open_offset_minutes": 120}, headers=_auth(alice)
+    )
+    assert ok.status_code == 200, ok.text
+    late_lock = await client.patch(
+        f"/api/v1/leagues/{slug}", json={"lock_offset_minutes": 180}, headers=_auth(alice)
+    )
+    assert late_lock.status_code == 422, late_lock.text
+
+    # Creation is guarded the same way.
+    bad = await client.post(
+        "/api/v1/leagues",
+        json={
+            "name": f"Backwards {uuid.uuid4().hex[:6]}",
+            "lock_offset_minutes": 60,
+            "pick_open_offset_minutes": 30,
+        },
+        headers=_auth(alice),
+    )
+    assert bad.status_code == 422, bad.text
 
 
 async def test_offered_markets_hide_from_the_slate_and_block_submit(

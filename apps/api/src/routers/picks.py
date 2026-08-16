@@ -4,6 +4,8 @@
 pick for the gameweek. The endpoint snapshots the odds itself, so the frozen price is
 authoritative rather than client-supplied, and it enforces both game rules:
 
+* the claim period — after the league's announced opening (``PICKS_NOT_OPEN``) and
+  before the deadline (``PICKS_LOCKED``);
 * one pick per member per round (a re-pick updates in place, freeing the old selection);
 * no two members holding the same claim (first-come; a taken claim → 409).
 
@@ -31,11 +33,11 @@ from src.config import settings
 from src.database import get_db
 from src.deps import LeagueMemberDep, OddsProviderDep
 from src.models.fixture import Fixture
-from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
+from src.models.gameweek import Gameweek, GameweekFixture
 from src.models.league import League, PickScope
 from src.models.pick import Pick, PickMarket, PickOutcome
 from src.rate_limit import limiter, per_user_key
-from src.services.gameweek import is_open_for_picks
+from src.services.gameweek import PICKABLE_STATES, pick_refusal
 from src.services.odds_provider import Selection
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -108,8 +110,11 @@ async def submit_pick(
 ) -> PickResponse:
     fixture = await _resolve_fixture(body.fixture_id, db)
     gameweek = await _round_playing(db, league, fixture)
-    if not is_open_for_picks(gameweek, _now()):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="PICKS_LOCKED")
+    # Both ends of the claim period: ``PICKS_NOT_OPEN`` before the league's announced
+    # opening (Batch 27), ``PICKS_LOCKED`` after the deadline.
+    refusal = pick_refusal(gameweek, _now())
+    if refusal is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=refusal)
 
     # The league may offer only a subset of the two markets. A market it does not offer
     # is refused here as well as hidden from the slate, so the rule holds even if a
@@ -211,16 +216,18 @@ async def _round_playing(db: AsyncSession, league: League, fixture: Fixture) -> 
 
     A league can carry the same fixture on two rounds — ``sync_slate`` never unlinks,
     so a match that moves between windows stays on the round it was first discovered
-    for. **Still-open rounds win**, newest first: a pick can only ever land on an open
-    round, so resolving to a locked one would refuse a submission the member could
-    legitimately make.
+    for. **Rounds that are not over win**, newest first: a pick can only ever land on
+    one whose deadline is still ahead, so resolving to a locked one would refuse a
+    submission the member could legitimately make. ``scheduled`` counts, so a member
+    whose league announces an opening is told to come back rather than told the game
+    they are looking at is finished.
     """
     result = await db.execute(
         select(Gameweek)
         .join(GameweekFixture, GameweekFixture.gameweek_id == Gameweek.id)
         .where(GameweekFixture.fixture_id == fixture.id, Gameweek.league_id == league.id)
         .order_by(
-            (Gameweek.status == GameweekStatus.open).desc(),
+            Gameweek.status.in_(PICKABLE_STATES).desc(),
             Gameweek.starts_on.desc(),
         )
         .limit(1)

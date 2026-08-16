@@ -218,10 +218,20 @@ class SlateWindow:
             minutes=self.end_minute
         )
 
+    def utc_before_open(self, starts_on: date, minutes: int) -> datetime:
+        """Naive-UTC instant ``minutes`` before this window opens on ``starts_on``.
+
+        The anchor every per-league offset is measured from. Batch 27's pick-open
+        instant is a second such offset and lives on the league rather than here, so a
+        league that only differs by *when picks open* still hashes to the same window
+        and shares one provider fetch (see ``discover_fixtures``).
+        """
+        local = self.opens_at(starts_on) - timedelta(minutes=minutes)
+        return local.astimezone(UTC).replace(tzinfo=None)
+
     def locks_at(self, starts_on: date) -> datetime:
         """Naive-UTC instant picks lock: ``lock_offset_minutes`` before it opens."""
-        local = self.opens_at(starts_on) - timedelta(minutes=self.lock_offset_minutes)
-        return local.astimezone(UTC).replace(tzinfo=None)
+        return self.utc_before_open(starts_on, self.lock_offset_minutes)
 
     def query_bounds(self, starts_on: date) -> tuple[datetime, datetime]:
         """UTC [start, end) covering every local day the window touches.

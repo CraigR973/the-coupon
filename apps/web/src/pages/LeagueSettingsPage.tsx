@@ -14,6 +14,8 @@ import type {
 } from '@/lib/types';
 import {
   ALL_MARKETS,
+  DEFAULT_PICK_OPEN_OFFSET_MINUTES,
+  describeLeadTime,
   hhmmToMinutes,
   minutesToHHMM,
   SATURDAY_3PM_WINDOW,
@@ -134,6 +136,16 @@ export function LeagueSettingsPage() {
       toast.error('Pick at least one competition, or switch on “All UK leagues”.');
       return;
     }
+    // Both offsets count back from the window opening, so picks opening *later* than
+    // they lock is a claim period that never happens. The API refuses it too; catching
+    // it here says so against the field rather than as a toast after a round trip.
+    if (
+      window.pick_open_offset_minutes !== null &&
+      window.pick_open_offset_minutes < window.lock_offset_minutes
+    ) {
+      toast.error('Picks must open before they lock — give them a longer lead time.');
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -146,6 +158,10 @@ export function LeagueSettingsPage() {
       body.slate_end_weekday = window.end_weekday;
       body.slate_end_minute = window.end_minute;
       body.lock_offset_minutes = window.lock_offset_minutes;
+      // Explicitly null when the league announces no opening: the API reads this one
+      // from the keys actually sent, so omitting it would mean "leave it alone" and an
+      // admin could never switch the announcement back off.
+      body.pick_open_offset_minutes = window.pick_open_offset_minutes;
       // Only the markets the game knows — a stale value in state cannot widen the enum.
       body.offered_markets = ALL_MARKETS.map((m) => m.value).filter((v) => markets.has(v));
       body.competitions = competitions;
@@ -378,6 +394,50 @@ export function LeagueSettingsPage() {
                 }
               />
             </div>
+
+            <div className="space-y-3 rounded-md border border-border bg-surface p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-sans text-text-primary">Announce when picks open</p>
+                  <p className="text-xs font-sans text-text-muted">
+                    Off: a round is claimable the moment its fixtures are published, which
+                    lands at no fixed time. On: picks open at the hour you set, every week.
+                  </p>
+                </div>
+                <Toggle
+                  checked={window.pick_open_offset_minutes !== null}
+                  onCheckedChange={(on) =>
+                    updateWindow({
+                      pick_open_offset_minutes: on ? DEFAULT_PICK_OPEN_OFFSET_MINUTES : null,
+                    })
+                  }
+                  label="Announce when picks open"
+                />
+              </div>
+
+              {window.pick_open_offset_minutes !== null && (
+                <div className="space-y-1">
+                  <Label htmlFor="pickOpenOffset">Picks open (minutes before it opens)</Label>
+                  <Input
+                    id="pickOpenOffset"
+                    type="number"
+                    min={0}
+                    value={window.pick_open_offset_minutes}
+                    onChange={(e) =>
+                      updateWindow({
+                        pick_open_offset_minutes: Math.max(0, Number(e.target.value) || 0),
+                      })
+                    }
+                  />
+                  <p className="text-xs font-sans text-text-muted">
+                    {describeLeadTime(window.pick_open_offset_minutes)} before{' '}
+                    {WEEKDAYS[window.start_weekday]?.label ?? 'the window'}{' '}
+                    {minutesToHHMM(window.start_minute)}. Must be longer than the lock.
+                  </p>
+                </div>
+              )}
+            </div>
+
             <Button
               type="button"
               variant="outline"

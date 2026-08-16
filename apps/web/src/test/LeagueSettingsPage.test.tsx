@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { LeagueSettingsPage } from '@/pages/LeagueSettingsPage';
 
 // sonner needs a <Toaster/> to render; the page only calls toast.*, so stub it out.
@@ -23,7 +24,19 @@ function stubAuth() {
   });
 }
 
-function leagueDetail(overrides: Record<string, unknown> = {}) {
+const SATURDAY_3PM = {
+  start_weekday: 5,
+  start_minute: 900,
+  end_weekday: 5,
+  end_minute: 900,
+  lock_offset_minutes: 30,
+  pick_open_offset_minutes: null,
+};
+
+function leagueDetail(
+  overrides: Record<string, unknown> = {},
+  window: Record<string, unknown> = {},
+) {
   return {
     id: 'l1',
     slug: 'the-coupon',
@@ -32,7 +45,7 @@ function leagueDetail(overrides: Record<string, unknown> = {}) {
     privacy: 'public_open',
     max_members: 15,
     pick_scope: 'selection',
-    slate_window: { start_weekday: 5, start_minute: 900, end_weekday: 5, end_minute: 900, lock_offset_minutes: 30 },
+    slate_window: { ...SATURDAY_3PM, ...window },
     competitions: null,
     offered_markets: ['MATCH_ODDS', 'BOTH_TEAMS_TO_SCORE'],
     member_count: 1,
@@ -49,7 +62,7 @@ function json(data: unknown, status = 200) {
 }
 
 /** Route all the settings-page endpoints; capture the PATCH and ad-hoc POST bodies. */
-function stubApi(catalogue?: Record<string, unknown>) {
+function stubApi(catalogue?: Record<string, unknown>, window: Record<string, unknown> = {}) {
   const captured: { patch: Record<string, unknown> | null; post: Record<string, unknown> | null } = {
     patch: null,
     post: null,
@@ -71,16 +84,16 @@ function stubApi(catalogue?: Record<string, unknown>) {
     if (url.endsWith('/gameweeks') && method === 'POST') {
       captured.post = JSON.parse(init.body as string) as Record<string, unknown>;
       return json(
-        { gameweek_id: 'g1', starts_on: '2027-12-26', status: 'open', locks_at_utc: '2027-12-26T14:30:00', fixture_count: 3, created: true },
+        { gameweek_id: 'g1', starts_on: '2027-12-26', status: 'open', locks_at_utc: '2027-12-26T14:30:00', picks_open_at_utc: null, fixture_count: 3, created: true },
         201,
       );
     }
     if (method === 'PATCH') {
       captured.patch = JSON.parse(init.body as string) as Record<string, unknown>;
-      return json(leagueDetail());
+      return json(leagueDetail({}, window));
     }
     if (/\/api\/v1\/leagues\/[^/]+$/.test(url)) {
-      return json(leagueDetail());
+      return json(leagueDetail({}, window));
     }
     return json({});
   });
@@ -177,5 +190,86 @@ describe('LeagueSettingsPage — admin configuration (Batch 15)', () => {
 
     await waitFor(() => expect(api.post).not.toBeNull());
     expect(api.post?.starts_on).toBe('2027-12-26');
+  });
+});
+
+describe('LeagueSettingsPage — when picks open (Batch 27)', () => {
+  /**
+   * Wait for the form to be *populated* from the league query, not merely rendered.
+   *
+   * The page renders its skeleton until `league` arrives, so the pick-open switch
+   * appearing only proves that query resolved — the effect copying `league.name` into
+   * the name field runs after that commit. Clicking Save in between submits a form
+   * whose `required` name input is still empty, and jsdom then refuses to dispatch
+   * `submit` at all: no handler, no toast, no PATCH, and a `waitFor` that can only
+   * time out. Raising the timeout does not help, because nothing is in flight.
+   *
+   * The league name landing in the input is the moment the whole effect has run.
+   */
+  const formReady = () => screen.findByDisplayValue('The Coupon');
+
+  it('sends null while the league announces no opening, and hides the field', async () => {
+    const api = stubApi();
+    renderPage();
+    await screen.findByRole('switch', { name: /announce when picks open/i });
+    expect(screen.queryByLabelText(/picks open \(minutes/i)).toBeNull();
+    await formReady();
+
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    await waitFor(() => expect(api.patch).not.toBeNull());
+    // Explicitly null, not omitted: the API reads this field from the keys sent, so
+    // omitting it would mean "unchanged" and the setting could never be turned off.
+    expect(api.patch).toHaveProperty('pick_open_offset_minutes', null);
+  });
+
+  it('switching it on seeds a week and saves the offset', async () => {
+    const api = stubApi();
+    renderPage();
+    const toggle = await screen.findByRole('switch', { name: /announce when picks open/i });
+    fireEvent.click(toggle);
+
+    const field = (await screen.findByLabelText(/picks open \(minutes/i)) as HTMLInputElement;
+    expect(field.value).toBe(String(7 * 24 * 60));
+
+    fireEvent.change(field, { target: { value: '2880' } }); // two days
+    await formReady();
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(api.patch).not.toBeNull());
+    expect(api.patch?.pick_open_offset_minutes).toBe(2880);
+  });
+
+  it('refuses a claim period that would close before it opened', async () => {
+    // Both offsets count back from the same anchor, so a pick-open offset smaller than
+    // the lock offset means picks open *after* they lock — a round nobody could play.
+    const api = stubApi(undefined, { lock_offset_minutes: 120 });
+    // `vi.mock` builds the sonner spies once per file and `restoreAllMocks` does not
+    // clear call history, so without this the assertion below could be satisfied by an
+    // error toast raised in an earlier test.
+    vi.mocked(toast.error).mockClear();
+    renderPage();
+    const toggle = await screen.findByRole('switch', { name: /announce when picks open/i });
+    fireEvent.click(toggle);
+
+    const field = await screen.findByLabelText(/picks open \(minutes/i);
+    fireEvent.change(field, { target: { value: '60' } });
+    await formReady();
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    // The toast has to come from *this* click, so the guard is what is being proven —
+    // not a form that silently refused to submit for an unrelated reason.
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(api.patch).toBeNull();
+  });
+
+  it('loads a stored offset with the switch already on', async () => {
+    stubApi(undefined, { pick_open_offset_minutes: 4320 }); // three days
+    renderPage();
+
+    const toggle = await screen.findByRole('switch', { name: /announce when picks open/i });
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    const field = (await screen.findByLabelText(/picks open \(minutes/i)) as HTMLInputElement;
+    expect(field.value).toBe('4320');
+    expect(screen.getByText(/3 days before Saturday 15:00/i)).toBeTruthy();
   });
 });

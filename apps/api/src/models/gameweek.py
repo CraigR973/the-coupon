@@ -12,10 +12,17 @@ from src.models.base import Base, UpdatedAtMixin, UUIDPrimaryKeyMixin
 class GameweekStatus(StrEnum):
     """Lifecycle of a round.
 
+    ``scheduled`` — the round exists but picks are not claimable yet;
     ``open`` — picks accepted; ``locked`` — the deadline passed, picks frozen;
     ``settled`` — provider results in, points awarded.
+
+    ``scheduled`` arrived with Batch 27. Until then ``open`` meant both "this round
+    has been discovered" and "you may claim on it", because a round became claimable
+    the moment discovery wrote it — an instant no member could predict. A league that
+    announces when picks open needs the two to be separate states.
     """
 
+    scheduled = "scheduled"
     open = "open"
     locked = "locked"
     settled = "settled"
@@ -37,6 +44,12 @@ class Gameweek(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
 
     ``locks_at_utc`` is derived from the league's ``lock_offset_minutes`` before the
     window opens, stored naive-UTC like every ``*_utc`` column.
+
+    ``picks_open_at_utc`` is the other end of the same claim period (Batch 27), derived
+    from ``pick_open_offset_minutes``. ``NULL`` is the rule every round had before it
+    existed — claimable as soon as discovery writes the row — so an unconfigured league
+    is unchanged. Neither instant is re-derived once a round exists: a window change
+    applies to rounds discovered from then on, exactly as it always has.
     """
 
     __tablename__ = "gameweeks"
@@ -54,6 +67,9 @@ class Gameweek(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
         server_default="open",
     )
     locks_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False)
+    picks_open_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True
+    )
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
 
 

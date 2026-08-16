@@ -12,6 +12,7 @@ import { usePickEditor, gameweekKey } from '../hooks/usePickEditor';
 import type {
   FixtureSlate,
   GameweekSlate,
+  GameweekStatus,
   OddsFormat,
   PickMarket,
   PickOutcome,
@@ -30,6 +31,9 @@ import { Badge } from '../components/ui/badge';
 import { cn } from '../lib/utils';
 
 const FAR_PAST = new Date(0).toISOString();
+
+/** The two states a round can still be claimed in — settlement has finished with the rest. */
+const PICKABLE: ReadonlySet<GameweekStatus> = new Set(['scheduled', 'open']);
 
 function formatCountdown(p: CountdownParts): string {
   if (p.expired) return 'Locked';
@@ -150,9 +154,16 @@ export function CouponPickPage() {
   });
 
   const countdown = useCountdown(slate?.locks_at_utc ?? FAR_PAST);
+  const openCountdown = useCountdown(slate?.picks_open_at_utc ?? FAR_PAST);
   const { submit, pendingKey, isSubmitting } = usePickEditor(slug, slate?.gameweek_id);
 
-  const locked = !slate || slate.status !== 'open' || countdown.expired;
+  // Mirrors the API's own rule (`pick_refusal`): the stored instants decide both ends of
+  // the claim period and `status` only rules out a round settlement has finished with.
+  // Deriving "shut" from `status === 'open'` alone would hold members out of a round
+  // whose opening has passed until the hourly job got round to relabelling it.
+  const notOpenYet =
+    !!slate?.picks_open_at_utc && !openCountdown.expired && PICKABLE.has(slate.status);
+  const locked = !slate || !PICKABLE.has(slate.status) || notOpenYet || countdown.expired;
   const myPick = findMyPick(slate);
   const groups = useMemo(() => groupByCompetition(slate?.fixtures ?? []), [slate?.fixtures]);
 
@@ -178,13 +189,19 @@ export function CouponPickPage() {
           )}
           data-testid="lock-banner"
         >
-          {locked ? <Lock className="h-4 w-4" aria-hidden /> : <Clock className="h-4 w-4" aria-hidden />}
+          {locked && !notOpenYet ? (
+            <Lock className="h-4 w-4" aria-hidden />
+          ) : (
+            <Clock className="h-4 w-4" aria-hidden />
+          )}
           <span className="tabular-nums">
             {slate.status === 'settled'
               ? 'This gameweek is settled'
-              : locked
-                ? 'Picks are locked'
-                : `Picks lock in ${formatCountdown(countdown)}`}
+              : notOpenYet
+                ? `Picks open in ${formatCountdown(openCountdown)}`
+                : locked
+                  ? 'Picks are locked'
+                  : `Picks lock in ${formatCountdown(countdown)}`}
           </span>
         </div>
       )}

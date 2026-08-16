@@ -5,7 +5,7 @@ import { useLeague } from '../contexts/LeagueContext';
 import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
 import { useCrossLeagueSummary } from '../hooks/useCrossLeagueSummary';
 import { useOddsFormat } from '../hooks/useOddsFormat';
-import type { PerLeagueSummary } from '../lib/types';
+import type { GameweekStatus, PerLeagueSummary } from '../lib/types';
 import { formatOdds, outcomeLabel } from '../lib/coupon';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
@@ -13,6 +13,9 @@ import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '../lib/utils';
 
 const FAR_PAST = new Date(0).toISOString();
+
+/** The two states a round can still be claimed in — settlement has finished with the rest. */
+const PICKABLE: ReadonlySet<GameweekStatus> = new Set(['scheduled', 'open']);
 
 function formatCountdown(p: CountdownParts): string {
   if (p.expired) return 'Locked';
@@ -88,7 +91,12 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
   const { selectLeague } = useLeague();
   const round = entry.current_round;
   const countdown = useCountdown(round?.locks_at_utc ?? FAR_PAST);
-  const locked = !round || round.status !== 'open' || countdown.expired;
+  const openCountdown = useCountdown(round?.picks_open_at_utc ?? FAR_PAST);
+  // Same rule as the pick screen and the API: the stored instants decide, `status` only
+  // rules out a round settlement has finished with.
+  const notOpenYet =
+    !!round?.picks_open_at_utc && !openCountdown.expired && PICKABLE.has(round.status);
+  const locked = !round || !PICKABLE.has(round.status) || notOpenYet || countdown.expired;
 
   // The coupon screens read `activeSlug`, so opening another league's week means
   // binding to it first — otherwise the tap lands on whichever league was already
@@ -135,14 +143,18 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
           </>
         ) : (
           <p className="font-sans text-sm font-medium text-warning">
-            {locked ? 'No pick made this week' : 'You haven’t grabbed a selection yet'}
+            {notOpenYet
+              ? 'Picks haven’t opened yet'
+              : locked
+                ? 'No pick made this week'
+                : 'You haven’t grabbed a selection yet'}
           </p>
         )}
 
         {round && (
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-text-muted">
             <span className="flex items-center gap-1.5">
-              {locked ? (
+              {locked && !notOpenYet ? (
                 <Lock className="h-3.5 w-3.5" aria-hidden />
               ) : (
                 <Clock className="h-3.5 w-3.5" aria-hidden />
@@ -150,9 +162,11 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
               <span className="tabular-nums">
                 {round.status === 'settled'
                   ? 'Settled'
-                  : locked
-                    ? 'Locked'
-                    : `Locks in ${formatCountdown(countdown)}`}
+                  : notOpenYet
+                    ? `Opens in ${formatCountdown(openCountdown)}`
+                    : locked
+                      ? 'Locked'
+                      : `Locks in ${formatCountdown(countdown)}`}
               </span>
             </span>
             {round.leg_count > 0 && (

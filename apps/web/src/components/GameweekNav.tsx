@@ -10,6 +10,7 @@ export interface GameweekNavProps {
 }
 
 const STATUS_LABEL: Record<string, string> = {
+  scheduled: 'Not open',
   open: 'Open',
   locked: 'Locked',
   settled: 'Settled',

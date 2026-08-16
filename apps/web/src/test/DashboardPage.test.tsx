@@ -61,6 +61,7 @@ const SUMMARY: CrossLeagueSummary = {
         starts_on: '2026-08-22',
         status: 'open',
         locks_at_utc: FAR_FUTURE,
+        picks_open_at_utc: null,
         leg_count: 3,
         combined_odds: 12.5,
         my_pick: {
@@ -88,6 +89,7 @@ const SUMMARY: CrossLeagueSummary = {
         starts_on: '2026-08-22',
         status: 'open',
         locks_at_utc: FAR_FUTURE,
+        picks_open_at_utc: null,
         leg_count: 2,
         combined_odds: 4.56,
         my_pick: null,
@@ -214,6 +216,29 @@ describe('DashboardPage', () => {
     fireEvent.click(card.querySelector('button')!);
 
     expect(JSON.parse(store[LAST_VIEWED_LEAGUE_KEY]!).slug).toBe('work-league');
+  });
+
+  it('counts down to the opening on a round whose picks have not opened (Batch 27)', async () => {
+    stubFetch({
+      ...SUMMARY,
+      per_league: [
+        {
+          ...SUMMARY.per_league[1], // the league where the caller has no pick yet
+          current_round: {
+            ...SUMMARY.per_league[1].current_round!,
+            status: 'scheduled',
+            picks_open_at_utc: FAR_FUTURE,
+          },
+        },
+      ],
+    });
+    renderPage();
+
+    const card = await screen.findByTestId('home-card-work-league');
+    expect(card.textContent).toContain('Picks haven’t opened yet');
+    expect(card.textContent).toContain('Opens in');
+    // Not "Locked" — the round is ahead of the member, not behind them.
+    expect(card.textContent).not.toContain('Locked');
   });
 
   it('says when a league has published no coupon yet', async () => {

@@ -221,6 +221,9 @@ class CreateLeagueRequest(BaseModel):
     slate_end_weekday: int = Field(default=SATURDAY, ge=0, le=6)
     slate_end_minute: int = Field(default=THREE_PM, ge=0, le=1439)
     lock_offset_minutes: int = Field(default=DEFAULT_LOCK_OFFSET_MINUTES, ge=0)
+    # ``None`` — the default — is "no announced opening": a round is claimable as soon
+    # as discovery writes it, which is what every league did before Batch 27.
+    pick_open_offset_minutes: int | None = Field(default=None, ge=0)
     # Config settable at creation and editable afterwards. ``competitions=None`` is the
     # group "all UK leagues"; ``offered_markets=None`` takes the default (both markets).
     competitions: list[CompetitionRef] | None = None
@@ -244,6 +247,10 @@ class UpdateLeagueRequest(BaseModel):
     slate_end_weekday: int | None = Field(default=None, ge=0, le=6)
     slate_end_minute: int | None = Field(default=None, ge=0, le=1439)
     lock_offset_minutes: int | None = Field(default=None, ge=0)
+    # Like ``competitions``, null is a *meaningful* value here — "stop announcing an
+    # opening" — so this one is read from ``model_fields_set`` rather than treating
+    # null as unchanged.
+    pick_open_offset_minutes: int | None = Field(default=None, ge=0)
     # ``competitions`` needs "not provided" and "explicitly all UK (null)" to differ, so
     # it is read via ``model_fields_set`` in the handler rather than defaulting-to-unchanged.
     # ``offered_markets`` never has a meaningful null, so null there simply means unchanged.
@@ -264,6 +271,8 @@ class SlateWindowOut(BaseModel):
     end_weekday: int
     end_minute: int
     lock_offset_minutes: int
+    # ``null`` = no announced opening; picks are claimable from discovery (Batch 27).
+    pick_open_offset_minutes: int | None
 
 
 def _window_out(league: League) -> SlateWindowOut:
@@ -273,7 +282,23 @@ def _window_out(league: League) -> SlateWindowOut:
         end_weekday=league.slate_end_weekday,
         end_minute=league.slate_end_minute,
         lock_offset_minutes=league.lock_offset_minutes,
+        pick_open_offset_minutes=league.pick_open_offset_minutes,
     )
+
+
+def _check_claim_period(pick_open_offset: int | None, lock_offset: int) -> None:
+    """Reject a claim period that would close before it opened.
+
+    Both offsets are measured back from the window opening, so the pick-open one has to
+    be the larger. Checked on the *resulting* pair rather than the submitted field,
+    because a PATCH that only moves the lock can invalidate an offset it never mentions
+    — and the database's own check would surface that as a 500, not a 422.
+    """
+    if pick_open_offset is not None and pick_open_offset < lock_offset:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="pick_open_offset_minutes must be at least lock_offset_minutes",
+        )
 
 
 def _competitions_out(league: League) -> list[CompetitionRef] | None:
@@ -480,6 +505,7 @@ async def create_league(
     player: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> LeagueResponse:
+    _check_claim_period(body.pick_open_offset_minutes, body.lock_offset_minutes)
     slug = await _unique_slug(db, body.name)
     markets = (
         _clean_markets(body.offered_markets)
@@ -498,6 +524,7 @@ async def create_league(
         slate_end_weekday=body.slate_end_weekday,
         slate_end_minute=body.slate_end_minute,
         lock_offset_minutes=body.lock_offset_minutes,
+        pick_open_offset_minutes=body.pick_open_offset_minutes,
         competitions=(
             [c.model_dump() for c in body.competitions] if body.competitions is not None else None
         ),
@@ -844,8 +871,9 @@ async def update_league(
         league.pick_scope = body.pick_scope
 
     # Weekly window — each of the five fields independently editable. Existing rounds
-    # keep the ``locks_at_utc`` they were synced with; only rounds discovered from now on
-    # use the new window, exactly as a window change has always applied.
+    # keep the ``locks_at_utc`` and ``picks_open_at_utc`` they were synced with; only
+    # rounds discovered from now on use the new window, exactly as a window change has
+    # always applied. That is what stops an edit moving a deadline members were told.
     window_fields = {
         "slate_start_weekday": body.slate_start_weekday,
         "slate_start_minute": body.slate_start_minute,
@@ -857,6 +885,22 @@ async def update_league(
         if new_value is not None and new_value != getattr(league, attr):
             changes[attr] = {"from": getattr(league, attr), "to": new_value}
             setattr(league, attr, new_value)
+
+    # Pick-open offset — null means "stop announcing an opening", so it is read from
+    # ``model_fields_set``. Validated against the lock offset *after* the block above,
+    # because that block may just have moved the lock this has to clear.
+    if "pick_open_offset_minutes" in body.model_fields_set:
+        wanted_open = body.pick_open_offset_minutes
+        _check_claim_period(wanted_open, league.lock_offset_minutes)
+        if wanted_open != league.pick_open_offset_minutes:
+            changes["pick_open_offset_minutes"] = {
+                "from": league.pick_open_offset_minutes,
+                "to": wanted_open,
+            }
+            league.pick_open_offset_minutes = wanted_open
+    else:
+        # A lock moved on its own must still leave a stored opening valid.
+        _check_claim_period(league.pick_open_offset_minutes, league.lock_offset_minutes)
 
     # Offered markets — null means unchanged; a list replaces the set (deduped, non-empty).
     if body.offered_markets is not None:
@@ -1008,6 +1052,8 @@ class AdHocGameweekResponse(BaseModel):
     starts_on: date
     status: str
     locks_at_utc: datetime
+    # When picks open, or ``null`` when the league announces no opening (Batch 27).
+    picks_open_at_utc: datetime | None
     fixture_count: int
     # True when this call created the round; false when it refreshed an existing one.
     created: bool
@@ -1067,6 +1113,7 @@ async def create_gameweek(
         starts_on=gameweek.starts_on,
         status=gameweek.status.value,
         locks_at_utc=gameweek.locks_at_utc,
+        picks_open_at_utc=gameweek.picks_open_at_utc,
         fixture_count=count.scalar_one(),
         created=already is None,
     )

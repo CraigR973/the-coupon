@@ -23,7 +23,16 @@ export const SATURDAY_3PM_WINDOW: SlateWindow = {
   end_weekday: 5,
   end_minute: 15 * 60,
   lock_offset_minutes: 30,
+  pick_open_offset_minutes: null,
 };
+
+/**
+ * What the pick-open control seeds when an admin first switches it on: a week, so
+ * picks open as the previous round's window does. Only a starting point — the field
+ * is free — but a default of "a few minutes" would announce an opening nobody could
+ * plan around, which is the problem the setting exists to solve.
+ */
+export const DEFAULT_PICK_OPEN_OFFSET_MINUTES = 7 * 24 * 60;
 
 /** Minutes-from-midnight → an `HH:MM` string for a native time input. */
 export function minutesToHHMM(minutes: number): string {
@@ -54,8 +63,21 @@ export function isSaturday3pm(window: SlateWindow): boolean {
     window.start_minute === 900 &&
     window.end_weekday === 5 &&
     window.end_minute === 900 &&
-    window.lock_offset_minutes === 30
+    window.lock_offset_minutes === 30 &&
+    window.pick_open_offset_minutes === null
   );
+}
+
+/**
+ * A lead time in minutes as the largest whole unit that divides it — "7 days",
+ * "36 hours", "90 minutes". Rounding would misdescribe a deadline, so anything that
+ * does not divide evenly falls back to the smaller unit.
+ */
+export function describeLeadTime(minutes: number): string {
+  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`;
+  if (minutes >= 1440 && minutes % 1440 === 0) return plural(minutes / 1440, 'day');
+  if (minutes >= 60 && minutes % 60 === 0) return plural(minutes / 60, 'hour');
+  return plural(minutes, 'minute');
 }
 
 /** A short human summary of a window, e.g. "Saturday 15:00" or "Friday 19:00 – Monday 22:00". */

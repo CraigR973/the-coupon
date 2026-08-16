@@ -34,6 +34,7 @@ from src.services.gameweek import (
     current_open_gameweeks,
     discover_fixtures,
     lock_due_gameweeks,
+    open_due_gameweeks,
     settleable_gameweeks,
     window_for,
 )
@@ -163,6 +164,27 @@ async def run_refresh_slate() -> bool:
         return True
     except Exception:
         log.exception("slate refresh failed")
+        return False
+
+
+async def run_open_gameweeks() -> bool:
+    """Open any scheduled gameweek whose announced pick-open time has passed.
+
+    Label-keeping only, and deliberately so: the submit endpoint decides on the stored
+    instant, so a member is never held out by a job that has not run. This is what makes
+    the badge on the screen agree with the rule — which is the whole point of announcing
+    an opening rather than letting discovery decide it.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            opened = await open_due_gameweeks(session, _utc_now())
+            gameweek_ids = [str(g.id) for g in opened]
+            await session.commit()
+        if gameweek_ids:
+            log.info("gameweeks opened", count=len(gameweek_ids), gameweek_ids=gameweek_ids)
+        return True
+    except Exception:
+        log.exception("gameweek open failed")
         return False
 
 
@@ -395,6 +417,16 @@ def create_scheduler() -> AsyncIOScheduler:
         minute=0,
         timezone="Europe/London",
         id="pick_reminders",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+    )
+    scheduler.add_job(
+        run_open_gameweeks,
+        trigger="cron",
+        minute=1,  # hourly, a minute clear of the lock sweep so the two never interleave
+        timezone="Europe/London",
+        id="open_gameweeks",
         replace_existing=True,
         coalesce=True,
         max_instances=1,

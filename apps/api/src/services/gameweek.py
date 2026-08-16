@@ -43,13 +43,40 @@ def _naive_utc(value: datetime) -> datetime:
     return value.astimezone(UTC).replace(tzinfo=None)
 
 
-def is_open_for_picks(gameweek: Gameweek, now: datetime) -> bool:
-    """True when picks are still accepted: status ``open`` and before the 14:30 lock.
+def _utc_now() -> datetime:
+    """Naive-UTC now, matching the ``*_utc`` storage convention."""
+    return datetime.now(UTC).replace(tzinfo=None)
 
-    ``now`` must be naive-UTC (as stored). The scheduler flips ``status`` to ``locked`` at
-    the deadline in Batch 4; until then this time check is the gate.
+
+#: Rounds a member may still be able to claim on — the two states before the deadline.
+PICKABLE_STATES = (GameweekStatus.scheduled, GameweekStatus.open)
+
+
+def pick_refusal(gameweek: Gameweek, now: datetime) -> str | None:
+    """Why this round refuses a pick right now, or ``None`` when it accepts one.
+
+    ``now`` must be naive-UTC (as stored). Time is the authority in both directions and
+    ``status`` is the label the scheduler keeps up with, exactly as it has been since
+    Batch 4: an ``open`` round past its deadline is refused before the lock job runs,
+    and a ``scheduled`` round whose opening has passed is accepted before the open job
+    runs. Only ``locked`` and ``settled`` are decided by status alone, because those are
+    reached by settlement rather than by a clock.
+
+    ``PICKS_NOT_OPEN`` is a distinct code from ``PICKS_LOCKED`` because the two ask
+    opposite things of a member: come back later, versus it is over.
     """
-    return gameweek.status == GameweekStatus.open and now < gameweek.locks_at_utc
+    if gameweek.status not in PICKABLE_STATES:
+        return "PICKS_LOCKED"
+    if gameweek.picks_open_at_utc is not None and now < gameweek.picks_open_at_utc:
+        return "PICKS_NOT_OPEN"
+    if now >= gameweek.locks_at_utc:
+        return "PICKS_LOCKED"
+    return None
+
+
+def is_open_for_picks(gameweek: Gameweek, now: datetime) -> bool:
+    """True when picks are accepted: inside the claim period and not yet locked."""
+    return pick_refusal(gameweek, now) is None
 
 
 def window_for(league: League) -> SlateWindow:
@@ -66,6 +93,36 @@ def window_for(league: League) -> SlateWindow:
         end_minute=league.slate_end_minute,
         lock_offset_minutes=league.lock_offset_minutes,
     )
+
+
+def picks_open_at(league: League, starts_on: date) -> datetime | None:
+    """Naive-UTC instant picks open for this league's round, or ``None`` for no gate.
+
+    A *third* instant, and the reason it needed its own name: the window's own
+    ``opens_at`` is when the fixtures kick off, ``locks_at`` is when claiming stops, and
+    this is when claiming starts. All three are measured back from the same anchor, so a
+    league playing Saturday 15:00 with a seven-day pick-open offset opens claims the
+    previous Saturday at 15:00 and closes them at 14:30 on the day.
+
+    ``None`` (``pick_open_offset_minutes`` unset) is the pre-Batch-27 rule: a round is
+    claimable from the moment discovery writes it.
+    """
+    if league.pick_open_offset_minutes is None:
+        return None
+    return window_for(league).utc_before_open(starts_on, league.pick_open_offset_minutes)
+
+
+def initial_status(picks_open_at_utc: datetime | None, now: datetime) -> GameweekStatus:
+    """The state a freshly discovered round starts in.
+
+    ``scheduled`` only while its opening is genuinely ahead. A round discovered after
+    its own pick-open instant — an ad-hoc Boxing Day round, or a league that turned the
+    setting on late — starts ``open``, so it is never labelled "not open yet" while
+    :func:`pick_refusal` is already accepting picks on it.
+    """
+    if picks_open_at_utc is not None and now < picks_open_at_utc:
+        return GameweekStatus.scheduled
+    return GameweekStatus.open
 
 
 def selected_competition_slugs(league: League) -> frozenset[str] | None:
@@ -173,6 +230,10 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
     it. This is the only place the selection is applied, so two leagues sharing a window
     but not a selection still cost one fetch and simply link different subsets of it.
 
+    Both ends of the claim period — ``locks_at_utc`` and ``picks_open_at_utc`` — are
+    fixed when the round is created and never re-derived on a refresh, so an admin
+    editing the window cannot move a deadline members have already been told.
+
     Links are added, never removed. A fixture that drops off a later refresh — postponed,
     or re-scheduled out of the window — stays on the round, because a member may already
     hold a pick on it and settlement still has to resolve that pick.
@@ -198,10 +259,13 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
         # Nothing this league plays on this date, and no round to preserve — create none.
         if not selected:
             return None
+        opens_at = picks_open_at(league, slate.starts_on)
         gameweek = Gameweek(
             league_id=league.id,
             starts_on=slate.starts_on,
             locks_at_utc=window.locks_at(slate.starts_on),
+            picks_open_at_utc=opens_at,
+            status=initial_status(opens_at, _utc_now()),
         )
         db.add(gameweek)
         await db.flush()
@@ -269,9 +333,10 @@ def slate_odds_max_age(gameweek: Gameweek, now: datetime, near_ttl: float, far_t
     """How stale a browsed price may be, tightening as the lock approaches.
 
     Three tiers rather than a curve, because the cost is a step function of the TTL
-    and a legible budget matters more here than a smooth one. A locked or settled
-    gameweek gets the loosest tier: nothing can move a price that is already frozen,
-    so re-fetching it buys nothing.
+    and a legible budget matters more here than a smooth one. Every state but ``open``
+    gets the loosest tier: nothing can move a price that is already frozen, and nobody
+    can freeze one on a round whose picks have not opened, so re-fetching either buys
+    nothing.
     """
     if gameweek.status != GameweekStatus.open:
         return far_ttl
@@ -341,15 +406,42 @@ async def refresh_slate(
     return await sync_slate(db, league, slate)
 
 
+async def open_due_gameweeks(db: AsyncSession, now: datetime) -> list[Gameweek]:
+    """Flip every scheduled round whose announced opening has passed to ``open``.
+
+    The mirror of :func:`lock_due_gameweeks`, and like it only a label-keeper:
+    :func:`pick_refusal` already accepts a pick the moment the instant passes, so a
+    missed run delays the badge on the screen and never the game. ``now`` is naive-UTC.
+    Flushes but does not commit.
+    """
+    result = await db.execute(
+        select(Gameweek).where(
+            Gameweek.status == GameweekStatus.scheduled,
+            Gameweek.picks_open_at_utc.is_not(None),
+            Gameweek.picks_open_at_utc <= now,
+        )
+    )
+    opened = list(result.scalars().all())
+    for gameweek in opened:
+        gameweek.status = GameweekStatus.open
+    await db.flush()
+    return opened
+
+
 async def lock_due_gameweeks(db: AsyncSession, now: datetime) -> list[Gameweek]:
-    """Flip every open round whose lock has passed to ``locked``.
+    """Flip every not-yet-locked round whose lock has passed to ``locked``.
+
+    Covers ``scheduled`` as well as ``open``: a round whose lock arrived while it was
+    still waiting to open — a misconfigured offset, or an open job that never ran — is
+    over either way, and leaving it ``scheduled`` would advertise a claim period that
+    has already closed.
 
     ``now`` is naive-UTC (as stored). Predicate-based rather than "the latest one" so a
     missed run self-heals on the next. Flushes but does not commit.
     """
     result = await db.execute(
         select(Gameweek).where(
-            Gameweek.status == GameweekStatus.open,
+            Gameweek.status.in_(PICKABLE_STATES),
             Gameweek.locks_at_utc <= now,
         )
     )
@@ -383,6 +475,9 @@ async def current_open_gameweeks(db: AsyncSession, now: datetime) -> list[Gamewe
     A list, not one row. Before Batch 14 there was a single global round so "the
     current one" was well defined; now every league has its own, and returning one
     would silently deny reminders to every league but that one.
+
+    ``scheduled`` is deliberately excluded: nagging a member for a pick they are not
+    yet allowed to make is worse than not reminding them at all.
     """
     result = await db.execute(
         select(Gameweek)

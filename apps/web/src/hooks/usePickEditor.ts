@@ -30,6 +30,8 @@ export function pickErrorMessage(detail: string): string {
       return 'Someone in your league already has that game — pick another match.';
     case 'PICKS_LOCKED':
       return 'Picks are locked for this week.';
+    case 'PICKS_NOT_OPEN':
+      return 'Picks haven’t opened for this round yet — check back closer to kick-off.';
     case 'SELECTION_NOT_AVAILABLE':
       return 'That selection isn’t being priced right now — try another.';
     default:

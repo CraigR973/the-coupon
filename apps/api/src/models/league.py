@@ -88,6 +88,13 @@ class League(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
             "lock_offset_minutes >= 0",
             name="ck_leagues_lock_offset_non_negative",
         ),
+        # Picks cannot open after they lock, or the round could never be played.
+        # NULL is "no announced opening", not an offset of zero, so it is exempt.
+        CheckConstraint(
+            "pick_open_offset_minutes IS NULL "
+            "OR pick_open_offset_minutes >= lock_offset_minutes",
+            name="ck_leagues_pick_open_before_lock",
+        ),
         CheckConstraint(
             "cardinality(offered_markets) >= 1",
             name="ck_leagues_offered_markets_nonempty",
@@ -151,6 +158,12 @@ class League(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     lock_offset_minutes: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=str(DEFAULT_LOCK_OFFSET_MINUTES)
     )
+    # How long before the window opens picks *open* (Batch 27) — the far end of the
+    # claim period whose near end is ``lock_offset_minutes``. Measured the same way, so
+    # a bigger number is earlier and the two are directly comparable. ``NULL`` means the
+    # league announces no opening and a round is claimable the moment discovery writes
+    # it, which is what every round did before this column existed.
+    pick_open_offset_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("profiles.id"), nullable=False
     )

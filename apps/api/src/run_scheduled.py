@@ -17,6 +17,7 @@ Jobs:
     backup         database backup
     refresh-slate  refresh the upcoming Saturday's slate + fixtures from the odds provider
     remind         push a pick reminder to members who haven't picked
+    open           open any scheduled gameweek past its announced pick-open time
     lock           lock any gameweek past its 14:30 deadline
     settle         settle locked gameweeks against provider results + recompute standings
     sync-football  top up league tables, results and form for the competitions on the card
@@ -33,6 +34,7 @@ from src.scheduler import (
     run_backfill_football_season,
     run_discover_fixtures,
     run_lock_gameweeks,
+    run_open_gameweeks,
     run_pick_reminders,
     run_refresh_slate,
     run_scheduled_backup,
@@ -45,6 +47,7 @@ JOBS: dict[str, Callable[[], Awaitable[bool]]] = {
     "discover-fixtures": run_discover_fixtures,
     "refresh-slate": run_refresh_slate,
     "remind": run_pick_reminders,
+    "open": run_open_gameweeks,
     "lock": run_lock_gameweeks,
     "settle": run_settle_gameweeks,
     "sync-football": run_sync_football_data,

@@ -5,6 +5,8 @@ Covers the pieces the pure/unit tests can't — the DB-driven halves of the four
 * ``refresh_slate``            — a provider slate becomes gameweek + fixtures (and an empty
   slate creates nothing);
 * ``lock_due_gameweeks``       — an open gameweek past 14:30 flips to ``locked``;
+* ``open_due_gameweeks``       — a scheduled gameweek past its announced pick-open time
+  flips to ``open`` (Batch 27), and one that never opened still locks;
 * ``settle_gameweek_via_provider`` + ``standings`` — the **lock → settle → leaderboard**
   end-to-end: canned results settle the picks and the season table updates (the Batch 4
   slice of the acceptance e2e);
@@ -55,6 +57,7 @@ from src.services.gameweek import (
     fixtures_for,
     lock_due_gameweeks,
     members_missing_picks,
+    open_due_gameweeks,
     refresh_slate,
     settleable_gameweeks,
     window_for,
@@ -435,6 +438,60 @@ async def test_open_and_settleable_selection(session: AsyncSession) -> None:
 
     # After lock: settleable even while still 'open' (defensive if the lock job missed a run).
     assert gameweek.id in {g.id for g in await settleable_gameweeks(session, after)}
+
+
+# ── the pick-open flip (Batch 27) ───────────────────────────────────────────────
+
+
+async def test_a_scheduled_round_opens_when_its_announced_time_arrives(
+    session: AsyncSession,
+) -> None:
+    _, league = await _seed_league(session, ["solo"])
+    gameweek, _epl, _sl2 = await _open_gameweek(session, league, date(2027, 5, 15))
+    opens_at = gameweek.locks_at_utc - timedelta(days=7)
+    gameweek.status = GameweekStatus.scheduled
+    gameweek.picks_open_at_utc = opens_at
+    await session.flush()
+
+    # A minute early it stays shut, and is not a reminder candidate — nagging a member
+    # for a pick they cannot make yet is worse than not reminding them at all.
+    # Scoped to this round rather than asserting an empty sweep: the HTTP pick-flow
+    # tests commit rounds of their own into the shared scratch database.
+    early = opens_at - timedelta(minutes=1)
+    assert gameweek.id not in {g.id for g in await open_due_gameweeks(session, early)}
+    assert gameweek.status is GameweekStatus.scheduled
+    assert gameweek.id not in {g.id for g in await current_open_gameweeks(session, early)}
+
+    # On the instant it opens, and only then does it start reminding.
+    assert gameweek.id in {g.id for g in await open_due_gameweeks(session, opens_at)}
+    assert gameweek.status is GameweekStatus.open
+    assert gameweek.id in {g.id for g in await current_open_gameweeks(session, opens_at)}
+
+
+async def test_a_round_that_never_opened_still_locks(session: AsyncSession) -> None:
+    """A missed open job must not leave a round advertising a claim period that closed."""
+    _, league = await _seed_league(session, ["solo"])
+    gameweek, _epl, _sl2 = await _open_gameweek(session, league, date(2027, 5, 22))
+    gameweek.status = GameweekStatus.scheduled
+    gameweek.picks_open_at_utc = gameweek.locks_at_utc - timedelta(days=7)
+    await session.flush()
+
+    after_lock = gameweek.locks_at_utc + timedelta(minutes=1)
+    assert gameweek.id in {g.id for g in await lock_due_gameweeks(session, after_lock)}
+    assert gameweek.status is GameweekStatus.locked
+
+
+async def test_a_round_with_no_announced_opening_is_never_flipped(
+    session: AsyncSession,
+) -> None:
+    """The pre-batch rule: no instant, no waiting — the round is already ``open``."""
+    _, league = await _seed_league(session, ["solo"])
+    gameweek, _epl, _sl2 = await _open_gameweek(session, league, date(2027, 5, 29))
+    assert gameweek.picks_open_at_utc is None
+
+    opened = await open_due_gameweeks(session, gameweek.locks_at_utc)
+    assert gameweek.id not in {g.id for g in opened}
+    assert gameweek.status is GameweekStatus.open
 
 
 # ── members_missing_picks ───────────────────────────────────────────────────────

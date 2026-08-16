@@ -87,6 +87,9 @@ class CurrentRound(BaseModel):
     starts_on: date
     status: str
     locks_at_utc: datetime
+    # When picks open, or ``null`` when the league announces no opening (Batch 27). The
+    # card counts down to whichever of the two instants is next.
+    picks_open_at_utc: datetime | None
     # The whole league's acca for the round, so the card can say what is riding on it.
     leg_count: int
     combined_odds: float
@@ -246,6 +249,7 @@ async def _latest_rounds(
             Gameweek.starts_on,
             Gameweek.status,
             Gameweek.locks_at_utc,
+            Gameweek.picks_open_at_utc,
             func.row_number()
             .over(partition_by=Gameweek.league_id, order_by=Gameweek.starts_on.desc())
             .label("rn"),
@@ -293,6 +297,7 @@ async def _latest_rounds(
             starts_on=row.starts_on,
             status=row.status.value,
             locks_at_utc=row.locks_at_utc,
+            picks_open_at_utc=row.picks_open_at_utc,
             leg_count=len(legs.get(row.id, [])),
             combined_odds=float(combined_odds(legs.get(row.id, []))),
             my_pick=my_picks.get(row.id),
