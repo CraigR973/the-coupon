@@ -497,6 +497,8 @@ class MissingPickMember(BaseModel):
     display_name: str
     timezone: str
     league_id: str
+    #: The league's address, so a reminder can link to *that* league's pick screen.
+    league_slug: str
     league_name: str
 
 
@@ -515,6 +517,7 @@ async def members_missing_picks(db: AsyncSession, gameweek: Gameweek) -> list[Mi
             display_name.label("display_name"),
             Profile.timezone,
             League.id.label("league_id"),
+            League.slug.label("league_slug"),
             League.name.label("league_name"),
         )
         .select_from(LeagueMembership)
@@ -541,6 +544,7 @@ async def members_missing_picks(db: AsyncSession, gameweek: Gameweek) -> list[Mi
             display_name=row.display_name,
             timezone=row.timezone,
             league_id=str(row.league_id),
+            league_slug=row.league_slug,
             league_name=row.league_name,
         )
         for row in rows.all()

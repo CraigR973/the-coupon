@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useLeague } from '@/contexts/LeagueContext';
 import { cn } from '@/lib/utils';
@@ -23,19 +23,15 @@ function saveScrollOffset(offset: number): void {
   window.sessionStorage.setItem(LEAGUE_SWITCH_SCROLL_KEY, String(Math.max(0, offset)));
 }
 
+/**
+ * The league switcher. Purely presentational: every entry is a link to that
+ * league's own address, and binding the context is the destination's job
+ * (`useRouteLeague`) rather than this strip's — a nav component that quietly
+ * rewrote which league the app was on was a side effect waiting to be forgotten.
+ */
 export function LeagueSwitchStrip({ currentSlug, className }: Props) {
-  const { leagues, selectLeague } = useLeague();
+  const { leagues } = useLeague();
   const navRef = useRef<HTMLElement | null>(null);
-  const currentLeague = leagues.find((league) => league.slug === currentSlug) ?? null;
-
-  // Binds `activeSlug` to whichever league this strip is currently showing, not just
-  // the recency store — otherwise a league picked here diverges from what
-  // league-agnostic screens (coupon, combined acca) read next. `selectLeague`
-  // writes the recency store itself.
-  useEffect(() => {
-    if (!currentLeague) return;
-    selectLeague(currentLeague.slug);
-  }, [currentLeague, selectLeague]);
 
   useLayoutEffect(() => {
     const nav = navRef.current;

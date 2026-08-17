@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LeagueProvider } from '@/contexts/LeagueContext';
@@ -155,10 +155,12 @@ function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/predictions/football']}>
+      <MemoryRouter initialEntries={['/leagues/the-coupon/predictions/football']}>
         <AuthProvider>
           <LeagueProvider>
-            <FootballPage />
+            <Routes>
+              <Route path="/leagues/:slug/predictions/football" element={<FootballPage />} />
+            </Routes>
           </LeagueProvider>
         </AuthProvider>
       </MemoryRouter>

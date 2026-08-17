@@ -129,7 +129,7 @@ test('@open deep links, membership, picks, and PWA update check', async ({
   expect(sw.headers()['cache-control']).toContain('max-age=0');
 
   const alice = await login(browser, ALICE);
-  await alice.goto('/predictions');
+  await alice.goto('/leagues/the-coupon/predictions');
   await expect(alice.getByRole('heading', { name: "This week's coupon" })).toBeVisible();
   await expect(alice.locator('[data-testid^="pick-card-"]')).toHaveCount(2);
   const arsenal = alice.getByRole('button', { name: /Arsenal/i });
@@ -139,7 +139,7 @@ test('@open deep links, membership, picks, and PWA update check', async ({
   await expect(alice.getByTestId('my-pick-summary')).toContainText('Arsenal');
 
   const bob = await login(browser, BOB);
-  await bob.goto('/predictions');
+  await bob.goto('/leagues/the-coupon/predictions');
   await expect(bob.locator('[data-testid^="pick-card-"]')).toHaveCount(2);
   await expect(
     bob.getByRole('button', { name: /Arsenal.*taken by Staging/i }),
@@ -157,7 +157,7 @@ test('@open deep links, membership, picks, and PWA update check', async ({
 
 test('@locked locked gameweek blocks further picks', async ({ browser }) => {
   const alice = await login(browser, ALICE);
-  await alice.goto('/predictions');
+  await alice.goto('/leagues/the-coupon/predictions');
   await expect(alice.getByTestId('lock-banner')).toContainText('Picks are locked');
   await alice.screenshot({
     path: join(ARTIFACT_DIR, 'picks-locked.png'),
@@ -177,7 +177,7 @@ test('@settled settlement retry updates standings and combined coupon', async ({
     fullPage: true,
   });
 
-  await alice.goto('/predictions/coupon');
+  await alice.goto('/leagues/the-coupon/predictions/coupon');
   await expect(alice.getByText('2-fold accumulator')).toBeVisible();
   await expect(alice.getByText('4.56')).toBeVisible();
   await expect(alice.getByText('All legs won 🎉')).toBeVisible();

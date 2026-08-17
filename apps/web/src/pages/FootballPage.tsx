@@ -5,6 +5,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
+import { useRouteLeague } from '../hooks/useRouteLeague';
 import type { CompetitionTable, ResultEntry } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
@@ -34,7 +35,8 @@ const VIEWS = [
 export function FootballPage() {
   const { player } = useAuth();
   const timezone = player?.timezone ?? 'UTC';
-  const { activeSlug: slug, activeLeagueName, hasLeagues, isLoading: leaguesLoading } = useLeague();
+  const { slug, name: leagueName } = useRouteLeague();
+  const { hasLeagues, isLoading: leaguesLoading } = useLeague();
   const [view, setView] = useState<View>('tables');
 
   const tables = useQuery<CompetitionTable[]>({
@@ -78,10 +80,10 @@ export function FootballPage() {
     <div>
       <PageHeader
         title="Football"
-        eyebrow={activeLeagueName ? `${activeLeagueName} · Tables & results` : 'Tables & results'}
+        eyebrow={leagueName ? `${leagueName} · Tables & results` : 'Tables & results'}
       />
       <LeagueSwitchStrip currentSlug={slug} className="mb-5" />
-      <CouponSubNav />
+      <CouponSubNav slug={slug} />
 
       <Tabs items={VIEWS} value={view} onChange={setView} className="mb-4" variant="segmented" />
 

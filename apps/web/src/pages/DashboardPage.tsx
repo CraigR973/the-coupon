@@ -1,12 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Clock, Lock, Ticket, Trophy } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useLeague } from '../contexts/LeagueContext';
 import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
 import { useCrossLeagueSummary } from '../hooks/useCrossLeagueSummary';
 import { useOddsFormat } from '../hooks/useOddsFormat';
 import type { GameweekStatus, PerLeagueSummary } from '../lib/types';
 import { formatOdds, outcomeLabel } from '../lib/coupon';
+import { predictionsPath } from '../lib/leagues';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/ui/skeleton';
@@ -88,7 +88,6 @@ export function DashboardPage() {
 function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
   const oddsFormat = useOddsFormat();
   const navigate = useNavigate();
-  const { selectLeague } = useLeague();
   const round = entry.current_round;
   const countdown = useCountdown(round?.locks_at_utc ?? FAR_PAST);
   const openCountdown = useCountdown(round?.picks_open_at_utc ?? FAR_PAST);
@@ -98,12 +97,11 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
     !!round?.picks_open_at_utc && !openCountdown.expired && PICKABLE.has(round.status);
   const locked = !round || !PICKABLE.has(round.status) || notOpenYet || countdown.expired;
 
-  // The coupon screens read `activeSlug`, so opening another league's week means
-  // binding to it first — otherwise the tap lands on whichever league was already
-  // in context.
+  // The coupon has its own address per league now, so opening another league's
+  // week is just going there: the destination binds the context, rather than this
+  // card having to bind it before navigating and hope the two agree.
   function openCoupon() {
-    selectLeague(entry.slug);
-    navigate('/predictions');
+    navigate(predictionsPath(entry.slug));
   }
 
   return (

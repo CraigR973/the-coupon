@@ -1,6 +1,7 @@
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { Moon, Sun, Settings, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLeague } from '@/contexts/LeagueContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Brand } from '@/components/Brand';
 import { Avatar } from '@/components/ui/avatar';
@@ -11,43 +12,42 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import {
+  isCouponPath,
+  isFootballPath,
+  isLeagueHubPath,
+  predictionsPath,
+} from '@/lib/leagues';
 import { cn } from '@/lib/utils';
 
 interface DesktopNavItem {
   to: string;
   label: string;
-  matchPrefix?: string[];
-  excludePrefix?: string[];
+  /** Whether this entry owns `pathname`. */
+  match: (pathname: string) => boolean;
 }
 
-const DESKTOP_NAV: ReadonlyArray<DesktopNavItem> = [
-  { to: '/', label: 'Home' },
-  {
-    to: '/predictions',
-    label: 'Coupon',
-    matchPrefix: ['/predictions'],
-    excludePrefix: ['/predictions/football'],
-  },
-  {
-    to: '/predictions/football',
-    label: 'Football',
-    matchPrefix: ['/predictions/football'],
-  },
-  { to: '/leagues', label: 'Leagues' },
-  { to: '/settings', label: 'Settings' },
-];
-
-function desktopNavActive(pathname: string, item: DesktopNavItem): boolean {
-  if (item.excludePrefix?.some((prefix) => pathname.startsWith(prefix))) return false;
-  if (item.matchPrefix) return item.matchPrefix.some((prefix) => pathname.startsWith(prefix));
-  if (item.to === '/') return pathname === '/';
-  return pathname === item.to || pathname.startsWith(`${item.to}/`);
+/** The desktop mirror of `TabBar`'s primary tabs — same targets, same rules. */
+function desktopNav(slug: string | null): ReadonlyArray<DesktopNavItem> {
+  return [
+    { to: '/', label: 'Home', match: (p) => p === '/' },
+    { to: predictionsPath(slug), label: 'Coupon', match: isCouponPath },
+    { to: predictionsPath(slug, '/football'), label: 'Football', match: isFootballPath },
+    { to: '/leagues', label: 'Leagues', match: isLeagueHubPath },
+    {
+      to: '/settings',
+      label: 'Settings',
+      match: (p) => p === '/settings' || p.startsWith('/settings/'),
+    },
+  ];
 }
 
 export function TopBar() {
   const { player, logout } = useAuth();
+  const { activeSlug, hasLeagues } = useLeague();
   const { resolved, setMode } = useTheme();
   const { pathname } = useLocation();
+  const navItems = desktopNav(hasLeagues ? activeSlug : null);
   function toggleTheme() {
     setMode(resolved === 'dark' ? 'light' : 'dark');
   }
@@ -130,15 +130,15 @@ export function TopBar() {
         </NavLink>
 
         <nav aria-label="Main navigation" className="hidden md:flex items-center gap-1 flex-1">
-          {DESKTOP_NAV.map((item) => (
+          {navItems.map((item) => (
             <Link
-              key={item.to}
+              key={item.label}
               to={item.to}
-              aria-current={desktopNavActive(pathname, item) ? 'page' : undefined}
+              aria-current={item.match(pathname) ? 'page' : undefined}
               className={cn(
                 'px-3 py-1.5 rounded-sm text-sm font-medium font-sans tracking-tight transition-colors press-down',
                 'focus-visible:outline-none focus-visible:shadow-glow',
-                desktopNavActive(pathname, item)
+                item.match(pathname)
                   ? 'bg-primary/15 text-primary'
                   : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated',
               )}

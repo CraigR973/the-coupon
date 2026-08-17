@@ -141,4 +141,13 @@ describe('PlayerProfilePage', () => {
     renderPage();
     expect(await screen.findByText('Player not found')).toBeTruthy();
   });
+
+  // ── Batch 30: the record's links stay inside the league it is viewed through ──
+
+  it('sends "How each week went" to this league\'s results', async () => {
+    stubFetch(PROFILE);
+    renderPage();
+    const link = await screen.findByRole('link', { name: /how each week went/i });
+    expect(link.getAttribute('href')).toBe('/leagues/the-coupon/predictions/results');
+  });
 });

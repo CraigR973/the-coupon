@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
+import { predictionsPath, type PredictionsSection } from '@/lib/leagues';
 import { cn } from '@/lib/utils';
 
-const ITEMS: ReadonlyArray<{ to: string; label: string; exact: boolean }> = [
-  { to: '/predictions', label: 'Your pick', exact: true },
-  { to: '/predictions/coupon', label: 'Combined coupon', exact: false },
-  { to: '/predictions/results', label: 'Results', exact: false },
-  { to: '/predictions/football', label: 'Football', exact: false },
+const ITEMS: ReadonlyArray<{ section: PredictionsSection; label: string; exact: boolean }> = [
+  { section: '', label: 'Your pick', exact: true },
+  { section: '/coupon', label: 'Combined coupon', exact: false },
+  { section: '/results', label: 'Results', exact: false },
+  { section: '/football', label: 'Football', exact: false },
 ];
 
 /**
@@ -14,15 +15,18 @@ const ITEMS: ReadonlyArray<{ to: string; label: string; exact: boolean }> = [
  *
  * Football sits here rather than at the top level because it is context for a
  * pick — the same league scope, reached while deciding — not a section of its own.
+ *
+ * Every item stays inside `slug`: moving between these four is moving within one
+ * league, never between them. That is the switcher's job.
  */
-export function CouponSubNav() {
+export function CouponSubNav({ slug }: { slug: string }) {
   return (
     <nav className="-mx-4 mb-5 overflow-x-auto sm:mx-0" aria-label="Coupon sections">
       <div className="flex min-w-max gap-1.5 px-4 sm:px-0">
-        {ITEMS.map(({ to, label, exact }) => (
+        {ITEMS.map(({ section, label, exact }) => (
           <NavLink
-            key={to}
-            to={to}
+            key={section}
+            to={predictionsPath(slug, section)}
             end={exact}
             className={({ isActive }) =>
               cn(

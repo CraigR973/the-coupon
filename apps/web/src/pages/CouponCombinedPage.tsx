@@ -4,6 +4,7 @@ import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
 import { useGameweekHistory } from '../hooks/useGameweekHistory';
+import { useRouteLeague } from '../hooks/useRouteLeague';
 import { couponKey } from '../hooks/usePickEditor';
 import type { Coupon } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
@@ -22,7 +23,8 @@ import { Skeleton } from '../components/ui/skeleton';
 export function CouponCombinedPage() {
   const { player } = useAuth();
   const timezone = player?.timezone ?? 'UTC';
-  const { activeSlug: slug, activeLeagueName, hasLeagues, isLoading: leaguesLoading } = useLeague();
+  const { slug, name: leagueName } = useRouteLeague();
+  const { hasLeagues, isLoading: leaguesLoading } = useLeague();
   const history = useGameweekHistory(slug, hasLeagues);
   const gameweekId = history.selectedId;
 
@@ -66,10 +68,10 @@ export function CouponCombinedPage() {
     <div>
       <PageHeader
         title="Combined coupon"
-        eyebrow={activeLeagueName ? `${activeLeagueName} · ${roundLabel}` : roundLabel}
+        eyebrow={leagueName ? `${leagueName} · ${roundLabel}` : roundLabel}
       />
       <LeagueSwitchStrip currentSlug={slug} className="mb-5" />
-      <CouponSubNav />
+      <CouponSubNav slug={slug} />
       <GameweekNav history={history} timezone={timezone} />
 
       {isLoading && (

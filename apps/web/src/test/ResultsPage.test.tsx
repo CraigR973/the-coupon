@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LeagueProvider } from '@/contexts/LeagueContext';
@@ -72,16 +72,25 @@ function stubFetch({ results = RESULTS }: { results?: GameweekResult[] } = {}) {
   });
 }
 
+/** Reports the address a row tap landed on. */
+function CouponProbe() {
+  const { pathname, search } = useLocation();
+  return <span data-testid="landed">{`${pathname}${search}`}</span>;
+}
+
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/predictions/results']}>
+      <MemoryRouter initialEntries={['/leagues/the-coupon/predictions/results']}>
         <AuthProvider>
           <LeagueProvider>
             <Routes>
-              <Route path="/predictions/results" element={<ResultsPage />} />
-              <Route path="/predictions/coupon" element={<div>Combined coupon page</div>} />
+              <Route path="/leagues/:slug/predictions/results" element={<ResultsPage />} />
+              <Route
+                path="/leagues/:slug/predictions/coupon"
+                element={<CouponProbe />}
+              />
             </Routes>
           </LeagueProvider>
         </AuthProvider>
@@ -114,11 +123,15 @@ describe('ResultsPage', () => {
     expect(other.textContent).toContain('Coupon lost');
   });
 
-  it('opens that week\'s combined coupon on tap', async () => {
+  it('opens that week\'s combined coupon on tap, at this league\'s address', async () => {
     renderPage();
     const row = await screen.findByTestId('result-gw-1');
     fireEvent.click(row);
-    expect(await screen.findByText('Combined coupon page')).toBeTruthy();
+    // A gameweek id is league-scoped, so the link has to carry the league too —
+    // otherwise it resolves against whichever league the reader happens to be on.
+    expect((await screen.findByTestId('landed')).textContent).toBe(
+      '/leagues/the-coupon/predictions/coupon?gw=gw-1',
+    );
   });
 
   it('explains an empty results list', async () => {

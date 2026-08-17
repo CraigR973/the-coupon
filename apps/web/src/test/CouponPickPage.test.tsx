@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LeagueProvider } from '@/contexts/LeagueContext';
 import { CouponPickPage } from '@/pages/CouponPickPage';
+import { LAST_VIEWED_LEAGUE_KEY } from '@/lib/leagueRecency';
 import type { GameweekSlate } from '@/lib/types';
 
 const MOCK_LEAGUE = {
@@ -111,17 +112,25 @@ const GAMEWEEKS = [
   },
 ];
 
-function stubAuth() {
+/** Backs `localStorage` with a real store, so writes (the recency key) can be read back. */
+function stubAuth(): Record<string, string> {
+  const store: Record<string, string> = {
+    coupon_player: STORED_PLAYER,
+    coupon_access: FAKE_JWT,
+  };
   vi.stubGlobal('localStorage', {
-    getItem: (k: string) => {
-      if (k === 'coupon_player') return STORED_PLAYER;
-      if (k === 'coupon_access') return FAKE_JWT;
-      return null;
+    getItem: (k: string) => store[k] ?? null,
+    setItem: (k: string, v: string) => {
+      store[k] = v;
     },
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
+    removeItem: (k: string) => {
+      delete store[k];
+    },
+    clear: () => {
+      for (const k of Object.keys(store)) delete store[k];
+    },
   });
+  return store;
 }
 
 function stubFetchWithSlate() {
@@ -156,14 +165,16 @@ function stubSlate(overrides: Partial<GameweekSlate>) {
   });
 }
 
-function renderPage(entries: string[] = ['/predictions']) {
+function renderPage(entries: string[] = ['/leagues/the-coupon/predictions']) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={entries}>
         <AuthProvider>
           <LeagueProvider>
-            <CouponPickPage />
+            <Routes>
+              <Route path="/leagues/:slug/predictions" element={<CouponPickPage />} />
+            </Routes>
           </LeagueProvider>
         </AuthProvider>
       </MemoryRouter>
@@ -354,7 +365,7 @@ describe('CouponPickPage', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderPage(['/predictions?gw=gw0']);
+    renderPage(['/leagues/the-coupon/predictions?gw=gw0']);
     const nav = await screen.findByTestId('gameweek-nav');
 
     await waitFor(() => {
@@ -418,5 +429,83 @@ describe('CouponPickPage', () => {
     renderPage();
     expect(await screen.findByText("You're not in a league yet")).toBeTruthy();
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/gameweek/current'))).toBe(false);
+  });
+
+  // ── Batch 30: the URL names the league ────────────────────────────────────
+
+  it('shows the league the URL names, not the one last viewed', async () => {
+    const second = { ...MOCK_LEAGUE, slug: 'friends-league', name: 'Friends League' };
+    const fetchMock = vi.fn((url: string) => {
+      if (String(url).includes('/gameweek/current')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(SLATE) });
+      }
+      if (String(url).includes('/gameweeks')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(GAMEWEEKS) });
+      }
+      if (String(url).includes('/leagues/mine')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve([MOCK_LEAGUE, second]),
+        });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    // `the-coupon` is first, so it is what a slug-less entry would have bound to.
+    renderPage(['/leagues/friends-league/predictions']);
+
+    expect(await screen.findByText(/friends league/i, { selector: 'p' })).toBeTruthy();
+    await waitFor(() => {
+      const asked = fetchMock.mock.calls.some(([url]) =>
+        String(url).includes('/leagues/friends-league/gameweek/current'),
+      );
+      expect(asked).toBe(true);
+    });
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes('/leagues/the-coupon/gameweek')),
+    ).toBe(false);
+  });
+
+  it('remembers the league it was opened at, so a slug-less entry resumes there', async () => {
+    const second = { ...MOCK_LEAGUE, slug: 'friends-league', name: 'Friends League' };
+    vi.stubGlobal('fetch', (url: string) => {
+      if (String(url).includes('/gameweek/current')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(SLATE) });
+      }
+      if (String(url).includes('/gameweeks')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(GAMEWEEKS) });
+      }
+      if (String(url).includes('/leagues/mine')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve([MOCK_LEAGUE, second]),
+        });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+
+    const store = stubAuth();
+    renderPage(['/leagues/friends-league/predictions']);
+    await screen.findByTestId('lock-banner');
+
+    await waitFor(() => {
+      expect(JSON.parse(store[LAST_VIEWED_LEAGUE_KEY]!).slug).toBe('friends-league');
+    });
+  });
+
+  it('links the sub-nav inside the league it is showing', async () => {
+    renderPage();
+    await screen.findByTestId('lock-banner');
+
+    const subNav = screen.getByLabelText('Coupon sections');
+    expect(within(subNav).getByRole('link', { name: 'Results' }).getAttribute('href')).toBe(
+      '/leagues/the-coupon/predictions/results',
+    );
+    expect(within(subNav).getByRole('link', { name: 'Football' }).getAttribute('href')).toBe(
+      '/leagues/the-coupon/predictions/football',
+    );
   });
 });

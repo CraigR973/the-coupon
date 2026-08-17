@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
@@ -68,7 +68,8 @@ function renderTopBar(initialEntry = '/') {
           <LeagueProvider>
             <Routes>
               <Route path="/" element={<TopBar />} />
-              <Route path="/predictions/football" element={<TopBar />} />
+              <Route path="/leagues/:slug/predictions/football" element={<TopBar />} />
+              <Route path="/leagues/:slug/leaderboard" element={<TopBar />} />
               <Route path="/settings" element={<div>Settings route</div>} />
             </Routes>
           </LeagueProvider>
@@ -125,17 +126,51 @@ describe('TopBar avatar menu', () => {
     expect(mobileBrandLink?.className).toContain('inset-y-0');
   });
 
-  it('puts Football in desktop navigation', () => {
-    renderTopBar('/predictions/football');
+  it('puts Football in desktop navigation', async () => {
+    renderTopBar('/leagues/the-coupon/predictions/football');
 
     const football = screen.getByRole('link', { name: /^football$/i });
     const coupon = screen.getByRole('link', { name: /^coupon$/i });
 
-    expect(football.getAttribute('href')).toBe('/predictions/football');
     expect(football.getAttribute('aria-current')).toBe('page');
     expect(football.className).toContain('bg-primary/15');
     expect(football.className).toContain('text-primary');
     expect(coupon.getAttribute('aria-current')).toBeNull();
     expect(coupon.className).not.toContain('bg-primary/15');
+
+    // Batch 30: the target names the bound league, once the memberships arrive.
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /^football$/i }).getAttribute('href')).toBe(
+        '/leagues/the-coupon/predictions/football',
+      );
+    });
+  });
+
+  // ── Batch 30: slug-addressed coupon ──────────────────────────────────────────
+
+  it('points Coupon at the bound league, and at the slug-less path before one is known', async () => {
+    renderTopBar();
+
+    // The memberships have not arrived yet — nothing to name, so no league is named.
+    expect(screen.getByRole('link', { name: /^coupon$/i }).getAttribute('href')).toBe(
+      '/predictions',
+    );
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /^coupon$/i }).getAttribute('href')).toBe(
+        '/leagues/the-coupon/predictions',
+      );
+    });
+  });
+
+  it('keeps Leagues dark on the coupon, which now lives under /leagues too', () => {
+    renderTopBar('/leagues/the-coupon/predictions/football');
+    expect(screen.getByRole('link', { name: /^leagues$/i }).getAttribute('aria-current')).toBeNull();
+  });
+
+  it('still lights Leagues on the rest of the hub', () => {
+    renderTopBar('/leagues/the-coupon/leaderboard');
+    expect(screen.getByRole('link', { name: /^leagues$/i }).getAttribute('aria-current')).toBe(
+      'page',
+    );
   });
 });

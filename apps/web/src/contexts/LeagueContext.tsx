@@ -15,9 +15,13 @@ interface LeagueContextValue {
   isLoading: boolean;
   refetch: () => void;
   /**
-   * The league to bind league-agnostic screens (home, coupon, combined acca)
-   * to: the last one the member viewed, falling back to their first league,
-   * and to `DEFAULT_LEAGUE_SLUG` only while `leagues` is still loading/empty.
+   * The league an address that names none resolves to: the last one the member
+   * viewed, falling back to their first league, and to `DEFAULT_LEAGUE_SLUG` only
+   * while `leagues` is still loading/empty.
+   *
+   * A default, not a source of truth — since Batch 30 the coupon surfaces carry
+   * their league in the URL, and this is what the slug-less paths redirect through
+   * and what the nav bars aim at.
    */
   activeSlug: string;
   /** `activeSlug`'s display name, once `leagues` has loaded and it resolves to a membership. */
@@ -29,10 +33,11 @@ interface LeagueContextValue {
    */
   hasLeagues: boolean;
   /**
-   * Bind those screens to `slug` and remember it. Home's per-league cards need
-   * this: they open one league's coupon while another is bound, and writing the
-   * recency store alone would not re-render — `activeSlug` is derived, so the
-   * choice has to live in state as well. Ignores a slug the member is not in.
+   * Bind to `slug` and remember it — the route calls this on arrival
+   * (`useRouteLeague`), which is what makes a slug-less entry afterwards resume at
+   * the league last actually looked at. The choice has to live in state as well as
+   * the recency store: `activeSlug` is derived, so writing the store alone would
+   * not re-render. Ignores a slug the member is not in.
    */
   selectLeague: (slug: string) => void;
 }

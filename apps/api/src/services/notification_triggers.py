@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import structlog
 from sqlalchemy import select
@@ -50,6 +52,22 @@ async def notify_member_joined(
         )
 
 
+def _lock_label(locks_at_utc: datetime, timezone_name: str) -> str:
+    """The deadline on the member's own clock, as ``Sat 14:30``.
+
+    The copy said "14:30" flat until Batch 30. Lock time has been per-league since
+    Batch 14 and admin-configurable since Batch 15, so a constant is simply wrong for
+    a league playing Friday to Monday — and the reminder can precede the deadline by
+    more than a day, which is why the weekday is named too. Unknown timezones fall back
+    to UTC, matching ``push_notification_service``.
+    """
+    try:
+        zone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        zone = ZoneInfo("UTC")
+    return locks_at_utc.replace(tzinfo=UTC).astimezone(zone).strftime("%a %H:%M")
+
+
 async def send_pick_reminders(session: AsyncSession, gameweek: Gameweek) -> int:
     """Push a reminder to every active member who hasn't picked for ``gameweek``.
 
@@ -57,6 +75,10 @@ async def send_pick_reminders(session: AsyncSession, gameweek: Gameweek) -> int:
     once per league). ``send_notification`` honours each member's mute / quiet hours, so a
     suppressed recipient is still counted here — this reports who was *targeted*, and the
     delivery layer decides what actually goes out.
+
+    The ``url`` is the point of naming the league in the body: before Batch 30 no address
+    in the app named a league's coupon, so ``sw.ts`` fell back to ``/`` and a reminder about
+    league B dropped the member on a list of every league they play.
     """
     reminded = 0
     for member in await members_missing_picks(session, gameweek):
@@ -64,8 +86,13 @@ async def send_pick_reminders(session: AsyncSession, gameweek: Gameweek) -> int:
             session,
             uuid.UUID(member.player_id),
             "Pick due",
-            f"You haven't made your pick in {member.league_name} yet — picks lock 14:30.",
-            data={"type": "pick_reminder", "league_id": member.league_id},
+            f"You haven't made your pick in {member.league_name} yet — "
+            f"picks lock {_lock_label(gameweek.locks_at_utc, member.timezone)}.",
+            data={
+                "type": "pick_reminder",
+                "league_id": member.league_id,
+                "url": f"/leagues/{member.league_slug}/predictions",
+            },
             tag=f"pick-reminder-{member.league_id}",
             timezone_name=member.timezone,
         )

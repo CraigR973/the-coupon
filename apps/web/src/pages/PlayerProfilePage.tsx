@@ -5,6 +5,7 @@ import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useOddsFormat } from '../hooks/useOddsFormat';
 import { formatOdds, marketTag, outcomeLabel, pickStatusLabel } from '../lib/coupon';
+import { predictionsPath } from '../lib/leagues';
 import type { PlayerProfile, SettledPick, PickStatus } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
@@ -107,7 +108,7 @@ export function PlayerProfilePage() {
             Settled picks
           </h2>
           <Link
-            to="/predictions/results"
+            to={predictionsPath(slug, '/results')}
             className="shrink-0 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted hover:text-text-primary"
           >
             How each week went →

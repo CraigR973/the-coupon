@@ -13,45 +13,50 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLeague } from '@/contexts/LeagueContext';
 import { Sheet } from '@/components/ui/sheet';
+import {
+  isCouponPath,
+  isFootballPath,
+  isLeagueHubPath,
+  predictionsPath,
+} from '@/lib/leagues';
 import { cn } from '@/lib/utils';
 
 interface TabDef {
   to: string;
   label: string;
   Icon: LucideIcon;
-  matchPrefix?: string[];
-  excludePrefix?: string[];
+  /** Whether this tab owns `pathname`. */
+  match: (pathname: string) => boolean;
 }
 
-const PRIMARY: ReadonlyArray<TabDef> = [
-  { to: '/', label: 'Home', Icon: Home },
-  {
-    to: '/predictions',
-    label: 'Coupon',
-    Icon: Ticket,
-    matchPrefix: ['/predictions'],
-    excludePrefix: ['/predictions/football'],
-  },
-  {
-    to: '/predictions/football',
-    label: 'Football',
-    Icon: Goal,
-    matchPrefix: ['/predictions/football'],
-  },
-  { to: '/leagues', label: 'Leagues', Icon: Trophy, matchPrefix: ['/leagues'] },
-];
-
-function isActive(pathname: string, tab: TabDef): boolean {
-  if (tab.excludePrefix?.some((p) => pathname.startsWith(p))) return false;
-  if (tab.to === '/') return pathname === '/';
-  if (tab.matchPrefix) return tab.matchPrefix.some((p) => pathname.startsWith(p));
-  return pathname === tab.to || pathname.startsWith(`${tab.to}/`);
+/**
+ * Coupon and Football point at the bound league, because a tab has to go
+ * *somewhere* and the last league viewed is the only sensible answer. Their
+ * highlighting does not: it matches any league's coupon, so tapping into another
+ * league's week lights the right tab from the first frame rather than after the
+ * context catches up. Leagues has to exclude those paths explicitly now that the
+ * coupon lives under `/leagues/` too.
+ */
+function primaryTabs(slug: string | null): ReadonlyArray<TabDef> {
+  return [
+    { to: '/', label: 'Home', Icon: Home, match: (p) => p === '/' },
+    { to: predictionsPath(slug), label: 'Coupon', Icon: Ticket, match: isCouponPath },
+    {
+      to: predictionsPath(slug, '/football'),
+      label: 'Football',
+      Icon: Goal,
+      match: isFootballPath,
+    },
+    { to: '/leagues', label: 'Leagues', Icon: Trophy, match: isLeagueHubPath },
+  ];
 }
 
 export function TabBar() {
   const { pathname } = useLocation();
   const { player, logout } = useAuth();
+  const { activeSlug, hasLeagues } = useLeague();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
   const layoutId = useId();
@@ -67,17 +72,33 @@ export function TabBar() {
   // of them made the other two unreachable from here. The per-league record is
   // still a tap away — from that league's leaderboard, and from this page's own
   // breakdown.
+  const settings: TabDef = {
+    to: '/settings',
+    label: 'Settings',
+    Icon: SettingsIcon,
+    match: (p) => p.startsWith('/settings'),
+  };
   const SECONDARY: ReadonlyArray<TabDef> = player
     ? [
-        { to: '/profile', label: 'My profile', Icon: User, matchPrefix: ['/profile'] },
-        { to: '/settings', label: 'Settings', Icon: SettingsIcon, matchPrefix: ['/settings'] },
+        {
+          to: '/profile',
+          label: 'My profile',
+          Icon: User,
+          match: (p) => p.startsWith('/profile'),
+        },
+        settings,
       ]
-    : [{ to: '/settings', label: 'Settings', Icon: SettingsIcon, matchPrefix: ['/settings'] }];
+    : [settings];
 
-  const isMoreActive = SECONDARY.some((t) => isActive(pathname, t));
+  const isMoreActive = SECONDARY.some((t) => t.match(pathname));
 
-  const tabs: ReadonlyArray<TabDef & { isCurrent: boolean }> = [
-    ...PRIMARY.map((t) => ({ ...t, isCurrent: isActive(pathname, t) })),
+  // A league still loading is not yet a league to address, so the tabs fall back
+  // to the slug-less paths — which redirect the moment one resolves.
+  const tabs: ReadonlyArray<Omit<TabDef, 'match'> & { isCurrent: boolean }> = [
+    ...primaryTabs(hasLeagues ? activeSlug : null).map((t) => ({
+      ...t,
+      isCurrent: t.match(pathname),
+    })),
     {
       to: '#more',
       label: 'More',

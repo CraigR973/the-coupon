@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { HTMLAttributes, ReactNode } from 'react';
@@ -31,10 +31,21 @@ vi.mock('@/contexts/AuthContext', () => ({
   }),
 }));
 
+const { league } = vi.hoisted(() => ({
+  league: { activeSlug: 'the-coupon', hasLeagues: true },
+}));
+
+vi.mock('@/contexts/LeagueContext', () => ({ useLeague: () => league }));
+
 vi.mock('@/components/ui/sheet', () => ({
   Sheet: ({ children, open }: { children: ReactNode; open: boolean }) =>
     open ? <div role="dialog">{children}</div> : null,
 }));
+
+beforeEach(() => {
+  league.activeSlug = 'the-coupon';
+  league.hasLeagues = true;
+});
 
 describe('TabBar mobile positioning', () => {
   it('stays pinned to the bottom of the mobile viewport', () => {
@@ -54,7 +65,7 @@ describe('TabBar mobile positioning', () => {
 
   it('puts Football in primary navigation', () => {
     render(
-      <MemoryRouter initialEntries={['/predictions/football']}>
+      <MemoryRouter initialEntries={['/leagues/the-coupon/predictions/football']}>
         <TabBar />
       </MemoryRouter>,
     );
@@ -62,9 +73,65 @@ describe('TabBar mobile positioning', () => {
     const football = screen.getByRole('link', { name: /football/i });
     const coupon = screen.getByRole('link', { name: /coupon/i });
 
-    expect(football.getAttribute('href')).toBe('/predictions/football');
+    expect(football.getAttribute('href')).toBe('/leagues/the-coupon/predictions/football');
     expect(football.getAttribute('aria-current')).toBe('page');
     expect(coupon.getAttribute('aria-current')).toBeNull();
+  });
+
+  // ── Batch 30: slug-addressed coupon ────────────────────────────────────────
+
+  it('points Coupon and Football at the bound league', () => {
+    league.activeSlug = 'work-league';
+    render(
+      <MemoryRouter>
+        <TabBar />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: /coupon/i }).getAttribute('href')).toBe(
+      '/leagues/work-league/predictions',
+    );
+    expect(screen.getByRole('link', { name: /football/i }).getAttribute('href')).toBe(
+      '/leagues/work-league/predictions/football',
+    );
+  });
+
+  it('falls back to the slug-less paths while the member has no league to address', () => {
+    league.hasLeagues = false;
+    render(
+      <MemoryRouter>
+        <TabBar />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: /coupon/i }).getAttribute('href')).toBe('/predictions');
+    expect(screen.getByRole('link', { name: /football/i }).getAttribute('href')).toBe(
+      '/predictions/football',
+    );
+  });
+
+  it('lights Coupon for any league, not only the bound one', () => {
+    render(
+      <MemoryRouter initialEntries={['/leagues/work-league/predictions/coupon']}>
+        <TabBar />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: /coupon/i }).getAttribute('aria-current')).toBe('page');
+    // ...and Leagues stays dark, though the coupon now lives under /leagues too.
+    expect(screen.getByRole('link', { name: /leagues/i }).getAttribute('aria-current')).toBeNull();
+  });
+
+  it('still lights Leagues on the rest of the hub', () => {
+    render(
+      <MemoryRouter initialEntries={['/leagues/work-league/leaderboard']}>
+        <TabBar />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: /leagues/i }).getAttribute('aria-current')).toBe(
+      'page',
+    );
   });
 
   it('sends My profile to the career record, not to the active league', () => {

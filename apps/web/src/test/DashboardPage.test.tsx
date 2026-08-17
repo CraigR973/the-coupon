@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LeagueProvider, useLeague } from '@/contexts/LeagueContext';
+import { useRouteLeague } from '@/hooks/useRouteLeague';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { LAST_VIEWED_LEAGUE_KEY } from '@/lib/leagueRecency';
 import type { CrossLeagueSummary } from '@/lib/types';
@@ -130,13 +131,21 @@ function stubFetch(summary: CrossLeagueSummary | null = SUMMARY) {
   });
 }
 
-/** Reports where a tap landed, and which league the coupon screens are bound to. */
+/**
+ * Reports where a tap landed, and which league the coupon screens are bound to.
+ *
+ * Stands in for a real coupon surface, `useRouteLeague` and all: since Batch 30 the
+ * destination is what binds the league, so a probe that did not call it would not
+ * be exercising the mechanism the card relies on.
+ */
 function CouponProbe() {
   const { pathname } = useLocation();
+  const { slug } = useRouteLeague();
   const { activeSlug } = useLeague();
   return (
     <div>
       <span data-testid="pathname">{pathname}</span>
+      <span data-testid="route-slug">{slug}</span>
       <span data-testid="active-slug">{activeSlug}</span>
     </div>
   );
@@ -151,7 +160,7 @@ function renderPage() {
           <LeagueProvider>
             <Routes>
               <Route path="/" element={<DashboardPage />} />
-              <Route path="/predictions" element={<CouponProbe />} />
+              <Route path="/leagues/:slug/predictions" element={<CouponProbe />} />
               <Route path="/leagues/:slug/leaderboard" element={<CouponProbe />} />
             </Routes>
           </LeagueProvider>
@@ -198,8 +207,13 @@ describe('DashboardPage', () => {
     const card = await screen.findByTestId('home-card-work-league');
     fireEvent.click(card.querySelector('button')!);
 
-    expect(screen.getByTestId('pathname').textContent).toBe('/predictions');
-    expect(screen.getByTestId('active-slug').textContent).toBe('work-league');
+    // Batch 30: the tap names the league in the URL, and the destination is what
+    // binds the context — the card no longer has to do it on the way out.
+    expect(screen.getByTestId('pathname').textContent).toBe('/leagues/work-league/predictions');
+    expect(screen.getByTestId('route-slug').textContent).toBe('work-league');
+    await waitFor(() => {
+      expect(screen.getByTestId('active-slug').textContent).toBe('work-league');
+    });
   });
 
   it("links each card's standings line to that league's table", async () => {
@@ -215,7 +229,9 @@ describe('DashboardPage', () => {
     const card = await screen.findByTestId('home-card-work-league');
     fireEvent.click(card.querySelector('button')!);
 
-    expect(JSON.parse(store[LAST_VIEWED_LEAGUE_KEY]!).slug).toBe('work-league');
+    await waitFor(() => {
+      expect(JSON.parse(store[LAST_VIEWED_LEAGUE_KEY]!).slug).toBe('work-league');
+    });
   });
 
   it('counts down to the opening on a round whose picks have not opened (Batch 27)', async () => {

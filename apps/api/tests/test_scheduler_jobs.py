@@ -522,3 +522,5 @@ async def test_members_missing_picks_targets_only_non_pickers(session: AsyncSess
     bob = next(m for m in mine if m.display_name.startswith("bob"))
     assert bob.league_name == league.name
     assert bob.timezone == "UTC"
+    # And the slug, which is what the reminder's url is built from (Batch 30).
+    assert bob.league_slug == league.slug

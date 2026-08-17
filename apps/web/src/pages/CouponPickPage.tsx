@@ -9,6 +9,7 @@ import { useLeague } from '../contexts/LeagueContext';
 import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
 import { useGameweekHistory } from '../hooks/useGameweekHistory';
 import { useOddsFormat } from '../hooks/useOddsFormat';
+import { useRouteLeague } from '../hooks/useRouteLeague';
 import { usePickEditor, gameweekKey } from '../hooks/usePickEditor';
 import type {
   FixtureSlate,
@@ -137,7 +138,8 @@ export function CouponPickPage() {
   const { player } = useAuth();
   const timezone = player?.timezone ?? 'UTC';
   const oddsFormat = useOddsFormat();
-  const { activeSlug: slug, activeLeagueName, hasLeagues, isLoading: leaguesLoading } = useLeague();
+  const { slug, name: leagueName } = useRouteLeague();
+  const { hasLeagues, isLoading: leaguesLoading } = useLeague();
   const history = useGameweekHistory(slug, hasLeagues);
   const gameweekId = history.selectedId;
 
@@ -197,10 +199,10 @@ export function CouponPickPage() {
     <div>
       <PageHeader
         title={history.isLatest ? "This week's coupon" : 'Past coupon'}
-        eyebrow={activeLeagueName ? `${activeLeagueName} · ${roundLabel}` : roundLabel}
+        eyebrow={leagueName ? `${leagueName} · ${roundLabel}` : roundLabel}
       />
       <LeagueSwitchStrip currentSlug={slug} className="mb-5" />
-      <CouponSubNav />
+      <CouponSubNav slug={slug} />
       <GameweekNav history={history} timezone={timezone} />
 
       {/* Lock / countdown banner */}

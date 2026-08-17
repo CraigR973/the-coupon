@@ -5,7 +5,9 @@ import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
 import { useOddsFormat } from '../hooks/useOddsFormat';
+import { useRouteLeague } from '../hooks/useRouteLeague';
 import { formatOdds } from '../lib/coupon';
+import { predictionsPath } from '../lib/leagues';
 import type { GameweekResult } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
@@ -22,7 +24,8 @@ import { Skeleton } from '../components/ui/skeleton';
 export function ResultsPage() {
   const { player } = useAuth();
   const timezone = player?.timezone ?? 'UTC';
-  const { activeSlug: slug, activeLeagueName, hasLeagues, isLoading: leaguesLoading } = useLeague();
+  const { slug, name: leagueName } = useRouteLeague();
+  const { hasLeagues, isLoading: leaguesLoading } = useLeague();
   const oddsFormat = useOddsFormat();
   const navigate = useNavigate();
 
@@ -62,10 +65,10 @@ export function ResultsPage() {
     <div>
       <PageHeader
         title="Results"
-        eyebrow={activeLeagueName ? `${activeLeagueName} · Every settled gameweek` : 'Every settled gameweek'}
+        eyebrow={leagueName ? `${leagueName} · Every settled gameweek` : 'Every settled gameweek'}
       />
       <LeagueSwitchStrip currentSlug={slug} className="mb-5" />
-      <CouponSubNav />
+      <CouponSubNav slug={slug} />
 
       {isLoading && (
         <div className="space-y-3" aria-label="Loading results">
@@ -95,7 +98,11 @@ export function ResultsPage() {
             <li key={result.gameweek_id} id={`gw-${result.gameweek_id}`}>
               <button
                 type="button"
-                onClick={() => navigate(`/predictions/coupon?gw=${result.gameweek_id}`)}
+                // Both halves of the address matter: the gameweek id is league-scoped,
+                // so it only resolves against the league it came from.
+                onClick={() =>
+                  navigate(`${predictionsPath(slug, '/coupon')}?gw=${result.gameweek_id}`)
+                }
                 className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface p-3 text-left transition-colors press-down hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow"
                 data-testid={`result-${result.gameweek_id}`}
               >

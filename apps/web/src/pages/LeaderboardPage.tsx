@@ -1,7 +1,8 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch, DEFAULT_LEAGUE_SLUG } from '../lib/api';
+import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useRouteLeague } from '../hooks/useRouteLeague';
 import type { LeagueDetail, Standing } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
@@ -12,7 +13,7 @@ import { LeagueActionsMenu } from '../components/LeagueActionsMenu';
 import { cn } from '../lib/utils';
 
 export function LeaderboardPage() {
-  const { slug = DEFAULT_LEAGUE_SLUG } = useParams<{ slug: string }>();
+  const { slug } = useRouteLeague();
   const { player } = useAuth();
 
   const { data: league } = useQuery<LeagueDetail>({

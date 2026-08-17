@@ -9,10 +9,11 @@ import { LeagueProvider } from './contexts/LeagueContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { PredictionsRedirect } from './components/PredictionsRedirect';
+import { RouteFallback } from './components/RouteFallback';
 import { UpdateBanner } from './components/UpdateBanner';
 import { InstallPromptController } from './components/InstallPromptController';
 import { NotificationsPromptController } from './components/NotificationsPromptController';
-import { Skeleton } from './components/ui/skeleton';
 import { LoginPage } from './pages/LoginPage';
 import { JoinPage } from './pages/JoinPage';
 import { DEFAULT_LEAGUE_SLUG } from './lib/api';
@@ -71,15 +72,6 @@ const queryClient = new QueryClient({
 // resume (pageshow/bfcache restore), not just visibilitychange. See resumeRefetch.ts.
 installResumeRefetch();
 
-function RouteFallback() {
-  return (
-    <div className="space-y-4" aria-label="Loading page">
-      <Skeleton className="h-8 w-48" />
-      <Skeleton className="h-[320px] w-full" />
-    </div>
-  );
-}
-
 /**
  * Wraps protected routes with LeagueProvider.
  * Must be inside BrowserRouter (for useNavigate) and QueryClientProvider (for useQuery).
@@ -135,10 +127,54 @@ export function App() {
                       {/* Standard app shell with TopBar + TabBar */}
                       <Route element={<Layout />}>
                         <Route path="/" element={<DashboardPage />} />
-                        <Route path="/predictions" element={<CouponPickPage />} />
-                        <Route path="/predictions/coupon" element={<CouponCombinedPage />} />
-                        <Route path="/predictions/results" element={<ResultsPage />} />
-                        <Route path="/predictions/football" element={<FootballPage />} />
+
+                        {/* The weekly coupon, addressed at a league so a week can be
+                            linked, shared and reopened at the league it came from. */}
+                        <Route path="/leagues/:slug/predictions" element={<CouponPickPage />} />
+                        <Route
+                          path="/leagues/:slug/predictions/coupon"
+                          element={<CouponCombinedPage />}
+                        />
+                        <Route path="/leagues/:slug/predictions/results" element={<ResultsPage />} />
+                        <Route
+                          path="/leagues/:slug/predictions/football"
+                          element={<FootballPage />}
+                        />
+
+                        {/* The slug-less paths they replaced — every link, bookmark and
+                            reminder minted before this batch still lands correctly. */}
+                        <Route
+                          path="/predictions"
+                          element={
+                            <PredictionsRedirect section="">
+                              <CouponPickPage />
+                            </PredictionsRedirect>
+                          }
+                        />
+                        <Route
+                          path="/predictions/coupon"
+                          element={
+                            <PredictionsRedirect section="/coupon">
+                              <CouponCombinedPage />
+                            </PredictionsRedirect>
+                          }
+                        />
+                        <Route
+                          path="/predictions/results"
+                          element={
+                            <PredictionsRedirect section="/results">
+                              <ResultsPage />
+                            </PredictionsRedirect>
+                          }
+                        />
+                        <Route
+                          path="/predictions/football"
+                          element={
+                            <PredictionsRedirect section="/football">
+                              <FootballPage />
+                            </PredictionsRedirect>
+                          }
+                        />
                         {/* The member's own record across every league. Per-league
                             records keep their own route under /leagues/:slug. */}
                         <Route path="/profile" element={<CareerProfilePage />} />

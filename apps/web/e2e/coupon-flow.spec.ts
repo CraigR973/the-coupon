@@ -17,7 +17,7 @@ async function login(browser: Browser, displayName: string): Promise<Page> {
   }
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL('/');
-  await page.goto('/predictions');
+  await page.goto('/leagues/the-coupon/predictions');
   await expect(page.getByRole('heading', { name: "This week's coupon" })).toBeVisible();
   await expect(page.getByTestId('competition-10932509')).toBeVisible();
   await expect(page.getByTestId('competition-10932510')).toBeVisible();
@@ -107,7 +107,7 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
     fullPage: true,
   });
 
-  await alice.goto('/predictions/coupon');
+  await alice.goto('/leagues/the-coupon/predictions/coupon');
   await expect(alice.getByText('2-fold accumulator')).toBeVisible();
   await expect(alice.getByText('4.56')).toBeVisible();
   await expect(alice.getByText('All legs won 🎉')).toBeVisible();
@@ -145,12 +145,16 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   await expect(newCard).toContainText('of 1');
   await alice.screenshot({ path: join(ARTIFACT_DIR, 'home-multi-league.png'), fullPage: true });
 
-  // One tap opens that league's coupon, binding the coupon screens to it: the new
-  // league has no round, so the pick screen shows its empty state rather than the
-  // seeded league's settled card.
+  // One tap opens that league's coupon at that league's own address (Batch 30):
+  // the new league has no round, so the pick screen shows its empty state rather
+  // than the seeded league's settled card.
   await newCard.getByRole('button').click();
-  await expect(alice).toHaveURL('/predictions');
+  await expect(alice).toHaveURL('/leagues/work-league/predictions');
   await expect(alice.getByText('No coupon this week yet')).toBeVisible();
+
+  // The paths this batch replaced still land, through the league now bound.
+  await alice.goto('/predictions');
+  await expect(alice).toHaveURL('/leagues/work-league/predictions');
 
   await alice.goto('/profile');
   await expect(alice.getByTestId('career-stats')).toContainText('19'); // points, both leagues

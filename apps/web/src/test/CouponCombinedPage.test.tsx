@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LeagueProvider } from '@/contexts/LeagueContext';
@@ -81,10 +81,15 @@ function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/predictions/coupon']}>
+      <MemoryRouter initialEntries={['/leagues/the-coupon/predictions/coupon']}>
         <AuthProvider>
           <LeagueProvider>
-            <CouponCombinedPage />
+            <Routes>
+              <Route
+                path="/leagues/:slug/predictions/coupon"
+                element={<CouponCombinedPage />}
+              />
+            </Routes>
           </LeagueProvider>
         </AuthProvider>
       </MemoryRouter>

@@ -13,8 +13,12 @@ if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
 export const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 /**
- * Single-leaderboard MVP target for the top-level pick and combined-coupon
- * screens. The browser e2e seed and first production seed use this slug.
+ * The slug the browser e2e seed and the first production seed use.
+ *
+ * Only a last-resort default now — for a `:slug` route param that is somehow
+ * absent, and for `activeSlug` before the member's leagues have loaded. Batch 8
+ * took it out of the pages and Batch 30 put the league in the URL, so nothing
+ * reads it as "the league" any more.
  */
 export const DEFAULT_LEAGUE_SLUG = 'the-coupon';
 
