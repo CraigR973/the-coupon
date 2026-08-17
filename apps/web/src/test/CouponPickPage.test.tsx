@@ -378,4 +378,45 @@ describe('CouponPickPage', () => {
     expect(screen.getByTestId('roster-p1').textContent).toContain('Scottish League 2');
     expect(within(screen.getByTestId('roster-p2')).getByText('Yet to pick')).toBeTruthy();
   });
+
+  // ── Batch 29: league identity ─────────────────────────────────────────────
+
+  it('names the bound league in the header', async () => {
+    renderPage();
+    await screen.findByTestId('lock-banner');
+    expect(screen.getByText(/the coupon/i, { selector: 'p' })).toBeTruthy();
+  });
+
+  it('renders the league switcher when the member is in more than one league', async () => {
+    const second = { ...MOCK_LEAGUE, slug: 'friends-league', name: 'Friends League' };
+    vi.stubGlobal('fetch', (url: string) => {
+      if (String(url).includes('/gameweek/current')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(SLATE) });
+      }
+      if (String(url).includes('/gameweeks')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(GAMEWEEKS) });
+      }
+      if (String(url).includes('/leagues/mine')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([MOCK_LEAGUE, second]) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+
+    renderPage();
+    expect(await screen.findByTestId('league-switch-strip')).toBeTruthy();
+  });
+
+  it('does not fire the slate query and shows the no-league state for a member of no league', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (String(url).includes('/leagues/mine')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage();
+    expect(await screen.findByText("You're not in a league yet")).toBeTruthy();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/gameweek/current'))).toBe(false);
+  });
 });

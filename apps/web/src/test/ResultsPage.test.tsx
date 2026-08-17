@@ -126,4 +126,26 @@ describe('ResultsPage', () => {
     renderPage();
     expect(await screen.findByText('No results yet')).toBeTruthy();
   });
+
+  // ── Batch 29: league identity ─────────────────────────────────────────────
+
+  it('names the bound league in the header', async () => {
+    renderPage();
+    await screen.findByTestId('results-list');
+    expect(screen.getByText(/the coupon/i, { selector: 'p' })).toBeTruthy();
+  });
+
+  it('shows the no-league state and skips the results query for a member of no league', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (String(url).includes('/leagues/mine')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage();
+    expect(await screen.findByText("You're not in a league yet")).toBeTruthy();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/results'))).toBe(false);
+  });
 });

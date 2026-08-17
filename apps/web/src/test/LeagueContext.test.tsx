@@ -40,12 +40,14 @@ function stubAuth(lastViewedSlug: string | null = null) {
 }
 
 function LeagueDisplay() {
-  const { leagues, isLoading, activeSlug, selectLeague } = useLeague();
+  const { leagues, isLoading, activeSlug, activeLeagueName, hasLeagues, selectLeague } = useLeague();
   if (isLoading) return <div>loading</div>;
   return (
     <div>
       <div data-testid="count">{leagues.length}</div>
       <div data-testid="active-slug">{activeSlug}</div>
+      <div data-testid="active-league-name">{activeLeagueName ?? ''}</div>
+      <div data-testid="has-leagues">{String(hasLeagues)}</div>
       {leagues.map((l) => (
         <div key={l.slug} data-testid={`league-${l.slug}`}>{l.name}</div>
       ))}
@@ -97,6 +99,19 @@ describe('LeagueContext', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('count')).toBeTruthy();
     });
+  });
+
+  it('exposes the active league name and gates hasLeagues on a resolved membership', async () => {
+    renderWithLeague([MOCK_LEAGUE]);
+    await waitFor(() => expect(screen.getByTestId('active-slug').textContent).toBe('the-coupon'));
+    expect(screen.getByTestId('active-league-name').textContent).toBe('The Coupon');
+    expect(screen.getByTestId('has-leagues').textContent).toBe('true');
+  });
+
+  it('reports hasLeagues as false for a member of no league', async () => {
+    renderWithLeague([]);
+    await waitFor(() => expect(screen.getByTestId('has-leagues').textContent).toBe('false'));
+    expect(screen.getByTestId('active-league-name').textContent).toBe('');
   });
 
   it('exposes multiple leagues', async () => {

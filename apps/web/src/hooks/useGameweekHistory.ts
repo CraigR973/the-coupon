@@ -28,7 +28,7 @@ export interface GameweekHistory {
  * fantasy-football season is browsed. Omitting the parameter means "latest",
  * which keeps the default URL clean and the default query key stable.
  */
-export function useGameweekHistory(slug: string): GameweekHistory {
+export function useGameweekHistory(slug: string, enabled = true): GameweekHistory {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get('gw') ?? undefined;
 
@@ -36,6 +36,7 @@ export function useGameweekHistory(slug: string): GameweekHistory {
     queryKey: gameweekListKey(slug),
     queryFn: () => apiFetch<GameweekSummary[]>(`/api/v1/leagues/${slug}/gameweeks`),
     staleTime: 60_000,
+    enabled,
   });
   // This is the boundary where the API's shape becomes the UI's assumption, so it
   // is where the shape gets checked. Everything downstream indexes into this list.

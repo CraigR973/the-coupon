@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { formatInTimeZone } from 'date-fns-tz';
 import { apiFetch } from '../lib/api';
@@ -7,6 +8,7 @@ import { useLeague } from '../contexts/LeagueContext';
 import type { CompetitionTable, ResultEntry } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
+import { LeagueSwitchStrip } from '../components/LeagueSwitchStrip';
 import { LeagueTableCard } from '../components/LeagueTableCard';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/ui/skeleton';
@@ -32,18 +34,20 @@ const VIEWS = [
 export function FootballPage() {
   const { player } = useAuth();
   const timezone = player?.timezone ?? 'UTC';
-  const { activeSlug: slug } = useLeague();
+  const { activeSlug: slug, activeLeagueName, hasLeagues, isLoading: leaguesLoading } = useLeague();
   const [view, setView] = useState<View>('tables');
 
   const tables = useQuery<CompetitionTable[]>({
     queryKey: ['football', 'tables', slug],
     queryFn: () => apiFetch<CompetitionTable[]>(`/api/v1/leagues/${slug}/football/tables`),
     staleTime: 5 * 60_000,
+    enabled: hasLeagues,
   });
   const results = useQuery<ResultEntry[]>({
     queryKey: ['football', 'results', slug],
     queryFn: () => apiFetch<ResultEntry[]>(`/api/v1/leagues/${slug}/football/results`),
     staleTime: 5 * 60_000,
+    enabled: hasLeagues,
   });
 
   const active = view === 'tables' ? tables : results;
@@ -51,9 +55,32 @@ export function FootballPage() {
   const tableList = Array.isArray(tables.data) ? tables.data : [];
   const resultList = Array.isArray(results.data) ? results.data : [];
 
+  if (!leaguesLoading && !hasLeagues) {
+    return (
+      <div>
+        <PageHeader title="Football" />
+        <EmptyState
+          title="You're not in a league yet"
+          description={
+            <>
+              Join one to start picking.{' '}
+              <Link to="/leagues/discover" className="text-primary underline underline-offset-2">
+                Find a league
+              </Link>
+            </>
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
-      <PageHeader title="Football" eyebrow="Tables & results" />
+      <PageHeader
+        title="Football"
+        eyebrow={activeLeagueName ? `${activeLeagueName} · Tables & results` : 'Tables & results'}
+      />
+      <LeagueSwitchStrip currentSlug={slug} className="mb-5" />
       <CouponSubNav />
 
       <Tabs items={VIEWS} value={view} onChange={setView} className="mb-4" variant="segmented" />

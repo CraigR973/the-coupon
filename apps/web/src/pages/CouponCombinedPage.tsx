@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +8,7 @@ import { couponKey } from '../hooks/usePickEditor';
 import type { Coupon } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
+import { LeagueSwitchStrip } from '../components/LeagueSwitchStrip';
 import { CombinedAccaView } from '../components/CombinedAccaView';
 import { GameweekNav } from '../components/GameweekNav';
 import { EmptyState } from '../components/EmptyState';
@@ -20,8 +22,8 @@ import { Skeleton } from '../components/ui/skeleton';
 export function CouponCombinedPage() {
   const { player } = useAuth();
   const timezone = player?.timezone ?? 'UTC';
-  const { activeSlug: slug } = useLeague();
-  const history = useGameweekHistory(slug);
+  const { activeSlug: slug, activeLeagueName, hasLeagues, isLoading: leaguesLoading } = useLeague();
+  const history = useGameweekHistory(slug, hasLeagues);
   const gameweekId = history.selectedId;
 
   const {
@@ -36,14 +38,37 @@ export function CouponCombinedPage() {
         `/api/v1/leagues/${slug}/coupon${gameweekId ? `?gameweek_id=${gameweekId}` : ''}`,
       ),
     staleTime: 30_000,
+    enabled: hasLeagues,
   });
+
+  if (!leaguesLoading && !hasLeagues) {
+    return (
+      <div>
+        <PageHeader title="Combined coupon" />
+        <EmptyState
+          title="You're not in a league yet"
+          description={
+            <>
+              Join one to start picking.{' '}
+              <Link to="/leagues/discover" className="text-primary underline underline-offset-2">
+                Find a league
+              </Link>
+            </>
+          }
+        />
+      </div>
+    );
+  }
+
+  const roundLabel = history.isLatest ? 'This week' : 'Earlier in the season';
 
   return (
     <div>
       <PageHeader
         title="Combined coupon"
-        eyebrow={history.isLatest ? 'This week' : 'Earlier in the season'}
+        eyebrow={activeLeagueName ? `${activeLeagueName} · ${roundLabel}` : roundLabel}
       />
+      <LeagueSwitchStrip currentSlug={slug} className="mb-5" />
       <CouponSubNav />
       <GameweekNav history={history} timezone={timezone} />
 

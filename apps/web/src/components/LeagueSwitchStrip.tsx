@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useLeague } from '@/contexts/LeagueContext';
 import { cn } from '@/lib/utils';
-import { setLastViewedLeague } from '@/lib/leagueRecency';
 
 interface Props {
   currentSlug: string;
@@ -25,14 +24,18 @@ function saveScrollOffset(offset: number): void {
 }
 
 export function LeagueSwitchStrip({ currentSlug, className }: Props) {
-  const { leagues } = useLeague();
+  const { leagues, selectLeague } = useLeague();
   const navRef = useRef<HTMLElement | null>(null);
   const currentLeague = leagues.find((league) => league.slug === currentSlug) ?? null;
 
+  // Binds `activeSlug` to whichever league this strip is currently showing, not just
+  // the recency store — otherwise a league picked here diverges from what
+  // league-agnostic screens (coupon, combined acca) read next. `selectLeague`
+  // writes the recency store itself.
   useEffect(() => {
     if (!currentLeague) return;
-    setLastViewedLeague({ slug: currentLeague.slug, name: currentLeague.name });
-  }, [currentLeague]);
+    selectLeague(currentLeague.slug);
+  }, [currentLeague, selectLeague]);
 
   useLayoutEffect(() => {
     const nav = navRef.current;

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { formatInTimeZone } from 'date-fns-tz';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +9,7 @@ import { formatOdds } from '../lib/coupon';
 import type { GameweekResult } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
+import { LeagueSwitchStrip } from '../components/LeagueSwitchStrip';
 import { EmptyState } from '../components/EmptyState';
 import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
@@ -21,7 +22,7 @@ import { Skeleton } from '../components/ui/skeleton';
 export function ResultsPage() {
   const { player } = useAuth();
   const timezone = player?.timezone ?? 'UTC';
-  const { activeSlug: slug } = useLeague();
+  const { activeSlug: slug, activeLeagueName, hasLeagues, isLoading: leaguesLoading } = useLeague();
   const oddsFormat = useOddsFormat();
   const navigate = useNavigate();
 
@@ -34,12 +35,36 @@ export function ResultsPage() {
     queryKey: ['results', slug],
     queryFn: () => apiFetch<GameweekResult[]>(`/api/v1/leagues/${slug}/results`),
     staleTime: 30_000,
+    enabled: hasLeagues,
   });
   const results = Array.isArray(data) ? data : [];
 
+  if (!leaguesLoading && !hasLeagues) {
+    return (
+      <div>
+        <PageHeader title="Results" />
+        <EmptyState
+          title="You're not in a league yet"
+          description={
+            <>
+              Join one to start picking.{' '}
+              <Link to="/leagues/discover" className="text-primary underline underline-offset-2">
+                Find a league
+              </Link>
+            </>
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
-      <PageHeader title="Results" eyebrow="Every settled gameweek" />
+      <PageHeader
+        title="Results"
+        eyebrow={activeLeagueName ? `${activeLeagueName} · Every settled gameweek` : 'Every settled gameweek'}
+      />
+      <LeagueSwitchStrip currentSlug={slug} className="mb-5" />
       <CouponSubNav />
 
       {isLoading && (

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { formatInTimeZone } from 'date-fns-tz';
 import { ChevronDown, Clock, Lock } from 'lucide-react';
@@ -21,6 +22,7 @@ import type {
 import { formatOdds, outcomeLabel } from '../lib/coupon';
 import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
+import { LeagueSwitchStrip } from '../components/LeagueSwitchStrip';
 import { OddsGuide } from '../components/OddsGuide';
 import { PickCard } from '../components/PickCard';
 import { MemberRoster } from '../components/MemberRoster';
@@ -135,8 +137,8 @@ export function CouponPickPage() {
   const { player } = useAuth();
   const timezone = player?.timezone ?? 'UTC';
   const oddsFormat = useOddsFormat();
-  const { activeSlug: slug } = useLeague();
-  const history = useGameweekHistory(slug);
+  const { activeSlug: slug, activeLeagueName, hasLeagues, isLoading: leaguesLoading } = useLeague();
+  const history = useGameweekHistory(slug, hasLeagues);
   const gameweekId = history.selectedId;
 
   const {
@@ -151,6 +153,7 @@ export function CouponPickPage() {
         `/api/v1/leagues/${slug}/gameweek/current${gameweekId ? `?gameweek_id=${gameweekId}` : ''}`,
       ),
     staleTime: 30_000,
+    enabled: hasLeagues,
   });
 
   const countdown = useCountdown(slate?.locks_at_utc ?? FAR_PAST);
@@ -167,14 +170,36 @@ export function CouponPickPage() {
   const myPick = findMyPick(slate);
   const groups = useMemo(() => groupByCompetition(slate?.fixtures ?? []), [slate?.fixtures]);
 
+  const roundLabel = slate
+    ? formatInTimeZone(new Date(slate.starts_on), timezone, 'EEE d MMM yyyy')
+    : 'This round';
+
+  if (!leaguesLoading && !hasLeagues) {
+    return (
+      <div>
+        <PageHeader title="This week's coupon" />
+        <EmptyState
+          title="You're not in a league yet"
+          description={
+            <>
+              Join one to start picking.{' '}
+              <Link to="/leagues/discover" className="text-primary underline underline-offset-2">
+                Find a league
+              </Link>
+            </>
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeader
         title={history.isLatest ? "This week's coupon" : 'Past coupon'}
-        eyebrow={
-          slate ? formatInTimeZone(new Date(slate.starts_on), timezone, 'EEE d MMM yyyy') : 'This round'
-        }
+        eyebrow={activeLeagueName ? `${activeLeagueName} · ${roundLabel}` : roundLabel}
       />
+      <LeagueSwitchStrip currentSlug={slug} className="mb-5" />
       <CouponSubNav />
       <GameweekNav history={history} timezone={timezone} />
 

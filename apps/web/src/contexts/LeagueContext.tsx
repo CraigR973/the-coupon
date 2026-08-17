@@ -20,6 +20,14 @@ interface LeagueContextValue {
    * and to `DEFAULT_LEAGUE_SLUG` only while `leagues` is still loading/empty.
    */
   activeSlug: string;
+  /** `activeSlug`'s display name, once `leagues` has loaded and it resolves to a membership. */
+  activeLeagueName: string | undefined;
+  /**
+   * True once `leagues` has loaded with at least one membership. `activeSlug`
+   * falls back to `DEFAULT_LEAGUE_SLUG` while this is false, so screens that bind
+   * to it should gate their queries on this rather than firing at the fallback.
+   */
+  hasLeagues: boolean;
   /**
    * Bind those screens to `slug` and remember it. Home's per-league cards need
    * this: they open one league's coupon while another is bound, and writing the
@@ -63,6 +71,11 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
     return stillMember ? (preferredSlug as string) : leagues[0].slug;
   }, [leagues, selectedSlug]);
 
+  const activeLeagueName = useMemo(
+    () => leagues.find((league) => league.slug === activeSlug)?.name,
+    [leagues, activeSlug],
+  );
+
   return (
     <LeagueContext.Provider
       value={{
@@ -70,6 +83,8 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         refetch: refetchLeagues,
         activeSlug,
+        activeLeagueName,
+        hasLeagues: leagues.length > 0,
         selectLeague,
       }}
     >
