@@ -544,6 +544,70 @@ answered until it lands, because until then there is no data to look at.
   admin one. Extend `GET`/`PATCH /api/v1/notifications/preferences` rather than
   adding a per-league endpoint, so the settings screen keeps making one read.
 
+- [ ] **Batch 33 — Football ingestion shape tolerance** *(Opus)* — Batch 28 shipped
+  and the Football tab is still dark. The 06:30 sweep on 2026-08-17 failed 21
+  times, once per competition, every one of them identically:
+  `1 validation error for AFCatalogueEntry / country.code / Input should be a
+  valid string [input_value=None]`. No `/standings` or `/fixtures` request was
+  ever issued, so nothing downstream of the catalogue has yet run against the
+  live API even once.
+
+  API-Football returns `"code": null` for the countryless competitions — World,
+  Europe — and `AFCountry.code` is `str = ""`. A default covers a key the
+  provider *omits*; a key present as `null` is a different shape and pydantic
+  rejects it however good the default is. That distinction is the whole defect,
+  and ADR 0003 named the risk without being able to test for it: the adapter was
+  written against documented shapes and the live probe is the owner's.
+
+  Two details turned one bad row into total failure rather than one missing
+  division. `_all_leagues` parsed the catalogue in a single list comprehension,
+  so one entry's exception discarded every entry — including all thirty British
+  divisions, none of which has a null country code. And the raise happened
+  *before* `self._catalogue` was assigned, so the memo never filled and each
+  competition re-fetched `/leagues`: 21 of the day's 100 requests spent, no rows
+  written, and the per-run pacing Batch 28 added never reached the point where
+  it mattered. Batch 28's diagnosis was correct and its fix is sound; it simply
+  was not the only thing wrong, and its closing claim that the tab is dark
+  "until this lands" outlived the landing.
+
+  Fix the shape at the model boundary rather than the field: a base model whose
+  before-validator drops nulls, so a key present as `null` reads as absent for
+  every raw payload model. Per-field patching would leave the same trap on every
+  other `str = ""` this provider fills, and one of those is already load-bearing
+  — standings carry `"form": null` until a team has played, so an unpatched
+  August would have emptied every table and then quietly filled itself in
+  September, which is the hardest kind of gap to attribute. Make the catalogue
+  parse drop an unreadable entry and memoise the survivors; per-competition
+  parses need no such tolerance, because `sync_football_data` already isolates a
+  failure to its own competition.
+
+  What this cannot settle is coverage. Whether the free plan carries the lower
+  British divisions for season 2026 has never been observed — only the catalogue
+  request has ever succeeded — and the corrected run answers it in the log:
+  `api-football catalogue loaded leagues=N dropped=M`, then one
+  `api-football competition unmatched` line per division that fails to resolve.
+  Read those before treating the tab as fixed. Ingestion is also invisible in
+  the scheduler runbook, whose one-off list predates both football jobs;
+  `sync-football` and `football-backfill` belong there with the cost of running
+  them, since a run is how the tab fills the same day rather than at 06:30.
+
+  Per the multi-league contract, the ingestion path was audited and is already
+  correct: `league_competitions` scopes the read path per league, and
+  `pooled_competitions` pools the *union* of competitions across leagues, so
+  provider cost scales with distinct competitions rather than league count —
+  the shape Batch 31 wants for settlement. Nothing here is Saturday-bound
+  either; the sweep is a daily lookback window. One ceiling is worth recording
+  rather than fixing: at one catalogue request plus two per competition, the
+  100/day allowance caps a day at about 49 distinct competitions, and
+  `FOOTBALL_COMPETITIONS_PER_RUN` defaults to 30. Once the pooled union outgrows
+  the cap the rotation keeps every competition fed but no table is fresher than
+  ⌈union ÷ cap⌉ days, so the symptom of too many leagues is staleness, not
+  absence — and staleness reads as correctness.
+
+  Implemented and gated locally (`scripts/ci-local.sh` PASS, 11 checks) but
+  unshipped; the tab stays dark until `/ship-prod` carries it and a
+  `sync-football` run follows.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
