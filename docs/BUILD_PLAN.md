@@ -2,17 +2,28 @@
 
 ## Product contract
 
-The Coupon is a private weekly football accumulator game for friends.
+The Coupon is a private weekly football accumulator game for friends. A member
+may play in several leagues at once, and every rule below is per-league.
 
-- One global gameweek contains that Saturday's 15:00 fixtures.
-- Each leaderboard member makes one `MATCH_ODDS` or
-  `BOTH_TEAMS_TO_SCORE` pick.
-- A selection can be held by only one member of a leaderboard.
-- Odds are read from Betfair and frozen when the pick is submitted.
-- Picks lock at 14:30 Europe/London.
-- A winning pick scores `round(odds × 10)`; a losing pick scores zero.
-- Standings are the season sum of settled pick points.
-- The combined coupon multiplies every member's frozen odds.
+- A league owns its rounds. Each round covers that league's weekly fixture
+  window — a range in Europe/London, defaulting to the single Saturday 15:00
+  kick-off the product started with.
+- Each member of a league claims one selection per round.
+- A claim is unique within its league. Under `selection` scope it takes one
+  `(fixture, market, outcome)`; under `fixture` scope it takes the whole game.
+- A league offers `MATCH_ODDS`, `BOTH_TEAMS_TO_SCORE`, or both, across all UK
+  competitions or an explicit subset of them.
+- Picks lock `lock_offset_minutes` before the window opens — 14:30 under the
+  defaults — and open `pick_open_offset_minutes` before it, or as soon as the
+  round is discovered when the league announces no opening.
+- Odds are read from the configured provider and frozen when the pick is
+  submitted.
+- A winning pick scores `round(odds × 10)`; a losing pick scores zero; a void
+  pick scores nothing rather than counting as a loss.
+- Standings are the season sum of settled pick points within a league. Across
+  leagues, points and win rate aggregate; rank does not.
+- The combined coupon multiplies every member's frozen odds for one league's
+  round.
 - The product is for points and fun and never places a wager.
 
 ## Architecture
@@ -21,9 +32,13 @@ The FastAPI backend owns auth, leagues, the weekly slate, pick uniqueness,
 settlement, standings, notifications, and scheduled jobs. PostgreSQL is the
 source of truth. The React PWA consumes snake_case `/api/v1/` JSON.
 
-`BetfairAdapter` contains the domain mapping for slate, prices, and market
-results. `Betfair` implements the live HTTP client. `FakeBetfair` supplies the
-same catalogue and market-book shapes for deterministic tests.
+Odds sit behind the provider-neutral `OddsProvider` port
+(`services/odds_provider.py`). `OddsApiProvider` is production — odds-api.io
+priced by Bet365, per ADR 0002 — with `BetfairAdapter` / `Betfair` retained as a
+fallback and `FakeBetfair` supplying deterministic catalogue and market-book
+shapes for tests (`ODDS_PROVIDER=fake`). Football tables and results come through
+a second port, `FootballDataProvider`, live as `ApiFootballProvider` and canned as
+`FakeFootballData`.
 
 ## Build batches
 
@@ -371,6 +386,163 @@ answered until it lands, because until then there is no data to look at.
   what produced this. Until this lands, the Football tab and the pick card's
   position-and-form strip are both dark, so Batch 22's football wayfinding and
   the deferred congestion judgement have nothing to act on.
+
+- [ ] **Batch 29 — League identity on the coupon tab** *(Sonnet)* — the Coupon tab
+  answers for one league and never says which. All four surfaces —
+  `CouponPickPage`, `CouponCombinedPage`, `ResultsPage`, `FootballPage` — route
+  without a slug (`/predictions/*` in `App.tsx`) and bind to `LeagueContext`'s
+  `activeSlug`, while their `PageHeader`s read "This week's coupon", "Combined
+  coupon", "Results" and "Football", and `TopBar` carries only the brand and the
+  member's name. A member in three leagues cannot tell whose slate they are
+  picking from, and a mis-bound tab is indistinguishable from a correct one — the
+  lock countdown, the member roster and the taken-selection markers all describe
+  a league the page never names. This is the Batch 20 complaint again: that batch
+  fixed it for home and left the coupon alone, and Batch 26 then rebuilt home
+  around a card per league without touching these four.
+
+  Two further faults let the binding drift. `LeagueSwitchStrip` renders only on
+  `LeaderboardPage`, so the tab has no switcher; and `selectLeague` is called from
+  exactly one place — `DashboardPage`'s `openCoupon` — so tapping the Coupon tab
+  directly lands on whatever was bound last. Worse, the strip writes the recency
+  store but never calls `selectLeague`, and `activeSlug` prefers the in-memory
+  `selectedSlug` over that store, so opening league B's coupon from home, browsing
+  league A's leaderboard, then tapping Coupon returns to B without saying so. The
+  store is only consulted again on a cold start.
+
+  Name the league in the header of all four surfaces (the name is already in
+  `LeagueContext` beside the slug), render `LeagueSwitchStrip` above
+  `CouponSubNav`, and have the strip bind through `selectLeague` rather than
+  writing recency alone — which fixes the leaderboard case as well. Frontend only,
+  no API change and no route change: explicit slug routes are Batch 30 and this
+  batch should not pre-empt them.
+
+  While here, close the fallback that hides behind all of this. `activeSlug`
+  returns the hardcoded `DEFAULT_LEAGUE_SLUG` (`'the-coupon'`) whenever `leagues`
+  is loading or empty, and none of the four queries carries an `enabled` guard, so
+  every cold load fires at that slug before the member's leagues arrive — Batch 8
+  took the constant out of the pages and it survived in the context. For a member
+  of that league it self-heals invisibly; for anyone else it is a wasted request
+  and a refused one. A member in *no* league gets it permanently, and reads the
+  403 as "No coupon this week yet" — home answers the same case correctly with
+  "You're not in a league yet". Gate the queries on a resolved slug and give the
+  no-league case its own empty state.
+
+- [ ] **Batch 30 — Slug-addressed coupon routes** *(Opus)* — making the bound league
+  visible (Batch 29) does not make it addressable. `/predictions`,
+  `/predictions/coupon`, `/predictions/results` and `/predictions/football` carry
+  no slug, so which league they show is a fact about the client's memory rather
+  than the URL: none of the four can be linked to, shared, bookmarked or reopened
+  at a known league, and two browser tabs cannot hold two leagues at once.
+
+  The cost is already being paid in push. `send_pick_reminders` names the league
+  in the body — "You haven't made your pick in {league_name} yet" — and carries
+  `league_id` in `data`, but sends no `url`, so `sw.ts`'s `notificationclick`
+  falls back to `/`. There is no URL it could send instead, because no address in
+  the app names a league's coupon. A reminder about league B therefore drops the
+  member on home, which since Batch 26 is a list of every league they play, and
+  they have to find B and tap in.
+
+  It also quietly breaks a promise Batch 12 made. `useGameweekHistory` puts the
+  selected round in the query string precisely "so a past week can be linked,
+  reloaded, and reached with the browser's back button" — but a gameweek id is
+  league-scoped and the URL holding it is not, so `/predictions/coupon?gw=<uuid>`
+  resolves correctly only for a reader whose bound league is the one the link came
+  from. For anyone else `GameweekNav` finds no matching row and falls back to the
+  newest, so the link silently lands on a different league's different week rather
+  than failing. Nothing shipped emits such a link today — Batch 24's share is
+  clipboard text, not a URL, and `ResultsPage`'s row tap is internal — so this is
+  latent rather than live, and it stays latent only while the coupon has no
+  shareable address. Adding the slug is what makes the hook's own docstring true.
+
+  Move the four surfaces under `/leagues/:slug/predictions/*`, redirecting the old
+  paths through `activeSlug` so existing links keep working — `ResultsPage`'s row
+  tap to `/predictions/coupon?gw=`, `PlayerProfilePage`'s link to
+  `/predictions/results`, and the Playwright specs that `goto('/predictions')`.
+  `CouponSubNav`'s items become slug-relative, and `TabBar` / `TopBar` — whose
+  Coupon and Football entries are flat strings matched by prefix — need the active
+  slug to build both their targets and their active-state prefixes. `activeSlug`
+  survives as the default for a slug-less entry rather than as the source of
+  truth, and `selectLeague` follows the route rather than the reverse. Then give
+  the reminder a `url` pointing at that league's pick screen, and while there stop
+  its body hardcoding "picks lock 14:30": lock time has been per-league since
+  Batch 14 and admin-configurable since Batch 15, so a league playing Friday to
+  Monday is currently told the wrong deadline.
+
+  Explicitly not this: one screen stacking every league's open round. It reads as
+  the natural multi-league answer and is not — rounds differ by slate window,
+  deadline, offered markets and pick scope, so the countdown, roster and
+  competition groups below the header would have no single league to belong to.
+  Home's card-per-league already answers "what do I owe this week, everywhere";
+  the coupon tab answers "play this league's round", and that question is singular
+  by construction.
+
+- [ ] **Batch 31 — Settlement cost per league** *(Opus)* — settlement is the one path
+  whose provider bill still multiplies by league count. `OddsAPI.settle` walks
+  `for event_id in dict.fromkeys(event_ids)` issuing one `/events/{id}` per
+  fixture, and `run_settle_gameweeks` calls it once per settleable round, so the
+  de-duplication is *within* a league and never *across* them. Two leagues playing
+  the default Saturday and holding any of the same fixtures each pay for those
+  fixtures separately, against a plan allowing **100 requests/hour and 500/day**.
+  At the 15-member roster the launch is sized for that is up to 15 distinct
+  fixtures a league, so five leagues on one window approach 75 requests in a single
+  run — most of them duplicates — and roughly seven exhaust the hourly budget
+  outright. The Sunday and Monday retries then meet the same wall, and the visible
+  symptom is not an error but picks staying `pending`: the week never finishes.
+
+  `discover_fixtures` already solved this exact shape — leagues grouped by window
+  so "the cost is the number of *distinct* windows, not the number of leagues" —
+  and settlement never got the treatment because there was one league when it was
+  written. Do the same here, in two steps of increasing ambition. First, dedupe
+  event ids across every settleable round in a run and settle each fixture once,
+  fanning the results back out per league; this is a pure win, needs no provider
+  question answered, and alone removes the overlap. Second, and only if the
+  provider supports it, replace the per-id walk with a windowed read: `OAEvent`
+  carries `scores`, and `_league_events` already validates the `/events` list into
+  that model, so a whole Saturday could cost one request per window rather than one
+  per fixture — the way `_event_odds` already batches pricing through
+  `/odds/multi`. That second step is a **hypothesis, not a finding**: the settle
+  docstring's "`/events/{id}`, not the odds endpoints" was established against
+  `/odds` and `/odds/multi`, and whether the *list* response carries scores for
+  finished fixtures is unverified. Confirming it needs a live call, and live
+  odds-api probes are owner-run — there is no key in the working tree — so treat a
+  negative answer as fine and ship the first step regardless.
+
+  This is gated on league count rather than the calendar: it is latent while
+  production runs the leagues it has today, and it is invisible right up to the
+  point the quota goes. Land it before the roster of leagues grows, not after.
+  Independent of Batches 29 and 30 — no shared files, any order. Explicitly not in
+  scope: the request path and discovery, both already shared across leagues
+  (`odds_cache` is keyed per event, discovery groups by window), and pick
+  semantics, which are per-league and correct.
+
+- [ ] **Batch 32 — Per-league notification preferences** *(Sonnet)* — a member's only
+  control over reminders is all-or-nothing, and the volume it governs grows with
+  every league they join. `NotificationPreferences` is keyed on `user_id` alone —
+  `global_mute` plus quiet hours — and `send_notification` gates on
+  `prefs.global_mute or _is_quiet(...)` with no league dimension anywhere in the
+  path. `send_pick_reminders` nudges once per league by design, so a member in
+  five leagues takes five pushes every Saturday morning and the one switch that
+  reduces that also silences the league they care about. The more leagues someone
+  joins, the more likely they turn off the reminder that was working.
+
+  Put the flag on `league_memberships` rather than in a new table: that row is
+  already exactly the `(player, league)` tuple, already carries per-membership
+  state in `role` and `display_name_override`, and dies with the membership, so a
+  member who leaves and rejoins does not inherit a stale mute. Migration `013`.
+  Then filter in `members_missing_picks`, which already joins memberships and
+  already carries `league_id` and `league_name` per row — a muted league is never
+  targeted, rather than targeted and suppressed, which also keeps
+  `send_pick_reminders`' return count honest about who was actually nudged.
+  `global_mute` and quiet hours stay exactly as they are, layered on top: the
+  per-league flag decides whether a reminder is *wanted*, the user-level gate
+  decides whether *now* is a good time to deliver it.
+
+  Surface it in `SettingsPage`'s existing notifications card as a per-league list
+  under the global toggle — it is a notification preference and that is where a
+  member goes to manage those. `LeagueSettingsPage` is the wrong home: it sits
+  behind `LeagueAdminDep`, and this is a preference every member needs, not an
+  admin one. Extend `GET`/`PATCH /api/v1/notifications/preferences` rather than
+  adding a per-league endpoint, so the settings screen keeps making one read.
 
 ## Verification
 

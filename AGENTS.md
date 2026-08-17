@@ -2,10 +2,17 @@
 
 ## Product
 
-The Coupon is a private weekly football accumulator game. A global gameweek
-contains one Saturday 3pm slate. Each leaderboard member claims one unique
-`MATCH_ODDS` or `BOTH_TEAMS_TO_SCORE` selection; odds are frozen at pick time,
-picks lock at 14:30 Europe/London, and a winner scores `round(odds × 10)`.
+The Coupon is a private weekly football accumulator game. **A member may play in
+several leagues at once, and each league is its own game** — it owns its rounds,
+its weekly fixture window, which markets it offers, which competitions it draws
+from, and how much of a fixture one claim takes. Each member claims one selection
+per league per round, unique within that league; odds are frozen at pick time and
+a winner scores `round(odds × 10)`.
+
+The defaults reproduce the original single-league rule — one Saturday 15:00
+slate locking at 14:30 Europe/London — so that is what an unconfigured league
+plays, but nothing in the schema or the API assumes it. Treat any single-league
+or single-window assumption in code you touch as a bug.
 
 Stack: FastAPI + PostgreSQL, React 18 + TypeScript + Vite, and a provider-neutral
 odds port (`odds-api.io` priced by Bet365 in production; a Betfair Exchange
