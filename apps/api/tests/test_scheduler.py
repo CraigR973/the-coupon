@@ -274,15 +274,45 @@ async def test_run_settle_gameweeks_settles_then_recomputes_standings() -> None:
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
         patch("src.scheduler.settleable_gameweeks", new=AsyncMock(return_value=[gameweek])),
         patch(
-            "src.scheduler.settle_gameweek_via_provider", new=AsyncMock(return_value=3)
+            "src.scheduler.settle_gameweeks_via_provider",
+            new=AsyncMock(return_value={gameweek.id: 3}),
         ) as settle,
         patch("src.scheduler.standings", new=AsyncMock(return_value=[leader])) as recompute,
     ):
         ok = await run_settle_gameweeks()
     assert ok is True
-    settle.assert_awaited_once()
     recompute.assert_awaited_once()  # standings recomputed per participating league
     session.commit.assert_awaited_once()
+
+    # One settle call for the whole run, handed every settleable round at once — the
+    # provider is read once no matter how many leagues are due (Batch 31).
+    settle.assert_awaited_once()
+    assert list(settle.await_args.args[2]) == [gameweek]
+
+
+@pytest.mark.asyncio
+async def test_run_settle_gameweeks_settles_every_due_round_in_one_call() -> None:
+    """Several leagues due at once are still a single settle call, not one each."""
+    session = AsyncMock()
+    gameweeks = [MagicMock(), MagicMock(), MagicMock()]
+    for gameweek in gameweeks:
+        gameweek.id = uuid.uuid4()
+    with (
+        patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.settleable_gameweeks", new=AsyncMock(return_value=gameweeks)),
+        patch(
+            "src.scheduler.settle_gameweeks_via_provider",
+            new=AsyncMock(return_value={gameweeks[0].id: 2}),
+        ) as settle,
+        patch("src.scheduler.standings", new=AsyncMock(return_value=[])) as recompute,
+    ):
+        ok = await run_settle_gameweeks()
+    assert ok is True
+    settle.assert_awaited_once()
+    assert list(settle.await_args.args[2]) == gameweeks
+    # Standings still recomputed per league, including the ones that resolved nothing.
+    assert recompute.await_count == len(gameweeks)
 
 
 @pytest.mark.asyncio

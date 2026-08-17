@@ -10,6 +10,8 @@ Covers the pieces the pure/unit tests can't — the DB-driven halves of the four
 * ``settle_gameweek_via_provider`` + ``standings`` — the **lock → settle → leaderboard**
   end-to-end: canned results settle the picks and the season table updates (the Batch 4
   slice of the acceptance e2e);
+* ``settle_gameweeks_via_provider`` — a settle run reads a fixture two leagues both hold
+  once rather than once per league (Batch 31);
 * ``members_missing_picks``    — only members without a pick are reminder candidates;
 * gameweek selection helpers   — ``current_open_gameweeks`` / ``settleable_gameweeks``.
 
@@ -22,9 +24,10 @@ from __future__ import annotations
 
 import os
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -62,7 +65,12 @@ from src.services.gameweek import (
     settleable_gameweeks,
     window_for,
 )
-from src.services.scoring import settle_gameweek_via_provider, standings
+from src.services.odds_provider import EventSettlement
+from src.services.scoring import (
+    settle_gameweek_via_provider,
+    settle_gameweeks_via_provider,
+    standings,
+)
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -421,6 +429,98 @@ async def test_lock_then_settle_updates_leaderboard(session: AsyncSession) -> No
 
     # Idempotent: a second settle pass finds nothing pending.
     assert await settle_gameweek_via_provider(session, fake, gameweek) == 0
+
+
+class _RecordingFake(FakeBetfair):
+    """``FakeBetfair`` that records the event ids of every ``settle`` call.
+
+    Settlement costs one provider request per event id asked for, so what this records is
+    the run's bill against a plan allowing 100 requests an hour.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.settle_calls: list[list[str]] = []
+
+    async def settle(self, event_ids: Sequence[str]) -> list[EventSettlement]:
+        self.settle_calls.append(list(event_ids))
+        return await super().settle(event_ids)
+
+
+async def test_settle_reads_a_shared_fixture_once_across_leagues(
+    session: AsyncSession,
+) -> None:
+    """Two leagues on the same Saturday pay for the fixtures they share exactly once.
+
+    The bill used to be per league: the job settled one round at a time and each round
+    bought its own fixtures, so every match two leagues both held was requested twice.
+    Nothing failed when the quota went — picks simply stayed ``pending`` and the week
+    never finished.
+    """
+    home, league_home = await _seed_league(session, ["alice", "bob"])
+    away, league_away = await _seed_league(session, ["carol"])
+    gw_home, epl, sl2 = await _open_gameweek(session, league_home, SAMPLE_SATURDAY)
+    gw_away, epl_again, sl2_again = await _open_gameweek(session, league_away, SAMPLE_SATURDAY)
+
+    # One pooled row per real match, on both leagues' cards — the overlap being paid for.
+    assert (epl_again.id, sl2_again.id) == (epl.id, sl2.id)
+
+    session.add_all(
+        [
+            _pick(league_home, gw_home, epl, home["alice"], PickOutcome.HOME, "Arsenal", "1.90"),
+            _pick(league_home, gw_home, sl2, home["bob"], PickOutcome.AWAY, "Brechin City", "5.00"),
+            _pick(league_away, gw_away, epl, away["carol"], PickOutcome.HOME, "Arsenal", "2.10"),
+        ]
+    )
+    await session.flush()
+
+    after_lock = max(gw_home.locks_at_utc, gw_away.locks_at_utc) + timedelta(minutes=1)
+    await lock_due_gameweeks(session, after_lock)
+    due = {g.id for g in await settleable_gameweeks(session, after_lock)}
+    assert {gw_home.id, gw_away.id} <= due, "both leagues' rounds are settleable in one run"
+
+    fake = _RecordingFake.with_sample_data()
+    fake.close_markets(
+        {
+            SAMPLE_EPL_MATCH_ODDS_MKT: SAMPLE_ARSENAL_SEL,
+            SAMPLE_SL2_MATCH_ODDS_MKT: SAMPLE_FORFAR_SEL,
+        }
+    )
+    resolved = await settle_gameweeks_via_provider(session, fake, [gw_home, gw_away])
+
+    # One read for the whole run, asking for each distinct fixture once — three pending
+    # picks over two leagues, two requests.
+    assert len(fake.settle_calls) == 1
+    asked = fake.settle_calls[0]
+    assert sorted(asked) == sorted({SAMPLE_EPL_EVENT_ID, SAMPLE_SL2_EVENT_ID})
+
+    # ...and both leagues settle off it, each scoring by its own frozen odds.
+    assert (resolved[gw_home.id], resolved[gw_away.id]) == (2, 1)
+    assert (gw_home.status, gw_away.status) == (GameweekStatus.settled, GameweekStatus.settled)
+    picks = {
+        p.player_id: p
+        for p in (
+            await session.execute(
+                select(Pick).where(Pick.gameweek_id.in_([gw_home.id, gw_away.id]))
+            )
+        ).scalars()
+    }
+    assert picks[home["alice"].id].points_awarded == 19  # 1.90 × 10
+    assert picks[away["carol"].id].points_awarded == 21  # 2.10 × 10, same match
+    assert picks[home["bob"].id].status is PickStatus.lost
+
+
+async def test_settle_skips_the_provider_when_no_round_has_a_pending_pick(
+    session: AsyncSession,
+) -> None:
+    """A run with nothing outstanding costs nothing — no request, no empty settle call."""
+    _, league = await _seed_league(session, ["solo"])
+    gameweek, _epl, _sl2 = await _open_gameweek(session, league, SAMPLE_SATURDAY)
+    await session.flush()
+
+    fake = _RecordingFake.with_sample_data()
+    assert await settle_gameweeks_via_provider(session, fake, [gameweek]) == {}
+    assert fake.settle_calls == []
 
 
 # ── gameweek selection helpers ──────────────────────────────────────────────────

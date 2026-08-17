@@ -560,8 +560,14 @@ class OddsApiProvider(OddsProvider):
 
         There is no batch form: ``/events`` ignores an ``eventIds`` filter and returns the
         whole book, so this is one request per fixture still awaiting a result. The settle
-        job only asks about fixtures with *pending* picks, and that set shrinks on each
-        retry, so the cost stays well inside the hourly budget.
+        job only asks about fixtures with *pending* picks, that set shrinks on each retry,
+        and since Batch 31 it is de-duplicated across every round in a run, so a fixture
+        two leagues both hold is bought once rather than once per league.
+
+        Open question: ``/events`` for a whole window might carry ``scores`` for finished
+        fixtures, which would make a Saturday one request instead of one per fixture — the
+        way :meth:`_event_odds` already batches pricing. Unverified, because confirming it
+        needs a live call and there is no key in the working tree.
         """
         result = await self._get(f"/events/{event_id}", {}, missing_ok=True)
         items = _as_items(result)

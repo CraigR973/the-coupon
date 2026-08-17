@@ -148,37 +148,81 @@ async def settle_gameweek(
     return resolved
 
 
-async def pending_event_ids(db: AsyncSession, gameweek: Gameweek) -> list[str]:
-    """Distinct provider event ids across a gameweek's still-pending picks.
+async def pending_event_ids(
+    db: AsyncSession, gameweeks: Sequence[Gameweek]
+) -> dict[uuid.UUID, list[str]]:
+    """Distinct provider event ids per round, across each round's still-pending picks.
 
     These are the fixtures the settle job asks the provider to resolve; a fixture with no
     pending pick (already resolved, or never picked) is skipped, which keeps the request
-    count proportional to what is actually outstanding.
+    count proportional to what is actually outstanding. A round with nothing pending has
+    no key.
+
+    Answered for the whole run in one query rather than one per round, because the job
+    settles every settleable round together — and because a fixture is one pooled row, two
+    leagues holding the same match report the same ``provider_event_id`` here, which is
+    what lets the caller ask for it once.
     """
+    if not gameweeks:
+        return {}
     result = await db.execute(
-        select(Fixture.provider_event_id)
-        .join(Pick, Pick.fixture_id == Fixture.id)
-        .where(Pick.gameweek_id == gameweek.id, Pick.status == PickStatus.pending)
+        select(Pick.gameweek_id, Fixture.provider_event_id)
+        .join(Fixture, Fixture.id == Pick.fixture_id)
+        .where(
+            Pick.gameweek_id.in_([gameweek.id for gameweek in gameweeks]),
+            Pick.status == PickStatus.pending,
+        )
         .distinct()
     )
-    return list(result.scalars().all())
+    by_gameweek: dict[uuid.UUID, list[str]] = {}
+    for gameweek_id, provider_event_id in result.all():
+        by_gameweek.setdefault(gameweek_id, []).append(provider_event_id)
+    return by_gameweek
+
+
+async def settle_gameweeks_via_provider(
+    db: AsyncSession, provider: OddsProvider, gameweeks: Sequence[Gameweek]
+) -> dict[uuid.UUID, int]:
+    """Settle several rounds against a **single** shared read of the provider.
+
+    Gather every round's outstanding fixtures, de-duplicate them across the whole run, ask
+    the provider once, then fan the results back out per round via :func:`settle_gameweek`
+    — which picks out the settlements its own picks reference and ignores the rest.
+
+    The de-duplication is the point. Settlement costs one provider request per fixture, and
+    it used to be driven a round at a time, so two leagues playing the same Saturday paid
+    separately for every match they both held — against a plan allowing 100 requests an
+    hour. Five leagues on one window could approach 75 requests in a run, mostly
+    duplicates, and the symptom of running out is not an error but picks staying
+    ``pending`` for good. The bill is now the number of *distinct* fixtures outstanding
+    rather than the number of leagues holding them, which is the rule
+    :func:`~src.services.gameweek.discover_fixtures` already applies to slate windows.
+
+    Returns the count resolved per gameweek id; a round with nothing pending is absent.
+    Flushes but does not commit — the job owns the transaction.
+    """
+    by_gameweek = await pending_event_ids(db, gameweeks)
+    event_ids = list(dict.fromkeys(eid for ids in by_gameweek.values() for eid in ids))
+    if not event_ids:
+        return {}
+    settlements = await provider.settle(event_ids)
+    return {
+        gameweek.id: await settle_gameweek(db, gameweek, settlements)
+        for gameweek in gameweeks
+        if gameweek.id in by_gameweek
+    }
 
 
 async def settle_gameweek_via_provider(
     db: AsyncSession, provider: OddsProvider, gameweek: Gameweek
 ) -> int:
-    """Read a gameweek's results from the provider and settle its pending picks.
+    """Read one round's results from the provider and settle its pending picks.
 
-    The scheduler-facing wrapper: gather the distinct fixtures still awaiting a result, ask
-    the provider to settle them, then apply the outcomes via :func:`settle_gameweek`.
-    Returns the count resolved (0 when nothing is pending). Flushes but does not commit —
-    the job owns the transaction.
+    :func:`settle_gameweeks_via_provider` over a single round, for the callers that
+    genuinely hold one — the scheduler passes its whole run at once so the shared fixtures
+    are only paid for once. Returns the count resolved (0 when nothing is pending).
     """
-    event_ids = await pending_event_ids(db, gameweek)
-    if not event_ids:
-        return 0
-    settlements = await provider.settle(event_ids)
-    return await settle_gameweek(db, gameweek, settlements)
+    return (await settle_gameweeks_via_provider(db, provider, [gameweek])).get(gameweek.id, 0)
 
 
 class Standing(BaseModel):

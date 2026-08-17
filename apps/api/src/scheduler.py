@@ -41,7 +41,7 @@ from src.services.gameweek import (
 from src.services.notification_triggers import send_pick_reminders
 from src.services.odds_session import odds_session
 from src.services.scoring import (
-    settle_gameweek_via_provider,
+    settle_gameweeks_via_provider,
     standings,
 )
 
@@ -206,22 +206,26 @@ async def run_lock_gameweeks() -> bool:
 async def run_settle_gameweeks() -> bool:
     """Settle locked gameweeks against the provider's results and recompute standings.
 
-    Idempotent: :func:`~src.services.scoring.settle_gameweek_via_provider` resolves only
-    picks whose fixture has a final result, so the Saturday-evening re-runs pick up late
-    results and flip a gameweek to ``settled`` once nothing is pending. That retry window
-    matters more under odds-api.io than it did on the Exchange, because a result is derived
-    from a published score rather than pushed by a settlement feed. Standings are then
-    recomputed per participating league and logged (they are read on demand — this surfaces
-    the outcome).
+    Every settleable round is settled from **one** provider read, not one read per round:
+    :func:`~src.services.scoring.settle_gameweeks_via_provider` de-duplicates the
+    outstanding fixtures across the whole run first, so leagues sharing a Saturday share
+    the requests it costs rather than each buying the same fixtures again (Batch 31).
+
+    Idempotent: it resolves only picks whose fixture has a final result, so the
+    Saturday-evening re-runs pick up late results and flip a gameweek to ``settled`` once
+    nothing is pending. That retry window matters more under odds-api.io than it did on the
+    Exchange, because a result is derived from a published score rather than pushed by a
+    settlement feed. Standings are then recomputed per participating league and logged
+    (they are read on demand — this surfaces the outcome).
     """
     try:
         provider = await odds_session.acquire()
         async with AsyncSessionLocal() as session:
             gameweeks = await settleable_gameweeks(session, _utc_now())
-            resolved_by_gameweek: dict[str, int] = {}
-            for gameweek in gameweeks:
-                resolved = await settle_gameweek_via_provider(session, provider, gameweek)
-                resolved_by_gameweek[str(gameweek.id)] = resolved
+            resolved = await settle_gameweeks_via_provider(session, provider, gameweeks)
+            # Keyed over every settleable round, so the log still names the rounds this
+            # run considered and not only the ones that moved.
+            resolved_by_gameweek = {str(g.id): resolved.get(g.id, 0) for g in gameweeks}
             await session.commit()
 
             # A round belongs to one league since Batch 14, so its league is the
