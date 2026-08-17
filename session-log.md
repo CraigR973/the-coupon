@@ -651,3 +651,27 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   27's log predicted this class in this file. Wait on the settled value, not on presence.
 
 **Next:** Batches 29-32 are open (start with 29 — League identity on the coupon tab). Batch 33 needs a `/ship-prod`; the Football tab stays dark until the API moves and `sync-football` runs.
+
+## Batch 29 — League identity on the coupon tab
+**Commits:** `57c8cb3` · verified: frontend gate — `pnpm lint` (0 errors, pre-existing warnings only) · `pnpm typecheck` clean · `pnpm build` succeeds · `pnpm test` 38 files / 285 tests pass (12 new/updated, covering league-name headers, the switch strip on multi-league members, and the no-league gate). Frontend-only batch; backend/DB checks out of scope.
+
+### Key facts for future sessions
+- `LeagueContext` now exposes `activeLeagueName` and `hasLeagues` alongside `activeSlug` —
+  `hasLeagues` is `leagues.length > 0` and is the correct gate for any query that binds to
+  `activeSlug`, since that falls back to `DEFAULT_LEAGUE_SLUG` while `leagues` is loading/empty.
+- `LeagueSwitchStrip` now calls `selectLeague(currentSlug)` in its mount/update effect instead of
+  writing the recency store directly. This closes the drift Batch 29 was scoped from: browsing
+  `LeaderboardPage` (URL-driven slug) previously updated the store but not `activeSlug`, so a later
+  tap on the Coupon tab (`activeSlug`-driven) could silently reopen the wrong league.
+  `selectLeague` still writes the store itself, so no caller needs both.
+- `useGameweekHistory(slug, enabled = true)` gained an `enabled` param so `CouponPickPage` and
+  `CouponCombinedPage` can defer the `/gameweeks` fetch until `hasLeagues` is true, matching the
+  gate now applied to every other coupon-surface query.
+- The four `/predictions/*` pages share one "You're not in a league yet" empty state (title +
+  "Find a league" link), copied from `DashboardPage`'s pattern rather than factored into a shared
+  component — kept inline per-page since each needs a different early-return shape around its own
+  header.
+- Slug-addressed coupon routes (making the binding shareable/bookmarkable) are explicitly out of
+  scope here — that is Batch 30, next.
+
+**Next:** Batch 30 — Slug-addressed coupon routes.

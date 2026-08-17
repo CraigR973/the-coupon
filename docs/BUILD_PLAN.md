@@ -387,7 +387,7 @@ answered until it lands, because until then there is no data to look at.
   position-and-form strip are both dark, so Batch 22's football wayfinding and
   the deferred congestion judgement have nothing to act on.
 
-- [ ] **Batch 29 — League identity on the coupon tab** *(Sonnet)* — the Coupon tab
+- [x] **Batch 29 — League identity on the coupon tab** ✅ 2026-08-17 *(Sonnet)* — the Coupon tab
   answers for one league and never says which. All four surfaces —
   `CouponPickPage`, `CouponCombinedPage`, `ResultsPage`, `FootballPage` — route
   without a slug (`/predictions/*` in `App.tsx`) and bind to `LeagueContext`'s

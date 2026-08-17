@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-28 and 33 are closed; **29-32 are open**. The Coupon is a verified
+Batches 1-29 and 33 are closed; **30-32 are open**. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -11,12 +11,11 @@ settlement, compare standings, and view the shared combined coupon. The
 single-Saturday, 14:30-lock rule is now the *default* an unconfigured league
 plays, not an assumption the schema or the API makes.
 
-The four open batches are the multi-league audit's remainder: 29 names the bound
-league on the coupon tab and gives it a switcher, 30 makes those surfaces
-slug-addressable so a league can be linked to, 31 dedupes settlement across
-leagues before its cost multiplies past 100 requests/hour, and 32 makes
-notification preferences per-league. Launch phase L5 is the remaining launch
-work.
+The three open batches are the multi-league audit's remainder: 30 makes the
+coupon surfaces slug-addressable so a league can be linked to, 31 dedupes
+settlement across leagues before its cost multiplies past 100 requests/hour,
+and 32 makes notification preferences per-league. Launch phase L5 is the
+remaining launch work.
 
 Batch 6 completed the product rebrand, removed inherited surfaces, corrected
 the frontend auth and invite wiring, and added a deterministic production-
@@ -252,6 +251,20 @@ leagues with fewer than three members and says how many it covered. Home is a
 card per league — its pick, its standing, one tap to that week's coupon — and My
 profile moved to a career-scoped `/profile`, in the tab bar and the avatar menu
 alike. The per-league record at `/leagues/:slug/players/:playerId` is unchanged.
+
+Batch 29 fixed the same gap on the coupon surfaces that Batch 20 fixed for
+home: `CouponPickPage`, `CouponCombinedPage`, `ResultsPage` and `FootballPage`
+now name the bound league in their header and render `LeagueSwitchStrip`
+above `CouponSubNav`, so a member in several leagues can tell whose slate they
+are picking from and switch without leaving the tab. `LeagueSwitchStrip` now
+binds through `selectLeague` rather than writing the recency store alone,
+closing a drift where browsing `LeaderboardPage` (URL-driven slug) updated
+the store but not `activeSlug`, so a later tap on Coupon could reopen the
+wrong league. All four surfaces' queries now gate on a resolved membership
+(`LeagueContext`'s new `hasLeagues`) instead of firing at the
+`DEFAULT_LEAGUE_SLUG` fallback, and a member of no league gets its own empty
+state instead of a 404 read as "no coupon yet". Frontend-only, no API or
+route change — slug-addressed routes are Batch 30.
 
 ## Verified
 
