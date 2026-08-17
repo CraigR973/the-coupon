@@ -73,6 +73,29 @@ LEAGUES: dict[str, Any] = {
     ],
 }
 
+# The live catalogue as production actually returned it: the countryless competitions
+# carry `"code": null` rather than omitting the key, and one of them is enough to matter
+# because every competition shares this parse. Kept as a separate payload from `LEAGUES`
+# so the happy path still pins the documented shape.
+LEAGUES_WITH_NULLS: dict[str, Any] = {
+    "get": "leagues",
+    "errors": [],
+    "results": 3,
+    "paging": {"current": 1, "total": 1},
+    "response": [
+        {
+            "league": {"id": 15, "name": "FIFA Club World Cup", "type": "Cup"},
+            "country": {"name": "World", "code": None, "flag": None},
+        },
+        {
+            "league": {"id": 181, "name": "League Two", "type": "League"},
+            "country": {"name": "Scotland", "code": "SC"},
+        },
+        # A row that is unreadable whatever nulls are dropped: `league` is not an object.
+        {"league": "Premiership", "country": {"name": "Scotland", "code": "SC"}},
+    ],
+}
+
 STANDINGS: dict[str, Any] = {
     "get": "standings",
     "errors": [],
@@ -228,6 +251,42 @@ async def test_the_catalogue_is_fetched_once_per_client() -> None:
     assert len(calls) == 1
 
 
+@pytest.mark.asyncio
+async def test_a_null_country_code_does_not_empty_the_catalogue() -> None:
+    """The live-only shape that kept the football screens blank in production.
+
+    ``/leagues`` returns ``"code": null`` for the countryless competitions. A default
+    covers an *absent* key, not a null one, so the entry failed validation — and because
+    the whole catalogue was parsed in one comprehension, every British division went with
+    it and nothing was ever written.
+    """
+    async with _provider(_router({"/leagues": LEAGUES_WITH_NULLS})) as provider:
+        assert await provider.league_id_for(SCOTLAND_L2) == "181"
+
+
+@pytest.mark.asyncio
+async def test_an_unreadable_entry_is_dropped_rather_than_failing_the_sweep() -> None:
+    """One bad row costs its own competition, not the other twenty-nine."""
+    async with _provider(_router({"/leagues": LEAGUES_WITH_NULLS})) as provider:
+        catalogue = await provider._all_leagues()
+    assert [entry.league.id for entry in catalogue] == ["15", "181"]
+
+
+@pytest.mark.asyncio
+async def test_a_catalogue_with_a_bad_row_is_still_memoised() -> None:
+    """The quota half of the same defect.
+
+    Raising before the memo is assigned costs a fresh ``/leagues`` request per competition
+    — twenty-one of a hundred in one morning, for nothing.
+    """
+    calls: list[httpx.Request] = []
+    async with _provider(_router({"/leagues": LEAGUES_WITH_NULLS}, record=calls)) as provider:
+        await provider.league_id_for(SCOTLAND_L2)
+        await provider.league_id_for(ENGLAND_NLN)
+        await provider.league_id_for(UNCARRIED)
+    assert len(calls) == 1
+
+
 def test_country_qualifiers_fold_away() -> None:
     assert _country_key("England Amateur") == "england"
     assert _country_key("Northern-Ireland") == _country_key("Northern Ireland")
@@ -250,6 +309,56 @@ async def test_a_table_is_read_out_of_the_nested_group_lists() -> None:
     assert (leader.goals_for, leader.goals_against, leader.points) == (58, 39, 68)
     assert leader.goal_difference == 19
     assert leader.form == "WDWWL"
+
+
+@pytest.mark.asyncio
+async def test_a_table_with_no_form_yet_still_reads() -> None:
+    """A table published before a ball is kicked carries ``"form": null``.
+
+    The same null-versus-absent trap as the catalogue's country code, on the shape a
+    league's *opening* weeks return — so it would have emptied every table in August and
+    quietly filled them later, which is the hardest kind of gap to attribute.
+    """
+    opening_day = {
+        "get": "standings",
+        "errors": [],
+        "results": 1,
+        "paging": {"current": 1, "total": 1},
+        "response": [
+            {
+                "league": {
+                    "id": 181,
+                    "name": "League Two",
+                    "country": "Scotland",
+                    "season": 2026,
+                    "standings": [
+                        [
+                            {
+                                "rank": 1,
+                                "team": {"id": 901, "name": "Forfar Athletic"},
+                                "points": 0,
+                                "goalsDiff": None,
+                                "form": None,
+                                "all": {
+                                    "played": 0,
+                                    "win": 0,
+                                    "draw": 0,
+                                    "lose": 0,
+                                    "goals": {"for": 0, "against": 0},
+                                },
+                            }
+                        ]
+                    ],
+                }
+            }
+        ],
+    }
+    routes = {"/leagues": LEAGUES, "/standings": opening_day}
+    async with _provider(_router(routes)) as provider:
+        table = await provider.fetch_table(SCOTLAND_L2, SEASON)
+    assert table is not None
+    assert [row.position for row in table.rows] == [1]
+    assert table.rows[0].form == ""
 
 
 @pytest.mark.asyncio

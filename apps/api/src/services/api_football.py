@@ -43,7 +43,7 @@ from typing import Any
 
 import httpx
 import structlog
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from src.config import settings
 from src.services.football_provider import (
@@ -93,24 +93,48 @@ class _TransientAPIError(FootballDataAPIError):
 # Only the consumed fields are modelled; unknown keys are ignored by pydantic.
 
 
-class AFTeam(BaseModel):
+class AFModel(BaseModel):
+    """Base for every raw payload model: a key present as ``null`` reads as absent.
+
+    Every field below carries a default, which covers a key this provider omits. A key
+    present as ``null`` is a *different* shape, and pydantic rejects it against a
+    non-optional annotation however good the default is. That distinction is what kept the
+    football screens empty in production: ``/leagues`` returns ``"code": null`` for the
+    countryless competitions, one entry failed validation, and the whole catalogue went
+    with it.
+
+    Dropping nulls before validation collapses the two shapes into one, so "absent ones
+    fall back" holds for both. It changes nothing for the genuinely optional fields —
+    ``goals.home`` on a match not yet played already defaults to ``None``, whether the key
+    is missing or null.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _null_reads_as_absent(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {key: value for key, value in data.items() if value is not None}
+        return data
+
+
+class AFTeam(AFModel):
     model_config = ConfigDict(coerce_numbers_to_str=True)
 
     id: str = ""
     name: str = ""
 
 
-class AFGoals(BaseModel):
+class AFGoals(AFModel):
     home: int | None = None
     away: int | None = None
 
 
-class AFCountry(BaseModel):
+class AFCountry(AFModel):
     name: str = ""
     code: str = ""
 
 
-class AFLeague(BaseModel):
+class AFLeague(AFModel):
     """A competition in the catalogue, or the league block on a fixture."""
 
     model_config = ConfigDict(coerce_numbers_to_str=True)
@@ -122,19 +146,19 @@ class AFLeague(BaseModel):
     country: str = ""
 
 
-class AFCatalogueEntry(BaseModel):
+class AFCatalogueEntry(AFModel):
     """One ``/leagues`` entry: the league, its country, and the seasons carried."""
 
     league: AFLeague = AFLeague()
     country: AFCountry = AFCountry()
 
 
-class AFStatus(BaseModel):
+class AFStatus(AFModel):
     short: str = ""
     long: str = ""
 
 
-class AFFixtureBlock(BaseModel):
+class AFFixtureBlock(AFModel):
     model_config = ConfigDict(coerce_numbers_to_str=True)
 
     id: str = ""
@@ -142,7 +166,7 @@ class AFFixtureBlock(BaseModel):
     status: AFStatus = AFStatus()
 
 
-class AFFixture(BaseModel):
+class AFFixture(AFModel):
     """One ``/fixtures`` entry."""
 
     fixture: AFFixtureBlock = AFFixtureBlock()
@@ -151,7 +175,7 @@ class AFFixture(BaseModel):
     goals: AFGoals = AFGoals()
 
 
-class AFAll(BaseModel):
+class AFAll(AFModel):
     """The played/won/drawn/lost block of a standings row."""
 
     played: int = 0
@@ -161,7 +185,7 @@ class AFAll(BaseModel):
     goals: dict[str, int] = {}
 
 
-class AFStandingRow(BaseModel):
+class AFStandingRow(AFModel):
     rank: int = 0
     team: AFTeam = AFTeam()
     points: int = 0
@@ -169,7 +193,7 @@ class AFStandingRow(BaseModel):
     all: AFAll = Field(default_factory=AFAll)
 
 
-class AFStandingsLeague(BaseModel):
+class AFStandingsLeague(AFModel):
     """The league block of a ``/standings`` response.
 
     ``standings`` is a list *of lists*: one inner list per group. Most British divisions
@@ -187,7 +211,7 @@ class AFStandingsLeague(BaseModel):
     standings: list[list[AFStandingRow]] = []
 
 
-class AFStandingsEntry(BaseModel):
+class AFStandingsEntry(AFModel):
     league: AFStandingsLeague = Field(default_factory=AFStandingsLeague)
 
 
@@ -418,13 +442,28 @@ class ApiFootballProvider(FootballDataProvider):
         country instead would cost one request per country, and the catalogue changes
         between seasons rather than between runs — against a 100/day allowance, fetching
         it once is the difference between affordable and not.
+
+        An entry that cannot be read is dropped rather than raised, and the entries that
+        survive are memoised anyway. Both halves are load-bearing, and for a reason
+        production demonstrated: this is the one parse every competition shares, so a
+        single unreadable row fails the entire sweep rather than one division, and raising
+        before the assignment leaves the memo empty — which turned one row into a fresh
+        ``/leagues`` request per competition, twenty-one in a morning, and no data written.
+        Per-competition parses need no such tolerance; ``sync_football_data`` already
+        isolates a failure to its own competition.
         """
         if self._catalogue is None:
             payload = await self._get("/leagues", {})
-            self._catalogue = [
-                AFCatalogueEntry.model_validate(item) for item in _responses(payload)
-            ]
-            log.info("api-football catalogue loaded", leagues=len(self._catalogue))
+            entries: list[AFCatalogueEntry] = []
+            dropped = 0
+            for item in _responses(payload):
+                try:
+                    entries.append(AFCatalogueEntry.model_validate(item))
+                except ValidationError as exc:
+                    dropped += 1
+                    log.warning("api-football catalogue entry unreadable", error=str(exc)[:200])
+            self._catalogue = entries
+            log.info("api-football catalogue loaded", leagues=len(entries), dropped=dropped)
         return self._catalogue
 
     # -- transport -------------------------------------------------------------

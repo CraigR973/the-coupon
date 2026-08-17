@@ -20,9 +20,19 @@ python -m src.run_scheduled refresh-slate
 python -m src.run_scheduled remind
 python -m src.run_scheduled lock
 python -m src.run_scheduled settle
+python -m src.run_scheduled sync-football
+python -m src.run_scheduled football-backfill
 ```
 
 The command exits non-zero when the job logs an internal failure.
+
+The two football jobs spend a **100-request day**, so they are the two to think
+before running: a full `sync-football` sweep costs one catalogue request plus two
+per competition (about 61 for a 30-competition card) and takes roughly six minutes
+at the 12-second spacing the minute ceiling requires. `football-backfill` is
+unbounded in date and is a one-off for a new deployment or a season change, not a
+thing to re-run. Confirm the day's allowance is intact before either — a failed run
+still spends what it sent.
 
 ## Fixture discovery vs slate refresh
 
