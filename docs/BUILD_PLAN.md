@@ -544,7 +544,7 @@ answered until it lands, because until then there is no data to look at.
   admin one. Extend `GET`/`PATCH /api/v1/notifications/preferences` rather than
   adding a per-league endpoint, so the settings screen keeps making one read.
 
-- [ ] **Batch 33 — Football ingestion shape tolerance** *(Opus)* — Batch 28 shipped
+- [x] **Batch 33 — Football ingestion shape tolerance** ✅ 2026-08-17 *(Opus)* — Batch 28 shipped
   and the Football tab is still dark. The 06:30 sweep on 2026-08-17 failed 21
   times, once per competition, every one of them identically:
   `1 validation error for AFCatalogueEntry / country.code / Input should be a

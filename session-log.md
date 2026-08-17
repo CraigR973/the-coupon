@@ -621,3 +621,33 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   only and bounded by an hour — submits price independently via `odds_cache_pick_ttl_seconds`.
 
 **Next:** all 28 build batches are struck. Launch phase L5 — Launch and first-Saturday watch.
+
+## Batch 33 — Football ingestion shape tolerance
+**Commits:** `df53b49` (scope) · `94715a9` (fix) · verified: full `scripts/ci-local.sh` PASS (11 checks) — Ruff 0.5.4 check/format · strict mypy · clean pgserver `alembic upgrade head` + pytest (incl. 4 new adapter tests) · deployment-config · lint · typecheck · build · Vitest 273 · prod-bundle Playwright smoke
+
+### Key facts for future sessions
+- **A pydantic default covers an *absent* key, not one present as `null`.** API-Football sends
+  `"code": null` for the countryless competitions and `"form": null` until a team has played, and
+  `str = ""` rejects both. `AFModel`'s before-validator drops nulls so null reads as absent for
+  every raw payload model — patch new fields there, not one field at a time.
+- The catalogue is the one parse **every** competition shares, so it is the only one that needs
+  per-entry tolerance; `_all_leagues` now drops an unreadable row and memoises the survivors.
+  Per-competition parses need none — `sync_football_data` already isolates a failure to its own
+  competition.
+- Raising before a memo is assigned is a quota bug, not just a correctness bug: it cost a fresh
+  `/leagues` request per competition, 21 of 100 in one morning. Any future memo on this client
+  must be assigned even on partial success.
+- **Coverage is still unobserved.** Only the catalogue request has ever succeeded against the live
+  API. The next run answers it: `api-football catalogue loaded leagues=N dropped=M`, then one
+  `api-football competition unmatched` per division that fails to resolve. Read those before
+  treating the Football tab as fixed.
+- Ingestion cost ceiling, recorded not fixed: 1 catalogue + 2 requests per competition against
+  100/day caps a day at ~49 distinct competitions, and `FOOTBALL_COMPETITIONS_PER_RUN` defaults to
+  30. Past that the rotation still feeds everything but no table is fresher than ⌈union ÷ cap⌉
+  days — the symptom of many leagues is **stale** tables, not missing ones.
+- `LeagueSettingsPage.test.tsx`'s `loads a stored offset with the switch already on` is **flaky**
+  and failed this batch's first gate run before passing twice: `findByRole` waits for the switch
+  to exist, but it renders `aria-checked="false"` and only flips once the query resolves. Batch
+  27's log predicted this class in this file. Wait on the settled value, not on presence.
+
+**Next:** Batches 29-32 are open (start with 29 — League identity on the coupon tab). Batch 33 needs a `/ship-prod`; the Football tab stays dark until the API moves and `sync-football` runs.

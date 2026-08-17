@@ -2,11 +2,21 @@
 
 ## Now
 
-All 28 build batches are closed. The Coupon is a verified private
-weekly football accumulator PWA: members sign in with display name and
-PIN, claim one unique Saturday selection, score frozen odds after settlement,
-compare standings, and view the shared combined coupon. `docs/BUILD_PLAN.md`
-has no unchecked rows left; launch phase L5 is the remaining work.
+Batches 1-28 and 33 are closed; **29-32 are open**. The Coupon is a verified
+private weekly football accumulator PWA, and it is a **per-league** game: a
+member may play in several leagues at once and each owns its rounds, window,
+markets, competitions and claim size. Members sign in with display name and PIN,
+claim one unique selection per league per round, score frozen odds after
+settlement, compare standings, and view the shared combined coupon. The
+single-Saturday, 14:30-lock rule is now the *default* an unconfigured league
+plays, not an assumption the schema or the API makes.
+
+The four open batches are the multi-league audit's remainder: 29 names the bound
+league on the coupon tab and gives it a switcher, 30 makes those surfaces
+slug-addressable so a league can be linked to, 31 dedupes settlement across
+leagues before its cost multiplies past 100 requests/hour, and 32 makes
+notification preferences per-league. Launch phase L5 is the remaining launch
+work.
 
 Batch 6 completed the product rebrand, removed inherited surfaces, corrected
 the frontend auth and invite wiring, and added a deterministic production-
@@ -41,13 +51,28 @@ carries 30 UK leagues, 131 qualifying 15:00 fixtures, and 280 distinct priced
 selections against the 15 a full league needs, with both Scottish lower
 divisions fully priced.
 
-**Production runs `634467c8` on both stacks as of 2026-08-15**, at migration
-`011`. `/api/v1/health` reports that commit and the migration head bundled in
+**Production runs `13560cdb` on both stacks as of 2026-08-16**, at migration
+`012`. `/api/v1/health` reports that commit and the migration head bundled in
 the image, so `scripts/check-deploy-drift.sh` now answers exactly (`in sync`)
 rather than falling back to probing. `ODDS_API_KEY` is sealed,
 `ODDS_PROVIDER=oddsapi`, and `SCHEDULER_ENABLED=true`; the paragraph above about
 a Betfair build and an unsealed key described the state before the 2026-08-04
-and 2026-08-06 shipments.
+and 2026-08-06 shipments. Batch 33 is on `main` and **not** yet shipped, so the
+API is a commit behind local `main`.
+
+The football-data provider is fully configured in production —
+`FOOTBALL_DATA_PROVIDER=apifootball`, `FOOTBALL_API_KEY` sealed 2026-08-15 — and
+the Football tab is still empty, for the third distinct reason in a row. Batch 16
+built it, Batch 28 found the undocumented 10/minute ceiling, and Batch 33 found
+what that was hiding: `/leagues` returns `"code": null` for the countryless
+competitions, one entry failed validation, and the whole catalogue went with it.
+Only the catalogue request has ever succeeded against the live API, so **whether
+the free plan carries the lower British divisions for season 2026 is still
+unobserved**. The next run answers it in the log —
+`api-football catalogue loaded leagues=N dropped=M`, then one
+`api-football competition unmatched` per division that fails to resolve. Until a
+`/ship-prod` carries Batch 33 and a `sync-football` run follows, the tab and the
+pick card's position-and-form strip stay dark.
 
 Note that the two stacks ship differently: **Vercel auto-deploys `main` on every
 push; Railway moves only when `/ship-prod` runs.** Between 2026-08-04 and
@@ -293,13 +318,22 @@ leave home empty and the new pick-open control writing to a field production
 does not have. What remains:
 
 - ~~seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`~~ — done;
-- ~~ship staging and then production~~ — production is at `aae3b51e` / migration `011`;
+- ~~ship staging and then production~~ — production is at `13560cdb` / migration `012`;
 - migrate staging from the deprecated `BF_FAKE_MODE` to `ODDS_PROVIDER=fake`;
 - re-run `.launch-private/weekend-fixtures.py` against the launch Saturday;
-- decide whether to enable the football-data provider — `FOOTBALL_DATA_PROVIDER`
-  is unsealed so it defaults to `none`, which leaves Batch 16's tables, results
-  and form surfaces empty (not broken). Enabling it needs an api-sports.io key
-  sealed as `FOOTBALL_API_KEY`.
+- ~~decide whether to enable the football-data provider~~ — enabled;
+  `FOOTBALL_DATA_PROVIDER=apifootball` with `FOOTBALL_API_KEY` sealed 2026-08-15.
+  What remains is a `/ship-prod` for Batch 33 and a `sync-football` run, then
+  reading the catalogue log to learn what the free plan actually carries;
+- **rotate `ODDS_API_KEY`.** Beyond the two exposures already recorded, `httpx`
+  logs the full request URL at INFO and the key is a query parameter, so
+  production has been printing it in cleartext on every odds call — hundreds a
+  day in Railway's log store. Redacting the log is code work; the rotation is the
+  owner's;
+- **delete the `BF_*` variables from Railway production.** `BF_USER`, `BF_PASS`,
+  both PEM blobs and `BF_APP_KEY` are still set and are only read when
+  `ODDS_PROVIDER=betfair`, which production does not use. A `BF_PASS` for a live
+  Betfair account is sitting in an environment that has no use for it.
 
 The `BF_*` variables and the Betfair certificate are no longer required in
 production; they apply only if `ODDS_PROVIDER=betfair` is ever selected.
