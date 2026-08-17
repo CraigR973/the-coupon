@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-30 and 33 are closed; **31-32 are open**. The Coupon is a verified
+Batches 1-31 and 33 are closed; **32 is open**. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -11,10 +11,10 @@ settlement, compare standings, and view the shared combined coupon. The
 single-Saturday, 14:30-lock rule is now the *default* an unconfigured league
 plays, not an assumption the schema or the API makes.
 
-The two open batches are the multi-league audit's remainder: 31 dedupes
-settlement across leagues before its cost multiplies past 100 requests/hour,
-and 32 makes notification preferences per-league. Launch phase L5 is the
-remaining launch work.
+Batch 31 closed the multi-league audit's cost half — settlement now reads a
+fixture once per run rather than once per league holding it. The one open batch
+is 32, per-league notification preferences. Launch phase L5 is the remaining
+launch work.
 
 Batch 6 completed the product rebrand, removed inherited surfaces, corrected
 the frontend auth and invite wiring, and added a deterministic production-
@@ -55,11 +55,12 @@ the image, so `scripts/check-deploy-drift.sh` now answers exactly (`in sync`)
 rather than falling back to probing. `ODDS_API_KEY` is sealed,
 `ODDS_PROVIDER=oddsapi`, and `SCHEDULER_ENABLED=true`; the paragraph above about
 a Betfair build and an unsealed key described the state before the 2026-08-04
-and 2026-08-06 shipments. Batches 33 and 30 are on `main` and **not** yet
+and 2026-08-06 shipments. Batches 33, 30 and 31 are on `main` and **not** yet
 shipped, so the API is behind local `main` — `scripts/check-deploy-drift.sh`
-reported `DRIFTED` at Batch 30's close-out. Batch 30 changes the API's reminder
-payload (a `url` and a per-league lock time), so the push of `main` ships only
-the half of it that lives in the browser.
+reported `DRIFTED` at Batch 31's close-out. Batch 30 changes the API's reminder
+payload (a `url` and a per-league lock time) and Batch 31 is backend-only, so
+the push of `main` ships neither: what production settles with is still the
+per-league walk.
 
 The football-data provider is fully configured in production —
 `FOOTBALL_DATA_PROVIDER=apifootball`, `FOOTBALL_API_KEY` sealed 2026-08-15 — and
@@ -285,6 +286,24 @@ letting `sw.ts` fall back to `/`, and reads the round's own `locks_at_utc` on
 the member's clock rather than hardcoding "picks lock 14:30", which has been
 wrong for any league not locking Saturday since Batch 14.
 
+Batch 31 closed the last path whose provider bill multiplied by league count.
+Settlement de-duplicated fixtures *within* a league and never *across* them, so
+two leagues playing the same Saturday paid separately for every match they both
+held — against a plan allowing 100 requests/hour, which roughly seven leagues on
+one window would exhaust outright. `settle_gameweeks_via_provider` now gathers
+every settleable round's outstanding fixtures, de-duplicates them across the
+whole run, reads the provider once, and fans the settlements back out per round;
+the cost is the number of *distinct* fixtures outstanding, not the number of
+leagues holding them, which is the rule `discover_fixtures` already applied to
+slate windows. It works because a fixture is one pooled row since Batch 14. The
+row's second, more ambitious step — replacing the per-fixture `/events/{id}` walk
+with a windowed read of the `/events` list — was **not** taken: whether that list
+carries `scores` for finished fixtures is unverified, confirming it needs a live
+odds-api call, and there is no key in the working tree. The open question is
+recorded on `OddsApiProvider._event_by_id`. This was latent rather than broken —
+running out of quota raises no error, it just leaves picks `pending` and the week
+unfinished — so it had to land before the roster of leagues grows, not after.
+
 ## Verified
 
 - Backend: 473 pytest with a database, Ruff check/format, and strict mypy;
@@ -337,8 +356,8 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-Batches 31 and 32 remain unchecked in `docs/BUILD_PLAN.md`; Batch 31 —
-settlement cost per league — is next. Launch L5 — launch and first-Saturday
+Batch 32 — per-league notification preferences — is the only unchecked build
+batch left in `docs/BUILD_PLAN.md`. Launch L5 — launch and first-Saturday
 watch — is the remaining launch work. Batch 7 shipped the odds source.
 Production is now deployed and configured through Batch 22; Batches 23–27 are
 on local `main` pending a `/ship-prod` for the API contract changes from

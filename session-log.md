@@ -705,3 +705,31 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   `scripts/ci-local.sh` instead, per the managed-venv rule — the doc is stale, not the rule.
 
 **Next:** Batch 31 — Settlement cost per league.
+
+## Batch 31 — Settlement cost per league
+**Commits:** `2107dd9` · verified: `scripts/ci-local.sh` PASS (11 checks) — ruff check/format, mypy, `alembic upgrade head` + pytest on scratch pgserver, deployment-config assertions, pnpm lint/typecheck/test/build, Playwright prod-bundle deep-link smoke. Run twice, before and after the commit.
+
+### Key facts for future sessions
+- **Settlement is now one provider read per run, not per round.**
+  `settle_gameweeks_via_provider(db, provider, gameweeks)` de-duplicates every settleable
+  round's outstanding fixtures, calls `provider.settle` once, and fans the settlements back
+  out — `settle_gameweek` already ignores settlements its own picks don't reference. Anything
+  that settles a round at a time re-introduces the per-league bill.
+- `pending_event_ids` changed shape: it takes a *sequence* of rounds and returns
+  `{gameweek_id: [event_id]}`. `settle_gameweek_via_provider` still exists as the plural over
+  one round (`e2e_server.py` and the Batch 4 e2e slice use it), so there is one implementation.
+- The dedupe works because a fixture is one pooled row since Batch 14 — two leagues holding the
+  same match report the same `provider_event_id`. If fixtures ever stop being pooled, this
+  collapses back to a per-league cost silently.
+- **Step 2 of the row was not done and is not a defect.** Whether `/events` for a whole window
+  carries `scores` for finished fixtures is unverified — it needs a live odds-api call and there
+  is no key in the working tree. The open question is recorded on `OddsApiProvider._event_by_id`.
+  Confirming it would turn a Saturday into one request per window instead of one per fixture.
+- Running out of provider quota is **silent**: no error, picks just stay `pending` and the week
+  never finishes. `_RecordingFake` in `test_scheduler_jobs.py` records what each `settle` call
+  asked for, because that list is the bill — assert on it, not on wall-clock behaviour.
+- `tests/test_football_router.py::test_an_anonymous_caller_is_refused` fails under app-starter's
+  venv (401 vs the pinned FastAPI's 403). That is the documented pin divergence, not a
+  regression — use `scripts/ci-local.sh`, which builds the pinned venv.
+
+**Next:** Batch 32 — Per-league notification preferences.

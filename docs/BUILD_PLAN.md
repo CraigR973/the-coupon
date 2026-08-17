@@ -476,7 +476,7 @@ answered until it lands, because until then there is no data to look at.
   the coupon tab answers "play this league's round", and that question is singular
   by construction.
 
-- [ ] **Batch 31 — Settlement cost per league** *(Opus)* — settlement is the one path
+- [x] **Batch 31 — Settlement cost per league** ✅ 2026-08-17 *(Opus)* — settlement is the one path
   whose provider bill still multiplies by league count. `OddsAPI.settle` walks
   `for event_id in dict.fromkeys(event_ids)` issuing one `/events/{id}` per
   fixture, and `run_settle_gameweeks` calls it once per settleable round, so the
