@@ -427,7 +427,7 @@ answered until it lands, because until then there is no data to look at.
   "You're not in a league yet". Gate the queries on a resolved slug and give the
   no-league case its own empty state.
 
-- [ ] **Batch 30 — Slug-addressed coupon routes** *(Opus)* — making the bound league
+- [x] **Batch 30 — Slug-addressed coupon routes** ✅ 2026-08-17 *(Opus)* — making the bound league
   visible (Batch 29) does not make it addressable. `/predictions`,
   `/predictions/coupon`, `/predictions/results` and `/predictions/football` carry
   no slug, so which league they show is a fact about the client's memory rather

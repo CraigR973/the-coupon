@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-29 and 33 are closed; **30-32 are open**. The Coupon is a verified
+Batches 1-30 and 33 are closed; **31-32 are open**. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -11,8 +11,7 @@ settlement, compare standings, and view the shared combined coupon. The
 single-Saturday, 14:30-lock rule is now the *default* an unconfigured league
 plays, not an assumption the schema or the API makes.
 
-The three open batches are the multi-league audit's remainder: 30 makes the
-coupon surfaces slug-addressable so a league can be linked to, 31 dedupes
+The two open batches are the multi-league audit's remainder: 31 dedupes
 settlement across leagues before its cost multiplies past 100 requests/hour,
 and 32 makes notification preferences per-league. Launch phase L5 is the
 remaining launch work.
@@ -56,8 +55,11 @@ the image, so `scripts/check-deploy-drift.sh` now answers exactly (`in sync`)
 rather than falling back to probing. `ODDS_API_KEY` is sealed,
 `ODDS_PROVIDER=oddsapi`, and `SCHEDULER_ENABLED=true`; the paragraph above about
 a Betfair build and an unsealed key described the state before the 2026-08-04
-and 2026-08-06 shipments. Batch 33 is on `main` and **not** yet shipped, so the
-API is a commit behind local `main`.
+and 2026-08-06 shipments. Batches 33 and 30 are on `main` and **not** yet
+shipped, so the API is behind local `main` — `scripts/check-deploy-drift.sh`
+reported `DRIFTED` at Batch 30's close-out. Batch 30 changes the API's reminder
+payload (a `url` and a per-league lock time), so the push of `main` ships only
+the half of it that lives in the browser.
 
 The football-data provider is fully configured in production —
 `FOOTBALL_DATA_PROVIDER=apifootball`, `FOOTBALL_API_KEY` sealed 2026-08-15 — and
@@ -266,6 +268,23 @@ wrong league. All four surfaces' queries now gate on a resolved membership
 state instead of a 404 read as "no coupon yet". Frontend-only, no API or
 route change — slug-addressed routes are Batch 30.
 
+Batch 30 gave each league's coupon an address. The four surfaces moved to
+`/leagues/:slug/predictions[/coupon|/results|/football]`, so a week can be
+linked, shared, bookmarked and reopened at the league it came from, and two
+tabs can hold two leagues at once. The slug-less paths still land: they wait
+for the member's leagues and redirect through the bound one, carrying the query
+string so an old `?gw=` link survives — which also makes `useGameweekHistory`'s
+promise true, since a gameweek id is league-scoped and the URL holding it was
+not. The URL is now the source of truth: `useRouteLeague` binds the context on
+arrival, so `activeSlug` is the default for an address naming no league rather
+than the thing addresses derive from, and the binding left `LeagueSwitchStrip`
+and home's select-then-navigate pair. The nav bars aim at the bound league but
+highlight for any league's coupon. The pick reminder — the reason the addresses
+were missing — now carries `url` to that league's pick screen instead of
+letting `sw.ts` fall back to `/`, and reads the round's own `locks_at_utc` on
+the member's clock rather than hardcoding "picks lock 14:30", which has been
+wrong for any league not locking Saturday since Batch 14.
+
 ## Verified
 
 - Backend: 473 pytest with a database, Ruff check/format, and strict mypy;
@@ -318,8 +337,9 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-No unchecked build batches remain in `docs/BUILD_PLAN.md`. Launch L5 — launch
-and first-Saturday watch — is the open work. Batch 7 shipped the odds source.
+Batches 31 and 32 remain unchecked in `docs/BUILD_PLAN.md`; Batch 31 —
+settlement cost per league — is next. Launch L5 — launch and first-Saturday
+watch — is the remaining launch work. Batch 7 shipped the odds source.
 Production is now deployed and configured through Batch 22; Batches 23–27 are
 on local `main` pending a `/ship-prod` for the API contract changes from
 Batches 23, 25, 26 and 27 (Batch 24 is frontend-only). That ship-prod is

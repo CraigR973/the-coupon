@@ -675,3 +675,33 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   scope here — that is Batch 30, next.
 
 **Next:** Batch 30 — Slug-addressed coupon routes.
+
+## Batch 30 — Slug-addressed coupon routes
+**Commits:** `f33674d` · verified: `scripts/ci-local.sh` PASS (11 checks) — ruff check/format, mypy, `alembic upgrade head` + pytest on scratch pgserver, deployment-config assertions, pnpm lint/typecheck/test/build (39 files / 306 tests), Playwright prod-bundle deep-link smoke. Plus the full browser end-to-end (`coupon-flow`, production preview + scratch PostgreSQL + `FakeBetfair`) — 1 passed, screenshots in `artifacts/batch-30/`; and the reminder tests re-run explicitly against scratch Postgres (7 passed) because they skip without `DATABASE_URL`.
+
+### Key facts for future sessions
+- The coupon lives at `/leagues/:slug/predictions[/coupon|/results|/football]`. Build every link
+  with `predictionsPath(slug, section)` from `lib/leagues.ts` — never a literal. It takes
+  `string | null`, and `null` yields the slug-less path, which is the honest address while no
+  league is bound (loading, or a member in none).
+- **The URL binds the context, not the reverse.** `useRouteLeague()` returns `{slug, name}` and
+  calls `selectLeague` on arrival; `activeSlug` is now only the default for an address naming no
+  league. Batch 29's `LeagueSwitchStrip` effect was removed as part of this, so any *new* page
+  under `/leagues/:slug/*` must call the hook or it will not bind — `LeaderboardPage` was switched
+  to it for exactly that reason.
+- Nav highlighting is deliberately slug-agnostic (`isCouponPath` / `isFootballPath` /
+  `isLeagueHubPath`), against the BUILD_PLAN row's wording. Two reasons: a prefix built from the
+  bound slug flickers off for a frame when tapping into another league, and `/leagues` would
+  otherwise match the coupon and light the Leagues tab too.
+- `MissingPickMember` carries `league_slug`, and the reminder sends
+  `data.url = /leagues/{slug}/predictions` — the payload key `sw.ts` reads, which fell back to `/`
+  before. Its body now formats `gameweek.locks_at_utc` in the member's timezone as `Sat 14:30`;
+  anything re-hardcoding a lock time is wrong for a league not locking Saturday.
+- The e2e harness needs `FRONTEND_ORIGIN=http://127.0.0.1:4173` (CORS allows exactly one origin)
+  and one process must hold the `pgserver` handle for the whole run — the socket dies with the
+  process that started it. A stale `uvicorn` on port 8000 will silently answer for a new one
+  against a deleted database; check `lsof -ti tcp:8000` when the seed 500s.
+- `docs/agent-commands/batch-verify.md` still names app-starter's venv for mypy/pytest. Use
+  `scripts/ci-local.sh` instead, per the managed-venv rule — the doc is stale, not the rule.
+
+**Next:** Batch 31 — Settlement cost per league.
