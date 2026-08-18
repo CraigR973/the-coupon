@@ -608,6 +608,59 @@ answered until it lands, because until then there is no data to look at.
   unshipped; the tab stays dark until `/ship-prod` carries it and a
   `sync-football` run follows.
 
+- [ ] **Batch 34 — Switching league without leaving the coupon** — a member in two
+  leagues cannot change which league's coupon they are looking at.
+  `LeagueSwitchStrip` hardcodes every entry to that league's
+  `/leagues/{slug}/leaderboard`, and all four coupon surfaces mount it, so tapping
+  the other league on the pick screen lands on that league's standings instead. Rendering `CouponCombinedPage` with two leagues and reading
+  the href back returns `/leagues/friends-league/leaderboard` from
+  `/leagues/the-coupon/predictions/coupon`. The way back is the Coupon tab, which
+  has by then silently re-aimed — so the recovery is two taps through a screen the
+  member did not ask for, and the switcher is indistinguishable from a broken one.
+
+  Batches 29 and 30 were both aimed here and neither could have caught it. Batch
+  29 mounted the strip on the coupon surfaces to give the tab a switcher, but the
+  component was written for `LeaderboardPage` and its destination came with it —
+  its own copy still reads "Jump between tables". Batch 30 then made the coupon
+  addressable, which is the thing that makes the correct destination expressible
+  at all, and did not revisit the strip. The tests are why it survived twice:
+  `CouponPickPage.test.tsx` and `CouponCombinedPage.test.tsx` both assert only
+  `findByTestId('league-switch-strip')`, presence and never destination.
+
+  One rule, in the strip rather than at the call sites: a league switch keeps you
+  on the surface you are on. Export `predictionsSection` from `lib/leagues.ts`,
+  have the strip derive each href from `useLocation()` — a coupon surface yields
+  `predictionsPath(slug, section)`, anything else keeps the leaderboard as the
+  league's front door — and fix the copy. Deriving it once means every surface
+  added under `/leagues/:slug/*` later is right without touching this file again.
+
+  **Drop the query string on the switch.** A gameweek id is league-scoped and
+  `resolve_gameweek` 404s on a foreign one, so carrying `?gw=` across a switch
+  lands on "No coupon this week yet" — a worse failure than the bug being fixed,
+  and the one an implementer reaching for `useLocation().search` will ship.
+  `GameweekNav` already falls back to the newest round for the *label*; nothing
+  guards the query, because until now nothing could cross a league with it.
+
+  Fold in the same drift on the admin side. `LeagueSettingsPage`,
+  `LeagueMembersPage`, `LeagueAdminInvitesPage` and `LeagueJoinRequestsPage` read
+  `useParams` with a `DEFAULT_LEAGUE_SLUG` fallback instead of calling
+  `useRouteLeague`, against the rule Batch 30 set for every page under
+  `/leagues/:slug/*`. Reached through the league's leaderboard the binding is
+  already correct and the fault is invisible; deep-linked from a notification or a
+  bookmark it is not, and the Coupon tab afterwards reopens the previous league.
+
+  Explicitly not this: rewriting the slug segment of an arbitrary pathname, which
+  reads as the general form of the same rule and is not — it carries a foreign
+  player id into `/leagues/:slug/players/:playerId` and assumes admin of the
+  target on `/admin/*`. Nor one screen stacking every league's round, for the
+  reasons Batch 30 already recorded. Moving the switcher into `PageHeader` to
+  reduce three stacked nav rows to two is a real question and a design one; it
+  needs its own row, not this one.
+
+  Frontend only, no API change and no route change. Tests assert where the
+  switcher points, from a coupon surface and from the leaderboard, and that no
+  `gw` survives the switch.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
