@@ -728,6 +728,54 @@ the *new* app writes can ever hold it, and only after an admin sets
 `pick_open_offset_minutes` and a round is then discovered ahead of its opening.
 Step 1 above clears exactly those rows.
 
+### Forward recovery plan — migration `013`, Batch 32
+
+**Status: reviewed and approved by the owner, 2026-08-18. Cleared to ship.**
+
+Required by `/ship-prod` step 1.7 before `013` may be deployed. Production is at
+head `012` (deployment `f54fa403`); this shipment moves it to `013`.
+
+**No pre-migration snapshot is needed.** `013` adds one column,
+`league_memberships.notification_muted` (boolean, `NOT NULL`, `server_default
+false`). Every existing row is written `false` on the same additive terms as
+`012`'s two nullable columns — no backfill, no data rewritten.
+
+**API rollback is unavailable the moment `013` applies, and not for a data
+reason** — the same boot-sequence fact recorded for `012`. `nixpacks.toml` boots
+with `alembic upgrade head && uvicorn ...`, and every pre-`013` image ships
+migration scripts `001`–`012` only. Started against a database stamped `013`,
+that image's Alembic cannot resolve the revision at all — it fails with `Can't
+locate revision identified by '013'`, the `&&` chain stops, uvicorn never
+starts, and the healthcheck fails. This holds regardless of table contents, so
+**do not attempt a Railway rollback to a pre-`013` deployment after this
+ships.** Vercel rollback is unaffected and stays available.
+
+Recovery is therefore forward-only, in increasing order of cost:
+
+1. **Disable the feature without deploying.** The behavior is already fully off
+   by default — `notification_muted` is `false` on every existing row, and
+   nothing in this batch flips it except an explicit member action. If a row
+   is muted incorrectly:
+
+   ```sql
+   UPDATE league_memberships SET notification_muted = false;
+   ```
+
+   Safe and reversible at the data level; it does not touch any other column.
+
+2. **Deploy a corrected image at head `013` or higher.** The normal path for an
+   application defect. `013` stays applied.
+
+3. **Never run `alembic downgrade` against production.** `013`'s downgrade
+   drops the column outright, which destroys any state written to it since —
+   unlike `012`'s enum-remap downgrade, this one is not merely unused, it is
+   actively destructive. It is written for local and staging use only.
+
+**Data compatibility, for completeness.** Were the boot-migration problem
+solved by other means, `013` is otherwise fully backward-compatible with the
+`012` application: the old app never references the new column, reads or
+writes it nowhere, so existing behavior is unaffected either way.
+
 ## Gate state
 
 The three production stacks are provisioned, isolated, configured, deployed,
