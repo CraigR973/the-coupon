@@ -733,3 +733,23 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   regression — use `scripts/ci-local.sh`, which builds the pinned venv.
 
 **Next:** Batch 32 — Per-league notification preferences.
+
+## Batch 32 — Per-league notification preferences
+**Commits:** `88d3a78` · verified: `scripts/ci-local.sh` PASS (11 checks) — ruff check/format, mypy, `alembic upgrade head` + pytest on scratch pgserver, deployment-config assertions, pnpm lint/typecheck/test/build, Playwright prod-bundle deep-link smoke.
+
+### Key facts for future sessions
+- The mute flag lives on `league_memberships.notification_muted` (migration `013`), not a new
+  table — that row already dies with the membership, so leaving and rejoining a league never
+  inherits a stale mute.
+- `members_missing_picks` filters muted memberships out at the query, so a muted league is never
+  targeted rather than targeted and suppressed — `send_pick_reminders`' return count stays honest
+  about who was actually nudged.
+- `global_mute` and quiet hours are unchanged and still layered on top: the per-league flag
+  decides whether a reminder is *wanted*; the user-level gate decides whether *now* is a good time.
+- `GET`/`PATCH /api/v1/notifications/preferences` gained a `leagues: [{league_id, league_name,
+  muted}]` list and a `PATCH` `league_mutes: {league_id: bool}` field — one settings read/write
+  still serves the whole card. `PATCH` only touches memberships the caller actually belongs to.
+- This closes the last open batch (1-33 are now all shipped on `main`); the only remaining build
+  work is launch phase L5.
+
+**Next:** Launch phase L5 — Launch and first-Saturday watch.

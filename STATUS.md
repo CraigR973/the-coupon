@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-31 and 33 are closed; **32 is open**. The Coupon is a verified
+Batches 1-33 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -12,9 +12,12 @@ single-Saturday, 14:30-lock rule is now the *default* an unconfigured league
 plays, not an assumption the schema or the API makes.
 
 Batch 31 closed the multi-league audit's cost half — settlement now reads a
-fixture once per run rather than once per league holding it. The one open batch
-is 32, per-league notification preferences. Launch phase L5 is the remaining
-launch work.
+fixture once per run rather than once per league holding it. Batch 32 gave a
+member a per-league mute alongside the existing global mute and quiet hours,
+so a member in several leagues can turn off one without losing the rest — the
+flag lives on `league_memberships`, not a new table, so it dies with the
+membership. All 33 batches are now closed on `main`; Launch phase L5 is the
+remaining work.
 
 Batch 6 completed the product rebrand, removed inherited surfaces, corrected
 the frontend auth and invite wiring, and added a deterministic production-
@@ -55,12 +58,13 @@ the image, so `scripts/check-deploy-drift.sh` now answers exactly (`in sync`)
 rather than falling back to probing. `ODDS_API_KEY` is sealed,
 `ODDS_PROVIDER=oddsapi`, and `SCHEDULER_ENABLED=true`; the paragraph above about
 a Betfair build and an unsealed key described the state before the 2026-08-04
-and 2026-08-06 shipments. Batches 33, 30 and 31 are on `main` and **not** yet
-shipped, so the API is behind local `main` — `scripts/check-deploy-drift.sh`
+and 2026-08-06 shipments. Batches 33, 30, 31 and 32 are on `main` and **not**
+yet shipped, so the API is behind local `main` — `scripts/check-deploy-drift.sh`
 reported `DRIFTED` at Batch 31's close-out. Batch 30 changes the API's reminder
-payload (a `url` and a per-league lock time) and Batch 31 is backend-only, so
-the push of `main` ships neither: what production settles with is still the
-per-league walk.
+payload (a `url` and a per-league lock time), Batch 31 is backend-only, and
+Batch 32 adds `league_memberships.notification_muted` (migration `013`) plus
+the per-league fields on `/api/v1/notifications/preferences` — none of that
+reaches production until `/ship-prod` runs and carries migration `013` with it.
 
 The football-data provider is fully configured in production —
 `FOOTBALL_DATA_PROVIDER=apifootball`, `FOOTBALL_API_KEY` sealed 2026-08-15 — and

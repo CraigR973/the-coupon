@@ -515,7 +515,7 @@ answered until it lands, because until then there is no data to look at.
   (`odds_cache` is keyed per event, discovery groups by window), and pick
   semantics, which are per-league and correct.
 
-- [ ] **Batch 32 — Per-league notification preferences** *(Sonnet)* — a member's only
+- [x] **Batch 32 — Per-league notification preferences** ✅ 2026-08-18 *(Sonnet)* — a member's only
   control over reminders is all-or-nothing, and the volume it governs grows with
   every league they join. `NotificationPreferences` is keyed on `user_id` alone —
   `global_mute` plus quiet hours — and `send_notification` gates on
