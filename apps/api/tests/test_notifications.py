@@ -291,11 +291,19 @@ async def test_unsubscribe_push_deactivates() -> None:
         app.dependency_overrides.clear()
 
 
+def _empty_leagues() -> MagicMock:
+    """A ``db.execute`` result for ``_league_mutes`` with no rows to iterate."""
+    return MagicMock(__iter__=MagicMock(return_value=iter([])))
+
+
 @pytest.mark.asyncio
 async def test_get_preferences_creates_defaults() -> None:
     user = _user()
     mock_db = AsyncMock()
-    mock_db.execute.return_value = MagicMock(scalar_one_or_none=MagicMock(return_value=None))
+    mock_db.execute.side_effect = [
+        MagicMock(scalar_one_or_none=MagicMock(return_value=None)),  # prefs lookup
+        _empty_leagues(),  # _league_mutes
+    ]
 
     async def _refresh(obj: Any) -> None:
         if isinstance(obj, NotificationPreferences):
@@ -313,6 +321,7 @@ async def test_get_preferences_creates_defaults() -> None:
         assert r.status_code == 200
         data = r.json()
         assert data["global_mute"] is False
+        assert data["leagues"] == []
         mock_db.add.assert_called_once()
     finally:
         app.dependency_overrides.clear()
@@ -328,7 +337,10 @@ async def test_patch_preferences() -> None:
     prefs.quiet_hours_end = None
 
     mock_db = AsyncMock()
-    mock_db.execute.return_value = MagicMock(scalar_one_or_none=MagicMock(return_value=prefs))
+    mock_db.execute.side_effect = [
+        MagicMock(scalar_one_or_none=MagicMock(return_value=prefs)),  # prefs lookup
+        _empty_leagues(),  # _league_mutes
+    ]
 
     async def _refresh(obj: Any) -> None:
         pass
@@ -349,5 +361,82 @@ async def test_patch_preferences() -> None:
             )
         assert r.status_code == 200
         assert prefs.global_mute is True
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_get_preferences_includes_league_mutes() -> None:
+    user = _user()
+    prefs = MagicMock(spec=NotificationPreferences)
+    prefs.user_id = user.id
+    prefs.global_mute = False
+    prefs.quiet_hours_start = None
+    prefs.quiet_hours_end = None
+
+    league_id = uuid.uuid4()
+    league_row = MagicMock(id=league_id, notification_muted=True)
+    league_row.name = "Friday League"
+
+    mock_db = AsyncMock()
+    mock_db.execute.side_effect = [
+        MagicMock(scalar_one_or_none=MagicMock(return_value=prefs)),  # prefs lookup
+        MagicMock(__iter__=MagicMock(return_value=iter([league_row]))),  # _league_mutes
+    ]
+
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_db] = _db_with(mock_db)
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            r = await client.get("/api/v1/notifications/preferences")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["leagues"] == [
+            {"league_id": str(league_id), "league_name": "Friday League", "muted": True}
+        ]
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_patch_preferences_updates_league_mute() -> None:
+    user = _user()
+    prefs = MagicMock(spec=NotificationPreferences)
+    prefs.user_id = user.id
+    prefs.global_mute = False
+    prefs.quiet_hours_start = None
+    prefs.quiet_hours_end = None
+
+    league_id = uuid.uuid4()
+    membership = MagicMock()
+    membership.league_id = league_id
+    membership.notification_muted = False
+
+    mock_db = AsyncMock()
+    mock_db.execute.side_effect = [
+        MagicMock(scalar_one_or_none=MagicMock(return_value=prefs)),  # prefs lookup
+        MagicMock(
+            scalars=MagicMock(
+                return_value=MagicMock(__iter__=MagicMock(return_value=iter([membership])))
+            )
+        ),
+        _empty_leagues(),  # _league_mutes for the response
+    ]
+
+    async def _refresh(obj: Any) -> None:
+        pass
+
+    mock_db.refresh = _refresh
+
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_db] = _db_with(mock_db)
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            r = await client.patch(
+                "/api/v1/notifications/preferences",
+                json={"league_mutes": {str(league_id): True}},
+            )
+        assert r.status_code == 200
+        assert membership.notification_muted is True
     finally:
         app.dependency_overrides.clear()

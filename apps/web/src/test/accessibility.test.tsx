@@ -172,6 +172,7 @@ describe('Accessibility — SettingsPage', () => {
               global_mute: false,
               quiet_hours_start: null,
               quiet_hours_end: null,
+              leagues: [],
             }),
         });
       }

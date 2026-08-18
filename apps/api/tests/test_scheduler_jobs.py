@@ -624,3 +624,23 @@ async def test_members_missing_picks_targets_only_non_pickers(session: AsyncSess
     assert bob.timezone == "UTC"
     # And the slug, which is what the reminder's url is built from (Batch 30).
     assert bob.league_slug == league.slug
+
+
+async def test_members_missing_picks_excludes_muted_membership(session: AsyncSession) -> None:
+    """A member who muted this league is never targeted (Batch 32)."""
+    players, league = await _seed_league(session, ["alice", "bob"])
+    gameweek, _epl, _sl2 = await _open_gameweek(session, league, date(2027, 4, 10))
+
+    result = await session.execute(
+        select(LeagueMembership).where(
+            LeagueMembership.league_id == league.id,
+            LeagueMembership.player_id == players["bob"].id,
+        )
+    )
+    bob_membership = result.scalar_one()
+    bob_membership.notification_muted = True
+    await session.flush()
+
+    missing = await members_missing_picks(session, gameweek)
+    mine = {m.display_name.split("-")[0] for m in missing if m.league_id == str(league.id)}
+    assert mine == {"alice"}

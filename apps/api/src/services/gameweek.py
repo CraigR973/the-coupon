@@ -508,7 +508,9 @@ async def members_missing_picks(db: AsyncSession, gameweek: Gameweek) -> list[Mi
     Filtered to ``gameweek.league_id``. Before Batch 14 a round was global, and this
     query had no league filter at all, so a reminder for one round was sent to every
     member of every league in the database. Excludes deleted memberships/leagues and
-    inactive/deleted profiles.
+    inactive/deleted profiles, and memberships with ``notification_muted`` — a muted
+    league is never targeted, rather than targeted and suppressed, which also keeps
+    ``send_pick_reminders``' return count honest about who was actually nudged.
     """
     display_name = func.coalesce(LeagueMembership.display_name_override, Profile.display_name)
     rows = await db.execute(
@@ -532,6 +534,7 @@ async def members_missing_picks(db: AsyncSession, gameweek: Gameweek) -> list[Mi
         .where(
             LeagueMembership.league_id == gameweek.league_id,
             LeagueMembership.deleted_at.is_(None),
+            LeagueMembership.notification_muted.is_(False),
             League.deleted_at.is_(None),
             Profile.deleted_at.is_(None),
             Profile.is_active.is_(True),

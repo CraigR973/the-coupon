@@ -17,10 +17,17 @@ import { PageHeader } from '../components/PageHeader';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+interface LeagueMute {
+  league_id: string;
+  league_name: string;
+  muted: boolean;
+}
+
 interface NotificationPreferences {
   global_mute: boolean;
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;
+  leagues: LeagueMute[];
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -197,7 +204,7 @@ function PreferencesSection() {
   });
 
   const mutation = useMutation({
-    mutationFn: (patch: Partial<NotificationPreferences>) =>
+    mutationFn: (patch: Partial<NotificationPreferences> | { league_mutes: Record<string, boolean> }) =>
       apiFetch<NotificationPreferences>('/api/v1/notifications/preferences', {
         method: 'PATCH',
         body: JSON.stringify(patch),
@@ -210,6 +217,11 @@ function PreferencesSection() {
 
   const update = useCallback(
     (patch: Partial<NotificationPreferences>) => mutation.mutate(patch),
+    [mutation],
+  );
+
+  const toggleLeague = useCallback(
+    (leagueId: string, muted: boolean) => mutation.mutate({ league_mutes: { [leagueId]: muted } }),
     [mutation],
   );
 
@@ -267,6 +279,23 @@ function PreferencesSection() {
           )}
         </div>
       </div>
+
+      {prefs.leagues.length > 0 && (
+        <div className="pt-3 border-t border-border">
+          <p className="text-sm font-sans text-text-secondary mb-2">Per-league reminders</p>
+          <div className="space-y-0.5">
+            {prefs.leagues.map((league) => (
+              <Toggle
+                key={league.league_id}
+                checked={!league.muted}
+                disabled={muted}
+                onChange={(v) => toggleLeague(league.league_id, !v)}
+                label={league.league_name}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

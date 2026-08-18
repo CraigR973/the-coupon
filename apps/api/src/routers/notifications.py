@@ -1,5 +1,6 @@
 """Push subscription and notification preference endpoints."""
 
+import uuid
 from typing import Annotated, Any
 
 import structlog
@@ -11,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth import CurrentUser
 from src.config import settings
 from src.database import get_db
+from src.models.league import League
+from src.models.league_membership import LeagueMembership
 from src.models.notification import NotificationPreferences, PushSubscription
 from src.rate_limit import limiter, per_user_key
 from src.services.push_notification_service import send_notification
@@ -35,16 +38,25 @@ class UnsubscribeRequest(BaseModel):
     endpoint: str
 
 
+class LeagueMuteOut(BaseModel):
+    league_id: str
+    league_name: str
+    muted: bool
+
+
 class PreferencesOut(BaseModel):
     global_mute: bool
     quiet_hours_start: str | None  # "HH:MM"
     quiet_hours_end: str | None  # "HH:MM"
+    leagues: list[LeagueMuteOut]
 
 
 class PreferencesPatch(BaseModel):
     global_mute: bool | None = None
     quiet_hours_start: str | None = None  # "HH:MM" or empty string to clear
     quiet_hours_end: str | None = None
+    #: league_id -> desired mute state. Only the leagues named here are touched.
+    league_mutes: dict[str, bool] | None = None
 
 
 # ── VAPID public key ─────────────────────────────────────��────────────────────
@@ -153,6 +165,24 @@ def _time_str(dt_field: object) -> str | None:
     return None
 
 
+async def _league_mutes(db: Db, user_id: uuid.UUID) -> list[LeagueMuteOut]:
+    """The member's active leagues with their per-league mute state — one settings read."""
+    rows = await db.execute(
+        select(League.id, League.name, LeagueMembership.notification_muted)
+        .join(LeagueMembership, LeagueMembership.league_id == League.id)
+        .where(
+            LeagueMembership.player_id == user_id,
+            LeagueMembership.deleted_at.is_(None),
+            League.deleted_at.is_(None),
+        )
+        .order_by(League.name)
+    )
+    return [
+        LeagueMuteOut(league_id=str(row.id), league_name=row.name, muted=row.notification_muted)
+        for row in rows
+    ]
+
+
 @router.get("/notifications/preferences", response_model=PreferencesOut)
 async def get_preferences(user: CurrentUser, db: Db) -> PreferencesOut:
     """Return the user's notification preferences (creates defaults on first access)."""
@@ -171,6 +201,7 @@ async def get_preferences(user: CurrentUser, db: Db) -> PreferencesOut:
         global_mute=prefs.global_mute,
         quiet_hours_start=_time_str(prefs.quiet_hours_start),
         quiet_hours_end=_time_str(prefs.quiet_hours_end),
+        leagues=await _league_mutes(db, user.id),
     )
 
 
@@ -213,6 +244,24 @@ async def patch_preferences(
     if body.quiet_hours_end is not None:
         prefs.quiet_hours_end = _parse_time(body.quiet_hours_end)
 
+    if body.league_mutes:
+        try:
+            league_ids = {uuid.UUID(lid) for lid in body.league_mutes}
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid league_id in league_mutes",
+            )
+        membership_result = await db.execute(
+            select(LeagueMembership).where(
+                LeagueMembership.player_id == user.id,
+                LeagueMembership.league_id.in_(league_ids),
+                LeagueMembership.deleted_at.is_(None),
+            )
+        )
+        for membership in membership_result.scalars():
+            membership.notification_muted = body.league_mutes[str(membership.league_id)]
+
     await db.commit()
     await db.refresh(prefs)
 
@@ -220,4 +269,5 @@ async def patch_preferences(
         global_mute=prefs.global_mute,
         quiet_hours_start=_time_str(prefs.quiet_hours_start),
         quiet_hours_end=_time_str(prefs.quiet_hours_end),
+        leagues=await _league_mutes(db, user.id),
     )

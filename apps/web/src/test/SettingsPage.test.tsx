@@ -28,13 +28,24 @@ vi.mock('@/hooks/useInstallPrompt', () => ({
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
-const DEFAULT_PREFS = {
+const DEFAULT_PREFS: {
+  global_mute: boolean;
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+  leagues: { league_id: string; league_name: string; muted: boolean }[];
+} = {
   global_mute: false,
   quiet_hours_start: null,
   quiet_hours_end: null,
+  leagues: [],
 };
 
 const MUTED_PREFS = { ...DEFAULT_PREFS, global_mute: true };
+
+const PREFS_WITH_LEAGUES = {
+  ...DEFAULT_PREFS,
+  leagues: [{ league_id: 'league-1', league_name: 'Friday League', muted: false }],
+};
 
 function makeFetch(prefs = DEFAULT_PREFS, patchResult = DEFAULT_PREFS) {
   return vi.fn((url: string, opts?: RequestInit) => {
@@ -172,6 +183,21 @@ describe('SettingsPage', () => {
     await waitFor(() => {
       expect(screen.queryByRole('switch', { name: /pick confirmation/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('switch', { name: /deadline warning/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows a per-league toggle and sends league_mutes on change', async () => {
+    const fetch = makeFetch(PREFS_WITH_LEAGUES);
+    renderPage(fetch);
+    await waitFor(() => screen.getByRole('switch', { name: 'Friday League' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Friday League' }));
+    await waitFor(() => {
+      const patchCall = (fetch.mock.calls as [string, RequestInit?][]).find(
+        ([url, opts]) => url.includes('/api/v1/notifications/preferences') && opts?.method === 'PATCH',
+      );
+      expect(patchCall).toBeDefined();
+      const body = JSON.parse(patchCall![1]!.body as string);
+      expect(body).toEqual({ league_mutes: { 'league-1': true } });
     });
   });
 
