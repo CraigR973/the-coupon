@@ -822,7 +822,7 @@ answered until it lands, because until then there is no data to look at.
   confirmation costs a `sync-football` run — about 61 of the day's 100 requests, per the
   scheduler runbook — so budget it deliberately rather than re-running it to watch.
 
-- [ ] **Batch 38 — When a pick was taken** — the coupon says who took a selection and never
+- [x] **Batch 38 — When a pick was taken** ✅ 2026-08-20 *(Opus)* — the coupon says who took a selection and never
   when. "Who" already ships, per-selection as `taken by {firstName}` (`PickCard.tsx:258`)
   and per-fixture as `Picked by …` (`PickCard.tsx:154`). "When" is absent end to end even
   though the data has always been there: `Pick` extends `UpdatedAtMixin` → `TimestampMixin`

@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-36 and 39 are closed. The Coupon is a verified
+Batches 1-36, 38 and 39 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -48,6 +48,12 @@ a narrow column beside a `flex-1 min-w-0` title was the same complaint in a new
 shape. A member keeps their single `Leave` button in the open, since one button
 never overflowed. The Radix dropdown primitive brings focus management,
 Escape-to-close and outside-click dismissal, which is the substance of the fix.
+
+Batch 38 made the coupon say *when* a selection was taken, not just who by.
+`Pick.created_at` had always been on the row and nothing carried it out. The
+field is additive and optional on the client, because Vercel deploys the web app
+from `main` while the API waits for `/ship-prod` — a renamed or required field
+would break the coupon in that gap.
 
 Investigation on 2026-08-19 also reconciled seven reported snags into Batches
 36-42 (`docs/BUILD_PLAN.md`). Two findings changed the picture: the football tab
@@ -404,10 +410,10 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries four unchecked batches: **38** (when a pick was
-taken), **37** (the competition matcher, which also fixes the blank form/position
-strip), **41** (gameweek numbering) and **42** (profile pictures, code-only
-against no storage bucket). Batch 40 is deferred
+`docs/BUILD_PLAN.md` carries three unchecked batches: **37** (the competition
+matcher, which also fixes the blank form/position strip), **41** (gameweek
+numbering) and **42** (profile pictures, code-only against no storage bucket).
+Batch 40 is deferred
 pending a decision on whether `pick_open_offset_minutes` stays forward-only or
 gains an admin restamp. Two items sit outside the batches and are owner actions:
 **rotating the odds-api.io key** exposed in the logs before Batch 36, and the

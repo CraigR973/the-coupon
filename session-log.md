@@ -866,3 +866,33 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   focus return, and the delete dialog still gating deletion).
 
 **Next:** Batch 38 — When a pick was taken.
+
+## Batch 38 — When a pick was taken
+**Commits:** 979a3bb · verified: `scripts/ci-local.sh` PASS (11 checks), including alembic upgrade head + the DB-backed pick flow
+
+### Key facts for future sessions
+- **Adding a timestamp changed what "distinct holder" means.** `_holders_by_fixture` deduped on
+  the whole holder value, which was equivalent to per-player only while that value was
+  `(player_id, name)`. Two selections claimed a minute apart are different values but the same
+  person, so the fixture line would have named them twice. It now dedupes on `player_id` and
+  keeps the **earliest** claim. Any future field added to `_Holder` faces the same trap.
+- `taken_at` is **additive and optional on the client** on purpose. Vercel deploys the web app
+  from `main` while the API waits for `/ship-prod`, so a renamed or required field would break
+  the coupon in the gap. `types.ts` marks it `?` and `PickCard` renders the holder's name with
+  no time when it is absent — there is a test for exactly that.
+- The time is **absolute**, in the league's timezone, formatted `d MMM, HH:mm` — the kickoff
+  line's format minus the weekday. Relative ("2h ago") was rejected: the coupon is cached, so a
+  relative label is wrong as soon as it is re-read without a re-render, and a pick window that
+  opens weeks ahead makes a bare weekday ambiguous.
+- Only the **per-selection** line carries the time. The fixture-level `Picked by …` summary was
+  left as names: it is a summary of *who*, and duplicating the instant there reads as noise.
+  This is a deliberate narrowing of the batch row, which asked for both.
+- **Every instant this API returns is naive UTC** (`DateTime(timezone=False)` on `created_at`,
+  `kickoff_utc`, `locks_at_utc`) and serialises without a `Z`, while the frontend parses with
+  `new Date(...)`, which reads a bare string as *local*. `taken_at` was made consistent with its
+  siblings rather than diverging. Worth noting that the app-wide convention means displayed
+  times are off by the local UTC offset for any non-UTC viewer — pre-existing, not this batch.
+- `scripts/ci-local.sh` is the gate that actually exercises the pick flow; a bare `pytest` skips
+  41 DB-backed tests silently, so a green plain-pytest run proves less than it looks.
+
+**Next:** Batch 37 — A division that resolves to the Premier League.
