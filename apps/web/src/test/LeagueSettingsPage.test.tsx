@@ -273,6 +273,11 @@ describe('LeagueSettingsPage — when picks open (Batch 27)', () => {
   it('loads a stored offset with the switch already on', async () => {
     stubApi(undefined, { pick_open_offset_minutes: 4320 }); // three days
     renderPage();
+    // The switch mounts default-off and turns on when the league detail lands, and two
+    // of the assertions below do not retry — so waiting for the element is not enough.
+    // `leagueDetail` carries the name and the offset in one response, so this is a
+    // barrier for the very data under test rather than a proxy for it.
+    await formReady();
 
     const toggle = await screen.findByRole('switch', { name: /announce when picks open/i });
     expect(toggle).toHaveAttribute('aria-checked', 'true');
