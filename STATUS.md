@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-35 are closed. The Coupon is a verified
+Batches 1-36 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -31,8 +31,25 @@ an hour against a 100/hour allowance and is now `2/hour;3/day`, derived from a
 measured budget rather than a modelled one. The ad-hoc fetch asks only for the
 competitions the league plays, since nothing shares it. And discovery now walks
 the cadence *union* the dates of unlocked rounds, so a one-off is refreshed
-rather than frozen at creation. All 35 batches are now closed on `main`; Launch
-phase L5 is the remaining build work.
+rather than frozen at creation.
+
+Batch 36 stopped provider API keys reaching the logs. odds-api.io takes its key
+as a query parameter and httpx logs every request URL at INFO, so each odds call
+published a live credential into Railway's logs — observed 2026-08-19 in the
+running production deployment. Redaction now happens at the JSON renderer, which
+covers the message, keyword values, nested structures and any third-party
+library in one mechanism, and holds if a quieted logger is re-enabled later;
+httpx and httpcore are also quieted to WARNING. **Rotating the exposed key
+remains an owner action that this batch does not perform.**
+
+Investigation on 2026-08-19 also reconciled seven reported snags into Batches
+36-42 (`docs/BUILD_PLAN.md`). Two findings changed the picture: the football tab
+is empty because competition matching resolves lower English divisions to the
+*Premier League* — `SUBSET_SCORE` treats "Premier League" as a token subset of
+"Southern League Premier Division South" — and not for want of coverage, since a
+catalogue probe confirmed the free plan carries every British division needed for
+season 2026, closing the question Batch 33 left open. Batch 40 is deferred
+pending a product decision.
 
 Batch 6 completed the product rebrand, removed inherited surfaces, corrected
 the frontend auth and invite wiring, and added a deterministic production-
@@ -380,8 +397,19 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` has no unchecked build batches left. Launch L5 — launch
-and first-Saturday watch — is the remaining work. Batch 7 shipped the odds source.
+`docs/BUILD_PLAN.md` carries five unchecked batches: **39** (the standings action
+row), **38** (when a pick was taken), **37** (the competition matcher, which also
+fixes the blank form/position strip), **41** (gameweek numbering) and **42**
+(profile pictures, code-only against no storage bucket). Batch 40 is deferred
+pending a decision on whether `pick_open_offset_minutes` stays forward-only or
+gains an admin restamp. Two items sit outside the batches and are owner actions:
+**rotating the odds-api.io key** exposed in the logs before Batch 36, and the
+production data cleanup Batch 37 needs — mis-matched competitions have been
+ingesting Premier League rows and must be cleared before a corrective
+`sync-football` sweep.
+
+Launch L5 — launch and first-Saturday watch — is the remaining launch work.
+Batch 7 shipped the odds source.
 Production is now deployed and configured through Batch 22; Batches 23–27 are
 on local `main` pending a `/ship-prod` for the API contract changes from
 Batches 23, 25, 26 and 27 (Batch 24 is frontend-only). That ship-prod is

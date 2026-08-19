@@ -817,3 +817,28 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   while "current" meant newest date and which makes the new rule untestable.
 
 **Next:** Launch phase L5 — Launch and first-Saturday watch. All 35 build batches are shipped on `main`.
+
+## Batch 36 — The odds key in the production logs
+**Commits:** 7c4c1c4 (specs), 70e30e8 · verified: pinned ruff 0.5.4 check + format, mypy (59 files), pytest 425 passed/117 skipped, web lint/typecheck/build/test (315 passed)
+
+### Key facts for future sessions
+- **The exposed key still needs rotating — that is an owner action and this batch does not do it.**
+  The code only stops future requests republishing it. Until rotation, the key in the retained
+  Railway log window is live.
+- Redaction happens in `_redacting_json_renderer` (`logging_config.py`), not at any call site.
+  That is deliberate: it covers the event message, keyword values, nested structures, and any
+  third-party library, and it survives someone re-enabling a quieted logger. `Settings.secret_values()`
+  feeds it, sorted longest first so a secret containing another as a substring cannot be partially
+  masked, and excluding values under 8 characters so an unset `""` cannot rewrite every line.
+- `run_scheduled.py` never calls `configure_logging`, so one-off `railway run` jobs get stdlib
+  defaults (WARNING) and neither leaked nor gained redaction. Left alone as out of scope, but a
+  log level set there later would be unprotected — the redactor only guards configured processes.
+- **The shared venv's ruff disagrees with the pin and will report a false failure.** It flagged
+  `src/models/league.py` as unformatted; pinned ruff 0.5.4 reports all 94 files clean.
+  `docs/agent-commands/batch-verify.md` says to use `uvx "ruff==$(...)"` for exactly this reason —
+  the venv's ruff is not the gate and its formatting verdict should be ignored.
+- The odds-api.io header question the batch row raised was **not** probed and no longer blocks
+  anything: the renderer-level redactor already delivers what a header would have (survival past a
+  re-enabled logger), so spending a live request to confirm it was not worth the quota.
+
+**Next:** Batch 39 — Six admin buttons beside a title.

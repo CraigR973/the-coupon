@@ -740,7 +740,7 @@ answered until it lands, because until then there is no data to look at.
   arithmetic against a real cache rather than trusting a comment — the new limit belongs
   there too.
 
-- [ ] **Batch 36 — The odds key in the production logs** — every odds request writes the
+- [x] **Batch 36 — The odds key in the production logs** ✅ 2026-08-19 *(Opus)* — every odds request writes the
   live odds-api.io key into Railway's logs in plaintext. `odds_api.py:640` builds
   `query = {**params, "apiKey": self._api_key}`, httpx logs the full request URL at INFO,
   and nothing sets that logger's level anywhere in the app — so
