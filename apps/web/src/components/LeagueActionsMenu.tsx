@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { LogOut, Mail, Settings, Trash2, UserCheck, Users } from 'lucide-react';
+import { LogOut, Mail, MoreHorizontal, Settings, Trash2, UserCheck, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 interface LeagueActionsMenuProps {
@@ -87,54 +94,78 @@ export function LeagueActionsMenu({
 
   return (
     <>
-      <div className={cn('flex flex-wrap items-center gap-2', className)}>
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5"
-          onClick={() => setShowLeaveDialog(true)}
-        >
-          <LogOut className="h-3.5 w-3.5" aria-hidden />
-          Leave
-        </Button>
-        {isAdmin && (
-          <>
-            <Button asChild size="sm" variant="outline" className="gap-1.5">
-              <Link to={`/leagues/${slug}/admin/members`}>
-                <Users className="h-3.5 w-3.5" aria-hidden />
-                Members
-              </Link>
-            </Button>
-            <Button asChild size="sm" variant="outline" className="gap-1.5">
-              <Link to={`/leagues/${slug}/admin/requests`}>
-                <UserCheck className="h-3.5 w-3.5" aria-hidden />
-                Requests
-              </Link>
-            </Button>
-            <Button asChild size="sm" variant="outline" className="gap-1.5">
-              <Link to={`/leagues/${slug}/admin/invites`}>
-                <Mail className="h-3.5 w-3.5" aria-hidden />
-                Invites
-              </Link>
-            </Button>
-            <Button asChild size="sm" variant="outline" className="gap-1.5">
-              <Link to={`/leagues/${slug}/admin/settings`}>
-                <Settings className="h-3.5 w-3.5" aria-hidden />
-                Settings
-              </Link>
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5 border-error/40 text-error hover:bg-error/10"
-              onClick={() => setShowDeleteDialog(true)}
-            >
-              <Trash2 className="h-3.5 w-3.5" aria-hidden />
-              Delete
-            </Button>
-          </>
-        )}
-      </div>
+      {/*
+        A member has exactly one action, and one button beside a title has never been the
+        problem — collapsing it would cost a tap and save no width. An admin has six, which
+        is what overflowed: Batch 22 made the row wrap, but six chips folding into a narrow
+        column next to a `flex-1 min-w-0` title is the same complaint in a new shape. One
+        trigger is width-stable at every breakpoint, which is the property that matters.
+      */}
+      {isAdmin ? (
+        <div className={cn('flex items-center', className)}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="gap-1.5" aria-label="League actions">
+                <MoreHorizontal className="h-4 w-4" aria-hidden />
+                Manage
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link to={`/leagues/${slug}/admin/members`}>
+                  <Users className="mr-2 h-3.5 w-3.5" aria-hidden />
+                  Members
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to={`/leagues/${slug}/admin/requests`}>
+                  <UserCheck className="mr-2 h-3.5 w-3.5" aria-hidden />
+                  Requests
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to={`/leagues/${slug}/admin/invites`}>
+                  <Mail className="mr-2 h-3.5 w-3.5" aria-hidden />
+                  Invites
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to={`/leagues/${slug}/admin/settings`}>
+                  <Settings className="mr-2 h-3.5 w-3.5" aria-hidden />
+                  Settings
+                </Link>
+              </DropdownMenuItem>
+              {/* Both destructive actions sit below the separator, away from navigation
+                  a mis-tap would otherwise land on. Each still opens its typed
+                  confirmation dialog; the menu is not itself a confirmation. */}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setShowLeaveDialog(true)}>
+                <LogOut className="mr-2 h-3.5 w-3.5" aria-hidden />
+                Leave
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-error focus:bg-error/10 focus:text-error"
+                onSelect={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="mr-2 h-3.5 w-3.5" aria-hidden />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ) : (
+        <div className={cn('flex items-center', className)}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => setShowLeaveDialog(true)}
+          >
+            <LogOut className="h-3.5 w-3.5" aria-hidden />
+            Leave
+          </Button>
+        </div>
+      )}
 
       <Dialog
         open={showLeaveDialog}
