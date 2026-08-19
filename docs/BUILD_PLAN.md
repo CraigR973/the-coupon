@@ -661,6 +661,85 @@ answered until it lands, because until then there is no data to look at.
   switcher points, from a coupon surface and from the leaderboard, and that no
   `gw` survives the switch.
 
+- [ ] **Batch 35 — A one-off round in a multi-league game** — an admin adding a round
+  outside their league's cadence (`POST /leagues/{slug}/gameweeks`, "Boxing Day, say")
+  is the one admin action never checked against the multi-league contract. Three parts
+  already hold: fixtures pool on `provider_event_id` so two leagues adding the same date
+  share rows; `open_due_gameweeks` / `lock_due_gameweeks` / settlement select on status
+  and instants with no date filter, so a one-off is adopted by the scheduler like any
+  round; and Batch 31's dedupe settles two leagues' Boxing Day rounds in one provider
+  read. Four parts do not.
+
+  **A future one-off hijacks "this week", for one league only.** `latest_gameweek` and
+  `_latest_rounds` both order `starts_on DESC LIMIT 1` — `me.py`'s docstring says so
+  explicitly, that they are one rule spelled twice. Add Boxing Day in August and that
+  league's coupon, pick screen *and* home card jump to a round whose picks open in
+  December, while the member's other leagues still show Saturday; home renders those
+  cards side by side, which is where it reads as broken rather than as a setting. The
+  only way back is `GameweekNav`'s older arrow, which hides itself below two rounds.
+  Replace the ordering with the question a member is actually asking: among rounds
+  accepting picks now, the one locking soonest; failing that the most recent
+  `starts_on` at or before today; failing that the earliest ahead. The "locking soonest"
+  tiebreak is load-bearing rather than decorative — once a Boxing Day round and the
+  20 December Saturday are both open, the one a member must act on first is the one that
+  shuts first. Both call sites move together or the tab and the home card disagree.
+
+  **The endpoint's rate limit is set above the provider's quota.** `fetch_slate` costs
+  one request per UK competition — ~30 at the last live count — and the limiter allows
+  `6/hour` per user, so one admin may spend ~180 requests an hour against odds-api.io's
+  100/hour. The daily arithmetic is tighter still: `config.py` budgets a saturated day at
+  ~420 requests of browsing plus ~60 of discovery against 500, leaving roughly 20, and a
+  single ad-hoc call is ~30. It does not fit, and exhaustion is **silent** — Batch 31
+  recorded the failure mode, picks simply stay `pending` and the week never finishes.
+  Bring the limit under what the budget can absorb and record the arithmetic in the
+  comment style `odds_cache_ttl_seconds` already uses, so the next person to raise it
+  sees the ceiling rather than rediscovering it.
+
+  **The ad-hoc fetch buys ~30 competitions to keep as few as one.**
+  `selected_competition_slugs` filters at link time, and its docstring says that is
+  deliberate: narrowing "changes what a league *plays*, not what discovery *costs*",
+  because the per-window fetch is shared between every league on that window. Correct for
+  discovery — and it inverts here. `refresh_slate` has exactly one production caller, the
+  ad-hoc endpoint: one league, one date, a fetch nobody else shares, so there is no
+  sharing to protect and the filter is simply being applied after the money is spent.
+  Pass the league's selection into `fetch_slate` on that path and a league playing two
+  divisions pays two requests instead of thirty. Take the port change as an optional
+  argument defaulting to "all UK" so `discover_fixtures`' shared call site is untouched;
+  it lands on the abstract, `OddsApiProvider`, `Betfair`, the `CachingOddsProvider`
+  passthrough and two test doubles. Note in passing that a narrowed ad-hoc fetch no
+  longer warms the pool for a wider league on the same date — that is the correct
+  trade and not a regression, because nothing shared that fetch to begin with.
+
+  **A one-off is never refreshed.** `upcoming_slate_dates` returns
+  `first + timedelta(weeks=offset)`, so the refresh job only ever revisits dates on the
+  league's weekly cadence. An ad-hoc card is frozen at whatever the provider held at
+  creation: a postponement, a late addition or a corrected kick-off never lands, and
+  because `sync_slate` only ever adds links the round cannot self-correct either. Widen
+  the job's date set to the cadence dates **union** the dates of existing rounds not yet
+  locked within the same horizon, then group by window exactly as `discover_fixtures`
+  already does, so two leagues that both added Boxing Day are refreshed on one fetch.
+
+  Explicitly not this: **queueing the fetch onto the discovery run.** It is the right
+  architecture — it would move the last provider call out of the request path, where the
+  odds cache's own docstring still claims `fetch_slate` never runs, and make the sharing
+  structural rather than dependent on an in-process TTL two admins would have to collide
+  inside. It is deferred because the two fixes above remove the way this actually bites,
+  and because half of it is worse than none: the endpoint answers `422 NO_FIXTURES`
+  synchronously today, and an admin who queues a dead date and hears nothing discovers on
+  Boxing Day that they scheduled nothing. Revisit when an all-UK league's one-off is
+  observed colliding with a live browsing peak, and only together with a requested-date
+  status the settings screen can show. A short-TTL slate cache is *not* the smaller
+  version of this and should not be reached for instead: it leaves the first call — the
+  one that actually happens — at full price.
+
+  Backend-led; the frontend changes only in what the coupon and home default to, which
+  is covered by the existing surfaces. Tests: the ordering rule against a league holding
+  a far-future one-off beside a live Saturday, both open rounds tie-broken by lock time,
+  the narrowed fetch asserted on requests issued rather than on rows written, and a
+  refresh that reaches an ad-hoc date. `tests/test_request_budget.py` asserts the quota
+  arithmetic against a real cache rather than trusting a comment — the new limit belongs
+  there too.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

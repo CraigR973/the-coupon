@@ -21,7 +21,7 @@ they are on: it had pointed every league at its leaderboard, so a member in two
 leagues could not change which league's coupon they were reading. All 34 batches
 are now closed on `main`; Launch phase L5 is the remaining build work.
 
-Batch 35 is drafted but not yet in `docs/BUILD_PLAN.md` — a one-off round
+Batch 35 is the one open build batch — a one-off round
 (`POST /leagues/{slug}/gameweeks`) is the one admin action never audited against
 the multi-league contract. A future one-off becomes that league's "this week"
 everywhere while its sibling leagues still show Saturday; the endpoint's
@@ -370,10 +370,9 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-No unchecked build batch is left in `docs/BUILD_PLAN.md` — Batch 34 closed the
-last one. Batch 35 is drafted and needs scoping into the plan before it can be
-started. Launch L5 — launch and first-Saturday watch — is the remaining launch
-work. Batch 7 shipped the odds source.
+Batch 35 — a one-off round in a multi-league game — is the only unchecked build
+batch left in `docs/BUILD_PLAN.md`. Launch L5 — launch and first-Saturday
+watch — is the remaining launch work. Batch 7 shipped the odds source.
 Production is now deployed and configured through Batch 22; Batches 23–27 are
 on local `main` pending a `/ship-prod` for the API contract changes from
 Batches 23, 25, 26 and 27 (Batch 24 is frontend-only). That ship-prod is

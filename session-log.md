@@ -781,4 +781,4 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   no browser check — it needs a two-league authenticated session, which `coupon-flow` does not seed
   and the prod-bundle smoke never reaches.
 
-**Next:** Launch phase L5 — Launch and first-Saturday watch. Batch 35 (a one-off round in a multi-league game — current-round semantics, the ad-hoc rate limit sitting above the provider quota, narrowing the ad-hoc fetch by competition selection, and the never-refreshed one-off) is drafted but not yet in `BUILD_PLAN.md`.
+**Next:** Batch 35 — A one-off round in a multi-league game (current-round semantics, the ad-hoc rate limit sitting above the provider quota, narrowing the ad-hoc fetch by competition selection, and the never-refreshed one-off). Then launch phase L5 — Launch and first-Saturday watch.
