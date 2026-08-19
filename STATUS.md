@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-34 are closed. The Coupon is a verified
+Batches 1-35 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -18,16 +18,21 @@ so a member in several leagues can turn off one without losing the rest — the
 flag lives on `league_memberships`, not a new table, so it dies with the
 membership. Batch 34 made the league switcher keep the reader on the surface
 they are on: it had pointed every league at its leaderboard, so a member in two
-leagues could not change which league's coupon they were reading. All 34 batches
-are now closed on `main`; Launch phase L5 is the remaining build work.
+leagues could not change which league's coupon they were reading.
 
-Batch 35 is the one open build batch — a one-off round
-(`POST /leagues/{slug}/gameweeks`) is the one admin action never audited against
-the multi-league contract. A future one-off becomes that league's "this week"
-everywhere while its sibling leagues still show Saturday; the endpoint's
-`6/hour` limit permits ~180 provider requests an hour against a 100/hour
-allowance; the ad-hoc fetch buys ~30 competitions to keep as few as one; and a
-one-off is never refreshed after creation.
+Batch 35 closed the last of the multi-league audit: a one-off round
+(`POST /leagues/{slug}/gameweeks`) was the one admin action never checked
+against the contract. "This week" is no longer the newest `starts_on` but the
+round a league is actually on — among rounds accepting picks now, the one
+locking soonest — defined once in `current_round_order` and used by both the
+per-league read and the cross-league one, so the Coupon tab and the home card
+cannot disagree. The endpoint's `6/hour` limit permitted ~180 provider requests
+an hour against a 100/hour allowance and is now `2/hour;3/day`, derived from a
+measured budget rather than a modelled one. The ad-hoc fetch asks only for the
+competitions the league plays, since nothing shares it. And discovery now walks
+the cadence *union* the dates of unlocked rounds, so a one-off is refreshed
+rather than frozen at creation. All 35 batches are now closed on `main`; Launch
+phase L5 is the remaining build work.
 
 Batch 6 completed the product rebrand, removed inherited surfaces, corrected
 the frontend auth and invite wiring, and added a deterministic production-
@@ -320,11 +325,12 @@ unfinished — so it had to land before the roster of leagues grows, not after.
 
 ## Verified
 
-- Backend: 473 pytest with a database, Ruff check/format, and strict mypy;
-  Batch 26 close-out passed `scripts/ci-local.sh` end-to-end (11 checks)
-- Database: clean `pgserver` migration through revision `011`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
+- Backend: 534 pytest with a database (418 without one), Ruff check/format, and
+  strict mypy; Batch 35 close-out passed `scripts/ci-local.sh` end-to-end
+  (11 checks), as every close-out since Batch 26 has
+- Database: clean `pgserver` migration through revision `013`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 13 public tables under a Supabase-like role setup
-- Frontend: Node 20 production build, TypeScript, ESLint, and 265 Vitest
+- Frontend: Node 20 production build, TypeScript, ESLint, and 315 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
   coupon, phone push, and PWA update behavior
@@ -370,9 +376,8 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-Batch 35 — a one-off round in a multi-league game — is the only unchecked build
-batch left in `docs/BUILD_PLAN.md`. Launch L5 — launch and first-Saturday
-watch — is the remaining launch work. Batch 7 shipped the odds source.
+`docs/BUILD_PLAN.md` has no unchecked build batches left. Launch L5 — launch
+and first-Saturday watch — is the remaining work. Batch 7 shipped the odds source.
 Production is now deployed and configured through Batch 22; Batches 23–27 are
 on local `main` pending a `/ship-prod` for the API contract changes from
 Batches 23, 25, 26 and 27 (Batch 24 is frontend-only). That ship-prod is

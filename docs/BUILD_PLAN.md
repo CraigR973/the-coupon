@@ -661,7 +661,7 @@ answered until it lands, because until then there is no data to look at.
   switcher points, from a coupon surface and from the leaderboard, and that no
   `gw` survives the switch.
 
-- [ ] **Batch 35 — A one-off round in a multi-league game** — an admin adding a round
+- [x] **Batch 35 — A one-off round in a multi-league game** ✅ 2026-08-19 — an admin adding a round
   outside their league's cadence (`POST /leagues/{slug}/gameweeks`, "Boxing Day, say")
   is the one admin action never checked against the multi-league contract. Three parts
   already hold: fixtures pool on `provider_event_id` so two leagues adding the same date

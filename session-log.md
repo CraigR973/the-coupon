@@ -782,3 +782,38 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   and the prod-bundle smoke never reaches.
 
 **Next:** Batch 35 — A one-off round in a multi-league game (current-round semantics, the ad-hoc rate limit sitting above the provider quota, narrowing the ad-hoc fetch by competition selection, and the never-refreshed one-off). Then launch phase L5 — Launch and first-Saturday watch.
+
+## Batch 35 — A one-off round in a multi-league game
+**Commits:** `9c85983` (scoped in `8910af3`) · verified: `scripts/ci-local.sh` PASS (11 checks) — ruff check/format, mypy, `alembic upgrade head` + pytest on scratch pgserver, deployment-config assertions, pnpm lint/typecheck/test/build (39 files / 315 tests), Playwright prod-bundle deep-link smoke. Run twice: after implementation and again against the exact tree committed. 17 new tests (11 `test_scheduler_jobs.py`, 3 `test_request_budget.py`, 2 `test_picks_flow.py`, 1 Vitest).
+
+### Key facts for future sessions
+- `current_round_order(now, today)` in `services/gameweek.py` is the single definition of "the
+  round a league is on", returned as ORDER BY clauses because it has two call sites that must move
+  together: `latest_gameweek` per league, and the window function in `routers/me.py`. Home renders
+  every league's card side by side, so a disagreement between them is visible in one glance.
+  `accepting_picks(now)` is the SQL twin of `pick_refusal` — same three conditions, same order.
+- **The "locking soonest" tiebreak is the rule, not decoration.** Two rounds open at once is the
+  ordinary state, not the Boxing Day edge case: the 2-week discovery horizon plus a Batch 27
+  pick-open offset produces it every week. Reordering by `starts_on` again would look harmless.
+- **The budget comment in `config.py` overstates the saturated day.** It models ~420 requests of
+  browsing; `test_request_budget.py` *measures* 336 (+60 discovery), leaving 104/day and 72/hour.
+  `AD_HOC_GAMEWEEK_LIMIT = "2/hour;3/day"` is derived from the measured figures, and both caps are
+  load-bearing — hourly alone permits 24x its number across a day, daily alone permits all of it
+  inside the peak browsing hour. slowapi parses the `;` form into two enforced limits.
+- `fetch_slate`'s `competition_ids` may only narrow a fetch **nobody shares**. `refresh_slate`
+  (one production caller, the ad-hoc endpoint) passes it; `discover_fixtures` must not, because its
+  fetch feeds every league on the window — narrowing there would deny the next league its fixtures.
+  The two directions are asserted against each other in `test_scheduler_jobs.py`, on requests
+  issued rather than rows written, since the rows were already right.
+- `discover_fixtures` walks cadence dates **union** `unlocked_round_dates`, and syncs an off-cadence
+  date only to leagues that already hold a round on it — otherwise a neighbour sharing the window
+  has a Boxing Day round invented for it. `run_refresh_slate`'s horizon of 1 means a one-off is
+  reached only in its final week, which is when postponements matter.
+- The batch scope said the frontend was covered by existing surfaces; it was not.
+  `useGameweekHistory` anchored `GameweekNav` on `gameweeks[0]`, correct only while the API's
+  default *was* the newest `starts_on`. Both coupon surfaces now pass the id their own read
+  resolved to, and `isLatest` means "no `gw` parameter" rather than "index 0".
+- `_open_sample_gameweek`'s lock now moves with `weeks_later`. It was flat, which no test could see
+  while "current" meant newest date and which makes the new rule untestable.
+
+**Next:** Launch phase L5 — Launch and first-Saturday watch. All 35 build batches are shipped on `main`.
