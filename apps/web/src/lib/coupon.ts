@@ -68,6 +68,22 @@ export function formatOdds(odds: number, format: OddsFormat = 'decimal'): string
  * Points a winning pick at these odds scores. Mirrors the backend rule
  * `round(odds × 10)` (half-up) so the UI's "win = N pts" matches settlement.
  */
+/**
+ * What to call a round: "Gameweek 12", or its date when it has no number.
+ *
+ * One helper because the pick screen's header and the back/forward control must never
+ * disagree about what the same round is called. A round discovered before Batch 41 — or
+ * served by an API deployed before it, which happens routinely since the web app ships
+ * ahead — has no number, and the date it always showed is the honest fallback rather
+ * than a "Gameweek ?" placeholder.
+ */
+export function roundName(
+  number: number | null | undefined,
+  fallbackDate: string,
+): string {
+  return typeof number === 'number' ? `Gameweek ${number}` : fallbackDate;
+}
+
 export function potentialPoints(odds: number): number {
   return Math.round(odds * 10);
 }

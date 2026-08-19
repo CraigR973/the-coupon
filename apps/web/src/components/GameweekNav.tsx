@@ -2,6 +2,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { ChevronLeft, ChevronRight, History } from 'lucide-react';
 import type { GameweekHistory } from '../hooks/useGameweekHistory';
 import { Badge } from './ui/badge';
+import { roundName } from '../lib/coupon';
 import { cn } from '../lib/utils';
 
 export interface GameweekNavProps {
@@ -46,7 +47,10 @@ export function GameweekNav({ history, timezone }: GameweekNavProps) {
 
       <div className="flex min-w-0 flex-col items-center gap-0.5">
         <span className="truncate font-mono text-[11px] uppercase tracking-[0.2em] text-text-primary">
-          {formatInTimeZone(new Date(current.starts_on), timezone, 'EEE d MMM yyyy')}
+          {roundName(
+            current.number,
+            formatInTimeZone(new Date(current.starts_on), timezone, 'EEE d MMM yyyy'),
+          )}
         </span>
         <span className="flex items-center gap-1.5">
           <Badge variant={current.status === 'open' ? 'success' : 'muted'}>

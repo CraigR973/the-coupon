@@ -114,6 +114,9 @@ class GameweekListEntry(BaseModel):
     locks_at_utc: datetime
     # When picks open, or ``null`` when the league announces no opening (Batch 27).
     picks_open_at_utc: datetime | None
+    # What members call this round — "Gameweek 12" (Batch 41). ``null`` for a round that
+    # predates the numbering, which reads as "show the date alone".
+    number: int | None
     fixture_count: int
     # Picks made in *this* league, so the same gameweek reads differently per league.
     pick_count: int
@@ -128,6 +131,8 @@ class GameweekSlateResponse(BaseModel):
     # The pick screen needs it to count *down* to a round it cannot yet claim on,
     # rather than reporting it as locked.
     picks_open_at_utc: datetime | None
+    # What members call this round — "Gameweek 12" (Batch 41), or ``null`` when unnumbered.
+    number: int | None
     fixtures: list[FixtureSlate]
     members: list[GameweekMember]
     members_missing_picks: int
@@ -171,6 +176,7 @@ async def list_gameweeks(
             status=gameweek.status.value,
             locks_at_utc=gameweek.locks_at_utc,
             picks_open_at_utc=gameweek.picks_open_at_utc,
+            number=gameweek.number,
             fixture_count=fixture_counts.get(gameweek.id, 0),
             pick_count=pick_counts.get(gameweek.id, 0),
         )
@@ -252,6 +258,7 @@ async def current_gameweek(
         status=gameweek.status.value,
         locks_at_utc=gameweek.locks_at_utc,
         picks_open_at_utc=gameweek.picks_open_at_utc,
+        number=gameweek.number,
         fixtures=slate,
         members=members,
         members_missing_picks=sum(1 for m in members if not m.has_picked),

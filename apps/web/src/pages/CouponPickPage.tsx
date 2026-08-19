@@ -20,7 +20,7 @@ import type {
   PickOutcome,
   SelectionOption,
 } from '../lib/types';
-import { formatOdds, outcomeLabel } from '../lib/coupon';
+import { formatOdds, outcomeLabel, roundName } from '../lib/coupon';
 import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
 import { LeagueSwitchStrip } from '../components/LeagueSwitchStrip';
@@ -176,7 +176,7 @@ export function CouponPickPage() {
   const groups = useMemo(() => groupByCompetition(slate?.fixtures ?? []), [slate?.fixtures]);
 
   const roundLabel = slate
-    ? formatInTimeZone(new Date(slate.starts_on), timezone, 'EEE d MMM yyyy')
+    ? roundName(slate.number, formatInTimeZone(new Date(slate.starts_on), timezone, 'EEE d MMM yyyy'))
     : 'This round';
 
   if (!leaguesLoading && !hasLeagues) {

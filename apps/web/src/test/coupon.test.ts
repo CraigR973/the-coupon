@@ -8,6 +8,7 @@ import {
   outcomeLabel,
   selectionKey,
   pickStatusLabel,
+  roundName,
 } from '@/lib/coupon';
 
 describe('formatOdds', () => {
@@ -102,5 +103,23 @@ describe('selectionKey / pickStatusLabel', () => {
     expect(pickStatusLabel('won')).toBe('Won');
     expect(pickStatusLabel('pending')).toBe('Pending');
     expect(pickStatusLabel('void')).toBe('Void');
+  });
+});
+
+describe('roundName', () => {
+  it('names a numbered round', () => {
+    expect(roundName(12, 'Sat 8 Aug 2026')).toBe('Gameweek 12');
+  });
+
+  it('falls back to the date when the round has no number', () => {
+    // A round discovered before Batch 41, or a slate served by an API deployed before
+    // it — routine, since the web app ships ahead of the API.
+    expect(roundName(null, 'Sat 8 Aug 2026')).toBe('Sat 8 Aug 2026');
+    expect(roundName(undefined, 'Sat 8 Aug 2026')).toBe('Sat 8 Aug 2026');
+  });
+
+  it('names Gameweek 0 rather than treating it as absent', () => {
+    // Guards the falsy-check bug: `number || fallback` would drop a legitimate 0.
+    expect(roundName(0, 'Sat 8 Aug 2026')).toBe('Gameweek 0');
   });
 });

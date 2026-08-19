@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from enum import StrEnum
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, UniqueConstraint
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -61,6 +61,17 @@ class Gameweek(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
         UUID(as_uuid=True), ForeignKey("leagues.id", ondelete="CASCADE"), nullable=False
     )
     starts_on: Mapped[date] = mapped_column(Date, nullable=False)
+    #: What members call this round — "Gameweek 12" (Batch 41). Assigned at discovery as
+    #: one past the highest number the league already holds *in the same season*, so a
+    #: round inserted mid-sequence takes the next number rather than renumbering history.
+    #: Nullable because a round discovered before Batch 41 may predate the backfill, and
+    #: because nothing may depend on it: locking, settlement and scoring all key on
+    #: instants and status, never on this. Purely what the round is called.
+    #:
+    #: No database constraint enforces uniqueness, because the season it is unique
+    #: *within* is derived from ``starts_on`` rather than stored. The invariant lives in
+    #: ``next_gameweek_number``.
+    number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[GameweekStatus] = mapped_column(
         Enum(GameweekStatus, name="gameweek_status", create_type=False),
         nullable=False,

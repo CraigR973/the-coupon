@@ -20,10 +20,12 @@ import pytest
 from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.league import League
 from src.routers.gameweek import _Holder, _holders_by_fixture
+from src.services.football_provider import season_for
 from src.services.gameweek import (
     initial_status,
     pick_refusal,
     picks_open_at,
+    season_bounds,
     slate_odds_max_age,
     upcoming_slate_dates,
     window_for,
@@ -375,3 +377,17 @@ def test_holders_are_grouped_per_fixture() -> None:
 
     assert [h.name for h in holders["fx1"]] == ["Alice"]
     assert [h.name for h in holders["fx2"]] == ["Bob"]
+
+
+# ── Round numbering (Batch 41) ────────────────────────────────────────────────
+
+
+def test_season_bounds_are_the_inverse_of_season_for() -> None:
+    first, last = season_bounds(2026)
+    assert first == date(2026, 7, 1)
+    assert last == date(2027, 6, 30)
+    assert season_for(first) == 2026
+    assert season_for(last) == 2026
+    # A day either side belongs to the neighbouring season.
+    assert season_for(first - timedelta(days=1)) == 2025
+    assert season_for(last + timedelta(days=1)) == 2027

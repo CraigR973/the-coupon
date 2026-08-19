@@ -30,6 +30,7 @@ from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
+from src.services.football_provider import season_for
 from src.services.odds_provider import UK_TZ, OddsProvider, Slate, SlateWindow
 
 # Tier boundaries for how stale a browsed price may be (see slate_odds_max_age).
@@ -47,6 +48,46 @@ def _naive_utc(value: datetime) -> datetime:
 def _utc_now() -> datetime:
     """Naive-UTC now, matching the ``*_utc`` storage convention."""
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def season_bounds(season: int) -> tuple[date, date]:
+    """The first and last dates of a season, named by its starting year.
+
+    The inverse of :func:`season_for`, and the reason it exists: numbering is per
+    league *per season*, and the query that finds a league's highest number so far has
+    to express "same season" as a date range the database can filter on.
+    """
+    return date(season, 7, 1), date(season + 1, 6, 30)
+
+
+async def next_gameweek_number(db: AsyncSession, league_id: Any, starts_on: date) -> int:
+    """The number a new round takes: one past this league's highest for that season.
+
+    One past the **maximum** rather than one past the count, so a number is never
+    reused. Deleting a round leaves a gap, which is correct — members were told about
+    "Gameweek 7", and the next round must not become a second one.
+
+    A round inserted mid-sequence therefore takes the next number rather than the
+    position its date implies. That is deliberate and is the whole reason the number is
+    stored: Batch 35 made a one-off round (Boxing Day, say) legitimate, and an ordinal
+    derived from ``starts_on`` order would renumber every round after it the moment one
+    appeared. A one-off is simply the next round the league plays, so it gets the next
+    number, and history stays fixed.
+
+    Rounds with no number — possible in a database restored from before Batch 41's
+    backfill — are ignored by ``max``, so the sequence resumes from whatever *is*
+    numbered rather than restarting at 1.
+    """
+    first_day, last_day = season_bounds(season_for(starts_on))
+    result = await db.execute(
+        select(func.max(Gameweek.number)).where(
+            Gameweek.league_id == league_id,
+            Gameweek.starts_on >= first_day,
+            Gameweek.starts_on <= last_day,
+        )
+    )
+    highest = result.scalar_one_or_none()
+    return (highest or 0) + 1
 
 
 def uk_today() -> date:
@@ -339,6 +380,7 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
             locks_at_utc=window.locks_at(slate.starts_on),
             picks_open_at_utc=opens_at,
             status=initial_status(opens_at, _utc_now()),
+            number=await next_gameweek_number(db, league.id, slate.starts_on),
         )
         db.add(gameweek)
         await db.flush()

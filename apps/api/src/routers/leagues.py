@@ -1080,6 +1080,10 @@ class AdHocGameweekResponse(BaseModel):
     locks_at_utc: datetime
     # When picks open, or ``null`` when the league announces no opening (Batch 27).
     picks_open_at_utc: datetime | None
+    # What members call this round — "Gameweek 12" (Batch 41). A one-off takes the next
+    # number in the season rather than the position its date implies; see
+    # ``next_gameweek_number``.
+    number: int | None
     fixture_count: int
     # True when this call created the round; false when it refreshed an existing one.
     created: bool
@@ -1147,6 +1151,7 @@ async def create_gameweek(
         status=gameweek.status.value,
         locks_at_utc=gameweek.locks_at_utc,
         picks_open_at_utc=gameweek.picks_open_at_utc,
+        number=gameweek.number,
         fixture_count=count.scalar_one(),
         created=already is None,
     )

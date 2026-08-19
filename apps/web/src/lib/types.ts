@@ -168,6 +168,12 @@ export interface GameweekSummary {
   locks_at_utc: string;
   /** When picks open; null when the league announces no opening. */
   picks_open_at_utc: string | null;
+  /**
+   * What members call this round — "Gameweek 12". Optional and nullable: the web app
+   * deploys ahead of the API, and a round discovered before Batch 41 has no number.
+   * Absent means label the round by its date alone.
+   */
+  number?: number | null;
   fixture_count: number;
   /** Picks made in *this* league, so the same week reads differently per league. */
   pick_count: number;
@@ -181,6 +187,8 @@ export interface GameweekSlate {
   locks_at_utc: string;
   /** When picks open; null when the league announces no opening. */
   picks_open_at_utc: string | null;
+  /** What members call this round — "Gameweek 12". Absent means label by date alone. */
+  number?: number | null;
   fixtures: FixtureSlate[];
   members: GameweekMember[];
   members_missing_picks: number;
@@ -409,6 +417,12 @@ export interface AdHocGameweekResult {
   locks_at_utc: string;
   /** When picks open; null when the league announces no opening. */
   picks_open_at_utc: string | null;
+  /**
+   * What members call this round — "Gameweek 12". Optional and nullable: the web app
+   * deploys ahead of the API, and a round discovered before Batch 41 has no number.
+   * Absent means label the round by its date alone.
+   */
+  number?: number | null;
   fixture_count: number;
   /** True when this call created the round; false when it refreshed an existing one. */
   created: boolean;
