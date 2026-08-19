@@ -31,6 +31,12 @@ export interface SelectionOption {
   /** Who holds this selection in the league (null = still available). */
   taken_by_player_id: string | null;
   taken_by_name: string | null;
+  /**
+   * When the holder claimed it. Naive UTC, like `kickoff_utc` and `locks_at_utc`.
+   * Optional because the web app deploys ahead of the API — a slate served by an
+   * API from before Batch 38 carries no such field.
+   */
+  taken_at?: string | null;
   /** True when the caller is the holder. */
   mine: boolean;
 }

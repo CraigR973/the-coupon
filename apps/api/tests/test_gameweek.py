@@ -19,6 +19,7 @@ import pytest
 
 from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.league import League
+from src.routers.gameweek import _Holder, _holders_by_fixture
 from src.services.gameweek import (
     initial_status,
     pick_refusal,
@@ -333,3 +334,44 @@ def test_a_round_discovered_before_its_opening_starts_scheduled() -> None:
 def test_a_round_that_is_already_claimable_starts_open(opens_at: datetime | None) -> None:
     """Otherwise the badge would read "not open" while the endpoint accepted picks."""
     assert initial_status(opens_at, NOW) is GameweekStatus.open
+
+
+# ── Fixture-level holders (Batch 38) ──────────────────────────────────────────
+
+
+def test_one_member_holding_two_selections_is_named_once() -> None:
+    """Deduplication is per *player*, not per holder value.
+
+    Before Batch 38 the holder was `(player_id, name)` and deduplicating on the whole
+    tuple was equivalent. Carrying a timestamp broke that equivalence: two selections
+    claimed a minute apart are different values but the same person, and the fixture
+    line would name them twice.
+    """
+    early = datetime(2026, 8, 7, 9, 0)
+    late = datetime(2026, 8, 7, 9, 1)
+    taken = {
+        ("fx1", "MATCH_ODDS", "HOME"): _Holder("p1", "Alice", late),
+        ("fx1", "BOTH_TEAMS_TO_SCORE", "YES"): _Holder("p1", "Alice", early),
+        ("fx1", "MATCH_ODDS", "AWAY"): _Holder("p2", "Bob", late),
+    }
+
+    holders = _holders_by_fixture(taken)["fx1"]
+
+    assert [h.name for h in holders].count("Alice") == 1
+    assert len(holders) == 2
+    # The earliest claim is kept — when Alice picked this game, not her latest touch.
+    alice = next(h for h in holders if h.name == "Alice")
+    assert alice.taken_at == early
+
+
+def test_holders_are_grouped_per_fixture() -> None:
+    at = datetime(2026, 8, 7, 9, 0)
+    taken = {
+        ("fx1", "MATCH_ODDS", "HOME"): _Holder("p1", "Alice", at),
+        ("fx2", "MATCH_ODDS", "HOME"): _Holder("p2", "Bob", at),
+    }
+
+    holders = _holders_by_fixture(taken)
+
+    assert [h.name for h in holders["fx1"]] == ["Alice"]
+    assert [h.name for h in holders["fx2"]] == ["Bob"]

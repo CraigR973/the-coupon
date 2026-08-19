@@ -33,6 +33,24 @@ function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] || name;
 }
 
+/**
+ * When a selection was claimed, in the league's timezone.
+ *
+ * Absolute rather than relative ("2h ago"): the coupon is served from a cache, and a
+ * relative label is wrong the moment it is re-read without a re-render. `d MMM, HH:mm`
+ * is the kickoff line's format without the weekday — the same idiom rather than a second
+ * one, and unambiguous across a pick window that can open weeks before the round.
+ *
+ * Returns `null` for a slate served by an API from before Batch 38, which carries no
+ * `taken_at`, and for a value that does not parse.
+ */
+function takenAt(iso: string | null | undefined, timezone: string): string | null {
+  if (!iso) return null;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  return formatInTimeZone(at, timezone, 'd MMM, HH:mm');
+}
+
 /** A club is worth a context line once it has a table position or a run of form. */
 function worthShowing(team: TeamContext | null | undefined): boolean {
   return team != null && (team.position !== null || team.form.length > 0);
@@ -189,6 +207,7 @@ export function PickCard({
                         pendingKey === `${fixture.fixture_id}:${selectionKey(sel.market, sel.outcome)}`
                       }
                       oddsFormat={oddsFormat}
+                      timezone={timezone}
                       onGrab={onGrab}
                     />
                   ))}
@@ -209,6 +228,7 @@ function SelectionButton({
   busy,
   pending,
   oddsFormat,
+  timezone,
   onGrab,
 }: {
   fixture: FixtureSlate;
@@ -217,10 +237,12 @@ function SelectionButton({
   busy: boolean;
   pending: boolean;
   oddsFormat: OddsFormat;
+  timezone: string;
   onGrab: (fixtureId: string, market: PickMarket, outcome: PickOutcome) => void;
 }) {
   const label = outcomeLabel(sel.market, sel.outcome, fixture.home, fixture.away);
   const takenByOther = sel.taken_by_player_id !== null && !sel.mine;
+  const takenAtLabel = takenByOther ? takenAt(sel.taken_at, timezone) : null;
   const grabbable = !locked && !sel.mine && !takenByOther && !busy;
 
   return (
@@ -257,7 +279,10 @@ function SelectionButton({
       </span>
       <span className="text-[10px] font-mono uppercase tracking-wide text-text-muted">
         {takenByOther ? (
-          <>taken by {firstName(sel.taken_by_name ?? 'someone')}</>
+          <>
+            taken by {firstName(sel.taken_by_name ?? 'someone')}
+            {takenAtLabel ? <span className="normal-case"> · {takenAtLabel}</span> : null}
+          </>
         ) : sel.mine ? (
           'your pick'
         ) : (

@@ -14,7 +14,7 @@ const FIXTURE: FixtureSlate = {
   selections: [
     { market: 'MATCH_ODDS', outcome: 'HOME', runner_name: 'Forfar', odds: 2.0, taken_by_player_id: null, taken_by_name: null, mine: false },
     { market: 'MATCH_ODDS', outcome: 'DRAW', runner_name: 'The Draw', odds: 3.5, taken_by_player_id: 'p1', taken_by_name: 'Alice Adams', mine: true },
-    { market: 'MATCH_ODDS', outcome: 'AWAY', runner_name: 'Brechin', odds: 3.2, taken_by_player_id: 'p2', taken_by_name: 'Bob Baker', mine: false },
+    { market: 'MATCH_ODDS', outcome: 'AWAY', runner_name: 'Brechin', odds: 3.2, taken_by_player_id: 'p2', taken_by_name: 'Bob Baker', taken_at: '2026-08-07T09:05:00Z', mine: false },
     { market: 'BOTH_TEAMS_TO_SCORE', outcome: 'YES', runner_name: 'Yes', odds: 1.8, taken_by_player_id: null, taken_by_name: null, mine: false },
   ],
   taken_by_names: ['Alice Adams', 'Bob Baker'],
@@ -68,6 +68,32 @@ describe('PickCard', () => {
     expect(away.textContent).toContain('taken by Bob');
     fireEvent.click(away);
     expect(onGrab).not.toHaveBeenCalled();
+  });
+
+  it('says when a held selection was claimed', () => {
+    renderCard();
+    const away = screen.getByTestId('selection-fx1-MATCH_ODDS-AWAY');
+    expect(away.textContent).toContain('7 Aug, 09:05');
+  });
+
+  it('renders the claim time in the league timezone', () => {
+    // 09:05 UTC is 11:05 in Berlin (CEST, UTC+2 in August) — the label must follow the
+    // league's zone, not the browser's, exactly as the kickoff line does.
+    renderCard({ timezone: 'Europe/Berlin' });
+    const away = screen.getByTestId('selection-fx1-MATCH_ODDS-AWAY');
+    expect(away.textContent).toContain('7 Aug, 11:05');
+  });
+
+  it('omits the claim time when the API did not send one', () => {
+    // The web app deploys ahead of the API, so a slate from a pre-Batch-38 API has no
+    // `taken_at`. The holder's name must still render rather than the card breaking.
+    const selections = FIXTURE.selections.map((sel) =>
+      sel.outcome === 'AWAY' ? { ...sel, taken_at: undefined } : sel,
+    );
+    renderCard({ fixture: { ...FIXTURE, selections } });
+    const away = screen.getByTestId('selection-fx1-MATCH_ODDS-AWAY');
+    expect(away.textContent).toContain('taken by Bob');
+    expect(away.textContent).not.toContain('Aug');
   });
 
   it('disables every selection once locked', () => {

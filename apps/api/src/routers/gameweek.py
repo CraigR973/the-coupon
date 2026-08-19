@@ -13,7 +13,7 @@ turn into fifteen upstream calls against a 100/hour quota.
 
 import uuid
 from datetime import UTC, date, datetime
-from typing import Annotated
+from typing import Annotated, NamedTuple
 
 import structlog
 from fastapi import APIRouter, Depends
@@ -57,6 +57,10 @@ class SelectionOption(BaseModel):
     odds: float
     taken_by_player_id: str | None  # who holds it in this league (None = available)
     taken_by_name: str | None
+    # When the holder claimed it (`Pick.created_at`), naive UTC like every other instant
+    # here. Added rather than replacing anything, because the web app deploys ahead of
+    # this API — a renamed field would break the coupon until `/ship-prod` caught up.
+    taken_at: datetime | None
     mine: bool
 
 
@@ -233,9 +237,9 @@ async def current_gameweek(
                 holders_by_fixture.get(str(fixture.id), []),
                 offered,
             ),
-            taken_by_names=[name for _, name in holders_by_fixture.get(str(fixture.id), [])],
+            taken_by_names=[h.name for h in holders_by_fixture.get(str(fixture.id), [])],
             mine=any(
-                pid == str(player.id) for pid, _ in holders_by_fixture.get(str(fixture.id), [])
+                h.player_id == str(player.id) for h in holders_by_fixture.get(str(fixture.id), [])
             ),
             context=contexts.get(str(fixture.id)),
         )
@@ -257,8 +261,21 @@ async def current_gameweek(
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-# key: (fixture_id, market_value, outcome_value) -> (player_id, player_name)
-_TakenMap = dict[tuple[str, str, str], tuple[str, str]]
+
+class _Holder(NamedTuple):
+    """Who holds a selection, and when they claimed it.
+
+    ``taken_at`` is ``Pick.created_at`` — naive UTC, like every other instant this API
+    returns. It has always been on the row; nothing carried it out.
+    """
+
+    player_id: str
+    name: str
+    taken_at: datetime
+
+
+# key: (fixture_id, market_value, outcome_value) -> holder
+_TakenMap = dict[tuple[str, str, str], _Holder]
 
 
 async def _taken_selections(db: AsyncSession, league_id: object, gameweek_id: object) -> _TakenMap:
@@ -270,21 +287,27 @@ async def _taken_selections(db: AsyncSession, league_id: object, gameweek_id: ob
     taken: _TakenMap = {}
     for pick, display_name in result.all():
         key = (str(pick.fixture_id), pick.market.value, pick.outcome.value)
-        taken[key] = (str(pick.player_id), display_name)
+        taken[key] = _Holder(str(pick.player_id), display_name, pick.created_at)
     return taken
 
 
-def _holders_by_fixture(taken: _TakenMap) -> dict[str, list[tuple[str, str]]]:
-    """Collapse the selection-keyed map to ``fixture_id -> [(player_id, name)]``.
+def _holders_by_fixture(taken: _TakenMap) -> dict[str, list[_Holder]]:
+    """Collapse the selection-keyed map to ``fixture_id -> [holder]``.
 
-    Distinct per player, because one member holding two selections on a fixture
-    would otherwise be named twice — which the selection-level rule permits.
+    Distinct **per player**, because one member holding two selections on a fixture would
+    otherwise be named twice — which the selection-level rule permits. Deduplicating on
+    the whole holder stopped being equivalent once it carried a timestamp: two selections
+    claimed a minute apart are different values but the same person. The earliest claim is
+    kept, which is when that member picked this game.
     """
-    by_fixture: dict[str, list[tuple[str, str]]] = {}
+    by_fixture: dict[str, list[_Holder]] = {}
     for (fixture_id, _, _), holder in taken.items():
         holders = by_fixture.setdefault(fixture_id, [])
-        if holder not in holders:
+        existing = next((h for h in holders if h.player_id == holder.player_id), None)
+        if existing is None:
             holders.append(holder)
+        elif holder.taken_at < existing.taken_at:
+            holders[holders.index(existing)] = holder
     return by_fixture
 
 
@@ -377,7 +400,7 @@ def _selection_options(
     taken: _TakenMap,
     my_id: object,
     scope: PickScope,
-    fixture_holders: list[tuple[str, str]],
+    fixture_holders: list[_Holder],
     offered: frozenset[str],
 ) -> list[SelectionOption]:
     """Price every offered selection and mark who, if anyone, holds it.
@@ -406,9 +429,10 @@ def _selection_options(
                 outcome=selection.outcome.value,
                 runner_name=selection.runner_name,
                 odds=float(selection.price),
-                taken_by_player_id=holder[0] if holder else None,
-                taken_by_name=holder[1] if holder else None,
-                mine=holder is not None and holder[0] == str(my_id),
+                taken_by_player_id=holder.player_id if holder else None,
+                taken_by_name=holder.name if holder else None,
+                taken_at=holder.taken_at if holder else None,
+                mine=holder is not None and holder.player_id == str(my_id),
             )
         )
     return options

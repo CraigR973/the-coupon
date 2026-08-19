@@ -490,6 +490,12 @@ async def test_slate_reports_roster_and_fixture_level_marker(
         "bob",
     ]
     assert fixture_by_id[epl]["mine"] is True
+    # A held selection says when it was claimed (Batch 38); a free one does not.
+    held = [s for s in fixture_by_id[epl]["selections"] if s["taken_by_player_id"]]
+    assert held, "expected at least one claimed selection on the EPL fixture"
+    assert all(s["taken_at"] for s in held)
+    free = [s for s in fixture_by_id[epl]["selections"] if not s["taken_by_player_id"]]
+    assert all(s["taken_at"] is None for s in free)
     # The untouched fixture carries no marker at all.
     assert fixture_by_id[sl2]["competition_id"] == SAMPLE_SL2_ID
     assert fixture_by_id[sl2]["taken_by_names"] == []
