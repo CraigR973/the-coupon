@@ -111,7 +111,7 @@ def normalise_name(name: str) -> str:
     return " ".join(kept or expanded)
 
 
-def similarity(left: str, right: str) -> float:
+def similarity(left: str, right: str, *, allow_subset: bool = True) -> float:
     """How alike two already-normalised names are, in ``0.0`` to ``1.0``.
 
     Three views, best-of, because each catches a difference the others score badly:
@@ -126,6 +126,15 @@ def similarity(left: str, right: str) -> float:
     match and leans on :func:`best_match`'s ambiguity guard: when a division holds both
     "Boston United" and "Boston Town", a bare "Boston" is a subset of each, they tie, and
     nothing is resolved.
+
+    ``allow_subset=False`` withholds that third view, and exists because the claim it
+    makes is only true of *club* names. A shorter club name is usually an abbreviation of
+    the longer one. A shorter **competition** name is usually a different competition:
+    "Premier League" is a whole division, not shorthand for "Southern League, Premier
+    Division South", yet its two words are a subset of that one's five. Scored with the
+    bonus it wins at :data:`SUBSET_SCORE` while the correct entry sits below
+    :data:`MATCH_THRESHOLD` — a confident wrong answer no margin can catch, because there
+    is no runner-up to be close to. See :meth:`ApiFootballProvider.league_id_for`.
     """
     if not left or not right:
         return 0.0
@@ -137,7 +146,7 @@ def similarity(left: str, right: str) -> float:
     if not shared:
         return ratio
     score = max(ratio, len(shared) / max(len(left_tokens), len(right_tokens)))
-    if shared in (left_tokens, right_tokens):
+    if allow_subset and shared in (left_tokens, right_tokens):
         score = max(score, SUBSET_SCORE)
     return score
 

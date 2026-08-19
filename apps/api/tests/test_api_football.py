@@ -77,6 +77,59 @@ LEAGUES: dict[str, Any] = {
 # carry `"code": null` rather than omitting the key, and one of them is enough to matter
 # because every competition shares this parse. Kept as a separate payload from `LEAGUES`
 # so the happy path still pins the documented shape.
+# The English entries as the live catalogue actually carries them, read 2026-08-19. The
+# `LEAGUES` fixture above has no "Premier League" row, which is why nothing caught the
+# defect Batch 37 fixes: the wrong answer was not in the candidate list.
+ENGLISH_PYRAMID: dict[str, Any] = {
+    "get": "leagues",
+    "errors": [],
+    "results": 7,
+    "paging": {"current": 1, "total": 1},
+    "response": [
+        {
+            "league": {"id": 39, "name": "Premier League", "type": "League"},
+            "country": {"name": "England", "code": "GB"},
+        },
+        {
+            "league": {"id": 40, "name": "Championship", "type": "League"},
+            "country": {"name": "England", "code": "GB"},
+        },
+        {
+            "league": {"id": 43, "name": "National League", "type": "League"},
+            "country": {"name": "England", "code": "GB"},
+        },
+        {
+            "league": {"id": 50, "name": "National League - North", "type": "League"},
+            "country": {"name": "England", "code": "GB"},
+        },
+        {
+            "league": {"id": 58, "name": "Non League Premier - Isthmian", "type": "League"},
+            "country": {"name": "England", "code": "GB"},
+        },
+        {
+            "league": {"id": 59, "name": "Non League Premier - Northern", "type": "League"},
+            "country": {"name": "England", "code": "GB"},
+        },
+        {
+            "league": {"id": 60, "name": "Non League Premier - Southern South", "type": "League"},
+            "country": {"name": "England", "code": "GB"},
+        },
+    ],
+}
+
+#: The division whose name is a token superset of "Premier League" — the failing case.
+SOUTHERN_PREMIER_SOUTH = CompetitionKey(
+    slug="england-amateur-southern-league-premier-division-south",
+    name="England Amateur - Southern League, Premier Division South",
+)
+#: The genuine top flight, which must keep resolving to itself.
+ENGLAND_PL = CompetitionKey(slug="england-premier-league", name="England - Premier League")
+#: A superset-shaped name with no override entry — must miss rather than guess.
+UNLISTED_PREMIER = CompetitionKey(
+    slug="england-amateur-invented-league-premier-division-west",
+    name="England Amateur - Invented League, Premier Division West",
+)
+
 LEAGUES_WITH_NULLS: dict[str, Any] = {
     "get": "leagues",
     "errors": [],
@@ -237,6 +290,59 @@ async def test_an_english_amateur_tier_matches_its_plain_english_league() -> Non
 async def test_an_uncarried_competition_resolves_to_none_rather_than_a_guess() -> None:
     async with _provider(_router({"/leagues": LEAGUES})) as provider:
         assert await provider.league_id_for(UNCARRIED) is None
+
+
+@pytest.mark.asyncio
+async def test_a_lower_division_does_not_resolve_to_the_premier_league() -> None:
+    """The defect Batch 37 fixes, stated as its symptom.
+
+    "Premier League" is a token subset of "Southern League, Premier Division South", and
+    the subset bonus scored that 0.95 — above threshold — while the correct entry scored
+    0.800, below it. The division resolved to England's top flight confidently and
+    uniquely, so no ambiguity margin could have caught it, and ingestion then wrote
+    Premier League tables and clubs against a non-League competition.
+    """
+    async with _provider(_router({"/leagues": ENGLISH_PYRAMID})) as provider:
+        resolved = await provider.league_id_for(SOUTHERN_PREMIER_SOUTH)
+
+    assert resolved != "39", "resolved to the Premier League — the Batch 37 defect"
+    assert resolved == "60"  # Non League Premier - Southern South, via the override table
+
+
+@pytest.mark.asyncio
+async def test_the_premier_league_still_resolves_to_itself() -> None:
+    """Withholding the subset bonus must not cost the exact matches it never affected."""
+    async with _provider(_router({"/leagues": ENGLISH_PYRAMID})) as provider:
+        assert await provider.league_id_for(ENGLAND_PL) == "39"
+
+
+@pytest.mark.asyncio
+async def test_a_regional_feeder_still_matches_on_name_alone() -> None:
+    """National League North needs no override — it normalises to an exact match."""
+    async with _provider(_router({"/leagues": ENGLISH_PYRAMID})) as provider:
+        assert await provider.league_id_for(ENGLAND_NLN) == "50"
+
+
+@pytest.mark.asyncio
+async def test_an_unlisted_superset_name_misses_rather_than_guessing() -> None:
+    """A miss costs one empty screen; a wrong id spreads.
+
+    `upsert_teams` moves a club's competition_id to wherever it was last seen, so a
+    wrongly matched division drags clubs out of correctly matched ones. Leaving a
+    competition unresolved is the cheaper failure by a wide margin.
+    """
+    async with _provider(_router({"/leagues": ENGLISH_PYRAMID})) as provider:
+        assert await provider.league_id_for(UNLISTED_PREMIER) is None
+
+
+@pytest.mark.asyncio
+async def test_an_overridden_competition_costs_no_catalogue_request() -> None:
+    """An override answers before the catalogue is consulted, on a 100/day plan."""
+    calls: list[httpx.Request] = []
+    async with _provider(_router({"/leagues": ENGLISH_PYRAMID}, record=calls)) as provider:
+        assert await provider.league_id_for(SOUTHERN_PREMIER_SOUTH) == "60"
+
+    assert calls == []
 
 
 @pytest.mark.asyncio

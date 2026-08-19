@@ -56,7 +56,12 @@ from src.services.football_provider import (
     TableRow,
     TeamRef,
 )
-from src.services.team_matching import MATCH_THRESHOLD, normalise_name, similarity
+from src.services.team_matching import (
+    MATCH_MARGIN,
+    MATCH_THRESHOLD,
+    normalise_name,
+    similarity,
+)
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -74,6 +79,33 @@ _MAX_PAGES = 12
 # `_COUNTRY_QUALIFIERS` in the odds adapter — the same catalogue quirk, seen from the
 # other side.
 _COUNTRY_QUALIFIERS: tuple[str, ...] = ("amateur",)
+
+# odds-api.io competition slug -> this provider's league id, for the divisions the two
+# catalogues simply do not name alike. Both sides were read from the live catalogues on
+# 2026-08-19, not inferred from a spelling rule.
+#
+# These are not a workaround for a badly-tuned threshold. "Southern League, Premier
+# Division South" and "Non League Premier - Southern South" share four tokens of five and
+# still only reach 0.800, below `MATCH_THRESHOLD` — while the *wrong* answer, England's
+# actual Premier League, used to clear it on a subset bonus. No threshold resolves two
+# providers' naming conventions by ratio alone; naming them is the honest fix.
+#
+# Only the divisions name-matching cannot resolve are listed. `england-national-league`
+# and the two National League regional slugs normalise to an exact match and need no
+# entry — adding them would imply they were broken.
+_COMPETITION_OVERRIDES: dict[str, str] = {
+    # England Amateur - Isthmian League, Premier Division -> Non League Premier - Isthmian
+    "england-amateur-isthmian-league-premier-division": "58",
+    # England Amateur - Northern Premier League, Premier Division
+    #   -> Non League Premier - Northern
+    "england-amateur-northern-premier-league-premier-division": "59",
+    # England Amateur - Southern League, Premier Division Central
+    #   -> Non League Premier - Southern Central
+    "england-amateur-southern-league-premier-division-central": "931",
+    # England Amateur - Southern League, Premier Division South
+    #   -> Non League Premier - Southern South
+    "england-amateur-southern-league-premier-division-south": "60",
+}
 
 # Fixture status codes, from the documented v3 vocabulary. Finished covers the three ways
 # a result becomes final; void covers the ways a match produces none. Anything else —
@@ -410,27 +442,48 @@ class ApiFootballProvider(FootballDataProvider):
         if competition.slug in self._league_ids:
             return self._league_ids[competition.slug]
 
+        override = _COMPETITION_OVERRIDES.get(competition.slug)
+        if override is not None:
+            log.info(
+                "api-football competition resolved by override",
+                competition=competition.slug,
+                league_id=override,
+            )
+            self._league_ids[competition.slug] = override
+            return override
+
         country = _country_key(competition.country)
         wanted = normalise_name(competition.competition_name)
-        best_id: str | None = None
-        best_score = 0.0
+        scored: list[tuple[float, str]] = []
         for entry in await self._all_leagues():
             entry_country = _country_key(entry.country.name or entry.league.country)
             if country and entry_country != country:
                 continue
             if not entry.league.id:
                 continue
-            score = similarity(wanted, normalise_name(entry.league.name))
-            if score > best_score:
-                best_score, best_id = score, entry.league.id
+            # `allow_subset=False`: see `similarity`. A generic short competition name is a
+            # subset of every longer one that contains its words, and the bonus made
+            # "Premier League" beat the actual division.
+            score = similarity(wanted, normalise_name(entry.league.name), allow_subset=False)
+            scored.append((score, entry.league.id))
 
-        resolved = best_id if best_score >= MATCH_THRESHOLD else None
+        scored.sort(key=lambda pair: (-pair[0], pair[1]))
+        best_score = scored[0][0] if scored else 0.0
+        runner_up = scored[1][0] if len(scored) > 1 else 0.0
+
+        resolved: str | None = None
+        if scored and best_score >= MATCH_THRESHOLD and best_score - runner_up >= MATCH_MARGIN:
+            resolved = scored[0][1]
         if resolved is None:
+            # A miss stays a miss. An unmatched competition costs one empty screen; a
+            # wrongly matched one writes another division's tables and clubs against it,
+            # and `upsert_teams` then moves those clubs' competition_id, which spreads.
             log.info(
                 "api-football competition unmatched",
                 competition=competition.slug,
                 country=country,
                 best_score=round(best_score, 3),
+                runner_up=round(runner_up, 3),
             )
         self._league_ids[competition.slug] = resolved
         return resolved

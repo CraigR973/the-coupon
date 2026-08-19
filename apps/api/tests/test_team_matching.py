@@ -101,6 +101,28 @@ def test_similarity_survives_a_missing_word() -> None:
     assert similarity("inverness caledonian thistle", "inverness caledonian") >= MATCH_THRESHOLD
 
 
+def test_the_subset_bonus_is_what_clubs_need_and_competitions_must_not_have() -> None:
+    """One flag, two opposite truths (Batch 37).
+
+    For clubs the shorter name is usually an abbreviation of the longer, so the bonus is
+    right. For competitions the shorter name is usually a *different* competition:
+    "premier league" is a whole division, and treating it as shorthand for the fifth-tier
+    "southern league premier division south" is how that division came to resolve to
+    England's top flight.
+    """
+    club = similarity("inverness caledonian", "inverness caledonian thistle")
+    assert club >= MATCH_THRESHOLD
+
+    competition = "southern league premier division south"
+    assert similarity(competition, "premier league") >= MATCH_THRESHOLD
+    assert similarity(competition, "premier league", allow_subset=False) < MATCH_THRESHOLD
+
+
+def test_withholding_the_subset_bonus_leaves_exact_matches_alone() -> None:
+    assert similarity("premier league", "premier league", allow_subset=False) == 1.0
+    assert similarity("national league north", "national league north", allow_subset=False) == 1.0
+
+
 def test_best_match_finds_the_club_behind_a_spelling_drift() -> None:
     candidates = [_team("Forfar Athletic FC"), _team("Brechin City FC"), _team("Elgin City FC")]
     team, score = best_match(normalise_name("Forfar Athletic"), candidates)
