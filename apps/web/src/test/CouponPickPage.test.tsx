@@ -350,6 +350,50 @@ describe('CouponPickPage', () => {
     expect(nav.textContent).toContain('1/2');
   });
 
+  it('follows the round the API resolved to, not the top of the list', async () => {
+    // Batch 35: the API's default is the round the league is *currently on*, which is
+    // no longer the newest `starts_on`. A one-off added for Boxing Day sits at the top
+    // of the season list; the nav must still label the round the card below is showing,
+    // and offer it as something to navigate *forward* to.
+    const ONE_OFF = {
+      gameweek_id: 'gw-boxing-day',
+      starts_on: '2026-12-26',
+      status: 'open',
+      locks_at_utc: '2999-01-01T14:30:00Z',
+      picks_open_at_utc: null,
+      fixture_count: 5,
+      pick_count: 0,
+    };
+    vi.stubGlobal('fetch', (url: string) => {
+      if (String(url).includes('/gameweek/current')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(SLATE) });
+      }
+      if (String(url).includes('/gameweeks')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve([ONE_OFF, ...GAMEWEEKS]),
+        });
+      }
+      if (String(url).includes('/leagues/mine')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([MOCK_LEAGUE]) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+
+    renderPage();
+    const nav = await screen.findByTestId('gameweek-nav');
+
+    // `gw1`'s counts, not the one-off's 0/5 — the label follows the slate.
+    await waitFor(() => expect(nav.textContent).toContain('1/2'));
+    expect(nav.textContent).toContain('Aug 2026');
+    // Both directions are reachable: the one-off ahead, the settled week behind.
+    expect(within(nav).getByLabelText('Newer gameweek')).not.toBeDisabled();
+    expect(within(nav).getByLabelText('Older gameweek')).not.toBeDisabled();
+    // No `gw` parameter, so this is still the default view.
+    expect(within(nav).queryByTestId('gameweek-latest')).toBeNull();
+  });
+
   it('requests the named gameweek and offers a way back to the latest', async () => {
     const fetchMock = vi.fn((url: string) => {
       if (String(url).includes('/gameweeks')) {

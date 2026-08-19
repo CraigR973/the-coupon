@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
-import { useGameweekHistory } from '../hooks/useGameweekHistory';
+import { useGameweekHistory, useSelectedGameweekId } from '../hooks/useGameweekHistory';
 import { useRouteLeague } from '../hooks/useRouteLeague';
 import { couponKey } from '../hooks/usePickEditor';
 import type { Coupon } from '../lib/types';
@@ -25,8 +25,7 @@ export function CouponCombinedPage() {
   const timezone = player?.timezone ?? 'UTC';
   const { slug, name: leagueName } = useRouteLeague();
   const { hasLeagues, isLoading: leaguesLoading } = useLeague();
-  const history = useGameweekHistory(slug, hasLeagues);
-  const gameweekId = history.selectedId;
+  const gameweekId = useSelectedGameweekId();
 
   const {
     data: coupon,
@@ -42,6 +41,10 @@ export function CouponCombinedPage() {
     staleTime: 30_000,
     enabled: hasLeagues,
   });
+
+  // Anchored on the round the coupon actually came back with, which on the default view
+  // is the API's choice rather than the newest date (see `useGameweekHistory`).
+  const history = useGameweekHistory(slug, hasLeagues, coupon?.gameweek_id);
 
   if (!leaguesLoading && !hasLeagues) {
     return (

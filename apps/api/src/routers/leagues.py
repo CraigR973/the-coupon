@@ -1043,6 +1043,32 @@ async def league_competitions(
 # ---------------------------------------------------------------------------
 
 
+# What an admin may spend on ad-hoc rounds, in the comment style `odds_cache_ttl_seconds`
+# uses — because the number is arithmetic, not taste, and the next person to raise it
+# should see the ceiling rather than rediscover it.
+#
+# One call walks the provider in the request path: one `/events` per competition the
+# league plays. Since Batch 35 `refresh_slate` narrows that to the league's own selection,
+# so a configured league pays 1-3 and only an unconfigured all-UK one still pays ~30 —
+# which is the figure below, because the limit has to survive the worst case.
+#
+# What the rest of the budget leaves, measured against a real cache in
+# `tests/test_request_budget.py` rather than modelled: the tightest hour is 28 of
+# odds-api.io's 100, and a fully saturated day is 336 of browsing plus 60 of discovery
+# against 500. So:
+#
+#   2/hour -> ~60 requests, inside the ~72 an hour leaves
+#   3/day  -> ~90 requests, inside the ~104 a day leaves
+#
+# Both caps are needed. An hourly limit alone permits 24x its own number across a day,
+# and the day is the tighter budget; a daily limit alone permits all of it inside the
+# peak browsing hour. The previous `6/hour` allowed ~180 requests an hour against a
+# 100/hour plan on its own. Exhaustion is **silent** — picks simply stay `pending` and
+# the week never finishes — so raising either number means redoing the arithmetic above,
+# not enlarging a constant.
+AD_HOC_GAMEWEEK_LIMIT = "2/hour;3/day"
+
+
 class CreateGameweekRequest(BaseModel):
     starts_on: date
 
@@ -1062,7 +1088,7 @@ class AdHocGameweekResponse(BaseModel):
 @router.post(
     "/{slug}/gameweeks", response_model=AdHocGameweekResponse, status_code=status.HTTP_201_CREATED
 )
-@limiter.limit("6/hour", key_func=per_user_key)
+@limiter.limit(AD_HOC_GAMEWEEK_LIMIT, key_func=per_user_key)
 async def create_gameweek(
     request: Request,
     slug: str,
@@ -1076,8 +1102,15 @@ async def create_gameweek(
     Fetches that date's slate with the league's own window (its kick-off times, anchored
     on the requested date, so the weekday need not be the league's usual one) and its
     competition selection, then upserts it as a round. This walks the provider in the
-    request path — one ``/events`` request per UK competition, the cost of one discovery
-    run — so it is tightly rate-limited; it is an occasional admin action, not a hot path.
+    request path — one ``/events`` request per competition *this league plays*, which
+    since Batch 35 is its own selection rather than all ~30 UK competitions — so it is
+    tightly rate-limited; it is an occasional admin action, not a hot path. See
+    :data:`AD_HOC_GAMEWEEK_LIMIT` for the arithmetic behind the limit.
+
+    The round is adopted by the scheduler like any other: ``open_due_gameweeks``,
+    ``lock_due_gameweeks`` and settlement all select on status and instants with no date
+    filter, and once it is inside the discovery horizon the refresh job revisits it (see
+    :func:`~src.services.gameweek.discover_fixtures`).
 
     A date the provider carries no qualifying fixtures for (or one the league's competition
     selection excludes entirely) is a 422 rather than an empty round. A round already on

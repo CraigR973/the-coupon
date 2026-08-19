@@ -56,15 +56,35 @@ async def _browse_for(
         clock.advance(every_seconds)
 
 
-async def test_saturated_browsing_near_lock_stays_inside_the_hourly_limit() -> None:
-    """The worst hour is the one before lock, with everyone refreshing constantly."""
+async def _tightest_browsing_hour() -> int:
+    """Fifteen members hammering the page every twenty seconds for the final hour."""
     clock = _Clock()
     cache, inner = _cache(clock)
-
-    # Fifteen members hammering the page every twenty seconds for the final hour.
     await _browse_for(cache, clock, hours=1, max_age=NEAR_TTL, every_seconds=20)
+    return _sweeps(inner)
 
-    assert _sweeps(inner) <= HOURLY_LIMIT
+
+async def _saturated_day_of_browsing() -> int:
+    """A full 24 hours of someone refreshing continuously, through every tier."""
+    clock = _Clock()
+    cache, inner = _cache(clock)
+    # Lock more than a day out: the loosest ceiling.
+    await _browse_for(cache, clock, hours=12, max_age=FAR_TTL, every_seconds=60)
+    # The day before and match morning.
+    await _browse_for(cache, clock, hours=6, max_age=FAR_TTL / 2, every_seconds=60)
+    # The final approach.
+    await _browse_for(cache, clock, hours=6, max_age=NEAR_TTL, every_seconds=20)
+    return _sweeps(inner)
+
+
+def _daily_discovery() -> int:
+    """What the scheduled discovery run spends: one request per competition per date."""
+    return UK_COMPETITIONS * len(upcoming_saturdays_for_budget())
+
+
+async def test_saturated_browsing_near_lock_stays_inside_the_hourly_limit() -> None:
+    """The worst hour is the one before lock, with everyone refreshing constantly."""
+    assert await _tightest_browsing_hour() <= HOURLY_LIMIT
 
 
 async def test_a_saturated_day_of_browsing_stays_inside_the_daily_limit() -> None:
@@ -74,18 +94,8 @@ async def test_a_saturated_day_of_browsing_stays_inside_the_daily_limit() -> Non
     friends do not refresh a coupon for a day without pause. If this passes, real
     traffic cannot exhaust the quota.
     """
-    clock = _Clock()
-    cache, inner = _cache(clock)
-
-    # Lock more than a day out: the loosest ceiling.
-    await _browse_for(cache, clock, hours=12, max_age=FAR_TTL, every_seconds=60)
-    # The day before and match morning.
-    await _browse_for(cache, clock, hours=6, max_age=FAR_TTL / 2, every_seconds=60)
-    # The final approach.
-    await _browse_for(cache, clock, hours=6, max_age=NEAR_TTL, every_seconds=20)
-
-    browsing = _sweeps(inner)
-    discovery = UK_COMPETITIONS * len(upcoming_saturdays_for_budget())
+    browsing = await _saturated_day_of_browsing()
+    discovery = _daily_discovery()
     total = browsing + discovery
     why = f"browsing {browsing} + discovery {discovery} exceeds {DAILY_LIMIT}/day"
     assert total <= DAILY_LIMIT, why
@@ -150,6 +160,53 @@ def test_discovery_cost_scales_with_windows_not_leagues() -> None:
     mixed = {SATURDAY_THREE_PM, SATURDAY_THREE_PM, friday_night}
     assert len(mixed) == 2
     assert UK_COMPETITIONS * len(mixed) * dates <= DAILY_LIMIT
+
+
+# ── The one provider call left in the request path (Batch 35) ────────────────
+#
+# `POST /leagues/{slug}/gameweeks` walks the provider synchronously to build a round on a
+# date outside the league's cadence. It costs one request per competition the league
+# plays — its own selection since Batch 35, all ~30 UK competitions when unconfigured —
+# so the limit on it has to fit whatever the budget above leaves unspent.
+
+#: What one call costs an unconfigured all-UK league — the worst case, and the one the
+#: limit has to survive. A league that has narrowed its competitions pays its own count
+#: instead (1-3 in practice); that saving is asserted on requests issued in
+#: ``test_scheduler_jobs.py`` rather than modelled here.
+AD_HOC_ALL_UK_REQUESTS = UK_COMPETITIONS
+
+
+def _ad_hoc_limits() -> dict[str, int]:
+    """The shipped limit, parsed the way slowapi parses it: granularity → calls."""
+    from limits import parse_many
+
+    from src.routers.leagues import AD_HOC_GAMEWEEK_LIMIT
+
+    return {item.GRANULARITY.name: item.amount for item in parse_many(AD_HOC_GAMEWEEK_LIMIT)}
+
+
+def test_the_ad_hoc_round_limit_is_bounded_by_the_day_as_well_as_the_hour() -> None:
+    """An hourly cap alone permits 24x its own number a day, and the day is the tighter one."""
+    assert set(_ad_hoc_limits()) == {"hour", "day"}
+
+
+async def test_the_ad_hoc_round_limit_fits_what_the_hour_leaves_spare() -> None:
+    """The endpoint's whole allowance must fit beside the peak browsing hour."""
+    spare = HOURLY_LIMIT - await _tightest_browsing_hour()
+    spend = _ad_hoc_limits()["hour"] * AD_HOC_ALL_UK_REQUESTS
+    assert spend <= spare, f"{spend} ad-hoc requests an hour against {spare} spare"
+
+
+async def test_the_ad_hoc_round_limit_fits_what_the_day_leaves_spare() -> None:
+    """And beside a fully saturated day of browsing plus the discovery run.
+
+    This is the arithmetic the endpoint got wrong: at ``6/hour`` an admin could spend
+    ~180 requests an hour against a 100/hour plan, and exhaustion is silent — picks stay
+    ``pending`` and the week never finishes.
+    """
+    spare = DAILY_LIMIT - await _saturated_day_of_browsing() - _daily_discovery()
+    spend = _ad_hoc_limits()["day"] * AD_HOC_ALL_UK_REQUESTS
+    assert spend <= spare, f"{spend} ad-hoc requests a day against {spare} spare"
 
 
 def test_the_configured_defaults_are_the_ones_this_module_budgets_for() -> None:

@@ -31,7 +31,7 @@ See ``docs/adr/0002-replace-betfair-exchange-with-odds-api-io.md``.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -347,12 +347,26 @@ class OddsProvider(ABC):
         """Release any client resources held by the provider."""
 
     @abstractmethod
-    async def fetch_slate(self, window: SlateWindow, starts_on: date) -> Slate:
+    async def fetch_slate(
+        self,
+        window: SlateWindow,
+        starts_on: date,
+        *,
+        competition_ids: Collection[str] | None = None,
+    ) -> Slate:
         """Return the British kick-offs inside ``window`` for the round on ``starts_on``.
 
         Takes the window rather than a bare date because since Batch 14 the slate rule
         is per-league: what counts as "this round's fixtures" is the league's setting,
         not a constant.
+
+        ``competition_ids`` narrows the fetch itself to those competitions; ``None`` —
+        the default, and what shared discovery always passes — is every UK competition
+        the source carries. It is an argument rather than the caller filtering the
+        result because the cost *is* the fan-out: one request per competition. Only a
+        fetch nobody else shares may narrow it (see
+        :func:`src.services.gameweek.refresh_slate`); narrowing a shared one would save
+        one league's requests by denying another league its fixtures.
         """
 
     @abstractmethod

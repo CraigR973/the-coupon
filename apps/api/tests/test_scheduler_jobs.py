@@ -3,7 +3,9 @@
 Covers the pieces the pure/unit tests can't — the DB-driven halves of the four jobs:
 
 * ``refresh_slate``            — a provider slate becomes gameweek + fixtures (and an empty
-  slate creates nothing);
+  slate creates nothing), asking only for the competitions the league plays (Batch 35);
+* ``latest_gameweek``          — which round a league is *currently on* when it holds a
+  one-off outside its cadence (Batch 35);
 * ``lock_due_gameweeks``       — an open gameweek past 14:30 flips to ``locked``;
 * ``open_due_gameweeks``       — a scheduled gameweek past its announced pick-open time
   flips to ``open`` (Batch 27), and one that never opened still locks;
@@ -25,7 +27,7 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import AsyncIterator, Sequence
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -58,14 +60,16 @@ from src.services.gameweek import (
     current_open_gameweeks,
     discover_fixtures,
     fixtures_for,
+    latest_gameweek,
     lock_due_gameweeks,
     members_missing_picks,
     open_due_gameweeks,
     refresh_slate,
     settleable_gameweeks,
+    uk_today,
     window_for,
 )
-from src.services.odds_provider import EventSettlement
+from src.services.odds_provider import SATURDAY_THREE_PM, EventSettlement
 from src.services.scoring import (
     settle_gameweek_via_provider,
     settle_gameweeks_via_provider,
@@ -348,6 +352,284 @@ async def test_narrowing_after_a_round_exists_keeps_the_round_but_stops_adding(
     assert {SAMPLE_EPL_ID, SAMPLE_SL2_ID} == {
         f.competition_id for f in await fixtures_for(session, again.id)
     }
+
+
+# ── Batch 35: the ad-hoc fetch buys only what the league plays ──────────────────
+#
+# Asserted on the *requests issued* rather than the rows written, because the rows were
+# already right — `sync_slate` filtered them at link time. What was wrong was paying for
+# ~30 UK competitions to keep as few as one, and only a request count can see that.
+# `BetfairAdapter.fetch_slate` calls `list_events` once per competition, which is the
+# same one-request-per-competition fan-out the live odds-api.io client pays.
+
+
+def _count_competition_requests(fake: FakeBetfair, asked: list[list[str]]) -> None:
+    """Record the competitions each ``list_events`` request covers, in order."""
+    original = fake.list_events
+
+    async def counting_list_events(
+        *, competition_ids: Sequence[str], from_utc: datetime, to_utc: datetime
+    ) -> list[Any]:
+        asked.append(list(competition_ids))
+        return await original(competition_ids=competition_ids, from_utc=from_utc, to_utc=to_utc)
+
+    fake.list_events = counting_list_events  # type: ignore[method-assign]
+
+
+async def test_an_ad_hoc_fetch_asks_only_for_the_competitions_the_league_plays(
+    session: AsyncSession,
+) -> None:
+    """One league, one date, a fetch nobody shares — so there is no sharing to protect."""
+    _, league = await _seed_league(session, ["epl-only"])
+    league.competitions = [{"slug": SAMPLE_EPL_ID, "name": "English Premier League"}]
+    await session.flush()
+
+    fake = FakeBetfair.with_sample_data()
+    asked: list[list[str]] = []
+    _count_competition_requests(fake, asked)
+
+    gameweek = await refresh_slate(session, fake, league, SAMPLE_SATURDAY)
+
+    assert gameweek is not None
+    assert asked == [[SAMPLE_EPL_ID]], "one request, for the one competition this league plays"
+    assert [f.competition_id for f in await fixtures_for(session, gameweek.id)] == [SAMPLE_EPL_ID]
+
+
+async def test_an_unconfigured_league_still_pays_for_every_competition(
+    session: AsyncSession,
+) -> None:
+    """All-UK is a genuine selection, not a missing one — narrowing must not invent it."""
+    _, league = await _seed_league(session, ["all-uk"])
+    fake = FakeBetfair.with_sample_data()
+    asked: list[list[str]] = []
+    _count_competition_requests(fake, asked)
+
+    assert await refresh_slate(session, fake, league, SAMPLE_SATURDAY) is not None
+    assert len(asked) == 3, "every canned competition, one request each"
+
+
+async def test_shared_discovery_does_not_narrow_its_fetch(session: AsyncSession) -> None:
+    """The inverse of the rule above, and the reason it is a per-call argument.
+
+    Discovery's fetch is shared by every league on the window, so narrowing it to one
+    league's selection would save that league's requests by denying the next league its
+    fixtures. The EPL-only league here must not shrink the Scottish league's card.
+    """
+    _, narrowed = await _seed_league(session, ["epl-only"])
+    narrowed.competitions = [{"slug": SAMPLE_EPL_ID, "name": "English Premier League"}]
+    _, all_uk = await _seed_league(session, ["all-uk"])
+    await session.flush()
+
+    fake = FakeBetfair.with_sample_data()
+    asked: list[list[str]] = []
+    _count_competition_requests(fake, asked)
+
+    discovered = await discover_fixtures(session, fake, [narrowed, all_uk], SAMPLE_SATURDAY, 1)
+
+    assert len(asked) == 3, "the shared fetch still walks every competition"
+    by_league = {g.league_id: g for g in discovered}
+    assert {SAMPLE_EPL_ID} == {
+        f.competition_id for f in await fixtures_for(session, by_league[narrowed.id].id)
+    }
+    assert {SAMPLE_EPL_ID, SAMPLE_SL2_ID} == {
+        f.competition_id for f in await fixtures_for(session, by_league[all_uk.id].id)
+    }
+
+
+# ── Batch 35: discovery reaches a round off the league's cadence ────────────────
+#
+# `upcoming_slate_dates` only ever yields the weekly cadence, so before this an ad-hoc
+# round was frozen at whatever the provider held when the admin created it — a
+# postponement, a late addition or a corrected kick-off never landed, and since
+# `sync_slate` only adds links the round could not self-correct either.
+#
+# The canned card sits on a Saturday, so these leagues play a *Sunday* window: that makes
+# 2026-08-01 off their cadence while still being a date the fake carries fixtures for.
+
+SUNDAY = 6
+
+
+async def _sunday_league(session: AsyncSession, name: str) -> League:
+    """A league whose cadence is Sundays — so the canned Saturday is off it."""
+    _, league = await _seed_league(session, [name])
+    league.slate_start_weekday = SUNDAY
+    league.slate_end_weekday = SUNDAY
+    await session.flush()
+    return league
+
+
+async def _bare_round(session: AsyncSession, league: League, starts_on: date) -> Gameweek:
+    """An open round with no fixtures linked yet — an ad-hoc one before its refresh."""
+    gameweek = Gameweek(
+        league_id=league.id,
+        starts_on=starts_on,
+        status=GameweekStatus.open,
+        locks_at_utc=window_for(league).locks_at(starts_on),
+    )
+    session.add(gameweek)
+    await session.flush()
+    return gameweek
+
+
+async def test_discovery_refreshes_an_unlocked_round_off_the_cadence(
+    session: AsyncSession,
+) -> None:
+    """The Boxing Day case: nothing else would ever revisit this round."""
+    league = await _sunday_league(session, "one-off")
+    one_off = await _bare_round(session, league, SAMPLE_SATURDAY)
+    assert await fixtures_for(session, one_off.id) == []
+
+    await discover_fixtures(session, FakeBetfair.with_sample_data(), [league], SAMPLE_SATURDAY, 1)
+
+    assert len(await fixtures_for(session, one_off.id)) == 2, "the card finally landed"
+
+
+async def test_an_off_cadence_date_is_not_synced_to_the_leagues_that_did_not_ask(
+    session: AsyncSession,
+) -> None:
+    """A neighbour on the same window must not have a Boxing Day round invented for it."""
+    asked_for_it = await _sunday_league(session, "one-off")
+    neighbour = await _sunday_league(session, "cadence-only")
+    await _bare_round(session, asked_for_it, SAMPLE_SATURDAY)
+
+    await discover_fixtures(
+        session, FakeBetfair.with_sample_data(), [asked_for_it, neighbour], SAMPLE_SATURDAY, 1
+    )
+
+    rounds = await session.execute(
+        select(Gameweek.starts_on).where(Gameweek.league_id == neighbour.id)
+    )
+    assert SAMPLE_SATURDAY not in set(rounds.scalars().all())
+
+
+async def test_two_leagues_sharing_an_off_cadence_date_share_one_fetch(
+    session: AsyncSession,
+) -> None:
+    """Grouping is still by window, so a date two leagues both added costs one request."""
+    first = await _sunday_league(session, "boxing-day-a")
+    second = await _sunday_league(session, "boxing-day-b")
+    await _bare_round(session, first, SAMPLE_SATURDAY)
+    await _bare_round(session, second, SAMPLE_SATURDAY)
+
+    fake = FakeBetfair.with_sample_data()
+    calls: list[date] = []
+    original = fake.fetch_slate
+
+    async def counting_fetch_slate(window: object, starts_on: date, **kwargs: object) -> object:
+        calls.append(starts_on)
+        return await original(window, starts_on, **kwargs)  # type: ignore[arg-type]
+
+    fake.fetch_slate = counting_fetch_slate  # type: ignore[method-assign]
+
+    await discover_fixtures(session, fake, [first, second], SAMPLE_SATURDAY, 1)
+
+    assert calls.count(SAMPLE_SATURDAY) == 1, "one window, one date — one fetch"
+    for league in (first, second):
+        round_on_the_date = await session.execute(
+            select(Gameweek).where(
+                Gameweek.league_id == league.id, Gameweek.starts_on == SAMPLE_SATURDAY
+            )
+        )
+        assert len(await fixtures_for(session, round_on_the_date.scalar_one().id)) == 2
+
+
+async def test_a_locked_round_is_not_refetched(session: AsyncSession) -> None:
+    """Its card is fixed and its picks are frozen, so a refresh could not record anything."""
+    league = await _sunday_league(session, "already-locked")
+    one_off = await _bare_round(session, league, SAMPLE_SATURDAY)
+    one_off.status = GameweekStatus.locked
+    await session.flush()
+
+    fake = FakeBetfair.with_sample_data()
+    calls: list[date] = []
+    original = fake.fetch_slate
+
+    async def counting_fetch_slate(window: object, starts_on: date, **kwargs: object) -> object:
+        calls.append(starts_on)
+        return await original(window, starts_on, **kwargs)  # type: ignore[arg-type]
+
+    fake.fetch_slate = counting_fetch_slate  # type: ignore[method-assign]
+
+    await discover_fixtures(session, fake, [league], SAMPLE_SATURDAY, 1)
+
+    assert SAMPLE_SATURDAY not in calls
+    assert await fixtures_for(session, one_off.id) == []
+
+
+# ── Batch 35: which round a league is currently on ─────────────────────────────
+#
+# Until now `latest_gameweek` ordered `starts_on DESC LIMIT 1`, so a one-off round added
+# outside the cadence hijacked "this week" for that league alone — and home renders every
+# league's card side by side, which is where it reads as broken rather than as a setting.
+# Dates here are relative to today so the rule is exercised against the real clock.
+
+
+def _next_saturday_ahead() -> date:
+    """The first Saturday strictly after today, so its 14:30 lock is always in the future."""
+    return SATURDAY_THREE_PM.first_start_on_or_after(uk_today() + timedelta(days=1))
+
+
+async def test_a_far_future_one_off_does_not_hijack_this_week(session: AsyncSession) -> None:
+    """Boxing Day added in August must not become the round the league is on."""
+    _, league = await _seed_league(session, ["boxing-day"])
+    saturday = _next_saturday_ahead()
+    await _bare_round(session, league, saturday)
+    await _bare_round(session, league, saturday + timedelta(weeks=20))
+
+    current = await latest_gameweek(session, league.id)
+
+    assert current is not None and current.starts_on == saturday
+
+
+async def test_two_open_rounds_are_tie_broken_by_which_shuts_first(
+    session: AsyncSession,
+) -> None:
+    """The load-bearing half of the rule: act on the round that closes first.
+
+    The midweek one-off starts *earlier* than the Saturday, so the old "newest
+    ``starts_on``" rule picks the Saturday and this one picks the round a member has
+    hours rather than days to act on.
+    """
+    _, league = await _seed_league(session, ["both-open"])
+    saturday = _next_saturday_ahead() + timedelta(weeks=1)
+    midweek = saturday - timedelta(days=3)
+    await _bare_round(session, league, saturday)
+    await _bare_round(session, league, midweek)
+
+    current = await latest_gameweek(session, league.id)
+
+    assert current is not None and current.starts_on == midweek
+
+
+async def test_with_nothing_open_the_round_just_played_wins(session: AsyncSession) -> None:
+    """A settled league shows its last round, not the first of next season."""
+    _, league = await _seed_league(session, ["between-rounds"])
+    today = uk_today()
+    for starts_on in (today - timedelta(days=14), today - timedelta(days=7)):
+        gameweek = await _bare_round(session, league, starts_on)
+        gameweek.status = GameweekStatus.settled
+    await session.flush()
+
+    current = await latest_gameweek(session, league.id)
+
+    assert current is not None and current.starts_on == today - timedelta(days=7)
+
+
+async def test_a_season_not_yet_started_shows_the_earliest_round_ahead(
+    session: AsyncSession,
+) -> None:
+    """The last fallback — and the one "newest ``starts_on``" got exactly backwards."""
+    _, league = await _seed_league(session, ["not-started"])
+    today = uk_today()
+    for starts_on in (today + timedelta(days=30), today + timedelta(days=60)):
+        gameweek = await _bare_round(session, league, starts_on)
+        gameweek.status = GameweekStatus.scheduled
+        gameweek.picks_open_at_utc = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=20)
+    await session.flush()
+
+    current = await latest_gameweek(session, league.id)
+
+    assert current is not None and current.starts_on == today + timedelta(days=30)
 
 
 # ── lock → settle → leaderboard (the Batch 4 e2e slice) ─────────────────────────

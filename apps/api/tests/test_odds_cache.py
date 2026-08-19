@@ -11,7 +11,7 @@ The clock is injected, so nothing here sleeps.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -53,6 +53,8 @@ class _CountingProvider(OddsProvider):
     def __init__(self, *, priced: set[str] | None = None) -> None:
         self.odds_calls: list[list[str]] = []
         self.slate_calls = 0
+        #: One entry per slate call — the narrowing it was given, or ``None`` for all UK.
+        self.slate_competition_ids: list[list[str] | None] = []
         self.settle_calls = 0
         self.competition_calls = 0
         self.login_calls = 0
@@ -70,8 +72,17 @@ class _CountingProvider(OddsProvider):
     async def close(self) -> None:
         self.closed = True
 
-    async def fetch_slate(self, window: SlateWindow, starts_on: date) -> Slate:
+    async def fetch_slate(
+        self,
+        window: SlateWindow,
+        starts_on: date,
+        *,
+        competition_ids: Collection[str] | None = None,
+    ) -> Slate:
         self.slate_calls += 1
+        self.slate_competition_ids.append(
+            None if competition_ids is None else sorted(competition_ids)
+        )
         return Slate(
             starts_on=starts_on,
             fixtures=[

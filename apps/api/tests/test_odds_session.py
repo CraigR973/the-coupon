@@ -12,7 +12,7 @@ rate limit, so a test that saw the bare client would be testing the wrong object
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import UTC, date, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
@@ -58,7 +58,13 @@ class _StubClient(OddsProvider):
     async def close(self) -> None:
         self.closed = True
 
-    async def fetch_slate(self, window: SlateWindow, starts_on: date) -> Slate:
+    async def fetch_slate(
+        self,
+        window: SlateWindow,
+        starts_on: date,
+        *,
+        competition_ids: Collection[str] | None = None,
+    ) -> Slate:
         return Slate(starts_on=starts_on, fixtures=[])
 
     async def fetch_competitions(self) -> list[Competition]:

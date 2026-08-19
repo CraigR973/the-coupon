@@ -29,6 +29,7 @@ from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.rate_limit import limiter, per_user_key
 from src.services.coupon import combined_odds
+from src.services.gameweek import current_round_order
 from src.services.scoring import standings_by_league
 
 router = APIRouter(prefix="/api/v1/me", tags=["me"])
@@ -233,14 +234,16 @@ async def cross_league_summary(
 async def _latest_rounds(
     db: AsyncSession, league_ids: list[uuid.UUID], player_id: uuid.UUID
 ) -> dict[uuid.UUID, CurrentRound]:
-    """Each league's newest round with its coupon and the caller's leg, keyed by league.
+    """Each league's current round with its coupon and the caller's leg, keyed by league.
 
     Two queries for the whole set. The first picks one row per league with a window
-    function — the same "newest ``starts_on`` wins" rule
-    :func:`src.services.gameweek.latest_gameweek` applies one league at a time, so the
-    card and the pick screen always agree about which round is current. The second
-    pulls every pick on those rounds, because the coupon's leg count and combined price
-    need all of them and the caller's own leg is one of the rows already in hand.
+    function, ordered by :func:`src.services.gameweek.current_round_order` — the same
+    rule :func:`~src.services.gameweek.latest_gameweek` applies one league at a time, so
+    the home card and the pick screen always agree about which round is current. They
+    are one rule spelled twice and must move together; home is where a disagreement
+    shows, because it renders every league's card side by side. The second query pulls
+    every pick on those rounds, because the coupon's leg count and combined price need
+    all of them and the caller's own leg is one of the rows already in hand.
     """
     newest = (
         select(
@@ -251,7 +254,10 @@ async def _latest_rounds(
             Gameweek.locks_at_utc,
             Gameweek.picks_open_at_utc,
             func.row_number()
-            .over(partition_by=Gameweek.league_id, order_by=Gameweek.starts_on.desc())
+            .over(
+                partition_by=Gameweek.league_id,
+                order_by=current_round_order(),
+            )
             .label("rn"),
         )
         .where(Gameweek.league_id.in_(league_ids))

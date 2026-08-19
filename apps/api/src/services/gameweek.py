@@ -17,10 +17,11 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.fixture import Fixture
@@ -29,7 +30,7 @@ from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
-from src.services.odds_provider import OddsProvider, Slate, SlateWindow
+from src.services.odds_provider import UK_TZ, OddsProvider, Slate, SlateWindow
 
 # Tier boundaries for how stale a browsed price may be (see slate_odds_max_age).
 _NEAR_LOCK_SECONDS = 6 * 3600
@@ -46,6 +47,16 @@ def _naive_utc(value: datetime) -> datetime:
 def _utc_now() -> datetime:
     """Naive-UTC now, matching the ``*_utc`` storage convention."""
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def uk_today() -> date:
+    """Today's date in UK local time.
+
+    A round's ``starts_on`` is a UK calendar date, so "at or before today" has to be
+    asked in the same timezone the date was written in — not in UTC, which is a day
+    behind for the first hour of a BST morning.
+    """
+    return datetime.now(UK_TZ).date()
 
 
 #: Rounds a member may still be able to claim on — the two states before the deadline.
@@ -130,10 +141,13 @@ def selected_competition_slugs(league: League) -> frozenset[str] | None:
 
     ``None`` (``leagues.competitions`` unset) is the group the slate has always used —
     every UK competition the provider carries. A configured list narrows the round to
-    those slugs, matched against ``fixtures.competition_id``. Applied at link time
-    (:func:`sync_slate`) rather than by asking the provider for fewer competitions, so
-    the shared per-window fetch — and the request budget that depends on it — is
-    untouched: narrowing changes what a league *plays*, not what discovery *costs*.
+    those slugs, matched against ``fixtures.competition_id``.
+
+    Applied at link time in *discovery* (:func:`sync_slate`) rather than by asking the
+    provider for fewer competitions, so the shared per-window fetch — and the request
+    budget that depends on it — is untouched: narrowing changes what a league *plays*,
+    not what discovery *costs*. On the unshared ad-hoc path it is pushed into the fetch
+    instead, where the same reasoning inverts; see :func:`refresh_slate`.
     """
     if league.competitions is None:
         return None
@@ -144,12 +158,71 @@ def selected_competition_slugs(league: League) -> frozenset[str] | None:
     )
 
 
+def accepting_picks(now: datetime) -> ColumnElement[bool]:
+    """SQL for :func:`pick_refusal` returning ``None`` — this round takes a pick *now*.
+
+    The same three conditions in the same order, so the two cannot drift: a pickable
+    status, an opening that has arrived (or was never announced), and a lock still
+    ahead. ``now`` is naive-UTC, as stored.
+    """
+    return and_(
+        Gameweek.status.in_(PICKABLE_STATES),
+        or_(Gameweek.picks_open_at_utc.is_(None), Gameweek.picks_open_at_utc <= now),
+        Gameweek.locks_at_utc > now,
+    )
+
+
+def current_round_order(
+    now: datetime | None = None, today: date | None = None
+) -> tuple[ColumnElement[Any], ...]:
+    """Order rounds by the question a member is actually asking: which one am I on?
+
+    Not "the newest ``starts_on``", which is what this was until Batch 35 and which a
+    one-off round breaks: add Boxing Day in August and every screen in that league
+    jumps to a round whose picks open in December, while the member's *other* leagues
+    still show Saturday. Home renders those cards side by side, so the disagreement is
+    visible in one glance.
+
+    Three tiers, in the order a member would name them:
+
+    1. rounds accepting picks right now, **the one locking soonest first** — once a
+       Boxing Day round and the 20 December Saturday are both open, the one to act on
+       is the one that shuts first;
+    2. failing that, the most recent ``starts_on`` at or before today — the round just
+       played, which is what a settled league should be showing;
+    3. failing that, the earliest ahead — a league whose season has not started yet.
+
+    Returned as ORDER BY clauses rather than applied here because the rule has two call
+    sites — :func:`latest_gameweek` per league, and a window function over many leagues
+    in ``routers/me.py`` — and they have to move together or the Coupon tab and the home
+    card disagree about which round is current. Within any one tier every row shares the
+    same nullness, so the tiers below it simply do not discriminate.
+
+    Both instants default to the real clock; they are arguments so a test can put a
+    league's Boxing Day round on either side of "now" without waiting for December.
+    """
+    accepting = accepting_picks(_utc_now() if now is None else now)
+    already_started = Gameweek.starts_on <= (uk_today() if today is None else today)
+    return (
+        case((accepting, 0), (already_started, 1), else_=2).asc(),
+        case((accepting, Gameweek.locks_at_utc), else_=None).asc(),
+        case((already_started, Gameweek.starts_on), else_=None).desc(),
+        Gameweek.starts_on.asc(),
+    )
+
+
 async def latest_gameweek(db: AsyncSession, league_id: uuid.UUID) -> Gameweek | None:
-    """This league's most recent round — what the pick screen defaults to."""
+    """The round this league is currently on — what the coupon and pick screen default to.
+
+    "Currently on" is :func:`current_round_order`, not the newest ``starts_on``. Kept
+    under its original name because it is still *the* round for a league that only ever
+    plays its own cadence; only a one-off round outside that cadence tells the two rules
+    apart.
+    """
     result = await db.execute(
         select(Gameweek)
         .where(Gameweek.league_id == league_id)
-        .order_by(Gameweek.starts_on.desc())
+        .order_by(*current_round_order())
         .limit(1)
     )
     return result.scalar_one_or_none()
@@ -182,7 +255,7 @@ async def gameweek_by_id(
 async def resolve_gameweek(
     db: AsyncSession, league_id: uuid.UUID, gameweek_id: str | None
 ) -> Gameweek:
-    """The requested round of this league, or its latest when none is named.
+    """The requested round of this league, or the one it is currently on when none is named.
 
     Shared by the slate and coupon reads so browsing back through the season means
     the same thing on both, and so the league scoping is enforced in one place.
@@ -324,9 +397,40 @@ def upcoming_slate_dates(today: date, window: SlateWindow, count: int) -> list[d
     anyone can pick on it. Pricing is deliberately not on this horizon — odds are
     fetched on demand, because a price is only meaningful at the moment a member
     freezes it onto a pick.
+
+    This is the league's **cadence** only — a weekly step from its window's next
+    opening. A round on any other date exists solely because an admin asked for one,
+    so it cannot be derived and has to be read back
+    (:func:`unlocked_round_dates`); see :func:`discover_fixtures`.
     """
     first = window.first_start_on_or_after(today)
     return [first + timedelta(weeks=offset) for offset in range(max(count, 1))]
+
+
+async def unlocked_round_dates(
+    db: AsyncSession, league_ids: Sequence[uuid.UUID], today: date, until: date
+) -> dict[uuid.UUID, set[date]]:
+    """Dates each of these leagues holds a still-claimable round on, within the horizon.
+
+    The off-cadence half of what discovery has to cover. Bounded at both ends on
+    purpose: a round already locked cannot change in any way a refresh could record —
+    its card is fixed and its picks are frozen — and a round beyond the horizon has not
+    firmed up yet, so fetching either spends the request budget on nothing.
+    """
+    if not league_ids:
+        return {}
+    rows = await db.execute(
+        select(Gameweek.league_id, Gameweek.starts_on).where(
+            Gameweek.league_id.in_(league_ids),
+            Gameweek.status.in_(PICKABLE_STATES),
+            Gameweek.starts_on >= today,
+            Gameweek.starts_on <= until,
+        )
+    )
+    dates: dict[uuid.UUID, set[date]] = {}
+    for league_id, starts_on in rows.all():
+        dates.setdefault(league_id, set()).add(starts_on)
+    return dates
 
 
 def slate_odds_max_age(gameweek: Gameweek, now: datetime, near_ttl: float, far_ttl: float) -> float:
@@ -368,6 +472,18 @@ async def discover_fixtures(
     windows, not the number of leagues, so a second league on the default Saturday
     is free. Only leagues that genuinely play a different window cost anything more.
 
+    The dates walked are each window's cadence (:func:`upcoming_slate_dates`) **union**
+    the dates those leagues already hold unlocked rounds on inside the same horizon
+    (:func:`unlocked_round_dates`). Without the union a one-off round — Boxing Day, say
+    — is never revisited after the admin creates it, so a postponement, a late addition
+    or a corrected kick-off never lands on it, and since :func:`sync_slate` only ever
+    adds links it cannot self-correct either. Grouping still happens by window, so two
+    leagues that both added Boxing Day are refreshed on one fetch.
+
+    An off-cadence date is synced **only** to the leagues that already hold a round on
+    it. A league sharing the window but not the one-off must not have a Boxing Day round
+    invented for it because its neighbour asked for one.
+
     Dates the provider carries nothing for are skipped rather than left as empty
     rounds. Flushes but does not commit — the caller owns the transaction.
     """
@@ -375,13 +491,26 @@ async def discover_fixtures(
     for league in leagues:
         by_window.setdefault(window_for(league), []).append(league)
 
+    cadence = {window: upcoming_slate_dates(today, window, horizon) for window in by_window}
+    horizon_end = max((dates[-1] for dates in cadence.values()), default=today)
+    off_cadence = await unlocked_round_dates(
+        db, [league.id for league in leagues], today, horizon_end
+    )
+
     discovered: list[Gameweek] = []
     for window, sharing in by_window.items():
-        for starts_on in upcoming_slate_dates(today, window, horizon):
+        scheduled = set(cadence[window])
+        dates = scheduled.union(*(off_cadence.get(league.id, set()) for league in sharing))
+        for starts_on in sorted(dates):
+            playing = (
+                sharing
+                if starts_on in scheduled
+                else [lg for lg in sharing if starts_on in off_cadence.get(lg.id, set())]
+            )
             slate = await provider.fetch_slate(window, starts_on)
             if not slate.fixtures:
                 continue
-            for league in sharing:
+            for league in playing:
                 # ``None`` when the league's competition selection excludes the whole
                 # window — no round to record, but the shared fetch is unaffected.
                 gameweek = await sync_slate(db, league, slate)
@@ -395,12 +524,27 @@ async def refresh_slate(
 ) -> Gameweek | None:
     """Fetch one league's card for ``starts_on`` and upsert it as a round.
 
+    The league's competition selection is pushed **into the fetch** here, which is the
+    opposite of what :func:`sync_slate` does and deliberately so. Discovery filters at
+    link time because its fetch is shared between every league on the window, so asking
+    for fewer competitions would save one league's money by spending another's. This
+    function has exactly one production caller — the ad-hoc round endpoint — and there
+    the fetch is one league's alone: nobody shares it, so filtering afterwards is simply
+    paying for ~30 UK competitions to keep as few as one. A league playing two divisions
+    now costs two requests instead of thirty.
+
+    The trade that buys it: a narrowed ad-hoc fetch no longer warms the pool for a wider
+    league on the same date. That is correct rather than a regression — nothing shared
+    this fetch to begin with.
+
     Returns the synced round, or ``None`` when there is nothing to record — either the
     provider carries no qualifying fixtures (e.g. out of season) or the league's
     competition selection excludes every one it does. Either way no empty round is left
     behind. Flushes but does not commit — the scheduler job owns the transaction.
     """
-    slate = await provider.fetch_slate(window_for(league), starts_on)
+    slate = await provider.fetch_slate(
+        window_for(league), starts_on, competition_ids=selected_competition_slugs(league)
+    )
     if not slate.fixtures:
         return None
     return await sync_slate(db, league, slate)

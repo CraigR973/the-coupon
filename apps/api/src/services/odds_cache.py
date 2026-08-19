@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from datetime import date
 
@@ -92,8 +92,14 @@ class CachingOddsProvider(OddsProvider):
 
     # -- uncached domain operations -------------------------------------------
 
-    async def fetch_slate(self, window: SlateWindow, starts_on: date) -> Slate:
-        return await self._inner.fetch_slate(window, starts_on)
+    async def fetch_slate(
+        self,
+        window: SlateWindow,
+        starts_on: date,
+        *,
+        competition_ids: Collection[str] | None = None,
+    ) -> Slate:
+        return await self._inner.fetch_slate(window, starts_on, competition_ids=competition_ids)
 
     async def settle(self, event_ids: Sequence[str]) -> list[EventSettlement]:
         return await self._inner.settle(event_ids)

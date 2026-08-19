@@ -7,7 +7,7 @@ import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
 import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
-import { useGameweekHistory } from '../hooks/useGameweekHistory';
+import { useGameweekHistory, useSelectedGameweekId } from '../hooks/useGameweekHistory';
 import { useOddsFormat } from '../hooks/useOddsFormat';
 import { useRouteLeague } from '../hooks/useRouteLeague';
 import { usePickEditor, gameweekKey } from '../hooks/usePickEditor';
@@ -140,8 +140,7 @@ export function CouponPickPage() {
   const oddsFormat = useOddsFormat();
   const { slug, name: leagueName } = useRouteLeague();
   const { hasLeagues, isLoading: leaguesLoading } = useLeague();
-  const history = useGameweekHistory(slug, hasLeagues);
-  const gameweekId = history.selectedId;
+  const gameweekId = useSelectedGameweekId();
 
   const {
     data: slate,
@@ -157,6 +156,10 @@ export function CouponPickPage() {
     staleTime: 30_000,
     enabled: hasLeagues,
   });
+
+  // Anchored on the round the slate actually came back with, which on the default view
+  // is the API's choice rather than the newest date (see `useGameweekHistory`).
+  const history = useGameweekHistory(slug, hasLeagues, slate?.gameweek_id);
 
   const countdown = useCountdown(slate?.locks_at_utc ?? FAR_PAST);
   const openCountdown = useCountdown(slate?.picks_open_at_utc ?? FAR_PAST);

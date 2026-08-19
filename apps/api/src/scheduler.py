@@ -15,7 +15,6 @@ in-process scheduler can't be relied on (see docs/runbooks/scheduled-jobs-cron.m
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
-from zoneinfo import ZoneInfo
 
 import structlog
 from apscheduler.schedulers.asyncio import (  # type: ignore[import-untyped,unused-ignore]
@@ -36,6 +35,7 @@ from src.services.gameweek import (
     lock_due_gameweeks,
     open_due_gameweeks,
     settleable_gameweeks,
+    uk_today,
     window_for,
 )
 from src.services.notification_triggers import send_pick_reminders
@@ -47,8 +47,6 @@ from src.services.scoring import (
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-_UK_TZ = ZoneInfo("Europe/London")
-
 
 def _utc_now() -> datetime:
     """Naive-UTC now — matches the ``*_utc`` storage convention used across the schema."""
@@ -56,8 +54,12 @@ def _utc_now() -> datetime:
 
 
 def _uk_today() -> date:
-    """Today's date in UK local time — the anchor for 'this Saturday's' slate."""
-    return datetime.now(_UK_TZ).date()
+    """Today's date in UK local time — the anchor for 'this Saturday's' slate.
+
+    Delegates so the rule has one implementation; kept as a module-level name because
+    the scheduler tests patch it to drive the clock.
+    """
+    return uk_today()
 
 
 async def run_scheduled_backup() -> bool:
@@ -142,9 +144,14 @@ async def run_refresh_slate() -> bool:
     """Firm up the imminent card shortly before lock.
 
     Discovery already walked this round in days ago; this is the late pass that catches
-    a postponement or a kick-off change. It covers only the *nearest* date of each
-    league's window rather than the whole horizon, because the far weeks have not
-    firmed up yet and re-fetching them would spend the provider budget on nothing.
+    a postponement or a kick-off change. The horizon is 1 rather than the whole set,
+    because the far weeks have not firmed up yet and re-fetching them would spend the
+    provider budget on nothing.
+
+    That horizon covers the nearest date of each league's *window* and any still-claimable
+    round it already holds inside the same week, which is how an admin's one-off — Boxing
+    Day, say — is reached at all: it is off the weekly cadence, so nothing else would ever
+    revisit it.
 
     Odds themselves are snapshotted onto each pick at pick time and served through the
     provider's own TTL cache, so there is nothing to warm here.

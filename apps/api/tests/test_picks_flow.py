@@ -113,6 +113,11 @@ async def _open_sample_gameweek(
     forward for tests that need a league to have more than one — the canned slate
     only exists on ``SAMPLE_SATURDAY``, so the card is synced from there and the date
     moved afterwards.
+
+    The lock moves with the date, because a round a week further out locks a week later.
+    That used to be flat, which no test could see while "the current round" meant the
+    newest ``starts_on``; since Batch 35 it means the open round locking soonest, and a
+    league whose rounds all lock at the same instant is not a league.
     """
     slate = await fake.fetch_slate(window_for(league), SAMPLE_SATURDAY)
     if weeks_later:
@@ -123,7 +128,7 @@ async def _open_sample_gameweek(
         )
     gameweek = await sync_slate(session, league, slate)
     gameweek.status = GameweekStatus.open
-    gameweek.locks_at_utc = _now() + timedelta(hours=2)
+    gameweek.locks_at_utc = _now() + timedelta(hours=2, weeks=weeks_later)
     await session.commit()
     await session.refresh(gameweek)
     return gameweek
@@ -785,7 +790,7 @@ async def test_gameweek_list_counts_fixtures_and_this_leagues_picks(
 async def test_slate_and_coupon_read_a_named_gameweek(
     client_and_fake: tuple[AsyncClient, FakeBetfair],
 ) -> None:
-    """Both reads default to the latest and both accept an explicit gameweek."""
+    """Both reads default to the round in play and both accept an explicit gameweek."""
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice,), league = await _seed_league(session, ["alice"])
@@ -804,12 +809,18 @@ async def test_slate_and_coupon_read_a_named_gameweek(
     ).status_code == 201
 
     async with AsyncSessionLocal() as session:
-        # Re-fetch: the league instance above belongs to a session that has closed.
+        # The older round is over — which is what makes it the one a member browses
+        # *back* to. Re-fetch: the league instance above belongs to a closed session.
+        stored = (
+            await session.execute(select(Gameweek).where(Gameweek.id == older.id))
+        ).scalar_one()
+        stored.status = GameweekStatus.locked
+        stored.locks_at_utc = _now() - timedelta(hours=1)
         newer = await _open_sample_gameweek(
             session, fake, await session.get(League, league.id), weeks_later=1
         )
 
-    # Default: the latest gameweek, which has no picks.
+    # Default: the round now in play, which has no picks.
     default_slate = (
         await client.get(f"/api/v1/leagues/{slug}/gameweek/current", headers=_auth(alice))
     ).json()
@@ -1465,6 +1476,33 @@ async def test_ad_hoc_gameweek_creates_a_filtered_round_and_is_idempotent(
     assert again.json()["gameweek_id"] == gwid and again.json()["created"] is False
 
 
+async def test_ad_hoc_gameweek_is_rate_limited_to_what_the_request_budget_allows(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The only provider call left in the request path, so the limit is the guard.
+
+    An unconfigured league's call is one ``/events`` per UK competition — the cost of a
+    whole discovery run — and exhausting odds-api.io's quota is silent: picks simply stay
+    ``pending`` and the week never finishes. The arithmetic behind the number is asserted
+    in ``tests/test_request_budget.py``; this pins that it is actually enforced.
+    """
+    client, _ = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["limited"])
+    await _make_admin(league, alice)
+
+    async def create() -> Response:
+        return await client.post(
+            f"/api/v1/leagues/{league.slug}/gameweeks",
+            json={"starts_on": SAMPLE_SATURDAY.isoformat()},
+            headers=_auth(alice),
+        )
+
+    assert (await create()).status_code == 201
+    assert (await create()).status_code == 201, "re-posting the same date is still allowed"
+    assert (await create()).status_code == 429
+
+
 async def test_ad_hoc_gameweek_with_no_fixtures_is_a_422(
     client_and_fake: tuple[AsyncClient, FakeBetfair],
 ) -> None:
@@ -1675,6 +1713,48 @@ async def test_cross_league_summary_carries_each_leagues_current_round(
     bob_round = {e["slug"]: e for e in bob_summary["per_league"]}[playing.slug]["current_round"]
     assert bob_round["my_pick"]["home"] == "Forfar Athletic"
     assert bob_round["leg_count"] == 2
+
+
+async def test_a_one_off_round_does_not_hijack_this_week_on_home_or_the_coupon(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Batch 35: a Boxing Day round added in August must not become "this week".
+
+    Both surfaces are asserted in one test on purpose. Home's card and the Coupon tab
+    read the current round through two different queries — a window function over every
+    league in ``routers/me.py``, and ``latest_gameweek`` one league at a time — and they
+    are one rule spelled twice. Home is where a disagreement shows, because a member in
+    three leagues sees one card jump forward to a round that opens in December while the
+    others still show Saturday.
+    """
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["one-off"])
+        this_week = await _open_sample_gameweek(session, fake, league)
+        # The one-off: far ahead of the cadence, and locking long after this week's round.
+        await _round_with_one_fixture(
+            session,
+            league,
+            SAMPLE_SATURDAY + timedelta(weeks=20),
+            locks_at=_now() + timedelta(weeks=20),
+            event_id="e-boxing-day",
+            home="Manchester United",
+            away="Newcastle",
+            competition="English Premier League",
+            competition_id=SAMPLE_EPL_ID,
+        )
+
+    summary = (await client.get("/api/v1/me/cross-league-summary", headers=_auth(alice))).json()
+    card = {entry["slug"]: entry for entry in summary["per_league"]}[league.slug]["current_round"]
+    assert card["gameweek_id"] == str(this_week.id), "home's card follows the round to act on"
+
+    coupon = await client.get(f"/api/v1/leagues/{league.slug}/coupon", headers=_auth(alice))
+    assert coupon.json()["gameweek_id"] == str(this_week.id), "and the Coupon tab agrees"
+
+    slate = await client.get(
+        f"/api/v1/leagues/{league.slug}/gameweek/current", headers=_auth(alice)
+    )
+    assert slate.json()["gameweek_id"] == str(this_week.id), "and so does the pick screen"
 
 
 async def test_cross_league_summary_shows_an_unpicked_round_and_no_leagues(

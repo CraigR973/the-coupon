@@ -354,6 +354,7 @@ class BetfairAdapter(OddsProvider):
         window: SlateWindow,
         starts_on: date,
         *,
+        competition_ids: Collection[str] | None = None,
         competition_names: Collection[str] | None = None,
         countries: Collection[str] = SLATE_COUNTRIES,
     ) -> Slate:
@@ -365,8 +366,11 @@ class BetfairAdapter(OddsProvider):
         to eight named divisions previously starved the slate: on 2026-08-08 it yielded
         two fixtures where the country rule yields thirty-eight.
 
-        ``competition_names`` narrows to specific competitions when a caller needs the
-        old behaviour; it is ``None`` (no restriction) by default.
+        ``competition_ids`` is the port's narrowing argument — a league's stored
+        selection, matched against the same ids a :class:`SlateFixture` is tagged with,
+        applied before the ``listEvents`` fan-out that costs one request per
+        competition. ``competition_names`` is the older name-matched form kept for
+        callers that only have names; both are ``None`` (no restriction) by default.
         """
         from_utc, to_utc = window.query_bounds(starts_on)
         wanted_countries = {c.strip().upper() for c in countries}
@@ -376,6 +380,9 @@ class BetfairAdapter(OddsProvider):
             from_utc=from_utc,
             to_utc=to_utc,
         )
+        if competition_ids is not None:
+            wanted_ids = set(competition_ids)
+            competitions = [c for c in competitions if c.competition.id in wanted_ids]
         if competition_names is not None:
             wanted_lower = {n.strip().casefold() for n in competition_names}
             competitions = [

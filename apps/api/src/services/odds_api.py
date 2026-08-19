@@ -34,7 +34,7 @@ slate), so the UK set is derived from each league's own country and name.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -377,7 +377,13 @@ class OddsApiProvider(OddsProvider):
 
     # -- domain operations -----------------------------------------------------
 
-    async def fetch_slate(self, window: SlateWindow, starts_on: date) -> Slate:
+    async def fetch_slate(
+        self,
+        window: SlateWindow,
+        starts_on: date,
+        *,
+        competition_ids: Collection[str] | None = None,
+    ) -> Slate:
         """Every British kick-off inside ``window``, across every UK competition.
 
         The slate is defined by *country and kick-off time*, not by a list of divisions —
@@ -388,9 +394,17 @@ class OddsApiProvider(OddsProvider):
         The window is the league's, not a constant, since Batch 14. It is queried a
         whole day at a time and filtered precisely afterwards, because providers filter
         by range and the default window is a single instant.
+
+        ``competition_ids`` narrows the catalogue *before* the ``/events`` fan-out,
+        which is where the whole cost of this call sits: one request per league walked.
+        The ``/leagues`` catalogue itself is memoised on the client, so narrowing does
+        not save that one — it saves the ~30 that follow it.
         """
         from_utc, to_utc = window.query_bounds(starts_on)
         leagues = await self._uk_leagues()
+        if competition_ids is not None:
+            wanted = set(competition_ids)
+            leagues = [lg for lg in leagues if lg.id in wanted]
 
         fixtures: list[SlateFixture] = []
         for league in leagues:
