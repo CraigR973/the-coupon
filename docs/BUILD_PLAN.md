@@ -740,6 +740,209 @@ answered until it lands, because until then there is no data to look at.
   arithmetic against a real cache rather than trusting a comment — the new limit belongs
   there too.
 
+- [ ] **Batch 36 — The odds key in the production logs** — every odds request writes the
+  live odds-api.io key into Railway's logs in plaintext. `odds_api.py:640` builds
+  `query = {**params, "apiKey": self._api_key}`, httpx logs the full request URL at INFO,
+  and nothing sets that logger's level anywhere in the app — so
+  `GET https://api.odds-api.io/v3/leagues?sport=football&apiKey=<the key>` is emitted
+  verbatim, once per call. Observed 2026-08-19 in the running production deployment, with
+  a complete and valid key readable in the retained window.
+
+  Two remedies, and only one of them is code. The key is already exposed for the whole
+  retention period, so it must be **rotated**; that is the owner's action and no code
+  change substitutes for it. `docs/runbooks/incident.md` is the right home for the
+  sequence. The code change stops the next occurrence: silence httpx's request logging
+  (`logging.getLogger("httpx").setLevel(WARNING)` where logging is configured) and keep
+  the adapter's own log lines free of the query string. Whether odds-api.io also accepts
+  the key as a header is unverified — api-football does, and is called correctly that way
+  via `x-apisports-key` — and is worth one probe, because a header is the fix that
+  survives someone re-enabling httpx logging later.
+
+  The regression test is the point of the batch and should assert the property rather
+  than the setting: drive an odds call against a captured log stream and assert no emitted
+  record contains the key. A test that only asserts a log level passes the day someone
+  adds a second HTTP client.
+
+- [ ] **Batch 37 — A division that resolves to the Premier League** — the Football tab is
+  empty and every club's position/form strip is blank, and neither is a data-availability
+  problem. Production is configured correctly: `FOOTBALL_DATA_PROVIDER=apifootball`, the
+  exact literal `config.py:58` accepts, with `FOOTBALL_API_KEY` set. Coverage — the
+  question Batch 33 left explicitly open, never once observed — is now observed and is
+  adequate. A catalogue probe on 2026-08-19 returned 1240 leagues, 46 English, 24 carrying
+  season 2026, including `National League - North` (50), `National League - South` (51)
+  and all four `Non League Premier` divisions (58/59/931/60). Batch 33's pessimistic
+  reading can be closed: the free plan carries the British divisions.
+
+  What fails is competition resolution. `similarity` (`team_matching.py:114`) returns a
+  flat `SUBSET_SCORE = 0.95` when one name's token set is wholly contained in the other's,
+  and `{premier, league}` is a subset of `{southern, league, premier, division, south}`.
+  So "Southern League Premier Division South" scores 0.950 against **Premier League** and
+  0.800 against `Non League Premier - Southern South`: the correct entry falls below
+  `MATCH_THRESHOLD = 0.86` while the wrong one clears it. `league_id_for`
+  (`api_football.py:399`) therefore resolves the division to league id 39 confidently and
+  uniquely — this is not an ambiguous tie that a margin alone would catch. Isthmian League
+  Premier Division and Northern Premier League Premier Division fail identically. National
+  League North and South are unaffected; they normalise to an exact match.
+
+  The subset rule is sound where it was written. It exists for team names, where the
+  shorter string is a genuine abbreviation ("Inverness Caledonian" for "Inverness
+  Caledonian Thistle"), and `similarity`'s own docstring says the score "leans on
+  `best_match`'s ambiguity guard". `league_id_for` reuses the function but hand-rolls its
+  own loop, applying `MATCH_THRESHOLD` and never `MATCH_MARGIN` — the guard the score is
+  calibrated to depend on is missing at the one call site whose candidate list contains a
+  generic short name. Competition names are not team names: "Premier League" is a whole
+  competition, not an abbreviation of a longer one.
+
+  Fix on the competition path, not by moving the constant — `SUBSET_SCORE` is load-bearing
+  for teams and lowering it there would unmatch clubs. Withhold the subset bonus when
+  scoring competitions, apply `MATCH_MARGIN` at that call site, and back both with an
+  explicit slug→provider-league-id override for the British divisions. The override is not
+  a workaround: "Southern League Premier Division South" and "Non League Premier -
+  Southern South" share four tokens of five and still only reach 0.800, so no threshold
+  choice resolves two providers' naming conventions by ratio alone. A miss must stay a
+  miss — `api-football competition unmatched` already logs it — because a wrong id is far
+  worse than none.
+
+  Cleaning up is part of the batch. `upsert_teams` (`football_data.py:225`) moves a club's
+  `competition_id` to the competition it was last seen in, so a mis-resolved division has
+  been writing Premier League clubs and tables against a non-League competition and may
+  have dragged genuine clubs out of correctly-resolved ones. Fixing the matcher alone
+  leaves the wrong rows in place and the tab wrong in a new way; the corrective run needs
+  the affected competitions' teams and standings cleared first. The downstream symptom to
+  watch disappear is `team name unresolved` with `candidates=0` — 424 of them in a
+  three-hour window on 2026-08-19.
+
+  This is also the whole of the "form and position never appear" report. `PickCard.tsx:48`
+  has rendered position ordinal and W/D/L pips since Batch 16 and `worthShowing`
+  (`PickCard.tsx:37`) hides the strip when a club has neither; both light up from ingested
+  rows with no frontend work. Tests: the matcher against the real catalogue's English
+  entries, asserting every configured division resolves to its own id and that league 39 is
+  never returned for a name carrying extra discriminative tokens; the margin guard; and a
+  fixture-backed sync asserting rows land against the competition requested. End-to-end
+  confirmation costs a `sync-football` run — about 61 of the day's 100 requests, per the
+  scheduler runbook — so budget it deliberately rather than re-running it to watch.
+
+- [ ] **Batch 38 — When a pick was taken** — the coupon says who took a selection and never
+  when. "Who" already ships, per-selection as `taken by {firstName}` (`PickCard.tsx:258`)
+  and per-fixture as `Picked by …` (`PickCard.tsx:154`). "When" is absent end to end even
+  though the data has always been there: `Pick` extends `UpdatedAtMixin` → `TimestampMixin`
+  (`pick.py:51`, `base.py:21`), so every row carries `created_at`.
+
+  The smallest item on the list and the only one needing no migration. `_selection_options`
+  (`gameweek.py:403`) builds its taken-map from a `(player_id, name)` tuple; widen it to
+  carry the timestamp, add the field to `SelectionOption` (`gameweek.py:58`) and its mirror
+  in `types.ts:26`, and render it beside the two existing strings.
+
+  The only real decision is presentational and belongs to the product: an absolute time is
+  unambiguous but noisy on a card already carrying a name, a relative one reads better and
+  goes stale in a cached view. Match whatever the coupon already does for the lock
+  countdown rather than introducing a second time idiom, and render in `Europe/London` per
+  the project's scheduling rule.
+
+- [ ] **Batch 39 — Six admin buttons beside a title** — `LeagueActionsMenu`
+  (`LeagueActionsMenu.tsx:90`) is not a menu. It is a flat row of six controls for an admin
+  — Leave, Members, Requests, Invites, Settings, Delete — dropped into `PageHeader`'s
+  action slot (`LeaderboardPage.tsx:42`) beside a `flex-1 min-w-0` title. Batch 22 went at
+  this once and stopped one step short: the slot was `shrink-0`, so the row's own
+  `flex-wrap` never engaged and the buttons ran off the side; the wrapper became
+  `min-w-0 max-w-full` (`PageHeader.tsx:74`) and it wraps now. Wrapping is not fitting. Six
+  chips folding into a narrow column next to a title is the same complaint in a new shape,
+  and the option Batch 22 explicitly declined — "the wrapper is the fix, not the menu" — is
+  the one left standing.
+
+  Make it the overflow menu its name already claims. Promote at most the one or two actions
+  an admin uses on most visits and collapse the rest behind a single trigger. The
+  destructive pair belongs inside, visually separated, and Delete keeps whatever
+  confirmation it has today. The substance of the work is accessibility rather than layout:
+  a real menu needs focus management, Escape to close, and outside-click dismissal, none of
+  which a row of buttons ever needed.
+
+  Frontend-only, no API change. Tests: the collapsed state exposes the trigger and none of
+  the six controls; opening reveals them; Escape closes and returns focus to the trigger; a
+  non-admin's reduced set still renders correctly.
+
+- [ ] **Batch 40 — A round the pick window never reached** — an admin who sets
+  `pick_open_offset_minutes` and finds picks open anyway is seeing the documented rule
+  rather than a bug, but the rule is invisible exactly when it bites. The config path is
+  correct end to end: `league.py:166` → `picks_open_at` (`gameweek.py:109`) → window open
+  minus offset, so a 12-hour offset on a 15:00 Saturday opens claims at 03:00 that morning.
+  The catch is that `picks_open_at_utc` is stamped onto the row **at discovery**
+  (`gameweek.py:335`) and the settings PATCH deliberately does not recompute existing
+  rounds — `leagues.py:873` states why, and the reason is good: an edit must never move a
+  deadline members were already told.
+
+  The consequence is sharper than "it applies from next time". A round discovered before
+  the offset existed has `picks_open_at_utc = NULL`, and `pick_refusal` (`gameweek.py:81`)
+  gates only when the column `is not None`; `picks_open_at` documents `None` as "the
+  pre-Batch-27 rule: claimable from the moment discovery writes it". So such a round is not
+  on an older offset, it has **no gate at all**. With a two-week discovery horizon, every
+  round already on the board when the setting changed behaves this way, which is why the
+  symptom looks like the setting being ignored rather than deferred.
+
+  Decide the product rule before writing code, because two are defensible: leave it, and
+  the setting is honestly forward-only; or let an admin restamp the current round
+  explicitly. If restamping, it is a deliberate admin action with its own confirmation
+  showing the old and new instants — never a silent recompute on PATCH, which is the exact
+  thing `leagues.py:873` forbids — and it needs a guard against retracting a window members
+  are already picking in: refuse once any pick exists on the round, or allow the gate to
+  move earlier only. Either way the settings screen should say what the change does and
+  does not affect; that sentence may be the entire fix.
+
+  Read the actual row before choosing, and note that this is an owner step: the production
+  database is deliberately never attached to MCP (`docs/launch/L0_PROJECT_IDENTITY.md:156`),
+  so confirming whether the current round has a NULL gate needs `railway run` with the
+  production selectors.
+
+- [ ] **Batch 41 — Naming the round** — the coupon shows a date where members expect
+  "Gameweek N", in two places that must move together: the header eyebrow
+  (`CouponPickPage.tsx:178`) and the back/forward control (`GameweekNav.tsx:49`, also
+  mounted by `CouponCombinedPage`). Why only one league appears to show it is not per-league
+  configuration — `GameweekNav.tsx:27` returns `null` below two gameweeks, so the league
+  with history is simply the only one rendering the control at all. Consistency here means
+  deciding whether the label always renders, not finding a setting.
+
+  The blocker is that no number exists anywhere. `Gameweek` (`gameweek.py:55-73`) carries
+  `starts_on`, `status`, `locks_at_utc`, `picks_open_at_utc` and `settled_at`, and
+  `GameweekSummary` (`types.ts:157`) carries none either. Two routes, and the cheap one is
+  now the wrong one. Deriving an ordinal by `starts_on` within a league-season was
+  reasonable until Batch 35: the round a league is on is no longer the newest `starts_on`, a
+  one-off sits mid-sequence, and an ordinal recomputed on every read renumbers every past
+  round the moment an admin inserts a Boxing Day fixture — a member's "Gameweek 12" silently
+  becomes a different week's.
+
+  So store it: a nullable integer stamped at discovery, monotonic per league-season, never
+  reused, with a migration backfilling existing rounds in `starts_on` order. A one-off round
+  then simply takes the next number, which is honest — it is the next round played — and
+  history stays stable. The number is a display concern only; nothing in locking, settlement
+  or scoring may key on it. Two questions to settle first: what a one-off is called if
+  anything distinguishes it, and whether the sequence resets at a season boundary
+  (`current_season`, `football_provider.py:173`, already defines that boundary).
+
+- [ ] **Batch 42 — Profile pictures** — the largest of these and the only one that is new
+  capability rather than a defect. The Coupon has never had avatars: `Profile`
+  (`profile.py:34`) has no column, both API surfaces hardcode `avatar_url=None` with the
+  comment "avatars not modelled in The Coupon spine" (`league_memberships.py:181`,
+  `leagues.py:809`), and `avatar.tsx` is display-only with an initials fallback. That is a
+  recorded decision rather than a regression — `LAUNCH_PLAN.md:113` documents that the
+  frontend called `/api/v1/auth/me/avatar` against an API with no such route or field, and
+  the MVP action was to strip the upload controls and keep initials; it shipped that way in
+  Launch L1 (`STATUS.md:344`).
+
+  Restoring it is four pieces, and the storage decision governs the rest. Supabase is
+  already the database provider (`docs/launch/L0_PROJECT_IDENTITY.md:156`), so Supabase
+  Storage is the obvious bucket — and it needs its own access rules written deliberately,
+  because migrations `003` and `004` locked the public schema and the Data API down on
+  purpose and a storage bucket must not quietly reopen what those closed. Then: a nullable
+  column on `Profile` with a migration; an upload endpoint with a size cap, a content-type
+  allowlist, and server-side re-encoding rather than trusting the uploaded bytes; the two
+  hardcoded `avatar_url=None` sites reading the column; and an upload control that keeps
+  `avatar.tsx`'s initials fallback for members who never set one.
+
+  Scope it deliberately rather than by analogy to another project. An avatar is a
+  user-supplied image shown to every member of a league, which brings moderation and
+  deletion into the MVP: at minimum an admin path to remove one and a member path to clear
+  their own. Nothing above it in this list depends on it.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
