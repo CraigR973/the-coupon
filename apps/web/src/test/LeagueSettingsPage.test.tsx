@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { LeagueProvider } from '@/contexts/LeagueContext';
 import { LeagueSettingsPage } from '@/pages/LeagueSettingsPage';
 
 // sonner needs a <Toaster/> to render; the page only calls toast.*, so stub it out.
@@ -69,6 +70,11 @@ function stubApi(catalogue?: Record<string, unknown>, window: Record<string, unk
   };
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
     const method = init.method ?? 'GET';
+    // Before the `/leagues/{slug}` matcher below, which this URL also satisfies.
+    // `LeagueProvider` wraps the page since Batch 34 and needs a list, not a detail.
+    if (url.includes('/leagues/mine')) {
+      return json([{ slug: 'the-coupon', name: 'The Coupon' }]);
+    }
     if (url.includes('/competitions')) {
       return json(
         catalogue ?? {
@@ -105,9 +111,11 @@ function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/leagues/the-coupon/admin/settings']}>
       <QueryClientProvider client={qc}>
-        <Routes>
-          <Route path="/leagues/:slug/admin/settings" element={<LeagueSettingsPage />} />
-        </Routes>
+        <LeagueProvider>
+          <Routes>
+            <Route path="/leagues/:slug/admin/settings" element={<LeagueSettingsPage />} />
+          </Routes>
+        </LeagueProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );

@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Share2, ChevronDown, RefreshCw } from 'lucide-react';
-import { API_BASE, apiFetch, DEFAULT_LEAGUE_SLUG } from '@/lib/api';
+import { API_BASE, apiFetch } from '@/lib/api';
+import { useRouteLeague } from '@/hooks/useRouteLeague';
 import type { LeagueDetail, LeagueInvite } from '@/lib/types';
 import { buildInviteMessage, shareInvite } from '@/lib/invite';
 import { getAccessToken } from '@/lib/tokens';
@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/PageHeader';
 
 export function LeagueAdminInvitesPage() {
-  const { slug = DEFAULT_LEAGUE_SLUG } = useParams<{ slug: string }>();
+  const { slug } = useRouteLeague();
   const queryClient = useQueryClient();
   const [isSharing, setIsSharing] = useState(false);
   const [isRotating, setIsRotating] = useState(false);

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { apiFetch, DEFAULT_LEAGUE_SLUG } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
+import { useRouteLeague } from '@/hooks/useRouteLeague';
 import type {
   AdHocGameweekResult,
   CompetitionCatalogue,
@@ -33,7 +34,7 @@ const SELECT_CLASS =
   'text-sm text-text-primary font-sans focus:outline-none focus:ring-2 focus:ring-primary';
 
 export function LeagueSettingsPage() {
-  const { slug = DEFAULT_LEAGUE_SLUG } = useParams<{ slug: string }>();
+  const { slug } = useRouteLeague();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 

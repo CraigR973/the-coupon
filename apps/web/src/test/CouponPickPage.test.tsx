@@ -417,6 +417,32 @@ describe('CouponPickPage', () => {
     expect(await screen.findByTestId('league-switch-strip')).toBeTruthy();
   });
 
+  // ── Batch 34: switching without leaving the surface ───────────────────────
+
+  it('switches league without leaving the pick screen', async () => {
+    const second = { ...MOCK_LEAGUE, slug: 'friends-league', name: 'Friends League' };
+    vi.stubGlobal('fetch', (url: string) => {
+      if (String(url).includes('/gameweek/current')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(SLATE) });
+      }
+      if (String(url).includes('/gameweeks')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(GAMEWEEKS) });
+      }
+      if (String(url).includes('/leagues/mine')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([MOCK_LEAGUE, second]) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+
+    renderPage();
+    await screen.findByTestId('league-switch-strip');
+    // Not `/leagues/friends-league/leaderboard`: a member changing league mid-pick is
+    // choosing a different slate to play, not asking to read the standings.
+    expect(screen.getByTitle('Open Friends League').getAttribute('href')).toBe(
+      '/leagues/friends-league/predictions',
+    );
+  });
+
   it('does not fire the slate query and shows the no-league state for a member of no league', async () => {
     const fetchMock = vi.fn((url: string) => {
       if (String(url).includes('/leagues/mine')) {

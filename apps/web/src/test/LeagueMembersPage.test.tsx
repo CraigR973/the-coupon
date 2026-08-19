@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { LeagueProvider } from '@/contexts/LeagueContext';
 import { LeagueMembersPage } from '@/pages/LeagueMembersPage';
 
 vi.mock('@/contexts/AuthContext', () => ({
@@ -41,12 +42,14 @@ function renderPage() {
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
       <MemoryRouter initialEntries={['/leagues/the-coupon/admin/members']}>
-        <Routes>
-          <Route
-            path="/leagues/:slug/admin/members"
-            element={<LeagueMembersPage />}
-          />
-        </Routes>
+        <LeagueProvider>
+          <Routes>
+            <Route
+              path="/leagues/:slug/admin/members"
+              element={<LeagueMembersPage />}
+            />
+          </Routes>
+        </LeagueProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -66,6 +69,15 @@ describe('LeagueMembersPage', () => {
           ok: true,
           status: 204,
           json: () => Promise.resolve(undefined),
+        });
+      }
+      // `LeagueProvider` wraps the page since Batch 34; without its own answer it
+      // would read the member list as the member's leagues.
+      if (String(_url).includes('/leagues/mine')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve([{ slug: 'the-coupon', name: 'The Coupon' }]),
         });
       }
       return Promise.resolve({

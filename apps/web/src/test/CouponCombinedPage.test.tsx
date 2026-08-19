@@ -77,11 +77,11 @@ function stubFetch(leagues: unknown[] = [MOCK_LEAGUE]) {
   });
 }
 
-function renderPage() {
+function renderPage(entry = '/leagues/the-coupon/predictions/coupon') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/leagues/the-coupon/predictions/coupon']}>
+      <MemoryRouter initialEntries={[entry]}>
         <AuthProvider>
           <LeagueProvider>
             <Routes>
@@ -115,6 +115,34 @@ describe('CouponCombinedPage — league identity', () => {
     stubFetch([MOCK_LEAGUE, second]);
     renderPage();
     expect(await screen.findByTestId('league-switch-strip')).toBeTruthy();
+  });
+
+  /**
+   * Presence is not the property that matters, and asserting it alone is how the
+   * strip kept `LeaderboardPage`'s destination through two batches aimed here: it
+   * rendered on the coupon and pointed away from it, so switching league meant
+   * leaving the surface you were reading. Assert where it goes.
+   */
+  it('switches league without leaving the combined coupon', async () => {
+    const second = { ...MOCK_LEAGUE, slug: 'friends-league', name: 'Friends League' };
+    stubFetch([MOCK_LEAGUE, second]);
+    renderPage();
+
+    await screen.findByTestId('league-switch-strip');
+    const link = screen.getByTitle('Open Friends League');
+    expect(link.getAttribute('href')).toBe('/leagues/friends-league/predictions/coupon');
+  });
+
+  it('drops the browsed gameweek when switching league', async () => {
+    // `?gw=` names a round of the league being left; the destination 404s on it and
+    // renders "No coupon this week yet" — a worse landing than the standings were.
+    const second = { ...MOCK_LEAGUE, slug: 'friends-league', name: 'Friends League' };
+    stubFetch([MOCK_LEAGUE, second]);
+    renderPage('/leagues/the-coupon/predictions/coupon?gw=gw-owned-by-the-coupon');
+
+    await screen.findByTestId('league-switch-strip');
+    const link = screen.getByTitle('Open Friends League');
+    expect(link.getAttribute('href')).toBe('/leagues/friends-league/predictions/coupon');
   });
 
   it('shows the no-league state and skips the coupon query for a member of no league', async () => {

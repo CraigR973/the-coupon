@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useLeague } from '@/contexts/LeagueContext';
+import { leagueSwitchPath } from '@/lib/leagues';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -28,9 +29,15 @@ function saveScrollOffset(offset: number): void {
  * league's own address, and binding the context is the destination's job
  * (`useRouteLeague`) rather than this strip's — a nav component that quietly
  * rewrote which league the app was on was a side effect waiting to be forgotten.
+ *
+ * Where an entry points is `leagueSwitchPath`'s decision, taken from the current
+ * pathname: a switch keeps the reader on the surface they are already on. Deriving
+ * it here rather than at the five call sites means a league-scoped surface added
+ * later is switchable without touching this file.
  */
 export function LeagueSwitchStrip({ currentSlug, className }: Props) {
   const { leagues } = useLeague();
+  const { pathname } = useLocation();
   const navRef = useRef<HTMLElement | null>(null);
 
   useLayoutEffect(() => {
@@ -59,8 +66,11 @@ export function LeagueSwitchStrip({ currentSlug, className }: Props) {
         <p className="text-[10px] font-mono uppercase tracking-[0.24em] text-text-primary">
           Your leagues
         </p>
+        {/* Surface-neutral on purpose: the strip sits on the coupon, the results and
+            the football tables as well as the standings, and since Batch 34 a tap
+            keeps the reader on whichever of those they are reading. */}
         <span className="rounded-full border border-border/80 bg-surface px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted">
-          Jump between tables
+          Tap to switch
         </span>
       </div>
       <nav
@@ -88,7 +98,7 @@ export function LeagueSwitchStrip({ currentSlug, className }: Props) {
             ) : (
               <Link
                 key={league.slug}
-                to={`/leagues/${league.slug}/leaderboard`}
+                to={leagueSwitchPath(league.slug, pathname)}
                 onClick={persistScrollPosition}
                 className={cn(
                   'inline-flex max-w-[13rem] items-center rounded-full border px-3.5 py-1.5 text-xs font-medium font-sans whitespace-nowrap transition-colors press-down shadow-sm',

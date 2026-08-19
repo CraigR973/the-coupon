@@ -52,6 +52,31 @@ function predictionsSection(pathname: string): PredictionsSection | null {
 }
 
 /**
+ * Where `slug`'s equivalent of `pathname` lives — the destination of a league switch.
+ *
+ * A switch changes which league you are looking at, not what you are looking at: a
+ * member comparing two leagues' combined coupons should land on the other league's
+ * combined coupon. Until Batch 34 every entry in the switcher pointed at the
+ * leaderboard, because the strip was written for that page and kept its destination
+ * when Batch 29 mounted it on the four coupon surfaces.
+ *
+ * Anything that is not a coupon surface falls back to the leaderboard, which is the
+ * league's front door — `LeagueHomeRedirect` sends bare `/leagues/:slug` there too.
+ * That fallback is deliberate rather than lazy: swapping the slug segment of an
+ * arbitrary path would carry a foreign player id into `/leagues/:slug/players/:id`
+ * and assume admin of the target on `/admin/*`.
+ *
+ * Returns a path and never a search string. A gameweek id is league-scoped and
+ * `resolve_gameweek` 404s on a foreign one, so carrying `?gw=` across a switch would
+ * land the reader on "No coupon this week yet" — `GameweekNav` guards its own label
+ * against that id, but nothing guards the query.
+ */
+export function leagueSwitchPath(slug: string, pathname: string): string {
+  const section = predictionsSection(pathname);
+  return section === null ? `/leagues/${slug}/leaderboard` : predictionsPath(slug, section);
+}
+
+/**
  * The three navigation predicates the bars share.
  *
  * Slug-agnostic on purpose: the Coupon tab highlights for *any* league's coupon,

@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { apiFetch, DEFAULT_LEAGUE_SLUG } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
+import { useRouteLeague } from '@/hooks/useRouteLeague';
 import type { LeagueMember } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/dialog';
 
 export function LeagueMembersPage() {
-  const { slug = DEFAULT_LEAGUE_SLUG } = useParams<{ slug: string }>();
+  const { slug } = useRouteLeague();
   const { player } = useAuth();
   const queryClient = useQueryClient();
   const [actingOn, setActingOn] = useState<string | null>(null);

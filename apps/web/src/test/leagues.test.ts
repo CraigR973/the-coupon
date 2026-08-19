@@ -3,6 +3,7 @@ import {
   isCouponPath,
   isFootballPath,
   isLeagueHubPath,
+  leagueSwitchPath,
   predictionsPath,
   privacyLabel,
   PRIVACY_LABELS,
@@ -53,6 +54,52 @@ describe('predictionsPath', () => {
   it('falls back to the slug-less path when no league is bound yet', () => {
     expect(predictionsPath(null)).toBe('/predictions');
     expect(predictionsPath(null, '/football')).toBe('/predictions/football');
+  });
+});
+
+describe('leagueSwitchPath', () => {
+  it('keeps the reader on the coupon surface they are already on', () => {
+    expect(leagueSwitchPath('friends', '/leagues/the-coupon/predictions')).toBe(
+      '/leagues/friends/predictions',
+    );
+    expect(leagueSwitchPath('friends', '/leagues/the-coupon/predictions/coupon')).toBe(
+      '/leagues/friends/predictions/coupon',
+    );
+    expect(leagueSwitchPath('friends', '/leagues/the-coupon/predictions/results')).toBe(
+      '/leagues/friends/predictions/results',
+    );
+    expect(leagueSwitchPath('friends', '/leagues/the-coupon/predictions/football')).toBe(
+      '/leagues/friends/predictions/football',
+    );
+  });
+
+  it('sends every other surface to the target league’s front door', () => {
+    expect(leagueSwitchPath('friends', '/leagues/the-coupon/leaderboard')).toBe(
+      '/leagues/friends/leaderboard',
+    );
+    // Not the equivalent admin page: admin of one league is not admin of another.
+    expect(leagueSwitchPath('friends', '/leagues/the-coupon/admin/settings')).toBe(
+      '/leagues/friends/leaderboard',
+    );
+    // Not the equivalent player page either: the id belongs to the league being left.
+    expect(leagueSwitchPath('friends', '/leagues/the-coupon/players/p1')).toBe(
+      '/leagues/friends/leaderboard',
+    );
+  });
+
+  it('switches correctly from a slug-less coupon path mid-redirect', () => {
+    expect(leagueSwitchPath('friends', '/predictions/coupon')).toBe(
+      '/leagues/friends/predictions/coupon',
+    );
+  });
+
+  it('never returns a query string', () => {
+    // A gameweek id is league-scoped and `resolve_gameweek` 404s on a foreign one, so
+    // carrying `?gw=` across a switch would land on the empty state. The pathname is
+    // all this takes, so there is nothing for a search string to leak through.
+    expect(leagueSwitchPath('friends', '/leagues/the-coupon/predictions/coupon')).not.toContain(
+      '?',
+    );
   });
 });
 

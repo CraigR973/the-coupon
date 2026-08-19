@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { apiFetch, DEFAULT_LEAGUE_SLUG } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
+import { useRouteLeague } from '@/hooks/useRouteLeague';
 import type { JoinRequest } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/PageHeader';
 
 export function LeagueJoinRequestsPage() {
-  const { slug = DEFAULT_LEAGUE_SLUG } = useParams<{ slug: string }>();
+  const { slug } = useRouteLeague();
   const queryClient = useQueryClient();
   const [actingOn, setActingOn] = useState<string | null>(null);
 
