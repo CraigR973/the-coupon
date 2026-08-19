@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-33 are closed. The Coupon is a verified
+Batches 1-34 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -16,8 +16,18 @@ fixture once per run rather than once per league holding it. Batch 32 gave a
 member a per-league mute alongside the existing global mute and quiet hours,
 so a member in several leagues can turn off one without losing the rest — the
 flag lives on `league_memberships`, not a new table, so it dies with the
-membership. All 33 batches are now closed on `main`; Launch phase L5 is the
-remaining work.
+membership. Batch 34 made the league switcher keep the reader on the surface
+they are on: it had pointed every league at its leaderboard, so a member in two
+leagues could not change which league's coupon they were reading. All 34 batches
+are now closed on `main`; Launch phase L5 is the remaining build work.
+
+Batch 35 is drafted but not yet in `docs/BUILD_PLAN.md` — a one-off round
+(`POST /leagues/{slug}/gameweeks`) is the one admin action never audited against
+the multi-league contract. A future one-off becomes that league's "this week"
+everywhere while its sibling leagues still show Saturday; the endpoint's
+`6/hour` limit permits ~180 provider requests an hour against a 100/hour
+allowance; the ad-hoc fetch buys ~30 competitions to keep as few as one; and a
+one-off is never refreshed after creation.
 
 Batch 6 completed the product rebrand, removed inherited surfaces, corrected
 the frontend auth and invite wiring, and added a deterministic production-
@@ -360,9 +370,10 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-Batch 32 — per-league notification preferences — is the only unchecked build
-batch left in `docs/BUILD_PLAN.md`. Launch L5 — launch and first-Saturday
-watch — is the remaining launch work. Batch 7 shipped the odds source.
+No unchecked build batch is left in `docs/BUILD_PLAN.md` — Batch 34 closed the
+last one. Batch 35 is drafted and needs scoping into the plan before it can be
+started. Launch L5 — launch and first-Saturday watch — is the remaining launch
+work. Batch 7 shipped the odds source.
 Production is now deployed and configured through Batch 22; Batches 23–27 are
 on local `main` pending a `/ship-prod` for the API contract changes from
 Batches 23, 25, 26 and 27 (Batch 24 is frontend-only). That ship-prod is

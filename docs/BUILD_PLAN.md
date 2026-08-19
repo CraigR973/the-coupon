@@ -608,7 +608,7 @@ answered until it lands, because until then there is no data to look at.
   unshipped; the tab stays dark until `/ship-prod` carries it and a
   `sync-football` run follows.
 
-- [ ] **Batch 34 — Switching league without leaving the coupon** — a member in two
+- [x] **Batch 34 — Switching league without leaving the coupon** ✅ 2026-08-19 *(Opus)* — a member in two
   leagues cannot change which league's coupon they are looking at.
   `LeagueSwitchStrip` hardcodes every entry to that league's
   `/leagues/{slug}/leaderboard`, and all four coupon surfaces mount it, so tapping

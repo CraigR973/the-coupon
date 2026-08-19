@@ -753,3 +753,32 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   work is launch phase L5.
 
 **Next:** Launch phase L5 — Launch and first-Saturday watch.
+
+## Batch 34 — Switching league without leaving the coupon
+**Commits:** `f97aa2b` (scoped in `6244575`) · verified: `scripts/ci-local.sh` PASS (11 checks) — ruff check/format, mypy, `alembic upgrade head` + pytest on scratch pgserver, deployment-config assertions, pnpm lint/typecheck/test/build (39 files / 314 tests), Playwright prod-bundle deep-link smoke. Run twice: after implementation and again against the exact tree committed. Frontend-only batch.
+
+### Key facts for future sessions
+- `leagueSwitchPath(slug, pathname)` in `lib/leagues.ts` is the whole rule: a league switch keeps
+  the reader on the surface they are on. `LeagueSwitchStrip` derives it from `useLocation()` rather
+  than taking it per call site, so a league-scoped surface added later is switchable without
+  touching the component or its five mount points.
+- **It takes a pathname and returns a path, and that is the `?gw=` guard** — structural, not
+  remembered. A gameweek id is league-scoped and `resolve_gameweek` 404s on a foreign one, so
+  "preserving state" across a switch would land on the empty state. Anyone widening the signature
+  to a `Location` reopens the bug.
+- Non-coupon surfaces fall back to the leaderboard deliberately, not lazily. A blanket slug-swap of
+  the pathname is the tempting general form and is wrong: it carries a foreign player id into
+  `/leagues/:slug/players/:id` and assumes admin of the target on `/admin/*`.
+- The four `/admin/*` pages now call `useRouteLeague`, which pulls in `LeagueContext` — so their
+  test harnesses need `LeagueProvider`. In `LeagueSettingsPage.test.tsx` the `/leagues/mine` matcher
+  must sit **before** `/api/v1/leagues/[^/]+$`, which also matches it; serving a league *detail*
+  where the context expects an array throws inside `activeSlug` on `leagues.some`, nowhere legible.
+- Assert destination, not presence. `findByTestId('league-switch-strip')` was the only assertion
+  either coupon test made, which is exactly how the leaderboard destination survived Batches 29 and
+  30 — both aimed at this area.
+- Two gaps left open on purpose: the leaderboard branch is covered in `leagues.test.ts` only (no
+  `LeaderboardPage.test.tsx` exists and a harness for one href was disproportionate), and there is
+  no browser check — it needs a two-league authenticated session, which `coupon-flow` does not seed
+  and the prod-bundle smoke never reaches.
+
+**Next:** Launch phase L5 — Launch and first-Saturday watch. Batch 35 (a one-off round in a multi-league game — current-round semantics, the ad-hoc rate limit sitting above the provider quota, narrowing the ad-hoc fetch by competition selection, and the never-refreshed one-off) is drafted but not yet in `BUILD_PLAN.md`.
