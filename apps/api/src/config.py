@@ -7,6 +7,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PLACEHOLDER_SECRETS = {"change-me-access", "change-me-refresh"}
 _MIN_SECRET_LEN = 32
+#: Shortest value :meth:`Settings.secret_values` will hand the log redactor. Well below
+#: `_MIN_SECRET_LEN` because provider API keys are not held to the JWT secrets' length
+#: rule — odds-api.io and api-football both issue keys shorter than 32 characters.
+_MIN_REDACTABLE_SECRET = 8
 
 
 def _private_file_error(path_value: str, field_name: str) -> str | None:
@@ -177,6 +181,35 @@ class Settings(BaseSettings):
 
     # Background scheduler (APScheduler) — disable in tests / one-off scripts.
     scheduler_enabled: bool = True
+
+    def secret_values(self) -> tuple[str, ...]:
+        """Every configured secret whose literal value must never reach a log line.
+
+        Fed to :func:`~src.logging_config.configure_logging`, which redacts these from
+        rendered output whatever produced them. That is deliberately broader than the
+        one leak it was written for — odds-api.io takes its key as a query parameter
+        (``odds_api.py``), so any library that logs a request URL leaks it, and httpx
+        did exactly that at INFO for months.
+
+        Values shorter than :data:`_MIN_REDACTABLE_SECRET` are excluded. A short string
+        appears inside unrelated log text by coincidence, and redacting it would corrupt
+        lines rather than protect anything; no real credential here is that short. An
+        unset secret is the empty string and is excluded by the same rule.
+
+        Sorted longest first so that a secret containing another as a substring is
+        replaced before its own substring can partially mask it.
+        """
+        candidates = (
+            self.jwt_access_secret,
+            self.jwt_refresh_secret,
+            self.vapid_private_key,
+            self.odds_api_key,
+            self.football_api_key,
+            self.bf_app_key,
+            self.bf_pass,
+        )
+        unique = {value for value in candidates if len(value) >= _MIN_REDACTABLE_SECRET}
+        return tuple(sorted(unique, key=len, reverse=True))
 
     @model_validator(mode="after")
     def _apply_deprecated_fake_mode(self) -> "Settings":

@@ -29,7 +29,7 @@ from src.scheduler import create_scheduler
 from src.services.football_session import football_session
 from src.services.odds_session import odds_session
 
-configure_logging(settings.log_level)
+configure_logging(settings.log_level, settings.secret_values())
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 assert settings.environment is not None

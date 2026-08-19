@@ -192,3 +192,51 @@ def test_docs_urls_enabled_outside_production() -> None:
     assert urls["docs_url"] == "/api/docs"
     assert urls["redoc_url"] == "/api/redoc"
     assert urls["openapi_url"] == "/api/openapi.json"
+
+
+# ── Secrets handed to the log redactor ────────────────────────────────────────
+
+
+def test_secret_values_collects_every_configured_credential(tmp_path: Path) -> None:
+    settings = _build_settings(
+        tmp_path,
+        odds_api_key="odds-api-key-long-enough",
+        football_api_key="football-api-key-long-enough",
+    )
+    values = settings.secret_values()
+
+    assert "odds-api-key-long-enough" in values
+    assert "football-api-key-long-enough" in values
+    assert "a" * 32 in values  # jwt_access_secret
+    assert "b" * 32 in values  # jwt_refresh_secret
+
+
+def test_secret_values_excludes_unset_and_short_values(tmp_path: Path) -> None:
+    """A short or empty secret must not be redacted.
+
+    An unset credential is `""`, and replacing the empty string would rewrite every
+    character boundary in the line. A very short one would blank out unrelated words
+    that happen to contain it. Neither is a credential worth protecting anyway.
+    """
+    settings = _build_settings(tmp_path, odds_api_key="short", football_api_key="")
+    values = settings.secret_values()
+
+    assert "" not in values
+    assert "short" not in values
+    assert all(len(value) >= 8 for value in values)
+
+
+def test_secret_values_orders_longest_first(tmp_path: Path) -> None:
+    """A secret containing another as a substring must be replaced first.
+
+    Redacting the shorter one first would leave the longer one's remaining characters
+    on the line — a partial secret, which reads as safe and is not.
+    """
+    settings = _build_settings(
+        tmp_path,
+        odds_api_key="shared-prefix-secret",
+        football_api_key="shared-prefix-secret-with-more",
+    )
+    values = settings.secret_values()
+
+    assert list(values) == sorted(values, key=len, reverse=True)
