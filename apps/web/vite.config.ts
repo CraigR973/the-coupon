@@ -9,6 +9,11 @@ export default defineConfig({
     globals: true,
     setupFiles: ['src/test/setup.ts'],
     exclude: ['**/node_modules/**', '**/e2e/**'],
+    // Comfortably above the 5000ms Testing Library wait configured in `setup.ts`, so a
+    // wait that genuinely exhausts itself reports *that* rather than tripping the test
+    // timeout at the same instant and blaming the test. The default 5000ms was itself a
+    // flake source: a slow render plus one retried wait already exceeded it.
+    testTimeout: 15000,
   },
   plugins: [
     react(),
