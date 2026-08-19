@@ -763,7 +763,7 @@ answered until it lands, because until then there is no data to look at.
   record contains the key. A test that only asserts a log level passes the day someone
   adds a second HTTP client.
 
-- [ ] **Batch 37 — A division that resolves to the Premier League** — the Football tab is
+- [x] **Batch 37 — A division that resolves to the Premier League** ✅ 2026-08-20 *(Opus)* — the Football tab is
   empty and every club's position/form strip is blank, and neither is a data-availability
   problem. Production is configured correctly: `FOOTBALL_DATA_PROVIDER=apifootball`, the
   exact literal `config.py:58` accepts, with `FOOTBALL_API_KEY` set. Coverage — the

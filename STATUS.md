@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-36, 38 and 39 are closed. The Coupon is a verified
+Batches 1-39 except 40 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -55,14 +55,20 @@ field is additive and optional on the client, because Vercel deploys the web app
 from `main` while the API waits for `/ship-prod` — a renamed or required field
 would break the coupon in that gap.
 
-Investigation on 2026-08-19 also reconciled seven reported snags into Batches
-36-42 (`docs/BUILD_PLAN.md`). Two findings changed the picture: the football tab
-is empty because competition matching resolves lower English divisions to the
-*Premier League* — `SUBSET_SCORE` treats "Premier League" as a token subset of
-"Southern League Premier Division South" — and not for want of coverage, since a
-catalogue probe confirmed the free plan carries every British division needed for
-season 2026, closing the question Batch 33 left open. Batch 40 is deferred
-pending a product decision.
+Batch 37 stopped a lower division resolving to the Premier League. `similarity`
+awarded a flat subset bonus whenever one name's tokens sat inside the other's,
+so "Southern League, Premier Division South" scored 0.950 against England's top
+flight and 0.800 against its real counterpart — the wrong answer above threshold
+and the right one below it, confidently and uniquely, so no ambiguity margin
+could catch it. The bonus is now withheld on the competition path only (it is
+load-bearing for club names), `MATCH_MARGIN` is applied where it never was, and
+four divisions the two catalogues do not name alike carry an explicit override
+read from both live catalogues. Coverage was never the problem: a probe on
+2026-08-19 confirmed the free plan carries every British division for season
+2026, closing the question Batch 33 left open. **The tab stays empty until the
+mis-ingested rows are cleared and a corrective sweep runs — that data work was
+excluded from the batch and is still owed.** Batch 40 remains deferred pending a
+product decision.
 
 Batch 6 completed the product rebrand, removed inherited surfaces, corrected
 the frontend auth and invite wiring, and added a deterministic production-
@@ -410,9 +416,8 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries three unchecked batches: **37** (the competition
-matcher, which also fixes the blank form/position strip), **41** (gameweek
-numbering) and **42** (profile pictures, code-only against no storage bucket).
+`docs/BUILD_PLAN.md` carries two unchecked batches: **41** (gameweek numbering)
+and **42** (profile pictures, code-only against no storage bucket).
 Batch 40 is deferred
 pending a decision on whether `pick_open_offset_minutes` stays forward-only or
 gains an admin restamp. Two items sit outside the batches and are owner actions:

@@ -896,3 +896,38 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   41 DB-backed tests silently, so a green plain-pytest run proves less than it looks.
 
 **Next:** Batch 37 — A division that resolves to the Premier League.
+
+## Batch 37 — A division that resolves to the Premier League
+**Commits:** 42be031 · verified: `scripts/ci-local.sh` PASS (11 checks)
+
+### Key facts for future sessions
+- **The tab is still empty after this ships, and that is expected.** The code no longer
+  mis-resolves, but production already holds rows written under the wrong id: `upsert_teams`
+  moves a club's `competition_id` to wherever it was last seen, so Premier League clubs and
+  tables sit against non-League competitions and genuine clubs may have been dragged out of
+  correctly-matched ones. **The affected competitions' teams and standings must be cleared
+  before a corrective `sync-football` sweep.** That data work was deliberately excluded from
+  this batch and is still owed.
+- **Coverage is not the problem and the Batch 33 question is closed.** A catalogue probe on
+  2026-08-19 returned 1240 leagues, 46 English, 24 carrying season 2026, including National
+  League North/South (50/51) and all four Non League Premier divisions (58/59/931/60).
+- `similarity(..., allow_subset=False)` is the fix, not a lower `SUBSET_SCORE`. The bonus is
+  load-bearing for clubs ("Inverness Caledonian" for "…Thistle"); lowering it there unmatches
+  real clubs. One flag, two opposite truths — a shorter *club* name is an abbreviation, a
+  shorter *competition* name is a different competition.
+- `league_id_for` now applies `MATCH_MARGIN` as well as `MATCH_THRESHOLD`. It never did,
+  despite `similarity`'s docstring saying the subset score leans on that guard — the guard
+  lived only in `best_match`, which the competition path does not use.
+- **An override answers before `_all_leagues()` is called**, so an overridden competition
+  costs zero catalogue requests. Both sides of the four entries were read from the live
+  odds-api.io and api-football catalogues on 2026-08-19, not inferred from a spelling rule.
+  Slugs are odds-api.io's (`england-amateur-southern-league-premier-division-south`).
+- The National League regional slugs are **absent from the override table on purpose** —
+  they normalise to an exact match, and listing them would imply they were broken.
+- The old `LEAGUES` test fixture had no "Premier League" row, which is why no test caught
+  this: the wrong answer was not in the candidate list. `ENGLISH_PYRAMID` now mirrors the
+  real catalogue, and the regression test asserts `!= "39"` explicitly.
+- Nothing was needed on the frontend. `PickCard` has rendered position and form since Batch
+  16 and hides the strip only when a club has neither.
+
+**Next:** Batch 41 — Naming the round.
