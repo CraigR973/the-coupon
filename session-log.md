@@ -842,3 +842,27 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   re-enabled logger), so spending a live request to confirm it was not worth the quota.
 
 **Next:** Batch 39 — Six admin buttons beside a title.
+
+## Batch 39 — Six admin buttons beside a title
+**Commits:** de5b3a6 · verified: pinned ruff 0.5.4 check + format, mypy (59 files), pytest 425 passed/117 skipped, web lint/typecheck/build/test (319 passed, +4)
+
+### Key facts for future sessions
+- **A member deliberately keeps a plain `Leave` button; only an admin gets the menu.** One
+  button beside a title never overflowed, so collapsing it would cost a tap and save no width.
+  The header therefore renders differently by role, which is intended rather than an oversight.
+- The existing `ui/dropdown-menu.tsx` Radix primitive was already in the repo and unused by this
+  component. It supplies focus management, Escape-to-close and outside-click dismissal, which is
+  the substance of the batch — a row of buttons needed none of them.
+- `DropdownMenuItem asChild` around a `Link` renders the anchor **as the menuitem**, so the items
+  are `getByRole('menuitem')` and still carry `href`. Tests that looked for
+  `getByRole('link', …)` no longer match; that is what the old admin test asserted.
+- Radix's dropdown needed **no** jsdom shims here (no `hasPointerCapture`/`scrollIntoView`
+  stubbing) — `userEvent.click` on the trigger opens it as-is. Worth knowing before adding
+  polyfills to `test/setup.ts` for a future Radix component.
+- `PageHeader.tsx`'s `min-w-0 max-w-full` action wrapper from Batch 22 was left alone. It is
+  harmless with a single trigger and still correct for other pages using the slot.
+- Not browser-verified: the component only renders for a signed-in league admin, and reaching
+  that state needs credentials. Behaviour is covered by unit tests (collapsed, opened, Escape +
+  focus return, and the delete dialog still gating deletion).
+
+**Next:** Batch 38 — When a pick was taken.

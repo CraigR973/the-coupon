@@ -839,7 +839,7 @@ answered until it lands, because until then there is no data to look at.
   countdown rather than introducing a second time idiom, and render in `Europe/London` per
   the project's scheduling rule.
 
-- [ ] **Batch 39 — Six admin buttons beside a title** — `LeagueActionsMenu`
+- [x] **Batch 39 — Six admin buttons beside a title** ✅ 2026-08-19 *(Opus)* — `LeagueActionsMenu`
   (`LeagueActionsMenu.tsx:90`) is not a menu. It is a flat row of six controls for an admin
   — Leave, Members, Requests, Invites, Settings, Delete — dropped into `PageHeader`'s
   action slot (`LeaderboardPage.tsx:42`) beside a `flex-1 min-w-0` title. Batch 22 went at
