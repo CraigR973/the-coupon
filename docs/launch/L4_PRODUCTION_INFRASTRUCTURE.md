@@ -9,9 +9,10 @@ phase complete. Only `/launch-closeout L4` may close the gate.
 > evidence — it describes what was true when the gate was verified
 > (2026-07-31 to 2026-08-03), not what is true now. In particular, statements
 > that migration `004` is "the repository's sole head" were accurate then; the
-> head is now `011`. For current deployment IDs, migration head, and rollback
-> baselines, read **Shipment history** near the end and treat it as
-> authoritative wherever it disagrees with the dated sections.
+> head is now `013`. Do not maintain that number here — it went stale at `011`
+> while three migrations shipped past it. For current deployment IDs, migration
+> head, and rollback baselines, read **Shipment history** near the end and treat
+> it as authoritative wherever it disagrees with the dated sections.
 
 ## Approved budget and owner boundary
 
@@ -600,6 +601,16 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-08-17 | Railway `api` | `c5426392-ac0a-496d-b251-452596d490ca` | `dae9c953` (Batch 30) | `012` |
 | 2026-08-18 | Railway `api` | `492037b0-5925-4c94-b59a-88fe4c17911a` | `a1f01dd` (Batches 31–32) | **`013`** |
 | 2026-08-18 | Vercel web | `dpl_VAeKEfvhKUgyFDno1SkGWB5hTXTa` | `a1f01dd` | — |
+| 2026-08-19 | Railway `api` | `1765f0aa-493f-4123-aeed-4657047d2ab5` | `0bc699a4` (Batch 35) | `013` |
+| 2026-08-19 | Vercel web | `dpl_iH9P5dbpRRdjBo3ihXgodfdpqCDg` | `0bc699a4` | — |
+
+The 2026-08-19 shipment carries Batch 35 and is the **first API deployment since
+`013` that applies no migration**, which is what restores the rollback target the
+entry below had recorded as absent. Its Vercel row is the GitHub-linked
+auto-deploy, which already held the stable alias when `/ship-prod` ran, so
+section 4 was skipped by design; the deployment's `githubCommitSha` was read from
+the Vercel API to confirm it carried the shipped commit rather than inferred from
+timing.
 
 The 2026-08-18 shipment carries Batch 31 (settlement cost) and Batch 32
 (per-league notification mute, migration `013`) to production in one API
@@ -631,19 +642,36 @@ explicit CLI path ran instead (see above).
 
 ### Current rollback baselines
 
-Updated after the 2026-08-18 shipment of `a1f01dd` (migration `013`).
+Updated after the 2026-08-19 shipment of `0bc699a4` (Batch 35, migration `013`).
 
 | Stack | Roll back to |
 | --- | --- |
-| Railway `api` | **Nothing. There is no API rollback at head `013`.** See below — this is not a caveat, it is the state. |
-| Vercel web | `dpl_3hX34stqNHZQQ7jeaqv9RNEek5re`, the immediate predecessor of the live `dpl_VAeKEfvhKUgyFDno1SkGWB5hTXTa` |
+| Railway `api` | `492037b0-5925-4c94-b59a-88fe4c17911a`, the predecessor of the live `1765f0aa`. **Available again** — see below. Stable until the next `/ship-prod`. |
+| Vercel web | *The immediate predecessor of whatever is live* — read it, do not trust an id written here. As of 2026-08-19 20:01 that is `dpl_iH9P5dbpRRdjBo3ihXgodfdpqCDg`, behind the live `dpl_6Vx8mGnWnrkp3QZKK9QxUGdhGm7a`. |
 
-**The API rollback that existed at head `012` (`c5426392`, a second deployment
-at that head) is gone, exactly as predicted.** The previous version of this
-section recorded that an API rollback target would exist again once a second
-deployment sat at head `012`, and it did — `c5426392` (2026-08-17, commit
-`dae9c953`) — but only while the head stayed `012`. Migration `013` is the next
-shipment that adds one, and the same fix-forward-only rule applies again.
+**The two rows age differently, and the Vercel one cannot be pinned.** The API
+deploys only by CLI, so its baseline moves only when `/ship-prod` runs. The web
+project is GitHub-connected and mints a production deployment on *every* push to
+`main` — including doc-only and test-only commits that change no bundle. So the
+Vercel id above is a snapshot with a timestamp, not a durable fact: the id this
+section carried before (`dpl_3hX34stqNHZQQ7jeaqv9RNEek5re`) was two deployments
+stale by the time anyone read it. Read the current pair before rolling back:
+
+```bash
+vercel ls the-coupon-production --prod --scope team_MVQMOaFtYHlwO5QVzSOZQ0Ud
+```
+
+Vercel marks only the two most recent production deployments
+`isRollbackCandidate: true`, so in practice the target is always the immediate
+predecessor and there is nothing to look up beyond those two.
+
+**The API rollback is available again, on the condition this section predicted.**
+It went absent when migration `013` shipped, because rollback needs a *second*
+deployment at the live head and `492037b0` was the only one. The 2026-08-19
+shipment of Batch 35 applied no migration, so it is the second image at head
+`013` and `492037b0` becomes a target that can actually boot. The same rule that
+removed it will remove it again: **the next shipment that migrates empties this
+row**, and the one after that restores it.
 
 The reason is the boot sequence, not the schema. `nixpacks.toml` starts with
 `alembic upgrade head && uvicorn ...`, and every pre-`013` image ships migration
@@ -653,24 +681,22 @@ identified by '013'`, the `&&` chain stops, uvicorn never starts, and the
 healthcheck fails. **This holds regardless of what is in the tables**, so it is
 not something a data fix can unlock. Do not attempt a Railway rollback to
 `c5426392`, `f54fa403`, or anything older; it will fail its healthcheck rather
-than serve.
+than serve. `492037b0` is safe for exactly one reason — it bundles `013`.
 
-Recovery is forward-only, per the approved plan for `013` above: the feature is
-already off by default (`notification_muted = false` everywhere), so there is
-no opt-in to clear; ship a corrected image at head `013` or higher if needed.
+Where rollback is unavailable, recovery is forward-only per the approved plan for
+`013` above: the feature is already off by default (`notification_muted = false`
+everywhere), so there is no opt-in to clear; ship a corrected image at head `013`
+or higher.
 
-An API rollback target will exist again once a *second* deployment sits at head
-`013`, at which point `492037b0` becomes the baseline. Until then this row
-stays empty. Note also that a `REMOVED` Railway deployment may have had its
-image pruned, and `canRedeploy: true` is reported even for deployments that
-could not possibly restore — it is not evidence of anything.
+Note also that a `REMOVED` Railway deployment may have had its image pruned, and
+`canRedeploy: true` is reported even for deployments that could not possibly
+restore — it is not evidence of anything.
 
 **Vercel rollback is unaffected and remains available.** The web app degrades
-independently of the API, and the API is now ahead of every web deployment, so
-an older bundle still finds every field and endpoint it expects. Vercel marks
-only the two most recent production deployments `isRollbackCandidate: true`, so
-the practical target is the immediate predecessor named above. Verified
-2026-08-16.
+independently of the API, and the API is never behind it — `/ship-prod` deploys
+the API from a commit `main` already carries — so an older bundle still finds
+every field and endpoint it expects. Verified 2026-08-16; the mechanics of
+picking the target are in the baselines table above.
 
 Rollback reverts application deployments only. Under the 2026-07-30 backup
 deferral there is no database restore path at all, so rollback must never assume

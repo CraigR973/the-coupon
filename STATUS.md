@@ -329,7 +329,11 @@ unfinished — so it had to land before the roster of leagues grows, not after.
   strict mypy; Batch 35 close-out passed `scripts/ci-local.sh` end-to-end
   (11 checks), as every close-out since Batch 26 has
 - Database: clean `pgserver` migration through revision `013`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
-  on all 13 public tables under a Supabase-like role setup
+  on all 18 public tables under a Supabase-like role setup. The count was 13 at
+  revision `004`; `009`-`013` added the rest, and every one of the 18 was
+  confirmed RLS-enabled *and* forced against production on 2026-08-19, with
+  `anon`, `authenticated` and `PUBLIC` holding no table privileges and no schema
+  `USAGE`
 - Frontend: Node 20 production build, TypeScript, ESLint, and 315 Vitest
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
