@@ -603,6 +603,8 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-08-18 | Vercel web | `dpl_VAeKEfvhKUgyFDno1SkGWB5hTXTa` | `a1f01dd` | — |
 | 2026-08-19 | Railway `api` | `1765f0aa-493f-4123-aeed-4657047d2ab5` | `0bc699a4` (Batch 35) | `013` |
 | 2026-08-19 | Vercel web | `dpl_iH9P5dbpRRdjBo3ihXgodfdpqCDg` | `0bc699a4` | — |
+| 2026-08-20 | Railway `api` | `d0660dac-5103-4f5a-89d7-aeb26d5c86da` | `2f708c82` (Batches 36–38, 41–42) | **`015`** |
+| 2026-08-20 | Vercel web | `dpl_ELLXJuw66Hx47MAAyN6VJJc7Xkxh` | `2f708c82` | — |
 
 The 2026-08-19 shipment carries Batch 35 and is the **first API deployment since
 `013` that applies no migration**, which is what restores the rollback target the
@@ -611,6 +613,28 @@ auto-deploy, which already held the stable alias when `/ship-prod` ran, so
 section 4 was skipped by design; the deployment's `githubCommitSha` was read from
 the Vercel API to confirm it carried the shipped commit rather than inferred from
 timing.
+
+The 2026-08-20 shipment carries Batches 36–38 and 41–42 and applies **two**
+revisions, `014` and `015` — the first two-revision shipment since `007`–`011`.
+Its rollback baselines were Railway `1765f0aa-493f-4123-aeed-4657047d2ab5` and
+Vercel `dpl_8JMd9jWaxzAmWgM1tu1HK1RdyqQ8`; **the Railway one is now unusable**,
+per the forward recovery plan above, because a pre-`014` image cannot boot
+against a database stamped `015`. Section 4 was skipped by design again — the
+GitHub auto-deploy already held the stable alias. Post-deploy verification:
+`/health` reports sha `2f708c82` and migration `015`, `/health/ready` agrees at
+`015` with `db: ok`, and `014`'s backfill was confirmed by
+`SELECT count(*) FROM gameweeks WHERE number IS NULL` returning 0.
+
+One verification the platform would not give: Railway's deployment list returns
+only `createdAt`, `id`, `meta` and `status` for the newest entry, with no
+`serviceInstance` snapshot, so the per-deployment replica/region/sleep metadata
+could not be read back directly. It is attested instead by `railway.toml` (which
+declares one replica in `europe-west4-drams3a`, sleep disabled, IPv6 egress on,
+healthcheck `/api/v1/health/ready`), by `ci-local.sh`'s deployment-config
+assertions passing against it, and by a live pre-deploy read of the running
+service instance that matched exactly. CPU and memory limits are not declared in
+`railway.toml` and read as `limitOverride: null` — plan defaults, not confirmed
+as 0.25 vCPU / 500 MB.
 
 The 2026-08-18 shipment carries Batch 31 (settlement cost) and Batch 32
 (per-league notification mute, migration `013`) to production in one API
