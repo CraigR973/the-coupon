@@ -8,6 +8,7 @@ import type {
   AdHocGameweekResult,
   CompetitionCatalogue,
   CompetitionRef,
+  GameweekSummary,
   LeagueSummary,
   PickMarket,
   PickScope,
@@ -28,6 +29,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Toggle } from '@/components/ui/toggle';
 import { PageHeader } from '@/components/PageHeader';
+import { PickOpenSchedule } from '@/components/PickOpenSchedule';
+import { gameweekListKey } from '@/hooks/usePickEditor';
+import { useAuth } from '@/contexts/AuthContext';
 
 const SELECT_CLASS =
   'flex h-10 w-full items-center rounded-md border border-border bg-surface px-3 py-2 ' +
@@ -37,6 +41,8 @@ export function LeagueSettingsPage() {
   const { slug } = useRouteLeague();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { player } = useAuth();
+  const timezone = player?.timezone ?? 'UTC';
 
   const { data: league } = useQuery<LeagueSummary>({
     queryKey: ['league', slug],
@@ -48,6 +54,15 @@ export function LeagueSettingsPage() {
   const { data: catalogue } = useQuery<CompetitionCatalogue>({
     queryKey: ['league', slug, 'competitions'],
     queryFn: () => apiFetch<CompetitionCatalogue>(`/api/v1/leagues/${slug}/competitions`),
+  });
+
+  // The season, so the pick-open control can show what the rounds already on the board
+  // will actually do (Batch 40). Shares `gameweekListKey` with the coupon surfaces, so
+  // this is usually a cache hit and the ad-hoc-round handler below already invalidates it.
+  const { data: gameweeks } = useQuery<GameweekSummary[]>({
+    queryKey: gameweekListKey(slug),
+    queryFn: () => apiFetch<GameweekSummary[]>(`/api/v1/leagues/${slug}/gameweeks`),
+    staleTime: 60_000,
   });
 
   const [name, setName] = useState('');
@@ -437,6 +452,12 @@ export function LeagueSettingsPage() {
                   </p>
                 </div>
               )}
+
+              <PickOpenSchedule
+                gameweeks={gameweeks ?? []}
+                timezone={timezone}
+                announced={window.pick_open_offset_minutes !== null}
+              />
             </div>
 
             <Button

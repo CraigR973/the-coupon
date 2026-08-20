@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-45 except 40 are closed. The Coupon is a verified
+Batches 1-45 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -111,8 +111,8 @@ read from both live catalogues. Coverage was never the problem: a probe on
 2026 — what it does not do is serve their standings, which the 2026-08-20 sweep
 established the day after. The corrective data cleanup this paragraph used to
 say was owed is not: the tables were empty then and are empty now, so there is
-nothing mis-ingested to clear. Batch 40 remains deferred pending a product
-decision.
+nothing mis-ingested to clear. Batch 40 is no longer deferred — it closed on
+2026-08-20 by taking the forward-only rule.
 
 Batch 6 completed the product rebrand, removed inherited surfaces, corrected
 the frontend auth and invite wiring, and added a deterministic production-
@@ -488,9 +488,14 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries no unchecked batches except Batch 40, which is
-deferred pending a decision on whether `pick_open_offset_minutes` stays
-forward-only or gains an admin restamp. The odds-api.io key exposed in the logs
+`docs/BUILD_PLAN.md` carries no unchecked batches. Batch 40 closed the last one
+by taking the **forward-only** rule rather than building an admin restamp: a
+2026-08-20 production read showed a single affected round holding zero picks, so
+the problem was transitional, not ongoing. What shipped is visibility — the
+league settings page now lists the rounds an opening time can still apply to and
+says what each will actually do, including the case that reads as "my setting was
+ignored", which is a round carrying `picks_open_at_utc = NULL` and therefore no
+opening gate at all. The odds-api.io key exposed in the logs
 before Batch 36 was rotated by the owner on 2026-08-20. Batch 37's production
 data cleanup is no longer owed: `teams`, `team_aliases`, `matches` and
 `standings` were confirmed empty in every environment on 2026-08-20 and have
@@ -505,7 +510,8 @@ have — is closed and kept only in the shipment history. What remains:
 
 - ~~seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`~~ — done;
 - ~~ship staging and then production~~ — production is at `33191ba2` / migration `015`;
-- migrate staging from the deprecated `BF_FAKE_MODE` to `ODDS_PROVIDER=fake`;
+- ~~migrate staging from the deprecated `BF_FAKE_MODE` to `ODDS_PROVIDER=fake`~~ —
+  done 2026-08-20: staging is `ODDS_PROVIDER=fake` and carries no `BF_*` at all;
 - re-run `.launch-private/weekend-fixtures.py` against the launch Saturday;
 - ~~decide whether to enable the football-data provider~~ — **enabled, then
   switched back off on 2026-08-20**: `FOOTBALL_DATA_PROVIDER=none`. The
@@ -519,10 +525,12 @@ have — is closed and kept only in the shipment history. What remains:
   `httpcore` are quieted to `WARNING`, and a live call with `httpx` forced back
   to `INFO` produced the key **0** times and `<redacted>` **1** time. The same
   call proved the rotated key valid — 63 UK competitions returned;
-- **delete the `BF_*` variables from Railway production.** `BF_USER`, `BF_PASS`,
-  both PEM blobs and `BF_APP_KEY` are still set and are only read when
-  `ODDS_PROVIDER=betfair`, which production does not use. A `BF_PASS` for a live
-  Betfair account is sitting in an environment that has no use for it.
+- ~~delete the `BF_*` variables from Railway production~~ — **done 2026-08-20.**
+  All eight are gone from both production and staging. `variable delete` triggers
+  no redeploy (verified on staging first), so production stayed on `88c4885c`
+  throughout and all 13 required variables are intact. Reversible: every value is
+  still in `.launch-private/`, and `seal-production-secrets.sh` re-seals them if
+  `ODDS_PROVIDER=betfair` is ever selected again.
 
 The `BF_*` variables and the Betfair certificate are no longer required in
 production; they apply only if `ODDS_PROVIDER=betfair` is ever selected.

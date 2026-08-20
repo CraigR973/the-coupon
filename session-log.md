@@ -1095,3 +1095,33 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
 
 **Next:** No unchecked build batches remain except Batch 40 (deferred pending a product
 decision). Launch L5 — launch and first-Saturday watch — is the remaining launch work.
+
+## Batch 40 — A round the pick window never reached
+**Commits:** (this batch) · verified: `scripts/ci-local.sh` PASS (11 checks)
+
+### Key facts for future sessions
+- **The forward-only rule stands, and the admin restamp was deliberately not built.** The
+  row's own 2026-08-20 production read settled it: `the-coupon` had all three rounds at
+  `picks_open_at_utc = NULL`, only the 08-22 round was affected, and it held zero picks.
+  A one-round transitional problem does not justify standing machinery that invites the
+  exact edit `leagues.py:873` forbids — moving a deadline members were already told.
+- **What shipped is visibility, not behaviour.** No API change, no migration; both instants
+  already rode on `GameweekListEntry`. `PickOpenSchedule` lists the rounds an opening can
+  still apply to and says what each will actually do.
+- **`picks_open_at_utc = NULL` means no gate at all — not an older offset.** `pick_refusal`
+  gates only when the column `is not None`, so such a round is claimable from the moment
+  discovery writes it. That is the case that reads as "my setting was ignored", so it is
+  worded most plainly: "Open now — no opening time was set".
+- Locked and settled rounds are excluded on purpose. Their opening is history, and showing
+  it would invite the restamp this batch decided against.
+- **Adding `useAuth` to `LeagueSettingsPage` broke all 9 of its existing tests at once** —
+  the file's `renderPage` never wrapped `AuthProvider`, though the real app always does.
+  Expect this for any page-level test harness here that has not needed the player before.
+- `formReady()` is defined per-describe in that file, not at module scope; a new block
+  needs its own. The barrier matters for the same reason Batch 27's note gave — the
+  assertions that follow do not all retry.
+- `PickOpenSchedule` guards with `Array.isArray` rather than trusting its prop. The web
+  app deploys ahead of the API, and a settings page that throws is worse than one that
+  shows nothing.
+
+**Next:** No unchecked build batches remain. Launch L5 — launch and first-Saturday watch.

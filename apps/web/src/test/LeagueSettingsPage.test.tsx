@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { AuthProvider } from '@/contexts/AuthContext';
 import { LeagueProvider } from '@/contexts/LeagueContext';
 import { LeagueSettingsPage } from '@/pages/LeagueSettingsPage';
 
@@ -63,7 +64,11 @@ function json(data: unknown, status = 200) {
 }
 
 /** Route all the settings-page endpoints; capture the PATCH and ad-hoc POST bodies. */
-function stubApi(catalogue?: Record<string, unknown>, window: Record<string, unknown> = {}) {
+function stubApi(
+  catalogue?: Record<string, unknown>,
+  window: Record<string, unknown> = {},
+  gameweeks: unknown[] = [],
+) {
   const captured: { patch: Record<string, unknown> | null; post: Record<string, unknown> | null } = {
     patch: null,
     post: null,
@@ -86,6 +91,9 @@ function stubApi(catalogue?: Record<string, unknown>, window: Record<string, unk
           selected: [],
         },
       );
+    }
+    if (url.endsWith('/gameweeks') && method === 'GET') {
+      return json(gameweeks);
     }
     if (url.endsWith('/gameweeks') && method === 'POST') {
       captured.post = JSON.parse(init.body as string) as Record<string, unknown>;
@@ -111,11 +119,15 @@ function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/leagues/the-coupon/admin/settings']}>
       <QueryClientProvider client={qc}>
-        <LeagueProvider>
-          <Routes>
-            <Route path="/leagues/:slug/admin/settings" element={<LeagueSettingsPage />} />
-          </Routes>
-        </LeagueProvider>
+        {/* The page reads the admin's timezone to render a round's real opening
+            instant (Batch 40); in the app it is always inside AuthProvider. */}
+        <AuthProvider>
+          <LeagueProvider>
+            <Routes>
+              <Route path="/leagues/:slug/admin/settings" element={<LeagueSettingsPage />} />
+            </Routes>
+          </LeagueProvider>
+        </AuthProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -284,5 +296,115 @@ describe('LeagueSettingsPage — when picks open (Batch 27)', () => {
     const field = (await screen.findByLabelText(/picks open \(minutes/i)) as HTMLInputElement;
     expect(field.value).toBe('4320');
     expect(screen.getByText(/3 days before Saturday 15:00/i)).toBeTruthy();
+  });
+});
+
+// ── Batch 40: the forward-only rule, made visible ─────────────────────────────
+//
+// `pick_open_offset_minutes` is stamped at discovery and the settings PATCH never
+// restamps an existing round — correct, because an edit must not move a deadline members
+// were already told. The complaint that produced this batch was that the rule is
+// invisible exactly when it bites: an admin sets twelve hours, saves, and picks open
+// anyway, because the round on the board predates the setting and has no gate at all.
+
+const ROUNDS = [
+  // Newest first, exactly as `GET /leagues/{slug}/gameweeks` returns them.
+  {
+    gameweek_id: 'gw-29',
+    starts_on: '2026-08-29',
+    status: 'scheduled',
+    locks_at_utc: '2026-08-29T13:30:00Z',
+    picks_open_at_utc: '2026-08-29T02:00:00Z',
+    number: 4,
+    fixture_count: 10,
+    pick_count: 0,
+  },
+  {
+    gameweek_id: 'gw-22',
+    starts_on: '2026-08-22',
+    status: 'open',
+    locks_at_utc: '2026-08-22T13:30:00Z',
+    picks_open_at_utc: null, // discovered before the setting existed — no gate at all
+    number: 3,
+    fixture_count: 10,
+    pick_count: 0,
+  },
+  {
+    gameweek_id: 'gw-15',
+    starts_on: '2026-08-15',
+    status: 'locked',
+    locks_at_utc: '2026-08-15T13:30:00Z',
+    picks_open_at_utc: null,
+    number: 2,
+    fixture_count: 10,
+    pick_count: 1,
+  },
+];
+
+describe('LeagueSettingsPage — when picks actually open', () => {
+  // The same barrier the sibling block uses: `leagueDetail` carries the name and the
+  // offset in one response, so waiting for the name waits for the data under test.
+  const formReady = () => screen.findByDisplayValue('The Coupon');
+
+  it('names a scheduled round that has no opening gate at all', async () => {
+    // The production case on 2026-08-20, and the one that reads as "my setting was
+    // ignored". It is not on an older offset; it has no gate.
+    stubApi(undefined, { pick_open_offset_minutes: 720 }, ROUNDS);
+    renderPage();
+    await formReady();
+
+    const row = await screen.findByTestId('pick-open-round-gw-22');
+    expect(row.textContent).toMatch(/open now/i);
+    expect(row.textContent).toMatch(/no opening time was set/i);
+  });
+
+  it('shows the real opening instant for a round that has one', async () => {
+    // 02:00 UTC on the member's clock. The suite runs in America/New_York, so reading
+    // this as local time would render 21:00 the previous evening (Batch 43).
+    stubApi(undefined, { pick_open_offset_minutes: 720 }, ROUNDS);
+    renderPage();
+    await formReady();
+
+    const row = await screen.findByTestId('pick-open-round-gw-29');
+    expect(row.textContent).toMatch(/Picks open Sat 29 Aug, 02:00/);
+  });
+
+  it('lists only rounds an opening time can still apply to', async () => {
+    stubApi(undefined, { pick_open_offset_minutes: 720 }, ROUNDS);
+    renderPage();
+    await formReady();
+
+    await screen.findByTestId('pick-open-schedule');
+    // A locked round's opening is history; showing it would invite the restamp this
+    // batch decided against.
+    expect(screen.queryByTestId('pick-open-round-gw-15')).toBeNull();
+  });
+
+  it('says the setting applies to rounds discovered from now on', async () => {
+    stubApi(undefined, { pick_open_offset_minutes: 720 }, ROUNDS);
+    renderPage();
+    await formReady();
+
+    const block = await screen.findByTestId('pick-open-schedule');
+    expect(block.textContent).toMatch(/applies to rounds discovered from now on/i);
+    expect(block.textContent).toMatch(/keep the opening they were created with/i);
+  });
+
+  it('renders nothing when no round is still ahead', async () => {
+    stubApi(undefined, { pick_open_offset_minutes: 720 }, [ROUNDS[2]]);
+    renderPage();
+    await formReady();
+
+    expect(screen.queryByTestId('pick-open-schedule')).toBeNull();
+  });
+
+  it('survives an API that answers the gameweek list with an unexpected shape', async () => {
+    // The web app deploys ahead of the API; a settings page that throws is worse than
+    // one that shows nothing.
+    stubApi(undefined, { pick_open_offset_minutes: 720 }, {} as unknown as unknown[]);
+    renderPage();
+    await formReady();
+
+    expect(screen.queryByTestId('pick-open-schedule')).toBeNull();
   });
 });

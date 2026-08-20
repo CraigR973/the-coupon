@@ -861,7 +861,7 @@ answered until it lands, because until then there is no data to look at.
   the six controls; opening reveals them; Escape closes and returns focus to the trigger; a
   non-admin's reduced set still renders correctly.
 
-- [ ] **Batch 40 — A round the pick window never reached** — an admin who sets
+- [x] **Batch 40 — A round the pick window never reached** ✅ 2026-08-20 *(Opus)* — an admin who sets
   `pick_open_offset_minutes` and finds picks open anyway is seeing the documented rule
   rather than a bug, but the rule is invisible exactly when it bites. The config path is
   correct end to end: `league.py:166` → `picks_open_at` (`gameweek.py:109`) → window open
