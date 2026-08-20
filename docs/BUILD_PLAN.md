@@ -893,7 +893,7 @@ answered until it lands, because until then there is no data to look at.
   so confirming whether the current round has a NULL gate needs `railway run` with the
   production selectors.
 
-- [ ] **Batch 41 — Naming the round** — the coupon shows a date where members expect
+- [x] **Batch 41 — Naming the round** ✅ 2026-08-20 *(Opus)* — the coupon shows a date where members expect
   "Gameweek N", in two places that must move together: the header eyebrow
   (`CouponPickPage.tsx:178`) and the back/forward control (`GameweekNav.tsx:49`, also
   mounted by `CouponCombinedPage`). Why only one league appears to show it is not per-league

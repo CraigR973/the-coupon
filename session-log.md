@@ -931,3 +931,32 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   16 and hides the strip only when a club has neither.
 
 **Next:** Batch 41 — Naming the round.
+
+## Batch 41 — Naming the round
+**Commits:** 72bdae8 · verified: `scripts/ci-local.sh` PASS (11 checks), including migration 014 on a clean scratch database
+
+### Key facts for future sessions
+- **The number is stored, not derived, and Batch 35 is why.** An ordinal computed from
+  `starts_on` order renumbers every later round the moment an admin inserts a one-off, so a
+  member's "Gameweek 12" silently becomes a different week. Stored, a one-off takes the *next*
+  number — it is the next round the league plays — and history is fixed. Do not "simplify" this
+  back into a derived ordinal.
+- Numbering is **one past the maximum**, not one past the count, so deleting a round leaves a
+  gap rather than handing its number to the next round. Per league, per season.
+- **No unique constraint exists and none can, cheaply.** The season a number is unique within is
+  derived from `starts_on`, not stored, so the invariant lives in `next_gameweek_number` alone.
+  Adding a `season` column purely to constrain it was judged not worth a column nothing reads.
+- Migration 014's season expression is **duplicated SQL**, not an import — a migration must not
+  depend on application code that keeps moving. `test_migration_014` is what holds the two
+  definitions together; if `_SEASON_ROLLOVER_MONTH` ever changes, that test fails first.
+- `DATE :param` is not valid SQL and asyncpg infers a bind's type from its cast — seeding a
+  migration test needs real `date`/`datetime` objects passed as parameters, not strings cast in
+  the statement. Cost two debugging rounds here.
+- `number` is optional on **both** TS types and nullable in the API. The web app deploys ahead of
+  the API, so a slate served before this ships has no number; `roundName` falls back to the date
+  the round always showed. One helper serves the header and the nav so they cannot disagree.
+- `roundName` tests `0` explicitly: `number || fallback` would drop a legitimate Gameweek 0.
+- `GameweekNav` still hides below two rounds. That rule is about *navigation* having somewhere
+  to go, not about naming — the header labels the round either way.
+
+**Next:** Batch 42 — Profile pictures (code-only, no storage bucket).

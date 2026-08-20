@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-39 except 40 are closed. The Coupon is a verified
+Batches 1-41 except 40 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -54,6 +54,15 @@ Batch 38 made the coupon say *when* a selection was taken, not just who by.
 field is additive and optional on the client, because Vercel deploys the web app
 from `main` while the API waits for `/ship-prod` — a renamed or required field
 would break the coupon in that gap.
+
+Batch 41 gave the round a name. The coupon showed a date where members expect
+"Gameweek N" and no number existed to show; migration 014 adds one and backfills
+per league, per season, in `starts_on` order. It is stored rather than derived
+because Batch 35 made a one-off round legitimate, and an ordinal recomputed on
+read renumbers every round after it the moment one is inserted — a member's
+"Gameweek 12" would become a different week. A one-off simply takes the next
+number. The number is a display concern only: nothing in locking, settlement or
+scoring keys on it, and every read falls back to the date when it is absent.
 
 Batch 37 stopped a lower division resolving to the Premier League. `similarity`
 awarded a flat subset bonus whenever one name's tokens sat inside the other's,
@@ -416,9 +425,8 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries two unchecked batches: **41** (gameweek numbering)
-and **42** (profile pictures, code-only against no storage bucket).
-Batch 40 is deferred
+`docs/BUILD_PLAN.md` carries one unchecked batch: **42** (profile pictures,
+code-only against no storage bucket). Batch 40 is deferred
 pending a decision on whether `pick_open_offset_minutes` stays forward-only or
 gains an admin restamp. Two items sit outside the batches and are owner actions:
 **rotating the odds-api.io key** exposed in the logs before Batch 36, and the
