@@ -994,7 +994,7 @@ answered until it lands, because until then there is no data to look at.
   come undone. A test that asserts a *rendered* time for a known instant in a known zone
   is what pins this; asserting the parse alone would pass on both behaviours.
 
-- [ ] **Batch 44 — Turning avatars on** — Batch 42 landed the column, the port, the
+- [x] **Batch 44 — Turning avatars on** ✅ 2026-08-20 *(Opus)* — Batch 42 landed the column, the port, the
   endpoints and the control, and deliberately enabled none of it: `UnconfiguredAvatarStorage`
   refuses every write, so `POST /auth/me/avatar` answers 503 everywhere and
   `AvatarUpload.tsx` is not mounted. Three things have to be true before that changes, and

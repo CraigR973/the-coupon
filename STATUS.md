@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-43 except 40 are closed. The Coupon is a verified
+Batches 1-44 except 40 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -55,13 +55,21 @@ field is additive and optional on the client, because Vercel deploys the web app
 from `main` while the API waits for `/ship-prod` — a renamed or required field
 would break the coupon in that gap.
 
-Batch 42 modelled profile pictures without enabling them. `profiles.avatar_url`
-exists, the two surfaces that hardcoded `None` now read it, and the display half
-of the frontend needed no work — it was already wired and only ever null because
-the API said so. **Uploading answers 503 in every environment**: `AvatarStorage`
-has one implementation and it refuses. The outstanding item before a backend can
-be wired is that uploaded bytes are never re-encoded — magic-byte sniffing proves
-a header, not a payload. The upload control is built and deliberately unmounted.
+Batch 42 modelled profile pictures without enabling them, and Batch 44 met the
+three conditions it recorded. Uploaded bytes are now **re-encoded** — Pillow
+decodes the image and a fresh WebP is written from the pixels, so a payload
+riding behind a valid PNG signature does not survive, and a decompression bomb
+is refused from its header before a pixel is decoded. The bucket's access rules
+are written explicitly (ADR 0006): public-read with an unguessable object key,
+because the private-and-signed alternative turns `avatar_url` into a stored path
+and every member list into a round trip per picture. Removal already existed on
+both sides. **The feature is complete and still switched off**: `AVATAR_STORAGE`
+defaults to `none`, so every environment answers 503 exactly as before, and
+`GET /api/v1/config` tells the web app to leave the upload card unmounted.
+Turning it on is `docs/runbooks/avatar-storage.md` and it is an **owner action** —
+it needs the Supabase dashboard and seals a service-role key. This narrows, and
+does not overturn, the launch-plan decision to use Supabase as managed
+PostgreSQL only: Storage, one bucket, one feature, API-side only.
 
 Batch 43 stamped the UTC offset on every instant the API sends. The columns are
 naive UTC and the backend compares naive to naive correctly throughout, but
@@ -408,8 +416,8 @@ unfinished — so it had to land before the roster of leagues grows, not after.
 
 ## Verified
 
-- Backend: 574 pytest with a database (455 without one), Ruff check/format, and
-  strict mypy; Batch 43 close-out passed `scripts/ci-local.sh` end-to-end
+- Backend: 597 pytest with a database (478 without one), Ruff check/format, and
+  strict mypy; Batch 44 close-out passed `scripts/ci-local.sh` end-to-end
   (11 checks), as every close-out since Batch 26 has
 - Database: clean `pgserver` migration through revision `013`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 18 public tables under a Supabase-like role setup. The count was 13 at
@@ -417,7 +425,7 @@ unfinished — so it had to land before the roster of leagues grows, not after.
   confirmed RLS-enabled *and* forced against production on 2026-08-19, with
   `anon`, `authenticated` and `PUBLIC` holding no table privileges and no schema
   `USAGE`
-- Frontend: Node 20 production build, TypeScript, ESLint, and 341 Vitest, the
+- Frontend: Node 20 production build, TypeScript, ESLint, and 345 Vitest, the
   suite now pinned to a non-UTC zone (`America/New_York`) so an instant parsed
   as local time cannot pass unnoticed
 - Browser: production-bundle smoke plus the full live staging story, including
@@ -465,7 +473,7 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries Batches 44 and 45 unchecked, plus Batch 40, which
+`docs/BUILD_PLAN.md` carries Batch 45 unchecked, plus Batch 40, which
 is deferred pending a decision on whether `pick_open_offset_minutes` stays
 forward-only or gains an admin restamp. The odds-api.io key exposed in the logs
 before Batch 36 was rotated by the owner on 2026-08-20. Batch 37's production

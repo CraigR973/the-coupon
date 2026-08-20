@@ -1025,3 +1025,38 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   three that predate this batch — that is the regression gate, and it did not exist before.
 
 **Next:** Batch 44 — Turning avatars on.
+
+## Batch 44 — Turning avatars on
+**Commits:** 4d1d665 · verified: `scripts/ci-local.sh` PASS (11 checks), venv rebuilt from the new pin
+
+### Key facts for future sessions
+- **The feature is complete and switched off.** `AVATAR_STORAGE` defaults to `none`, so every
+  environment behaves exactly as it did after Batch 42 — 503 on upload, no card in Settings.
+  Turning it on is `docs/runbooks/avatar-storage.md`, and it is an **owner action**: it needs
+  the Supabase dashboard and seals a service-role key. Nothing was provisioned by this batch.
+- **Pillow is the API's first imaging dependency** and pinned to the newest patched line on
+  purpose — it is the one dependency here whose whole job is parsing bytes a stranger chose.
+  `ci-local.sh` rebuilt its venv from the changed pin and passed, so the manylinux wheel
+  resolves; nixpacks installs from the same file.
+- **The bomb guard is an ordering, not a check.** `Image.open` parses the header only, so
+  dimensions are known while refusing is still cheap. The 2 MB body cap bounds what *arrives*
+  and says nothing about what a decoder allocates — a 4000×4000 1-bit PNG is under 100 KB.
+  Do not move the pixel check after the decode.
+- **`avatar_url` is a plain public URL and the random key is the access control** (ADR 0006).
+  Player ids are on every league page, so a key derived from the id alone would make every
+  member's picture enumerable. Replacing a picture deletes the old objects, which is what
+  makes `immutable` caching safe and what makes a leaked URL stop resolving.
+- Private-bucket signed URLs were the stronger posture and were rejected on cost: the column
+  becomes a path and every member list becomes a Supabase round trip per picture. The owner
+  accepted the trade-off on 2026-08-20.
+- **`GET /api/v1/config` is read live, never cached at login.** It was deliberately *not* put
+  on `PlayerInfo`: the client stores that at login and refreshes it only on the next one, so
+  a member signed in before the bucket existed would carry a stale `false` indefinitely.
+- A 404 from `/api/v1/config` must read as "feature off", not as an error — Vercel ships this
+  app from `main` on merge while the API waits for `/ship-prod`, so the route is genuinely
+  absent for a few days. `useClientConfig` has `retry: false` and falls back to all-off.
+- **A test fixture whose catch-all returns 401 will tear down the page's auth.** Adding the
+  `/config` call to `SettingsPage` broke four unrelated tests that way before the fixture
+  answered the route explicitly. `apiFetch` treats 401 as an expired session and redirects.
+
+**Next:** Batch 45 — A sweep that fails completely and reports success.
