@@ -879,19 +879,37 @@ answered until it lands, because until then there is no data to look at.
   round already on the board when the setting changed behaves this way, which is why the
   symptom looks like the setting being ignored rather than deferred.
 
-  Decide the product rule before writing code, because two are defensible: leave it, and
-  the setting is honestly forward-only; or let an admin restamp the current round
-  explicitly. If restamping, it is a deliberate admin action with its own confirmation
-  showing the old and new instants — never a silent recompute on PATCH, which is the exact
-  thing `leagues.py:873` forbids — and it needs a guard against retracting a window members
-  are already picking in: refuse once any pick exists on the round, or allow the gate to
-  move earlier only. Either way the settings screen should say what the change does and
-  does not affect; that sentence may be the entire fix.
+  **The rows were read on 2026-08-20 and settle the scope.** `the-coupon` holds
+  `pick_open_offset_minutes = 720` exactly as configured, and all three of its rounds —
+  08-08 settled, 08-15 locked, 08-22 open — carry `picks_open_at_utc = NULL`. The 08-29
+  round does not exist yet, so it will be discovered with a correct gate. **Only the
+  08-22 round is affected, and it holds zero picks.** This is a one-round transitional
+  problem that resolves itself, not an ongoing defect.
 
-  Read the actual row before choosing, and note that this is an owner step: the production
-  database is deliberately never attached to MCP (`docs/launch/L0_PROJECT_IDENTITY.md:156`),
-  so confirming whether the current round has a NULL gate needs `railway run` with the
-  production selectors.
+  That makes the permanent admin restamp the wrong shape: it is standing machinery, an
+  awkward asymmetry (why may an admin move the opening but not the lock?), and a
+  standing invitation to the exact edit `leagues.py:873` forbids — all to shorten a
+  window that closes on its own. Take the forward-only rule.
+
+  What is worth building is the reason the rule was mistaken for a bug: **it is invisible
+  at the moment it bites**. An admin sets 12 hours, saves, sees picks open, and nothing
+  explains why or shows the round's actual state. So: say at the point of change that the
+  setting applies to rounds discovered from now on and that scheduled rounds keep the
+  window they were created with; and **surface the current round's real
+  `picks_open_at_utc`** — the instant, or "opens immediately" when it is `NULL`. The
+  second half is the substantive one, and it turns an invisible rule into something an
+  admin can look at. Both instants already ride on `GameweekListEntry` and
+  `GameweekSlateResponse`, so this is a frontend batch.
+
+  The 08-22 round itself, if it should be correct this Saturday, is a one-off owner
+  `UPDATE` setting `picks_open_at_utc` to `2026-08-22 02:00:00` (window opens 14:00 UTC,
+  less the 720-minute offset) — not a feature. Note it would leave `status = 'open'` while
+  `pick_refusal` returns `PICKS_NOT_OPEN`; that disagreement is by design, since
+  `gameweek.py:81` makes time the authority and status merely the label the scheduler
+  keeps up with.
+
+  Reading production needs `railway ssh` and `psql`, not `railway run`: the database host
+  is IPv6-only and resolves nowhere a local process can reach it.
 
 - [x] **Batch 41 — Naming the round** ✅ 2026-08-20 *(Opus)* — the coupon shows a date where members expect
   "Gameweek N", in two places that must move together: the header eyebrow
@@ -942,6 +960,68 @@ answered until it lands, because until then there is no data to look at.
   user-supplied image shown to every member of a league, which brings moderation and
   deletion into the MVP: at minimum an admin path to remove one and a member path to clear
   their own. Nothing above it in this list depends on it.
+
+- [ ] **Batch 43 — Every time this app shows is an hour wrong** — the API serialises every
+  instant as naive UTC with no offset (`"2026-08-22T13:30:00"`), and JavaScript parses a
+  date-time string without an offset as **local** time. The value is then handed to
+  `formatInTimeZone`, so the wall-clock number displayed equals the stored UTC number
+  regardless of zone: a 13:30 UTC lock — 14:30 in London during BST — renders as 13:30.
+  Confirmed against the real wire format on 2026-08-20, and against production's stored
+  `locks_at_utc = 2026-08-22 13:30:00`.
+
+  Reading the wrong time is the smaller half. `useCountdown` computes
+  `new Date(targetIso).getTime() - Date.now()` on the same mis-parsed instant, so it
+  reaches zero an hour early; `CouponPickPage` derives `locked` from `countdown.expired`,
+  and **the pick screen therefore shuts an hour before the API stops accepting picks**.
+  Members lose the last hour of a round while the backend — which compares naive UTC to
+  naive UTC and is correct throughout — would still have taken the pick. The same skew
+  applies to `picks_open_at_utc`, so a round also appears to open an hour early.
+
+  The offset is zero under GMT and one hour under BST, so this is invisible from late
+  October to late March and returns without a deploy. A bug that fixes and re-breaks
+  itself twice a year is the kind that gets misattributed to something else entirely.
+
+  Fix at the API boundary, not the client: a pydantic serialiser that stamps `+00:00` on
+  the `*_utc` fields (or timezone-aware columns) corrects every consumer at once, where
+  patching each `new Date(...)` corrects only the call sites someone remembers. Audit
+  them anyway — `PickCard`'s kickoff line, `GameweekNav`, `useCountdown`, and the
+  settlement-facing screens.
+
+  **The frontend fixtures are why 319 green tests never caught this**: `PickCard.test.tsx`
+  and its neighbours use `Z`-suffixed ISO strings, which parse correctly, so the suite
+  exercises a wire format the API has never sent. Correcting the fixtures to the real
+  shape is not tidying — it is the regression test, and without it the fix can silently
+  come undone. A test that asserts a *rendered* time for a known instant in a known zone
+  is what pins this; asserting the parse alone would pass on both behaviours.
+
+- [ ] **Batch 44 — Turning avatars on** — Batch 42 landed the column, the port, the
+  endpoints and the control, and deliberately enabled none of it: `UnconfiguredAvatarStorage`
+  refuses every write, so `POST /auth/me/avatar` answers 503 everywhere and
+  `AvatarUpload.tsx` is not mounted. Three things have to be true before that changes, and
+  they are in `src/services/avatar_storage.py` because the port is where they bind.
+
+  **Bytes must be re-encoded, not passed through.** This is the item that actually blocks
+  the feature. `sniff_image_type` checks a magic-byte prefix, which proves a header and
+  nothing else — a valid PNG signature can precede a payload that is not one. Re-encoding
+  through an imaging library is what neutralises a hostile file, and no imaging library is
+  a dependency of this project; adding one is a deliberate change to the API's build, not
+  an incidental import. Until it lands the endpoint must keep failing closed.
+
+  **The bucket's access rules must be written explicitly.** Migrations `003` and `004`
+  locked the Supabase public schema and Data API down on purpose. A storage bucket is a
+  separate surface with separate policies, and provisioning one must not quietly reopen
+  what those closed. Decide read access deliberately: a public-read bucket makes every
+  member's picture world-readable by URL, and signed URLs mean the stored `avatar_url` has
+  an expiry, which changes what the column means.
+
+  **Then, and only then, mount the control.** `AvatarUpload` goes into `SettingsPage` as a
+  `SectionCard` beside Timezone; its own docstring says so. Removal already exists on both
+  sides — a member clears their own, a site admin takes another's down — so moderation is
+  not outstanding.
+
+  A note for whoever picks this up: the 500-character `avatar_url` was sized against
+  signed URLs, which carry a token and an expiry in the query string. If the bucket serves
+  bare public paths the column is oversized rather than wrong, and nothing needs changing.
 
 ## Verification
 

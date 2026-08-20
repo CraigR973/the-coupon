@@ -821,6 +821,79 @@ solved by other means, `013` is otherwise fully backward-compatible with the
 `012` application: the old app never references the new column, reads or
 writes it nowhere, so existing behavior is unaffected either way.
 
+### Forward recovery plan — migrations `014` and `015`, Batches 41 and 42
+
+**Status: drafted 2026-08-20, awaiting owner review. NOT cleared to ship.**
+`/ship-prod` step 1.7 stops until this is reviewed and this line says so.
+
+Required before `014` and `015` may be deployed. Production is at head `013`
+(confirmed directly, 2026-08-20); this shipment moves it to `015` — the first
+two-revision shipment since `007`–`011`.
+
+**No pre-migration snapshot is needed, and the database is small enough to say
+so with confidence.** Measured 2026-08-20: 4 `gameweeks`, 2 `leagues`, 1
+`profiles`, 1 `picks`.
+
+* `015` adds one nullable column, `profiles.avatar_url` (varchar(500)), with no
+  backfill — the same additive terms as `012` and `013`.
+* `014` adds one nullable column, `gameweeks.number` (integer), **and unlike any
+  migration before it, writes data**. That difference is worth naming rather
+  than glossing: the `UPDATE` sets a column that did not exist a statement
+  earlier, so it cannot destroy or overwrite anything. It touches 4 rows. No
+  other column is read or written.
+
+**API rollback is unavailable the moment `014` applies, and not for a data
+reason** — the same boot-sequence fact recorded for `012` and `013`.
+`nixpacks.toml` boots with `alembic upgrade head && uvicorn ...`, and every
+pre-`014` image ships migration scripts `001`–`013` only. Started against a
+database stamped `015`, that image's Alembic cannot resolve the revision at all,
+the `&&` chain stops, uvicorn never starts, and the healthcheck fails. **Do not
+attempt a Railway rollback to a pre-`014` deployment after this ships.** Vercel
+rollback is unaffected and stays available.
+
+Recovery is therefore forward-only, in increasing order of cost:
+
+1. **Disable either feature without deploying.** Both are inert at the data
+   level, and nulling the new column is a complete revert to pre-batch
+   behaviour rather than a partial one.
+
+   ```sql
+   -- Batch 41: every surface falls back to the round's date, which is exactly
+   -- what it showed before. `roundName` treats a missing number as "label by date".
+   UPDATE gameweeks SET number = NULL;
+
+   -- Batch 42: currently a no-op, because no avatar can be written — the upload
+   -- endpoint fails closed with no storage backend configured.
+   UPDATE profiles SET avatar_url = NULL;
+   ```
+
+   Neither statement touches another column, and neither affects locking,
+   settlement or scoring: nothing in those paths reads either column.
+
+2. **Deploy a corrected image at head `015` or higher.** The normal path for an
+   application defect. Both revisions stay applied.
+
+3. **Never run `alembic downgrade` against production.** Both downgrades drop
+   their column outright. `015`'s is destructive in principle only (there are no
+   avatar URLs to lose yet). `014`'s loses the numbering — recoverable in that
+   the numbers are a pure function of `league_id` and `starts_on` and the
+   migration's own backfill re-derives them, but a member who was told
+   "Gameweek 3" would still see it change if rounds were deleted in between.
+   Both downgrades are written for local and staging use only.
+
+**Data compatibility, for completeness.** Were the boot-migration problem solved
+by other means, both revisions are fully backward-compatible with the `013`
+application: it references neither column, reads or writes them nowhere, so
+existing behaviour is unaffected either way.
+
+**One post-deploy check specific to `014`.** Confirm the backfill actually ran,
+because a nullable column silently staying null looks identical to a feature
+nobody has used yet:
+
+```sql
+SELECT count(*) AS unnumbered FROM gameweeks WHERE number IS NULL;  -- expect 0
+```
+
 ## Gate state
 
 The three production stacks are provisioned, isolated, configured, deployed,
