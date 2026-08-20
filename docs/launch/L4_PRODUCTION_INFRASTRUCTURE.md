@@ -605,6 +605,7 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-08-19 | Vercel web | `dpl_iH9P5dbpRRdjBo3ihXgodfdpqCDg` | `0bc699a4` | — |
 | 2026-08-20 | Railway `api` | `d0660dac-5103-4f5a-89d7-aeb26d5c86da` | `2f708c82` (Batches 36–38, 41–42) | **`015`** |
 | 2026-08-20 | Vercel web | `dpl_ELLXJuw66Hx47MAAyN6VJJc7Xkxh` | `2f708c82` | — |
+| 2026-08-20 | Railway `api` | `5e6e522e-499b-410c-a226-f045df59246a` | `2f708c82` (config only) | `015` |
 
 The 2026-08-19 shipment carries Batch 35 and is the **first API deployment since
 `013` that applies no migration**, which is what restores the rollback target the
@@ -624,6 +625,50 @@ GitHub auto-deploy already held the stable alias. Post-deploy verification:
 `/health` reports sha `2f708c82` and migration `015`, `/health/ready` agrees at
 `015` with `db: ok`, and `014`'s backfill was confirmed by
 `SELECT count(*) FROM gameweeks WHERE number IS NULL` returning 0.
+
+The second 2026-08-20 Railway entry, `5e6e522e-…`, is **not a shipment**. It is
+the redeploy Railway mints when a variable changes: `FOOTBALL_DATA_PROVIDER` was
+set from `apifootball` to `none` by owner decision that afternoon. Same commit,
+same image, same migration head — only the configuration differs. It is recorded
+here because **it, not `d0660dac-…`, is the rollback baseline the next
+`/ship-prod` must capture**; rolling back to `d0660dac-…` would silently restore
+`apifootball` along with the code.
+
+The reason for the change: api-football's **Free** plan (active to 2027-07-24)
+does not carry the current season. The season is derived from today, so the
+2026-08-20 sweep asked for `2026` and every one of the 21 competitions on the
+card failed — 18 rejected at `/standings` with *"Free plans do not have access to
+this season, try from 2022 to 2024"*, and 3 cups (`england-efl-cup`,
+`scotland-league-cup-group-c`, `england-amateur-u21-premier-league-cup-group-g`)
+never resolving a competition id. `teams`, `standings`, `matches` and
+`team_aliases` were all empty and had never held a row; the long-suspected
+team-matching defect was this all along, because `/standings` fails before any
+team is stored and `candidates=0` follows from an empty table. Pinning
+`FOOTBALL_SEASON` to a supported season was rejected — it would show 2024/25
+tables and form against 2026/27 fixtures, and silently wrong data is worse for
+members than none.
+
+With the provider `none`, `run_sync_football_data` takes its documented early
+return: verified in production after the redeploy, the job logs `football data
+sync skipped: no provider configured` and exits `0`. Reversing the decision is
+one variable. Note the failed sweep cost **2 requests, not ~40** — api-football
+does not charge plan-rejected calls against the daily allowance, so the
+scheduler runbook's *"a failed run still spends what it sent"* is pessimistic for
+this particular failure mode.
+
+Redaction was confirmed end to end in production the same afternoon, after the
+owner rotated the odds-api.io key — and the confirmation the previous session
+promised ("production confirms on the next odds call") **would never have
+arrived**, because `configure_logging` quiets `httpx` and `httpcore` to
+`WARNING`, so a normal odds call emits no request line and therefore no
+redaction marker. Zero markers is the correct steady state, not a pending gap.
+What was run instead: one live `/leagues` call inside the production container
+with the root handler's stream swapped for an in-memory buffer *before* the
+request, so nothing could reach stdout either way. With `httpx` deliberately
+forced back to `INFO`, the request line was emitted, the URL did carry
+`apiKey=`, the raw key appeared **0** times and `<redacted>` appeared **1** time.
+That call also proved the rotated key valid in production — 63 UK competitions
+returned — which nothing had verified until then.
 
 One verification the platform would not give: Railway's deployment list returns
 only `createdAt`, `id`, `meta` and `status` for the newest entry, with no

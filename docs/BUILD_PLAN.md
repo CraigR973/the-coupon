@@ -1023,6 +1023,46 @@ answered until it lands, because until then there is no data to look at.
   signed URLs, which carry a token and an expiry in the query string. If the bucket serves
   bare public paths the column is oversized rather than wrong, and nothing needs changing.
 
+- [ ] **Batch 45 — A sweep that fails completely and reports success** —
+  `run_sync_football_data` (`scheduler.py:259`) returns `True` unconditionally on any run
+  that reached the provider. `sync_football_data` (`football_data.py:426`) catches each
+  competition's exception, logs `football data sync failed`, and continues — deliberate,
+  documented, and right: one division the provider has dropped must not cost the other
+  twenty-nine their tables. What no one checks is the case where *every* competition
+  failed, which is indistinguishable at the job boundary from a card with no football in
+  it.
+
+  This is not hypothetical. On 2026-08-20 the production sweep failed all 21 competitions
+  — 18 rejected at `/standings` with `Free plans do not have access to this season, try
+  from 2022 to 2024`, 3 unresolved cups — logged `football data synced` with
+  `competitions=3 carried=0 table_rows=0 matches=0`, and exited `0`. The 06:30 cron had
+  been reporting a healthy run every morning while ingesting nothing, and the empty
+  `teams` table was misread as a team-matching defect for long enough to cost a batch's
+  worth of investigation. The summary line carried the truth the whole time; nothing was
+  reading it.
+
+  Fix the job's verdict, not the sweep's tolerance. A run is a failure when it attempted
+  a non-empty card and carried none of it — `carried == 0 and len(reports) > 0`, plus the
+  case where every competition raised and `reports` is empty while `targets` was not.
+  Distinguish that from the two legitimate zero-work runs: no provider configured (an
+  early `return True` that never reaches the sweep) and a genuinely empty fixture pool.
+  Both must stay green, or a deployment that has not opted in fails every morning — the
+  exact regression Batch 16's docstring warns against.
+
+  **`carried` already means the right thing** and needs no new plumbing:
+  `sync_competition` sets `carried = table is not None or bool(results)`, so a competition
+  the provider does not carry is honestly false rather than an error. The signal exists;
+  only the verdict is missing.
+
+  Worth pairing with a partial-failure threshold — a run where 18 of 21 competitions
+  raised is not healthy even if the other three carried — but the total-failure case is
+  what makes the cron trustworthy again and should not wait for agreement on a ratio.
+
+  Test it against a provider stub that raises for every competition and asserts the job
+  returns `False`; the existing counting provider in `tests/test_football_data.py` is the
+  shape to borrow. `tests/test_run_scheduled.py` already covers the exit-code mapping, so
+  a failing verdict becomes a non-zero exit for free.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

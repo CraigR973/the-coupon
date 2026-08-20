@@ -134,19 +134,30 @@ Batch 32 adds `league_memberships.notification_muted` (migration `013`) plus
 the per-league fields on `/api/v1/notifications/preferences` — none of that
 reaches production until `/ship-prod` runs and carries migration `013` with it.
 
-The football-data provider is fully configured in production —
-`FOOTBALL_DATA_PROVIDER=apifootball`, `FOOTBALL_API_KEY` sealed 2026-08-15 — and
-the Football tab is still empty, for the third distinct reason in a row. Batch 16
-built it, Batch 28 found the undocumented 10/minute ceiling, and Batch 33 found
-what that was hiding: `/leagues` returns `"code": null` for the countryless
-competitions, one entry failed validation, and the whole catalogue went with it.
-Only the catalogue request has ever succeeded against the live API, so **whether
-the free plan carries the lower British divisions for season 2026 is still
-unobserved**. The next run answers it in the log —
-`api-football catalogue loaded leagues=N dropped=M`, then one
-`api-football competition unmatched` per division that fails to resolve. Until a
-`/ship-prod` carries Batch 33 and a `sync-football` run follows, the tab and the
-pick card's position-and-form strip stay dark.
+The football-data provider is **switched off in production**
+(`FOOTBALL_DATA_PROVIDER=none`, owner decision 2026-08-20), and the Football tab
+is empty because there is nothing to show it. That closes a question this file
+carried for weeks. Batch 16 built the feature, Batch 28 found the undocumented
+10/minute ceiling, and Batch 33 found what that was hiding in the catalogue —
+but the 2026-08-20 sweep, the first to get past all three, answered the real one:
+**api-football's Free plan carries no part of season 2026.** Not the lower
+British divisions — *nothing*, the Premier League included. All 18 competitions
+that resolved a league id were rejected at `/standings` with *"Free plans do not
+have access to this season, try from 2022 to 2024"*; the remaining 3 are cups
+that resolve no id and have no table anyway.
+
+`teams`, `team_aliases`, `matches` and `standings` are empty and have never held
+a row, in any environment. The team-matching defect this was read as does not
+exist: `/standings` fails before a single team is stored, so the candidate list
+is empty and `candidates=0` follows from that, not from a name that failed to
+match. Anyone reopening this should start at the plan, not the matcher.
+
+Turning it back on is one variable, once a plan that carries the current season
+is in place. Pinning `FOOTBALL_SEASON` to 2024 is not the workaround it looks
+like — it would render 2024/25 tables and form against 2026/27 fixtures.
+
+Batch 45 covers the reason this took so long to see: the sweep failed all 21
+competitions, logged `football data synced`, and exited `0`.
 
 Note that the two stacks ship differently: **Vercel auto-deploys `main` on every
 push; Railway moves only when `/ship-prod` runs.** Between 2026-08-04 and
@@ -457,15 +468,18 @@ does not have. What remains:
 - ~~ship staging and then production~~ — production is at `13560cdb` / migration `012`;
 - migrate staging from the deprecated `BF_FAKE_MODE` to `ODDS_PROVIDER=fake`;
 - re-run `.launch-private/weekend-fixtures.py` against the launch Saturday;
-- ~~decide whether to enable the football-data provider~~ — enabled;
-  `FOOTBALL_DATA_PROVIDER=apifootball` with `FOOTBALL_API_KEY` sealed 2026-08-15.
-  What remains is a `/ship-prod` for Batch 33 and a `sync-football` run, then
-  reading the catalogue log to learn what the free plan actually carries;
-- **rotate `ODDS_API_KEY`.** Beyond the two exposures already recorded, `httpx`
-  logs the full request URL at INFO and the key is a query parameter, so
-  production has been printing it in cleartext on every odds call — hundreds a
-  day in Railway's log store. Redacting the log is code work; the rotation is the
-  owner's;
+- ~~decide whether to enable the football-data provider~~ — **enabled, then
+  switched back off on 2026-08-20**: `FOOTBALL_DATA_PROVIDER=none`. The
+  `sync-football` run answered what the free plan carries — no part of season
+  2026 — so the provider stays off until a plan that covers the current season is
+  in place. `FOOTBALL_API_KEY` remains sealed and valid;
+- ~~rotate `ODDS_API_KEY`~~ — done by the owner on 2026-08-20, after the
+  redaction shipped. `httpx` logged the full request URL at INFO and the key is a
+  query parameter, so production had been printing it in cleartext on every odds
+  call. Both halves are now closed and confirmed in production: `httpx` and
+  `httpcore` are quieted to `WARNING`, and a live call with `httpx` forced back
+  to `INFO` produced the key **0** times and `<redacted>` **1** time. The same
+  call proved the rotated key valid — 63 UK competitions returned;
 - **delete the `BF_*` variables from Railway production.** `BF_USER`, `BF_PASS`,
   both PEM blobs and `BF_APP_KEY` are still set and are only read when
   `ODDS_PROVIDER=betfair`, which production does not use. A `BF_PASS` for a live
