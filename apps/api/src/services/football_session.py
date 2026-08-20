@@ -23,6 +23,7 @@ from src.config import Environment, FootballDataProviderName, settings
 from src.services.api_football import ApiFootballProvider
 from src.services.fake_football import FakeFootballData
 from src.services.football_provider import FootballDataError, FootballDataProvider
+from src.services.fotmob import FotMobProvider
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -39,6 +40,9 @@ def build_football_provider() -> FootballDataProvider | None:
         if settings.environment == Environment.production:
             raise FootballDataError("Fake football-data provider is forbidden in production")
         return FakeFootballData.with_sample_data()
+    if settings.football_data_provider == FootballDataProviderName.fotmob:
+        # No key to check: FotMob authenticates nothing (ADR 0007).
+        return FotMobProvider.from_settings()
     return ApiFootballProvider.from_settings()
 
 

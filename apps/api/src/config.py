@@ -49,10 +49,13 @@ class FootballDataProviderName(StrEnum):
     """Which football-data source supplies tables, results and form (Batch 16).
 
     A second provider, independent of the odds one: odds-api.io publishes no standings.
-    ``apifootball`` is api-sports.io (ADR 0003). ``fake`` serves canned data and is
-    forbidden in production. ``none`` is the default and turns *ingestion* off — the
-    screens still read whatever is already in ``teams`` / ``matches`` / ``standings``, so
-    an unconfigured deployment shows no football data rather than failing.
+    ``apifootball`` is api-sports.io (ADR 0003); ``fotmob`` is FotMob (ADR 0007), and is
+    the only one of the two that carries the current season. ``fotmob`` needs **no key**
+    — it authenticates nothing — so the production validator must not demand one for it.
+    ``fake`` serves canned data and is forbidden in production. ``none`` is the default
+    and turns *ingestion* off — the screens still read whatever is already in ``teams`` /
+    ``matches`` / ``standings``, so an unconfigured deployment shows no football data
+    rather than failing.
 
     ``none`` rather than ``apifootball`` is the default deliberately: production is
     already deployed and sealed, and defaulting to a provider whose key it does not hold
@@ -60,6 +63,7 @@ class FootballDataProviderName(StrEnum):
     """
 
     apifootball = "apifootball"
+    fotmob = "fotmob"
     fake = "fake"
     none = "none"
 
