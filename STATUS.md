@@ -173,11 +173,21 @@ is empty because there is nothing to show it. That closes a question this file
 carried for weeks. Batch 16 built the feature, Batch 28 found the undocumented
 10/minute ceiling, and Batch 33 found what that was hiding in the catalogue —
 but the 2026-08-20 sweep, the first to get past all three, answered the real one:
-**api-football's Free plan carries no part of season 2026.** Not the lower
+**api-football's Free plan carries no season after 2024.** Not the lower
 British divisions — *nothing*, the Premier League included. All 18 competitions
 that resolved a league id were rejected at `/standings` with *"Free plans do not
 have access to this season, try from 2022 to 2024"*; the remaining 3 are cups
 that resolve no id and have no table anyway.
+
+A follow-up probe the same day, run with the sealed key via `railway run`, showed
+that the sweep had understated it twice. The refusal is **plan-wide, not a
+`/standings` problem**: `/fixtures` and `/teams` refuse season 2026 with the
+identical error, and `/fixtures` with a date window and no season is rejected
+outright (*"The Season field is required"*), so there is no way round the gate.
+And **season 2025 is refused too** — the most recent data the plan can reach is
+2024/25, which ended 2025-05-25, two seasons back. The key is valid, the plan is
+active to 2027-07-24, and season 2024 returns a complete table. This is an
+entitlement wall, not a defect, and no amount of code fixes it.
 
 `teams`, `team_aliases`, `matches` and `standings` are empty and have never held
 a row, in any environment. The team-matching defect this was read as does not
@@ -185,9 +195,26 @@ exist: `/standings` fails before a single team is stored, so the candidate list
 is empty and `candidates=0` follows from that, not from a name that failed to
 match. Anyone reopening this should start at the plan, not the matcher.
 
-Turning it back on is one variable, once a plan that carries the current season
-is in place. Pinning `FOOTBALL_SEASON` to 2024 is not the workaround it looks
-like — it would render 2024/25 tables and form against 2026/27 fixtures.
+That question now has an answer: **FotMob replaces api-football as the
+football-data provider** (ADR 0007, owner decision 2026-08-20), scoped as Batch
+46. It was the only free source found that carries the English step 6-7
+divisions — National League North and South, Southern Premier Central and South,
+Northern Premier, Isthmian Premier — which are 203 fixtures, **49% of the card**.
+FotMob carries 17 of the 18 leagues and 368 of the 389 league fixtures, missing
+only `northern-ireland-championship-1`. The alternatives were measured, not
+assumed: football-data.org's free tier is 12 competitions (British ones the
+Premier League and Championship only), TheSportsDB truncates every table to five
+rows, and football-data.co.uk publishes no tables at all.
+
+The trade is recorded rather than glossed. FotMob's terms prohibit automated
+access, and its interface is undocumented and moves — `/api/leagues?id=47`
+already 404s, and the working path is `/api/data/allLeagues`. ADR 0007 holds both,
+and TheSportsDB at roughly $9/month is the measured fallback.
+
+Turning it back on stays one variable (`FOOTBALL_DATA_PROVIDER=fotmob`) but now
+waits on Batch 46's adapter. Pinning `FOOTBALL_SEASON` to 2024 was never the
+workaround it looked like — it would render tables and form from **two** seasons
+back against 2026/27 fixtures.
 
 Batch 45 fixed the reason this took so long to see. The sweep failed all 21
 competitions, logged `football data synced`, and exited `0`, because
@@ -523,9 +550,11 @@ have — is closed and kept only in the shipment history. What remains:
   gitignored, so that repair lives only on the owner's machine;
 - ~~decide whether to enable the football-data provider~~ — **enabled, then
   switched back off on 2026-08-20**: `FOOTBALL_DATA_PROVIDER=none`. The
-  `sync-football` run answered what the free plan carries — no part of season
-  2026 — so the provider stays off until a plan that covers the current season is
-  in place. `FOOTBALL_API_KEY` remains sealed and valid;
+  `sync-football` run answered what the free plan carries — nothing after season
+  2024. The provider question is now settled the other way: **FotMob replaces
+  api-football** (ADR 0007, Batch 46), so this stays off until that adapter
+  lands rather than until a paid plan is bought. `FOOTBALL_API_KEY` remains
+  sealed and valid, and is irrelevant to FotMob;
 - ~~rotate `ODDS_API_KEY`~~ — done by the owner on 2026-08-20, after the
   redaction shipped. `httpx` logged the full request URL at INFO and the key is a
   query parameter, so production had been printing it in cleartext on every odds

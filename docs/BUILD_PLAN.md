@@ -1063,6 +1063,113 @@ answered until it lands, because until then there is no data to look at.
   shape to borrow. `tests/test_run_scheduled.py` already covers the exit-code mapping, so
   a failing verdict becomes a non-zero exit for free.
 
+- [ ] **Batch 46 — Reading the whole card from a source that has it** — the football
+  feature is built, tested, shipped and switched off. `FOOTBALL_DATA_PROVIDER=none` since
+  2026-08-20 because api-football's Free plan carries no part of the current season.
+  Re-verified live on 2026-08-20 with the sealed production key: `/standings`, `/fixtures`
+  *and* `/teams` all refuse season 2026 with *"Free plans do not have access to this
+  season, try from 2022 to 2024"*, season **2025 is refused too**, and `/fixtures` without
+  a season is rejected outright (`The Season field is required`) so there is no
+  date-window way round it. The most recent data that plan can reach ended 2025-05-25.
+  This is an entitlement wall, not a defect: the key is valid, the plan is active to
+  2027-07-24, and season 2024 returns a complete table.
+
+  **Add a FotMob adapter as a third implementation of the existing port** — owner
+  decision, 2026-08-20, taken with the terms position below already on the record.
+  Nothing about ADR 0003's architecture changes — the port, the
+  ingestion-never-in-the-request-path rule, standings stored as published, and the alias
+  layer all stand. Only the source behind them moves. The paid alternatives were
+  considered and not taken; TheSportsDB, at roughly $9/month, was the cheapest carrying
+  comparable coverage and remains the fallback if the terms or the fragility below turn
+  out to bite.
+
+  Coverage was measured against the live card rather than assumed. The card is 21
+  competitions and 416 fixtures, of which **18 are leagues** — the other three are cups
+  and have no table under any provider. FotMob carries **17 of those 18 leagues, 368 of
+  the 389 league fixtures**, missing only `northern-ireland-championship-1`. Decisively,
+  it is the one free source found that
+  reaches the six English step 6–7 divisions — National League North and South, Southern
+  Premier Central and South, Northern Premier, Isthmian Premier — which are **203
+  fixtures, 49% of the card**. Every alternative checked stops at the National League or
+  above: football-data.org's free tier is 12 competitions (verified unauthenticated
+  against `/v4/competitions`, British ones being the Premier League and Championship
+  only), openfootball carries two, TheSportsDB has the coverage but truncates every table
+  to five rows and every results feed to one event, and football-data.co.uk reaches nine
+  of the 21 and publishes no tables at all.
+
+  **The genuinely new shape: one FotMob league id carries several of our competitions.**
+  `8944` is National League North *and* South; `8947` is Southern Central, Southern South,
+  Northern Premier *and* Isthmian Premier; `9545` is the Highland League with both Lowland
+  divisions. api-football is 1:1, and the port calls `fetch_table` once per
+  `CompetitionKey`, so the naive adapter fetches `8947` four times over. Memoise the
+  league-id response for the life of the run — the same trick `ApiFootballProvider`
+  already uses for its catalogue — so those four competitions cost one upstream request
+  between them. Get this wrong and the batch quietly quadruples its own request count
+  against an unmetered endpoint that will notice.
+
+  The corollary is a correctness trap, not just an efficiency one: the adapter must
+  attribute each returned group to the right `CompetitionKey` before any club is stored.
+  A Southern Central side filed under Isthmian produces a wrong club inside a table that
+  looks perfectly well-formed. `team_matching`'s fuzzy stage is scoped to one division
+  precisely so it cannot make that mistake — a mis-attributed group hands it bad scope and
+  defeats the guard.
+
+  **No key, and no daily cliff.** `FOOTBALL_API_KEY` is meaningless here, and the
+  validator at `config.py:287` must not demand one for the new provider — it currently
+  requires a key whenever the provider is `apifootball`, and the `fotmob` branch must not
+  inherit that. FotMob publishes no quota, so the 100/day ceiling that shaped Batch 16 is
+  gone. Do **not** delete `football_competitions_per_run` or
+  `football_competition_spacing_seconds`: they are still exactly right for `apifootball`,
+  which stays selectable. Make the pacing the provider's to own rather than the sweep's,
+  or a 12-second gap keeps costing six minutes a run for a limit that no longer applies.
+
+  **The empty tables are a gift — spend it now.** `teams`, `team_aliases`, `matches` and
+  `standings` have never held a row in any environment. A provider swap is normally an
+  id-namespace migration, since `provider_team_id` is globally unique and two sources'
+  ids would collide. Here there is nothing to migrate and nothing to purge. Done after
+  those tables are populated, this is a materially larger and riskier batch.
+
+  Two smaller seams: the port names a season by its starting year (`2026`) and FotMob
+  answers `selectedSeason: '2026/2027'`, so convert at the boundary; and `team_matching`
+  now reconciles three vocabularies rather than two, with FotMob's spellings landing as
+  `source='provider'` rows beside the odds spellings.
+
+  **Two things this batch must be honest about.** The interface is undocumented and it
+  moves: during the 2026-08-20 investigation `/api/leagues?id=47` — the path every public
+  wrapper uses — returned 404, and the working path is `/api/data/allLeagues`. No version,
+  no deprecation, no changelog. Read every field defensively exactly as ADR 0003 required,
+  and treat a 404 on a known path as an error rather than as "this competition has no
+  table". Separately, **FotMob's terms prohibit automated access.** The owner took that
+  decision knowingly on 2026-08-20, against a card whose usage is one sweep a day over 21
+  competitions. Recording it as a decision is the point: it stays revisitable, rather than
+  being rediscovered later as a surprise by whoever reads the adapter.
+
+  Write **ADR 0007** first, before the adapter, recording the coverage measurement, the
+  terms position and the fragility, and superseding ADR 0003's choice of provider while
+  keeping its architecture. It goes first because it is the artefact that makes the terms
+  decision explicit and dated; without it the next person rediscovers the free-plan wall
+  from scratch, which is what this one cost.
+
+  Batch 45 is what makes this dependency tolerable, and it has already shipped: a sweep
+  that attempts a non-empty card and carries none of it now fails and exits non-zero, so a
+  FotMob path change surfaces as a red cron rather than as a table that quietly stops
+  moving. Do not weaken that verdict to accommodate a flaky source.
+
+  Verification: a recorded-payload test per shape — the combined-id group split for
+  `8944`/`8947`/`9545`, a single-division id (`117`), the season-string conversion, and a
+  moved path raising rather than reading as an absent table. Assert the memoisation
+  against a counting client, mirroring the counting provider already in
+  `tests/test_football_data.py`. Probe live from Railway before shipping, not from a
+  laptop: this machine cannot reach several of these hosts, and every probe behind this
+  batch ran via `railway ssh`. Then sweep the real card in staging and read `attempted`
+  against `carried` — expect **17 carried**, `northern-ireland-championship-1` the only
+  league miss, and the three cups carrying nothing because they have no table.
+
+  Scope boundary: **no screen changes.** The Football tab and the inline form already
+  render whatever is stored, and this batch only changes where those rows come from.
+  Turning it on in production stays one variable (`FOOTBALL_DATA_PROVIDER=fotmob`) and a
+  separate owner-run step.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
