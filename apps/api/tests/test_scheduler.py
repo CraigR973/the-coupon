@@ -19,6 +19,7 @@ from src.scheduler import (
     run_settle_gameweeks,
     run_sync_football_data,
 )
+from src.services.football_data import CompetitionSync, FootballSweep
 
 
 class _Ctx:
@@ -228,7 +229,12 @@ async def test_run_sync_football_data_passes_the_minute_pacing_setting() -> None
         patch("src.scheduler.football_session.acquire", new=AsyncMock(return_value=MagicMock())),
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
         patch("src.scheduler._uk_today", return_value=MagicMock()),
-        patch("src.scheduler.sync_football_data", new=AsyncMock(return_value=[])) as sync,
+        patch(
+            "src.scheduler.sync_football_data",
+            # An empty card, not an empty *result*: Batch 45 made those different
+            # verdicts, and this test is about the pacing setting either way.
+            new=AsyncMock(return_value=FootballSweep(attempted=0, reports=[])),
+        ) as sync,
     ):
         ok = await run_sync_football_data()
 
@@ -237,6 +243,76 @@ async def test_run_sync_football_data_passes_the_minute_pacing_setting() -> None
         settings.football_competition_spacing_seconds
     )
     session.commit.assert_awaited_once()
+
+
+# ── The sweep's verdict (Batch 45) ───────────────────────────────────────────
+#
+# `sync_football_data` tolerates one competition failing on purpose, and that is right.
+# What it cannot do is tell the job whether *everything* failed — a competition that
+# raised leaves no report, so an empty list is both "the card was empty" and "all 21
+# failed". On 2026-08-20 production took the second for the first every morning for
+# weeks: 21 failures, `football data synced`, exit 0.
+
+
+def _report(*, carried: bool) -> CompetitionSync:
+    return CompetitionSync(
+        competition_id="england-premier-league",
+        competition="Premier League",
+        season=2026,
+        table_rows=20 if carried else 0,
+        carried=carried,
+    )
+
+
+async def _sweep_verdict(sweep: FootballSweep) -> bool:
+    session = AsyncMock()
+    with (
+        patch("src.scheduler.football_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler._uk_today", return_value=MagicMock()),
+        patch("src.scheduler.sync_football_data", new=AsyncMock(return_value=sweep)),
+    ):
+        return await run_sync_football_data()
+
+
+@pytest.mark.asyncio
+async def test_a_run_that_carried_none_of_a_non_empty_card_fails() -> None:
+    """The exact production shape: every competition reported, none carried anything."""
+    sweep = FootballSweep(attempted=21, reports=[_report(carried=False) for _ in range(21)])
+    assert await _sweep_verdict(sweep) is False
+
+
+@pytest.mark.asyncio
+async def test_a_run_where_every_competition_raised_fails() -> None:
+    """No reports at all, because a competition that raised leaves none behind."""
+    assert await _sweep_verdict(FootballSweep(attempted=21, reports=[])) is False
+
+
+@pytest.mark.asyncio
+async def test_an_empty_fixture_pool_is_still_a_success() -> None:
+    """A legitimate zero-work run. Failing here would fail every morning before a season
+    starts, and on any deployment whose slate has never run."""
+    assert await _sweep_verdict(FootballSweep(attempted=0, reports=[])) is True
+
+
+@pytest.mark.asyncio
+async def test_one_competition_carrying_is_enough_to_pass() -> None:
+    """The tolerance the sweep was built for is unchanged — twenty failures and one
+    table is a run that did something, not a failed one. A ratio rule is a separate
+    argument and does not block this."""
+    sweep = FootballSweep(
+        attempted=21,
+        reports=[_report(carried=False) for _ in range(20)] + [_report(carried=True)],
+    )
+    assert await _sweep_verdict(sweep) is True
+
+
+@pytest.mark.asyncio
+async def test_no_provider_configured_is_a_success_that_did_nothing() -> None:
+    """Batch 16's docstring warns against exactly this regression: `none` is the default,
+    so a deployment that never opted in must not fail its cron every morning."""
+    with patch("src.scheduler.football_session.acquire", new=AsyncMock(return_value=None)):
+        assert await run_sync_football_data() is True
 
 
 @pytest.mark.asyncio

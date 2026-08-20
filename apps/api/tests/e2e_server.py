@@ -123,7 +123,7 @@ async def seed_coupon_flow() -> dict[str, object]:
             "league_slug": league.slug,
             "gameweek_id": str(gameweek.id),
             "players": ["Alice", "Bob", "Carol"],
-            "football_competitions": [r.competition_id for r in football if r.carried],
+            "football_competitions": [r.competition_id for r in football.reports if r.carried],
         }
 
 

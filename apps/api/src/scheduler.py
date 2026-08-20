@@ -270,7 +270,19 @@ async def run_sync_football_data() -> bool:
 
     A run with no provider configured is a success that did nothing: ``none`` is the
     default, and Batch 16 must not turn a deployment that has not opted in into a failing
-    job every morning.
+    job every morning. A run over an empty fixture pool is a success for the same reason.
+
+    **A run that attempted a non-empty card and carried none of it is a failure** (Batch
+    45). It did not used to be: this returned ``True`` on any run that reached the
+    provider, so on 2026-08-20 a sweep that failed all 21 competitions — 18 rejected at
+    ``/standings`` because the free plan carries no part of the current season, 3 cups
+    that resolve no id — logged ``football data synced`` and exited 0, and had been doing
+    so every morning while ingesting nothing. The summary line carried the truth the
+    whole time; nothing was reading it.
+
+    The sweep's own tolerance is untouched. One division the provider dropped must not
+    cost the other twenty-nine their tables, and it still does not — the verdict is the
+    caller's job, not the sweep's.
     """
     try:
         provider = await football_session.acquire()
@@ -278,7 +290,7 @@ async def run_sync_football_data() -> bool:
             log.info("football data sync skipped: no provider configured")
             return True
         async with AsyncSessionLocal() as session:
-            reports = await sync_football_data(
+            sweep = await sync_football_data(
                 session,
                 provider,
                 season=season_or_default(settings.football_season),
@@ -288,13 +300,10 @@ async def run_sync_football_data() -> bool:
                 competition_spacing_seconds=settings.football_competition_spacing_seconds,
             )
             await session.commit()
-        log.info(
-            "football data synced",
-            competitions=len(reports),
-            carried=sum(1 for report in reports if report.carried),
-            table_rows=sum(report.table_rows for report in reports),
-            matches=sum(report.matches for report in reports),
-        )
+        if sweep.carried_nothing:
+            log.error("football data sync carried nothing", **sweep.summary())
+            return False
+        log.info("football data synced", **sweep.summary())
         return True
     except Exception:
         log.exception("football data sync failed")
@@ -318,15 +327,15 @@ async def run_backfill_football_season() -> bool:
             return True
         season = season_or_default(settings.football_season)
         async with AsyncSessionLocal() as session:
-            reports = await backfill_season(session, provider, season=season)
+            sweep = await backfill_season(session, provider, season=season)
             await session.commit()
-        log.info(
-            "football season backfilled",
-            season=season,
-            competitions=len(reports),
-            carried=sum(1 for report in reports if report.carried),
-            matches=sum(report.matches for report in reports),
-        )
+        if sweep.carried_nothing:
+            # Same verdict as the daily job, for the same reason. A human runs this one
+            # and reads its output, which makes a silent total failure more likely to be
+            # believed rather than less.
+            log.error("football backfill carried nothing", season=season, **sweep.summary())
+            return False
+        log.info("football season backfilled", season=season, **sweep.summary())
         return True
     except Exception:
         log.exception("football season backfill failed")

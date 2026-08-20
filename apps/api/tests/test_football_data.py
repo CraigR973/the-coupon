@@ -41,6 +41,7 @@ from src.services.fake_football import (
 )
 from src.services.football_data import (
     CompetitionSync,
+    FootballSweep,
     FormMatch,
     backfill_season,
     fixture_context,
@@ -55,6 +56,7 @@ from src.services.football_data import (
 from src.services.football_provider import (
     CompetitionKey,
     FootballDataAPIError,
+    FootballDataProvider,
     FormResult,
     LeagueTable,
     MatchResult,
@@ -235,6 +237,29 @@ async def _run(
     competition_spacing_seconds: float = 0.0,
     sleeper: Any = None,
 ) -> list[CompetitionSync]:
+    """The reports a run produced. Callers here are about *what was ingested*; the
+    run-level verdict Batch 45 added is exercised through :func:`_sweep` instead."""
+    return (
+        await _sweep(
+            session,
+            provider,
+            today=today,
+            limit=limit,
+            competition_spacing_seconds=competition_spacing_seconds,
+            sleeper=sleeper,
+        )
+    ).reports
+
+
+async def _sweep(
+    session: AsyncSession,
+    provider: FootballDataProvider,
+    *,
+    today: date,
+    limit: int,
+    competition_spacing_seconds: float = 0.0,
+    sleeper: Any = None,
+) -> FootballSweep:
     kwargs: dict[str, Any] = {}
     if sleeper is not None:
         kwargs["sleeper"] = sleeper
@@ -440,6 +465,96 @@ async def test_ingesting_the_same_results_twice_writes_no_duplicates(
     assert len(await recent_results(session, [epl], limit=100)) == 8
 
 
+# ── What a whole run reports about itself (Batch 45) ──────────────────────────
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_sweep_where_every_competition_raised_reports_that_it_attempted_them(
+    session: AsyncSession,
+) -> None:
+    """The shape the job could not see before.
+
+    Every competition raising leaves ``reports`` empty — which is byte-for-byte what an
+    empty fixture pool produces, and the opposite verdict. ``attempted`` is the only
+    thing that separates them, which is why it is carried rather than derived.
+    """
+    tag = uuid.uuid4().hex[:8]
+    epl, sl2 = _epl(tag), _sl2(tag)
+    await _pool(session, epl, kickoff=FUTURE_KICKOFF)
+    await _pool(session, sl2, kickoff=FUTURE_KICKOFF, teams=(("Forfar Athletic", "Brechin City"),))
+
+    provider = CountingFootballData.with_sample_data()
+    provider.unavailable = {epl.slug, sl2.slug}
+
+    sweep = await _sweep(session, provider, today=FUTURE_TODAY, limit=30)
+
+    assert sweep.attempted == 2
+    assert sweep.reports == []
+    assert sweep.failed == 2
+    assert sweep.carried_nothing is True
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_sweep_that_reached_every_competition_and_carried_none_is_not_healthy(
+    session: AsyncSession,
+) -> None:
+    """The 2026-08-20 production run, in miniature: nothing raised, nothing landed.
+
+    Two cups have no table and no results, so every competition is reported honestly and
+    ``carried`` is 0. That is indistinguishable from a healthy run with an empty card
+    unless ``attempted`` is consulted.
+    """
+    tag = uuid.uuid4().hex[:8]
+    first, second = _cup(f"{tag}a"), _cup(f"{tag}b")
+    await _pool(session, first, kickoff=FUTURE_KICKOFF)
+    await _pool(session, second, kickoff=FUTURE_KICKOFF, teams=(("Forfar Athletic", "Brechin"),))
+
+    sweep = await _sweep(
+        session, CountingFootballData.with_sample_data(), today=FUTURE_TODAY, limit=30
+    )
+
+    assert sweep.attempted == 2
+    assert len(sweep.reports) == 2  # reached, not raised
+    assert sweep.failed == 0
+    assert sweep.carried == 0
+    assert sweep.carried_nothing is True
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_sweep_over_an_empty_card_is_not_a_failure(session: AsyncSession) -> None:
+    """The legitimate zero-work run this must never be confused with."""
+    sweep = await _sweep(
+        session, CountingFootballData.with_sample_data(), today=FUTURE_TODAY, limit=0
+    )
+
+    assert sweep.attempted == 0
+    assert sweep.carried_nothing is False
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_one_competition_carrying_keeps_a_sweep_healthy(session: AsyncSession) -> None:
+    """The tolerance the sweep exists for, unchanged: one division the provider dropped
+    must not cost the other its table, and the run is still a success."""
+    tag = uuid.uuid4().hex[:8]
+    epl, sl2 = _epl(tag), _sl2(tag)
+    await _pool(session, epl, kickoff=FUTURE_KICKOFF)
+    await _pool(session, sl2, kickoff=FUTURE_KICKOFF, teams=(("Forfar Athletic", "Brechin City"),))
+
+    provider = CountingFootballData.with_sample_data()
+    provider.unavailable = {sl2.slug}
+
+    sweep = await _sweep(session, provider, today=FUTURE_TODAY, limit=30)
+
+    assert sweep.attempted == 2
+    assert sweep.failed == 1
+    assert sweep.carried == 1
+    assert sweep.carried_nothing is False
+
+
 @pytest_db
 @pytest.mark.asyncio
 async def test_a_competition_the_provider_does_not_carry_is_reported_not_raised(
@@ -492,12 +607,14 @@ async def test_the_backfill_reaches_matches_the_daily_window_cannot(
     )
     assert windowed.matches == 2  # only the final Saturday
 
-    (backfilled,) = await backfill_season(
-        session,
-        CountingFootballData.with_sample_data(),
-        season=SAMPLE_SEASON,
-        competitions=[epl],
-    )
+    (backfilled,) = (
+        await backfill_season(
+            session,
+            CountingFootballData.with_sample_data(),
+            season=SAMPLE_SEASON,
+            competitions=[epl],
+        )
+    ).reports
     assert backfilled.matches == 8  # the whole canned season
 
 

@@ -152,6 +152,62 @@ class CompetitionSync(BaseModel):
     carried: bool = True
 
 
+class FootballSweep(BaseModel):
+    """What a whole run did, including the competitions that produced no report at all.
+
+    A list of reports cannot answer the question the job actually has to answer, because
+    a competition that *raised* leaves no report behind: an empty list means either "the
+    card was empty" or "every single competition failed", and those are opposite
+    verdicts. Batch 45 exists because the job could not tell them apart and called both
+    a success — on 2026-08-20 the production sweep failed all 21 competitions, logged
+    ``football data synced``, and exited 0 for weeks.
+
+    ``attempted`` is therefore carried alongside the reports rather than derived from
+    them.
+    """
+
+    attempted: int = 0
+    reports: list[CompetitionSync] = []
+
+    @property
+    def carried(self) -> int:
+        """Competitions that produced a table or at least one result."""
+        return sum(1 for report in self.reports if report.carried)
+
+    @property
+    def failed(self) -> int:
+        """Competitions that raised, and so are missing from ``reports`` entirely."""
+        return self.attempted - len(self.reports)
+
+    @property
+    def carried_nothing(self) -> bool:
+        """True when the run had work to do and none of it landed.
+
+        One condition covers both shapes of total failure — every competition raising,
+        and every competition being honestly empty — because ``carried`` counts reports
+        and a competition that raised has none.
+
+        ``attempted == 0`` is *not* a failure: an empty fixture pool is a legitimate
+        zero-work run, as is a deployment with no provider (which returns before a sweep
+        ever starts). A card where every competition genuinely has nothing yet would be
+        called a failure here; across twenty-odd British divisions that is not a state
+        that lasts, and a morning where nothing at all could be ingested is worth
+        surfacing rather than hiding.
+        """
+        return self.attempted > 0 and self.carried == 0
+
+    def summary(self) -> dict[str, int]:
+        """The figures both the success and the failure log line carry."""
+        return {
+            "attempted": self.attempted,
+            "reported": len(self.reports),
+            "failed": self.failed,
+            "carried": self.carried,
+            "table_rows": sum(report.table_rows for report in self.reports),
+            "matches": sum(report.matches for report in self.reports),
+        }
+
+
 # ── Which competitions matter ──────────────────────────────────────────────────
 
 
@@ -434,7 +490,7 @@ async def sync_football_data(
     today: date | None = None,
     competition_spacing_seconds: float = 0.0,
     sleeper: Sleeper = asyncio.sleep,
-) -> list[CompetitionSync]:
+) -> FootballSweep:
     """The scheduled top-up: the least-recently-synced competitions on the card.
 
     Bounded by ``limit`` competitions per run — the whole point of the ordering in
@@ -444,9 +500,12 @@ async def sync_football_data(
 
     One competition's failure does not take the run down: it is logged and the rest
     continue, because a provider that has stopped carrying one division should not cost
-    the other twenty-nine their tables. ``competition_spacing_seconds`` spaces the
-    scheduled sweep below API-Football's 10-requests/minute cap; it is injected so tests
-    can assert the cadence without waiting.
+    the other twenty-nine their tables. That tolerance is right and is unchanged by
+    Batch 45 — what changed is that the *caller* can now see how much of the card was
+    attempted, so total failure is distinguishable from an empty card. See
+    :class:`FootballSweep`. ``competition_spacing_seconds`` spaces the scheduled sweep
+    below API-Football's 10-requests/minute cap; it is injected so tests can assert the
+    cadence without waiting.
     """
     day = today or datetime.now(UTC).date()
     competitions = await pooled_competitions(db, since=day - timedelta(days=lookback_days))
@@ -468,7 +527,7 @@ async def sync_football_data(
             log.exception("football data sync failed", competition_id=competition.slug)
         if competition_spacing_seconds > 0 and index < len(targets) - 1:
             await sleeper(competition_spacing_seconds)
-    return reports
+    return FootballSweep(attempted=len(targets), reports=reports)
 
 
 async def backfill_season(
@@ -477,7 +536,7 @@ async def backfill_season(
     *,
     season: int,
     competitions: Sequence[CompetitionKey] | None = None,
-) -> list[CompetitionSync]:
+) -> FootballSweep:
     """Pull a whole season's results and current table for every pooled competition.
 
     The one-off counterpart to :func:`sync_football_data`: unbounded in date so a season's
@@ -485,6 +544,10 @@ async def backfill_season(
     deliberately rather than on a clock. It is still the same two requests per competition
     (plus result paging), so a thirty-competition backfill is affordable in a day — which
     is exactly why the daily job asks for a window instead.
+
+    Reports a :class:`FootballSweep` for the same reason the daily job does. A human runs
+    this one and reads its output, which is exactly the sort of thing that makes a silent
+    total failure *more* likely to be believed rather than less.
     """
     targets = list(competitions) if competitions is not None else await pooled_competitions(db)
     reports: list[CompetitionSync] = []
@@ -493,7 +556,7 @@ async def backfill_season(
             reports.append(await sync_competition(db, provider, competition, season))
         except Exception:
             log.exception("football data backfill failed", competition_id=competition.slug)
-    return reports
+    return FootballSweep(attempted=len(targets), reports=reports)
 
 
 # ── Reads (database only — never a provider) ───────────────────────────────────
