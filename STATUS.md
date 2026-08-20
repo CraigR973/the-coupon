@@ -512,7 +512,15 @@ have — is closed and kept only in the shipment history. What remains:
 - ~~ship staging and then production~~ — production is at `33191ba2` / migration `015`;
 - ~~migrate staging from the deprecated `BF_FAKE_MODE` to `ODDS_PROVIDER=fake`~~ —
   done 2026-08-20: staging is `ODDS_PROVIDER=fake` and carries no `BF_*` at all;
-- re-run `.launch-private/weekend-fixtures.py` against the launch Saturday;
+- ~~re-run `.launch-private/weekend-fixtures.py` against the launch Saturday~~ —
+  done 2026-08-20 for **Saturday 2026-08-22**: 134 qualifying 15:00 fixtures, 112
+  of them priced, **474 distinct priced selections** against the 15 a full league
+  needs. Both Scottish lower divisions price fully; the Premiership is patchy
+  (3 of 5 unpriced), which is a bookmaker coverage fact, not a defect. The script
+  needed repairing first — it still called the pre-Batch-14 `upcoming_saturday`
+  and single-argument `fetch_slate(date)`, so it had been unrunnable since the
+  slate window became per-league. Fixed in place; `.launch-private/` is
+  gitignored, so that repair lives only on the owner's machine;
 - ~~decide whether to enable the football-data provider~~ — **enabled, then
   switched back off on 2026-08-20**: `FOOTBALL_DATA_PROVIDER=none`. The
   `sync-football` run answered what the free plan carries — no part of season
