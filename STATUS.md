@@ -576,10 +576,13 @@ Build batches use `/batch-start <N>`, `/batch-verify <N>`, and
 `/phase-closeout <N>`; launch phases use `/launch-start <L0-L5>`,
 `/launch-verify <L0-L5>`, and explicit `/launch-closeout <L0-L5>`.
 
-Two carried follow-ups: the administrator PIN is a known value and must be
-changed at first login, and the `odds-api.io` key **must** be rotated — it was
-shared during scoping and was printed in a request URL during Batch 7
-verification.
+Both carried follow-ups are now closed. The `odds-api.io` key was rotated by the
+owner on 2026-08-20 after the Batch 36 redaction shipped. The administrator PIN
+is no longer the known bootstrap value: a login attempt with `roster.json`'s PIN
+was refused against production on 2026-08-20, which is the evidence it was
+changed. (That attempt incremented `failed_login_count` to 1 of 5 and it was
+reset to 0 immediately — do not probe this by guessing, the lockout is durable
+and locking the owner out before a Saturday is the worse failure.)
 
 ## Toolchain
 

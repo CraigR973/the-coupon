@@ -106,48 +106,76 @@ chooses otherwise:
 
 ## Blocking findings
 
+> **Reconciled against the code on 2026-08-20.** Every box below was checked by
+> reading the implementation, not `STATUS.md`'s prose. That distinction matters:
+> this list had drifted so far that two separate sessions drew wrong conclusions
+> from it in one day — one concluded real players could not be onboarded (the
+> roster bootstrap has existed since L4), the other asserted most items were
+> stale without having read them. A checkbox here now means someone looked.
+>
+> **Four items remain genuinely open**, marked `[ ]` below. Everything else
+> carries the evidence that closed it.
+
 ### Application and security
 
-- [ ] Implement durable PIN lockout using `failed_login_count` and
-  `locked_until`, reject inactive profiles during login, and test rate limiting
-  through Railway's proxy. Current counters are process-local and reset on
-  restart (`apps/api/src/rate_limit.py`, `apps/api/src/routers/auth.py`).
-- [ ] Replace the PIN-reset endpoint that writes a usable reset JWT to logs.
-  Use the existing league-admin reset capability through a reviewed UI or a
-  secure one-off operator command.
+- [x] Durable PIN lockout, inactive-profile rejection, and proxy rate limiting.
+  ✅ `auth.py` holds `MAX_FAILED_ATTEMPTS = 5` and `LOCKOUT_DURATION = 15min`
+  against the **database** columns `failed_login_count` / `locked_until`
+  (`routers/auth.py:190-199`), and a successful login resets both; inactive
+  profiles are refused at `routers/auth.py:176`. **The rate limiter itself is
+  the one part still open — split out below.**
+- [ ] **Move rate-limit counters off process memory.** `rate_limit.py` builds
+  `Limiter(key_func=client_address)` with no `storage_uri`, so slowapi keeps
+  counters in memory and a restart clears them. **Accepted for launch, not
+  fixed:** the security-critical half is durable (the lockout lives in Postgres,
+  so a restart widens a window and never bypasses it), production runs exactly
+  one replica so there is no cross-replica inconsistency, and the roster is
+  fifteen known people. Fixing it properly needs Redis — new paid infrastructure
+  and an owner decision. Revisit if the replica count ever rises.
+- [x] Replace the PIN-reset endpoint that writes a usable reset JWT to logs.
+  ✅ The only reset route is `POST /auth/pin/reset-request`, which logs
+  `"pin reset requested — admin handoff required"` with a `user_id` and **no
+  token** (`routers/auth.py:379`); the league-admin reset logs target and league
+  only (`routers/league_memberships.py:508`).
 - [x] Resolve the avatar contract. ✅ Batches 42 and 44 — `profiles.avatar_url`
   (migration `015`), three endpoints, a re-encoding upload path, and a Supabase
   bucket behind `AVATAR_STORAGE`. The MVP action recommended here — remove the
   controls, keep generated initials — is still what an unprovisioned deployment
   does, and generated initials remain the fallback for a member with no picture.
-- [ ] Align notification settings. The frontend expects nine category flags,
-  while the API persists and returns only `global_mute` and quiet hours.
-- [ ] Remove or complete passwordless activation. The API creates
-  `/activate?code=...` links, but the frontend has no `/activate` route or
-  device-token consumer.
-- [ ] Create an idempotent, operator-only bootstrap command for the real player
-  profiles, the `the-coupon` league, and memberships. The current seed creates
-  only a hard-coded `Admin` profile.
-- [ ] Remove dead inherited configuration and dependencies, including unused
-  `ANTHROPIC_*`, backend Supabase client settings, `resend`, and the unused
-  browser Supabase client and Sentry configuration, unless a launch feature
-  needs them.
-- [ ] Pin Python production dependencies so rebuilding the same commit is
-  reproducible.
+- [x] Align notification settings. ✅ The API returns `global_mute`, quiet hours
+  and per-league mutes (`routers/notifications.py:48-57`, Batch 32) and
+  `SettingsPage.tsx:29-32` consumes exactly that shape. The nine-category
+  frontend this described no longer exists.
+- [x] Remove or complete passwordless activation. ✅ Removed at L1 — no
+  `/activate` route exists on either side, and no device-token consumer remains.
+- [x] Create an idempotent, operator-only bootstrap for the real player
+  profiles, the league, and memberships. ✅ `seeds.py` takes `--roster` and
+  builds `BootstrapPlayer(display_name, pin, league_role, league_slug)`;
+  `.launch-private/bootstrap-production.sh` runs it **twice** to prove
+  idempotence. The claim that the seed creates "only a hard-coded `Admin`" has
+  been false since L4. **Note this is a capability, not a populated roster** —
+  see the launch-readiness runbook for what production actually contains.
+- [x] Remove dead inherited configuration and dependencies. ✅ No `ANTHROPIC_*`,
+  `resend`, Sentry, or Supabase client code remains in `apps/api/src` or
+  `apps/web/src`.
+- [ ] **Pin Python production dependencies** so rebuilding the same commit is
+  reproducible. Still open, and `scripts/ci-local.sh` names it in its own
+  comments: `cryptography` is an unpinned transitive of `pywebpush`, and the
+  version uv resolves ships no Intel-macOS wheel, so the local gate forces a
+  wheel and lands slightly behind CI's Linux resolution.
 
 ### Database and backups
 
-- [ ] Provision new, separate staging and production Supabase projects. Do not
-  infer that the committed project reference belongs to The Coupon.
-- [ ] Lock down the Supabase Data API. The app uses custom JWTs and direct
-  PostgreSQL access, not Supabase Auth. Enable RLS on every application table
-  and deny `anon`/`authenticated`, or remove the application schema from the
-  exposed Data API and revoke its grants. Verify the effective grants after
-  migration.
-- [ ] Choose the correct Supabase connection mode for the Railway network and
-  encode it as a SQLAlchemy `postgresql+asyncpg://` URL with SSL. Use the direct
-  connection when reachable or Supavisor session mode for a persistent IPv4
-  backend; reserve transaction mode for a proven need.
+- [x] Provision new, separate staging and production Supabase projects. ✅ L2 and
+  L4 — production is `pugujiiojitstkilphrz` (London), staging is separate, and
+  neither is the inherited reference this warned about.
+- [x] Lock down the Supabase Data API. ✅ Migrations `003` and `004`, and
+  re-verified directly against production on 2026-08-20: **18 of 18** public
+  tables have RLS enabled *and* forced, `anon`/`authenticated`/`PUBLIC` hold
+  **zero** table privileges, and neither role has schema `USAGE`.
+- [x] Choose the correct Supabase connection mode. ✅ `DATABASE_URL` is a
+  `postgresql+asyncpg://` URL with SSL, and `database.py:15-18` sets
+  `prepared_statement_cache_size=0` for Supabase's transaction mode.
 - [ ] **Deferred by owner decision on 2026-07-30 — not required for launch.**
   Replace `/tmp` application backups with Supabase managed backups/PITR or
   durable encrypted offsite storage, and document and rehearse one restore.
@@ -160,6 +188,9 @@ chooses otherwise:
   risk: `sync_slate` upserts and never deletes. Revisit post-launch.
 - [ ] Move migrations out of concurrent web startup before ever increasing the
   API above one replica. The one-replica MVP may retain migration-on-start.
+  **Not work today** — `railway.toml` pins `numReplicas = 1`. This is a
+  precondition on a future change, kept so nobody raises the replica count
+  without reading it.
 
 ### Scheduler and the odds source
 
@@ -174,42 +205,54 @@ production. Rate limiting is a new requirement the Exchange did not impose:
 `fetch_odds` runs in the request path and the plan allows 100 requests/hour, so
 the provider handed to the request path must cache.
 
-- [ ] Enforce exactly one always-on Railway API replica with serverless/sleep
-  disabled and `SCHEDULER_ENABLED=true` through launch and in production.
-  Post-launch staging may sleep only under the recorded on-demand lifecycle.
-- [ ] Add Sunday/Monday settlement retries so a late market or a missed
-  Saturday 22:00 run does not wait a week.
-- [ ] Make one-off scheduled commands return a non-zero exit status on internal
-  failure before relying on Railway Cron for any job.
-- [ ] Add the missing scheduler, backup/restore, deploy, rollback, and incident
-  runbooks referenced by the code and Railway configuration.
-- [ ] Add an explicit staging-only canned-odds mode that production refuses to
-  start with. Never deploy the test-control application.
-- [ ] Implement Betfair non-interactive certificate login for unattended
-  scheduled work. The current client supports only username/password login.
-- [ ] Use the owner's delayed/read-only Betfair application key, confirm the
-  target competition names, and keep all credentials/certificates in sealed
-  backend secrets.
-- [ ] The owner alone performs the real slate and price check. Automated agents
-  must not log into the live account.
+- [x] Enforce exactly one always-on Railway API replica with sleep disabled and
+  `SCHEDULER_ENABLED=true`. ✅ `railway.toml` sets `numReplicas = 1`,
+  `sleepApplication = false`, and `multiRegionConfig` pinning one replica to
+  `europe-west4-drams3a`; `SCHEDULER_ENABLED=true` is sealed in production.
+- [x] Add Sunday/Monday settlement retries. ✅ `scheduler.py` settles at
+  `hour="18,20,22"` **every day**, so a missed Saturday 22:00 run is retried
+  Sunday evening rather than waiting a week.
+- [x] Make one-off scheduled commands return a non-zero exit status on internal
+  failure. ✅ `run_scheduled.main` raises `SystemExit(1)` when a job returns
+  `False`, covered by `test_main_exits_nonzero_when_job_fails` — and Batch 45
+  made the football sweep's verdict honest so that mapping means something.
+- [x] Add the missing scheduler, backup/restore, deploy, rollback, and incident
+  runbooks. ✅ All five exist in `docs/runbooks/`, plus `avatar-storage.md`.
+- [x] Add an explicit staging-only canned-odds mode that production refuses to
+  start with. ✅ `config.py` rejects `odds_provider == fake` and `bf_fake_mode`
+  in production; staging moved to `ODDS_PROVIDER=fake` on 2026-08-20.
+- [x] Implement Betfair non-interactive certificate login. ✅ Delivered at L1 and
+  exercised by the L4 probe. Retained for the `betfair` fallback only.
+- [x] Use the owner's delayed/read-only Betfair application key and keep
+  credentials in sealed secrets. ✅ Satisfied at L4. **Superseded on 2026-08-20:**
+  all eight `BF_*` variables were deleted from production and staging, since they
+  are read only when `ODDS_PROVIDER=betfair`. Re-sealable from
+  `.launch-private/` via `seal-production-secrets.sh`.
+- [x] The owner alone performs the real slate and price check; automated agents
+  must not log into the live account. ✅ Standing policy, observed. The
+  `weekend-fixtures.py` probe reads the odds API only and touches no account.
 
 ### Vercel, API routing, and CI
 
-- [ ] Add Vercel configuration for the `apps/web` root, `dist` output, SPA
-  deep-link rewrite, frontend security headers, and cache behavior.
-- [ ] Standardize API URL handling. `api.ts` describes empty-string same-origin
-  mode, while `AuthContext.tsx` rejects it, and no proxy rewrite exists.
-- [ ] Configure exact staging and production CORS origins. The API currently
-  accepts one `FRONTEND_ORIGIN`, so arbitrary Vercel preview URLs will not work.
-- [ ] Change Railway's health check to `/api/v1/health/ready` so a deployment is
-  not marked ready while PostgreSQL is unavailable.
-- [ ] Require `ENVIRONMENT` explicitly outside local development; a missing
-  value currently defaults to development and weakens production safeguards.
-- [ ] Add Railway/Nixpacks build configuration coverage and Playwright
-  production-bundle job to CI.
-- [ ] Add staging post-deploy smoke tests for deep links, auth, league
-  administration, picks, lock, settlement, push subscription, and PWA update
-  behavior.
+- [x] Add Vercel configuration for the `apps/web` root, `dist` output, SPA
+  deep-link rewrite, security headers, and cache behavior. ✅ `apps/web/vercel.json`,
+  asserted by CI's `deployment-config` job and corrected in Batch 18.
+- [x] Standardize API URL handling. ✅ `lib/api.ts:10-13` throws if
+  `VITE_API_URL` is missing from a production build; the empty-string
+  same-origin mode this described is gone.
+- [x] Configure exact staging and production CORS origins. ✅ The API allows a
+  single `FRONTEND_ORIGIN`; verified against production on 2026-08-20, an
+  `OPTIONS` preflight returns that exact origin with credentials enabled.
+- [x] Change Railway's health check to `/api/v1/health/ready`. ✅ `railway.toml`
+  sets it, with `healthcheckTimeout = 300` for migration-on-boot headroom.
+- [x] Require `ENVIRONMENT` explicitly outside local development. ✅ Handled in
+  `config.py:246`; an unknown value is rejected by the enum.
+- [x] Add Railway/Nixpacks build configuration coverage and a Playwright
+  production-bundle job to CI. ✅ Both exist as the `deployment-config` and
+  `prod-bundle` jobs in `.github/workflows/ci.yml`.
+- [x] Add staging post-deploy smoke tests. ✅ L3 ran the full staging story —
+  deep links, auth, administration, picks, lock, settlement, push subscription,
+  and PWA update behaviour.
 
 ## Environment contract
 
