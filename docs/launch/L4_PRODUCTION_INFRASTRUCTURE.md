@@ -781,7 +781,7 @@ dependency closure, no migration).
 | Stack | Roll back to |
 | --- | --- |
 | Railway `api` | `88c4885c-21b5-429c-9726-532a98f7859f`, the predecessor of the live `8201bfac`. **Available** — it bundles head `015`, the same head the database is stamped at, so it can boot. Stable until the next `/ship-prod`. |
-| Vercel web | *The immediate predecessor of whatever is live* — read it, do not trust an id written here. As of 2026-08-21 00:10 that is `dpl_2PU8zAe4emT5LXWhgNefPmV4kAna`, behind the live `dpl_2PU8zAe4emT5LXWhgNefPmV4kAna` — and the commit recording this paragraph will already have superseded both. |
+| Vercel web | *The immediate predecessor of whatever is live* — read it, do not trust an id written here. As of 2026-08-21 00:08 that is `dpl_2PU8zAe4emT5LXWhgNefPmV4kAna`, behind the live `dpl_E9SpCWz6yKiEqXJDLB9XFdEfCxFM` — which is itself the docs commit recording this shipment, and will be superseded by the next push. Read the pair; do not trust these two ids. — and the commit recording this paragraph will already have superseded both. |
 
 **The two rows age differently, and the Vercel one cannot be pinned.** The API
 deploys only by CLI, so its baseline moves only when `/ship-prod` runs. The web
