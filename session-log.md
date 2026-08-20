@@ -960,3 +960,35 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   to go, not about naming — the header labels the round either way.
 
 **Next:** Batch 42 — Profile pictures (code-only, no storage bucket).
+
+## Batch 42 — Profile pictures
+**Commits:** 531985a · verified: `scripts/ci-local.sh` PASS (11 checks), including migration 015 on a clean scratch database
+
+### Key facts for future sessions
+- **Avatars are modelled but not enabled, and uploading answers 503 in every environment.**
+  `AvatarStorage` has exactly one implementation — `UnconfiguredAvatarStorage` — which refuses
+  writes and no-ops deletes. `src/services/avatar_storage.py` lists the three things that must
+  be true before a backend is wired; the outstanding one is that **bytes are never re-encoded**.
+  Magic-byte sniffing proves a header, not a payload, and no imaging library is a dependency.
+- The image is the **raw request body** typed by `Content-Type`, not multipart. Deliberate: one
+  file needs no envelope and it keeps `python-multipart` off the API's dependency list. The
+  client sends `fetch(url, {method:'POST', headers:{'Content-Type': file.type}, body: file})`.
+- `_read_capped` streams and aborts past the cap rather than `await request.body()`, so an
+  oversized upload is refused while it arrives instead of being buffered whole first.
+- **Removal is a *site* admin action, not a league admin one.** An avatar is a profile field and
+  follows a member into every league, which reaches past any single league's remit. Clearing
+  your own works whether or not a backend exists, so enabling one is not a one-way door.
+- `AvatarUpload.tsx` is **built and intentionally unmounted**. A visible control that always
+  fails is worse for members than none; the component's docstring says exactly where it mounts
+  (`SettingsPage`, a `SectionCard` beside Timezone) when a backend lands.
+- The display half needed no work — `AuthContext`, `TopBar` and `LeagueMembersPage` already
+  passed `src` to `Avatar`. It was null only because the API hardcoded it.
+- **`MagicMock(spec=Profile)` returns a mock for any unset attribute**, and pydantic rejects
+  that against `str | None`. Adding a field to `PlayerInfo` therefore breaks every auth test
+  until `_make_user` sets it. Expect this again for the next profile field.
+- **A deprecation warning from the shared venv can be a trap.** Newer starlette warns that
+  `HTTP_413_REQUEST_ENTITY_TOO_LARGE` is deprecated; following that advice raises
+  `AttributeError` on the pinned starlette==0.37.2 that CI and production run. Same class of
+  divergence `batch-verify.md` records for ruff — trust the pins, not the dev venv.
+
+**Next:** No unchecked build batches remain except Batch 40 (deferred pending a product decision).

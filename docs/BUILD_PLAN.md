@@ -918,7 +918,7 @@ answered until it lands, because until then there is no data to look at.
   anything distinguishes it, and whether the sequence resets at a season boundary
   (`current_season`, `football_provider.py:173`, already defines that boundary).
 
-- [ ] **Batch 42 — Profile pictures** — the largest of these and the only one that is new
+- [x] **Batch 42 — Profile pictures** ✅ 2026-08-20 *(Opus)* — the largest of these and the only one that is new
   capability rather than a defect. The Coupon has never had avatars: `Profile`
   (`profile.py:34`) has no column, both API surfaces hardcode `avatar_url=None` with the
   comment "avatars not modelled in The Coupon spine" (`league_memberships.py:181`,
