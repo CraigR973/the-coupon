@@ -62,6 +62,11 @@ chooses otherwise:
 
 - Use Supabase as managed PostgreSQL only. Remove the incomplete avatar upload
   UI, unused browser Supabase client, and unused service-role-key requirement.
+  **Narrowed by Batch 44 (2026-08-20, owner decision):** Supabase Storage is now
+  used for exactly one thing, avatars, in one bucket, reached only by the API
+  with a service-role key it holds server-side. The browser Supabase client is
+  still gone and the Data API is still denied. See ADR 0006 and
+  `docs/runbooks/avatar-storage.md`.
 - Retain push notifications, but make the settings UI match the implemented
   `global_mute` and quiet-hours API rather than displaying unsupported
   per-category toggles.
@@ -110,10 +115,11 @@ chooses otherwise:
 - [ ] Replace the PIN-reset endpoint that writes a usable reset JWT to logs.
   Use the existing league-admin reset capability through a reviewed UI or a
   secure one-off operator command.
-- [ ] Resolve the avatar contract. The frontend calls
-  `/api/v1/auth/me/avatar`, but the API has no matching route or profile field.
-  The recommended MVP action is to remove upload controls and retain generated
-  initials.
+- [x] Resolve the avatar contract. ✅ Batches 42 and 44 — `profiles.avatar_url`
+  (migration `015`), three endpoints, a re-encoding upload path, and a Supabase
+  bucket behind `AVATAR_STORAGE`. The MVP action recommended here — remove the
+  controls, keep generated initials — is still what an unprovisioned deployment
+  does, and generated initials remain the fallback for a member with no picture.
 - [ ] Align notification settings. The frontend expects nine category flags,
   while the API persists and returns only `global_mute` and quiet hours.
 - [ ] Remove or complete passwordless activation. The API creates

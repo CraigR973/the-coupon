@@ -184,9 +184,19 @@ class Settings(BaseSettings):
 
     # Profile pictures (Batch 42). The cap is enforced before any byte is stored, and is
     # deliberately small: an avatar is displayed at a few dozen pixels, so anything larger
-    # is a payload rather than a picture. There is no provider setting because there is no
-    # backend to select — see src/services/avatar_storage.py.
+    # is a payload rather than a picture.
     avatar_max_bytes: int = 2 * 1024 * 1024
+    # Which backend stores them (Batch 44): "none" or "supabase". Defaults to "none", so
+    # a deployment that has not provisioned a bucket keeps answering 503 and the web app
+    # keeps its upload control unmounted. Turning it on is one variable plus the two
+    # below — see docs/runbooks/avatar-storage.md.
+    avatar_storage: str = "none"
+    avatar_bucket: str = "avatars"
+    # Supabase project REST base (https://<ref>.supabase.co) and its service-role key.
+    # The key bypasses RLS by design and is why the bucket's policies are written
+    # explicitly rather than left to defaults; it never reaches a browser.
+    supabase_url: str = ""
+    supabase_service_key: str = ""
 
     def secret_values(self) -> tuple[str, ...]:
         """Every configured secret whose literal value must never reach a log line.
@@ -213,6 +223,7 @@ class Settings(BaseSettings):
             self.football_api_key,
             self.bf_app_key,
             self.bf_pass,
+            self.supabase_service_key,
         )
         unique = {value for value in candidates if len(value) >= _MIN_REDACTABLE_SECRET}
         return tuple(sorted(unique, key=len, reverse=True))

@@ -18,16 +18,15 @@ export interface AvatarUploadProps {
 /**
  * Choose or clear a profile picture.
  *
- * **Not mounted anywhere yet, and that is deliberate.** No object store is configured in
- * any environment, so `POST /auth/me/avatar` answers 503 everywhere — see
- * `apps/api/src/services/avatar_storage.py` for the three things that must be true before
- * a backend may be enabled. Shipping a visible control that always fails would be worse
- * for members than shipping none, so this mounts into `SettingsPage` (as a `SectionCard`
- * titled "Profile picture", beside Timezone) in the batch that wires a real backend.
+ * Mounted in `SettingsPage` since Batch 44, but only where the API reports
+ * `avatar_uploads` — whether there is anywhere to put the bytes is a property of the
+ * deployment, not of the build, and a control that always failed was the reason this
+ * component sat unmounted for two batches.
  *
  * The image is sent as the **raw request body** typed by `Content-Type`, not a multipart
  * form: one file needs no envelope, and it keeps `python-multipart` off the API's
- * dependency list.
+ * dependency list. What comes back is not what was sent — the API decodes the image and
+ * re-encodes it as a WebP, which is what makes serving a stranger's file defensible.
  */
 export function AvatarUpload({ name, avatarUrl, onChange }: AvatarUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);

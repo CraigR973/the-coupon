@@ -25,6 +25,7 @@ from src.routers import (
     picks,
     players,
 )
+from src.routers.config import router as config_router
 from src.scheduler import create_scheduler
 from src.services.football_session import football_session
 from src.services.odds_session import odds_session
@@ -79,6 +80,7 @@ app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(health.router)
+app.include_router(config_router)
 app.include_router(auth.router)
 app.include_router(me.router)
 app.include_router(notifications.router)

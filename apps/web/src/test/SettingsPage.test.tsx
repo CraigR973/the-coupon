@@ -49,6 +49,12 @@ const PREFS_WITH_LEAGUES = {
 
 function makeFetch(prefs = DEFAULT_PREFS, patchResult = DEFAULT_PREFS) {
   return vi.fn((url: string, opts?: RequestInit) => {
+    // The default deployment stores no avatars, so the profile-picture card is absent —
+    // answered here rather than falling through to the 401 catch-all, which would look
+    // like an expired session to `apiFetch` and tear the page's auth down.
+    if (url.includes('/api/v1/config')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ avatar_uploads: false }) });
+    }
     if (url.includes('/api/v1/notifications/preferences') && (!opts?.method || opts.method === 'GET')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(prefs) });
     }
@@ -253,6 +259,77 @@ describe('SettingsPage', () => {
       const [decimal, fractional] = within(group).getAllByRole('radio');
       expect(fractional.getAttribute('aria-checked')).toBe('true');
       expect(decimal.getAttribute('aria-checked')).toBe('false');
+    });
+  });
+});
+
+// ── Profile picture (Batch 44) ────────────────────────────────────────────────
+//
+// Whether uploads work is a property of the deployment, not the build: a bucket has to
+// be provisioned and `AVATAR_STORAGE` set. `GET /api/v1/config` is how the client finds
+// out, and the card is absent — not disabled — until it says yes. Batch 42 left this
+// control built and unmounted precisely because a visible control that always fails is
+// worse for a member than none.
+
+function fetchWithConfig(avatarUploads: boolean | 'missing') {
+  const base = makeFetch();
+  return vi.fn((url: string, opts?: RequestInit) => {
+    if (String(url).includes('/api/v1/config')) {
+      if (avatarUploads === 'missing') {
+        return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ avatar_uploads: avatarUploads }),
+      });
+    }
+    if (String(url).includes('/api/v1/auth/me/avatar')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ avatar_url: 'https://cdn.test/p1/abc.webp' }),
+      });
+    }
+    return base(url, opts);
+  });
+}
+
+describe('SettingsPage — profile picture', () => {
+  it('offers no upload control where the deployment cannot store one', async () => {
+    renderPage(fetchWithConfig(false));
+    await waitFor(() => expect(screen.getByText('Timezone')).toBeInTheDocument());
+    expect(screen.queryByText('Profile picture')).toBeNull();
+  });
+
+  it('stays hidden when the API is too old to have a config route', async () => {
+    // The web app deploys from `main` on merge while the API waits for /ship-prod, so
+    // a 404 here is a normal state for a few days — and must read as "not available".
+    renderPage(fetchWithConfig('missing'));
+    await waitFor(() => expect(screen.getByText('Timezone')).toBeInTheDocument());
+    expect(screen.queryByText('Profile picture')).toBeNull();
+  });
+
+  it('mounts the control once the API reports a backend', async () => {
+    renderPage(fetchWithConfig(true));
+    expect(await screen.findByText('Profile picture')).toBeInTheDocument();
+    expect(screen.getByLabelText('Choose a profile picture')).toBeInTheDocument();
+  });
+
+  it('sends the file as the raw body and keeps the returned URL', async () => {
+    const fetch = fetchWithConfig(true);
+    renderPage(fetch);
+
+    const input = (await screen.findByLabelText('Choose a profile picture')) as HTMLInputElement;
+    const file = new File([new Uint8Array([1, 2, 3])], 'me.png', { type: 'image/png' });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      const upload = fetch.mock.calls.find(([url, opts]) =>
+        String(url).includes('/api/v1/auth/me/avatar') && opts?.method === 'POST',
+      );
+      expect(upload).toBeTruthy();
+      // The raw File, not a FormData envelope — the API types it off Content-Type.
+      expect(upload![1]!.body).toBe(file);
+      expect((upload![1]!.headers as Record<string, string>)['Content-Type']).toBe('image/png');
     });
   });
 });

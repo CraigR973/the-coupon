@@ -9,6 +9,8 @@ import { formatOdds } from '../lib/coupon';
 import type { OddsFormat } from '../lib/types';
 import { usePushSubscription } from '../hooks/usePushSubscription';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
+import { useClientConfig } from '../hooks/useClientConfig';
+import { AvatarUpload } from '../components/AvatarUpload';
 import { Skeleton } from '../components/ui/skeleton';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -402,6 +404,33 @@ function AppearanceSection() {
   );
 }
 
+// ── Profile picture section ───────────────────────────────────────────────────
+
+/**
+ * The upload control, mounted only where it can work (Batch 44).
+ *
+ * Whether uploads are possible is a property of the *deployment* — a bucket has to be
+ * provisioned and `AVATAR_STORAGE` set — so the API is asked rather than assumed, on
+ * every visit. That is deliberate: the answer changes when an environment variable
+ * changes, and a value cached at login would still say "no" the day after the bucket
+ * was created.
+ *
+ * While the answer is unknown or false the whole card is absent rather than disabled:
+ * a control that cannot work is worse for a member than no control, which is why
+ * Batch 42 left `AvatarUpload` built and unmounted in the first place.
+ */
+function ProfilePictureSection() {
+  const { player, updatePlayer } = useAuth();
+
+  return (
+    <AvatarUpload
+      name={player?.displayName ?? ''}
+      avatarUrl={player?.avatarUrl ?? null}
+      onChange={(avatarUrl) => updatePlayer({ avatarUrl })}
+    />
+  );
+}
+
 // ── Timezone section ──────────────────────────────────────────────────────────
 
 const TIMEZONES = [
@@ -551,6 +580,8 @@ function OddsFormatSection() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
+  const { avatarUploads } = useClientConfig();
+
   return (
     <div className="max-w-xl space-y-6">
       <PageHeader title="Settings" eyebrow="Account & device" />
@@ -558,6 +589,12 @@ export function SettingsPage() {
       <SectionCard title="Change PIN">
         <ChangePinSection />
       </SectionCard>
+
+      {avatarUploads && (
+        <SectionCard title="Profile picture">
+          <ProfilePictureSection />
+        </SectionCard>
+      )}
 
       <SectionCard title="Timezone">
         <TimezoneSection />

@@ -32,9 +32,12 @@ from src.models.refresh_token import RefreshToken
 from src.rate_limit import limiter, login_key, per_user_key, refresh_token_key
 from src.services.avatar_storage import (
     ALLOWED_IMAGE_TYPES,
+    AvatarRejected,
     AvatarStorage,
+    AvatarStorageError,
     AvatarStorageUnavailable,
     avatar_storage,
+    reencode_avatar,
     sniff_image_type,
 )
 
@@ -417,12 +420,10 @@ async def upload_avatar(
 ) -> PlayerInfo:
     """Replace the caller's profile picture.
 
-    The path the frontend called for a year before anything answered it — see
-    ``docs/LAUNCH_PLAN.md``. It answers now, and in every environment it answers 503:
-    no object store is configured, so there is nowhere to put the bytes. Failing closed
-    is the point rather than an omission; ``src/services/avatar_storage.py`` records what
-    has to be true before a backend may be enabled, and re-encoding is the item that is
-    not done.
+    Answers 503 wherever ``AVATAR_STORAGE`` is unset, which is every environment until a
+    bucket is provisioned (``docs/runbooks/avatar-storage.md``). Failing closed there is
+    the point rather than an omission, and ``GET /api/v1/config`` says which it is so the
+    web app does not offer a control that cannot work.
 
     The image is the **raw request body**, typed by ``Content-Type`` — not a multipart
     form. One file needs no envelope, multipart would add ``python-multipart`` as a
@@ -430,9 +431,11 @@ async def upload_avatar(
     validation already has to read. ``fetch(url, {method: 'POST', body: file})`` sends
     exactly this shape.
 
-    Validation runs *before* the refusal so it is exercised and tested rather than
-    written and forgotten: a size cap, a content-type allowlist, and a magic-byte check
-    that the bytes begin as the type they claim.
+    Four gates, cheapest first: a content-type allowlist, a size cap enforced as the body
+    arrives, a magic-byte check that the bytes begin as the type they claim, and then
+    :func:`reencode_avatar`, which is the only one of the four that inspects the payload
+    rather than the header. What reaches storage is a WebP this process wrote from
+    decoded pixels — never the bytes that were uploaded.
     """
     declared = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
     if declared not in ALLOWED_IMAGE_TYPES:
@@ -455,12 +458,31 @@ async def upload_avatar(
         )
 
     try:
-        url = await storage.put(player_id=str(user.id), data=data, media_type=declared)
+        stored = reencode_avatar(data)
+    except AvatarRejected:
+        # The header said one thing and the payload was another, or was not decodable at
+        # all. Same 400 as a magic-byte mismatch: from a member's side it is one message
+        # about one file, and the difference is only interesting in the log.
+        log.info("avatar rejected by the re-encoder", user_id=str(user.id), declared=declared)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="That file could not be read as an image",
+        ) from None
+
+    try:
+        url = await storage.put(player_id=str(user.id), data=stored, media_type=declared)
     except AvatarStorageUnavailable:
         log.info("avatar upload refused — no storage backend", user_id=str(user.id))
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Profile pictures are not enabled yet",
+        ) from None
+    except AvatarStorageError:
+        # A configured backend that would not take it — the member can try again, and
+        # `storage.put` has already logged what the store said.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not store that picture — try again",
         ) from None
 
     user.avatar_url = url
