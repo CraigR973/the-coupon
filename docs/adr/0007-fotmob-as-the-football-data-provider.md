@@ -120,6 +120,58 @@ wrong scope and disables the guard. Exact-string matching against a provider's
 own vocabulary has caused four defects in this project already, and combined ids
 are a fifth way to make the same mistake.
 
+## The results half, verified 2026-08-20
+
+When this ADR was first written its coverage claim rested on **tables only** —
+`8944`, `8947` and `9545` were confirmed to return full current-season
+standings, and `fetch_results` was never checked. That was a real gap in a
+document written as a settled decision: `fetch_results` is half the port, and
+the form strip on the pick card is derived from `matches`, not from a table's
+form string. It was closed by probing from Railway before Batch 46 was written.
+
+**One request returns both halves.** `GET /api/data/leagues?id=<id>&season=<yyyy%2Fyyyy>`
+carries `table` *and* `fixtures` in a single payload. This ADR previously assumed
+api-football's shape of two requests per competition; it is one, and that makes
+the whole batch cheaper than scoped — `8947`'s four competitions cost **one**
+upstream request between them once memoised, for both tables and results.
+
+**Tables split cleanly; results do not.** For a combined id the payload sets
+`table[0].data.composite = true` and carries `data.tables`, one group per real
+division, each with its own `leagueId` and `leagueName`:
+
+| id | groups |
+| --- | --- |
+| `8944` | `940360` National League North, `940374` National League South |
+| `8947` | `941117` Southern Premier Central, `941118` Southern Premier South, `941116` Northern Premier, `941109` Isthmian Premier |
+| `117` (control) | `composite: false`, a single `data.table` |
+
+`fixtures.allMatches` is a **flat list with no division identifier at all** —
+its keys are `away`, `home`, `id`, `pageUrl`, `round`, `roundName`, `status`,
+and `round`/`roundName` are matchweek numbers. `8944` returns 1104 matches
+across two divisions with nothing on a match saying which.
+
+**The resolution is an exact index, not name matching.** Table rows carry an
+integer team `id`, so the group structure yields a team-id → division map — 48
+entries for `8944` — and every match is attributed by its home team's id.
+Measured on the live payload:
+
+- 1104 / 1104 matches resolve to a division; 67 / 67 finished matches do too;
+- 67 / 67 finished matches have **both** teams in the same division, so no
+  cross-division fixture pollutes the mapping.
+
+This matters because it keeps the correctness trap above closed by *identity*
+rather than by string similarity. `team_matching`'s fuzzy stage is never asked
+to decide which division a club belongs to.
+
+**Scores parse straightforwardly.** A finished match carries
+`status.scoreStr: "1 - 2"`, `status.finished: true`, `status.reason.short: "FT"`,
+and `status.utcTime: "2026-08-08T14:00:00Z"` — already offset-carrying, which is
+the shape Batch 43 established this codebase wants.
+
+The consequence for Batch 46: `fetch_table` and `fetch_results` share one cached
+payload per league id, and the adapter builds the team-id index once per id and
+uses it for both.
+
 ## What does not change
 
 ADR 0003's architecture survives intact, which is the point of having had a port
@@ -149,7 +201,9 @@ demand one for this provider.
 
 **FotMob's terms prohibit automated access.** This is recorded rather than
 buried because it is an owner decision, taken knowingly on 2026-08-20, against a
-usage profile of one sweep a day across 21 competitions.
+usage profile of one sweep a day across 21 competitions. **Reaffirmed the same
+day** when the owner instructed that Batch 46 be implemented after reading the
+argument for deferring it.
 
 Writing it down is the whole point. It keeps the decision revisitable, and it
 means whoever next reads the adapter meets a dated judgement instead of
