@@ -14,9 +14,32 @@ secret. This is not a migration, and deliberately so — buckets live in
 Supabase's `storage` schema, which does not exist in the throwaway `pgserver`
 instance CI runs against, so a migration touching it would fail every run.
 
-## 1. Create the bucket
+> **Steps 1 and 2 were completed on 2026-08-20.** The bucket exists and its
+> policy is in place, verified below. Only step 3's service-role key remains,
+> and it is the one part that cannot be done from here — the project's JWT
+> secret is not reachable from the database (`app.settings.jwt_secret` is
+> absent), so a service-role token cannot be minted over the connection the API
+> already holds. `SUPABASE_URL` is already set; `AVATAR_STORAGE` is still unset,
+> so uploads answer 503 and the Settings card stays unmounted until you finish.
 
-Supabase dashboard → **Storage** → **New bucket**:
+## 1. Create the bucket ✅ done 2026-08-20
+
+**The dashboard is not the only route, and was not the one used.** A bucket is
+rows in `storage.buckets` and a policy on `storage.objects`, both reachable over
+`railway ssh` + `psql` with the credentials the API already has. What was run:
+
+```sql
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('avatars', 'avatars', true, 2097152, array['image/webp'])
+on conflict (id) do update
+  set public = excluded.public,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+```
+
+Verified: `avatars | t | 2097152 | {image/webp}`.
+
+The equivalent through the dashboard is Storage → **New bucket**:
 
 | Field                  | Value                      |
 | ---------------------- | -------------------------- |
@@ -29,9 +52,12 @@ The size and MIME restrictions are belt and braces — the API caps the body as 
 arrives and only ever writes a WebP it encoded itself — but they mean a leaked
 service key cannot turn the bucket into general-purpose file hosting.
 
-## 2. Write the policies explicitly
+## 2. Write the policies explicitly ✅ done 2026-08-20
 
-Run this in the SQL editor. It is idempotent; re-running it is safe.
+Run in the SQL editor, or over `railway ssh` as above. Idempotent; re-running is
+safe. Verified after running: `pg_policy` holds exactly one row for
+`storage.objects` — `avatars are readable` with `polcmd = 'r'`, and no
+insert/update/delete policy.
 
 ```sql
 -- Anyone may read an object, because the bucket is public and the key is the
@@ -60,9 +86,12 @@ Expect exactly one `avatars` row, with `polcmd = 'r'` (SELECT). If an
 browser holding an `authenticated` token would otherwise be able to write into
 the bucket directly, bypassing every check in `upload_avatar`.
 
-## 3. Seal the configuration
+## 3. Seal the configuration — **the remaining step**
 
-On Railway, for the target environment:
+`SUPABASE_URL` is already set to `https://pugujiiojitstkilphrz.supabase.co`
+(2026-08-20, with `--skip-deploys`, so production was not disturbed). Two
+variables remain, and setting `AVATAR_STORAGE` is what actually turns the
+feature on:
 
 ```bash
 railway variables --set AVATAR_STORAGE=supabase --set SUPABASE_URL=https://<ref>.supabase.co --set SUPABASE_SERVICE_KEY=<service-role key>
