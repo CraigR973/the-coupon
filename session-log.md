@@ -1060,3 +1060,38 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   answered the route explicitly. `apiFetch` treats 401 as an expired session and redirects.
 
 **Next:** Batch 45 — A sweep that fails completely and reports success.
+
+## Batch 45 — A sweep that fails completely and reports success
+**Commits:** 8f72d0d · verified: `scripts/ci-local.sh` PASS (11 checks)
+
+### Key facts for future sessions
+- **A list of reports cannot answer the job's question**, and that is the whole batch. A
+  competition that *raised* leaves no report, so an empty list means both "the card was
+  empty" and "all 21 failed" — opposite verdicts. `FootballSweep` carries `attempted`
+  alongside the reports because it cannot be derived from them.
+- `carried_nothing` is `attempted > 0 and carried == 0`. One condition covers **both**
+  shapes of total failure — every competition raising, and every competition being
+  honestly empty — because `carried` counts reports and a raiser has none.
+- **The sweep's per-competition tolerance was not touched and must not be.** One division
+  the provider dropped must not cost the other twenty-nine their tables. The verdict is
+  the caller's job; that separation is the design, not an accident.
+- Both legitimate zero-work runs stay green and are tested: no provider configured
+  (returns before a sweep starts) and an empty fixture pool (`attempted == 0`). Batch 16's
+  docstring warns against exactly the regression of failing an opted-out deployment daily.
+- **A card where every competition genuinely has nothing yet would now be called a
+  failure.** Accepted deliberately: across twenty-odd British divisions that is not a
+  state that lasts, and a morning where nothing at all could be ingested is worth
+  surfacing.
+- The partial-failure threshold the row suggested (18 of 21 raising is not healthy) was
+  **not** implemented — the row says the total-failure case should not wait for agreement
+  on a ratio. The log line now carries `attempted`, `reported`, `failed` and `carried`, so
+  whoever wants a ratio has the data.
+- `backfill_season` got the same verdict and the same return type. Same defect one
+  function away, and a human reads that one's output.
+- `run_scheduled.main` already maps `False` to `SystemExit(1)`, so the cron became honest
+  with no change there — `test_main_exits_nonzero_when_job_fails` already covered it.
+- Reverting the verdict fails two scheduler tests, and the log output they print is the
+  literal production line: `football data synced attempted=21 carried=0`.
+
+**Next:** No unchecked build batches remain except Batch 40 (deferred pending a product
+decision). Launch L5 — launch and first-Saturday watch — is the remaining launch work.

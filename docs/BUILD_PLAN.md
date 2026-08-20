@@ -1023,7 +1023,7 @@ answered until it lands, because until then there is no data to look at.
   signed URLs, which carry a token and an expiry in the query string. If the bucket serves
   bare public paths the column is oversized rather than wrong, and nothing needs changing.
 
-- [ ] **Batch 45 — A sweep that fails completely and reports success** —
+- [x] **Batch 45 — A sweep that fails completely and reports success** ✅ 2026-08-20 *(Opus)* —
   `run_sync_football_data` (`scheduler.py:259`) returns `True` unconditionally on any run
   that reached the provider. `sync_football_data` (`football_data.py:426`) catches each
   competition's exception, logs `football data sync failed`, and continues — deliberate,

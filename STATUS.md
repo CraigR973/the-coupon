@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-44 except 40 are closed. The Coupon is a verified
+Batches 1-45 except 40 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -183,8 +183,17 @@ Turning it back on is one variable, once a plan that carries the current season
 is in place. Pinning `FOOTBALL_SEASON` to 2024 is not the workaround it looks
 like — it would render 2024/25 tables and form against 2026/27 fixtures.
 
-Batch 45 covers the reason this took so long to see: the sweep failed all 21
-competitions, logged `football data synced`, and exited `0`.
+Batch 45 fixed the reason this took so long to see. The sweep failed all 21
+competitions, logged `football data synced`, and exited `0`, because
+`run_sync_football_data` returned `True` on any run that reached the provider —
+so the 06:30 cron reported a healthy run every morning while ingesting nothing.
+A list of reports could never answer the question: a competition that *raised*
+leaves no report, so an empty list meant both "the card was empty" and "every
+competition failed". The sweep now carries how much of the card it attempted,
+and a run that attempted a non-empty card and carried none of it is a failure —
+which `run_scheduled` already turns into a non-zero exit. The per-competition
+tolerance is untouched: one division the provider dropped still must not cost
+the other twenty-nine their tables.
 
 Note that the two stacks ship differently: **Vercel auto-deploys `main` on every
 push; Railway moves only when `/ship-prod` runs.** Between 2026-08-04 and
@@ -416,8 +425,8 @@ unfinished — so it had to land before the roster of leagues grows, not after.
 
 ## Verified
 
-- Backend: 597 pytest with a database (478 without one), Ruff check/format, and
-  strict mypy; Batch 44 close-out passed `scripts/ci-local.sh` end-to-end
+- Backend: 606 pytest with a database (483 without one), Ruff check/format, and
+  strict mypy; Batch 45 close-out passed `scripts/ci-local.sh` end-to-end
   (11 checks), as every close-out since Batch 26 has
 - Database: clean `pgserver` migration through revision `013`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 18 public tables under a Supabase-like role setup. The count was 13 at
@@ -473,8 +482,8 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries Batch 45 unchecked, plus Batch 40, which
-is deferred pending a decision on whether `pick_open_offset_minutes` stays
+`docs/BUILD_PLAN.md` carries no unchecked batches except Batch 40, which is
+deferred pending a decision on whether `pick_open_offset_minutes` stays
 forward-only or gains an admin restamp. The odds-api.io key exposed in the logs
 before Batch 36 was rotated by the owner on 2026-08-20. Batch 37's production
 data cleanup is no longer owed: `teams`, `team_aliases`, `matches` and
