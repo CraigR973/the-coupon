@@ -1097,7 +1097,7 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
 decision). Launch L5 — launch and first-Saturday watch — is the remaining launch work.
 
 ## Batch 40 — A round the pick window never reached
-**Commits:** (this batch) · verified: `scripts/ci-local.sh` PASS (11 checks)
+**Commits:** 15d3b3a · verified: `scripts/ci-local.sh` PASS (11 checks)
 
 ### Key facts for future sessions
 - **The forward-only rule stands, and the admin restamp was deliberately not built.** The
