@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { useRouteLeague } from '@/hooks/useRouteLeague';
 import type { JoinRequest } from '@/lib/types';
+import { parseInstant } from '@/lib/time';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -76,7 +77,7 @@ export function LeagueJoinRequestsPage() {
                   <div>
                     <p className="text-sm font-sans font-medium">{req.display_name}</p>
                     <p className="text-xs text-text-muted font-sans">
-                      {new Date(req.requested_at).toLocaleDateString()}
+                      {parseInstant(req.requested_at).toLocaleDateString()}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">

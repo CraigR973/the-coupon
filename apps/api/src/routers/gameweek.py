@@ -31,6 +31,7 @@ from src.models.league import PickMarket, PickScope
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
+from src.schemas import UtcDatetime
 from src.services.football_data import FixtureContext, fixture_context, season_or_default
 from src.services.gameweek import (
     all_gameweeks,
@@ -57,10 +58,11 @@ class SelectionOption(BaseModel):
     odds: float
     taken_by_player_id: str | None  # who holds it in this league (None = available)
     taken_by_name: str | None
-    # When the holder claimed it (`Pick.created_at`), naive UTC like every other instant
-    # here. Added rather than replacing anything, because the web app deploys ahead of
-    # this API — a renamed field would break the coupon until `/ship-prod` caught up.
-    taken_at: datetime | None
+    # When the holder claimed it (`Pick.created_at`). Stored naive UTC and stamped with
+    # its offset on the wire, like every other instant here (Batch 43). Added rather than
+    # replacing anything, because the web app deploys ahead of this API — a renamed field
+    # would break the coupon until `/ship-prod` caught up.
+    taken_at: UtcDatetime | None
     mine: bool
 
 
@@ -71,7 +73,7 @@ class FixtureSlate(BaseModel):
     away: str
     competition_id: str
     competition: str
-    kickoff_utc: datetime
+    kickoff_utc: UtcDatetime
     selections: list[SelectionOption]
     # Fixture-level "already picked" marker, alongside the per-selection one.
     # Several members can hold different selections on one game under the
@@ -111,9 +113,9 @@ class GameweekListEntry(BaseModel):
     gameweek_id: str
     starts_on: date
     status: str
-    locks_at_utc: datetime
+    locks_at_utc: UtcDatetime
     # When picks open, or ``null`` when the league announces no opening (Batch 27).
-    picks_open_at_utc: datetime | None
+    picks_open_at_utc: UtcDatetime | None
     # What members call this round — "Gameweek 12" (Batch 41). ``null`` for a round that
     # predates the numbering, which reads as "show the date alone".
     number: int | None
@@ -126,11 +128,11 @@ class GameweekSlateResponse(BaseModel):
     gameweek_id: str
     starts_on: date
     status: str
-    locks_at_utc: datetime
+    locks_at_utc: UtcDatetime
     # When picks open, or ``null`` when the league announces no opening (Batch 27).
     # The pick screen needs it to count *down* to a round it cannot yet claim on,
     # rather than reporting it as locked.
-    picks_open_at_utc: datetime | None
+    picks_open_at_utc: UtcDatetime | None
     # What members call this round — "Gameweek 12" (Batch 41), or ``null`` when unnumbered.
     number: int | None
     fixtures: list[FixtureSlate]
@@ -272,8 +274,9 @@ async def current_gameweek(
 class _Holder(NamedTuple):
     """Who holds a selection, and when they claimed it.
 
-    ``taken_at`` is ``Pick.created_at`` — naive UTC, like every other instant this API
-    returns. It has always been on the row; nothing carried it out.
+    ``taken_at`` is ``Pick.created_at`` — naive UTC as the column stores it. It has
+    always been on the row; nothing carried it out. This is an internal carrier, not a
+    response model, so the value stays naive until ``SelectionOption`` serialises it.
     """
 
     player_id: str

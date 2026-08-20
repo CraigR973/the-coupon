@@ -37,6 +37,7 @@ from src.models.league import League
 from src.models.match import Match
 from src.models.standing import Standing
 from src.models.team import Team
+from src.schemas import UtcDatetime
 from src.services.football_provider import (
     CompetitionKey,
     FootballDataProvider,
@@ -69,7 +70,7 @@ class FormMatch(BaseModel):
     """One finished match from one club's point of view."""
 
     match_id: str
-    kickoff_utc: datetime
+    kickoff_utc: UtcDatetime
     opponent: str
     home: bool
     goals_for: int
@@ -124,7 +125,7 @@ class CompetitionTable(BaseModel):
     season: int
     #: When this table was last ingested — shown as "as of", because a stored table is
     #: only as current as the last run.
-    updated_at: datetime | None
+    updated_at: UtcDatetime | None
     rows: list[TableEntry]
 
 
@@ -132,7 +133,7 @@ class ResultEntry(BaseModel):
     match_id: str
     competition_id: str
     competition: str
-    kickoff_utc: datetime
+    kickoff_utc: UtcDatetime
     home: str
     away: str
     home_goals: int

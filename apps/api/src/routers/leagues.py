@@ -32,6 +32,7 @@ from src.models.notification import ActionType, ActorType, AuditLog
 from src.models.pick import Pick, PickStatus
 from src.models.profile import Profile, UserRole
 from src.rate_limit import limiter, per_user_key
+from src.schemas import UtcDatetime
 from src.services.gameweek import refresh_slate
 from src.services.notification_triggers import notify_member_joined
 from src.services.odds_provider import OddsProviderError
@@ -326,7 +327,7 @@ class LeagueResponse(BaseModel):
     offered_markets: list[str]
     member_count: int
     created_by: str
-    created_at: datetime
+    created_at: UtcDatetime
     join_code: str | None = None
 
 
@@ -743,7 +744,7 @@ class MemberInfo(BaseModel):
     id: str
     display_name: str
     role: str
-    joined_at: datetime
+    joined_at: UtcDatetime
     avatar_url: str | None = None
 
 
@@ -760,7 +761,7 @@ class LeagueDetailResponse(BaseModel):
     offered_markets: list[str]
     member_count: int
     created_by: str
-    created_at: datetime
+    created_at: UtcDatetime
     join_code: str | None = None
     members: list[MemberInfo] | None  # None when caller is not a member
 
@@ -1077,9 +1078,9 @@ class AdHocGameweekResponse(BaseModel):
     gameweek_id: str
     starts_on: date
     status: str
-    locks_at_utc: datetime
+    locks_at_utc: UtcDatetime
     # When picks open, or ``null`` when the league announces no opening (Batch 27).
-    picks_open_at_utc: datetime | None
+    picks_open_at_utc: UtcDatetime | None
     # What members call this round — "Gameweek 12" (Batch 41). A one-off takes the next
     # number in the season rather than the position its date implies; see
     # ``next_gameweek_number``.

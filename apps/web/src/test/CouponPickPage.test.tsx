@@ -26,7 +26,7 @@ const SLATE: GameweekSlate = {
   gameweek_id: 'gw1',
   starts_on: '2026-08-08',
   status: 'open',
-  locks_at_utc: '2999-01-01T14:30:00Z',
+  locks_at_utc: '2999-01-01T14:30:00',
   picks_open_at_utc: null,
   fixtures: [
     {
@@ -36,7 +36,7 @@ const SLATE: GameweekSlate = {
       away: 'Brechin',
       competition_id: 'scotland-league-two',
       competition: 'Scottish League 2',
-      kickoff_utc: '2026-08-08T14:00:00Z',
+      kickoff_utc: '2026-08-08T14:00:00',
       selections: [
         { market: 'MATCH_ODDS', outcome: 'HOME', runner_name: 'Forfar', odds: 2.0, taken_by_player_id: null, taken_by_name: null, mine: false },
         { market: 'MATCH_ODDS', outcome: 'DRAW', runner_name: 'The Draw', odds: 3.5, taken_by_player_id: 'p1', taken_by_name: 'Alice', mine: true },
@@ -51,7 +51,7 @@ const SLATE: GameweekSlate = {
       away: 'Chelsea',
       competition_id: 'england-premier-league',
       competition: 'English Premier League',
-      kickoff_utc: '2026-08-08T12:30:00Z',
+      kickoff_utc: '2026-08-08T12:30:00',
       selections: [
         { market: 'MATCH_ODDS', outcome: 'HOME', runner_name: 'Arsenal', odds: 1.9, taken_by_player_id: null, taken_by_name: null, mine: false },
       ],
@@ -96,7 +96,7 @@ const GAMEWEEKS = [
     gameweek_id: 'gw1',
     starts_on: '2026-08-08',
     status: 'open',
-    locks_at_utc: '2999-01-01T14:30:00Z',
+    locks_at_utc: '2999-01-01T14:30:00',
     picks_open_at_utc: null,
     fixture_count: 2,
     pick_count: 1,
@@ -105,7 +105,7 @@ const GAMEWEEKS = [
     gameweek_id: 'gw0',
     starts_on: '2026-08-01',
     status: 'settled',
-    locks_at_utc: '2026-08-01T13:30:00Z',
+    locks_at_utc: '2026-08-01T13:30:00',
     picks_open_at_utc: null,
     fixture_count: 3,
     pick_count: 2,
@@ -165,6 +165,16 @@ function stubSlate(overrides: Partial<GameweekSlate>) {
   });
 }
 
+/**
+ * An instant `minutes` from now, in the offset-less shape the API sends.
+ *
+ * Relative rather than fixed because the assertion is about *now* — a hardcoded 2026
+ * date stops being two hours away the day after it is written.
+ */
+function naiveUtc(minutes: number): string {
+  return new Date(Date.now() + minutes * 60_000).toISOString().slice(0, 19);
+}
+
 function renderPage(entries: string[] = ['/leagues/the-coupon/predictions']) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -210,10 +220,35 @@ describe('CouponPickPage', () => {
     expect(banner.textContent).toMatch(/picks lock in/i);
   });
 
+  // ── Batch 43: the lock is an instant, not a wall-clock number ────────────
+  //
+  // `useCountdown` drives `locked`, which disables every selection, so an instant read
+  // in the wrong zone does not just mislabel the banner — it decides whether the member
+  // can pick at all, while the API goes on applying the real one. These tests run in
+  // `America/New_York` (see `vite.config.ts`), where reading the API's offset-less
+  // string as local time moves the lock four hours later.
+
+  it('locks the screen on a round the API has already locked', async () => {
+    stubSlate({ locks_at_utc: naiveUtc(-60) });
+    renderPage();
+
+    const banner = await screen.findByTestId('lock-banner');
+    expect(banner.textContent).toMatch(/picks are locked/i);
+  });
+
+  it('counts down to the real lock instant, not to the same numbers read locally', async () => {
+    stubSlate({ locks_at_utc: naiveUtc(120) });
+    renderPage();
+
+    const banner = await screen.findByTestId('lock-banner');
+    // Two hours away: "1h 59m 5?s". Parsed as local time it would read about 5h 59m.
+    expect(banner.textContent).toMatch(/picks lock in 1h 5\dm/i);
+  });
+
   // ── Batch 27: a round that exists but has not opened ─────────────────────
 
   it('counts down to the opening, not to the lock, before picks open', async () => {
-    stubSlate({ status: 'scheduled', picks_open_at_utc: '2999-01-01T14:00:00Z' });
+    stubSlate({ status: 'scheduled', picks_open_at_utc: '2999-01-01T14:00:00' });
     renderPage();
 
     const banner = await screen.findByTestId('lock-banner');
@@ -226,7 +261,7 @@ describe('CouponPickPage', () => {
   it('treats a scheduled round whose opening has passed as open', async () => {
     // The hourly job has not relabelled it yet; the stored instant is the authority,
     // exactly as it is on the API side.
-    stubSlate({ status: 'scheduled', picks_open_at_utc: '2020-01-01T14:00:00Z' });
+    stubSlate({ status: 'scheduled', picks_open_at_utc: '2020-01-01T14:00:00' });
     renderPage();
 
     const banner = await screen.findByTestId('lock-banner');
@@ -234,7 +269,7 @@ describe('CouponPickPage', () => {
   });
 
   it('reads a settled round as settled even with an opening still ahead', async () => {
-    stubSlate({ status: 'settled', picks_open_at_utc: '2999-01-01T14:00:00Z' });
+    stubSlate({ status: 'settled', picks_open_at_utc: '2999-01-01T14:00:00' });
     renderPage();
 
     const banner = await screen.findByTestId('lock-banner');
@@ -359,7 +394,7 @@ describe('CouponPickPage', () => {
       gameweek_id: 'gw-boxing-day',
       starts_on: '2026-12-26',
       status: 'open',
-      locks_at_utc: '2999-01-01T14:30:00Z',
+      locks_at_utc: '2999-01-01T14:30:00',
       picks_open_at_utc: null,
       fixture_count: 5,
       pick_count: 0,

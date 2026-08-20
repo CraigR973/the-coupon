@@ -1,4 +1,3 @@
-import { formatInTimeZone } from 'date-fns-tz';
 import { Check, Loader2 } from 'lucide-react';
 import type {
   FixtureSlate,
@@ -17,6 +16,7 @@ import {
   potentialPoints,
   selectionKey,
 } from '../lib/coupon';
+import { formatInstant } from '../lib/time';
 import { cn } from '../lib/utils';
 
 // Fixed display order within each market.
@@ -45,10 +45,7 @@ function firstName(name: string): string {
  * `taken_at`, and for a value that does not parse.
  */
 function takenAt(iso: string | null | undefined, timezone: string): string | null {
-  if (!iso) return null;
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return null;
-  return formatInTimeZone(at, timezone, 'd MMM, HH:mm');
+  return formatInstant(iso, timezone, 'd MMM, HH:mm');
 }
 
 /** A club is worth a context line once it has a table position or a run of form. */
@@ -119,7 +116,7 @@ export function PickCard({
   oddsFormat,
   onGrab,
 }: PickCardProps) {
-  const kickoffLocal = formatInTimeZone(new Date(fixture.kickoff_utc), timezone, 'EEE d MMM, HH:mm');
+  const kickoffLocal = formatInstant(fixture.kickoff_utc, timezone, 'EEE d MMM, HH:mm') ?? '';
 
   const byMarket = new Map<PickMarket, SelectionOption[]>();
   for (const sel of fixture.selections) {

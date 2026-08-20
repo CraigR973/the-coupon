@@ -31,7 +31,7 @@ const TABLES: CompetitionTable[] = [
     competition_id: 'england-premier-league',
     competition: 'England - English Premier League',
     season: 2025,
-    updated_at: '2026-08-06T06:30:00Z',
+    updated_at: '2026-08-06T06:30:00',
     rows: [
       {
         position: 1,
@@ -67,7 +67,7 @@ const TABLES: CompetitionTable[] = [
     competition_id: 'scotland-league-two',
     competition: 'Scotland - Scottish League Two',
     season: 2025,
-    updated_at: '2026-08-06T06:30:00Z',
+    updated_at: '2026-08-06T06:30:00',
     rows: [
       {
         position: 1,
@@ -92,7 +92,7 @@ const RESULTS: ResultEntry[] = [
     match_id: 'm107',
     competition_id: 'england-premier-league',
     competition: 'England - English Premier League',
-    kickoff_utc: '2026-05-02T14:00:00Z',
+    kickoff_utc: '2026-05-02T14:00:00',
     home: 'Chelsea FC',
     away: 'Arsenal FC',
     home_goals: 0,
@@ -102,7 +102,7 @@ const RESULTS: ResultEntry[] = [
     match_id: 'm108',
     competition_id: 'england-premier-league',
     competition: 'England - English Premier League',
-    kickoff_utc: '2026-05-02T14:00:00Z',
+    kickoff_utc: '2026-05-02T14:00:00',
     home: 'Liverpool FC',
     away: 'Everton FC',
     home_goals: 4,
@@ -112,7 +112,7 @@ const RESULTS: ResultEntry[] = [
     match_id: 'm105',
     competition_id: 'england-premier-league',
     competition: 'England - English Premier League',
-    kickoff_utc: '2026-04-25T14:00:00Z',
+    kickoff_utc: '2026-04-25T14:00:00',
     home: 'Arsenal FC',
     away: 'Tottenham Hotspur FC',
     home_goals: 2,

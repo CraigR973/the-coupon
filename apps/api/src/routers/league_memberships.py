@@ -1,7 +1,7 @@
 """League membership management: list, promote, demote, remove, display-name, invites, PIN reset."""
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Annotated
 
 import structlog
@@ -29,6 +29,7 @@ from src.routers.leagues import (
     _resolve_active_membership,
     _upsert_membership,
 )
+from src.schemas import UtcDatetime
 from src.services.notification_triggers import notify_member_joined
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -342,10 +343,10 @@ class LeagueInviteResponse(BaseModel):
     display_name_hint: str | None
     created_by: str
     claimed_by: str | None
-    claimed_at: datetime | None
-    expires_at: datetime | None
+    claimed_at: UtcDatetime | None
+    expires_at: UtcDatetime | None
     is_active: bool
-    created_at: datetime
+    created_at: UtcDatetime
     league_id: str
 
 

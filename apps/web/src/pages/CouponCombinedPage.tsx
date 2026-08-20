@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
 import { useGameweekHistory, useSelectedGameweekId } from '../hooks/useGameweekHistory';
 import { useRouteLeague } from '../hooks/useRouteLeague';
@@ -21,8 +20,6 @@ import { Skeleton } from '../components/ui/skeleton';
  * browses back through the season alongside the pick screen.
  */
 export function CouponCombinedPage() {
-  const { player } = useAuth();
-  const timezone = player?.timezone ?? 'UTC';
   const { slug, name: leagueName } = useRouteLeague();
   const { hasLeagues, isLoading: leaguesLoading } = useLeague();
   const gameweekId = useSelectedGameweekId();
@@ -75,7 +72,7 @@ export function CouponCombinedPage() {
       />
       <LeagueSwitchStrip currentSlug={slug} className="mb-5" />
       <CouponSubNav slug={slug} />
-      <GameweekNav history={history} timezone={timezone} />
+      <GameweekNav history={history} />
 
       {isLoading && (
         <div className="space-y-3" aria-label="Loading combined coupon">

@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { formatInTimeZone } from 'date-fns-tz';
 import { ChevronDown } from 'lucide-react';
 import type { CompetitionTable } from '../lib/types';
 import { FormLine } from './FormLine';
+import { formatInstant } from '../lib/time';
 import { cn } from '../lib/utils';
 
 export interface LeagueTableCardProps {
@@ -110,7 +110,7 @@ export function LeagueTableCard({ table, timezone, defaultOpen = true }: LeagueT
           </div>
           {table.updated_at && (
             <p className="border-t border-border px-3 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
-              As of {formatInTimeZone(new Date(table.updated_at), timezone, 'd MMM, HH:mm')}
+              As of {formatInstant(table.updated_at, timezone, 'd MMM, HH:mm')}
             </p>
           )}
         </div>

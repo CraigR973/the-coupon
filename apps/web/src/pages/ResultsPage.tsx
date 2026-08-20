@@ -1,13 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { formatInTimeZone } from 'date-fns-tz';
 import { apiFetch } from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
 import { useOddsFormat } from '../hooks/useOddsFormat';
 import { useRouteLeague } from '../hooks/useRouteLeague';
 import { formatOdds } from '../lib/coupon';
 import { predictionsPath } from '../lib/leagues';
+import { formatCalendarDate } from '../lib/time';
 import type { GameweekResult } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
@@ -22,8 +21,6 @@ import { Skeleton } from '../components/ui/skeleton';
  * surfaced on its own. Each row opens that week's combined coupon.
  */
 export function ResultsPage() {
-  const { player } = useAuth();
-  const timezone = player?.timezone ?? 'UTC';
   const { slug, name: leagueName } = useRouteLeague();
   const { hasLeagues, isLoading: leaguesLoading } = useLeague();
   const oddsFormat = useOddsFormat();
@@ -108,7 +105,7 @@ export function ResultsPage() {
               >
                 <div className="min-w-0 flex-1">
                   <p className="font-sans text-sm font-medium text-text-primary">
-                    {formatInTimeZone(new Date(result.starts_on), timezone, 'EEEE d MMMM')}
+                    {formatCalendarDate(result.starts_on, 'EEEE d MMMM')}
                   </p>
                   <p className="truncate font-sans text-xs text-text-muted">
                     {result.winner_names.length === 0

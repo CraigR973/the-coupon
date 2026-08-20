@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { parseInstant } from '../lib/time';
 
 export interface CountdownParts {
   days: number;
@@ -11,7 +12,10 @@ export interface CountdownParts {
 const EXPIRED: CountdownParts = { days: 0, hours: 0, minutes: 0, seconds: 0, expired: true };
 
 function compute(targetIso: string): CountdownParts {
-  const diff = new Date(targetIso).getTime() - Date.now();
+  // `parseInstant`, not `new Date`: an offset-less target was read as local time, so
+  // this reached zero an hour before the API stopped taking picks and `CouponPickPage`
+  // shut the screen on a round still open (Batch 43).
+  const diff = parseInstant(targetIso).getTime() - Date.now();
   if (!Number.isFinite(diff) || diff <= 0) return EXPIRED;
   return {
     days: Math.floor(diff / 86_400_000),

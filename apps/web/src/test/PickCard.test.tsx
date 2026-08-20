@@ -10,11 +10,11 @@ const FIXTURE: FixtureSlate = {
   away: 'Brechin',
   competition_id: 'scotland-league-two',
   competition: 'Scottish League 2',
-  kickoff_utc: '2026-08-08T14:00:00Z',
+  kickoff_utc: '2026-08-08T14:00:00',
   selections: [
     { market: 'MATCH_ODDS', outcome: 'HOME', runner_name: 'Forfar', odds: 2.0, taken_by_player_id: null, taken_by_name: null, mine: false },
     { market: 'MATCH_ODDS', outcome: 'DRAW', runner_name: 'The Draw', odds: 3.5, taken_by_player_id: 'p1', taken_by_name: 'Alice Adams', mine: true },
-    { market: 'MATCH_ODDS', outcome: 'AWAY', runner_name: 'Brechin', odds: 3.2, taken_by_player_id: 'p2', taken_by_name: 'Bob Baker', taken_at: '2026-08-07T09:05:00Z', mine: false },
+    { market: 'MATCH_ODDS', outcome: 'AWAY', runner_name: 'Brechin', odds: 3.2, taken_by_player_id: 'p2', taken_by_name: 'Bob Baker', taken_at: '2026-08-07T09:05:00', mine: false },
     { market: 'BOTH_TEAMS_TO_SCORE', outcome: 'YES', runner_name: 'Yes', odds: 1.8, taken_by_player_id: null, taken_by_name: null, mine: false },
   ],
   taken_by_names: ['Alice Adams', 'Bob Baker'],
@@ -74,6 +74,14 @@ describe('PickCard', () => {
     renderCard();
     const away = screen.getByTestId('selection-fx1-MATCH_ODDS-AWAY');
     expect(away.textContent).toContain('7 Aug, 09:05');
+  });
+
+  it('renders the kickoff in the member’s zone, not at the number the API stored', () => {
+    // Batch 43. The fixture kicks off at 14:00 UTC and the API sends `2026-08-08T14:00:00`
+    // with no offset; London is BST in August, so the card must say 15:00. Read as local
+    // time it says 14:00 in every zone on earth — the whole defect in one assertion.
+    renderCard({ timezone: 'Europe/London' });
+    expect(screen.getByText(/Sat 8 Aug, 15:00/)).toBeTruthy();
   });
 
   it('renders the claim time in the league timezone', () => {

@@ -9,6 +9,13 @@ export default defineConfig({
     globals: true,
     setupFiles: ['src/test/setup.ts'],
     exclude: ['**/node_modules/**', '**/e2e/**'],
+    // Pin the runner's zone away from UTC (Batch 43). Every date this app renders is
+    // converted into the *member's* zone, so a test whose process runs in UTC cannot
+    // tell a correctly-parsed instant from one parsed as local time — the numbers are
+    // identical. CI runs in UTC and this Mac runs in Europe/London, so the same suite
+    // was strict in one place and blind in the other. `America/New_York` is never equal
+    // to UTC or to London under either DST rule, so a mis-parse always shows.
+    env: { TZ: 'America/New_York' },
     // Comfortably above the 5000ms Testing Library wait configured in `setup.ts`, so a
     // wait that genuinely exhausts itself reports *that* rather than tripping the test
     // timeout at the same instant and blaming the test. The default 5000ms was itself a

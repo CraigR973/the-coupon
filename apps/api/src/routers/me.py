@@ -11,7 +11,7 @@ five queries whether the caller is in one league or six.
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from typing import Annotated
 
@@ -28,6 +28,7 @@ from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.rate_limit import limiter, per_user_key
+from src.schemas import UtcDatetime
 from src.services.coupon import combined_odds
 from src.services.gameweek import current_round_order
 from src.services.scoring import standings_by_league
@@ -87,10 +88,10 @@ class CurrentRound(BaseModel):
     gameweek_id: str
     starts_on: date
     status: str
-    locks_at_utc: datetime
+    locks_at_utc: UtcDatetime
     # When picks open, or ``null`` when the league announces no opening (Batch 27). The
     # card counts down to whichever of the two instants is next.
-    picks_open_at_utc: datetime | None
+    picks_open_at_utc: UtcDatetime | None
     # The whole league's acca for the round, so the card can say what is riding on it.
     leg_count: int
     combined_odds: float

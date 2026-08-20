@@ -1,13 +1,12 @@
-import { formatInTimeZone } from 'date-fns-tz';
 import { ChevronLeft, ChevronRight, History } from 'lucide-react';
 import type { GameweekHistory } from '../hooks/useGameweekHistory';
 import { Badge } from './ui/badge';
 import { roundName } from '../lib/coupon';
+import { formatCalendarDate } from '../lib/time';
 import { cn } from '../lib/utils';
 
 export interface GameweekNavProps {
   history: GameweekHistory;
-  timezone: string;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -23,7 +22,7 @@ const STATUS_LABEL: Record<string, string> = {
  * Hidden entirely until there is more than one gameweek to move between — on a
  * first Saturday there is no history to browse and the control would be noise.
  */
-export function GameweekNav({ history, timezone }: GameweekNavProps) {
+export function GameweekNav({ history }: GameweekNavProps) {
   const { gameweeks, selected, newer, older, isLatest, select } = history;
   if (gameweeks.length < 2) return null;
 
@@ -47,10 +46,7 @@ export function GameweekNav({ history, timezone }: GameweekNavProps) {
 
       <div className="flex min-w-0 flex-col items-center gap-0.5">
         <span className="truncate font-mono text-[11px] uppercase tracking-[0.2em] text-text-primary">
-          {roundName(
-            current.number,
-            formatInTimeZone(new Date(current.starts_on), timezone, 'EEE d MMM yyyy'),
-          )}
+          {roundName(current.number, formatCalendarDate(current.starts_on, 'EEE d MMM yyyy'))}
         </span>
         <span className="flex items-center gap-1.5">
           <Badge variant={current.status === 'open' ? 'success' : 'muted'}>

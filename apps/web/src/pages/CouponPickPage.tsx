@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { formatInTimeZone } from 'date-fns-tz';
 import { ChevronDown, Clock, Lock } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,6 +20,7 @@ import type {
   SelectionOption,
 } from '../lib/types';
 import { formatOdds, outcomeLabel, roundName } from '../lib/coupon';
+import { formatCalendarDate } from '../lib/time';
 import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
 import { LeagueSwitchStrip } from '../components/LeagueSwitchStrip';
@@ -176,7 +176,7 @@ export function CouponPickPage() {
   const groups = useMemo(() => groupByCompetition(slate?.fixtures ?? []), [slate?.fixtures]);
 
   const roundLabel = slate
-    ? roundName(slate.number, formatInTimeZone(new Date(slate.starts_on), timezone, 'EEE d MMM yyyy'))
+    ? roundName(slate.number, formatCalendarDate(slate.starts_on, 'EEE d MMM yyyy'))
     : 'This round';
 
   if (!leaguesLoading && !hasLeagues) {
@@ -206,7 +206,7 @@ export function CouponPickPage() {
       />
       <LeagueSwitchStrip currentSlug={slug} className="mb-5" />
       <CouponSubNav slug={slug} />
-      <GameweekNav history={history} timezone={timezone} />
+      <GameweekNav history={history} />
 
       {/* Lock / countdown banner */}
       {slate && (

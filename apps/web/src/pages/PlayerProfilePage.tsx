@@ -1,11 +1,11 @@
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { formatInTimeZone } from 'date-fns-tz';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useOddsFormat } from '../hooks/useOddsFormat';
 import { formatOdds, marketTag, outcomeLabel, pickStatusLabel } from '../lib/coupon';
 import { predictionsPath } from '../lib/leagues';
+import { formatCalendarDate } from '../lib/time';
 import type { PlayerProfile, SettledPick, PickStatus } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
@@ -33,7 +33,6 @@ const STATUS_VARIANT: Record<PickStatus, 'success' | 'error' | 'muted' | 'defaul
 export function PlayerProfilePage() {
   const { slug = '', playerId = '' } = useParams<{ slug: string; playerId: string }>();
   const { player } = useAuth();
-  const timezone = player?.timezone ?? 'UTC';
   const oddsFormat = useOddsFormat();
 
   const {
@@ -125,7 +124,6 @@ export function PlayerProfilePage() {
               <HistoryRow
                 key={`${pick.gameweek_id}:${pick.fixture_id}`}
                 pick={pick}
-                timezone={timezone}
                 oddsFormat={oddsFormat}
               />
             ))}
@@ -138,11 +136,9 @@ export function PlayerProfilePage() {
 
 function HistoryRow({
   pick,
-  timezone,
   oddsFormat,
 }: {
   pick: SettledPick;
-  timezone: string;
   oddsFormat: ReturnType<typeof useOddsFormat>;
 }) {
   return (
@@ -165,7 +161,7 @@ function HistoryRow({
           <span className="mx-1.5">·</span>
           {pick.home} v {pick.away}
           <span className="mx-1.5">·</span>
-          {formatInTimeZone(new Date(pick.starts_on), timezone, 'd MMM yyyy')}
+          {formatCalendarDate(pick.starts_on, 'd MMM yyyy')}
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5">

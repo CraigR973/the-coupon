@@ -1,7 +1,6 @@
 """League join request management: list pending, approve, reject."""
 
 import uuid
-from datetime import datetime
 from typing import Annotated
 
 import structlog
@@ -22,6 +21,7 @@ from src.routers.leagues import (
     _now,
     _upsert_membership,
 )
+from src.schemas import UtcDatetime
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -38,8 +38,8 @@ class JoinRequestResponse(BaseModel):
     player_id: str
     display_name: str
     status: str
-    requested_at: datetime
-    decided_at: datetime | None
+    requested_at: UtcDatetime
+    decided_at: UtcDatetime | None
     decision_note: str | None
 
 

@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { formatInTimeZone } from 'date-fns-tz';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
 import { useRouteLeague } from '../hooks/useRouteLeague';
 import type { CompetitionTable, ResultEntry } from '../lib/types';
+import { formatInstant } from '../lib/time';
 import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
 import { LeagueSwitchStrip } from '../components/LeagueSwitchStrip';
@@ -154,7 +154,7 @@ interface ResultDay {
 function groupByDay(results: ResultEntry[], timezone: string): ResultDay[] {
   const days = new Map<string, ResultEntry[]>();
   for (const result of results) {
-    const day = formatInTimeZone(new Date(result.kickoff_utc), timezone, 'EEEE d MMMM');
+    const day = formatInstant(result.kickoff_utc, timezone, 'EEEE d MMMM') ?? result.kickoff_utc;
     const bucket = days.get(day) ?? [];
     bucket.push(result);
     days.set(day, bucket);
