@@ -182,6 +182,12 @@ class Settings(BaseSettings):
     # Background scheduler (APScheduler) — disable in tests / one-off scripts.
     scheduler_enabled: bool = True
 
+    # Profile pictures (Batch 42). The cap is enforced before any byte is stored, and is
+    # deliberately small: an avatar is displayed at a few dozen pixels, so anything larger
+    # is a payload rather than a picture. There is no provider setting because there is no
+    # backend to select — see src/services/avatar_storage.py.
+    avatar_max_bytes: int = 2 * 1024 * 1024
+
     def secret_values(self) -> tuple[str, ...]:
         """Every configured secret whose literal value must never reach a log line.
 

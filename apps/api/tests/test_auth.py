@@ -52,6 +52,10 @@ def _make_user(
     p.failed_login_count = failed
     p.locked_until = locked_until
     p.deleted_at = None
+    # Batch 42. A `MagicMock(spec=Profile)` yields a mock for any unset attribute, and
+    # pydantic rejects that against `str | None` — so every response carrying PlayerInfo
+    # fails unless this is a real value. `None` is the state of nearly every profile.
+    p.avatar_url = None
     return p
 
 
@@ -152,7 +156,9 @@ async def test_login_success(client: AsyncClient) -> None:
     assert data["player"]["role"] == "admin"
     assert data["player"]["display_name"] == "Test User"
     assert "email" not in data["player"]
-    assert "avatar_url" not in data["player"]
+    # `avatar_url` was asserted *absent* until Batch 42, when the field arrived. It is
+    # present and null for a member who has set no picture, which is nearly all of them.
+    assert data["player"]["avatar_url"] is None
 
 
 async def test_login_wrong_pin(client: AsyncClient) -> None:

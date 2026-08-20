@@ -47,6 +47,11 @@ class Profile(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
         nullable=False,
         server_default="decimal",
     )
+    #: Where this member's profile picture lives, or ``NULL`` for the initials fallback
+    #: every profile had before Batch 42. A URL rather than bytes: the image is held by
+    #: an object store, and the database only remembers where. ``NULL`` is the normal
+    #: state — most members never set one — so every read must handle it.
+    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     failed_login_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
