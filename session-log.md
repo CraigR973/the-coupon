@@ -992,3 +992,36 @@ the pre-Batch-7 build with no `ODDS_API_KEY` sealed.
   divergence `batch-verify.md` records for ruff — trust the pins, not the dev venv.
 
 **Next:** No unchecked build batches remain except Batch 40 (deferred pending a product decision).
+
+## Batch 43 — Every time this app shows is an hour wrong
+**Commits:** 29b2104 · verified: `scripts/ci-local.sh` PASS (11 checks)
+
+### Key facts for future sessions
+- **The fix is one annotation, `UtcDatetime` in `apps/api/src/schemas.py`**, applied to every
+  datetime a response model carries. It is a `PlainSerializer` returning an *aware* datetime,
+  not a string, so OpenAPI still says `format: date-time` and a Python-mode `model_dump()`
+  still yields a `datetime`. Pydantic renders that as `…Z`, not `+00:00` as the row's wording
+  suggested — same instant, and it needs no bespoke string serialiser.
+- **`tests/test_wire_datetimes.py` walks `app.routes` and the models they nest**, so a model
+  written next year is covered the day it is added. Proven to bite: reverting one field to a
+  bare `datetime` fails it naming `CurrentRound.locks_at_utc`. Storage stays naive UTC — no
+  migration, no column change, and the backend's naive-to-naive comparisons are untouched.
+- **The test runner's zone is now pinned to `America/New_York` (`vite.config.ts`).** This is
+  the load-bearing half of the frontend work: in a UTC process a mis-parsed instant and a
+  correct one are the same number, so CI (UTC) could never see this while this Mac
+  (Europe/London) could. Do not "simplify" that env line away.
+- The frontend fixtures now carry the **offset-less** shape the API really sends, not the
+  `Z` form they were written with. Some `created_at` fixtures still use `Z` — deliberately:
+  both shapes are live at once during the ship gap.
+- The client keeps its own defence (`parseInstant` in `src/lib/time.ts`) even though the API
+  is fixed, because Vercel deploys `main` on merge and the API waits for `/ship-prod`.
+  **Until that ship-prod runs, the client-side half is the only half in production.**
+- **`starts_on` is a calendar date, not an instant.** `new Date('2026-08-22')` is UTC
+  midnight, so `formatInTimeZone` into any American zone rendered the previous day — the
+  round announced for a Friday. `formatCalendarDate` renders the day it names and converts
+  nothing. `GameweekNav`, `ResultsPage`, `PlayerProfilePage` and `CouponCombinedPage` no
+  longer take a `timezone` prop at all.
+- Reverting `parseInstant`/`formatCalendarDate` fails **14 tests across 4 files**, including
+  three that predate this batch — that is the regression gate, and it did not exist before.
+
+**Next:** Batch 44 — Turning avatars on.

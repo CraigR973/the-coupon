@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-42 except 40 are closed. The Coupon is a verified
+Batches 1-43 except 40 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -63,6 +63,24 @@ has one implementation and it refuses. The outstanding item before a backend can
 be wired is that uploaded bytes are never re-encoded — magic-byte sniffing proves
 a header, not a payload. The upload control is built and deliberately unmounted.
 
+Batch 43 stamped the UTC offset on every instant the API sends. The columns are
+naive UTC and the backend compares naive to naive correctly throughout, but
+pydantic rendered that as `2026-08-22T13:30:00` and JavaScript reads an
+offset-less date-time as *local* time, so the wall-clock number displayed
+equalled the stored UTC number in every zone — a 14:30 London lock shown as
+13:30. The countdown ran on the same mis-parsed instant and `locked` derives
+from it, so **the pick screen shut an hour before the API stopped taking
+picks**. Invisible from late October to late March, and it returns without a
+deploy. `UtcDatetime` is applied at the API boundary and a test walks the app's
+own routes so a later model cannot miss it. The client parses defensively too,
+because Vercel deploys `main` on merge while the API waits for `/ship-prod` —
+**until that ship-prod runs, the client half is the only half in production.**
+`starts_on` is now rendered as the calendar date it is rather than converted
+into a zone, which had announced the round a day early west of UTC. The test
+runner's zone is pinned to `America/New_York`: in a UTC process a mis-parsed
+instant and a correct one are the same number, which is why 325 green tests
+never saw this.
+
 Batch 41 gave the round a name. The coupon showed a date where members expect
 "Gameweek N" and no number existed to show; migration 014 adds one and backfills
 per league, per season, in `starts_on` order. It is stored rather than derived
@@ -81,11 +99,12 @@ could catch it. The bonus is now withheld on the competition path only (it is
 load-bearing for club names), `MATCH_MARGIN` is applied where it never was, and
 four divisions the two catalogues do not name alike carry an explicit override
 read from both live catalogues. Coverage was never the problem: a probe on
-2026-08-19 confirmed the free plan carries every British division for season
-2026, closing the question Batch 33 left open. **The tab stays empty until the
-mis-ingested rows are cleared and a corrective sweep runs — that data work was
-excluded from the batch and is still owed.** Batch 40 remains deferred pending a
-product decision.
+2026-08-19 confirmed the free plan *lists* every British division for season
+2026 — what it does not do is serve their standings, which the 2026-08-20 sweep
+established the day after. The corrective data cleanup this paragraph used to
+say was owed is not: the tables were empty then and are empty now, so there is
+nothing mis-ingested to clear. Batch 40 remains deferred pending a product
+decision.
 
 Batch 6 completed the product rebrand, removed inherited surfaces, corrected
 the frontend auth and invite wiring, and added a deterministic production-
@@ -389,8 +408,8 @@ unfinished — so it had to land before the roster of leagues grows, not after.
 
 ## Verified
 
-- Backend: 534 pytest with a database (418 without one), Ruff check/format, and
-  strict mypy; Batch 35 close-out passed `scripts/ci-local.sh` end-to-end
+- Backend: 574 pytest with a database (455 without one), Ruff check/format, and
+  strict mypy; Batch 43 close-out passed `scripts/ci-local.sh` end-to-end
   (11 checks), as every close-out since Batch 26 has
 - Database: clean `pgserver` migration through revision `013`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 18 public tables under a Supabase-like role setup. The count was 13 at
@@ -398,7 +417,9 @@ unfinished — so it had to land before the roster of leagues grows, not after.
   confirmed RLS-enabled *and* forced against production on 2026-08-19, with
   `anon`, `authenticated` and `PUBLIC` holding no table privileges and no schema
   `USAGE`
-- Frontend: Node 20 production build, TypeScript, ESLint, and 315 Vitest
+- Frontend: Node 20 production build, TypeScript, ESLint, and 341 Vitest, the
+  suite now pinned to a non-UTC zone (`America/New_York`) so an instant parsed
+  as local time cannot pass unnoticed
 - Browser: production-bundle smoke plus the full live staging story, including
   deep links, auth, administration, picks, settlement, standings, combined
   coupon, phone push, and PWA update behavior
@@ -444,13 +465,13 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries no unchecked batches. Batch 40 is deferred
-pending a decision on whether `pick_open_offset_minutes` stays forward-only or
-gains an admin restamp. Two items sit outside the batches and are owner actions:
-**rotating the odds-api.io key** exposed in the logs before Batch 36, and the
-production data cleanup Batch 37 needs — mis-matched competitions have been
-ingesting Premier League rows and must be cleared before a corrective
-`sync-football` sweep.
+`docs/BUILD_PLAN.md` carries Batches 44 and 45 unchecked, plus Batch 40, which
+is deferred pending a decision on whether `pick_open_offset_minutes` stays
+forward-only or gains an admin restamp. The odds-api.io key exposed in the logs
+before Batch 36 was rotated by the owner on 2026-08-20. Batch 37's production
+data cleanup is no longer owed: `teams`, `team_aliases`, `matches` and
+`standings` were confirmed empty in every environment on 2026-08-20 and have
+never held a row, so there are no mis-ingested rows to clear.
 
 Launch L5 — launch and first-Saturday watch — is the remaining launch work.
 Batch 7 shipped the odds source.

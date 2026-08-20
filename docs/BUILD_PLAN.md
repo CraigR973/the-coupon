@@ -961,7 +961,7 @@ answered until it lands, because until then there is no data to look at.
   deletion into the MVP: at minimum an admin path to remove one and a member path to clear
   their own. Nothing above it in this list depends on it.
 
-- [ ] **Batch 43 — Every time this app shows is an hour wrong** — the API serialises every
+- [x] **Batch 43 — Every time this app shows is an hour wrong** ✅ 2026-08-20 *(Opus)* — the API serialises every
   instant as naive UTC with no offset (`"2026-08-22T13:30:00"`), and JavaScript parses a
   date-time string without an offset as **local** time. The value is then handed to
   `formatInTimeZone`, so the wall-clock number displayed equals the stored UTC number
