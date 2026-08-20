@@ -823,8 +823,7 @@ writes it nowhere, so existing behavior is unaffected either way.
 
 ### Forward recovery plan — migrations `014` and `015`, Batches 41 and 42
 
-**Status: drafted 2026-08-20, awaiting owner review. NOT cleared to ship.**
-`/ship-prod` step 1.7 stops until this is reviewed and this line says so.
+**Status: reviewed and approved by the owner, 2026-08-20. Cleared to ship.**
 
 Required before `014` and `015` may be deployed. Production is at head `013`
 (confirmed directly, 2026-08-20); this shipment moves it to `015` — the first
