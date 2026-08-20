@@ -608,6 +608,8 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-08-20 | Railway `api` | `5e6e522e-499b-410c-a226-f045df59246a` | `2f708c82` (config only) | `015` |
 | 2026-08-20 | Vercel web | `dpl_DKaASWWLERHoihuBkZaDAAjjAjsC` | `33191ba2` (Batches 43–45) | — |
 | 2026-08-20 | Railway `api` | `88c4885c-21b5-429c-9726-532a98f7859f` | `33191ba2` (Batches 43–45) | `015` |
+| 2026-08-21 | Vercel web | `dpl_2PU8zAe4emT5LXWhgNefPmV4kAna` | `16a64eff` (Batch 46 + pinned deps) | — |
+| 2026-08-21 | Railway `api` | `8201bfac-aa5e-45db-bb6b-15f94193d9ac` | `16a64eff` (Batch 46 + pinned deps) | `015` |
 
 The 2026-08-19 shipment carries Batch 35 and is the **first API deployment since
 `013` that applies no migration**, which is what restores the rollback target the
@@ -627,6 +629,25 @@ GitHub auto-deploy already held the stable alias. Post-deploy verification:
 `/health` reports sha `2f708c82` and migration `015`, `/health/ready` agrees at
 `015` with `db: ok`, and `014`'s backfill was confirmed by
 `SELECT count(*) FROM gameweeks WHERE number IS NULL` returning 0.
+
+The 2026-08-21 shipment carries Batch 46 (the FotMob adapter, shipping **dark** —
+`FOOTBALL_DATA_PROVIDER` is still `none`) and the pinned dependency closure. It
+applies no migration, so head stays `015` and `88c4885c` remains a bootable
+rollback target. It is the **first shipment whose dependency set is fully
+pinned**: `apps/api/requirements.txt` is now a generated universal lock over 75
+packages, so this image can be rebuilt byte-for-byte.
+
+Notable by contrast with the previous one: build to `SUCCESS` took **90 seconds**,
+against 91 minutes the day before. Railway's deploy pause had lifted, and the
+changed `requirements.txt` did not cost a slow pip layer. Post-deploy checks:
+`/health` reports `16a64eff` at `015`, `/health/ready` agrees with `db: ok`,
+`/config` is auth-gated at 403, the SPA root and a deep link serve the same asset
+with identical headers, and an `OPTIONS` preflight returns the exact stable web
+origin with credentials enabled. Inside the container the pinned
+`cryptography 46.0.3`, `pillow 12.3.0` and `pywebpush` all import, the FotMob
+adapter loads and is selectable, and the live slate returns 137 fixtures with 115
+priced and 489 selections. A 314-line log review found zero secret-shaped matches
+and zero errors.
 
 The third 2026-08-20 shipment carries Batches 43–45 at `33191ba2` and **applies
 no migration** — head stays `015`, so `/ship-prod` step 1.7's forward-recovery-
@@ -754,13 +775,13 @@ explicit CLI path ran instead (see above).
 
 ### Current rollback baselines
 
-Updated after the 2026-08-20 shipment of `33191ba2` (Batches 43–45, no
-migration).
+Updated after the 2026-08-21 shipment of `16a64eff` (Batch 46 and the pinned
+dependency closure, no migration).
 
 | Stack | Roll back to |
 | --- | --- |
-| Railway `api` | `5e6e522e-499b-410c-a226-f045df59246a`, the predecessor of the live `88c4885c`. **Available** — it bundles head `015`, the same head the database is stamped at, so it can boot. Stable until the next `/ship-prod`. |
-| Vercel web | *The immediate predecessor of whatever is live* — read it, do not trust an id written here. As of 2026-08-20 17:20 that is `dpl_HTJAyWKLcyfjAUi21PgJpZFUvVqf`, behind the live `dpl_DKaASWWLERHoihuBkZaDAAjjAjsC` — and the commit recording this paragraph will already have superseded both. |
+| Railway `api` | `88c4885c-21b5-429c-9726-532a98f7859f`, the predecessor of the live `8201bfac`. **Available** — it bundles head `015`, the same head the database is stamped at, so it can boot. Stable until the next `/ship-prod`. |
+| Vercel web | *The immediate predecessor of whatever is live* — read it, do not trust an id written here. As of 2026-08-21 00:10 that is `dpl_2PU8zAe4emT5LXWhgNefPmV4kAna`, behind the live `dpl_2PU8zAe4emT5LXWhgNefPmV4kAna` — and the commit recording this paragraph will already have superseded both. |
 
 **The two rows age differently, and the Vercel one cannot be pinned.** The API
 deploys only by CLI, so its baseline moves only when `/ship-prod` runs. The web

@@ -147,9 +147,10 @@ carries 30 UK leagues, 131 qualifying 15:00 fixtures, and 280 distinct priced
 selections against the 15 a full league needs, with both Scottish lower
 divisions fully priced.
 
-**Production runs `33191ba2` on both stacks as of 2026-08-20**, at migration
-`015`, and **both stacks are in sync with `main`** — Railway `88c4885c`, Vercel
-`dpl_DKaASWWLERHoihuBkZaDAAjjAjsC`. `/api/v1/health` reports that commit and the
+**Production runs `16a64eff` on both stacks as of 2026-08-21**, at migration
+`015`, and **both stacks are in sync with `main`** — Railway `8201bfac`, Vercel
+`dpl_2PU8zAe4emT5LXWhgNefPmV4kAna`. That shipment carried Batch 46 and the
+pinned dependency closure, and took 90 seconds. `/api/v1/health` reports that commit and the
 migration head bundled in the image, so `scripts/check-deploy-drift.sh` answers
 exactly (`in sync`) rather than falling back to probing. `ODDS_API_KEY` is
 sealed and rotated, `ODDS_PROVIDER=oddsapi`, and `SCHEDULER_ENABLED=true`; the
