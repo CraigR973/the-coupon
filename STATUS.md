@@ -147,19 +147,25 @@ carries 30 UK leagues, 131 qualifying 15:00 fixtures, and 280 distinct priced
 selections against the 15 a full league needs, with both Scottish lower
 divisions fully priced.
 
-**Production runs `13560cdb` on both stacks as of 2026-08-16**, at migration
-`012`. `/api/v1/health` reports that commit and the migration head bundled in
-the image, so `scripts/check-deploy-drift.sh` now answers exactly (`in sync`)
-rather than falling back to probing. `ODDS_API_KEY` is sealed,
-`ODDS_PROVIDER=oddsapi`, and `SCHEDULER_ENABLED=true`; the paragraph above about
-a Betfair build and an unsealed key described the state before the 2026-08-04
-and 2026-08-06 shipments. Batches 33, 30, 31 and 32 are on `main` and **not**
-yet shipped, so the API is behind local `main` — `scripts/check-deploy-drift.sh`
-reported `DRIFTED` at Batch 31's close-out. Batch 30 changes the API's reminder
-payload (a `url` and a per-league lock time), Batch 31 is backend-only, and
-Batch 32 adds `league_memberships.notification_muted` (migration `013`) plus
-the per-league fields on `/api/v1/notifications/preferences` — none of that
-reaches production until `/ship-prod` runs and carries migration `013` with it.
+**Production runs `33191ba2` on both stacks as of 2026-08-20**, at migration
+`015`, and **both stacks are in sync with `main`** — Railway `88c4885c`, Vercel
+`dpl_DKaASWWLERHoihuBkZaDAAjjAjsC`. `/api/v1/health` reports that commit and the
+migration head bundled in the image, so `scripts/check-deploy-drift.sh` answers
+exactly (`in sync`) rather than falling back to probing. `ODDS_API_KEY` is
+sealed and rotated, `ODDS_PROVIDER=oddsapi`, and `SCHEDULER_ENABLED=true`; the
+paragraph above about a Betfair build and an unsealed key described the state
+before the 2026-08-04 and 2026-08-06 shipments.
+
+That shipment took 91 minutes for reasons that were **not** the build: Railway
+paused deploys platform-wide while the container was already running, so the
+`HEALTHCHECK` deployment event hung for 83 minutes past its own 300-second
+timeout before completing on its own. `docs/launch/L4_PRODUCTION_INFRASTRUCTURE.md`
+records how to recognise it — a stalled step with a healthy container is a
+platform problem, and `railway up` refuses outright with
+`Deploys have been paused due to an upstream issue`. Production served the
+previous deployment throughout. Note that a stall of that kind leaves **two
+schedulers running**; nothing double-fired here, but it would have reached the
+11:00 pick reminders had it lasted the night.
 
 The football-data provider is **switched off in production**
 (`FOOTBALL_DATA_PROVIDER=none`, owner decision 2026-08-20), and the Football tab
@@ -491,19 +497,14 @@ data cleanup is no longer owed: `teams`, `team_aliases`, `matches` and
 never held a row, so there are no mis-ingested rows to clear.
 
 Launch L5 — launch and first-Saturday watch — is the remaining launch work.
-Batch 7 shipped the odds source.
-Production is now deployed and configured through Batch 22; Batches 23–27 are
-on local `main` pending a `/ship-prod` for the API contract changes from
-Batches 23, 25, 26 and 27 (Batch 24 is frontend-only). That ship-prod is
-load-bearing rather than optional, and Batch 27 raises the stakes twice over:
-home already calls `GET /api/v1/me/cross-league-summary`, which does not exist
-on the deployed API, and Batch 27 adds migration `012` plus a `scheduled`
-gameweek state the deployed API cannot read. Shipping the web half alone would
-leave home empty and the new pick-open control writing to a field production
-does not have. What remains:
+Batch 7 shipped the odds source. **Every closed batch is now in production**:
+the 2026-08-20 shipment of `33191ba2` carried Batches 43–45, and nothing is
+waiting on a `/ship-prod`. The paragraph that used to sit here — Batches 23–27
+stranded on local `main` while home called an endpoint the deployed API did not
+have — is closed and kept only in the shipment history. What remains:
 
 - ~~seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`~~ — done;
-- ~~ship staging and then production~~ — production is at `13560cdb` / migration `012`;
+- ~~ship staging and then production~~ — production is at `33191ba2` / migration `015`;
 - migrate staging from the deprecated `BF_FAKE_MODE` to `ODDS_PROVIDER=fake`;
 - re-run `.launch-private/weekend-fixtures.py` against the launch Saturday;
 - ~~decide whether to enable the football-data provider~~ — **enabled, then

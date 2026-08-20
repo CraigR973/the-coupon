@@ -606,6 +606,8 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-08-20 | Railway `api` | `d0660dac-5103-4f5a-89d7-aeb26d5c86da` | `2f708c82` (Batches 36–38, 41–42) | **`015`** |
 | 2026-08-20 | Vercel web | `dpl_ELLXJuw66Hx47MAAyN6VJJc7Xkxh` | `2f708c82` | — |
 | 2026-08-20 | Railway `api` | `5e6e522e-499b-410c-a226-f045df59246a` | `2f708c82` (config only) | `015` |
+| 2026-08-20 | Vercel web | `dpl_DKaASWWLERHoihuBkZaDAAjjAjsC` | `33191ba2` (Batches 43–45) | — |
+| 2026-08-20 | Railway `api` | `88c4885c-21b5-429c-9726-532a98f7859f` | `33191ba2` (Batches 43–45) | `015` |
 
 The 2026-08-19 shipment carries Batch 35 and is the **first API deployment since
 `013` that applies no migration**, which is what restores the rollback target the
@@ -625,6 +627,47 @@ GitHub auto-deploy already held the stable alias. Post-deploy verification:
 `/health` reports sha `2f708c82` and migration `015`, `/health/ready` agrees at
 `015` with `db: ok`, and `014`'s backfill was confirmed by
 `SELECT count(*) FROM gameweeks WHERE number IS NULL` returning 0.
+
+The third 2026-08-20 shipment carries Batches 43–45 at `33191ba2` and **applies
+no migration** — head stays `015`, so `/ship-prod` step 1.7's forward-recovery-
+plan gate did not apply, and by the rule below this shipment *restores* a
+bootable rollback target rather than emptying the row. Its baselines were Railway
+`5e6e522e-…` and Vercel `dpl_HTJAyWKLcyfjAUi21PgJpZFUvVqf`. Section 4 was skipped
+by design for the third time running: the GitHub auto-deploy already held the
+stable alias, confirmed by reading `githubCommitSha` from the Vercel API rather
+than inferring it from timing.
+
+**This shipment is the one that got stuck, and the cause was Railway, not the
+build.** The deployment was uploaded at 15:39, built by 15:47:25, and its
+container started cleanly at 15:47:35 — but the `HEALTHCHECK` deployment event
+sat at `completedAt: null` for **83 minutes**, past its own
+`healthcheckTimeout = 300`, before completing at 17:10:21. The container was
+demonstrably alive throughout: its 10-minute `run_connection_warmup` job reached
+the database at 15:48:05 and 15:58:05 with no errors, restarts or `SIGTERM`. What
+named the cause was attempting a retry, which the CLI refused outright:
+
+```
+{"code":"UPLOAD_FAILED","error":"Deploys have been paused due to an upstream issue"}
+```
+
+Three things to carry forward from that.
+
+1. **A hung `HEALTHCHECK` event with a healthy container means look at the
+   platform, not the image.** `railway api` on `deploymentEvents` gives the
+   per-step breakdown (`SNAPSHOT_CODE`, `BUILD_IMAGE`, `CREATE_CONTAINER`,
+   `HEALTHCHECK`) with `createdAt`/`completedAt`, which localises a stall in one
+   query. `deployment list` shows only `DEPLOYING` and cannot.
+2. **A paused deploy leaves two containers running, both with
+   `SCHEDULER_ENABLED=true`** — against the "exactly one scheduler" invariant L3
+   and L4 both rest on. Nothing double-fired here, because the only job to reach
+   its trigger in the window was the 10-minute warmup, and the hourly
+   open/lock sweeps are idempotent status transitions. A longer stall reaching
+   the 11:00 pick reminders *would* have double-notified every member. The state
+   resolved itself when `88c4885c` promoted and `5e6e522e` went `REMOVED`.
+3. **The build was slow for a legitimate reason**, unrelated to the stall:
+   Batch 44 adds `pillow` to `apps/api/requirements.txt`, which invalidated the
+   pip layer, so `BUILD_IMAGE` took 4m50s against the usual ~2m. Expect that once
+   per dependency change, not per shipment.
 
 The second 2026-08-20 Railway entry, `5e6e522e-…`, is **not a shipment**. It is
 the redeploy Railway mints when a variable changes: `FOOTBALL_DATA_PROVIDER` was
@@ -711,12 +754,13 @@ explicit CLI path ran instead (see above).
 
 ### Current rollback baselines
 
-Updated after the 2026-08-19 shipment of `0bc699a4` (Batch 35, migration `013`).
+Updated after the 2026-08-20 shipment of `33191ba2` (Batches 43–45, no
+migration).
 
 | Stack | Roll back to |
 | --- | --- |
-| Railway `api` | `492037b0-5925-4c94-b59a-88fe4c17911a`, the predecessor of the live `1765f0aa`. **Available again** — see below. Stable until the next `/ship-prod`. |
-| Vercel web | *The immediate predecessor of whatever is live* — read it, do not trust an id written here. As of 2026-08-19 20:01 that is `dpl_iH9P5dbpRRdjBo3ihXgodfdpqCDg`, behind the live `dpl_6Vx8mGnWnrkp3QZKK9QxUGdhGm7a`. |
+| Railway `api` | `5e6e522e-499b-410c-a226-f045df59246a`, the predecessor of the live `88c4885c`. **Available** — it bundles head `015`, the same head the database is stamped at, so it can boot. Stable until the next `/ship-prod`. |
+| Vercel web | *The immediate predecessor of whatever is live* — read it, do not trust an id written here. As of 2026-08-20 17:20 that is `dpl_HTJAyWKLcyfjAUi21PgJpZFUvVqf`, behind the live `dpl_DKaASWWLERHoihuBkZaDAAjjAjsC` — and the commit recording this paragraph will already have superseded both. |
 
 **The two rows age differently, and the Vercel one cannot be pinned.** The API
 deploys only by CLI, so its baseline moves only when `/ship-prod` runs. The web
@@ -734,23 +778,30 @@ Vercel marks only the two most recent production deployments
 `isRollbackCandidate: true`, so in practice the target is always the immediate
 predecessor and there is nothing to look up beyond those two.
 
-**The API rollback is available again, on the condition this section predicted.**
-It went absent when migration `013` shipped, because rollback needs a *second*
-deployment at the live head and `492037b0` was the only one. The 2026-08-19
-shipment of Batch 35 applied no migration, so it is the second image at head
-`013` and `492037b0` becomes a target that can actually boot. The same rule that
-removed it will remove it again: **the next shipment that migrates empties this
-row**, and the one after that restores it.
+**The API rollback is available, and the prediction pattern has now run twice.**
+It goes absent whenever a migrating shipment lands, because rollback needs a
+*second* deployment at the live head. It went absent at `013`, was restored by
+Batch 35, went absent again when `014`/`015` shipped on 2026-08-20 leaving
+`d0660dac` as the only image at head `015`, and the 2026-08-20 shipment of
+Batches 43–45 restored it: that shipment applied no migration, so `5e6e522e`
+(and `88c4885c` behind it) are further images at head `015`. **The next shipment
+that migrates empties this row again**, and the one after that restores it.
 
 The reason is the boot sequence, not the schema. `nixpacks.toml` starts with
-`alembic upgrade head && uvicorn ...`, and every pre-`013` image ships migration
-scripts `001`–`012` only. Started against a database stamped `013`, such an image
-cannot resolve the revision at all — it fails with `Can't locate revision
-identified by '013'`, the `&&` chain stops, uvicorn never starts, and the
-healthcheck fails. **This holds regardless of what is in the tables**, so it is
-not something a data fix can unlock. Do not attempt a Railway rollback to
-`c5426392`, `f54fa403`, or anything older; it will fail its healthcheck rather
-than serve. `492037b0` is safe for exactly one reason — it bundles `013`.
+`alembic upgrade head && uvicorn ...`, and an image ships only the migration
+scripts that existed when it was built. Started against a database stamped `015`,
+a pre-`014` image cannot resolve the revision at all — it fails with
+`Can't locate revision identified by '015'`, the `&&` chain stops, uvicorn never
+starts, and the healthcheck fails. **This holds regardless of what is in the
+tables**, so it is not something a data fix can unlock. Do not attempt a Railway
+rollback to `1765f0aa`, `492037b0`, `c5426392`, `f54fa403`, or anything older;
+they will fail their healthcheck rather than serve. `5e6e522e` is safe for
+exactly one reason — it bundles `015`.
+
+One caveat this shipment added: `5e6e522e` is the **config-only** redeploy that
+carries `FOOTBALL_DATA_PROVIDER=none`, so rolling back to it preserves the owner's
+2026-08-20 decision. That is the right target for exactly that reason — see the
+entry above about why `d0660dac` is not.
 
 Where rollback is unavailable, recovery is forward-only per the approved plan for
 `013` above: the feature is already off by default (`notification_muted = false`

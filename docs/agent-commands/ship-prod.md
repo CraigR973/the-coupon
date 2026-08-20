@@ -121,6 +121,16 @@ tiers:
   --service d59f4f17-3e7d-4b3b-bf40-30620150fa2f
 ```
 
+**If anything after this point fails to deploy, set the variable back to the
+commit that is actually running.** The stamp is applied *before* the upload, so a
+failed or abandoned shipment leaves `/api/v1/health` claiming a commit production
+is not serving — and `scripts/check-deploy-drift.sh` trusts that field, so it
+reports `in sync` when it is not. That happened on 2026-08-20: Railway paused
+deploys platform-wide between the stamp and the upload, and the variable claimed
+`33191ba` for 36 minutes while `2f708c82` was serving. Reverting is safe with
+`--skip-deploys`; a container already created keeps the env snapshot it started
+with, so an in-flight deployment still reports its own commit correctly.
+
 Then run Railway from the repository root with every selector explicit.
 **`railway up` uploads the working directory, not the git commit** — re-check
 `git status --porcelain` immediately before this line, or uncommitted work ships
@@ -137,6 +147,33 @@ to production:
 
 Poll for a terminal status with a delay between requests; a tight loop against
 the deployment API will rate-limit.
+
+**When a deployment sits in `DEPLOYING` past its `healthcheckTimeout`, ask which
+step is stalled before touching anything.** `deployment list` reports only
+`DEPLOYING` and cannot localise it; the per-step breakdown can:
+
+```bash
+/Users/craigrobinson/.nvm/versions/node/v20.20.2/lib/node_modules/@railway/cli/bin/railway \
+  api 'query E($id: String!) { deploymentEvents(id: $id, first: 10) { edges { node { step createdAt completedAt } } } }' \
+  --variables '{"id":"<deployment-id>"}' --compact
+```
+
+A `HEALTHCHECK` event with `completedAt: null` while the container's own logs
+show a clean start — uvicorn listening, scheduler up, the 10-minute
+`run_connection_warmup` job reaching the database — is a **platform** stall, not
+a bad image, and no amount of waiting on the image will fix it. Confirm by
+attempting a retry: if deploys are paused, `railway up` refuses with
+`{"code":"UPLOAD_FAILED","error":"Deploys have been paused due to an upstream
+issue"}`. Production keeps serving the previous deployment throughout, so the
+correct response is to wait for the platform, not to roll back — there is nothing
+to roll back *to* that differs from what is already live.
+
+While such a stall lasts, **two containers are running and both have
+`SCHEDULER_ENABLED=true`**, against the "exactly one scheduler" invariant L3 and
+L4 rest on. The hourly open/lock sweeps are idempotent status transitions and the
+settlement sweeps no-op when nothing is settleable, but the 11:00 pick reminders
+would double-notify every member. If a stall looks like it will outlast the next
+reminder window, say so rather than waiting silently.
 
 Capture the new deployment ID. Poll its status with the same explicit project,
 environment, and service selectors until it is `SUCCESS`, or stop and roll
