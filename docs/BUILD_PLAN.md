@@ -1063,7 +1063,7 @@ answered until it lands, because until then there is no data to look at.
   shape to borrow. `tests/test_run_scheduled.py` already covers the exit-code mapping, so
   a failing verdict becomes a non-zero exit for free.
 
-- [ ] **Batch 46 — Reading the whole card from a source that has it** — the football
+- [x] **Batch 46 — Reading the whole card from a source that has it** ✅ 2026-08-20 *(Opus)* — the football
   feature is built, tested, shipped and switched off. `FOOTBALL_DATA_PROVIDER=none` since
   2026-08-20 because api-football's Free plan carries no part of the current season.
   Re-verified live on 2026-08-20 with the sealed production key: `/standings`, `/fixtures`

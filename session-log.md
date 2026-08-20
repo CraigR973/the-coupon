@@ -1125,3 +1125,39 @@ decision). Launch L5 — launch and first-Saturday watch — is the remaining la
   shows nothing.
 
 **Next:** No unchecked build batches remain. Launch L5 — launch and first-Saturday watch.
+
+## Batch 46 — Reading the whole card from a source that has it
+**Commits:** beb070b · verified: `scripts/ci-local.sh` PASS (11 checks)
+
+### Key facts for future sessions
+- **Probe before you trust ADR 0007's coverage claim.** It was written as settled with
+  only the *tables* checked; `fetch_results` — half the port, and the source of the pick
+  card's form strip — was never verified. The probe closed it and changed the design.
+- **One request returns both halves.** `/api/data/leagues?id=X` carries `table` *and*
+  `fixtures`. The ADR assumed api-football's two-per-competition shape. `fetch_table`
+  and `fetch_results` share one memo, so `8947`'s four competitions cost one request.
+- **Tables split; results do not.** A composite payload has `data.tables` with a
+  `leagueId` per division. `fixtures.allMatches` is flat — 1104 matches for `8944` —
+  with **no** division marker on a match. Do not go looking for one; `round`/`roundName`
+  are matchweek numbers.
+- **Attribution is by team id, never by name.** Table rows carry integer ids, giving a
+  team-id → division index. Live measurement: 1104/1104 and 67/67 attributed, and 67/67
+  finished matches had both teams in the same division. Removing the filter fails
+  `test_results_are_attributed_by_team_id_not_by_name`.
+- **Country-scoping is load-bearing, not tidiness.** Name-only matching put Scotland's
+  League One on England's `108`, Scotland's Championship on England's `48`, and
+  Scotland's Premiership on Northern Ireland's `129` — against the live catalogue. Same
+  class as Batch 37. odds-api.io says "England Amateur", so the trailing word is stripped
+  before the country lookup.
+- **Group ids, read live on 2026-08-20:** `8944` → 940360 NL North, 940374 NL South;
+  `8947` → 941117 Southern Central, 941118 Southern South, 941116 Northern Premier,
+  941109 Isthmian; `9545` → 1000001473 Highland, plus both Lowland groups we do not use.
+- **A 404 must raise.** `/api/leagues?id=47` 404s while `/api/data/leagues` works; a
+  swallowed 404 would turn a path change into a silent empty sweep, which is exactly what
+  Batch 45 exists to catch.
+- Recorded payloads live in `tests/fixtures/fotmob_payloads.json` — **full** table rows,
+  because trimming them to three per group emptied the division index and made the
+  attribution test vacuous.
+- Ships dark. `FOOTBALL_DATA_PROVIDER` still defaults to `none`; `fotmob` needs no key.
+
+**Next:** Turning it on is one variable plus a staging sweep. Launch L5 remains.

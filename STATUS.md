@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-45 are closed. The Coupon is a verified
+Batches 1-46 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -515,7 +515,15 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries no unchecked batches. Batch 40 closed the last one
+`docs/BUILD_PLAN.md` carries no unchecked batches. Batch 46 added FotMob as a
+third implementation of the football port (ADR 0007) — the first source that
+carries the current season, and the only free one reaching the six English step
+6-7 divisions that are 49% of the card. It **ships dark**:
+`FOOTBALL_DATA_PROVIDER` still defaults to `none`, and turning it on is one
+variable plus a staging sweep. The shape that made it interesting is that one
+FotMob league id serves up to four of our competitions, the table splits by
+group but the match list does not, and the split is recovered by team id rather
+than by name. Batch 40 closed the one before it
 by taking the **forward-only** rule rather than building an admin restamp: a
 2026-08-20 production read showed a single affected round holding zero picks, so
 the problem was transitional, not ongoing. What shipped is visibility — the
