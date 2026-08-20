@@ -61,12 +61,13 @@ if [[ -n "${CI_LOCAL_REBUILD:-}" || ! -x "$VENV/bin/python" \
       || "$(cat "$STAMP" 2>/dev/null)" != "$REQ_HASH" ]]; then
   echo "building pinned venv at $VENV"
   rm -rf "$VENV"
-  # --only-binary=cryptography: it is an unpinned transitive of pywebpush, and
-  # the version uv resolves ships no Intel-macOS wheel, so a source build would
-  # need a Rust toolchain. Requiring a wheel for that one package pins it a
-  # little behind CI's Linux resolution. Nothing here exercises it, but it is a
-  # real deviation — the durable fix is the open LAUNCH_PLAN item to pin the
-  # production dependency set so every platform resolves identically.
+  # --only-binary=cryptography is kept as a guard, not a workaround. The
+  # deviation it used to paper over is gone: apps/api/requirements.txt is now a
+  # fully-pinned universal lock generated from requirements.in, and it bounds
+  # cryptography at the newest release with wheels for both platforms, so this
+  # venv and the production image install the same versions. The flag stays so
+  # that a future bump past that bound fails loudly here rather than starting a
+  # silent source build that needs a Rust toolchain.
   if ! uv venv --python "$PY_VERSION" "$VENV" >/dev/null 2>&1 \
      || ! VIRTUAL_ENV="$VENV" uv pip install --quiet --only-binary=cryptography -r "$REQ"; then
     echo "Could not build the pinned venv from $REQ" >&2

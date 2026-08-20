@@ -158,11 +158,15 @@ chooses otherwise:
 - [x] Remove dead inherited configuration and dependencies. ✅ No `ANTHROPIC_*`,
   `resend`, Sentry, or Supabase client code remains in `apps/api/src` or
   `apps/web/src`.
-- [ ] **Pin Python production dependencies** so rebuilding the same commit is
-  reproducible. Still open, and `scripts/ci-local.sh` names it in its own
-  comments: `cryptography` is an unpinned transitive of `pywebpush`, and the
-  version uv resolves ships no Intel-macOS wheel, so the local gate forces a
-  wheel and lands slightly behind CI's Linux resolution.
+- [x] **Pin Python production dependencies** so rebuilding the same commit is
+  reproducible. ✅ 2026-08-21 — `apps/api/requirements.in` holds the direct
+  dependencies and `apps/api/requirements.txt` is now a generated universal lock
+  pinning all **75** packages in the transitive closure. Both the production
+  image and `scripts/ci-local.sh` install from that one file, so they can no
+  longer resolve differently. The deviation this item described is closed by
+  bounding `cryptography` at `46.0.3`, the newest release with wheels for both
+  Linux and Intel macOS; the trade-off is recorded in `requirements.in`.
+  Verified by rebuilding the gate's venv from the lock — 11/11 checks green.
 
 ### Database and backups
 
