@@ -1385,7 +1385,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: **frontend only, no API change.** Everything needed is already on
   `FixtureSlate`. Do not touch the grab mutation or `usePickEditor`.
 
-- [ ] **Batch 51 — Football Stats is not a coupon surface** *(Opus)* — the tab reads
+- [x] **Batch 51 — Football Stats is not a coupon surface** ✅ 2026-08-21 *(Opus)* — the tab reads
   `/leagues/{slug}/football/…` and narrows to the competitions that league plays
   (`league_competitions()`, `football_data.py:247`), which was never what the screen is
   for. A member opens it to look at football, not at the subset of football their coupon

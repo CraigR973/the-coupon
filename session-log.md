@@ -1303,3 +1303,40 @@ browser checks are out of scope.
   `SelectionButton`.
 
 **Next:** Batch 51 — untying Football Stats from the coupon's league-competition scope.
+
+## Batch 51 — Football Stats is not a coupon surface
+**Commits:** `4d94888` · verified: `scripts/ci-local.sh` PASS (11 checks) — 655 pytest with
+a database, Ruff 0.5.4 check/format, strict mypy, clean `pgserver` through `015`, 366
+Vitest, Node 20 build, prod-bundle Playwright
+
+### Key facts for future sessions
+- **The screen's data was never league-scoped — only its read was.** `pooled_competitions`
+  already walked the whole fixture pool and `teams` / `matches` / `standings` carry no
+  league column, so untying it cost **zero** extra provider requests. Anything that looks
+  league-scoped in the football half is worth checking against this before it is believed.
+- **A competition is in the pool only if a `fixtures` row names it.** `pooled_competitions`
+  derives from `fixtures.competition_id`, not from `standings`, so "every competition we
+  hold" means every one some league's card has drawn from. That is what the empty states
+  now say, and it is why `test_football_router.py` must seed `Fixture` rows — the old seed
+  wrote standings alone and would return nothing at all against the new endpoints.
+- **The pool is shared, so those tests assert containment, not length.** Every assertion
+  filters the response to the run's own tagged slugs; `test_picks_flow` and
+  `test_round_population` both commit fixtures that survive into this suite's view.
+  `Match` is unique on `provider_match_id` globally and `sync_results` re-points
+  `competition_id`, so a crashed run leaves no duplicate — only a moved row.
+- **`isLeagueHubPath` now tests the predictions *shape*, not the section list.** Dropping
+  `/football` from `PREDICTIONS_SECTIONS` made `predictionsSection()` return `null` for
+  the retired addresses, which would have lit the Leagues tab for the frame before the
+  redirect. Any future section removal has the same trap.
+- **`scripts/check-deploy-drift.sh`'s tier-3 probe named the route this batch deleted.**
+  Left alone it would have called a *current* image DRIFTED. Repointed to
+  `/api/v1/football/tables` / Batch 51. Deleting a route means moving that probe.
+- **"Football Stats" fits the mobile tab bar on one line** — measured against the built CSS
+  in Outfit at 57.7px, in a 75px tab at 375px and a 64px tab at 320px. No wrap, no
+  clipping, no CSS change needed. Roughly one more character of slack is all there is.
+
+**Next:** Batch 52 — the Form column hidden on every phone, and results grouped by day
+alone. This batch is API-side as well as web, so the two halves separate on merge: Vercel
+takes the new `/football` screen immediately while the deployed API still serves only the
+league-scoped endpoints, which the untied page does not call. **A `/ship-prod` is owed
+before the tab works in production.**

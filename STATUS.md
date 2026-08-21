@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-50 are closed. The Coupon is a verified
+Batches 1-51 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -540,10 +540,30 @@ pick" summary on `CouponPickPage` now names the competition, matching
 `round(odds × 10)` of the displayed price — now stays visible alongside
 "taken by X" and "your pick", not just on an unclaimed selection.
 
+Batch 51 untied Football Stats from a league. The tables and results screen read
+`/leagues/{slug}/football/…` and narrowed to the competitions that league plays,
+which was never what it is for: a member opens it to look at football, not at the
+subset of football their own coupon covers. **The data was never league-scoped —
+only the read was.** `pooled_competitions` already walked the whole shared fixture
+pool and `teams` / `matches` / `standings` carry no league column, so untying it
+cost nothing upstream: no ingestion change, no migration, and the 100-a-day
+API-Football budget is untouched. `/api/v1/football/tables` and `/results` now
+take no slug and are gated on an authenticated player rather than
+`LeagueMemberDep` — the router's own docstring had already conceded that gate was
+consistency rather than privacy. The old routes and `league_competitions()` are
+deleted rather than left dead. Because `CouponSubNav` is explicitly league-bound,
+the tab left it for a top-level `/football`, and `LeagueSwitchStrip` came off the
+page, where it would have been a control that changed nothing; the two old
+addresses redirect. Renamed **Football Stats** while the nav was being edited —
+57.7px in a 75px tab at 375px and a 64px tab at 320px, so it stays on one line on
+the narrowest phone. One limit is recorded in the empty states: the pool holds
+only competitions some league's card has drawn from, so "untied" means every
+competition we have ever ingested, not every competition in Britain.
+
 ## Verified
 
-- Backend: 652 pytest with a database, Ruff check/format, and
-  strict mypy; Batch 49 close-out passed `scripts/ci-local.sh` end-to-end
+- Backend: 655 pytest with a database, Ruff check/format, and
+  strict mypy; Batch 51 close-out passed `scripts/ci-local.sh` end-to-end
   (11 checks), as every close-out since Batch 26 has. That script's pinned venv **is**
   the gate: app-starter's venv can no longer even collect the suite (no Pillow, so
   `avatar_storage.py` takes ten test files down with it) and `AGENTS.md` plus
@@ -554,7 +574,7 @@ pick" summary on `CouponPickPage` now names the competition, matching
   confirmed RLS-enabled *and* forced against production on 2026-08-19, with
   `anon`, `authenticated` and `PUBLIC` holding no table privileges and no schema
   `USAGE`
-- Frontend: Node 20 production build, TypeScript, ESLint, and 361 Vitest, the
+- Frontend: Node 20 production build, TypeScript, ESLint, and 366 Vitest, the
   suite now pinned to a non-UTC zone (`America/New_York`) so an instant parsed
   as local time cannot pass unnoticed
 - Browser: production-bundle smoke plus the full live staging story, including
@@ -602,16 +622,24 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **three unchecked batches**, 51-53, all of them about
-what the screens leave out rather than what the game gets wrong: untying
-Football Stats from a league it was never scoped by (51); a table that hides the
+`docs/BUILD_PLAN.md` carries **two unchecked batches**, 52-53, both about what the
+screens leave out rather than what the game gets wrong: a table that hides the
 Form column on every phone and results grouped by day alone (52); and form pips
 that discard the matches behind them despite already holding them (53).
 
-Batch 50 closed the one before those: the pick card's misaligned form strip,
+Batch 51 closed the one before those: Football Stats no longer narrows to the
+competitions the reader's own league plays, and no longer lives under a slug.
+**It is API-side as well as web, and the two halves separate on merge** — Vercel
+takes the new top-level `/football` screen immediately, while the deployed API
+still serves only `/leagues/{slug}/football/…`, which the untied page does not
+call. Until a `/ship-prod` runs, the tab reaches production and its two requests
+404. This is the sharper form of the usual gap: the batches before it left
+production merely *stale*, this one leaves a screen broken until the API ships.
+
+Batch 50 closed the one before that: the pick card's misaligned form strip,
 unnamed competition and vanishing points, all frontend-only with no API change.
 
-Batch 49 closed the one before that: a fixture the provider reports called off now comes
+Batch 49 closed the one before it: a fixture the provider reports called off now comes
 off an open round with the pick on it, before the deadline rather than at the
 evening settle sweep. **It is API-side and has not shipped** — Vercel deploys
 `main` on merge while the API waits for `/ship-prod`, so production keeps carrying
@@ -651,9 +679,12 @@ never held a row, so there are no mis-ingested rows to clear.
 Launch L5 — launch and first-Saturday watch — is the remaining launch work.
 Batch 7 shipped the odds source. Every closed batch through **48** is in
 production: the 2026-08-21 shipment of `1272dde` carried Batches 47–48, after
-`16a64eff` carried Batch 46 and `33191ba2` carried Batches 43–45. `main` and the
-deployed API agree — `scripts/check-deploy-drift.sh` answers `in sync`. What
-remains:
+`16a64eff` carried Batch 46 and `33191ba2` carried Batches 43–45. **Batches 49
+and 51 are merged and not shipped** — both are API-side, and Vercel takes `main`
+on merge while the API waits for `/ship-prod`. Batch 51 is the sharper case: its
+web half reaches production immediately and calls `/api/v1/football/tables`,
+which the deployed image does not serve, so Football Stats 404s until the API
+ships. `scripts/check-deploy-drift.sh` reports the gap. What remains:
 
 - ~~seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`~~ — done;
 - ~~ship staging and then production~~ — production is at `33191ba2` / migration `015`;
