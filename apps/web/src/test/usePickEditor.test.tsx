@@ -50,6 +50,9 @@ describe('pickErrorMessage', () => {
     // Batch 27's other refusal — "come back later", not "it is over".
     expect(pickErrorMessage('PICKS_NOT_OPEN')).toMatch(/haven’t opened/i);
     expect(pickErrorMessage('SELECTION_NOT_AVAILABLE')).toMatch(/priced/i);
+    // Batch 48: browsing the card degrades to stale prices, submitting never does —
+    // the refusal has to say the pick was not saved, not just that something broke.
+    expect(pickErrorMessage('ODDS_UNAVAILABLE')).toMatch(/wasn’t saved/i);
     expect(pickErrorMessage('')).toMatch(/could not save/i);
     expect(pickErrorMessage('Some other server message')).toBe('Some other server message');
   });

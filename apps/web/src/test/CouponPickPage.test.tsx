@@ -245,6 +245,25 @@ describe('CouponPickPage', () => {
     expect(banner.textContent).toMatch(/picks lock in 1h 5\dm/i);
   });
 
+  // ── Batch 48: prices the API could not refresh ───────────────────────────
+
+  it('warns that prices may be out of date when the API says they are degraded', async () => {
+    stubSlate({ odds_degraded: true });
+    renderPage();
+
+    const banner = await screen.findByTestId('odds-degraded-banner');
+    expect(banner.textContent).toMatch(/out of date/i);
+    // Still a working card underneath — degrading is the whole point.
+    fireEvent.click(await screen.findByRole('button', { name: /scottish league 2/i }));
+    expect(await screen.findByTestId('pick-card-fx1')).toBeTruthy();
+  });
+
+  it('says nothing about staleness on a healthy slate', async () => {
+    renderPage();
+    await screen.findByTestId('lock-banner');
+    expect(screen.queryByTestId('odds-degraded-banner')).toBeNull();
+  });
+
   // ── Batch 27: a round that exists but has not opened ─────────────────────
 
   it('counts down to the opening, not to the lock, before picks open', async () => {

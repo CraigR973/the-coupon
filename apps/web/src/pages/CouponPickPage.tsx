@@ -236,6 +236,23 @@ export function CouponPickPage() {
         </div>
       )}
 
+      {/*
+        Batch 48: the API served this card from a *failed* price refresh — last known
+        odds, or none at all. Saying so is the difference between stale numbers and
+        stale numbers presented as current. Optional field, so an API that predates it
+        simply never sets this.
+      */}
+      {slate?.odds_degraded && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="odds-degraded-banner"
+          className="mb-4 rounded-lg border border-warning/30 bg-warning/10 px-4 py-2.5 text-center text-xs font-sans text-warning"
+        >
+          Prices may be out of date — the odds source isn't responding right now.
+        </div>
+      )}
+
       <OddsGuide />
 
       {/* Your current pick */}

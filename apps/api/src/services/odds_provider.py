@@ -38,7 +38,10 @@ from decimal import Decimal
 from enum import StrEnum
 from zoneinfo import ZoneInfo
 
+import structlog
 from pydantic import BaseModel
+
+log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 # ── Slate rule ─────────────────────────────────────────────────────────────────
 
@@ -103,6 +106,20 @@ class FixtureOdds(BaseModel):
     home: str
     away: str
     selections: list[Selection]
+
+
+@dataclass(frozen=True)
+class OddsSnapshot:
+    """Prices for a set of events, and whether the source was actually reachable.
+
+    ``degraded`` is true when these are whatever could be salvaged from a *failed*
+    refresh — last known prices, or none at all — rather than a live answer. It is the
+    browsing path's return type alone: freezing a price onto a pick calls
+    :meth:`OddsProvider.fetch_odds`, which raises rather than degrading.
+    """
+
+    odds: list[FixtureOdds]
+    degraded: bool
 
 
 class Competition(BaseModel):
@@ -397,6 +414,32 @@ class OddsProvider(ABC):
         slate and freezing a price at pick time want very different freshness for
         very different costs against the provider's rate limit.
         """
+
+    async def fetch_odds_best_effort(
+        self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
+    ) -> OddsSnapshot:
+        """:meth:`fetch_odds` for the browsing path — degrades instead of raising.
+
+        The pick screen is the one every member opens, and until Batch 48 its
+        availability was wired straight to a third party's rate limit: a ``429`` from the
+        provider propagated out of ``fetch_odds`` and the whole slate answered ``500``.
+        Browsing tolerates far less than that. A slightly stale price beats a broken
+        screen, and a card with *no* prices still shows the fixtures, which beats an
+        error page. **Freezing a price onto a pick is the opposite case** and keeps
+        calling :meth:`fetch_odds`, because a winner scores ``round(odds × 10)`` from
+        that number and a price we could not confirm is a wrong score, not a degraded one.
+
+        This default has nothing to fall back *to*, so it degrades to no prices at all.
+        :class:`~src.services.odds_cache.CachingOddsProvider` overrides it with the
+        entries it is already holding, and the provider handed to a request is always
+        the cached one (``deps.get_odds_provider``), so that override is the live path.
+        """
+        try:
+            odds = await self.fetch_odds(event_ids, max_age_seconds=max_age_seconds)
+        except OddsProviderError as exc:
+            log.warning("odds unavailable, serving none", events=len(event_ids), error=repr(exc))
+            return OddsSnapshot(odds=[], degraded=True)
+        return OddsSnapshot(odds=odds, degraded=False)
 
     @abstractmethod
     async def settle(self, event_ids: Sequence[str]) -> list[EventSettlement]:

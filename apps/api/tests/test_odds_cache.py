@@ -15,6 +15,8 @@ from collections.abc import Collection, Sequence
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
+import pytest
+
 from src.services.odds_cache import CachingOddsProvider
 from src.services.odds_provider import (
     SATURDAY_THREE_PM,
@@ -23,6 +25,7 @@ from src.services.odds_provider import (
     FixtureOdds,
     Market,
     OddsProvider,
+    OddsProviderAPIError,
     Outcome,
     Selection,
     Slate,
@@ -61,6 +64,8 @@ class _CountingProvider(OddsProvider):
         self.closed = False
         self.priced = priced
         self.price = "2.00"
+        #: When set, every ``fetch_odds`` raises it — the provider having a bad afternoon.
+        self.odds_error: Exception | None = None
 
     async def login(self) -> str:
         self.login_calls += 1
@@ -107,6 +112,8 @@ class _CountingProvider(OddsProvider):
         self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
     ) -> list[FixtureOdds]:
         self.odds_calls.append(list(event_ids))
+        if self.odds_error is not None:
+            raise self.odds_error
         return [_odds(e, self.price) for e in event_ids if self.priced is None or e in self.priced]
 
     async def settle(self, event_ids: Sequence[str]) -> list[EventSettlement]:
@@ -355,3 +362,127 @@ async def test_a_tight_ceiling_refetches_only_the_events_asked_for() -> None:
 
     assert inner.odds_calls[-1] == ["e7"]
     assert len(inner.odds_calls) == 2
+
+
+# ── Batch 48: surviving a provider that refuses ───────────────────────────────
+#
+# The pick screen is the one every member opens, and until this batch its availability
+# was wired straight to odds-api.io's rate limit: a `429` propagated out of `fetch_odds`
+# and `GET /leagues/{slug}/gameweek/current` answered `500`. The entries are still here
+# when a refresh fails — merely past their TTL — which is what makes the fallback free.
+
+
+async def test_a_failed_refresh_serves_the_last_known_prices() -> None:
+    """The whole fix: stale prices beat a broken screen."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _cache(inner, clock, ttl=300.0)
+
+    await cache.fetch_odds(["a", "b"])  # warm
+    clock.advance(400)  # both entries are now stale
+    inner.odds_error = OddsProviderAPIError("odds-api.io /odds/multi rate-limited (429)")
+
+    snapshot = await cache.fetch_odds_best_effort(["a", "b"])
+
+    assert [o.provider_event_id for o in snapshot.odds] == ["a", "b"]
+    assert snapshot.degraded is True
+    assert len(inner.odds_calls) == 2, "it did try, and fell back when the try failed"
+
+
+async def test_a_failed_refresh_with_a_cold_cache_serves_nothing_rather_than_raising() -> None:
+    """No prices at all still renders the fixtures, which beats an error page."""
+    inner = _CountingProvider()
+    cache = _cache(inner, _Clock())
+    inner.odds_error = OddsProviderAPIError("upstream unreachable")
+
+    snapshot = await cache.fetch_odds_best_effort(["a", "b"])
+
+    assert snapshot.odds == []
+    assert snapshot.degraded is True
+
+
+async def test_a_failed_refresh_still_serves_the_entries_it_does_have() -> None:
+    """A half-warm cache degrades by the fixture, not by the card."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _cache(inner, clock, ttl=300.0)
+
+    await cache.fetch_odds(["a"])  # only "a" was ever priced
+    clock.advance(400)
+    inner.odds_error = OddsProviderAPIError("upstream unreachable")
+
+    snapshot = await cache.fetch_odds_best_effort(["a", "b"])
+
+    assert [o.provider_event_id for o in snapshot.odds] == ["a"]
+    assert snapshot.degraded is True
+
+
+async def test_a_healthy_refresh_is_never_reported_as_degraded() -> None:
+    inner = _CountingProvider()
+    cache = _cache(inner, _Clock())
+
+    snapshot = await cache.fetch_odds_best_effort(["a"])
+
+    assert [o.provider_event_id for o in snapshot.odds] == ["a"]
+    assert snapshot.degraded is False
+
+
+async def test_a_cache_hit_needs_no_provider_at_all_to_stay_healthy() -> None:
+    """Inside the TTL nothing goes upstream, so a broken provider is invisible."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _cache(inner, clock, ttl=300.0)
+
+    await cache.fetch_odds(["a"])
+    inner.odds_error = OddsProviderAPIError("upstream unreachable")
+    clock.advance(10)
+
+    snapshot = await cache.fetch_odds_best_effort(["a"])
+
+    assert [o.provider_event_id for o in snapshot.odds] == ["a"]
+    assert snapshot.degraded is False
+    assert len(inner.odds_calls) == 1
+
+
+async def test_a_recovered_provider_is_served_on_the_next_load() -> None:
+    """A failed refresh must not restamp the entries, or recovery would wait a TTL."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _cache(inner, clock, ttl=300.0)
+
+    await cache.fetch_odds(["a"])
+    clock.advance(400)
+    inner.odds_error = OddsProviderAPIError("upstream unreachable")
+    assert (await cache.fetch_odds_best_effort(["a"])).degraded is True
+
+    inner.odds_error = None
+    inner.price = "4.00"
+    snapshot = await cache.fetch_odds_best_effort(["a"])  # same instant, no TTL wait
+
+    assert snapshot.degraded is False
+    assert snapshot.odds[0].selections[0].price == Decimal("4.00")
+
+
+async def test_the_pick_path_still_raises() -> None:
+    """`fetch_odds` is what freezes a scored price; it must keep failing loudly."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _cache(inner, clock, ttl=300.0)
+
+    await cache.fetch_odds(["a"])  # a warm, and now stale, entry to be tempted by
+    clock.advance(400)
+    inner.odds_error = OddsProviderAPIError("upstream unreachable")
+
+    with pytest.raises(OddsProviderAPIError):
+        await cache.fetch_odds(["a"])
+
+
+async def test_an_uncached_provider_degrades_to_no_prices() -> None:
+    """The port's own fallback, for any provider with nothing to fall back to."""
+    inner = _CountingProvider()
+    inner.odds_error = OddsProviderAPIError("upstream unreachable")
+
+    snapshot = await inner.fetch_odds_best_effort(["a"])
+
+    assert snapshot.odds == []
+    assert snapshot.degraded is True

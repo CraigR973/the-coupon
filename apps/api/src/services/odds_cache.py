@@ -18,6 +18,11 @@ looking. Entries are keyed per event, so:
 
 Slate and settlement are not cached: both are scheduler-driven, run a handful of times a
 day, and must see fresh data when they do run.
+
+Batch 48 added the other thing a cache is good for. The entries survive an upstream
+failure — they are merely past their TTL — so ``fetch_odds_best_effort`` serves the last
+known prices to the pick screen instead of letting a provider ``429`` become a ``500``.
+``fetch_odds`` itself still raises, because the price frozen onto a pick is scored on.
 """
 
 from __future__ import annotations
@@ -35,6 +40,8 @@ from src.services.odds_provider import (
     EventSettlement,
     FixtureOdds,
     OddsProvider,
+    OddsProviderError,
+    OddsSnapshot,
     Slate,
     SlateWindow,
 )
@@ -126,23 +133,65 @@ class CachingOddsProvider(OddsProvider):
         slate accepts a stale-ish price; freezing one onto a pick does not, and paying for
         that freshness on the single fixture being picked costs one request rather than a
         sweep of the whole card.
+
+        Raises whatever the wrapped provider raises. That is the pick path's contract —
+        see :meth:`fetch_odds_best_effort` for the browsing one.
         """
+        return (await self._snapshot(event_ids, max_age_seconds, best_effort=False)).odds
+
+    async def fetch_odds_best_effort(
+        self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
+    ) -> OddsSnapshot:
+        """The same read, serving the last known prices when the refresh fails.
+
+        This is the whole reason the cache is the right place for Batch 48's fix: when the
+        upstream call raises, the entries are still sitting here, merely past their TTL.
+        Falling through to them costs the pick screen its freshness instead of its
+        availability, and the ``degraded`` flag is what lets the client say so rather than
+        presenting stale numbers as current.
+
+        An empty cache degrades to no prices at all, which still renders the fixtures.
+        """
+        return await self._snapshot(event_ids, max_age_seconds, best_effort=True)
+
+    async def _snapshot(
+        self, event_ids: Sequence[str], max_age_seconds: float | None, *, best_effort: bool
+    ) -> OddsSnapshot:
+        """Refill what has gone stale, then answer from the entries — both callers' body."""
         wanted = list(dict.fromkeys(event_ids))
         if not wanted:
-            return []
+            return OddsSnapshot(odds=[], degraded=False)
 
         ttl = self._ttl if max_age_seconds is None else min(self._ttl, max_age_seconds)
+        degraded = False
 
         async with self._lock:
             now = self._clock()
             stale = [event_id for event_id in wanted if self._stale(event_id, now, ttl)]
             if stale:
-                fetched = await self._inner.fetch_odds(stale)
-                by_event = {o.provider_event_id: o for o in fetched}
-                stored_at = self._clock()
-                for event_id in stale:
-                    self._entries[event_id] = _Entry(by_event.get(event_id), stored_at)
-                log.debug("odds cache refill", requested=len(wanted), fetched_upstream=len(stale))
+                try:
+                    fetched = await self._inner.fetch_odds(stale)
+                except OddsProviderError as exc:
+                    if not best_effort:
+                        raise
+                    # The stale entries stay exactly as they are, so the next call tries
+                    # upstream again — a provider that recovers is served fresh prices on
+                    # the next page load rather than on the next TTL boundary.
+                    degraded = True
+                    log.warning(
+                        "odds refresh failed, serving cached",
+                        requested=len(wanted),
+                        stale=len(stale),
+                        error=repr(exc),
+                    )
+                else:
+                    by_event = {o.provider_event_id: o for o in fetched}
+                    stored_at = self._clock()
+                    for event_id in stale:
+                        self._entries[event_id] = _Entry(by_event.get(event_id), stored_at)
+                    log.debug(
+                        "odds cache refill", requested=len(wanted), fetched_upstream=len(stale)
+                    )
 
             results = [
                 entry.odds
@@ -151,7 +200,7 @@ class CachingOddsProvider(OddsProvider):
             ]
 
         results.sort(key=lambda o: o.provider_event_id)
-        return results
+        return OddsSnapshot(odds=results, degraded=degraded)
 
     def _stale(self, event_id: str, now: float, ttl: float) -> bool:
         entry = self._entries.get(event_id)

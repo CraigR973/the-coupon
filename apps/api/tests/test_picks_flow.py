@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
@@ -48,7 +48,8 @@ from src.services.betfair import (
     FakeBetfair,
 )
 from src.services.gameweek import fixtures_for, members_missing_picks, sync_slate, window_for
-from src.services.odds_provider import Competition, OddsProviderAPIError
+from src.services.odds_cache import CachingOddsProvider
+from src.services.odds_provider import Competition, FixtureOdds, OddsProviderAPIError
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -1800,3 +1801,156 @@ async def test_cross_league_summary_shows_an_unpicked_round_and_no_leagues(
         "leagues_count": 0,
         "per_league": [],
     }
+
+
+# ── Batch 48: the pick screen survives the odds provider ──────────────────────
+#
+# `_live_odds` used to call `fetch_odds` with no fallback, so a provider failure
+# propagated and `GET /leagues/{slug}/gameweek/current` — the screen every member opens
+# to make their pick — answered 500. Observed in production on 2026-08-21, the day
+# before launch: `/odds/multi` returned 429, the slate 500ed, and the Football tab
+# beside it kept working because it reads only the database.
+#
+# These drive the real request path, with the real cache wrapper in front of a provider
+# that refuses, because the fallback *is* the cache.
+
+
+class _BrokenOdds(FakeBetfair):
+    """The canned provider with prices that raise the way a rate-limited one does.
+
+    Only ``fetch_odds`` breaks. That is the shape of the real failure: the card is in
+    the database and upstream is asked for nothing but the prices on it.
+    """
+
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+        self.breaking = True
+
+    async def fetch_odds(
+        self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
+    ) -> list[FixtureOdds]:
+        if self.breaking:
+            raise OddsProviderAPIError("odds-api.io /odds unexpected status 429")
+        return await super().fetch_odds(event_ids, max_age_seconds=max_age_seconds)
+
+
+def _cached(stub: _BrokenOdds) -> CachingOddsProvider:
+    """The stub behind the wrapper the request path actually gets.
+
+    Held in a closure, never a default argument: FastAPI reads an override's signature
+    as request parameters, and pydantic deep-copies a default per request, which would
+    hand every load its own empty cache and quietly test nothing.
+
+    ``ttl_seconds=0`` makes every entry instantly stale, so each call attempts a refresh
+    — which is the only way a failing provider is ever reached, and what the fallback has
+    to survive. The entries stay behind it regardless; that is the point.
+    """
+    return CachingOddsProvider(stub, ttl_seconds=0.0)
+
+
+async def test_the_slate_serves_the_last_known_prices_when_the_provider_refuses(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """A warm cache turns a provider outage into stale prices, not a 500."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["stale"])
+        await _open_sample_gameweek(session, fake, league)
+
+    stub = _BrokenOdds.with_sample_data()
+    stub.breaking = False
+    cached = _cached(stub)
+    app.dependency_overrides[get_odds_provider] = lambda: cached
+    try:
+        # One healthy load to warm the cache — this is how it happens in production too.
+        healthy = await client.get(
+            f"/api/v1/leagues/{league.slug}/gameweek/current", headers=_auth(alice)
+        )
+        assert healthy.status_code == 200
+        assert healthy.json()["odds_degraded"] is False
+        priced = {f["fixture_id"]: f["selections"] for f in healthy.json()["fixtures"]}
+        assert any(priced.values()), "the warm load has prices to be remembered by"
+
+        stub.breaking = True
+        degraded = await client.get(
+            f"/api/v1/leagues/{league.slug}/gameweek/current", headers=_auth(alice)
+        )
+    finally:
+        app.dependency_overrides[get_odds_provider] = lambda: fake
+
+    assert degraded.status_code == 200, "the core screen of the product stays up"
+    body = degraded.json()
+    assert body["odds_degraded"] is True, "and says the prices may be out of date"
+    assert {f["fixture_id"]: f["selections"] for f in body["fixtures"]} == priced
+
+
+async def test_the_slate_shows_the_fixtures_when_there_is_nothing_cached_either(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """A cold cache degrades to a card with no prices — which beats an error page."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["cold"])
+        await _open_sample_gameweek(session, fake, league)
+
+    cached = _cached(_BrokenOdds.with_sample_data())
+    app.dependency_overrides[get_odds_provider] = lambda: cached
+    try:
+        r = await client.get(
+            f"/api/v1/leagues/{league.slug}/gameweek/current", headers=_auth(alice)
+        )
+    finally:
+        app.dependency_overrides[get_odds_provider] = lambda: fake
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["odds_degraded"] is True
+    assert len(body["fixtures"]) == 2, "the card is in the database and still renders"
+    assert all(f["selections"] == [] for f in body["fixtures"]), "with nothing to claim"
+
+
+async def test_a_pick_is_refused_rather_than_frozen_at_a_price_we_could_not_confirm(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Browsing degrades; picking must not.
+
+    The cache is warm here — a stale price is sitting right there — and the submission
+    still refuses, because a winner scores ``round(odds × 10)`` from the number frozen at
+    this instant. A stale price is not a degraded pick, it is a wrong score.
+    """
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["loud"])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    epl = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    stub = _BrokenOdds.with_sample_data()
+    stub.breaking = False
+    cached = _cached(stub)
+    app.dependency_overrides[get_odds_provider] = lambda: cached
+    try:
+        warm = await client.get(
+            f"/api/v1/leagues/{league.slug}/gameweek/current", headers=_auth(alice)
+        )
+        assert warm.status_code == 200
+
+        stub.breaking = True
+        refused = await _submit(client, league.slug, alice, epl, "MATCH_ODDS", "HOME")
+
+        # And the same screen, at the same moment, still serves the card.
+        slate = await client.get(
+            f"/api/v1/leagues/{league.slug}/gameweek/current", headers=_auth(alice)
+        )
+    finally:
+        app.dependency_overrides[get_odds_provider] = lambda: fake
+
+    assert refused.status_code == 503
+    assert refused.json()["detail"] == "ODDS_UNAVAILABLE"
+    assert slate.status_code == 200 and slate.json()["odds_degraded"] is True
+
+    async with AsyncSessionLocal() as session:
+        picks = await session.execute(
+            select(func.count()).select_from(Pick).where(Pick.gameweek_id == gameweek.id)
+        )
+        assert picks.scalar_one() == 0, "nothing was written at an unconfirmed price"

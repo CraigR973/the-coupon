@@ -9,6 +9,10 @@ leaderboard (and which is the caller's own). It's a read view; grabbing happens 
 The odds here come from the provider on every request, which is why the provider handed
 out by ``deps.get_odds_provider`` caches: fifteen members refreshing this page must not
 turn into fifteen upstream calls against a 100/hour quota.
+
+That same cache is what keeps this screen up when the provider is down. The slate reads
+through ``fetch_odds_best_effort``, so a failed refresh serves the last known prices and
+sets ``odds_degraded`` rather than answering ``500`` (Batch 48).
 """
 
 import uuid
@@ -140,6 +144,13 @@ class GameweekSlateResponse(BaseModel):
     members_missing_picks: int
     # The league's claim rule, so the client can say why a whole game is gone.
     pick_scope: str
+    # True when the prices above came out of a *failed* refresh — last known values, or
+    # none at all — so the client can say "prices may be out of date" instead of
+    # presenting stale numbers as current (Batch 48). Defaulted rather than required,
+    # for the reason Batches 38 and 41 already record: Vercel deploys `main` on merge
+    # while this API waits for `/ship-prod`, so a required field breaks the coupon in
+    # that gap.
+    odds_degraded: bool = False
 
 
 @router.get("/{slug}/gameweeks", response_model=list[GameweekListEntry])
@@ -209,9 +220,17 @@ async def current_gameweek(
         near_ttl=settings.odds_cache_near_ttl_seconds,
         far_ttl=settings.odds_cache_ttl_seconds,
     )
-    odds_by_event = await _live_odds(
+    odds_by_event, odds_degraded = await _live_odds(
         provider, [f.provider_event_id for f in fixtures], max_age_seconds=max_age
     )
+    if odds_degraded:
+        log.warning(
+            "slate served with degraded odds",
+            league_id=str(league.id),
+            gameweek_id=str(gameweek.id),
+            fixtures=len(fixtures),
+            priced=len(odds_by_event),
+        )
 
     # Tables and form, from our own tables — three queries for a slate of any size, and
     # no upstream request. An empty map simply means nothing has been ingested yet.
@@ -265,6 +284,7 @@ async def current_gameweek(
         members=members,
         members_missing_picks=sum(1 for m in members if not m.has_picked),
         pick_scope=league.pick_scope.value,
+        odds_degraded=odds_degraded,
     )
 
 
@@ -397,11 +417,23 @@ async def _gameweek_members(
 
 async def _live_odds(
     provider: OddsProviderDep, event_ids: list[str], *, max_age_seconds: float
-) -> dict[str, FixtureOdds]:
+) -> tuple[dict[str, FixtureOdds], bool]:
+    """Prices for the card, plus whether they came from a failed refresh.
+
+    Best-effort on purpose. This used to call ``fetch_odds`` with no fallback, so any
+    provider failure propagated and the core screen of the product — the one every
+    member opens to make their pick — answered ``500``. Observed in production on
+    2026-08-21, the day before launch, when ``/odds/multi`` returned ``429`` and the
+    Football tab beside it kept working because it reads only the database.
+
+    A stale price is a far better outcome than a broken screen, and a card with no
+    prices at all still shows the fixtures. Freezing a price onto a pick is the
+    opposite case and stays on ``fetch_odds`` (``routers/picks.py``).
+    """
     if not event_ids:
-        return {}
-    odds = await provider.fetch_odds(event_ids, max_age_seconds=max_age_seconds)
-    return {o.provider_event_id: o for o in odds}
+        return {}, False
+    snapshot = await provider.fetch_odds_best_effort(event_ids, max_age_seconds=max_age_seconds)
+    return {o.provider_event_id: o for o in snapshot.odds}, snapshot.degraded
 
 
 def _selection_options(

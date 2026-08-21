@@ -685,13 +685,36 @@ class TestTransport:
             await provider.fetch_odds([AIRDRIE_ID])
         assert calls["n"] == 1  # not retried — retries would burn a rate-limited quota
 
-    async def test_rate_limited_response_is_retried(self) -> None:
+    async def test_a_rate_limited_response_is_not_retried(self) -> None:
+        """Batch 48: retrying a ``429`` is the one thing guaranteed to keep it a ``429``.
+
+        This used to be treated as transient alongside 5xx, so a single rate-limited
+        slate load became four upstream calls with doubling backoff. On 2026-08-21 two
+        diagnostic loads cost roughly 40-80 requests through that amplification and
+        slowed their own recovery, while the pick screen answered ``500``.
+        """
         calls = {"n": 0}
 
         def handler(_r: httpx.Request) -> httpx.Response:
             calls["n"] += 1
-            if calls["n"] == 1:
-                return httpx.Response(429)
+            return httpx.Response(429)
+
+        provider = _provider(httpx.MockTransport(handler))
+        with patch("src.services.odds_api.asyncio.sleep", new_callable=AsyncMock) as slept:
+            with pytest.raises(OddsProviderAPIError, match="429"):
+                await provider.fetch_odds([AIRDRIE_ID])
+
+        assert calls["n"] == 1, "one attempt, not four"
+        assert slept.await_count == 0, "and no backoff spent waiting to make it worse"
+
+    async def test_a_server_error_is_still_retried(self) -> None:
+        """The other half of the split: a 5xx is the case where trying again is right."""
+        calls = {"n": 0}
+
+        def handler(_r: httpx.Request) -> httpx.Response:
+            calls["n"] += 1
+            if calls["n"] < 3:
+                return httpx.Response(503)
             return httpx.Response(200, json=AIRDRIE_ODDS)
 
         provider = _provider(httpx.MockTransport(handler))
@@ -699,13 +722,21 @@ class TestTransport:
             odds = await provider.fetch_odds([AIRDRIE_ID])
 
         assert len(odds) == 1
-        assert calls["n"] == 2
+        assert calls["n"] == 3
 
     async def test_persistent_server_error_raises(self) -> None:
-        provider = _provider(httpx.MockTransport(lambda _r: httpx.Response(503)))
+        calls = {"n": 0}
+
+        def handler(_r: httpx.Request) -> httpx.Response:
+            calls["n"] += 1
+            return httpx.Response(503)
+
+        provider = _provider(httpx.MockTransport(handler))
         with patch("src.services.odds_api.asyncio.sleep", new_callable=AsyncMock):
             with pytest.raises(OddsProviderAPIError, match="503"):
                 await provider.fetch_odds([AIRDRIE_ID])
+
+        assert calls["n"] == 4, "the initial attempt plus _MAX_RETRIES"
 
     async def test_non_json_body_raises(self) -> None:
         provider = _provider(httpx.MockTransport(lambda _r: httpx.Response(200, text="<html>")))

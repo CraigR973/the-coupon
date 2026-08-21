@@ -34,6 +34,10 @@ export function pickErrorMessage(detail: string): string {
       return 'Picks haven’t opened for this round yet — check back closer to kick-off.';
     case 'SELECTION_NOT_AVAILABLE':
       return 'That selection isn’t being priced right now — try another.';
+    // Browsing the card falls back to the last known prices; freezing one onto a pick
+    // does not, because the price is what a winner is scored on (Batch 48).
+    case 'ODDS_UNAVAILABLE':
+      return 'Prices are unavailable right now, so your pick wasn’t saved — try again shortly.';
     default:
       return detail || 'Could not save your pick — try again.';
   }

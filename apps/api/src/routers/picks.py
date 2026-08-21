@@ -38,7 +38,7 @@ from src.models.league import League, PickScope
 from src.models.pick import Pick, PickMarket, PickOutcome
 from src.rate_limit import limiter, per_user_key
 from src.services.gameweek import PICKABLE_STATES, pick_refusal
-from src.services.odds_provider import Selection
+from src.services.odds_provider import OddsProviderError, Selection
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -252,12 +252,29 @@ async def _snapshot_selection(
     currently offered (unpriced or missing) is rejected rather than stored at a stale
     price. The price may come from the provider's short-lived cache — bounded by
     ``ODDS_CACHE_TTL_SECONDS`` — which is the trade the provider's rate limit forces.
+
+    **This is the path that must not degrade.** Browsing the card falls back to the last
+    known prices when the provider fails (Batch 48), because a stale price beats a broken
+    screen. Here the price is frozen at this instant and a winner scores
+    ``round(odds × 10)`` from it, so a stale or missing one is not a degraded pick, it is
+    a wrong score. An unreachable provider refuses the submission — loudly, and as a
+    ``503`` rather than an unhandled crash, so the client can say what happened.
     """
     # The one price that gets frozen onto a scored pick, so it buys freshness the
     # browse path cannot afford — but for a single fixture, which is one request.
-    odds = await provider.fetch_odds(
-        [fixture.provider_event_id], max_age_seconds=settings.odds_cache_pick_ttl_seconds
-    )
+    try:
+        odds = await provider.fetch_odds(
+            [fixture.provider_event_id], max_age_seconds=settings.odds_cache_pick_ttl_seconds
+        )
+    except OddsProviderError as exc:
+        log.warning(
+            "pick refused: odds unavailable",
+            fixture=fixture.provider_event_id,
+            error=repr(exc),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="ODDS_UNAVAILABLE"
+        ) from exc
     for fixture_odds in odds:
         for selection in fixture_odds.selections:
             if selection.market.value == market.value and selection.outcome.value == outcome.value:

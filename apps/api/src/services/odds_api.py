@@ -629,9 +629,10 @@ class OddsApiProvider(OddsProvider):
     ) -> object:
         """GET a v3 endpoint with retries, returning the decoded JSON body.
 
-        Retries the transient cases — network errors, ``429`` from the hourly quota, and
+        Retries the cases where trying again is the right answer — network errors and
         5xx — with exponential backoff. A ``401``/``403`` is an unusable key and raises
-        immediately rather than burning retries against a rate-limited plan.
+        immediately rather than burning retries against a rate-limited plan; a ``429``
+        does the same, for the reason spelled out where it is raised.
 
         ``missing_ok`` turns a ``404`` into ``None`` for lookups where absence is a real
         answer: an event the provider no longer lists simply has no result yet, which
@@ -658,7 +659,16 @@ class OddsApiProvider(OddsProvider):
                 )
             if response.status_code == 404 and missing_ok:
                 return None
-            if response.status_code == 429 or response.status_code >= 500:
+            if response.status_code == 429:
+                # Never retried. ``429`` says the quota is already spent, and another
+                # request is the one response guaranteed to keep it spent: retrying three
+                # times with doubling backoff turned a single rate-limited slate load into
+                # four upstream calls, which is how 2026-08-21's breach sustained itself
+                # and slowed its own recovery. Fail fast and let the cache cover the gap
+                # (``CachingOddsProvider.fetch_odds_best_effort``).
+                log.warning("odds-api rate limited", path=path)
+                raise OddsProviderAPIError(f"odds-api.io {path} rate-limited (429), not retried")
+            if response.status_code >= 500:
                 if attempt == _MAX_RETRIES:
                     raise OddsProviderAPIError(
                         f"odds-api.io {path} failed with status {response.status_code} "

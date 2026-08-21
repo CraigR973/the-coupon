@@ -194,6 +194,13 @@ export interface GameweekSlate {
   members_missing_picks: number;
   /** The league's claim rule, so the UI can explain why a whole game is gone. */
   pick_scope: PickScope;
+  /**
+   * True when the prices came out of a *failed* refresh — last known values, or none at
+   * all — so the screen can say "prices may be out of date" instead of presenting stale
+   * numbers as current. Optional: the web app deploys ahead of the API, and a response
+   * from before Batch 48 simply omits it, which reads as "not degraded".
+   */
+  odds_degraded?: boolean;
 }
 
 // ── Pick — POST /leagues/{slug}/picks · GET .../gameweeks/{id}/pick ─────────
