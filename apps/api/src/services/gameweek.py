@@ -15,14 +15,14 @@ All ``*_utc`` values are stored naive-UTC to match the rest of the schema.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, and_, case, func, or_, select
+from sqlalchemy import ColumnElement, and_, case, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.fixture import Fixture
@@ -32,7 +32,15 @@ from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
 from src.services.football_provider import season_for
-from src.services.odds_provider import UK_TZ, OddsProvider, Slate, SlateFixture, SlateWindow
+from src.services.odds_provider import (
+    UK_TZ,
+    OddsProvider,
+    Slate,
+    SlateFixture,
+    SlateWindow,
+    is_void_status,
+)
+from src.services.push_notification_service import send_notification
 
 # Tier boundaries for how stale a browsed price may be (see slate_odds_max_age).
 _NEAR_LOCK_SECONDS = 6 * 3600
@@ -349,9 +357,12 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
     fixed when the round is created and never re-derived on a refresh, so an admin
     editing the window cannot move a deadline members have already been told.
 
-    Links are added, never removed. A fixture that drops off a later refresh — postponed,
-    or re-scheduled out of the window — stays on the round, because a member may already
-    hold a pick on it and settlement still has to resolve that pick.
+    Links are added, and removed only on the provider's say-so. A fixture that simply
+    *drops off* a later refresh stays on the round: a partial or failed fetch looks
+    exactly like a quiet one, so unlinking on absence would let a single provider hiccup
+    strip a round of live picks. A fixture the provider explicitly reports void —
+    postponed, cancelled, abandoned — is taken off, picks and all, by
+    :func:`_drop_voided_fixtures` (Batch 49).
 
     Flushes so the returned gameweek and fixtures have ids, but does **not** commit —
     the caller owns the transaction boundary.
@@ -362,6 +373,7 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
         if wanted is None
         else [sf for sf in slate.fixtures if sf.competition_id in wanted]
     )
+    playable = [sf for sf in selected if not is_void_status(sf.status)]
 
     window = window_for(league)
     result = await db.execute(
@@ -372,7 +384,9 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
     gameweek = result.scalar_one_or_none()
     if gameweek is None:
         # Nothing this league plays on this date, and no round to preserve — create none.
-        if not selected:
+        # Keyed on the *playable* fixtures rather than every selected one: a date whose
+        # whole card is called off is a date with no round, not a round with no fixtures.
+        if not playable:
             return None
         opens_at = picks_open_at(league, slate.starts_on)
         gameweek = Gameweek(
@@ -411,12 +425,100 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
         select(GameweekFixture.fixture_id).where(GameweekFixture.gameweek_id == gameweek.id)
     )
     already = set(linked.scalars().all())
-    for fixture in by_event.values():
+    for sf in playable:
+        fixture = by_event[sf.provider_event_id]
         if fixture.id not in already:
             db.add(GameweekFixture(gameweek_id=gameweek.id, fixture_id=fixture.id))
 
+    await _drop_voided_fixtures(
+        db,
+        league,
+        gameweek,
+        {
+            by_event[sf.provider_event_id].id: sf
+            for sf in selected
+            if is_void_status(sf.status) and by_event[sf.provider_event_id].id in already
+        },
+    )
+
     await db.flush()
     return gameweek
+
+
+async def _drop_voided_fixtures(
+    db: AsyncSession,
+    league: League,
+    gameweek: Gameweek,
+    voided: Mapping[uuid.UUID, SlateFixture],
+) -> None:
+    """Take called-off fixtures off a still-open round, and the picks held on them.
+
+    The state a member is left in is *no pick*, which is the one state the game already
+    understands: the coupon reopens the selection to the land-grab, the 11:00 reminder
+    job nudges them if they do not use it, and nothing in scoring has to learn a new
+    shape.
+
+    **Only before the lock.** A member who picked before the deadline did everything
+    right and has no way to respond after it, so deleting their pick then would leave
+    them indistinguishable in the standings from someone who never picked at all. Past
+    the lock this does nothing and the evening settle sweep writes ``void`` instead,
+    which already means "scores nothing rather than counting as a loss". Refresh runs
+    09:00 and 13:00 against a 14:30 lock, so a Saturday-morning postponement is caught
+    here and an afternoon one is caught there.
+
+    **Two deletes, not one.** ``Pick.fixture_id`` and ``Pick.gameweek_id`` cascade from
+    ``fixtures`` and ``gameweeks``, but ``gameweek_fixtures`` is a composite-key join
+    with no cascade to picks, so dropping the link alone would leave the pick alive and
+    pointing at a fixture no longer on its round — off the screen, still found by
+    settlement. Both rows go, in one transaction. Picks go first because that is the
+    ordering whose half-done state is harmless: a link with no pick is a fixture the
+    member can simply pick again, where a pick with no link is the orphan itself.
+
+    The copy is written here against ``send_notification`` directly rather than as a
+    wrapper in ``notification_triggers``, where the other triggers live: that module
+    imports this one (``members_missing_picks``), so the dependency has to run one way.
+    ``data.type`` is free-form, so ``"fixture_postponed"`` needs no enum value and no
+    migration — deliberately not an ``ActionType``, which is a Postgres enum and would.
+    """
+    if not voided or gameweek.locks_at_utc <= _utc_now():
+        return
+
+    stranded = (
+        await db.execute(
+            select(Pick, Profile)
+            .join(Profile, Profile.id == Pick.player_id)
+            .where(Pick.gameweek_id == gameweek.id, Pick.fixture_id.in_(voided.keys()))
+        )
+    ).all()
+    # Read off what the copy needs *before* the rows go: a deleted instance is not
+    # something to be reading attributes off afterwards.
+    told = [(player, voided[pick.fixture_id]) for pick, player in stranded]
+
+    for pick, _player in stranded:
+        await db.delete(pick)
+    await db.execute(
+        delete(GameweekFixture).where(
+            GameweekFixture.gameweek_id == gameweek.id,
+            GameweekFixture.fixture_id.in_(voided.keys()),
+        )
+    )
+    await db.flush()
+
+    for player, fixture in told:
+        await send_notification(
+            db,
+            player.id,
+            "Fixture postponed",
+            f"{fixture.home} v {fixture.away} is off, so your pick in {league.name} "
+            f"has been returned. Pick again before the deadline.",
+            data={
+                "type": "fixture_postponed",
+                "league_id": str(league.id),
+                "url": f"/leagues/{league.slug}/predictions",
+            },
+            tag=f"fixture-postponed-{gameweek.id}",
+            timezone_name=player.timezone,
+        )
 
 
 async def fixtures_for(db: AsyncSession, gameweek_id: uuid.UUID) -> list[Fixture]:

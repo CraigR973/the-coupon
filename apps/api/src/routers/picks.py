@@ -214,9 +214,10 @@ async def _round_playing(db: AsyncSession, league: League, fixture: Fixture) -> 
     rules are keyed on the round, so picking through a fixture the league never
     selected would otherwise write a pick nothing could settle.
 
-    A league can carry the same fixture on two rounds — ``sync_slate`` never unlinks,
-    so a match that moves between windows stays on the round it was first discovered
-    for. **Rounds that are not over win**, newest first: a pick can only ever land on
+    A league can carry the same fixture on two rounds — a match that moves between
+    windows stays on the round it was first discovered for, because ``sync_slate``
+    unlinks only on an explicit void status and never on a fixture's mere absence.
+    **Rounds that are not over win**, newest first: a pick can only ever land on
     one whose deadline is still ahead, so resolving to a locked one would refuse a
     submission the member could legitimately make. ``scheduled`` counts, so a member
     whose league announces an opening is told to come back rather than told the game

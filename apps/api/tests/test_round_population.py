@@ -483,7 +483,8 @@ async def test_refresh_rounds_rebuilds_a_moved_window_without_moving_the_announc
     assert locks_at != after_window.locks_at(
         after.starts_on
     ), "the moved window would have shifted the lock, which is what must not happen"
-    # Links are added, never removed: a member may already hold a pick on the old card.
+    # Both cards stay linked: a member may already hold a pick on the old one, and a
+    # pooled slate carries no provider status, so nothing here can unlink anything.
     assert await _linked(after.id) == {old_card[0].id, new_card[0].id}
     assert counter.slate_calls == []
 

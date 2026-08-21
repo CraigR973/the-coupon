@@ -41,6 +41,7 @@ from src.services.odds_provider import (
     OddsProviderAPIError,
     OddsProviderAuthError,
     Outcome,
+    is_void_status,
 )
 
 SATURDAY = date(2026, 8, 8)
@@ -106,6 +107,21 @@ EPL_EVENTS: list[dict[str, Any]] = [
         "date": "2026-08-08T14:00:00Z",
         "league": {"name": "England - Premier League", "slug": "england-premier-league"},
         "status": "pending",
+        "scores": {"home": 0, "away": 0},
+    }
+]
+
+# A called-off fixture, on a route the other slate tests leave empty. Two of the 1,599
+# fixtures the live API listed for 2026-08-22 came back exactly like this (measured
+# 2026-08-21) — the shape Batch 49 acts on before lock rather than at settlement.
+CYMRU_EVENTS: list[dict[str, Any]] = [
+    {
+        "id": 72204100,
+        "home": "Connah's Quay Nomads",
+        "away": "The New Saints",
+        "date": "2026-08-08T14:00:00Z",
+        "league": {"name": "Wales - Cymru Premier", "slug": "wales-cymru-premier"},
+        "status": "cancelled",
         "scores": {"home": 0, "away": 0},
     }
 ]
@@ -231,6 +247,22 @@ class TestFetchSlate:
         """
         slate = await _provider(_routed(SLATE_ROUTES)).fetch_slate(SATURDAY_THREE_PM, SATURDAY)
         assert "England Amateur - National League North" in {f.competition for f in slate.fixtures}
+
+    async def test_carries_each_fixtures_status_verbatim(self) -> None:
+        """The status is what lets a postponement be caught before lock (Batch 49).
+
+        ``fetch_slate`` used to build a ``SlateFixture`` from the teams and the kick-off
+        and drop the rest of the payload, so the only thing that ever read a status was
+        settlement — hours after the round had been played.
+        """
+        routes = {**SLATE_ROUTES, ("events", "wales-cymru-premier"): CYMRU_EVENTS}
+        slate = await _provider(_routed(routes)).fetch_slate(SATURDAY_THREE_PM, SATURDAY)
+
+        by_id = {f.provider_event_id: f for f in slate.fixtures}
+        assert by_id[AIRDRIE_ID].status == "pending"
+        assert not is_void_status(by_id[AIRDRIE_ID].status)
+        assert by_id["72204100"].status == "cancelled"
+        assert is_void_status(by_id["72204100"].status)
 
     async def test_drops_non_saturday_3pm_kickoffs(self) -> None:
         slate = await _provider(_routed(SLATE_ROUTES)).fetch_slate(SATURDAY_THREE_PM, SATURDAY)

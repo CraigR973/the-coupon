@@ -143,6 +143,15 @@ class SlateFixture(BaseModel):
     kickoff_utc: datetime
     competition: str
     competition_id: str
+    #: The provider's own word for the state of the fixture, verbatim (Batch 49).
+    #:
+    #: Carried so a postponement can be acted on while the round is still open, rather
+    #: than only at settlement hours after it was played. Only :func:`is_void_status`
+    #: reads it, and only an *explicit* void word means anything: the empty default is
+    #: "this source does not say", which is the honest answer for a Betfair catalogue
+    #: (it lists open markets and nothing else) and for a slate rebuilt out of the
+    #: fixture pool, where no status was ever stored.
+    status: str = ""
 
 
 class Slate(BaseModel):
@@ -191,6 +200,34 @@ def as_utc(value: datetime) -> datetime:
 def iso_z(value: datetime) -> str:
     """Serialise to the ``…Z`` UTC form both providers' time filters expect."""
     return as_utc(value).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# Every word a provider uses for "this fixture produced no result". Shared by settlement,
+# which marks a called-off fixture's picks ``void`` rather than lost, and by discovery,
+# which takes a fixture off an open round before anybody is stuck on it (Batch 49). One
+# list, because the two must never disagree about what a postponement is.
+#
+# Matching is exact per entry after case-folding, never a prefix test, so an unknown word
+# is *not* void: a vocabulary change leaves a fixture on the card and its picks pending
+# for the settle retries rather than silently stripping a live round.
+VOID_STATUSES: frozenset[str] = frozenset(
+    {
+        "cancelled",
+        "canceled",
+        "postponed",
+        "abandoned",
+        "suspended",
+        "interrupted",
+        "walkover",
+        "awarded",
+        "deleted",
+    }
+)
+
+
+def is_void_status(status: str) -> bool:
+    """Whether ``status`` is a provider's word for a fixture that produces no result."""
+    return status.strip().casefold() in VOID_STATUSES
 
 
 @dataclass(frozen=True)

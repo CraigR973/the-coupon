@@ -59,6 +59,7 @@ from src.services.odds_provider import (
     SlateFixture,
     SlateWindow,
     as_utc,
+    is_void_status,
     iso_z,
     outcomes_from_score,
     split_event_name,
@@ -129,21 +130,12 @@ _BTTS_NAMES: frozenset[str] = frozenset(
 _FINISHED_STATUSES: frozenset[str] = frozenset(
     {"settled", "finished", "ended", "complete", "completed", "ft", "full time", "closed"}
 )
-_VOID_STATUSES: frozenset[str] = frozenset(
-    {
-        "cancelled",
-        "canceled",
-        "postponed",
-        "abandoned",
-        "suspended",
-        "interrupted",
-        "walkover",
-        "awarded",
-        "deleted",
-    }
-)
-# ``live`` is deliberately in neither set. An in-play fixture carries a *partial* score, so
-# treating a score's presence as a result would settle a match at half time.
+# The void vocabulary moved to ``odds_provider.VOID_STATUSES`` in Batch 49: discovery now
+# reads the same words settlement does, so a fixture taken off an open round and a pick
+# voided after it was due to be played cannot disagree about what a postponement is.
+# ``live`` is deliberately in neither set — not finished here, not void there. An in-play
+# fixture carries a *partial* score, so treating a score's presence as a result would
+# settle a match at half time.
 
 
 # ── Raw odds-api.io response models ────────────────────────────────────────────
@@ -427,6 +419,12 @@ class OddsApiProvider(OddsProvider):
                         kickoff_utc=as_utc(event.date),
                         competition=league.name or league.id,
                         competition_id=league.id,
+                        # ``/events`` reports a status on every entry — ``pending`` for
+                        # the overwhelming majority, and the void words for the rest.
+                        # Measured live on 2026-08-21: 2 of 1,599 fixtures on one date
+                        # came back ``cancelled``. Dropping it here was what left a
+                        # called-off match pickable until the evening settle sweep.
+                        status=event.status,
                     )
                 )
 
@@ -754,7 +752,7 @@ def _settlement_for(payload: OAEvent) -> EventSettlement:
     status = payload.status.strip()
     folded = status.casefold()
 
-    if folded in _VOID_STATUSES:
+    if is_void_status(status):
         return EventSettlement(provider_event_id=payload.id, status=status, settled=True, void=True)
 
     if folded in _FINISHED_STATUSES and payload.scores is not None:

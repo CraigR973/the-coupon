@@ -14,6 +14,8 @@ Covers the pieces the pure/unit tests can't — the DB-driven halves of the four
   slice of the acceptance e2e);
 * ``settle_gameweeks_via_provider`` — a settle run reads a fixture two leagues both hold
   once rather than once per league (Batch 31);
+* ``sync_slate``               — a fixture the provider reports called off comes off an
+  open round with the pick on it, and comes off nothing else (Batch 49);
 * ``members_missing_picks``    — only members without a pick are reminder candidates;
 * gameweek selection helpers   — ``current_open_gameweeks`` / ``settleable_gameweeks``.
 
@@ -26,7 +28,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Collection, Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -66,10 +68,11 @@ from src.services.gameweek import (
     open_due_gameweeks,
     refresh_slate,
     settleable_gameweeks,
+    sync_slate,
     uk_today,
     window_for,
 )
-from src.services.odds_provider import SATURDAY_THREE_PM, EventSettlement
+from src.services.odds_provider import SATURDAY_THREE_PM, EventSettlement, Slate, SlateFixture
 from src.services.scoring import (
     settle_gameweek_via_provider,
     settle_gameweeks_via_provider,
@@ -329,7 +332,10 @@ async def test_sync_slate_records_no_round_when_the_selection_excludes_every_fix
 async def test_narrowing_after_a_round_exists_keeps_the_round_but_stops_adding(
     session: AsyncSession,
 ) -> None:
-    """Links are added, never removed — narrowing does not strip a fixture a member may hold.
+    """Narrowing the selection does not strip a fixture a member may already hold.
+
+    The only thing that unlinks is the provider reporting a fixture called off (Batch
+    49); a competition dropping out of the league's selection is not that.
 
     The Scottish fixture linked while the league was all-UK stays put; a later refresh
     under an EPL-only selection simply adds nothing new.
@@ -352,6 +358,266 @@ async def test_narrowing_after_a_round_exists_keeps_the_round_but_stops_adding(
     assert {SAMPLE_EPL_ID, SAMPLE_SL2_ID} == {
         f.competition_id for f in await fixtures_for(session, again.id)
     }
+
+
+# ── Batch 49: a called-off fixture comes off an open round ─────────────────────
+#
+# `sync_slate` used to say it outright — "Links are added, never removed" — so a fixture
+# postponed after discovery stayed on every round that had linked it, stayed pickable, and
+# stayed pickable right through the deadline. Nothing between discovery and the evening
+# settle sweep read the provider's status at all.
+#
+# The four tests below fix the shape of the answer, and three of them are about what must
+# *not* happen: only an explicit void status removes anything, only before the lock, and
+# only from the round that is still open.
+
+
+def _upcoming_saturday() -> date:
+    """A Saturday whose 14:30 lock is still ahead of now.
+
+    The removal gate is the lock *instant*, not the round's status label, so a round
+    dated in the past would be refused however it is labelled — which would make these
+    tests pass for the wrong reason.
+    """
+    return SATURDAY_THREE_PM.first_start_on_or_after(uk_today() + timedelta(days=7))
+
+
+def _naive_now() -> datetime:
+    """Naive-UTC now, matching the ``*_utc`` storage convention."""
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _slate_of(
+    starts_on: date, fixtures: Sequence[Fixture], *, postponed: Collection[str] = ()
+) -> Slate:
+    """A provider card for ``starts_on``, echoing back pooled rows.
+
+    ``postponed`` names the ``provider_event_id``s the provider reports called off.
+    Everything else comes back ``pending``, which is what odds-api.io says for a fixture
+    that is still on — 1,597 of the 1,599 it listed for 2026-08-22, measured the day
+    before.
+    """
+    return Slate(
+        starts_on=starts_on,
+        fixtures=[
+            SlateFixture(
+                provider_event_id=fixture.provider_event_id,
+                home=fixture.home,
+                away=fixture.away,
+                kickoff_utc=fixture.kickoff_utc,
+                competition=fixture.competition,
+                competition_id=fixture.competition_id,
+                status="postponed" if fixture.provider_event_id in postponed else "pending",
+            )
+            for fixture in fixtures
+        ],
+    )
+
+
+def _capture_notifications(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    """Record what ``sync_slate`` would push, rather than delivering it."""
+    sent: list[dict[str, Any]] = []
+
+    async def _record(
+        db: AsyncSession,
+        user_id: uuid.UUID,
+        title: str,
+        body: str,
+        data: dict[str, Any] | None = None,
+        **_: Any,
+    ) -> int:
+        sent.append({"user_id": user_id, "title": title, "body": body, "data": data or {}})
+        return 1
+
+    monkeypatch.setattr("src.services.gameweek.send_notification", _record)
+    return sent
+
+
+class _VoidingFake(FakeBetfair):
+    """A provider that reports every fixture asked about as called off.
+
+    The settle-side of a postponement, which is the half that already worked.
+    """
+
+    async def settle(self, event_ids: Sequence[str]) -> list[EventSettlement]:
+        return [
+            EventSettlement(provider_event_id=eid, status="postponed", settled=True, void=True)
+            for eid in event_ids
+        ]
+
+
+async def test_a_postponed_fixture_comes_off_an_open_round_with_the_pick_on_it(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both rows go — the link and the pick — and the member is told.
+
+    Deleting the link alone would leave the pick alive and pointing at a fixture no
+    longer on its round: off the screen, still found by settlement. What the member is
+    left with is *no pick*, the one state the game already understands, so the selection
+    returns to the land-grab and the 11:00 reminder nudges them if they don't use it.
+    """
+    players, league = await _seed_league(session, ["alice", "bob"])
+    starts_on = _upcoming_saturday()
+    gameweek, epl, sl2 = await _open_gameweek(session, league, starts_on)
+    session.add_all(
+        [
+            _pick(
+                league, gameweek, sl2, players["alice"], PickOutcome.HOME, "Forfar Athletic", "2.50"
+            ),
+            _pick(league, gameweek, epl, players["bob"], PickOutcome.HOME, "Arsenal", "1.90"),
+        ]
+    )
+    await session.flush()
+    sent = _capture_notifications(monkeypatch)
+
+    await sync_slate(
+        session, league, _slate_of(starts_on, [epl, sl2], postponed={SAMPLE_SL2_EVENT_ID})
+    )
+
+    assert [f.provider_event_id for f in await fixtures_for(session, gameweek.id)] == [
+        SAMPLE_EPL_EVENT_ID
+    ]
+    surviving = (
+        (await session.execute(select(Pick).where(Pick.gameweek_id == gameweek.id))).scalars().all()
+    )
+    assert [p.player_id for p in surviving] == [players["bob"].id], "only the stranded pick goes"
+
+    assert [(s["user_id"], s["data"]["type"]) for s in sent] == [
+        (players["alice"].id, "fixture_postponed")
+    ]
+    assert "Forfar Athletic v Brechin City" in sent[0]["body"]
+    assert sent[0]["data"]["url"] == f"/leagues/{league.slug}/predictions"
+
+
+async def test_a_postponed_fixture_stays_on_a_locked_round_and_settles_void(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Past the deadline the pick stands, because the member can no longer respond.
+
+    Deleting it then would make them indistinguishable in the standings from someone who
+    never picked at all. ``void`` already means "scores nothing rather than counting as a
+    loss", and settlement already writes it for exactly this status — so the locked case
+    needs no new code, only a refusal here.
+    """
+    players, league = await _seed_league(session, ["alice"])
+    starts_on = _upcoming_saturday()
+    gameweek, epl, sl2 = await _open_gameweek(session, league, starts_on)
+    gameweek.locks_at_utc = _naive_now() - timedelta(minutes=1)
+    gameweek.status = GameweekStatus.locked
+    pick = _pick(
+        league, gameweek, sl2, players["alice"], PickOutcome.HOME, "Forfar Athletic", "2.50"
+    )
+    session.add(pick)
+    await session.flush()
+    sent = _capture_notifications(monkeypatch)
+
+    await sync_slate(
+        session, league, _slate_of(starts_on, [epl, sl2], postponed={SAMPLE_SL2_EVENT_ID})
+    )
+
+    assert {f.provider_event_id for f in await fixtures_for(session, gameweek.id)} == {
+        SAMPLE_EPL_EVENT_ID,
+        SAMPLE_SL2_EVENT_ID,
+    }
+    assert pick.status is PickStatus.pending
+    assert sent == [], "nothing was taken away, so there is nothing to tell them"
+
+    assert await settle_gameweek_via_provider(session, _VoidingFake(), gameweek) == 1
+    assert pick.status is PickStatus.void
+    assert pick.points_awarded == 0
+
+
+async def test_a_fixture_merely_absent_from_a_refresh_is_never_removed(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Absence is not a postponement, and must never be read as one.
+
+    ``discover_fixtures`` skips any date the provider returns nothing for, and a partial
+    or failed fetch is indistinguishable from a quiet one. Unlinking on "the fixture
+    vanished from this refresh" would let one provider hiccup strip a whole round of live
+    picks.
+    """
+    players, league = await _seed_league(session, ["alice"])
+    starts_on = _upcoming_saturday()
+    gameweek, epl, sl2 = await _open_gameweek(session, league, starts_on)
+    session.add(
+        _pick(league, gameweek, sl2, players["alice"], PickOutcome.HOME, "Forfar Athletic", "2.50")
+    )
+    await session.flush()
+    sent = _capture_notifications(monkeypatch)
+
+    # A partial card — the Scottish fixture simply is not in it.
+    await sync_slate(session, league, _slate_of(starts_on, [epl]))
+    # And then a card with nothing in it at all.
+    await sync_slate(session, league, Slate(starts_on=starts_on, fixtures=[]))
+
+    assert {f.provider_event_id for f in await fixtures_for(session, gameweek.id)} == {
+        SAMPLE_EPL_EVENT_ID,
+        SAMPLE_SL2_EVENT_ID,
+    }
+    picks = (
+        (await session.execute(select(Pick).where(Pick.gameweek_id == gameweek.id))).scalars().all()
+    )
+    assert [p.player_id for p in picks] == [players["alice"].id]
+    assert sent == []
+
+
+async def test_only_the_open_round_loses_a_fixture_two_rounds_share(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One pooled match, two leagues' cards, one deadline passed — one removal.
+
+    Removal is per round because the lock is per round. The pooled ``fixtures`` row
+    itself is never touched: the locked round still plays it and settlement still has to
+    resolve the pick standing on it, which is why the status is carried on the slate DTO
+    rather than stored.
+    """
+    open_players, open_league = await _seed_league(session, ["alice"])
+    locked_players, locked_league = await _seed_league(session, ["bob"])
+    starts_on = _upcoming_saturday()
+    open_gw, epl, sl2 = await _open_gameweek(session, open_league, starts_on)
+    locked_gw, epl_again, sl2_again = await _open_gameweek(session, locked_league, starts_on)
+    assert (epl_again.id, sl2_again.id) == (epl.id, sl2.id), "one pooled row, two cards"
+    locked_gw.locks_at_utc = _naive_now() - timedelta(minutes=1)
+    locked_gw.status = GameweekStatus.locked
+    session.add_all(
+        [
+            _pick(
+                open_league,
+                open_gw,
+                sl2,
+                open_players["alice"],
+                PickOutcome.HOME,
+                "Forfar Athletic",
+                "2.50",
+            ),
+            _pick(
+                locked_league,
+                locked_gw,
+                sl2,
+                locked_players["bob"],
+                PickOutcome.HOME,
+                "Forfar Athletic",
+                "2.50",
+            ),
+        ]
+    )
+    await session.flush()
+    sent = _capture_notifications(monkeypatch)
+
+    slate = _slate_of(starts_on, [epl, sl2], postponed={SAMPLE_SL2_EVENT_ID})
+    await sync_slate(session, open_league, slate)
+    await sync_slate(session, locked_league, slate)
+
+    assert {f.provider_event_id for f in await fixtures_for(session, open_gw.id)} == {
+        SAMPLE_EPL_EVENT_ID
+    }
+    assert {f.provider_event_id for f in await fixtures_for(session, locked_gw.id)} == {
+        SAMPLE_EPL_EVENT_ID,
+        SAMPLE_SL2_EVENT_ID,
+    }
+    assert await session.get(Fixture, sl2.id) is not None, "the pooled row stays in the pool"
+    assert [s["user_id"] for s in sent] == [open_players["alice"].id]
 
 
 # ── Batch 35: the ad-hoc fetch buys only what the league plays ──────────────────
