@@ -1281,3 +1281,25 @@ with a database, Ruff 0.5.4 check/format, strict mypy, clean `pgserver` through 
 **Next:** Batch 50 — the three omissions on the pick card. This batch is API-side, so it
 is invisible in production until a `/ship-prod` runs; until then the deployed API keeps
 carrying a called-off fixture on the card.
+
+## Batch 50 — What the pick card leaves out
+**Commits:** `e821d95` · verified: pnpm lint (0 errors), typecheck, build, 361 Vitest — all
+green. Frontend-only batch (scope boundary: no API change), so the backend gate and
+browser checks are out of scope.
+
+### Key facts for future sessions
+- **The names row and context strip are now one grid, not two.** `PickCard`'s team names
+  used to be an inline sentence (`Home v Away`) sitting over a separate `grid-cols-2`
+  strip below it — they aligned by text-length coincidence. Both rows are now children of
+  the same `grid grid-cols-2` container, with the context cells wrapped in a
+  `display: contents` div so the `fixture-context-{id}` test id still resolves to just
+  those two cells.
+- **The "v" separator is absolutely positioned but kept in DOM order between the two
+  names**, not appended after both — otherwise a screen reader would announce "Home,
+  Away, v" instead of "Home, v, Away".
+- **`potentialPoints()` was already free to keep on-screen in every claim state** — it's a
+  pure `round(odds × 10)` of the displayed price, so showing it on "taken by X" and "your
+  pick" needed no new prop, just dropping the exclusive three-way branch in
+  `SelectionButton`.
+
+**Next:** Batch 51 — untying Football Stats from the coupon's league-competition scope.

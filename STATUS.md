@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-49 are closed. The Coupon is a verified
+Batches 1-50 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -531,6 +531,15 @@ general case, not the observed one, and settlement remains the backstop. No
 migration: the status rides the DTO, because the pooled row stays for the leagues
 still linking it.
 
+Batch 50 fixed three omissions on the pick card, frontend-only. The context
+strip and the team names now share one `grid-cols-2` container instead of an
+inline sentence sitting over a separate grid, so a club's form aligns under
+its name by construction rather than by text-length coincidence. The "Your
+pick" summary on `CouponPickPage` now names the competition, matching
+`CombinedAccaView`'s per-leg format. And `potentialPoints()` — a pure
+`round(odds × 10)` of the displayed price — now stays visible alongside
+"taken by X" and "your pick", not just on an unclaimed selection.
+
 ## Verified
 
 - Backend: 652 pytest with a database, Ruff check/format, and
@@ -545,7 +554,7 @@ still linking it.
   confirmed RLS-enabled *and* forced against production on 2026-08-19, with
   `anon`, `authenticated` and `PUBLIC` holding no table privileges and no schema
   `USAGE`
-- Frontend: Node 20 production build, TypeScript, ESLint, and 357 Vitest, the
+- Frontend: Node 20 production build, TypeScript, ESLint, and 361 Vitest, the
   suite now pinned to a non-UTC zone (`America/New_York`) so an instant parsed
   as local time cannot pass unnoticed
 - Browser: production-bundle smoke plus the full live staging story, including
@@ -593,14 +602,16 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **four unchecked batches**, 50-53, all of them about
-what the screens leave out rather than what the game gets wrong: the pick card's
-misaligned form strip, unnamed competition and vanishing points (50); untying
+`docs/BUILD_PLAN.md` carries **three unchecked batches**, 51-53, all of them about
+what the screens leave out rather than what the game gets wrong: untying
 Football Stats from a league it was never scoped by (51); a table that hides the
 Form column on every phone and results grouped by day alone (52); and form pips
 that discard the matches behind them despite already holding them (53).
 
-Batch 49 closed the last one: a fixture the provider reports called off now comes
+Batch 50 closed the one before those: the pick card's misaligned form strip,
+unnamed competition and vanishing points, all frontend-only with no API change.
+
+Batch 49 closed the one before that: a fixture the provider reports called off now comes
 off an open round with the pick on it, before the deadline rather than at the
 evening settle sweep. **It is API-side and has not shipped** — Vercel deploys
 `main` on merge while the API waits for `/ship-prod`, so production keeps carrying

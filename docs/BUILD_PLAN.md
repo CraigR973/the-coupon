@@ -1354,7 +1354,7 @@ answered until it lands, because until then there is no data to look at.
   it and settlement still needs it. Do not touch the settle path, and do not change
   `discover_fixtures`' cadence-union behaviour.
 
-- [ ] **Batch 50 — What the pick card leaves out** *(Sonnet)* — three small omissions on the one
+- [x] **Batch 50 — What the pick card leaves out** ✅ 2026-08-21 *(Sonnet)* — three small omissions on the one
   screen every member uses, grouped because they are the same file and the same fix
   session, not because they share a cause.
 
