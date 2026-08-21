@@ -1170,7 +1170,7 @@ answered until it lands, because until then there is no data to look at.
   Turning it on in production stays one variable (`FOOTBALL_DATA_PROVIDER=fotmob`) and a
   separate owner-run step.
 
-- [ ] **Batch 47 — A league with no rounds until tomorrow morning** — an admin creates a
+- [x] **Batch 47 — A league with no rounds until tomorrow morning** ✅ 2026-08-21 *(Opus)* — an admin creates a
   league in the app and there is nothing in it. Fixture discovery runs once a day at
   06:00 (`scheduler.py`, `run_discover_fixtures`), so a league created at any other hour
   has no round, no card and no coupon until the following morning, and **no in-app way

@@ -1161,3 +1161,43 @@ decision). Launch L5 — launch and first-Saturday watch — is the remaining la
 - Ships dark. `FOOTBALL_DATA_PROVIDER` still defaults to `none`; `fotmob` needs no key.
 
 **Next:** Turning it on is one variable plus a staging sweep. Launch L5 remains.
+
+## Batch 47 — A league with no rounds until tomorrow morning
+**Commits:** `f03a6bb` · verified: `scripts/ci-local.sh` PASS (11 checks) — 635 pytest
+with a database (499 without), Ruff 0.5.4 check/format, strict mypy, clean `pgserver`
+through `015`, 355 Vitest, Node 20 build, prod-bundle Playwright; plus a live browser
+run against `tests/e2e_server` on a scratch Postgres
+
+### Key facts for future sessions
+- **The pool *is* the second entry point.** `discover_fixtures` already fetches each
+  `(window, date)` once, so `pooled_slate` turns existing `fixtures` rows back into a
+  `Slate` — same `query_bounds` in SQL, same `contains` in Python — and `sync_slate`
+  cannot tell it from a fetched one. The common case costs **zero** provider requests.
+  Caveat worth knowing: a date whose only fetch was an ad-hoc one holds just that
+  league's competitions, so a pooled read can be a partial card. The daily run heals it.
+- **Sharing a slowapi limit needs both halves.** `slowapi` evaluates a limit as
+  `limiter.limiter.hit(item, key, scope)` with `per_method=False`, so a route decorated
+  `shared_limit(value, scope)` and `consume_shared_limit(key, value, scope)` draw one
+  bucket. The imperative half exists because a decorator charges every request that
+  reaches the route, and charging the free pooled case would price the common one out.
+- **The bucket counts sweeps, not calls.** One unit ≈ one league-scoped `/events` sweep
+  (≤30 requests), charged per *date* the pool cannot serve. With `slate_horizon_weeks=2`
+  an unpooled league spends the whole `2/hour` in one refresh — which is what keeps
+  `PROVIDER_SLATE_FETCH_LIMIT`'s arithmetic true however many routes spend it.
+- **`create_league` must not resolve `OddsProviderDep`** — it raises 503 when the
+  provider is unreachable, which would wire creating a league to odds-api.io being up.
+  New `get_optional_odds_provider` returns `None` instead; tests overriding the provider
+  must override **both** functions (`test_picks_flow`, `e2e_server`) or creation silently
+  reaches the real session.
+- **The window is the filter, so moving it changes which pooled fixtures qualify.** A
+  refresh after a window move links the new window's fixtures and keeps the old ones —
+  `sync_slate` adds links and never removes them — while `picks_open_at_utc` and
+  `locks_at_utc` stay as stamped. A test that pools fixtures only at the *old* time and
+  then moves the window will see a fetch, not a rebuild; that was a real red.
+- **A fetch that found nothing is not "nothing to do".** The live run exposed a false
+  toast: the endpoint swept both cadence dates, the provider carried no card for either,
+  and the UI said "Rounds are already up to date". `fetched_dates` non-empty with zero
+  rounds is the ordinary out-of-season answer and now says so.
+
+**Next:** Batch 48 — the pick screen dies when the odds provider says no. This batch is
+API-side, so it is invisible in production until a `/ship-prod` runs.

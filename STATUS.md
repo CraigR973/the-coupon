@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-46 are closed. The Coupon is a verified
+Batches 1-47 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -148,8 +148,9 @@ selections against the 15 a full league needs, with both Scottish lower
 divisions fully priced.
 
 **Production runs `16a64eff` on both stacks as of 2026-08-21**, at migration
-`015`, and **both stacks are in sync with `main`** — Railway `8201bfac`, Vercel
-`dpl_2PU8zAe4emT5LXWhgNefPmV4kAna`. That shipment carried Batch 46 and the
+`015` — Railway `8201bfac`, Vercel `dpl_2PU8zAe4emT5LXWhgNefPmV4kAna`. Since the
+Batch 47 close-out **`main` is ahead of the API**: that batch is API-side and
+owes a `/ship-prod`. That shipment carried Batch 46 and the
 pinned dependency closure, and took 90 seconds. `/api/v1/health` reports that commit and the
 migration head bundled in the image, so `scripts/check-deploy-drift.sh` answers
 exactly (`in sync`) rather than falling back to probing. `ODDS_API_KEY` is
@@ -457,10 +458,34 @@ recorded on `OddsApiProvider._event_by_id`. This was latent rather than broken �
 running out of quota raises no error, it just leaves picks `pending` and the week
 unfinished — so it had to land before the roster of leagues grows, not after.
 
+Batch 47 gave a new league its rounds at creation. Discovery runs once a day at
+06:00, so a league created at any other hour had no round, no card and no coupon
+until the next morning, and the only remedy was `discover-fixtures` inside the
+production container — an owner action for a problem every admin hits. It is
+nearly free, because `discover_fixtures` already fetches each `(window, date)`
+once and shares it: `pooled_slate` reads a window's card back out of the shared
+`fixtures` pool, so a league on the default Saturday everyone else plays is
+`sync_slate` against rows that exist and costs **zero** provider requests.
+`populate_cadence_rounds` walks the cadence and nothing else — an off-cadence
+date belongs to the league that asked for it — and falls back to a real fetch
+only where the pool is empty. That fallback is charged one unit per sweep to
+`PROVIDER_SLATE_FETCH_LIMIT`, the ad-hoc round endpoint's `2/hour;3/day` renamed
+now that three routes share it, through `limiter.shared_limit` on the route and
+`consume_shared_limit` in the populate path, so the two cannot be combined to
+exceed the budget and a pooled populate charges nothing. The same path is an
+admin action — `POST /leagues/{slug}/gameweeks/refresh` and a Rounds card on
+league settings — because an admin who moves the fixture window has rounds built
+against the old one. Creation resolves the provider through a new
+`OptionalOddsProviderDep`, so a provider outage leaves a league with no rounds
+*yet* rather than failing the creation. Both ends of a round's claim period stay
+stamped as created, and a locked or settled round is skipped rather than rebuilt.
+No migration, and `discover_fixtures` keeps its cadence-union-off-cadence
+behaviour exactly as Batch 35 left it.
+
 ## Verified
 
-- Backend: 606 pytest with a database (483 without one), Ruff check/format, and
-  strict mypy; Batch 45 close-out passed `scripts/ci-local.sh` end-to-end
+- Backend: 635 pytest with a database (499 without one), Ruff check/format, and
+  strict mypy; Batch 47 close-out passed `scripts/ci-local.sh` end-to-end
   (11 checks), as every close-out since Batch 26 has
 - Database: clean `pgserver` migration through revision `013`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 18 public tables under a Supabase-like role setup. The count was 13 at
@@ -468,7 +493,7 @@ unfinished — so it had to land before the roster of leagues grows, not after.
   confirmed RLS-enabled *and* forced against production on 2026-08-19, with
   `anon`, `authenticated` and `PUBLIC` holding no table privileges and no schema
   `USAGE`
-- Frontend: Node 20 production build, TypeScript, ESLint, and 345 Vitest, the
+- Frontend: Node 20 production build, TypeScript, ESLint, and 355 Vitest, the
   suite now pinned to a non-UTC zone (`America/New_York`) so an instant parsed
   as local time cannot pass unnoticed
 - Browser: production-bundle smoke plus the full live staging story, including
@@ -516,7 +541,19 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries no unchecked batches. Batch 46 added FotMob as a
+`docs/BUILD_PLAN.md` carries one unchecked batch: **Batch 48 — the pick screen
+dies when the odds provider says no.** `_live_odds` calls `fetch_odds` with no
+fallback, so a provider failure makes `GET /leagues/{slug}/gameweek/current`
+return 500; observed in production on 2026-08-21 when `/odds/multi` answered
+`429` and the Football tab beside it kept working because it reads only the
+database. Batch 47 closed the one before it: a league created at any hour but
+06:00 now gets its cadence rounds immediately, from the shared fixture pool and
+usually for no provider requests at all, with the same path exposed as a
+"refresh rounds" admin action. **Batch 47 is API-side and therefore not in
+production until a `/ship-prod` runs** — the web half (the Rounds card) deploys
+on merge and will call an endpoint the deployed API does not have.
+
+Batch 46 added FotMob as a
 third implementation of the football port (ADR 0007) — the first source that
 carries the current season, and the only free one reaching the six English step
 6-7 divisions that are 49% of the card. It **ships dark**:
@@ -538,11 +575,14 @@ data cleanup is no longer owed: `teams`, `team_aliases`, `matches` and
 never held a row, so there are no mis-ingested rows to clear.
 
 Launch L5 — launch and first-Saturday watch — is the remaining launch work.
-Batch 7 shipped the odds source. **Every closed batch is now in production**:
-the 2026-08-20 shipment of `33191ba2` carried Batches 43–45, and nothing is
-waiting on a `/ship-prod`. The paragraph that used to sit here — Batches 23–27
-stranded on local `main` while home called an endpoint the deployed API did not
-have — is closed and kept only in the shipment history. What remains:
+Batch 7 shipped the odds source. Every closed batch through **46** is in
+production: the 2026-08-21 shipment of `16a64eff` carried it, after `33191ba2`
+carried Batches 43–45. **Batch 47 is not** — it is API-side and owes a
+`/ship-prod`, and until that runs the web half deployed by Vercel will call
+`POST /leagues/{slug}/gameweeks/refresh` on an API that answers 404. This is the
+same shape as the paragraph that used to sit here — Batches 23–27 stranded on
+local `main` while home called an endpoint the deployed API did not have — which
+is why `scripts/check-deploy-drift.sh` runs at every close-out. What remains:
 
 - ~~seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`~~ — done;
 - ~~ship staging and then production~~ — production is at `33191ba2` / migration `015`;
