@@ -1452,7 +1452,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: **frontend only.** No API change — both fields are already served.
 
-- [ ] **Batch 53 — Form you cannot open** *(Opus)* — the pick screen draws five W/D/L pips and
+- [x] **Batch 53 — Form you cannot open** ✅ 2026-08-21 *(Opus)* — the pick screen draws five W/D/L pips and
   discards the matches behind them, despite already holding them. `TeamContext.recent`
   (`football_data.py:757`) is served on every fixture with each match's opponent, home or
   away, goals for and against, result and kick-off, and it is already typed on the client at

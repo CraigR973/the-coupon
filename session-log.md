@@ -1365,3 +1365,51 @@ the backend gate and browser checks are out of scope.
   change was in scope.
 
 **Next:** Batch 53 — form pips that open into the matches behind them.
+
+## Batch 53 — Form you cannot open
+**Commits:** `0235e9f` · verified: `scripts/ci-local.sh` PASS (11 checks) — ruff
+check/format, mypy, alembic upgrade head + pytest on scratch pgserver,
+deployment-config, pnpm lint/typecheck/test/build, playwright deep-link smoke. Plus
+targeted runs: 16 football backend tests against a real `pgserver`, 66 Vitest across
+`FormLine`/`PickCard`/`FootballPage`.
+
+### Key facts for future sessions
+- **The batch arrived already implemented, uncommitted, on an existing branch.** A prior
+  session had left ~770 lines on `feat/batch-53-form-disclosure` with the row still
+  unchecked. `/batch-start`'s clean-worktree-on-`main` precondition does not describe
+  every real start; audit against the row before assuming a fresh one is wanted.
+- **`docs/agent-commands/batch-verify.md` is still wrong and cost a full cycle again.** Its
+  backend commands point at app-starter's venv, which has no Pillow (pinned since Batch
+  44), so pytest dies at collection in ten files. `scripts/ci-local.sh` is the only
+  correct gate; its venv is reusable at `~/.cache/the-coupon/ci-local-venv/bin/`. A task
+  chip is open to fix the doc — this has now bitten Batches 48 and 53.
+- **`league_tables()` no longer trusts `standings.form`.** It derives the string from the
+  matches it just loaded (`form_string(recent) or standing.form`). The provider writes
+  that string from a *different* upstream call and it can disagree with `matches`; once
+  the pips open, a disclosure contradicting the thing that opened it is worse than none.
+  The stored string survives only as the fallback for a club with a table line and no
+  matches — pips the client deliberately leaves inert.
+- **A disclosure cannot live inside `role="img"`.** That role swallows its subtree, leaving
+  `aria-expanded` nothing to describe. `FormLine` keeps the role only while it is a plain
+  graphic and moves the *same* accessible name onto a real `<button>` when `onToggle`
+  arrives. The name did not need rewording — it names the same thing either way.
+- **The panel is placed by the caller, never inside the pips.** In the table's Form cell it
+  would have forced sideways scrolling and undone exactly what Batch 52's hidden columns
+  protect; so the table opens a `colSpan` row and the pick card opens full-card-width
+  under the header.
+- **Results print oldest-first, against the usual results-list habit**, so the nth row is
+  the nth pip. Reversing one list against the other to identify a pip is a puzzle, not an
+  answer. Scores are for-and-against from the club's own side with H/A saying which end,
+  which keeps them readable without colour — the same rule the pips follow.
+- **Precondition still unresolved:** `run_sync_football_data`'s docstring
+  ([scheduler.py:259](apps/api/src/scheduler.py:259)) still records the 2026-08-20
+  all-competition sweep failure. On current production data these pips may open onto
+  nothing anywhere. The degradation is correct (inert, no empty panel), but the feature
+  cannot be judged live until ingestion is fixed.
+
+**Next:** no unchecked batches remain — `docs/BUILD_PLAN.md` is complete through Batch 53.
+Launch planning resumes at **L5 — Launch and first-Saturday watch**, the only open phase in
+`docs/LAUNCH_PLAN.md`. This batch is API-side as well as web, so the halves separate on
+merge: Vercel takes the client immediately while the deployed API still serves
+`TableEntry` without `recent`. `TableEntry.recent` is optional precisely for that window —
+table pips simply will not open until **a `/ship-prod` is owed and run**.

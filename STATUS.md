@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-52 are closed. The Coupon is a verified
+Batches 1-53 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -571,10 +571,27 @@ within each day, with a competition heading only when a day actually holds more 
 Both fields — `form` and `competition`/`competition_id` — were already served, so no API
 change and no migration.
 
+Batch 53 stopped the form pips discarding what they are made of. `TeamContext.recent`
+had carried every match behind a fixture's form line since Batch 16 — opponent, home or
+away, goals both ways, result, kick-off — and `FormLine` took `form: string` and threw
+the rest away on render. A run now opens onto its results on both surfaces. On the pick
+screen that needed no API change; in the league table it did, so `TableEntry` gains an
+optional `recent`, loaded through the same one-statement `team_form()` call
+`fixture_context` already makes rather than a query per club. `league_tables()` now
+derives the form *string* from those matches instead of trusting `standings.form`, which
+the provider writes from a different upstream call and which can disagree with what is
+stored in `matches`; the stored string survives only as the fallback for a club with a
+table line and no matches, whose pips the client leaves inert rather than opening onto an
+empty panel. Becoming a disclosure also moved the run off `role="img"` — that role
+swallows its subtree and leaves `aria-expanded` nothing to describe — onto a real button
+carrying the same accessible name. The panel is placed by the caller, never in the Form
+cell, which at phone width would have forced the sideways scrolling Batch 52's hidden
+columns exist to prevent.
+
 ## Verified
 
-- Backend: 655 pytest with a database, Ruff check/format, and
-  strict mypy; Batch 51 close-out passed `scripts/ci-local.sh` end-to-end
+- Backend: 660 pytest with a database, Ruff check/format, and
+  strict mypy; Batch 53 close-out passed `scripts/ci-local.sh` end-to-end
   (11 checks), as every close-out since Batch 26 has. That script's pinned venv **is**
   the gate: app-starter's venv can no longer even collect the suite (no Pillow, so
   `avatar_storage.py` takes ten test files down with it) and `AGENTS.md` plus
@@ -585,7 +602,7 @@ change and no migration.
   confirmed RLS-enabled *and* forced against production on 2026-08-19, with
   `anon`, `authenticated` and `PUBLIC` holding no table privileges and no schema
   `USAGE`
-- Frontend: Node 20 production build, TypeScript, ESLint, and 369 Vitest, the
+- Frontend: Node 20 production build, TypeScript, ESLint, and 387 Vitest, the
   suite now pinned to a non-UTC zone (`America/New_York`) so an instant parsed
   as local time cannot pass unnoticed
 - Browser: production-bundle smoke plus the full live staging story, including
@@ -633,8 +650,18 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **one unchecked batch**, 53: form pips that discard
-the matches behind them despite already holding them.
+`docs/BUILD_PLAN.md` carries **no unchecked batches**. Every batch through 53 is
+closed, and the remaining plan is the launch one: `docs/LAUNCH_PLAN.md` has a single
+open phase, **L5 — Launch and first-Saturday watch**, with L0-L4 ticked since
+2026-08-04.
+
+Batch 53 closed the last of them: a form line now opens onto the matches it is made
+of, on the pick card and in the league table. **It is API-side as well as web, and
+the two halves separate on merge** — Vercel takes the client immediately while the
+deployed API still serves `TableEntry` without `recent`. That field is optional for
+exactly this window, so the table degrades rather than breaks: its pips simply will
+not open until a `/ship-prod` runs. The pick screen's half needed no API change and
+works on merge. **A `/ship-prod` is owed.**
 
 Batch 52 closed the one before that, frontend-only with no API change: the Form
 column no longer hides on a phone — Goal Difference drops instead — and results
