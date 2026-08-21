@@ -180,9 +180,9 @@ def _ad_hoc_limits() -> dict[str, int]:
     """The shipped limit, parsed the way slowapi parses it: granularity → calls."""
     from limits import parse_many
 
-    from src.routers.leagues import AD_HOC_GAMEWEEK_LIMIT
+    from src.routers.leagues import PROVIDER_SLATE_FETCH_LIMIT
 
-    return {item.GRANULARITY.name: item.amount for item in parse_many(AD_HOC_GAMEWEEK_LIMIT)}
+    return {item.GRANULARITY.name: item.amount for item in parse_many(PROVIDER_SLATE_FETCH_LIMIT)}
 
 
 def test_the_ad_hoc_round_limit_is_bounded_by_the_day_as_well_as_the_hour() -> None:

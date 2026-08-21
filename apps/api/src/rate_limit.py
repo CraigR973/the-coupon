@@ -6,6 +6,7 @@ import json
 import jwt
 import structlog
 from fastapi import Request
+from limits import parse_many
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -80,3 +81,28 @@ def refresh_token_key(request: Request) -> str:
         return f"refresh:{hashlib.sha256(raw_token.encode()).hexdigest()}"
     except Exception:
         return client_address(request)
+
+
+def consume_shared_limit(key: str, limit_value: str, scope: str) -> bool:
+    """Charge one hit against the bucket ``@limiter.shared_limit(limit_value, scope)`` uses.
+
+    The imperative half of a shared limit, for a cost that only *sometimes* arises. A
+    decorator charges every request that reaches the route, which is right when the route
+    always spends what the limit protects; Batch 47's populate path spends a provider
+    request only when the fixture pool cannot serve the date, and charging the free case
+    would price the common one out of existence.
+
+    Same storage, same key, same scope as the decorator — ``slowapi`` evaluates a limit as
+    ``limiter.hit(item, key, scope)`` — so a route decorated with
+    ``shared_limit(value, scope)`` and a caller passing the same ``scope`` here draw down
+    one bucket and cannot be combined to exceed it.
+
+    Multiple windows (``"2/hour;3/day"``) are charged in order and stop at the first
+    refusal, exactly as ``slowapi`` charges them: a request refused by the daily window
+    has still spent its hourly one.
+
+    Returns ``False`` when the bucket is empty. Raising is the caller's decision, because
+    the answer differs by caller — an admin asking for a refresh deserves a 429, while a
+    league being created deserves the rounds the pool *can* give it and no error at all.
+    """
+    return all(limiter.limiter.hit(item, key, scope) for item in parse_many(limit_value))

@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import create_access_token, hash_pin
 from src.database import AsyncSessionLocal
-from src.deps import get_odds_provider
+from src.deps import get_odds_provider, get_optional_odds_provider
 from src.main import app
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
@@ -76,10 +76,12 @@ def _auth(profile: Profile) -> dict[str, str]:
 async def client_and_fake() -> AsyncIterator[tuple[AsyncClient, FakeBetfair]]:
     fake = FakeBetfair.with_sample_data()
     app.dependency_overrides[get_odds_provider] = lambda: fake
+    app.dependency_overrides[get_optional_odds_provider] = lambda: fake
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client, fake
     app.dependency_overrides.pop(get_odds_provider, None)
+    app.dependency_overrides.pop(get_optional_odds_provider, None)
 
 
 async def _seed_league(session: AsyncSession, names: list[str]) -> tuple[list[Profile], League]:

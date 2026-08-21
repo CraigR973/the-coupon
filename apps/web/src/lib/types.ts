@@ -428,6 +428,32 @@ export interface AdHocGameweekResult {
   created: boolean;
 }
 
+/** One round in a `POST /leagues/{slug}/gameweeks/refresh` result. */
+export interface RefreshedRound {
+  gameweek_id: string;
+  starts_on: string;
+  status: GameweekStatus;
+  /** What members call this round — "Gameweek 12"; null on rounds predating Batch 41. */
+  number?: number | null;
+  fixture_count: number;
+  /** True when this call created the round; false when it topped up an existing one. */
+  created: boolean;
+}
+
+/**
+ * POST /leagues/{slug}/gameweeks/refresh — rebuild the league's cadence rounds now
+ * instead of waiting for the 06:00 discovery run (Batch 47).
+ */
+export interface RefreshRoundsResult {
+  rounds: RefreshedRound[];
+  /** Dates the shared fixture pool could not serve, so they cost a provider sweep. */
+  fetched_dates: string[];
+  /** Dates left for the daily run: the pool was empty and no sweep was available. */
+  deferred_dates: string[];
+  /** Dates whose round is already locked or settled — nothing a rebuild may change. */
+  skipped_dates: string[];
+}
+
 export interface LeagueSummary {
   slug: string;
   name: string;

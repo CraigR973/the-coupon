@@ -12,6 +12,7 @@ import type {
   LeagueSummary,
   PickMarket,
   PickScope,
+  RefreshRoundsResult,
   SlateWindow,
 } from '@/lib/types';
 import {
@@ -80,6 +81,7 @@ export function LeagueSettingsPage() {
   const catalogueTouched = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isCreatingRound, setIsCreatingRound] = useState(false);
+  const [isRefreshingRounds, setIsRefreshingRounds] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
 
@@ -225,6 +227,48 @@ export function LeagueSettingsPage() {
       );
     } finally {
       setIsCreatingRound(false);
+    }
+  }
+
+  // Rebuild the cadence rounds now rather than waiting for the 06:00 discovery run.
+  // Almost always free: the fixtures for the window this league plays are already in the
+  // shared pool, so this only reaches the odds provider for a window nothing has fetched.
+  async function handleRefreshRounds() {
+    setIsRefreshingRounds(true);
+    try {
+      const result = await apiFetch<RefreshRoundsResult>(
+        `/api/v1/leagues/${slug}/gameweeks/refresh`,
+        { method: 'POST' },
+      );
+      const created = result.rounds.filter((r) => r.created).length;
+      const toppedUp = result.rounds.length - created;
+      if (created || toppedUp) {
+        const parts = [];
+        if (created) parts.push(`${created} round${created === 1 ? '' : 's'} created`);
+        if (toppedUp) parts.push(`${toppedUp} refreshed`);
+        if (result.deferred_dates.length) {
+          parts.push(`${result.deferred_dates.length} still to come`);
+        }
+        toast.success(parts.join(' · '));
+      } else if (result.deferred_dates.length) {
+        toast.success('Nothing stored for those dates yet — tomorrow morning’s run will pick them up.');
+      } else if (result.fetched_dates.length) {
+        // It did go upstream; the provider simply has no card for those dates yet, which
+        // is the ordinary out-of-season answer and not the same as "nothing to do".
+        toast.success('No fixtures published for those dates yet.');
+      } else {
+        toast.success('Rounds are already up to date');
+      }
+      queryClient.invalidateQueries({ queryKey: gameweekListKey(slug) });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to refresh rounds';
+      toast.error(
+        message.includes('PROVIDER_BUDGET_EXHAUSTED')
+          ? 'This league’s window has no fixtures stored yet, and today’s allowance for fetching them is spent. Tomorrow morning’s run will fill them in.'
+          : message,
+      );
+    } finally {
+      setIsRefreshingRounds(false);
     }
   }
 
@@ -543,6 +587,29 @@ export function LeagueSettingsPage() {
           {isSaving ? 'Saving…' : 'Save changes'}
         </Button>
       </form>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Rounds</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs font-sans text-text-muted">
+            Rounds are built automatically each morning. Refresh them here to pick up a change to
+            the window or competitions straight away. Times already announced to members — when
+            picks open and when they lock — never move, and rounds that have locked are left
+            alone.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={isRefreshingRounds}
+            onClick={handleRefreshRounds}
+          >
+            {isRefreshingRounds ? 'Refreshing…' : 'Refresh rounds'}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

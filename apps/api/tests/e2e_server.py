@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth import hash_pin
 from src.config import settings
 from src.database import AsyncSessionLocal
-from src.deps import get_odds_provider
+from src.deps import get_odds_provider, get_optional_odds_provider
 from src.main import app
 from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.league import League
@@ -38,6 +38,7 @@ E2E_PIN = "1234"
 
 fake_betfair = FakeBetfair.with_sample_data()
 app.dependency_overrides[get_odds_provider] = lambda: fake_betfair
+app.dependency_overrides[get_optional_odds_provider] = lambda: fake_betfair
 
 # The canned football data describes 2025-26 while the canned slate is the opening
 # Saturday of 2026-27 — the ordinary opening-day situation, where what a member sees

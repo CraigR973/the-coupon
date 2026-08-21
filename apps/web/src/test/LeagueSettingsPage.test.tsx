@@ -63,18 +63,27 @@ function json(data: unknown, status = 200) {
   return Promise.resolve({ ok: status < 400, status, json: () => Promise.resolve(data) });
 }
 
+const REFRESH_OK = { rounds: [], fetched_dates: [], deferred_dates: [], skipped_dates: [] };
+
 /** Route all the settings-page endpoints; capture the PATCH and ad-hoc POST bodies. */
 function stubApi(
   catalogue?: Record<string, unknown>,
   window: Record<string, unknown> = {},
   gameweeks: unknown[] = [],
+  refresh: { body: unknown; status?: number } = { body: REFRESH_OK },
 ) {
-  const captured: { patch: Record<string, unknown> | null; post: Record<string, unknown> | null } = {
-    patch: null,
-    post: null,
-  };
+  const captured: {
+    patch: Record<string, unknown> | null;
+    post: Record<string, unknown> | null;
+    refreshed: number;
+  } = { patch: null, post: null, refreshed: 0 };
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
     const method = init.method ?? 'GET';
+    // Before the `/gameweeks` matchers: the refresh route is a suffix of neither.
+    if (url.endsWith('/gameweeks/refresh') && method === 'POST') {
+      captured.refreshed += 1;
+      return json(refresh.body, refresh.status ?? 200);
+    }
     // Before the `/leagues/{slug}` matcher below, which this URL also satisfies.
     // `LeagueProvider` wraps the page since Batch 34 and needs a list, not a detail.
     if (url.includes('/leagues/mine')) {
@@ -406,5 +415,71 @@ describe('LeagueSettingsPage — when picks actually open', () => {
     await formReady();
 
     expect(screen.queryByTestId('pick-open-schedule')).toBeNull();
+  });
+});
+
+
+describe('LeagueSettingsPage — refresh rounds (Batch 47)', () => {
+  it('reports what the rebuild produced, in the admin\u2019s terms', async () => {
+    const api = stubApi(undefined, {}, [], {
+      body: {
+        rounds: [
+          { gameweek_id: 'g1', starts_on: '2026-08-22', status: 'open', number: 7, fixture_count: 9, created: true },
+          { gameweek_id: 'g2', starts_on: '2026-08-29', status: 'scheduled', number: 8, fixture_count: 8, created: false },
+        ],
+        fetched_dates: [],
+        deferred_dates: [],
+        skipped_dates: [],
+      },
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /refresh rounds/i }));
+
+    await waitFor(() => expect(api.refreshed).toBe(1));
+    expect(toast.success).toHaveBeenCalledWith('1 round created · 1 refreshed');
+  });
+
+  it('says so plainly when there was nothing to change', async () => {
+    stubApi();
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /refresh rounds/i }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Rounds are already up to date'));
+  });
+
+  it('does not claim "up to date" when it went upstream and found no card', async () => {
+    // The out-of-season answer, seen live against tests/e2e_server: both cadence dates
+    // were fetched and the provider had nothing for either. That is not "nothing to do".
+    stubApi(undefined, {}, [], {
+      body: {
+        rounds: [],
+        fetched_dates: ['2026-08-22', '2026-08-29'],
+        deferred_dates: [],
+        skipped_dates: [],
+      },
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /refresh rounds/i }));
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith('No fixtures published for those dates yet.'),
+    );
+  });
+
+  it('explains an exhausted provider budget rather than showing its error code', async () => {
+    // The one refusal an admin can actually hit: this league's window has nothing pooled,
+    // so every date needs a provider sweep and today's allowance is spent.
+    stubApi(undefined, {}, [], { body: { detail: 'PROVIDER_BUDGET_EXHAUSTED' }, status: 429 });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /refresh rounds/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    const message = vi.mocked(toast.error).mock.calls[0][0] as string;
+    expect(message).toMatch(/allowance/i);
+    expect(message).not.toMatch(/PROVIDER_BUDGET_EXHAUSTED/);
   });
 });

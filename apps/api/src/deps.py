@@ -80,6 +80,27 @@ async def get_odds_provider() -> OddsProvider:
 OddsProviderDep = Annotated[OddsProvider, Depends(get_odds_provider)]
 
 
+async def get_optional_odds_provider() -> OddsProvider | None:
+    """The same shared client, but ``None`` rather than a 503 when there isn't one.
+
+    For routes where the provider is a *sometimes* dependency. Creating a league
+    populates its rounds from the fixture pool (Batch 47) and only reaches upstream for a
+    window nothing has fetched yet, so resolving the provider eagerly would make league
+    creation fail whenever odds-api.io is having a bad afternoon — wiring an availability
+    the database could serve on its own to a third party's rate limit.
+
+    Callers must treat ``None`` as "pool only" and still succeed.
+    """
+    try:
+        return await odds_session.acquire()
+    except OddsProviderError as exc:
+        log.warning("odds provider unavailable", error=repr(exc))
+        return None
+
+
+OptionalOddsProviderDep = Annotated[OddsProvider | None, Depends(get_optional_odds_provider)]
+
+
 async def shared_league_player_ids(
     requester_id: uuid.UUID, db: AsyncSession
 ) -> frozenset[uuid.UUID]:

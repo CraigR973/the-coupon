@@ -2,6 +2,7 @@
 
 import re
 import uuid
+from collections.abc import Callable
 from datetime import UTC, date, datetime
 from typing import Annotated, Any
 
@@ -12,8 +13,9 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser, generate_join_code
+from src.config import settings
 from src.database import get_db
-from src.deps import OddsProviderDep
+from src.deps import OddsProviderDep, OptionalOddsProviderDep
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekFixture
 from src.models.league import (
@@ -31,11 +33,11 @@ from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.notification import ActionType, ActorType, AuditLog
 from src.models.pick import Pick, PickStatus
 from src.models.profile import Profile, UserRole
-from src.rate_limit import limiter, per_user_key
+from src.rate_limit import consume_shared_limit, limiter, per_user_key
 from src.schemas import UtcDatetime
-from src.services.gameweek import refresh_slate
+from src.services.gameweek import PopulatedRounds, populate_cadence_rounds, refresh_slate, uk_today
 from src.services.notification_triggers import notify_member_joined
-from src.services.odds_provider import OddsProviderError
+from src.services.odds_provider import OddsProvider, OddsProviderError
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -44,6 +46,93 @@ router = APIRouter(prefix="/api/v1/leagues", tags=["leagues"])
 
 def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+# ---------------------------------------------------------------------------
+# The admin provider-fetch budget (Batch 35; shared across routes since Batch 47)
+# ---------------------------------------------------------------------------
+
+# What an admin may spend walking the provider from the request path, in the comment
+# style `odds_cache_ttl_seconds` uses — because the number is arithmetic, not taste, and
+# the next person to raise it should see the ceiling rather than rediscover it.
+#
+# One *sweep* is one `/events` per competition the league plays. Since Batch 35
+# `refresh_slate` narrows that to the league's own selection, so a configured league pays
+# 1-3 and only an unconfigured all-UK one still pays ~30 — which is the figure below,
+# because the limit has to survive the worst case. Every route that can cause a sweep
+# charges one unit per sweep, so the arithmetic holds however many routes there are.
+#
+# What the rest of the budget leaves, measured against a real cache in
+# `tests/test_request_budget.py` rather than modelled: the tightest hour is 28 of
+# odds-api.io's 100, and a fully saturated day is 336 of browsing plus 60 of discovery
+# against 500. So:
+#
+#   2/hour -> ~60 requests, inside the ~72 an hour leaves
+#   3/day  -> ~90 requests, inside the ~104 a day leaves
+#
+# Both caps are needed. An hourly limit alone permits 24x its own number across a day,
+# and the day is the tighter budget; a daily limit alone permits all of it inside the
+# peak browsing hour. The previous `6/hour` allowed ~180 requests an hour against a
+# 100/hour plan on its own. Exhaustion is **silent** — picks simply stay `pending` and
+# the week never finishes — so raising either number means redoing the arithmetic above,
+# not enlarging a constant.
+PROVIDER_SLATE_FETCH_LIMIT = "2/hour;3/day"
+
+#: The bucket every admin-triggered slate fetch is charged to, whichever route asked for
+#: it. Batch 47 added a second way to spend a provider sweep in the request path — the
+#: pool-first populate behind league creation and "refresh rounds" — and two separate
+#: `2/hour` limits would simply be `4/hour` against a budget that has room for two. So
+#: both draw down one per-admin bucket: the ad-hoc endpoint through
+#: ``limiter.shared_limit`` on the route, the populate path through
+#: :func:`~src.rate_limit.consume_shared_limit` at the moment it discovers the pool
+#: cannot serve a date. A populate that costs nothing charges nothing.
+PROVIDER_SLATE_FETCH_SCOPE = "provider-slate-fetch"
+
+
+def _fetch_guard(request: Request) -> Callable[[], bool]:
+    """A one-call-per-sweep charge against this admin's provider-fetch bucket.
+
+    Handed to :func:`~src.services.gameweek.populate_cadence_rounds`, which calls it only
+    on a date the fixture pool cannot serve — so an admin whose league plays the window
+    everybody else plays is never charged for a league that cost nothing.
+    """
+    key = per_user_key(request)
+    return lambda: consume_shared_limit(key, PROVIDER_SLATE_FETCH_LIMIT, PROVIDER_SLATE_FETCH_SCOPE)
+
+
+async def _populate_rounds(
+    request: Request,
+    db: AsyncSession,
+    provider: OddsProvider | None,
+    league: League,
+) -> PopulatedRounds:
+    """Populate this league's cadence rounds and commit them, logging what it cost.
+
+    The shared body of the two routes that reach for it — league creation and "refresh
+    rounds". Commits on its own because both callers have already committed something
+    the populate must not be able to undo: the league itself, and the admin's request to
+    rebuild.
+    """
+    populated = await populate_cadence_rounds(
+        db,
+        provider,
+        league,
+        uk_today(),
+        settings.slate_horizon_weeks,
+        may_fetch=_fetch_guard(request),
+    )
+    await db.commit()
+    log.info(
+        "league rounds populated",
+        league_id=str(league.id),
+        rounds=len(populated.gameweeks),
+        created=[str(d) for d in populated.created_dates],
+        fetched=[str(d) for d in populated.fetched_dates],
+        deferred=[str(d) for d in populated.deferred_dates],
+        skipped=[str(d) for d in populated.skipped_dates],
+        provider_available=provider is not None,
+    )
+    return populated
 
 
 # ---------------------------------------------------------------------------
@@ -504,8 +593,23 @@ async def create_league(
     request: Request,
     body: CreateLeagueRequest,
     player: CurrentUser,
+    provider: OptionalOddsProviderDep,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> LeagueResponse:
+    """Create a league and give it the rounds its cadence already has fixtures for.
+
+    Until Batch 47 a league created at any hour but 06:00 had no round, no card and no
+    coupon until the next morning's discovery run, and no in-app way to change that. Now
+    creation populates the cadence straight from the shared fixture pool
+    (:func:`~src.services.gameweek.populate_cadence_rounds`), which for the default
+    Saturday every other league plays costs **zero** provider requests — the fixtures are
+    already there.
+
+    Populating runs after the league is committed and can never fail the creation. A
+    league whose window nothing has fetched yet, an odds provider that is down, an admin
+    out of provider budget: all of them leave a league with no rounds *yet*, which is
+    exactly where every league stood before this batch, and the 06:00 job fills it in.
+    """
     _check_claim_period(body.pick_open_offset_minutes, body.lock_offset_minutes)
     slug = await _unique_slug(db, body.name)
     markets = (
@@ -560,6 +664,15 @@ async def create_league(
     await db.refresh(league)
 
     log.info("league created", league_id=str(league.id), slug=slug, player_id=str(player.id))
+
+    try:
+        await _populate_rounds(request, db, provider, league)
+    except Exception:
+        # The league exists and the response is owed. Discovery will populate it at 06:00,
+        # which is precisely the behaviour every league had before this ran at all.
+        await db.rollback()
+        log.exception("new league round population failed", league_id=str(league.id))
+
     return LeagueResponse(
         id=str(league.id),
         slug=league.slug,
@@ -1044,32 +1157,6 @@ async def league_competitions(
 # ---------------------------------------------------------------------------
 
 
-# What an admin may spend on ad-hoc rounds, in the comment style `odds_cache_ttl_seconds`
-# uses — because the number is arithmetic, not taste, and the next person to raise it
-# should see the ceiling rather than rediscover it.
-#
-# One call walks the provider in the request path: one `/events` per competition the
-# league plays. Since Batch 35 `refresh_slate` narrows that to the league's own selection,
-# so a configured league pays 1-3 and only an unconfigured all-UK one still pays ~30 —
-# which is the figure below, because the limit has to survive the worst case.
-#
-# What the rest of the budget leaves, measured against a real cache in
-# `tests/test_request_budget.py` rather than modelled: the tightest hour is 28 of
-# odds-api.io's 100, and a fully saturated day is 336 of browsing plus 60 of discovery
-# against 500. So:
-#
-#   2/hour -> ~60 requests, inside the ~72 an hour leaves
-#   3/day  -> ~90 requests, inside the ~104 a day leaves
-#
-# Both caps are needed. An hourly limit alone permits 24x its own number across a day,
-# and the day is the tighter budget; a daily limit alone permits all of it inside the
-# peak browsing hour. The previous `6/hour` allowed ~180 requests an hour against a
-# 100/hour plan on its own. Exhaustion is **silent** — picks simply stay `pending` and
-# the week never finishes — so raising either number means redoing the arithmetic above,
-# not enlarging a constant.
-AD_HOC_GAMEWEEK_LIMIT = "2/hour;3/day"
-
-
 class CreateGameweekRequest(BaseModel):
     starts_on: date
 
@@ -1093,7 +1180,9 @@ class AdHocGameweekResponse(BaseModel):
 @router.post(
     "/{slug}/gameweeks", response_model=AdHocGameweekResponse, status_code=status.HTTP_201_CREATED
 )
-@limiter.limit(AD_HOC_GAMEWEEK_LIMIT, key_func=per_user_key)
+@limiter.shared_limit(
+    PROVIDER_SLATE_FETCH_LIMIT, scope=PROVIDER_SLATE_FETCH_SCOPE, key_func=per_user_key
+)
 async def create_gameweek(
     request: Request,
     slug: str,
@@ -1110,7 +1199,7 @@ async def create_gameweek(
     request path — one ``/events`` request per competition *this league plays*, which
     since Batch 35 is its own selection rather than all ~30 UK competitions — so it is
     tightly rate-limited; it is an occasional admin action, not a hot path. See
-    :data:`AD_HOC_GAMEWEEK_LIMIT` for the arithmetic behind the limit.
+    :data:`PROVIDER_SLATE_FETCH_LIMIT` for the arithmetic behind the limit.
 
     The round is adopted by the scheduler like any other: ``open_due_gameweeks``,
     ``lock_due_gameweeks`` and settlement all select on status and instants with no date
@@ -1155,6 +1244,111 @@ async def create_gameweek(
         number=gameweek.number,
         fixture_count=count.scalar_one(),
         created=already is None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/leagues/{slug}/gameweeks/refresh  — rebuild the cadence rounds
+# ---------------------------------------------------------------------------
+
+
+class RefreshedRound(BaseModel):
+    gameweek_id: str
+    starts_on: date
+    status: str
+    # What members call this round — "Gameweek 12" (Batch 41).
+    number: int | None
+    fixture_count: int
+    # True when this call created the round; false when it topped up an existing one.
+    created: bool
+
+
+class RefreshRoundsResponse(BaseModel):
+    rounds: list[RefreshedRound]
+    #: Cadence dates the fixture pool could not serve, so they cost a provider sweep.
+    fetched_dates: list[date]
+    #: Cadence dates left for the daily discovery run — the pool was empty and no sweep
+    #: was available (out of budget, or no provider configured).
+    deferred_dates: list[date]
+    #: Cadence dates whose round is already locked or settled. Its card is fixed and its
+    #: picks are frozen, so there is nothing a rebuild could legitimately change.
+    skipped_dates: list[date]
+
+
+@router.post("/{slug}/gameweeks/refresh", response_model=RefreshRoundsResponse)
+@limiter.limit("30/hour", key_func=per_user_key)
+async def refresh_rounds(
+    request: Request,
+    slug: str,
+    admin_ctx: LeagueAdminDep,
+    provider: OptionalOddsProviderDep,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> RefreshRoundsResponse:
+    """Rebuild this league's cadence rounds now, rather than waiting for 06:00.
+
+    The other half of Batch 47. Creation is not the only moment a league needs its rounds
+    built: an admin who moves the fixture window has unlocked rounds built against the old
+    one, and before this there was no in-app way to correct them — only a Railway shell
+    and ``python -m src.run_scheduled discover-fixtures``, which is an owner action for a
+    problem every admin will hit.
+
+    Cheap by the same mechanism as creation: each cadence date is read back out of the
+    shared fixture pool and only *fetched* when the pool has nothing for it. A fetch is
+    charged to :data:`PROVIDER_SLATE_FETCH_LIMIT`, the same per-admin bucket the ad-hoc
+    round endpoint spends, so the two cannot be combined to exceed the provider budget.
+    The ``30/hour`` limit on the route is a different guard for a different cost — it
+    bounds the database work of a refresh that costs nothing upstream.
+
+    **What it may not do.** ``picks_open_at_utc`` and ``locks_at_utc`` are stamped once,
+    when a round is created, and this never restamps them (Batch 27 set that rule; Batch
+    40 declined to add an admin override). So a rebuilt round can gain fixtures and can
+    never move a deadline members have already been told — which also means a window
+    change reaches existing rounds' *cards* but not their *times*. And a locked or settled
+    round is not rebuilt at all; it is returned under ``skipped_dates`` instead.
+
+    A refusal is only an error when it left nothing to show: if every date needed a sweep
+    and the budget refused, that is a 429. A refresh that populated something from the
+    pool succeeds and names the dates it could not reach, because the free half of the
+    work is worth keeping and re-asking for it later costs nothing.
+    """
+    player, league = admin_ctx
+    populated = await _populate_rounds(request, db, provider, league)
+
+    if populated.deferred_dates and not populated.gameweeks and provider is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="PROVIDER_BUDGET_EXHAUSTED"
+        )
+
+    ids = [gameweek.id for gameweek in populated.gameweeks]
+    counted = await db.execute(
+        select(GameweekFixture.gameweek_id, func.count())
+        .where(GameweekFixture.gameweek_id.in_(ids))
+        .group_by(GameweekFixture.gameweek_id)
+    )
+    counts: dict[uuid.UUID, int] = {row[0]: row[1] for row in counted.all()}
+    created = set(populated.created_dates)
+
+    log.info(
+        "league rounds refreshed",
+        league_id=str(league.id),
+        player_id=str(player.id),
+        rounds=len(populated.gameweeks),
+    )
+    return RefreshRoundsResponse(
+        rounds=[
+            RefreshedRound(
+                gameweek_id=str(gameweek.id),
+                starts_on=gameweek.starts_on,
+                status=gameweek.status.value,
+                number=gameweek.number,
+                fixture_count=counts.get(gameweek.id, 0),
+                created=gameweek.starts_on in created,
+            )
+            for gameweek in populated.gameweeks
+        ],
+        fetched_dates=populated.fetched_dates,
+        deferred_dates=populated.deferred_dates,
+        skipped_dates=populated.skipped_dates,
     )
 
 

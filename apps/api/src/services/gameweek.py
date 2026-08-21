@@ -15,7 +15,8 @@ All ``*_utc`` values are stored naive-UTC to match the rest of the schema.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -31,7 +32,7 @@ from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
 from src.services.football_provider import season_for
-from src.services.odds_provider import UK_TZ, OddsProvider, Slate, SlateWindow
+from src.services.odds_provider import UK_TZ, OddsProvider, Slate, SlateFixture, SlateWindow
 
 # Tier boundaries for how stale a browsed price may be (see slate_odds_max_age).
 _NEAR_LOCK_SECONDS = 6 * 3600
@@ -590,6 +591,182 @@ async def refresh_slate(
     if not slate.fixtures:
         return None
     return await sync_slate(db, league, slate)
+
+
+# ── Populating a league's rounds on demand (Batch 47) ───────────────────────────
+#
+# Discovery runs once a day at 06:00, so a league created at any other hour had no
+# round, no card and no coupon until the next morning. These two functions are the
+# cheap second entry point into the machinery above: same ``sync_slate``, same
+# cadence, but reading the fixtures back out of the pool instead of buying them.
+
+
+async def pooled_slate(db: AsyncSession, window: SlateWindow, starts_on: date) -> Slate:
+    """This window's card for ``starts_on``, read back out of the shared fixture pool.
+
+    The corollary of what makes a second league on the default Saturday free. Discovery
+    fetches each ``(window, date)`` once and writes every kick-off into ``fixtures``, so
+    once *any* league has pulled a window's card for a date, the rows another league on
+    that window needs are already there — and turning them back into a
+    :class:`~src.services.odds_provider.Slate` costs one query rather than one request
+    per competition.
+
+    Selected exactly the way a provider fetch is: the window's whole-day
+    :meth:`~src.services.odds_provider.SlateWindow.query_bounds` in SQL, then
+    :meth:`~src.services.odds_provider.SlateWindow.contains` deciding which kick-offs
+    actually qualify. So a pooled slate and a fetched one carry the same fixtures, and
+    :func:`sync_slate` cannot tell them apart.
+
+    The pool is not a guarantee of completeness: a date whose only fetch was an ad-hoc
+    one holds just that league's competitions (:func:`refresh_slate` narrows its fetch),
+    so a league reading it back gets that subset rather than the full window. Partial is
+    still better than empty — the next discovery run fetches the window unfiltered and
+    :func:`sync_slate` adds the missing links to the same round.
+    """
+    start, end = window.query_bounds(starts_on)
+    rows = await db.execute(
+        select(Fixture).where(
+            Fixture.kickoff_utc >= _naive_utc(start), Fixture.kickoff_utc < _naive_utc(end)
+        )
+    )
+    return Slate(
+        starts_on=starts_on,
+        fixtures=[
+            SlateFixture(
+                provider_event_id=fixture.provider_event_id,
+                home=fixture.home,
+                away=fixture.away,
+                kickoff_utc=fixture.kickoff_utc,
+                competition=fixture.competition,
+                competition_id=fixture.competition_id,
+            )
+            for fixture in rows.scalars().all()
+            if window.contains(fixture.kickoff_utc, starts_on)
+        ],
+    )
+
+
+@dataclass(frozen=True)
+class PopulatedRounds:
+    """What one populate run produced, and what it spent getting there.
+
+    Every list holds cadence dates, and each date the run considered lands in exactly
+    one of four places: it produced a round (``gameweeks``, and ``created_dates`` when
+    the round did not exist before), it was left alone (``skipped_dates``), it was left
+    for the daily job (``deferred_dates``), or it produced nothing at all — a date the
+    league's competition selection excludes entirely, which is a league with no round
+    rather than an error. ``fetched_dates`` cuts across ``gameweeks``: the dates the
+    pool could not serve, and therefore the only ones that cost a provider request.
+    """
+
+    gameweeks: list[Gameweek]
+    created_dates: list[date]
+    fetched_dates: list[date]
+    deferred_dates: list[date]
+    skipped_dates: list[date]
+
+
+async def populate_cadence_rounds(
+    db: AsyncSession,
+    provider: OddsProvider | None,
+    league: League,
+    today: date,
+    horizon: int,
+    *,
+    may_fetch: Callable[[], bool] | None = None,
+) -> PopulatedRounds:
+    """Create or top up this league's cadence rounds now, without waiting for 06:00.
+
+    The common case costs **nothing**. Almost every league plays the default Saturday,
+    which some league has already had discovery fetch, so the fixtures are in the pool
+    and this is :func:`sync_slate` against rows that already exist — no provider request,
+    and the round is on screen the moment the league is created.
+
+    A league genuinely inventing a window — a Wednesday 19:45, say — has an empty pool
+    for its dates and has to buy them. That path goes through :func:`refresh_slate`,
+    which narrows the fetch to the league's own competitions, and it is gated by
+    ``may_fetch``: one call per date, charged against the same budget the ad-hoc round
+    endpoint spends, so the two cannot be combined to exceed it. The first refusal ends
+    the fetching for this run — the bucket is empty, and asking again would only burn
+    the shorter of its two windows — but the free, pooled dates are still populated.
+    ``provider`` of ``None`` (no odds source configured or reachable) is the same case
+    without the budget question: pool only.
+
+    **Cadence only.** The dates walked are :func:`upcoming_slate_dates` and nothing else,
+    where :func:`discover_fixtures` also covers the off-cadence rounds those leagues
+    already hold. That difference is the point: an off-cadence date belongs to the league
+    that asked for it, so a neighbour's Boxing Day must not be invented here for a league
+    that never requested one.
+
+    A date whose round is already ``locked`` or ``settled`` is skipped. Its card is fixed
+    and its picks are frozen, which is the same boundary :func:`unlocked_round_dates`
+    draws for the daily job. Rounds that *are* rebuilt keep both ends of their claim
+    period: :func:`sync_slate` derives ``picks_open_at_utc`` and ``locks_at_utc`` only
+    when it creates a round, so refreshing one can add fixtures but can never move a
+    deadline members have already been told.
+
+    Flushes but does not commit — the caller owns the transaction.
+    """
+    window = window_for(league)
+    dates = upcoming_slate_dates(today, window, horizon)
+    existing = await _rounds_by_date(db, league.id, dates)
+
+    gameweeks: list[Gameweek] = []
+    created: list[date] = []
+    fetched: list[date] = []
+    deferred: list[date] = []
+    skipped: list[date] = []
+    out_of_budget = False
+
+    for starts_on in dates:
+        status = existing.get(starts_on)
+        if status is not None and status not in PICKABLE_STATES:
+            skipped.append(starts_on)
+            continue
+
+        slate = await pooled_slate(db, window, starts_on)
+        if slate.fixtures:
+            gameweek = await sync_slate(db, league, slate)
+        else:
+            if provider is None or out_of_budget or (may_fetch is not None and not may_fetch()):
+                out_of_budget = provider is not None
+                deferred.append(starts_on)
+                continue
+            gameweek = await refresh_slate(db, provider, league, starts_on)
+            fetched.append(starts_on)
+
+        if gameweek is None:
+            continue
+        gameweeks.append(gameweek)
+        if status is None:
+            created.append(starts_on)
+
+    return PopulatedRounds(
+        gameweeks=gameweeks,
+        created_dates=created,
+        fetched_dates=fetched,
+        deferred_dates=deferred,
+        skipped_dates=skipped,
+    )
+
+
+async def _rounds_by_date(
+    db: AsyncSession, league_id: uuid.UUID, dates: Sequence[date]
+) -> dict[date, GameweekStatus]:
+    """The rounds this league already holds on these dates, by date.
+
+    Read once for the whole run rather than per date, and carrying the status because
+    it decides two different things: whether the round may be rebuilt at all, and
+    whether producing one counts as creating it or refreshing it.
+    """
+    if not dates:
+        return {}
+    rows = await db.execute(
+        select(Gameweek.starts_on, Gameweek.status).where(
+            Gameweek.league_id == league_id, Gameweek.starts_on.in_(dates)
+        )
+    )
+    return {starts_on: status for starts_on, status in rows.all()}
 
 
 async def open_due_gameweeks(db: AsyncSession, now: datetime) -> list[Gameweek]:
