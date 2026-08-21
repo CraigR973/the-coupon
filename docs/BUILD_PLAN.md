@@ -1232,6 +1232,62 @@ answered until it lands, because until then there is no data to look at.
   keeps its cadence-union-off-cadence behaviour exactly as Batch 35 left it; this batch
   adds a second, cheaper entry point to the same machinery and an endpoint in front of it.
 
+- [ ] **Batch 48 — The pick screen dies when the odds provider says no** — `_live_odds`
+  (`gameweek.py:403`) calls `fetch_odds` with no fallback, so any provider failure
+  propagates and `GET /leagues/{slug}/gameweek/current` returns **500**. The core screen
+  of the product — the one every member opens to make their pick — has its availability
+  wired directly to a third party's rate limit.
+
+  Observed in production on 2026-08-21, the day before launch: `/odds/multi` answered
+  `429`, the slate 500ed, and the Football tab beside it kept working perfectly because
+  it reads only the database. The cause that day was self-inflicted (diagnostic traffic
+  exhausting the 100/hour window), which is the good version of this. The bad version is
+  the provider having a bad afternoon at 14:00 on a Saturday.
+
+  **The cache already holds everything needed to survive it.** `OddsCache._entries` keeps
+  an `_Entry(odds, stored_at)` per event and only *refreshes* what has gone stale. When
+  the upstream call raises, the exception escapes `fetch_odds` and the caller gets
+  nothing — but the entries are still sitting there, merely past their TTL. Catching the
+  inner failure and falling through to the existing results comprehension serves the last
+  known prices instead of a 500. That is the substantive fix and it is a handful of lines.
+
+  **Browsing degrades. Picking must not.** There are exactly two `fetch_odds` callers in
+  the request path and they need opposite treatment:
+
+  * `gameweek.py:403` — browsing the card. A slightly stale price is a far better
+    outcome than a broken screen, and a card with *no* prices at all still shows the
+    fixtures, which beats an error page.
+  * `picks.py:258` — freezing `odds_at_pick` onto a pick. This must keep failing loudly.
+    The price is frozen at that instant and a winner scores `round(odds × 10)` from it, so
+    a stale or missing price is not a degraded pick, it is a wrong score. Refusing the
+    submission is correct.
+
+  **Stop retrying a 429.** `_get` treats `429` as transient alongside `5xx` and retries it
+  up to `_MAX_RETRIES = 3` with doubling backoff, so one rate-limited request becomes
+  four. Under a quota breach that is precisely backwards: the response to "you are over
+  budget" is the one thing guaranteed to keep you over it. On 2026-08-21 two diagnostic
+  slate loads cost roughly 40-80 upstream requests through this amplification and slowed
+  their own recovery. Separate the cases — retry `5xx` and network errors, fail fast on
+  `429`, and let the cache cover the gap.
+
+  **Say that it is degraded.** The slate response should carry a flag when prices came
+  from a failed refresh, so the client can say "prices may be out of date" rather than
+  presenting stale numbers as current. Additive and optional on the client, for the
+  reason Batches 38 and 41 already record: Vercel deploys `main` on merge while the API
+  waits for `/ship-prod`, so a required field breaks the coupon in that gap.
+
+  Verification: a provider stub that raises `OddsProviderAPIError` on `fetch_odds` and a
+  warm cache, asserting the slate returns `200` with the cached prices and the degraded
+  flag set; the same stub with a **cold** cache, asserting `200` with fixtures and no
+  selections rather than `500`; a pick submission against the same stub, asserting it
+  still refuses; and a counting client asserting a `429` produces exactly **one** upstream
+  attempt while a `503` still retries.
+
+  Scope boundary: **no schema change, and do not touch the TTL tiers.** The budget
+  arithmetic in `config.py` and `tests/test_request_budget.py` is unchanged by this — it
+  governs how often a healthy provider is called, which is a different question from what
+  happens when an unhealthy one refuses.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
