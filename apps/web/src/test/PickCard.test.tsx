@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { PickCard } from '@/components/PickCard';
-import type { FixtureSlate, TeamContext } from '@/lib/types';
+import type { FixtureSlate, FormMatch, TeamContext } from '@/lib/types';
 
 const FIXTURE: FixtureSlate = {
   fixture_id: 'fx1',
@@ -245,5 +245,95 @@ describe('PickCard — inline football context', () => {
     });
     fireEvent.click(screen.getByTestId('selection-fx1-MATCH_ODDS-HOME'));
     expect(onGrab).toHaveBeenCalledWith('fx1', 'MATCH_ODDS', 'HOME');
+  });
+});
+
+// ── Opening a form line (Batch 53) ────────────────────────────────────────────
+//
+// `TeamContext.recent` has been served on every fixture since Batch 16 and thrown away
+// on render. The pips now open onto it.
+
+const FORFAR_RECENT: FormMatch[] = [
+  {
+    match_id: 'm205',
+    kickoff_utc: '2026-04-25T14:00:00Z',
+    opponent: 'Brechin City FC',
+    home: true,
+    goals_for: 1,
+    goals_against: 2,
+    result: 'L',
+  },
+  {
+    match_id: 'm204',
+    kickoff_utc: '2026-04-18T14:00:00Z',
+    opponent: 'Stranraer FC',
+    home: false,
+    goals_for: 2,
+    goals_against: 0,
+    result: 'W',
+  },
+];
+
+const FORFAR_OPENABLE: TeamContext = { ...FORFAR, form: 'WL', recent: FORFAR_RECENT };
+const BRECHIN_OPENABLE: TeamContext = {
+  ...BRECHIN,
+  form: 'W',
+  // The same match from the other end: Brechin won it at home, Forfar lost it away.
+  recent: [
+    {
+      ...FORFAR_RECENT[0],
+      match_id: 'm205b',
+      opponent: 'Forfar Athletic FC',
+      home: false,
+      goals_for: 2,
+      goals_against: 1,
+      result: 'W',
+    },
+  ],
+};
+
+describe('PickCard — opening a club’s form', () => {
+  it('opens the matches behind a club’s pips, under the whole card', () => {
+    renderCard({ fixture: { ...FIXTURE, context: { home: FORFAR_OPENABLE, away: null } } });
+
+    fireEvent.click(screen.getByLabelText(/Forfar Athletic FC form, oldest first/));
+
+    const panel = screen.getByRole('list', { name: /Forfar Athletic FC recent results/ });
+    expect(within(panel).getAllByRole('listitem').length).toBe(2);
+    expect(panel.textContent).toContain('Stranraer FC');
+    // Full card width, not the half-column the pips sit in.
+    expect(screen.getByTestId('fixture-header-fx1').contains(panel)).toBe(false);
+  });
+
+  it('closes it again on a second tap', () => {
+    renderCard({ fixture: { ...FIXTURE, context: { home: FORFAR_OPENABLE, away: null } } });
+    const pips = screen.getByLabelText(/Forfar Athletic FC form, oldest first/);
+
+    fireEvent.click(pips);
+    fireEvent.click(pips);
+
+    expect(screen.queryByRole('list', { name: /recent results/ })).toBeNull();
+    expect(pips.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('shows one club at a time — opening the away side closes the home one', () => {
+    renderCard({
+      fixture: { ...FIXTURE, context: { home: FORFAR_OPENABLE, away: BRECHIN_OPENABLE } },
+    });
+
+    fireEvent.click(screen.getByLabelText(/Forfar Athletic FC form, oldest first/));
+    fireEvent.click(screen.getByLabelText(/Brechin City FC form, oldest first/));
+
+    expect(screen.queryByRole('list', { name: /Forfar Athletic FC recent results/ })).toBeNull();
+    expect(screen.getByRole('list', { name: /Brechin City FC recent results/ })).toBeTruthy();
+  });
+
+  it('leaves a club with no stored matches inert rather than opening an empty panel', () => {
+    // FORFAR carries a table position and a provider form string with nothing behind it.
+    renderCard({ fixture: { ...FIXTURE, context: { home: FORFAR, away: null } } });
+
+    const pips = screen.getByLabelText(/Forfar Athletic FC form, oldest first/);
+    expect(pips.tagName).not.toBe('BUTTON');
+    expect(pips.getAttribute('role')).toBe('img');
   });
 });

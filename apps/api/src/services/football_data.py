@@ -102,6 +102,15 @@ class FixtureContext(BaseModel):
 
 
 class TableEntry(BaseModel):
+    """One club's line in a stored table, and the matches its form line is made of.
+
+    ``recent`` is the same shape :class:`TeamContext` carries on the pick screen, so a
+    form line means one thing wherever it is drawn. It defaults to empty rather than
+    being required: Vercel deploys the client from ``main`` on merge while the API waits
+    for ``/ship-prod``, and for that window the browser reads a table from an API that
+    has never heard of this field.
+    """
+
     position: int
     team_id: str
     team: str
@@ -113,7 +122,10 @@ class TableEntry(BaseModel):
     goals_against: int
     goal_difference: int
     points: int
+    #: Most recent **last**, e.g. ``"LWWDW"`` — the order every football table prints.
     form: str
+    #: Most recent **first** — the order it is trimmed in. See :func:`league_tables`.
+    recent: list[FormMatch] = []
 
 
 class CompetitionTable(BaseModel):
@@ -538,26 +550,47 @@ async def backfill_season(
 
 
 async def league_tables(
-    db: AsyncSession, competitions: Sequence[CompetitionKey], season: int
+    db: AsyncSession,
+    competitions: Sequence[CompetitionKey],
+    season: int,
+    *,
+    form_matches: int,
 ) -> list[CompetitionTable]:
     """Stored tables for the given competitions, in position order.
 
     Competitions with nothing stored are omitted rather than returned empty: a cup round
     has no table, and a placeholder saying so on every screen is noise.
+
+    ``form_matches`` is how many matches make up a form line, and it is the same
+    :func:`team_form` call :func:`fixture_context` makes — one statement for every club
+    on the screen rather than one per club, so a thirty-division read costs two queries
+    in total however many rows come back. Pass ``0`` for the table alone.
+
+    The form *string* is then derived from those matches rather than taken from
+    ``standings.form``, which matters now that the pips open: the provider's string is
+    written by a different upstream call and can disagree with what is stored in
+    ``matches``, and a disclosure whose contents contradict the thing that opened it is
+    worse than no disclosure. The stored string is still the fallback for a club we hold
+    a table line but no matches for — a run of pips with nothing behind them, which the
+    client renders inert.
     """
     slugs = [competition.slug for competition in competitions]
     if not slugs:
         return []
-    rows = await db.execute(
+    result = await db.execute(
         select(Standing, Team.name)
         .join(Team, Team.id == Standing.team_id)
         .where(Standing.competition_id.in_(slugs), Standing.season == season)
         .order_by(Standing.competition_id, Standing.position)
     )
+    rows = result.all()
+    form_by_team = await team_form(
+        db, [standing.team_id for standing, _ in rows], limit=form_matches
+    )
 
     names = {competition.slug: competition.name for competition in competitions}
     tables: dict[str, CompetitionTable] = {}
-    for standing, team_name in rows.all():
+    for standing, team_name in rows:
         table = tables.get(standing.competition_id)
         if table is None:
             table = CompetitionTable(
@@ -571,6 +604,7 @@ async def league_tables(
         newest = table.updated_at
         if standing.updated_at and (newest is None or standing.updated_at > newest):
             table.updated_at = standing.updated_at
+        recent = form_by_team.get(standing.team_id, [])
         table.rows.append(
             TableEntry(
                 position=standing.position,
@@ -584,7 +618,8 @@ async def league_tables(
                 goals_against=standing.goals_against,
                 goal_difference=standing.goals_for - standing.goals_against,
                 points=standing.points,
-                form=standing.form,
+                form=form_string(recent) or standing.form,
+                recent=recent,
             )
         )
     return [tables[slug] for slug in slugs if slug in tables]

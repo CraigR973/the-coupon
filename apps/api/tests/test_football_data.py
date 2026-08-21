@@ -18,13 +18,15 @@ from __future__ import annotations
 
 import os
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from typing import Any
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import event, select
+from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import AsyncSessionLocal
@@ -33,10 +35,12 @@ from src.models.standing import Standing
 from src.services.fake_football import (
     ARSENAL,
     CHELSEA,
+    EVERTON,
     LIVERPOOL,
     SAMPLE_EPL,
     SAMPLE_SEASON,
     SAMPLE_SL2,
+    SPURS,
     FakeFootballData,
 )
 from src.services.football_data import (
@@ -289,6 +293,34 @@ async def _as_of(session: AsyncSession, competition: CompetitionKey) -> datetime
         select(Standing.updated_at).where(Standing.competition_id == competition.slug)
     )
     return max(rows.scalars().all())
+
+
+@contextmanager
+def counted_statements() -> Iterator[list[str]]:
+    """Every SQL statement executed inside the block.
+
+    The section above counts *upstream* requests because the provider allows a hundred a
+    day. This counts database round trips for the same kind of reason: the football
+    screen reads every competition in the pool in one call, so anything per-club in a
+    read here is a query multiplied by twenty clubs and then by thirty divisions.
+    """
+    seen: list[str] = []
+
+    def record(
+        conn: Any,
+        cursor: Any,
+        statement: str,
+        parameters: Any,
+        context: Any,
+        executemany: bool,
+    ) -> None:
+        seen.append(statement)
+
+    event.listen(Engine, "before_cursor_execute", record)
+    try:
+        yield seen
+    finally:
+        event.remove(Engine, "before_cursor_execute", record)
 
 
 # Far enough ahead that the pool a run sees is only ever the one the test built.
@@ -627,13 +659,104 @@ async def test_a_table_comes_back_in_position_order(session: AsyncSession) -> No
     epl = _epl(uuid.uuid4().hex[:8])
     await sync_competition(session, CountingFootballData.with_sample_data(), epl, SAMPLE_SEASON)
 
-    (table,) = await league_tables(session, [epl], SAMPLE_SEASON)
+    (table,) = await league_tables(session, [epl], SAMPLE_SEASON, form_matches=5)
 
     assert [row.position for row in table.rows] == [1, 2, 3, 4, 5]
     assert table.rows[0].team == ARSENAL[1]
     assert table.rows[0].points == 26 * 3 + 8
     assert table.rows[0].goal_difference == 84 - 32
     assert table.updated_at is not None
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_table_row_opens_onto_the_matches_its_form_line_is_made_of(
+    session: AsyncSession,
+) -> None:
+    """Batch 53 — the pips on a table row are now a disclosure, so what is behind them
+    has to be the same football the letters describe."""
+    epl = _epl(uuid.uuid4().hex[:8])
+    await sync_competition(session, CountingFootballData.with_sample_data(), epl, SAMPLE_SEASON)
+
+    (table,) = await league_tables(session, [epl], SAMPLE_SEASON, form_matches=5)
+
+    arsenal = next(row for row in table.rows if row.team == ARSENAL[1])
+    # Four canned matches, newest first: Chelsea (a), Spurs (h), Liverpool (a), Everton (h).
+    assert [(match.opponent, match.home) for match in arsenal.recent] == [
+        (CHELSEA[1], False),
+        (SPURS[1], True),
+        (LIVERPOOL[1], False),
+        (EVERTON[1], True),
+    ]
+    # Goals are for-and-against from this club's side, whichever end it played at.
+    assert (arsenal.recent[0].goals_for, arsenal.recent[0].goals_against) == (1, 0)
+    assert (arsenal.recent[3].goals_for, arsenal.recent[3].goals_against) == (3, 0)
+    # And the letters agree with the rows they open onto, rather than with the table
+    # string the provider wrote from a different call.
+    assert arsenal.form == form_string(arsenal.recent) == "WDWW"
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_form_on_a_table_is_trimmed_to_the_configured_number_of_matches(
+    session: AsyncSession,
+) -> None:
+    epl = _epl(uuid.uuid4().hex[:8])
+    await sync_competition(session, CountingFootballData.with_sample_data(), epl, SAMPLE_SEASON)
+
+    (table,) = await league_tables(session, [epl], SAMPLE_SEASON, form_matches=2)
+
+    arsenal = next(row for row in table.rows if row.team == ARSENAL[1])
+    assert [match.opponent for match in arsenal.recent] == [CHELSEA[1], SPURS[1]]
+    assert arsenal.form == "WW"
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_whole_table_costs_one_query_for_its_form_however_many_clubs_it_holds(
+    session: AsyncSession,
+) -> None:
+    """One statement for the table, one for every club's form — not one per club.
+
+    A per-club form query would be invisible on the five-row canned table and ruinous on
+    the real screen, which reads every division in the pool at once.
+    """
+    epl = _epl(uuid.uuid4().hex[:8])
+    await sync_competition(session, CountingFootballData.with_sample_data(), epl, SAMPLE_SEASON)
+    await session.flush()  # so the read below is not counting an autoflush of ingestion
+
+    with counted_statements() as statements:
+        (table,) = await league_tables(session, [epl], SAMPLE_SEASON, form_matches=5)
+
+    assert len(table.rows) == 5
+    assert all(row.recent for row in table.rows)
+    assert len(statements) == 2
+
+    with counted_statements() as without_form:
+        (bare,) = await league_tables(session, [epl], SAMPLE_SEASON, form_matches=0)
+
+    assert [row.recent for row in bare.rows] == [[]] * 5
+    assert len(without_form) == 1
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_club_with_a_table_line_but_no_stored_matches_keeps_its_pips_and_opens_nothing(
+    session: AsyncSession,
+) -> None:
+    """The provider writes a form string on the table row itself, and it can outlive the
+    matches behind it — a club ingested from `/standings` before any result was carried.
+    The letters still show; the disclosure has nothing to open and the client leaves it
+    inert rather than opening an empty panel."""
+    epl = _epl(uuid.uuid4().hex[:8])
+    provider = CountingFootballData(tables=_table_of(("af-991", "Nowhere United")))
+    await sync_competition(session, provider, epl, SAMPLE_SEASON)
+
+    (table,) = await league_tables(session, [epl], SAMPLE_SEASON, form_matches=5)
+
+    (row,) = table.rows
+    assert row.recent == []
+    assert row.form == "WDLWW"  # the string `_table_of` gave the provider
 
 
 @pytest_db
@@ -646,7 +769,7 @@ async def test_a_competition_with_nothing_stored_is_omitted_rather_than_empty(
     epl, cup = _epl(tag), _cup(tag)
     await sync_competition(session, CountingFootballData.with_sample_data(), epl, SAMPLE_SEASON)
 
-    tables = await league_tables(session, [epl, cup], SAMPLE_SEASON)
+    tables = await league_tables(session, [epl, cup], SAMPLE_SEASON, form_matches=5)
 
     assert [table.competition_id for table in tables] == [epl.slug]
 
@@ -657,7 +780,7 @@ async def test_a_season_that_was_never_ingested_reads_empty(session: AsyncSessio
     epl = _epl(uuid.uuid4().hex[:8])
     await sync_competition(session, CountingFootballData.with_sample_data(), epl, SAMPLE_SEASON)
 
-    assert await league_tables(session, [epl], SAMPLE_SEASON + 1) == []
+    assert await league_tables(session, [epl], SAMPLE_SEASON + 1, form_matches=5) == []
 
 
 @pytest_db
@@ -750,5 +873,5 @@ async def test_reading_a_slate_of_no_fixtures_asks_the_database_nothing(
     session: AsyncSession,
 ) -> None:
     assert await fixture_context(session, [], season=SAMPLE_SEASON, form_matches=5) == {}
-    assert await league_tables(session, [], SAMPLE_SEASON) == []
+    assert await league_tables(session, [], SAMPLE_SEASON, form_matches=5) == []
     assert await recent_results(session, [], limit=10) == []

@@ -119,7 +119,16 @@ export interface TableEntry {
   goals_against: number;
   goal_difference: number;
   points: number;
+  /** Most recent **last**, e.g. `"LWWDW"` — the order every football table prints. */
   form: string;
+  /**
+   * The matches behind the form line, most recent **first** (Batch 53).
+   *
+   * Optional, unlike `TeamContext.recent`: Vercel deploys this app from `main` on merge
+   * while the API waits for `/ship-prod`, so for that window the table arrives without
+   * it. Absent and empty mean the same thing here — pips that do not open.
+   */
+  recent?: FormMatch[];
 }
 
 /** One competition's table — GET /football/tables. */

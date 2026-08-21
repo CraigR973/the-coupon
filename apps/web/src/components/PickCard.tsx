@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Check, Loader2 } from 'lucide-react';
 import type {
   FixtureSlate,
@@ -8,7 +9,7 @@ import type {
   TeamContext,
 } from '../lib/types';
 import { Badge } from './ui/badge';
-import { FormLine, ordinal } from './FormLine';
+import { FormLine, FormMatches, ordinal } from './FormLine';
 import {
   formatOdds,
   marketLabel,
@@ -59,13 +60,23 @@ function worthShowing(team: TeamContext | null | undefined): boolean {
  * The club is named only to screen readers: sighted readers get it from the column
  * (home left, away right, matching the line above), and repeating both names here
  * would double the card's text for no added meaning.
+ *
+ * The form run opens onto its matches when the club has any stored, but the panel is
+ * not rendered here — this cell is half a card wide, and a list of results does not
+ * fit in it. `PickCard` places it under the whole header instead.
  */
 function TeamContextLine({
   team,
   align = 'left',
+  expanded,
+  onToggle,
+  controls,
 }: {
   team: TeamContext | null;
   align?: 'left' | 'right';
+  expanded?: boolean;
+  onToggle?: () => void;
+  controls?: string;
 }) {
   // An empty cell rather than nothing, so one club's missing data cannot slide the
   // other's under the wrong name.
@@ -82,7 +93,13 @@ function TeamContextLine({
           {ordinal(team.position)}
         </span>
       )}
-      <FormLine form={team.form} team={team.name} />
+      <FormLine
+        form={team.form}
+        team={team.name}
+        expanded={expanded}
+        onToggle={onToggle}
+        controls={controls}
+      />
     </div>
   );
 }
@@ -117,6 +134,10 @@ export function PickCard({
   onGrab,
 }: PickCardProps) {
   const kickoffLocal = formatInstant(fixture.kickoff_utc, timezone, 'EEE d MMM, HH:mm') ?? '';
+  // One club's form open at a time (Batch 53). Two panels stacked under a two-column
+  // header would be twice the height for a comparison the reader can already make from
+  // the pips; opening the other side closes this one.
+  const [openSide, setOpenSide] = useState<'home' | 'away' | null>(null);
 
   const byMarket = new Map<PickMarket, SelectionOption[]>();
   for (const sel of fixture.selections) {
@@ -130,6 +151,16 @@ export function PickCard({
   // (a cup has no table; a promoted side starts a season with no form). Nothing to
   // show means no strip at all rather than an empty row.
   const hasContext = worthShowing(fixture.context?.home) || worthShowing(fixture.context?.away);
+  const panelId = (side: 'home' | 'away') => `form-matches-${fixture.fixture_id}-${side}`;
+  // A club can hold a table position and a provider form string with no matches stored
+  // behind it. Those pips stay a graphic rather than becoming a control that opens
+  // nothing.
+  const toggleFor = (side: 'home' | 'away') => {
+    const team = fixture.context?.[side];
+    if (!team || team.recent.length === 0) return undefined;
+    return () => setOpenSide((current) => (current === side ? null : side));
+  };
+  const openTeam = openSide ? (fixture.context?.[openSide] ?? null) : null;
 
   return (
     <div
@@ -163,11 +194,34 @@ export function PickCard({
         </p>
         {hasContext && (
           <div className="contents" data-testid={`fixture-context-${fixture.fixture_id}`}>
-            <TeamContextLine team={fixture.context?.home ?? null} />
-            <TeamContextLine team={fixture.context?.away ?? null} align="right" />
+            <TeamContextLine
+              team={fixture.context?.home ?? null}
+              expanded={openSide === 'home'}
+              onToggle={toggleFor('home')}
+              controls={panelId('home')}
+            />
+            <TeamContextLine
+              team={fixture.context?.away ?? null}
+              align="right"
+              expanded={openSide === 'away'}
+              onToggle={toggleFor('away')}
+              controls={panelId('away')}
+            />
           </div>
         )}
       </div>
+
+      {/* The matches behind the open club's pips (Batch 53), the full width of the card
+          rather than the half-column the run itself sits in. */}
+      {openSide && openTeam && (
+        <FormMatches
+          matches={openTeam.recent}
+          team={openTeam.name}
+          timezone={timezone}
+          id={panelId(openSide)}
+          className="mb-3"
+        />
+      )}
 
       {/* Fixture-level marker: who has taken anything on this game */}
       {claimed && (

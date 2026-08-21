@@ -60,10 +60,16 @@ async def competition_tables(
 
     "Every competition" means every one some league's card has covered, which is what the
     pool holds; it is not every competition in Britain.
+
+    Each row carries the matches behind its form line (Batch 53), on the same
+    ``football_form_matches`` setting the pick screen uses, and for one more query over
+    the whole read — see :func:`~src.services.football_data.league_tables`.
     """
     competitions = await pooled_competitions(db)
     wanted = season_or_default(season or settings.football_season)
-    return await league_tables(db, competitions, wanted)
+    return await league_tables(
+        db, competitions, wanted, form_matches=settings.football_form_matches
+    )
 
 
 @router.get("/results", response_model=list[ResultEntry])

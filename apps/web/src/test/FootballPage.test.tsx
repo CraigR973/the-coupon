@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LeagueProvider } from '@/contexts/LeagueContext';
 import { FootballPage } from '@/pages/FootballPage';
-import type { CompetitionTable, ResultEntry } from '@/lib/types';
+import type { CompetitionTable, FormMatch, ResultEntry } from '@/lib/types';
 
 const MOCK_LEAGUE = {
   slug: 'the-coupon',
@@ -226,6 +226,88 @@ describe('FootballPage — tables', () => {
     const formCell = row.querySelector('td:last-child');
     expect(formCell?.className).not.toMatch(/\bhidden\b/);
     expect(screen.getAllByLabelText(/Arsenal FC form, oldest first/)[0]).toBeTruthy();
+  });
+});
+
+// ── Opening a table row's form (Batch 53) ─────────────────────────────────────
+//
+// `recent` is optional on `TableEntry` and the shared fixture above omits it, which is
+// also the deploy-gap case: Vercel ships this app from `main` while the API waits for
+// `/ship-prod`, so for that window every row arrives without it and every run of pips
+// stays the graphic it was.
+
+const ARSENAL_RECENT: FormMatch[] = [
+  {
+    match_id: 'm107',
+    kickoff_utc: '2026-05-02T14:00:00Z',
+    opponent: 'Chelsea FC',
+    home: false,
+    goals_for: 1,
+    goals_against: 0,
+    result: 'W',
+  },
+  {
+    match_id: 'm105',
+    kickoff_utc: '2026-04-25T14:00:00Z',
+    opponent: 'Tottenham Hotspur FC',
+    home: true,
+    goals_for: 2,
+    goals_against: 1,
+    result: 'W',
+  },
+];
+
+const TABLES_WITH_FORM: CompetitionTable[] = [
+  {
+    ...TABLES[0],
+    rows: TABLES[0].rows.map((row) =>
+      row.team_id === 't-arsenal' ? { ...row, form: 'WW', recent: ARSENAL_RECENT } : row,
+    ),
+  },
+];
+
+describe('FootballPage — opening a table row’s form', () => {
+  it('opens the matches behind the pips in a row of their own', async () => {
+    stubFetch({ tables: TABLES_WITH_FORM });
+    renderPage();
+    const table = await screen.findByTestId('league-table-england-premier-league');
+
+    fireEvent.click(within(table).getByLabelText(/Arsenal FC form, oldest first/));
+
+    const panel = screen.getByRole('list', { name: /Arsenal FC recent results/ });
+    expect(within(panel).getAllByRole('listitem').length).toBe(2);
+    expect(panel.textContent).toContain('Tottenham Hotspur FC');
+
+    // Across the whole table rather than inside the Form cell, which is five pips wide
+    // on a phone and would push the table into sideways scrolling.
+    const panelRow = within(table).getByTestId('form-matches-row-t-arsenal');
+    expect(panelRow.contains(panel)).toBe(true);
+    expect(panelRow.querySelector('td')?.getAttribute('colspan')).toBe('9');
+    expect(within(table).getByTestId('table-row-t-arsenal').contains(panel)).toBe(false);
+  });
+
+  it('closes it again, and opens only one club at a time', async () => {
+    stubFetch({ tables: TABLES_WITH_FORM });
+    renderPage();
+    const table = await screen.findByTestId('league-table-england-premier-league');
+    const pips = within(table).getByLabelText(/Arsenal FC form, oldest first/);
+
+    fireEvent.click(pips);
+    expect(pips.getAttribute('aria-expanded')).toBe('true');
+
+    fireEvent.click(pips);
+    expect(pips.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('list', { name: /recent results/ })).toBeNull();
+  });
+
+  it('leaves a row with a form string but no stored matches inert', async () => {
+    stubFetch({ tables: TABLES_WITH_FORM });
+    renderPage();
+    const table = await screen.findByTestId('league-table-england-premier-league');
+
+    const chelsea = within(table).getByLabelText(/Chelsea FC form, oldest first/);
+    expect(chelsea.tagName).not.toBe('BUTTON');
+    expect(chelsea.getAttribute('role')).toBe('img');
   });
 });
 

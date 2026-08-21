@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { CompetitionTable } from '../lib/types';
-import { FormLine } from './FormLine';
+import { FormLine, FormMatches } from './FormLine';
 import { formatInstant } from '../lib/time';
 import { cn } from '../lib/utils';
 
@@ -25,9 +25,15 @@ export interface LeagueTableCardProps {
  * The "as of" line is not decoration. Nothing here is live: a scheduled job writes
  * these rows and every screen reads them, so a table can legitimately be a day old
  * and saying so is better than implying otherwise.
+ *
+ * A form run opens onto the matches behind it (Batch 53) in a row spanning the whole
+ * table rather than inside the Form cell: the cell is five pips wide on a phone, and a
+ * list of results in it would push the table into sideways scrolling — undoing the one
+ * thing the hidden columns above are there to protect.
  */
 export function LeagueTableCard({ table, timezone, defaultOpen = true }: LeagueTableCardProps) {
   const [open, setOpen] = useState(defaultOpen);
+  const [openTeamId, setOpenTeamId] = useState<string | null>(null);
 
   return (
     <section data-testid={`league-table-${table.competition_id}`}>
@@ -78,34 +84,68 @@ export function LeagueTableCard({ table, timezone, defaultOpen = true }: LeagueT
                 </tr>
               </thead>
               <tbody>
-                {table.rows.map((row) => (
-                  <tr
-                    key={row.team_id}
-                    className="border-b border-border/50 last:border-0"
-                    data-testid={`table-row-${row.team_id}`}
-                  >
-                    <td className="py-2 pl-3 text-right font-mono text-xs tabular-nums text-text-muted">
-                      {row.position}
-                    </td>
-                    <th
-                      scope="row"
-                      className="max-w-[10rem] truncate py-2 pl-2 text-left font-medium text-text-primary"
-                    >
-                      {row.team}
-                    </th>
-                    <NumberCell value={row.played} narrowHidden />
-                    <NumberCell value={row.won} narrowHidden />
-                    <NumberCell value={row.drawn} narrowHidden />
-                    <NumberCell value={row.lost} narrowHidden />
-                    <NumberCell value={signed(row.goal_difference)} narrowHidden />
-                    <td className="px-2 py-2 text-right font-mono text-xs font-semibold tabular-nums text-text-primary">
-                      {row.points}
-                    </td>
-                    <td className="py-2 pl-3 pr-3">
-                      <FormLine form={row.form} team={row.team} />
-                    </td>
-                  </tr>
-                ))}
+                {table.rows.map((row) => {
+                  const recent = row.recent ?? [];
+                  const expanded = openTeamId === row.team_id;
+                  const panelId = `form-matches-${table.competition_id}-${row.team_id}`;
+                  return (
+                    <Fragment key={row.team_id}>
+                      <tr
+                        className="border-b border-border/50 last:border-0"
+                        data-testid={`table-row-${row.team_id}`}
+                      >
+                        <td className="py-2 pl-3 text-right font-mono text-xs tabular-nums text-text-muted">
+                          {row.position}
+                        </td>
+                        <th
+                          scope="row"
+                          className="max-w-[10rem] truncate py-2 pl-2 text-left font-medium text-text-primary"
+                        >
+                          {row.team}
+                        </th>
+                        <NumberCell value={row.played} narrowHidden />
+                        <NumberCell value={row.won} narrowHidden />
+                        <NumberCell value={row.drawn} narrowHidden />
+                        <NumberCell value={row.lost} narrowHidden />
+                        <NumberCell value={signed(row.goal_difference)} narrowHidden />
+                        <td className="px-2 py-2 text-right font-mono text-xs font-semibold tabular-nums text-text-primary">
+                          {row.points}
+                        </td>
+                        <td className="py-2 pl-3 pr-3">
+                          <FormLine
+                            form={row.form}
+                            team={row.team}
+                            expanded={expanded}
+                            onToggle={
+                              recent.length > 0
+                                ? () =>
+                                    setOpenTeamId((current) =>
+                                      current === row.team_id ? null : row.team_id,
+                                    )
+                                : undefined
+                            }
+                            controls={panelId}
+                          />
+                        </td>
+                      </tr>
+                      {expanded && recent.length > 0 && (
+                        <tr
+                          className="border-b border-border/50 last:border-0"
+                          data-testid={`form-matches-row-${row.team_id}`}
+                        >
+                          <td colSpan={9} className="px-3 pb-2">
+                            <FormMatches
+                              matches={recent}
+                              team={row.team}
+                              timezone={timezone}
+                              id={panelId}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

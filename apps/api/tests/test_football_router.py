@@ -240,6 +240,27 @@ async def test_a_table_comes_back_in_position_order(client: AsyncClient, seed: S
 
 
 @pytest.mark.asyncio
+async def test_every_row_carries_the_matches_behind_its_form_line(
+    client: AsyncClient, seed: Seed
+) -> None:
+    """Batch 53 — the pips on a table row open, so the endpoint has to serve what is
+    behind them. One pip per match, both ways round: a row whose letters outnumbered its
+    matches would open onto a panel that answers a different question."""
+    response = await client.get(
+        TABLES_URL, params={"season": SAMPLE_SEASON}, headers=seed.auth(seed.member)
+    )
+
+    assert response.status_code == 200
+    (table,) = (t for t in response.json() if t["competition_id"] == seed.played.slug)
+    assert all(len(row["recent"]) == len(row["form"]) for row in table["rows"])
+
+    arsenal = next(row for row in table["rows"] if row["team"] == "Arsenal FC")
+    newest = arsenal["recent"][0]
+    assert (newest["opponent"], newest["home"]) == ("Chelsea FC", False)
+    assert (newest["goals_for"], newest["goals_against"], newest["result"]) == (1, 0, "W")
+
+
+@pytest.mark.asyncio
 async def test_a_season_with_nothing_ingested_is_empty_rather_than_an_error(
     client: AsyncClient, seed: Seed
 ) -> None:
