@@ -1232,7 +1232,7 @@ answered until it lands, because until then there is no data to look at.
   keeps its cadence-union-off-cadence behaviour exactly as Batch 35 left it; this batch
   adds a second, cheaper entry point to the same machinery and an endpoint in front of it.
 
-- [ ] **Batch 48 — The pick screen dies when the odds provider says no** — `_live_odds`
+- [x] **Batch 48 — The pick screen dies when the odds provider says no** ✅ 2026-08-21 *(Opus)* — `_live_odds`
   (`gameweek.py:403`) calls `fetch_odds` with no fallback, so any provider failure
   propagates and `GET /leagues/{slug}/gameweek/current` returns **500**. The core screen
   of the product — the one every member opens to make their pick — has its availability

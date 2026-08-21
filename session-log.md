@@ -1201,3 +1201,45 @@ run against `tests/e2e_server` on a scratch Postgres
 
 **Next:** Batch 48 — the pick screen dies when the odds provider says no. This batch is
 API-side, so it is invisible in production until a `/ship-prod` runs.
+
+## Batch 48 — The pick screen dies when the odds provider says no
+**Commits:** `1f16873` · verified: `scripts/ci-local.sh` PASS (11 checks) — 647 pytest
+with a database (508 without), Ruff 0.5.4 check/format, strict mypy, clean `pgserver`
+through `015`, 357 Vitest, Node 20 build, prod-bundle Playwright
+
+### Key facts for future sessions
+- **The fallback lives behind the port, not in the router.** `fetch_odds_best_effort`
+  returns `OddsSnapshot(odds, degraded)` and never raises: the base implementation on
+  `OddsProvider` degrades to *no* prices, and `CachingOddsProvider` overrides it to serve
+  the entries it is already holding past their TTL. `fetch_odds` is untouched and still
+  raises, which is the whole of "browsing degrades, picking must not" — the two
+  request-path callers get opposite treatment without the router knowing which provider
+  it holds.
+- **A failed refresh must not restamp the entries**, or recovery would wait a full TTL
+  instead of a page load. The corollary is that a degraded slate re-attempts upstream on
+  *every* load (one chunked sweep each). Fail-fast on `429` is what makes that
+  affordable; no failure cooldown was added, and that is the thing to reach for if a
+  long outage ever proves it needs one.
+- **A FastAPI dependency override must close over its instance, never take a default
+  argument.** `lambda cached=CachingOddsProvider(...): cached` is read as a *query
+  parameter*, and pydantic deep-copies the default per request — so every request got its
+  own empty cache and the warm-cache test proved nothing while appearing to pass. That
+  cost a red before it was spotted.
+- **`429` is now terminal in `OddsApiProvider._get`.** `betfair.py` and `api_football.py`
+  still retry it — deliberately out of scope, and neither is the production odds source.
+  Settlement inherits the change: a rate-limited settle run now fails on its first
+  attempt and waits for the next scheduled tick rather than spending 4x the quota to
+  fail anyway.
+- **The pick submit path answers `503 ODDS_UNAVAILABLE`** where an unreachable provider
+  used to be an unhandled 500. Still a refusal, still loud, but one the client can name —
+  `pickErrorMessage` says the pick was *not saved*, which a generic error did not.
+- **app-starter's venv can no longer run this suite.** It has no Pillow, so ten test
+  files fail at collection through `avatar_storage.py`, and it ships fastapi 0.139
+  against the pinned 0.111. `scripts/ci-local.sh` (venv at `~/.cache/the-coupon/`) is the
+  real gate; `AGENTS.md` and `docs/agent-commands/batch-verify.md` still document the old
+  path and are wrong.
+
+**Next:** no unchecked batches remain in `docs/BUILD_PLAN.md`. Launch L5 — launch and
+first-Saturday watch — is the remaining work. This batch changes both halves, so the web
+banner deploys on merge while the API fallback waits for a `/ship-prod`; until then the
+flag is simply absent and the client reads that as "not degraded".

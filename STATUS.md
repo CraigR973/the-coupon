@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-47 are closed. The Coupon is a verified
+Batches 1-48 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -149,8 +149,8 @@ divisions fully priced.
 
 **Production runs `16a64eff` on both stacks as of 2026-08-21**, at migration
 `015` — Railway `8201bfac`, Vercel `dpl_2PU8zAe4emT5LXWhgNefPmV4kAna`. Since the
-Batch 47 close-out **`main` is ahead of the API**: that batch is API-side and
-owes a `/ship-prod`. That shipment carried Batch 46 and the
+Batch 48 close-out **`main` is ahead of the API**: Batches 47 and 48 both owe a
+`/ship-prod`. The last shipment carried Batch 46 and the
 pinned dependency closure, and took 90 seconds. `/api/v1/health` reports that commit and the
 migration head bundled in the image, so `scripts/check-deploy-drift.sh` answers
 exactly (`in sync`) rather than falling back to probing. `ODDS_API_KEY` is
@@ -482,18 +482,42 @@ stamped as created, and a locked or settled round is skipped rather than rebuilt
 No migration, and `discover_fixtures` keeps its cadence-union-off-cadence
 behaviour exactly as Batch 35 left it.
 
+Batch 48 stopped the pick screen dying with the odds provider. `_live_odds` called
+`fetch_odds` with no fallback, so any provider failure propagated and
+`GET /leagues/{slug}/gameweek/current` returned 500 — the screen every member opens to
+make their pick had its availability wired to a third party's rate limit. Observed in
+production on 2026-08-21, the day before launch, when `/odds/multi` answered `429` and
+the Football tab beside it kept working because it reads only the database. The cache
+already held the remedy: when an upstream call raises, its entries are still there,
+merely past their TTL. `fetch_odds_best_effort` catches the failure and falls through to
+them, returning an `OddsSnapshot(odds, degraded)` — last known prices, or a card with no
+prices at all, which still shows the fixtures. **The pick path is untouched and still
+raises**, because a winner scores `round(odds x 10)` from the price frozen at that
+instant, so a stale one is not a degraded pick but a wrong score; an unreachable provider
+now refuses the submission with `503 ODDS_UNAVAILABLE` rather than crashing. `_get` no
+longer retries a `429`: retrying "you are over budget" is the one response guaranteed to
+keep you over it, and the three retries with doubling backoff turned a single rate-limited
+slate load into four upstream calls, which is how that afternoon's breach sustained
+itself. 5xx and network errors retry as before. The slate carries `odds_degraded` and the
+pick screen says "prices may be out of date" — additive and optional, because Vercel
+deploys `main` on merge while the API waits for `/ship-prod`. No schema change, and the
+TTL tiers are untouched.
+
 ## Verified
 
-- Backend: 635 pytest with a database (499 without one), Ruff check/format, and
-  strict mypy; Batch 47 close-out passed `scripts/ci-local.sh` end-to-end
-  (11 checks), as every close-out since Batch 26 has
+- Backend: 647 pytest with a database (508 without one), Ruff check/format, and
+  strict mypy; Batch 48 close-out passed `scripts/ci-local.sh` end-to-end
+  (11 checks), as every close-out since Batch 26 has. That script's pinned venv **is**
+  the gate: app-starter's venv can no longer even collect the suite (no Pillow, so
+  `avatar_storage.py` takes ten test files down with it) and `AGENTS.md` plus
+  `docs/agent-commands/batch-verify.md` still document that stale path
 - Database: clean `pgserver` migration through revision `013`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 18 public tables under a Supabase-like role setup. The count was 13 at
   revision `004`; `009`-`013` added the rest, and every one of the 18 was
   confirmed RLS-enabled *and* forced against production on 2026-08-19, with
   `anon`, `authenticated` and `PUBLIC` holding no table privileges and no schema
   `USAGE`
-- Frontend: Node 20 production build, TypeScript, ESLint, and 355 Vitest, the
+- Frontend: Node 20 production build, TypeScript, ESLint, and 357 Vitest, the
   suite now pinned to a non-UTC zone (`America/New_York`) so an instant parsed
   as local time cannot pass unnoticed
 - Browser: production-bundle smoke plus the full live staging story, including
@@ -541,17 +565,18 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries one unchecked batch: **Batch 48 — the pick screen
-dies when the odds provider says no.** `_live_odds` calls `fetch_odds` with no
-fallback, so a provider failure makes `GET /leagues/{slug}/gameweek/current`
-return 500; observed in production on 2026-08-21 when `/odds/multi` answered
-`429` and the Football tab beside it kept working because it reads only the
-database. Batch 47 closed the one before it: a league created at any hour but
-06:00 now gets its cadence rounds immediately, from the shared fixture pool and
-usually for no provider requests at all, with the same path exposed as a
-"refresh rounds" admin action. **Batch 47 is API-side and therefore not in
-production until a `/ship-prod` runs** — the web half (the Rounds card) deploys
-on merge and will call an endpoint the deployed API does not have.
+`docs/BUILD_PLAN.md` carries **no unchecked batches**. Batch 48 closed the last
+one: the pick screen no longer dies with the odds provider — a failed refresh is
+served from the cache's own entries with an `odds_degraded` flag instead of a
+500, the pick path still refuses rather than freezing a price it could not
+confirm, and a `429` is no longer retried into four. Batch 47 closed the one
+before it: a league created at any hour but 06:00 now gets its cadence rounds
+immediately, from the shared fixture pool and usually for no provider requests at
+all, with the same path exposed as a "refresh rounds" admin action. **Neither is
+in production until a `/ship-prod` runs.** Both deploy their web halves on merge:
+47's Rounds card will call an endpoint the deployed API does not have, and 48's
+"prices may be out of date" banner reads a field the deployed API does not send,
+which is the harmless half of that gap by design.
 
 Batch 46 added FotMob as a
 third implementation of the football port (ADR 0007) — the first source that
@@ -577,9 +602,11 @@ never held a row, so there are no mis-ingested rows to clear.
 Launch L5 — launch and first-Saturday watch — is the remaining launch work.
 Batch 7 shipped the odds source. Every closed batch through **46** is in
 production: the 2026-08-21 shipment of `16a64eff` carried it, after `33191ba2`
-carried Batches 43–45. **Batch 47 is not** — it is API-side and owes a
-`/ship-prod`, and until that runs the web half deployed by Vercel will call
-`POST /leagues/{slug}/gameweeks/refresh` on an API that answers 404. This is the
+carried Batches 43–45. **Batches 47 and 48 are not** — both owe a `/ship-prod`,
+and until that runs the web half deployed by Vercel will call
+`POST /leagues/{slug}/gameweeks/refresh` on an API that answers 404. Batch 48's
+own gap is benign in that window (an absent `odds_degraded` reads as "not
+degraded"), but the 500 it fixes is live until the API moves. This is the
 same shape as the paragraph that used to sit here — Batches 23–27 stranded on
 local `main` while home called an endpoint the deployed API did not have — which
 is why `scripts/check-deploy-drift.sh` runs at every close-out. What remains:
