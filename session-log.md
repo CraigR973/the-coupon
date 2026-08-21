@@ -1340,3 +1340,28 @@ alone. This batch is API-side as well as web, so the two halves separate on merg
 takes the new `/football` screen immediately while the deployed API still serves only the
 league-scoped endpoints, which the untied page does not call. **A `/ship-prod` is owed
 before the tab works in production.**
+
+## Batch 52 — A table that hides the column it exists to show
+**Commits:** `6b1950c` · verified: pnpm lint (0 errors), typecheck, build, 369 Vitest — all
+green. Frontend-only batch (scope boundary: no API change, both fields already served), so
+the backend gate and browser checks are out of scope.
+
+### Key facts for future sessions
+- **Batch 51's "Next" note calling this batch API-side was wrong** — both `form` and
+  `competition`/`competition_id` were already served on `CompetitionTable` and
+  `ResultEntry`; nothing needed adding on the API side.
+- **The narrow-width trade flipped, it didn't grow.** `LeagueTableCard` still hides four
+  columns below `sm`, just not the same four: Goal Difference now carries `narrowHidden`
+  and Form does not, since form is one of the two things a member opens the screen to read.
+- **`groupByDay` now nests a `Map<competition_id, CompetitionGroup>` inside the day map**,
+  so a Saturday across four competitions produces one heading per competition instead of
+  one undifferentiated eighty-match list. The per-row competition label only survives when
+  a day has exactly one competition, so a single-competition day doesn't grow a redundant
+  second heading.
+- **Precondition confirmed before starting: ingestion is still broken.**
+  `run_sync_football_data`'s docstring ([scheduler.py:259](apps/api/src/scheduler.py:259))
+  still records the 2026-08-20 all-competition failure; this batch improves the
+  presentation of what may currently be an empty screen, and that's expected — no ingestion
+  change was in scope.
+
+**Next:** Batch 53 — form pips that open into the matches behind them.

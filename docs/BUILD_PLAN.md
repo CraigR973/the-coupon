@@ -1426,7 +1426,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: **no ingestion change and no migration.** `pooled_competitions`,
   `sync_football_data` and the per-run cap stay exactly as Batch 45 left them.
 
-- [ ] **Batch 52 — A table that hides the column it exists to show** *(Sonnet)* — the Form column is
+- [x] **Batch 52 — A table that hides the column it exists to show** ✅ 2026-08-21 *(Sonnet)* — the Form column is
   already built and already populated (`LeagueTableCard.tsx:74` and `:103`), and then
   `hidden sm:table-cell` takes it away on every phone. The card's docstring defends that
   trade for played/won/drawn/lost — points must stay visible without sideways scrolling —

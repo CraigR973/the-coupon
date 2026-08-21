@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-51 are closed. The Coupon is a verified
+Batches 1-52 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -560,6 +560,17 @@ the narrowest phone. One limit is recorded in the empty states: the pool holds
 only competitions some league's card has drawn from, so "untied" means every
 competition we have ever ingested, not every competition in Britain.
 
+Batch 52 fixed two omissions the football screen's own docstrings named, frontend-only.
+`LeagueTableCard` hid Form below `sm` to keep played/won/drawn/lost on screen without
+sideways scrolling — the right call for those four counts, wrong for form, which is a
+glanceable five-glyph run and one of the two things a member opens the screen to read.
+Goal Difference now carries the `narrowHidden` flag instead; Form does not. Results were
+grouped by day alone, so a Saturday read as one undifferentiated column across every
+competition a member's coupon draws from; `groupByDay` now nests by `competition_id`
+within each day, with a competition heading only when a day actually holds more than one.
+Both fields — `form` and `competition`/`competition_id` — were already served, so no API
+change and no migration.
+
 ## Verified
 
 - Backend: 655 pytest with a database, Ruff check/format, and
@@ -574,7 +585,7 @@ competition we have ever ingested, not every competition in Britain.
   confirmed RLS-enabled *and* forced against production on 2026-08-19, with
   `anon`, `authenticated` and `PUBLIC` holding no table privileges and no schema
   `USAGE`
-- Frontend: Node 20 production build, TypeScript, ESLint, and 366 Vitest, the
+- Frontend: Node 20 production build, TypeScript, ESLint, and 369 Vitest, the
   suite now pinned to a non-UTC zone (`America/New_York`) so an instant parsed
   as local time cannot pass unnoticed
 - Browser: production-bundle smoke plus the full live staging story, including
@@ -622,10 +633,13 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **two unchecked batches**, 52-53, both about what the
-screens leave out rather than what the game gets wrong: a table that hides the
-Form column on every phone and results grouped by day alone (52); and form pips
-that discard the matches behind them despite already holding them (53).
+`docs/BUILD_PLAN.md` carries **one unchecked batch**, 53: form pips that discard
+the matches behind them despite already holding them.
+
+Batch 52 closed the one before that, frontend-only with no API change: the Form
+column no longer hides on a phone — Goal Difference drops instead — and results
+within a day now group by competition rather than reading as one undifferentiated
+column.
 
 Batch 51 closed the one before those: Football Stats no longer narrows to the
 competitions the reader's own league plays, and no longer lives under a slug.
