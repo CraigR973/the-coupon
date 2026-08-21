@@ -147,16 +147,17 @@ carries 30 UK leagues, 131 qualifying 15:00 fixtures, and 280 distinct priced
 selections against the 15 a full league needs, with both Scottish lower
 divisions fully priced.
 
-**Production runs `16a64eff` on both stacks as of 2026-08-21**, at migration
-`015` — Railway `8201bfac`, Vercel `dpl_2PU8zAe4emT5LXWhgNefPmV4kAna`. Since the
-Batch 48 close-out **`main` is ahead of the API**: Batches 47 and 48 both owe a
-`/ship-prod`. The last shipment carried Batch 46 and the
-pinned dependency closure, and took 90 seconds. `/api/v1/health` reports that commit and the
-migration head bundled in the image, so `scripts/check-deploy-drift.sh` answers
-exactly (`in sync`) rather than falling back to probing. `ODDS_API_KEY` is
-sealed and rotated, `ODDS_PROVIDER=oddsapi`, and `SCHEDULER_ENABLED=true`; the
-paragraph above about a Betfair build and an unsealed key described the state
-before the 2026-08-04 and 2026-08-06 shipments.
+**Production runs `1272dde` on both stacks as of 2026-08-21**, at migration
+`015` — Railway `854a24ec`, Vercel `dpl_FfGCr4FcbFaGnzaEzN33D6qAHFVE`. That
+shipment carried Batches 47 and 48, closing the gap the Batch 48 close-out had
+left: the new-league-rounds fix and the odds-provider-degradation fix are both
+now live, and `main` and the API agree again. `/api/v1/health` reports that
+commit and the migration head bundled in the image, so
+`scripts/check-deploy-drift.sh` answers exactly (`in sync`) rather than falling
+back to probing. `ODDS_API_KEY` is sealed and rotated, `ODDS_PROVIDER=oddsapi`,
+and `SCHEDULER_ENABLED=true`; the paragraph above about a Betfair build and an
+unsealed key described the state before the 2026-08-04 and 2026-08-06
+shipments.
 
 That shipment took 91 minutes for reasons that were **not** the build: Railway
 paused deploys platform-wide while the container was already running, so the
@@ -572,11 +573,10 @@ served from the cache's own entries with an `odds_degraded` flag instead of a
 confirm, and a `429` is no longer retried into four. Batch 47 closed the one
 before it: a league created at any hour but 06:00 now gets its cadence rounds
 immediately, from the shared fixture pool and usually for no provider requests at
-all, with the same path exposed as a "refresh rounds" admin action. **Neither is
-in production until a `/ship-prod` runs.** Both deploy their web halves on merge:
-47's Rounds card will call an endpoint the deployed API does not have, and 48's
-"prices may be out of date" banner reads a field the deployed API does not send,
-which is the harmless half of that gap by design.
+all, with the same path exposed as a "refresh rounds" admin action. **Both
+shipped to production on 2026-08-21** (`1272dde`, Railway `854a24ec`, Vercel
+`dpl_FfGCr4FcbFaGnzaEzN33D6qAHFVE`); the gap where the API lagged the web half
+is closed.
 
 Batch 46 added FotMob as a
 third implementation of the football port (ADR 0007) — the first source that
@@ -600,16 +600,11 @@ data cleanup is no longer owed: `teams`, `team_aliases`, `matches` and
 never held a row, so there are no mis-ingested rows to clear.
 
 Launch L5 — launch and first-Saturday watch — is the remaining launch work.
-Batch 7 shipped the odds source. Every closed batch through **46** is in
-production: the 2026-08-21 shipment of `16a64eff` carried it, after `33191ba2`
-carried Batches 43–45. **Batches 47 and 48 are not** — both owe a `/ship-prod`,
-and until that runs the web half deployed by Vercel will call
-`POST /leagues/{slug}/gameweeks/refresh` on an API that answers 404. Batch 48's
-own gap is benign in that window (an absent `odds_degraded` reads as "not
-degraded"), but the 500 it fixes is live until the API moves. This is the
-same shape as the paragraph that used to sit here — Batches 23–27 stranded on
-local `main` while home called an endpoint the deployed API did not have — which
-is why `scripts/check-deploy-drift.sh` runs at every close-out. What remains:
+Batch 7 shipped the odds source. Every closed batch through **48** is in
+production: the 2026-08-21 shipment of `1272dde` carried Batches 47–48, after
+`16a64eff` carried Batch 46 and `33191ba2` carried Batches 43–45. `main` and the
+deployed API agree — `scripts/check-deploy-drift.sh` answers `in sync`. What
+remains:
 
 - ~~seal `ODDS_API_KEY` into production and confirm `ODDS_PROVIDER=oddsapi`~~ — done;
 - ~~ship staging and then production~~ — production is at `33191ba2` / migration `015`;

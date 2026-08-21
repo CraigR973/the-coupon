@@ -610,6 +610,8 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-08-20 | Railway `api` | `88c4885c-21b5-429c-9726-532a98f7859f` | `33191ba2` (Batches 43–45) | `015` |
 | 2026-08-21 | Vercel web | `dpl_2PU8zAe4emT5LXWhgNefPmV4kAna` | `16a64eff` (Batch 46 + pinned deps) | — |
 | 2026-08-21 | Railway `api` | `8201bfac-aa5e-45db-bb6b-15f94193d9ac` | `16a64eff` (Batch 46 + pinned deps) | `015` |
+| 2026-08-21 | Vercel web | `dpl_FfGCr4FcbFaGnzaEzN33D6qAHFVE` | `1272dde` (Batches 47–48) | — |
+| 2026-08-21 | Railway `api` | `854a24ec-943b-409f-97bc-4a9e6caedc1a` | `1272dde` (Batches 47–48) | `015` |
 
 The 2026-08-19 shipment carries Batch 35 and is the **first API deployment since
 `013` that applies no migration**, which is what restores the rollback target the
@@ -648,6 +650,22 @@ origin with credentials enabled. Inside the container the pinned
 adapter loads and is selectable, and the live slate returns 137 fixtures with 115
 priced and 489 selections. A 314-line log review found zero secret-shaped matches
 and zero errors.
+
+The 2026-08-21 shipment of `1272dde` carries Batch 47 (a new league's rounds
+populate immediately from the shared fixture pool instead of waiting for the
+06:00 sweep) and Batch 48 (the pick screen serves stale cached odds rather than
+a 500 when the provider refuses, and stops retrying a `429`). Neither batch
+touches the schema, so head stays `015` and `4b79e0a0` (see rollback baselines
+above) remains a bootable target. Vercel had already auto-deployed this commit
+before the API shipped, so section 4 was a no-op — confirmed by reading
+`githubCommitSha` from the Vercel API rather than inferring it from timing.
+Post-deploy checks: `/health` reports `1272dde` at `015`, `/health/ready`
+agrees with `db: ok`, the stable web root and a deep link return `200` with
+identical SPA asset and headers, and an `OPTIONS` preflight from the exact
+stable origin returns `200` with credentials enabled while a foreign origin is
+rejected with `400`. Startup logged a clean Alembic run, `Scheduler started`,
+and `Application startup complete`; a 33-line bounded log review found zero
+error/traceback and zero secret-shaped matches.
 
 The third 2026-08-20 shipment carries Batches 43–45 at `33191ba2` and **applies
 no migration** — head stays `015`, so `/ship-prod` step 1.7's forward-recovery-
@@ -775,13 +793,24 @@ explicit CLI path ran instead (see above).
 
 ### Current rollback baselines
 
-Updated after the 2026-08-21 shipment of `16a64eff` (Batch 46 and the pinned
-dependency closure, no migration).
+Updated after the 2026-08-21 shipment of `1272dde` (Batches 47–48, no
+migration).
 
 | Stack | Roll back to |
 | --- | --- |
-| Railway `api` | `88c4885c-21b5-429c-9726-532a98f7859f`, the predecessor of the live `8201bfac`. **Available** — it bundles head `015`, the same head the database is stamped at, so it can boot. Stable until the next `/ship-prod`. |
-| Vercel web | *The immediate predecessor of whatever is live* — read it, do not trust an id written here. As of 2026-08-21 00:08 that is `dpl_2PU8zAe4emT5LXWhgNefPmV4kAna`, behind the live `dpl_E9SpCWz6yKiEqXJDLB9XFdEfCxFM` — which is itself the docs commit recording this shipment, and will be superseded by the next push. Read the pair; do not trust these two ids. — and the commit recording this paragraph will already have superseded both. |
+| Railway `api` | `4b79e0a0-293f-4afd-a220-e00b346998d0`, the predecessor of the live `854a24ec`. **Available** — it bundles head `015`, the same head the database is stamped at, so it can boot. Stable until the next `/ship-prod`. |
+| Vercel web | *The immediate predecessor of whatever is live* — read it, do not trust an id written here. As of 2026-08-21 11:41 that is `dpl_CyJqDtkZti7JA67KHYFu2HV6zG5v`, behind the live `dpl_FfGCr4FcbFaGnzaEzN33D6qAHFVE` — which is itself the docs commit recording this shipment, and will be superseded by the next push. Read the pair; do not trust these two ids. — and the commit recording this paragraph will already have superseded both. |
+
+`4b79e0a0`, not the previously-recorded `8201bfac`, was the deployment actually
+live immediately before this shipment. Between the 08-21 `16a64eff` shipment
+recorded above and this one, Railway shows two further deployments at the same
+commit and head (`da7acc90` at 08:20:34 and `a137f792` at 08:23:05, both
+`reason: redeploy`, both now `REMOVED`) culminating in `4b79e0a0` at 08:28:04.
+Same image, same commit, same migration head throughout — nothing shipped
+between them — but the cause of the redeploys is not established from the
+Railway API available here. Recorded rather than glossed, per the standing
+rule that a written id is a snapshot, not a durable fact: read the live pair
+before trusting either.
 
 **The two rows age differently, and the Vercel one cannot be pinned.** The API
 deploys only by CLI, so its baseline moves only when `/ship-prod` runs. The web
