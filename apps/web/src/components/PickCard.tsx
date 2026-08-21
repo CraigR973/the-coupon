@@ -148,17 +148,21 @@ export function PickCard({
       </div>
 
       {/* Teams, with each club's table position and recent form beneath (Batch 16) */}
-      <div className="mb-3">
-        <p className="text-sm font-sans text-text-primary">
-          <span className="font-medium">{fixture.home}</span>
-          <span className="mx-1.5 text-text-muted">v</span>
-          <span className="font-medium">{fixture.away}</span>
+      <div
+        className="relative mb-3 grid grid-cols-2 items-baseline gap-2"
+        data-testid={`fixture-header-${fixture.fixture_id}`}
+      >
+        <p className="min-w-0 truncate pr-3 text-sm font-sans font-medium text-text-primary">
+          {fixture.home}
+        </p>
+        <span className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 text-sm text-text-muted">
+          v
+        </span>
+        <p className="min-w-0 truncate pl-3 text-right text-sm font-sans font-medium text-text-primary">
+          {fixture.away}
         </p>
         {hasContext && (
-          <div
-            className="mt-1.5 grid grid-cols-2 gap-2"
-            data-testid={`fixture-context-${fixture.fixture_id}`}
-          >
+          <div className="contents" data-testid={`fixture-context-${fixture.fixture_id}`}>
             <TeamContextLine team={fixture.context?.home ?? null} />
             <TeamContextLine team={fixture.context?.away ?? null} align="right" />
           </div>
@@ -279,9 +283,11 @@ function SelectionButton({
           <>
             taken by {firstName(sel.taken_by_name ?? 'someone')}
             {takenAtLabel ? <span className="normal-case"> · {takenAtLabel}</span> : null}
+            {' · '}
+            {potentialPoints(sel.odds)} pts
           </>
         ) : sel.mine ? (
-          'your pick'
+          <>your pick · {potentialPoints(sel.odds)} pts</>
         ) : (
           <>win {potentialPoints(sel.odds)} pts</>
         )}

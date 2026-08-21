@@ -61,6 +61,15 @@ describe('PickCard', () => {
     expect(draw.textContent).toContain('your pick');
   });
 
+  it('still shows the points on the caller’s own claimed selection', () => {
+    // Batch 50. `potentialPoints()` is a pure function of the displayed odds — it costs
+    // nothing to keep alongside "your pick", and it's the figure that tells the member
+    // what the game is worth to them.
+    renderCard();
+    const draw = screen.getByTestId('selection-fx1-MATCH_ODDS-DRAW');
+    expect(draw.textContent).toContain('35 pts'); // round(3.5 * 10)
+  });
+
   it('shows a selection held by another member as unavailable', () => {
     const { onGrab } = renderCard();
     const away = screen.getByTestId('selection-fx1-MATCH_ODDS-AWAY') as HTMLButtonElement;
@@ -68,6 +77,12 @@ describe('PickCard', () => {
     expect(away.textContent).toContain('taken by Bob');
     fireEvent.click(away);
     expect(onGrab).not.toHaveBeenCalled();
+  });
+
+  it('still shows the points on a selection held by another member', () => {
+    renderCard();
+    const away = screen.getByTestId('selection-fx1-MATCH_ODDS-AWAY');
+    expect(away.textContent).toContain('32 pts'); // round(3.2 * 10)
   });
 
   it('says when a held selection was claimed', () => {
@@ -207,6 +222,21 @@ describe('PickCard — inline football context', () => {
     const formless: TeamContext = { ...FORFAR, position: null, form: '' };
     renderCard({ fixture: { ...FIXTURE, context: { home: formless, away: null } } });
     expect(screen.queryByTestId('fixture-context-fx1')).toBeNull();
+  });
+
+  it('puts each club’s form in its own grid column under differing name lengths', () => {
+    // Batch 50. The names row and the context row must be the same two-column grid, not
+    // an inline sentence over a separate grid — otherwise they align only by coincidence.
+    const longHome: TeamContext = { ...FORFAR, name: 'Forfar Athletic Football Club' };
+    renderCard({ fixture: { ...FIXTURE, context: { home: longHome, away: BRECHIN } } });
+
+    const namesRow = screen.getByTestId('fixture-header-fx1');
+    const strip = screen.getByTestId('fixture-context-fx1');
+    // Names row and context row are both direct grid children of the same container.
+    expect(namesRow).toBe(strip.parentElement);
+    expect(namesRow.className).toContain('grid-cols-2');
+    expect(within(strip).getByTestId('team-context-t-forfar')).toBeTruthy();
+    expect(within(strip).getByTestId('team-context-t-brechin')).toBeTruthy();
   });
 
   it('still renders every selection when the context is present', () => {

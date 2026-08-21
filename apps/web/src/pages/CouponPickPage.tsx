@@ -270,7 +270,7 @@ export function CouponPickPage() {
             </span>
           </p>
           <p className="mt-0.5 text-xs font-sans text-text-muted">
-            {myPick.fixture.home} v {myPick.fixture.away}
+            {myPick.fixture.competition} · {myPick.fixture.home} v {myPick.fixture.away}
           </p>
           {!locked && (
             <p className="mt-2 text-xs font-sans text-text-muted">Tap another selection below to switch.</p>

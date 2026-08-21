@@ -214,6 +214,14 @@ describe('CouponPickPage', () => {
     expect(within(summary).getByText('3.50')).toBeTruthy();
   });
 
+  it('names the competition on the caller’s current pick', async () => {
+    // Batch 50. CombinedAccaView already prints the competition on every leg —
+    // this summary was the one surface out of step with its neighbour.
+    renderPage();
+    const summary = await screen.findByTestId('my-pick-summary');
+    expect(within(summary).getByText(/Scottish League 2/)).toBeTruthy();
+  });
+
   it('shows the countdown-to-lock banner while the gameweek is open', async () => {
     renderPage();
     const banner = await screen.findByTestId('lock-banner');
