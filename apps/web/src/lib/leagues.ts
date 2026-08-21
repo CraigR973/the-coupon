@@ -22,10 +22,20 @@ export function privacyLabel(privacy: string): string {
   return PRIVACY_LABELS[privacy as LeaguePrivacy] ?? '';
 }
 
-/** The four coupon surfaces, as the suffix each adds to a league's predictions path. */
-export type PredictionsSection = '' | '/coupon' | '/results' | '/football';
+/** The three coupon surfaces, as the suffix each adds to a league's predictions path. */
+export type PredictionsSection = '' | '/coupon' | '/results';
 
-const PREDICTIONS_SECTIONS: readonly string[] = ['', '/coupon', '/results', '/football'];
+const PREDICTIONS_SECTIONS: readonly string[] = ['', '/coupon', '/results'];
+
+/**
+ * Football Stats, which is not one of them.
+ *
+ * It sat at `/leagues/:slug/predictions/football` until Batch 51 and narrowed to the
+ * competitions that league played — the subset of football the reader's own coupon
+ * happened to cover, which was never what the screen was for. Untied, it has no slug
+ * to be addressed at and no league to switch between, so it is a top-level route.
+ */
+export const FOOTBALL_PATH = '/football';
 
 /** `/leagues/:slug/predictions[/section]`, and the slug-less paths it replaced. */
 const PREDICTIONS_PATH = /^(?:\/leagues\/[^/]+)?\/predictions(\/[^/]+)?$/;
@@ -84,17 +94,22 @@ export function leagueSwitchPath(slug: string, pathname: string): string {
  * bound yet — a prefix built from the bound slug would flicker off for that frame.
  * `isLeagueHubPath` has to exclude them explicitly, because the coupon now lives
  * under `/leagues/` too and would otherwise light the Leagues tab as well.
+ *
+ * `isFootballPath` needs none of that since Batch 51: Football Stats has exactly
+ * one address, and no league to be ahead of.
  */
 export function isCouponPath(pathname: string): boolean {
-  const section = predictionsSection(pathname);
-  return section !== null && section !== '/football';
+  return predictionsSection(pathname) !== null;
 }
 
 export function isFootballPath(pathname: string): boolean {
-  return predictionsSection(pathname) === '/football';
+  return pathname === FOOTBALL_PATH;
 }
 
 export function isLeagueHubPath(pathname: string): boolean {
-  if (predictionsSection(pathname) !== null) return false;
+  // Tested against the shape rather than the section list, so the addresses Batch 51
+  // retired — `/leagues/:slug/predictions/football` and its slug-less twin — do not
+  // light the Leagues tab for the frame before their redirect lands.
+  if (PREDICTIONS_PATH.test(pathname)) return false;
   return pathname === '/leagues' || pathname.startsWith('/leagues/');
 }

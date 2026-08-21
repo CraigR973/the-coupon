@@ -68,7 +68,8 @@ function renderTopBar(initialEntry = '/') {
           <LeagueProvider>
             <Routes>
               <Route path="/" element={<TopBar />} />
-              <Route path="/leagues/:slug/predictions/football" element={<TopBar />} />
+              <Route path="/football" element={<TopBar />} />
+              <Route path="/leagues/:slug/predictions" element={<TopBar />} />
               <Route path="/leagues/:slug/leaderboard" element={<TopBar />} />
               <Route path="/settings" element={<div>Settings route</div>} />
             </Routes>
@@ -126,10 +127,10 @@ describe('TopBar avatar menu', () => {
     expect(mobileBrandLink?.className).toContain('inset-y-0');
   });
 
-  it('puts Football in desktop navigation', async () => {
-    renderTopBar('/leagues/the-coupon/predictions/football');
+  it('puts Football Stats in desktop navigation, at a slug-less address', async () => {
+    renderTopBar('/football');
 
-    const football = screen.getByRole('link', { name: /^football$/i });
+    const football = screen.getByRole('link', { name: /^football stats$/i });
     const coupon = screen.getByRole('link', { name: /^coupon$/i });
 
     expect(football.getAttribute('aria-current')).toBe('page');
@@ -138,12 +139,15 @@ describe('TopBar avatar menu', () => {
     expect(coupon.getAttribute('aria-current')).toBeNull();
     expect(coupon.className).not.toContain('bg-primary/15');
 
-    // Batch 30: the target names the bound league, once the memberships arrive.
+    // Batch 51: unlike Coupon, the target does not move once the memberships land.
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: /^football$/i }).getAttribute('href')).toBe(
-        '/leagues/the-coupon/predictions/football',
+      expect(screen.getByRole('link', { name: /^coupon$/i }).getAttribute('href')).toBe(
+        '/leagues/the-coupon/predictions',
       );
     });
+    expect(screen.getByRole('link', { name: /^football stats$/i }).getAttribute('href')).toBe(
+      '/football',
+    );
   });
 
   // ── Batch 30: slug-addressed coupon ──────────────────────────────────────────
@@ -163,7 +167,7 @@ describe('TopBar avatar menu', () => {
   });
 
   it('keeps Leagues dark on the coupon, which now lives under /leagues too', () => {
-    renderTopBar('/leagues/the-coupon/predictions/football');
+    renderTopBar('/leagues/the-coupon/predictions');
     expect(screen.getByRole('link', { name: /^leagues$/i }).getAttribute('aria-current')).toBeNull();
   });
 

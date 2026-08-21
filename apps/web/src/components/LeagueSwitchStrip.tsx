@@ -32,7 +32,7 @@ function saveScrollOffset(offset: number): void {
  *
  * Where an entry points is `leagueSwitchPath`'s decision, taken from the current
  * pathname: a switch keeps the reader on the surface they are already on. Deriving
- * it here rather than at the five call sites means a league-scoped surface added
+ * it here rather than at the four call sites means a league-scoped surface added
  * later is switchable without touching this file.
  */
 export function LeagueSwitchStrip({ currentSlug, className }: Props) {
@@ -66,9 +66,10 @@ export function LeagueSwitchStrip({ currentSlug, className }: Props) {
         <p className="text-[10px] font-mono uppercase tracking-[0.24em] text-text-primary">
           Your leagues
         </p>
-        {/* Surface-neutral on purpose: the strip sits on the coupon, the results and
-            the football tables as well as the standings, and since Batch 34 a tap
-            keeps the reader on whichever of those they are reading. */}
+        {/* Surface-neutral on purpose: the strip sits on the coupon and the results as
+            well as the standings, and since Batch 34 a tap keeps the reader on whichever
+            of those they are reading. It came off the football tables in Batch 51, where
+            an untied screen left it a control that changed nothing. */}
         <span className="rounded-full border border-border/80 bg-surface px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted">
           Tap to switch
         </span>

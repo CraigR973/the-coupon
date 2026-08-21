@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  FOOTBALL_PATH,
   isCouponPath,
   isFootballPath,
   isLeagueHubPath,
@@ -46,14 +47,11 @@ describe('predictionsPath', () => {
     expect(predictionsPath('work-league', '/results')).toBe(
       '/leagues/work-league/predictions/results',
     );
-    expect(predictionsPath('work-league', '/football')).toBe(
-      '/leagues/work-league/predictions/football',
-    );
   });
 
   it('falls back to the slug-less path when no league is bound yet', () => {
     expect(predictionsPath(null)).toBe('/predictions');
-    expect(predictionsPath(null, '/football')).toBe('/predictions/football');
+    expect(predictionsPath(null, '/coupon')).toBe('/predictions/coupon');
   });
 });
 
@@ -68,9 +66,13 @@ describe('leagueSwitchPath', () => {
     expect(leagueSwitchPath('friends', '/leagues/the-coupon/predictions/results')).toBe(
       '/leagues/friends/predictions/results',
     );
-    expect(leagueSwitchPath('friends', '/leagues/the-coupon/predictions/football')).toBe(
-      '/leagues/friends/predictions/football',
-    );
+  });
+
+  it('sends a switch from Football Stats to the front door — it has no per-league twin', () => {
+    // Batch 51: the strip does not render there any more, but the helper is the one
+    // place that decides, and a caller mounting it on `/football` must not be handed
+    // `/leagues/friends/football`, which is not a route.
+    expect(leagueSwitchPath('friends', FOOTBALL_PATH)).toBe('/leagues/friends/leaderboard');
   });
 
   it('sends every other surface to the target league’s front door', () => {
@@ -104,20 +106,26 @@ describe('leagueSwitchPath', () => {
 });
 
 describe('navigation path predicates', () => {
-  it('claims any league’s coupon for the Coupon tab, football aside', () => {
+  it('claims any league’s coupon for the Coupon tab', () => {
     expect(isCouponPath('/leagues/work-league/predictions')).toBe(true);
     expect(isCouponPath('/leagues/the-coupon/predictions/coupon')).toBe(true);
     expect(isCouponPath('/leagues/the-coupon/predictions/results')).toBe(true);
-    expect(isCouponPath('/leagues/the-coupon/predictions/football')).toBe(false);
     // The slug-less paths still match, so the tab is lit during the redirect frame.
     expect(isCouponPath('/predictions')).toBe(true);
     expect(isCouponPath('/predictions/results')).toBe(true);
   });
 
-  it('claims football for the Football tab, at either address', () => {
-    expect(isFootballPath('/leagues/work-league/predictions/football')).toBe(true);
-    expect(isFootballPath('/predictions/football')).toBe(true);
+  it('claims the one slug-less address Football Stats now has', () => {
+    expect(isFootballPath(FOOTBALL_PATH)).toBe(true);
     expect(isFootballPath('/leagues/work-league/predictions')).toBe(false);
+    // Batch 51 retired both of these; they redirect, and light no tab on the way.
+    expect(isFootballPath('/leagues/work-league/predictions/football')).toBe(false);
+    expect(isFootballPath('/predictions/football')).toBe(false);
+  });
+
+  it('leaves the Coupon tab dark on the football addresses it no longer owns', () => {
+    expect(isCouponPath('/leagues/the-coupon/predictions/football')).toBe(false);
+    expect(isCouponPath('/predictions/football')).toBe(false);
   });
 
   it('keeps the Leagues tab off the coupon, which now lives under /leagues too', () => {
@@ -127,6 +135,9 @@ describe('navigation path predicates', () => {
     expect(isLeagueHubPath('/leagues/work-league/admin/members')).toBe(true);
     expect(isLeagueHubPath('/leagues/work-league/predictions')).toBe(false);
     expect(isLeagueHubPath('/leagues/work-league/predictions/coupon')).toBe(false);
+    // Retired, and still not the Leagues tab's for the frame before it redirects.
+    expect(isLeagueHubPath('/leagues/work-league/predictions/football')).toBe(false);
+    expect(isLeagueHubPath(FOOTBALL_PATH)).toBe(false);
     expect(isLeagueHubPath('/')).toBe(false);
   });
 

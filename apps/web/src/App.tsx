@@ -136,10 +136,11 @@ export function App() {
                           element={<CouponCombinedPage />}
                         />
                         <Route path="/leagues/:slug/predictions/results" element={<ResultsPage />} />
-                        <Route
-                          path="/leagues/:slug/predictions/football"
-                          element={<FootballPage />}
-                        />
+
+                        {/* Football Stats reads the whole fixture pool, so it names no
+                            league — Batch 51 took it off the coupon's sub-nav and out
+                            of `/leagues/`. */}
+                        <Route path="/football" element={<FootballPage />} />
 
                         {/* The slug-less paths they replaced — every link, bookmark and
                             reminder minted before this batch still lands correctly. */}
@@ -167,14 +168,19 @@ export function App() {
                             </PredictionsRedirect>
                           }
                         />
+
+                        {/* The two addresses Football Stats used to answer at. Kept as
+                            redirects for the same reason as the block above — a member
+                            who bookmarked the tables should still land on them. */}
+                        <Route
+                          path="/leagues/:slug/predictions/football"
+                          element={<Navigate to="/football" replace />}
+                        />
                         <Route
                           path="/predictions/football"
-                          element={
-                            <PredictionsRedirect section="/football">
-                              <FootballPage />
-                            </PredictionsRedirect>
-                          }
+                          element={<Navigate to="/football" replace />}
                         />
+
                         {/* The member's own record across every league. Per-league
                             records keep their own route under /leagues/:slug. */}
                         <Route path="/profile" element={<CareerProfilePage />} />

@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLeague } from '@/contexts/LeagueContext';
 import { Sheet } from '@/components/ui/sheet';
 import {
+  FOOTBALL_PATH,
   isCouponPath,
   isFootballPath,
   isLeagueHubPath,
@@ -32,23 +33,21 @@ interface TabDef {
 }
 
 /**
- * Coupon and Football point at the bound league, because a tab has to go
- * *somewhere* and the last league viewed is the only sensible answer. Their
- * highlighting does not: it matches any league's coupon, so tapping into another
- * league's week lights the right tab from the first frame rather than after the
- * context catches up. Leagues has to exclude those paths explicitly now that the
- * coupon lives under `/leagues/` too.
+ * Coupon points at the bound league, because a tab has to go *somewhere* and the
+ * last league viewed is the only sensible answer. Its highlighting does not: it
+ * matches any league's coupon, so tapping into another league's week lights the
+ * right tab from the first frame rather than after the context catches up. Leagues
+ * has to exclude those paths explicitly now that the coupon lives under `/leagues/`
+ * too.
+ *
+ * Football Stats takes no slug at all since Batch 51 — it reads the whole pool, so
+ * there is no bound league for it to be pointed at.
  */
 function primaryTabs(slug: string | null): ReadonlyArray<TabDef> {
   return [
     { to: '/', label: 'Home', Icon: Home, match: (p) => p === '/' },
     { to: predictionsPath(slug), label: 'Coupon', Icon: Ticket, match: isCouponPath },
-    {
-      to: predictionsPath(slug, '/football'),
-      label: 'Football',
-      Icon: Goal,
-      match: isFootballPath,
-    },
+    { to: FOOTBALL_PATH, label: 'Football Stats', Icon: Goal, match: isFootballPath },
     { to: '/leagues', label: 'Leagues', Icon: Trophy, match: isLeagueHubPath },
   ];
 }

@@ -63,24 +63,24 @@ describe('TabBar mobile positioning', () => {
     expect(nav?.className).toContain('z-tabbar');
   });
 
-  it('puts Football in primary navigation', () => {
+  it('reaches Football Stats without a slug in the path', () => {
     render(
-      <MemoryRouter initialEntries={['/leagues/the-coupon/predictions/football']}>
+      <MemoryRouter initialEntries={['/football']}>
         <TabBar />
       </MemoryRouter>,
     );
 
-    const football = screen.getByRole('link', { name: /football/i });
-    const coupon = screen.getByRole('link', { name: /coupon/i });
+    const football = screen.getByRole('link', { name: /football stats/i });
+    const coupon = screen.getByRole('link', { name: /^coupon$/i });
 
-    expect(football.getAttribute('href')).toBe('/leagues/the-coupon/predictions/football');
+    expect(football.getAttribute('href')).toBe('/football');
     expect(football.getAttribute('aria-current')).toBe('page');
     expect(coupon.getAttribute('aria-current')).toBeNull();
   });
 
   // ── Batch 30: slug-addressed coupon ────────────────────────────────────────
 
-  it('points Coupon and Football at the bound league', () => {
+  it('points Coupon at the bound league, and Football Stats at no league at all', () => {
     league.activeSlug = 'work-league';
     render(
       <MemoryRouter>
@@ -88,15 +88,16 @@ describe('TabBar mobile positioning', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: /coupon/i }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: /^coupon$/i }).getAttribute('href')).toBe(
       '/leagues/work-league/predictions',
     );
-    expect(screen.getByRole('link', { name: /football/i }).getAttribute('href')).toBe(
-      '/leagues/work-league/predictions/football',
+    // Batch 51: the same address whichever league is bound, because it reads the pool.
+    expect(screen.getByRole('link', { name: /football stats/i }).getAttribute('href')).toBe(
+      '/football',
     );
   });
 
-  it('falls back to the slug-less paths while the member has no league to address', () => {
+  it('falls back to the slug-less path while the member has no league to address', () => {
     league.hasLeagues = false;
     render(
       <MemoryRouter>
@@ -104,9 +105,12 @@ describe('TabBar mobile positioning', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: /coupon/i }).getAttribute('href')).toBe('/predictions');
-    expect(screen.getByRole('link', { name: /football/i }).getAttribute('href')).toBe(
-      '/predictions/football',
+    expect(screen.getByRole('link', { name: /^coupon$/i }).getAttribute('href')).toBe(
+      '/predictions',
+    );
+    // Football Stats never needed one, so it is reachable from the very first frame.
+    expect(screen.getByRole('link', { name: /football stats/i }).getAttribute('href')).toBe(
+      '/football',
     );
   });
 

@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
+  FOOTBALL_PATH,
   isCouponPath,
   isFootballPath,
   isLeagueHubPath,
@@ -32,7 +33,7 @@ function desktopNav(slug: string | null): ReadonlyArray<DesktopNavItem> {
   return [
     { to: '/', label: 'Home', match: (p) => p === '/' },
     { to: predictionsPath(slug), label: 'Coupon', match: isCouponPath },
-    { to: predictionsPath(slug, '/football'), label: 'Football', match: isFootballPath },
+    { to: FOOTBALL_PATH, label: 'Football Stats', match: isFootballPath },
     { to: '/leagues', label: 'Leagues', match: isLeagueHubPath },
     {
       to: '/settings',

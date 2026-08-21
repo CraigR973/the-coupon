@@ -1,15 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { useLeague } from '../contexts/LeagueContext';
-import { useRouteLeague } from '../hooks/useRouteLeague';
 import type { CompetitionTable, ResultEntry } from '../lib/types';
 import { formatInstant } from '../lib/time';
 import { PageHeader } from '../components/PageHeader';
-import { CouponSubNav } from '../components/CouponSubNav';
-import { LeagueSwitchStrip } from '../components/LeagueSwitchStrip';
 import { LeagueTableCard } from '../components/LeagueTableCard';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/ui/skeleton';
@@ -23,10 +18,19 @@ const VIEWS = [
 ];
 
 /**
- * League tables and previous results for the competitions this league plays.
+ * League tables and previous results across every competition we hold data for.
  *
  * The standalone half of Batch 16 — the inline half is the position and form that
  * sit beside each game on the pick screen.
+ *
+ * **Not a coupon surface since Batch 51.** It used to live at
+ * `/leagues/:slug/predictions/football` and show only the competitions that league
+ * played, which is the subset of football the reader's own card happened to cover
+ * rather than the football they opened the screen to read. Nothing about the data
+ * was ever league-scoped — one shared pool, ingested once — so untying it took a
+ * league off the address, the switcher off the page (it would have been a control
+ * that changed nothing) and the sub-nav with it. A member of no league can read it
+ * too, which is why neither query waits on the league context.
  *
  * Both queries are cheap and unchanging by the hour: the data behind them is
  * written by a daily ingestion job, not fetched live, so a long `staleTime` costs
@@ -35,21 +39,17 @@ const VIEWS = [
 export function FootballPage() {
   const { player } = useAuth();
   const timezone = player?.timezone ?? 'UTC';
-  const { slug, name: leagueName } = useRouteLeague();
-  const { hasLeagues, isLoading: leaguesLoading } = useLeague();
   const [view, setView] = useState<View>('tables');
 
   const tables = useQuery<CompetitionTable[]>({
-    queryKey: ['football', 'tables', slug],
-    queryFn: () => apiFetch<CompetitionTable[]>(`/api/v1/leagues/${slug}/football/tables`),
+    queryKey: ['football', 'tables'],
+    queryFn: () => apiFetch<CompetitionTable[]>('/api/v1/football/tables'),
     staleTime: 5 * 60_000,
-    enabled: hasLeagues,
   });
   const results = useQuery<ResultEntry[]>({
-    queryKey: ['football', 'results', slug],
-    queryFn: () => apiFetch<ResultEntry[]>(`/api/v1/leagues/${slug}/football/results`),
+    queryKey: ['football', 'results'],
+    queryFn: () => apiFetch<ResultEntry[]>('/api/v1/football/results'),
     staleTime: 5 * 60_000,
-    enabled: hasLeagues,
   });
 
   const active = view === 'tables' ? tables : results;
@@ -57,33 +57,9 @@ export function FootballPage() {
   const tableList = Array.isArray(tables.data) ? tables.data : [];
   const resultList = Array.isArray(results.data) ? results.data : [];
 
-  if (!leaguesLoading && !hasLeagues) {
-    return (
-      <div>
-        <PageHeader title="Football" />
-        <EmptyState
-          title="You're not in a league yet"
-          description={
-            <>
-              Join one to start picking.{' '}
-              <Link to="/leagues/discover" className="text-primary underline underline-offset-2">
-                Find a league
-              </Link>
-            </>
-          }
-        />
-      </div>
-    );
-  }
-
   return (
     <div>
-      <PageHeader
-        title="Football"
-        eyebrow={leagueName ? `${leagueName} · Tables & results` : 'Tables & results'}
-      />
-      <LeagueSwitchStrip currentSlug={slug} className="mb-5" />
-      <CouponSubNav slug={slug} />
+      <PageHeader title="Football Stats" eyebrow="Tables & results" />
 
       <Tabs items={VIEWS} value={view} onChange={setView} className="mb-4" variant="segmented" />
 
@@ -119,7 +95,7 @@ function TablesView({ tables, timezone }: { tables: CompetitionTable[]; timezone
     return (
       <EmptyState
         title="No tables yet"
-        description="Tables appear once the football data has been pulled in for the competitions this league plays. Cup rounds never have one."
+        description="Tables appear once the football data has been pulled in. We cover every competition a coupon has drawn from — not every competition in Britain — and cup rounds never have a table."
       />
     );
   }
@@ -130,8 +106,9 @@ function TablesView({ tables, timezone }: { tables: CompetitionTable[]; timezone
           key={table.competition_id}
           table={table}
           timezone={timezone}
-          // Only the first is expanded: a league playing thirty divisions would
-          // otherwise open onto several hundred rows.
+          // Only the first is expanded: thirty divisions would otherwise open onto
+          // several hundred rows — and untying the screen from a league made that
+          // the ordinary case rather than the extreme one.
           defaultOpen={index === 0}
         />
       ))}
@@ -169,7 +146,7 @@ function ResultsView({ results, timezone }: { results: ResultEntry[]; timezone: 
     return (
       <EmptyState
         title="No results yet"
-        description="Previous results appear once the football data has been pulled in for the competitions this league plays."
+        description="Previous results appear once the football data has been pulled in. We cover every competition a coupon has drawn from — not every competition in Britain."
       />
     );
   }

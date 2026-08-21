@@ -122,7 +122,7 @@ export interface TableEntry {
   form: string;
 }
 
-/** One competition's table — GET /leagues/{slug}/football/tables. */
+/** One competition's table — GET /football/tables. */
 export interface CompetitionTable {
   competition_id: string;
   competition: string;
@@ -132,7 +132,7 @@ export interface CompetitionTable {
   rows: TableEntry[];
 }
 
-/** One finished match — GET /leagues/{slug}/football/results. */
+/** One finished match — GET /football/results. */
 export interface ResultEntry {
   match_id: string;
   competition_id: string;

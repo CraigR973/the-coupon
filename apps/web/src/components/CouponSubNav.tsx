@@ -6,17 +6,18 @@ const ITEMS: ReadonlyArray<{ section: PredictionsSection; label: string; exact: 
   { section: '', label: 'Your pick', exact: true },
   { section: '/coupon', label: 'Combined coupon', exact: false },
   { section: '/results', label: 'Results', exact: false },
-  { section: '/football', label: 'Football', exact: false },
 ];
 
 /**
  * Sub-nav across the weekly-coupon surfaces: the player's own pick screen, the
- * leaderboard's combined accumulator, and the tables and results behind them.
+ * leaderboard's combined accumulator, and how the week finished.
  *
- * Football sits here rather than at the top level because it is context for a
- * pick — the same league scope, reached while deciding — not a section of its own.
+ * Football Stats sat here until Batch 51, on the argument that it was context for a
+ * pick rather than a section of its own. That argument held only while the screen
+ * was league-scoped; untied from a league it has nothing to say about *this* coupon
+ * in particular, and it is a top-level tab.
  *
- * Every item stays inside `slug`: moving between these four is moving within one
+ * Every item stays inside `slug`: moving between these three is moving within one
  * league, never between them. That is the switcher's job.
  */
 export function CouponSubNav({ slug }: { slug: string }) {

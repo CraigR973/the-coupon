@@ -633,11 +633,19 @@ describe('CouponPickPage', () => {
     await screen.findByTestId('lock-banner');
 
     const subNav = screen.getByLabelText('Coupon sections');
+    expect(within(subNav).getByRole('link', { name: 'Combined coupon' }).getAttribute('href')).toBe(
+      '/leagues/the-coupon/predictions/coupon',
+    );
     expect(within(subNav).getByRole('link', { name: 'Results' }).getAttribute('href')).toBe(
       '/leagues/the-coupon/predictions/results',
     );
-    expect(within(subNav).getByRole('link', { name: 'Football' }).getAttribute('href')).toBe(
-      '/leagues/the-coupon/predictions/football',
-    );
+  });
+
+  it('no longer offers Football Stats here — Batch 51 made it a top-level tab', async () => {
+    renderPage();
+    await screen.findByTestId('lock-banner');
+
+    const subNav = screen.getByLabelText('Coupon sections');
+    expect(within(subNav).queryByRole('link', { name: /football/i })).toBeNull();
   });
 });

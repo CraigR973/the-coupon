@@ -155,11 +155,11 @@ function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/leagues/the-coupon/predictions/football']}>
+      <MemoryRouter initialEntries={['/football']}>
         <AuthProvider>
           <LeagueProvider>
             <Routes>
-              <Route path="/leagues/:slug/predictions/football" element={<FootballPage />} />
+              <Route path="/football" element={<FootballPage />} />
             </Routes>
           </LeagueProvider>
         </AuthProvider>
@@ -175,7 +175,7 @@ beforeEach(() => {
 });
 
 describe('FootballPage — tables', () => {
-  it('renders a table per competition the league plays', async () => {
+  it('renders a table per competition in the pool', async () => {
     renderPage();
     await screen.findByTestId('league-table-england-premier-league');
     expect(screen.getByTestId('league-table-scotland-league-two')).toBeTruthy();
@@ -260,17 +260,57 @@ describe('FootballPage — results', () => {
   });
 });
 
-// ── Batch 29: league identity ─────────────────────────────────────────────
+// ── Batch 51: no league anywhere on the screen ────────────────────────────
 
-describe('FootballPage — league identity', () => {
-  it('names the bound league in the header', async () => {
+describe('FootballPage — untied from a league', () => {
+  it('asks the slug-less endpoints, not a league-scoped pair', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (String(url).includes('/football/tables')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(TABLES) });
+      }
+      if (String(url).includes('/football/results')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(RESULTS) });
+      }
+      if (String(url).includes('/leagues/mine')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve([MOCK_LEAGUE]),
+        });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
     renderPage();
     await screen.findByTestId('league-table-england-premier-league');
-    expect(screen.getByText(/the coupon/i, { selector: 'p' })).toBeTruthy();
+
+    const football = fetchMock.mock.calls
+      .map(([url]) => String(url))
+      .filter((url) => url.includes('/football/'));
+    expect(football.some((url) => url.endsWith('/api/v1/football/tables'))).toBe(true);
+    expect(football.some((url) => url.endsWith('/api/v1/football/results'))).toBe(true);
+    expect(football.some((url) => url.includes('/leagues/'))).toBe(false);
   });
 
-  it('shows the no-league state and skips the football queries for a member of no league', async () => {
+  it('names no league in the header, and carries neither switcher nor sub-nav', async () => {
+    renderPage();
+    await screen.findByTestId('league-table-england-premier-league');
+
+    expect(screen.getByRole('heading', { name: 'Football Stats' })).toBeTruthy();
+    expect(screen.queryByText(/the coupon/i)).toBeNull();
+    expect(screen.queryByTestId('league-switch-strip')).toBeNull();
+    expect(screen.queryByLabelText('Coupon sections')).toBeNull();
+  });
+
+  it('still reads for a member of no league at all', async () => {
     const fetchMock = vi.fn((url: string) => {
+      if (String(url).includes('/football/tables')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(TABLES) });
+      }
+      if (String(url).includes('/football/results')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(RESULTS) });
+      }
       if (String(url).includes('/leagues/mine')) {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
       }
@@ -279,7 +319,15 @@ describe('FootballPage — league identity', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     renderPage();
-    expect(await screen.findByText("You're not in a league yet")).toBeTruthy();
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/football/'))).toBe(false);
+    expect(await screen.findByTestId('league-table-england-premier-league')).toBeTruthy();
+    expect(screen.queryByText("You're not in a league yet")).toBeNull();
+  });
+
+  it('says what "every competition" actually covers when there is nothing yet', async () => {
+    stubFetch({ tables: [] });
+    renderPage();
+
+    const empty = await screen.findByText('No tables yet');
+    expect(empty.parentElement?.textContent).toContain('not every competition in Britain');
   });
 });

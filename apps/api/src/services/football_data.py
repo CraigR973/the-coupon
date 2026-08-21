@@ -32,8 +32,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.fixture import Fixture
-from src.models.gameweek import Gameweek, GameweekFixture
-from src.models.league import League
 from src.models.match import Match
 from src.models.standing import Standing
 from src.models.team import Team
@@ -48,7 +46,6 @@ from src.services.football_provider import (
     current_season,
     form_result,
 )
-from src.services.gameweek import selected_competition_slugs
 from src.services.team_matching import normalise_name, record_alias, resolve_names
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -223,6 +220,11 @@ async def pooled_competitions(
     ``standings.updated_at`` they have, nulls (never synced) first, so a slate with more
     competitions than the budget allows works through them across successive runs instead
     of always syncing the same head of the list.
+
+    Since Batch 51 the tables and results *reads* come from here too, unbounded, which is
+    what untied that screen from a league. The ordering is immaterial to them —
+    :func:`league_tables` sorts its own output and :func:`recent_results` sorts by kickoff
+    — so the two callers do not pull it in different directions.
     """
     query = select(Fixture.competition_id, func.min(Fixture.competition).label("competition"))
     if since is not None:
@@ -242,33 +244,6 @@ async def pooled_competitions(
         CompetitionKey(slug=slug, name=name)
         for slug, name in sorted(rows, key=lambda row: (last_synced.get(row[0], never), row[0]))
     ]
-
-
-async def league_competitions(db: AsyncSession, league: League) -> list[CompetitionKey]:
-    """The competitions one league plays — the scope of its tables and results screen.
-
-    An explicit selection (``leagues.competitions``) is taken at face value, because that
-    is what the admin chose even before a round has been built from it. A league on the
-    "all UK" default is described instead by the competitions its own rounds actually
-    carry, which is narrower and more honest than listing every division in the pool.
-    """
-    selected = selected_competition_slugs(league)
-    if selected is not None and league.competitions:
-        return [
-            CompetitionKey(slug=entry["slug"], name=entry.get("name", entry["slug"]))
-            for entry in league.competitions
-            if isinstance(entry, dict) and entry.get("slug")
-        ]
-
-    rows = await db.execute(
-        select(Fixture.competition_id, func.min(Fixture.competition))
-        .join(GameweekFixture, GameweekFixture.fixture_id == Fixture.id)
-        .join(Gameweek, Gameweek.id == GameweekFixture.gameweek_id)
-        .where(Gameweek.league_id == league.id)
-        .group_by(Fixture.competition_id)
-        .order_by(func.min(Fixture.competition))
-    )
-    return [CompetitionKey(slug=row[0], name=row[1]) for row in rows.all()]
 
 
 def season_or_default(season: int | None) -> int:
