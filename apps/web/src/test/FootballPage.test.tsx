@@ -218,6 +218,15 @@ describe('FootballPage — tables', () => {
     renderPage();
     expect(await screen.findByText('No tables yet')).toBeTruthy();
   });
+
+  it('keeps form visible at mobile width — the GD column hides instead', async () => {
+    renderPage();
+    const table = await screen.findByTestId('league-table-england-premier-league');
+    const row = within(table).getByTestId('table-row-t-arsenal');
+    const formCell = row.querySelector('td:last-child');
+    expect(formCell?.className).not.toMatch(/\bhidden\b/);
+    expect(screen.getAllByLabelText(/Arsenal FC form, oldest first/)[0]).toBeTruthy();
+  });
 });
 
 describe('FootballPage — results', () => {
@@ -257,6 +266,42 @@ describe('FootballPage — results', () => {
     renderPage();
     fireEvent.click(await screen.findByRole('tab', { name: 'Results' }));
     expect(await screen.findByText('No results yet')).toBeTruthy();
+  });
+
+  it('groups two competitions on one day into two competition headings', async () => {
+    const mixedResults: ResultEntry[] = [
+      ...RESULTS.filter((r) => r.match_id !== 'm105'),
+      {
+        match_id: 'm200',
+        competition_id: 'scotland-league-two',
+        competition: 'Scotland - Scottish League Two',
+        kickoff_utc: '2026-05-02T14:00:00',
+        home: 'Forfar Athletic FC',
+        away: 'Edinburgh City FC',
+        home_goals: 2,
+        away_goals: 2,
+      },
+    ];
+    stubFetch({ results: mixedResults });
+    renderPage();
+    await screen.findByTestId('league-table-england-premier-league');
+    fireEvent.click(screen.getByRole('tab', { name: 'Results' }));
+
+    const list = await screen.findByTestId('football-results');
+    const competitionHeadings = within(list).getAllByRole('heading', { level: 3 });
+    expect(competitionHeadings.map((h) => h.textContent)).toEqual([
+      'England - English Premier League',
+      'Scotland - Scottish League Two',
+    ]);
+  });
+
+  it('does not grow a redundant heading for a day with a single competition', async () => {
+    renderPage();
+    await screen.findByTestId('league-table-england-premier-league');
+    fireEvent.click(screen.getByRole('tab', { name: 'Results' }));
+
+    const list = await screen.findByTestId('football-results');
+    expect(within(list).queryAllByRole('heading', { level: 3 })).toHaveLength(0);
   });
 });
 

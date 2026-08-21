@@ -116,27 +116,43 @@ function TablesView({ tables, timezone }: { tables: CompetitionTable[]; timezone
   );
 }
 
-interface ResultDay {
-  day: string;
+interface CompetitionGroup {
+  competition_id: string;
+  competition: string;
   results: ResultEntry[];
 }
 
+interface ResultDay {
+  day: string;
+  competitions: CompetitionGroup[];
+}
+
 /**
- * Results newest first, grouped by the day they were played.
+ * Results newest first, grouped by the day they were played and then by competition.
  *
- * Grouped because a flat list of eighty matches across four competitions and three
- * weekends reads as one undifferentiated column; the date is the thing a member
- * scans for.
+ * Day stays the outer key: it is what a member scans for first. But a Saturday can
+ * hold eighty matches across four competitions, and a flat list under one heading
+ * reads as an undifferentiated column — the same failure this grouping was built to
+ * fix, one level up. So each day's matches are grouped by competition too.
  */
 function groupByDay(results: ResultEntry[], timezone: string): ResultDay[] {
-  const days = new Map<string, ResultEntry[]>();
+  const days = new Map<string, Map<string, CompetitionGroup>>();
   for (const result of results) {
     const day = formatInstant(result.kickoff_utc, timezone, 'EEEE d MMMM') ?? result.kickoff_utc;
-    const bucket = days.get(day) ?? [];
-    bucket.push(result);
-    days.set(day, bucket);
+    const competitions = days.get(day) ?? new Map<string, CompetitionGroup>();
+    days.set(day, competitions);
+    const group = competitions.get(result.competition_id) ?? {
+      competition_id: result.competition_id,
+      competition: result.competition,
+      results: [],
+    };
+    group.results.push(result);
+    competitions.set(result.competition_id, group);
   }
-  return [...days.entries()].map(([day, dayResults]) => ({ day, results: dayResults }));
+  return [...days.entries()].map(([day, competitions]) => ({
+    day,
+    competitions: [...competitions.values()],
+  }));
 }
 
 function ResultsView({ results, timezone }: { results: ResultEntry[]; timezone: string }) {
@@ -153,39 +169,52 @@ function ResultsView({ results, timezone }: { results: ResultEntry[]; timezone: 
 
   return (
     <div className="flex flex-col gap-4" data-testid="football-results">
-      {days.map(({ day, results: dayResults }) => (
+      {days.map(({ day, competitions }) => (
         <section key={day}>
           <h2 className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
             {day}
           </h2>
-          <ul className="overflow-hidden rounded-lg border border-border bg-surface">
-            {dayResults.map((result) => (
-              <li
-                key={result.match_id}
-                className="flex items-center gap-3 border-b border-border/50 px-3 py-2.5 last:border-0"
-                data-testid={`result-${result.match_id}`}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-sans text-text-primary">
-                    <span className="font-medium">{result.home}</span>
-                    <span className="mx-1.5 text-text-muted">v</span>
-                    <span className="font-medium">{result.away}</span>
-                  </p>
-                  <p className="truncate font-mono text-[10px] uppercase tracking-[0.15em] text-text-muted">
-                    {result.competition}
-                  </p>
-                </div>
-                <span className="shrink-0 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-xs font-semibold tabular-nums text-text-primary">
-                  <span className="sr-only">
-                    {result.home} {result.home_goals}, {result.away} {result.away_goals}
-                  </span>
-                  <span aria-hidden>
-                    {result.home_goals}–{result.away_goals}
-                  </span>
-                </span>
-              </li>
+          <div className="flex flex-col gap-3">
+            {competitions.map((group) => (
+              <div key={group.competition_id}>
+                {competitions.length > 1 && (
+                  <h3 className="mb-1 truncate font-mono text-[10px] uppercase tracking-[0.15em] text-text-muted">
+                    {group.competition}
+                  </h3>
+                )}
+                <ul className="overflow-hidden rounded-lg border border-border bg-surface">
+                  {group.results.map((result) => (
+                    <li
+                      key={result.match_id}
+                      className="flex items-center gap-3 border-b border-border/50 px-3 py-2.5 last:border-0"
+                      data-testid={`result-${result.match_id}`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-sans text-text-primary">
+                          <span className="font-medium">{result.home}</span>
+                          <span className="mx-1.5 text-text-muted">v</span>
+                          <span className="font-medium">{result.away}</span>
+                        </p>
+                        {competitions.length === 1 && (
+                          <p className="truncate font-mono text-[10px] uppercase tracking-[0.15em] text-text-muted">
+                            {result.competition}
+                          </p>
+                        )}
+                      </div>
+                      <span className="shrink-0 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-xs font-semibold tabular-nums text-text-primary">
+                        <span className="sr-only">
+                          {result.home} {result.home_goals}, {result.away} {result.away_goals}
+                        </span>
+                        <span aria-hidden>
+                          {result.home_goals}–{result.away_goals}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
         </section>
       ))}
     </div>

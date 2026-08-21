@@ -15,11 +15,12 @@ export interface LeagueTableCardProps {
 /**
  * One competition's table, behind a collapsible header.
  *
- * Played / won / drawn / lost and the form line are hidden on narrow screens, so a
- * phone shows position, club, goal difference and points — and shows them without
- * sideways scrolling. Points is the column a table exists for; pushing it off the
- * edge behind a scrollbar to keep "P" visible would be the wrong trade. The full
- * set returns from `sm` up, where it fits.
+ * Played / won / drawn / lost and goal difference are hidden on narrow screens, so a
+ * phone shows position, club, form and points — and shows them without sideways
+ * scrolling. Points is the column a table exists for; pushing it off the edge behind
+ * a scrollbar to keep "P" visible would be the wrong trade. Form is a glanceable
+ * five-glyph run and one of the two things a member opens the screen to read, so it
+ * stays too. The full set returns from `sm` up, where it fits.
  *
  * The "as of" line is not decoration. Nothing here is live: a scheduled job writes
  * these rows and every screen reads them, so a table can legitimately be a day old
@@ -69,9 +70,9 @@ export function LeagueTableCard({ table, timezone, defaultOpen = true }: LeagueT
                   <ColumnHeader label="W" title="Won" narrowHidden />
                   <ColumnHeader label="D" title="Drawn" narrowHidden />
                   <ColumnHeader label="L" title="Lost" narrowHidden />
-                  <ColumnHeader label="GD" title="Goal difference" />
+                  <ColumnHeader label="GD" title="Goal difference" narrowHidden />
                   <ColumnHeader label="Pts" title="Points" />
-                  <th scope="col" className="hidden py-2 pl-3 pr-3 text-left font-normal sm:table-cell">
+                  <th scope="col" className="py-2 pl-3 pr-3 text-left font-normal">
                     Form
                   </th>
                 </tr>
@@ -96,11 +97,11 @@ export function LeagueTableCard({ table, timezone, defaultOpen = true }: LeagueT
                     <NumberCell value={row.won} narrowHidden />
                     <NumberCell value={row.drawn} narrowHidden />
                     <NumberCell value={row.lost} narrowHidden />
-                    <NumberCell value={signed(row.goal_difference)} />
+                    <NumberCell value={signed(row.goal_difference)} narrowHidden />
                     <td className="px-2 py-2 text-right font-mono text-xs font-semibold tabular-nums text-text-primary">
                       {row.points}
                     </td>
-                    <td className="hidden py-2 pl-3 pr-3 sm:table-cell">
+                    <td className="py-2 pl-3 pr-3">
                       <FormLine form={row.form} team={row.team} />
                     </td>
                   </tr>
