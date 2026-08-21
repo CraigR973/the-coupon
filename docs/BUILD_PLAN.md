@@ -1170,6 +1170,68 @@ answered until it lands, because until then there is no data to look at.
   Turning it on in production stays one variable (`FOOTBALL_DATA_PROVIDER=fotmob`) and a
   separate owner-run step.
 
+- [ ] **Batch 47 — A league with no rounds until tomorrow morning** — an admin creates a
+  league in the app and there is nothing in it. Fixture discovery runs once a day at
+  06:00 (`scheduler.py`, `run_discover_fixtures`), so a league created at any other hour
+  has no round, no card and no coupon until the following morning, and **no in-app way
+  to change that**. The remedy today is `python -m src.run_scheduled discover-fixtures`
+  inside the production container, which needs a Railway shell and is therefore an owner
+  action for a problem every admin will hit.
+
+  The symptom is worse than an empty screen. The one-off round endpoint
+  (`POST /leagues/{slug}/gameweeks`, Batch 15, hardened in Batch 35) is the only control
+  that populates a round on demand, so it gets reached for as a workaround — creating a
+  round *on the cadence date the league was going to get anyway*. That is not what it is
+  for. It exists for Boxing Day, it is rate-limited `2/hour;3/day` against a measured
+  provider budget, and using it to paper over a scheduling gap spends that budget and
+  leaves a round the cadence will then also try to write.
+
+  **The fix is nearly free, and the reason is already in `discover_fixtures`' docstring.**
+  Leagues are grouped by window and each `(window, date)` is fetched exactly once, so
+  "a second league on the default Saturday is free". The corollary has never been
+  exploited: when the pool *already holds* that window's fixtures for the dates a new
+  league wants, its rounds can be created and linked with **zero** provider calls. It is
+  `sync_slate` against rows already in `fixtures`, not a fetch. On this product that is
+  the common case, because the default Saturday window is what almost every league will
+  play.
+
+  So: **populate a new league's cadence rounds at creation, from the pool.** Fall back to
+  a real fetch only when the pool is empty for those dates, and rate-limit *that* path
+  the way Batch 35 rate-limited the one-off endpoint — for exactly the same reason, and
+  ideally sharing the limit so the two cannot be combined to exceed it. A league created
+  on an existing window should cost nothing and appear instantly; a league inventing a
+  new window pays, visibly and boundedly.
+
+  Add the same path as an admin action — **"refresh rounds"** — because creation is not
+  the only moment it is needed. An admin who changes the fixture window has unlocked
+  rounds built against the old one and, today, waits for 06:00 again.
+
+  **Four rules this must not break**, all of them already load-bearing:
+
+  * An off-cadence date belongs to the league that asked for it. `discover_fixtures`
+    syncs one only to leagues already holding a round on it, precisely so a neighbour's
+    Boxing Day is not invented for everyone sharing the window. A creation-time populate
+    walks the *cadence* only.
+  * `sync_slate` returns `None` when the league's competition selection excludes the
+    whole window. That is a league with no round, not an error.
+  * `picks_open_at_utc` is stamped once, at discovery, and never restamped — Batch 27
+    set the rule and Batch 40 declined to add an admin override. "Refresh rounds" must
+    respect it: it may create rounds and link fixtures, and it must not move the opening
+    or the lock of a round that already exists.
+  * A locked or settled round is not refreshable. Only unlocked rounds may be rebuilt,
+    which is the same boundary `unlocked_round_dates` already draws.
+
+  Verification: a counting provider (the shape in `tests/test_football_data.py`) proving
+  a league created on an already-pooled window issues **zero** upstream requests and
+  still gets its rounds with fixtures linked; a second test that an empty pool falls back
+  to a fetch and is refused past the shared limit; a test that a neighbour's one-off date
+  produces no round for the new league; and a test that "refresh rounds" leaves an
+  existing round's `picks_open_at_utc` and `locks_at_utc` untouched.
+
+  Scope boundary: **no migration and no change to the scheduled job.** `discover_fixtures`
+  keeps its cadence-union-off-cadence behaviour exactly as Batch 35 left it; this batch
+  adds a second, cheaper entry point to the same machinery and an endpoint in front of it.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
