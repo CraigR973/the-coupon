@@ -1288,6 +1288,200 @@ answered until it lands, because until then there is no data to look at.
   governs how often a healthy provider is called, which is a different question from what
   happens when an unhealthy one refuses.
 
+- [x] **Batch 49 — A postponed fixture nobody can take off the card** ✅ 2026-08-21 *(Opus)* — `sync_slate`
+  (`gameweek.py:352`) says it outright: "Links are added, never removed." A fixture
+  postponed after discovery stays on every round that linked it, stays pickable, and stays
+  pickable right through the deadline, because nothing between discovery and the evening
+  settle sweep is looking. On 2026-08-21 the Scottish Premiership card carried Hibernian v
+  Kilmarnock for the following day — a match that had already been called off.
+
+  Nothing upstream of settlement even reads the status. `fetch_slate` (`odds_api.py:380`)
+  builds each `SlateFixture` from the event's teams and kick-off and drops the rest on the
+  floor, while `_VOID_STATUSES` (`odds_api.py:132`) — which already lists `postponed`,
+  `cancelled` and `abandoned` — is consulted only by `_settlement_for`
+  (`odds_api.py:746`), hours after the round has been played.
+
+  **Carry the status, then act on it while the round is still open.** `SlateFixture`
+  (`odds_provider.py:137`) gains the provider's status; `sync_slate` removes the
+  `GameweekFixture` link for any fixture reported void-status, and deletes any pick held on
+  it. That puts the member in the one state the game already understands — no pick — so
+  they can pick again, the 11:00 reminder job nudges them if they don't, and the selection
+  returns to the land-grab.
+
+  **Two deletes, not one.** `Pick.fixture_id` and `Pick.gameweek_id` cascade from
+  `fixtures` and `gameweeks`, but `GameweekFixture` (`models/gameweek.py:87`) is a
+  composite-key join with no cascade to picks. Deleting the link alone leaves the pick
+  alive and pointing at a fixture no longer on its round: gone from the screen, still found
+  by settlement. Both rows go, in that order.
+
+  **Stop at the lock.** A member who picked before the deadline did everything right and
+  has no way to respond once it passes, and deleting their pick then would make them
+  indistinguishable in the standings from someone who never picked at all. `void` already
+  means "scores nothing rather than counting as a loss" (`models/pick.py`, `scoring.py:77`)
+  and settlement already writes it for exactly this status — so **the locked case needs no
+  code**. Removal must simply refuse any round whose `locks_at_utc` has passed. Refresh
+  runs 09:00 and 13:00 against a 14:30 lock (`scheduler.py`), so a Saturday-morning
+  postponement is caught and a 14:00 one is not; the late one becomes a `void` at
+  settlement, which is the right answer rather than a gap.
+
+  **Never infer a postponement from absence.** `discover_fixtures` skips any date the
+  provider returns nothing for (`gameweek.py:554`), and a partial or failed fetch is
+  indistinguishable from a quiet one. Removal keyed on "the fixture vanished from this
+  refresh" would let a single provider hiccup strip a whole round of live picks. Only an
+  explicit status removes anything. The price is that a postponement the provider signals
+  by *dropping* the event goes uncaught before lock — settlement voids it, exactly as
+  today.
+
+  **Tell the member.** A pick that silently disappears is worse than the postponement.
+  `send_notification` takes a free-form `data.type` (`notification_triggers.py:84`), so
+  `"fixture_postponed"` needs no enum value and no migration; deliberately *not* an
+  `ActionType`, which is a Postgres enum and would.
+
+  Confirm before implementing: whether odds-api.io returned that Hibernian fixture with
+  `status: "postponed"` or simply stopped returning it. Only the first shape is fixable
+  here, and it decides whether this batch closes the observed case or merely the general
+  one.
+
+  Verification: a provider stub returning one fixture as `postponed` against an **open**
+  round holding a pick on it, asserting the link and the pick are both gone and the member
+  is notified; the same stub against a **locked** round, asserting link and pick are
+  untouched and settlement still voids it; a stub returning an empty slate for a date whose
+  round holds live picks, asserting **nothing** is removed; and a fixture linked to two
+  rounds — one open, one locked — asserting only the open one loses it.
+
+  Scope boundary: **no migration.** The status is carried on the pydantic `SlateFixture`,
+  not stored on `fixtures` — the row stays in the pool because other leagues may still link
+  it and settlement still needs it. Do not touch the settle path, and do not change
+  `discover_fixtures`' cadence-union behaviour.
+
+- [ ] **Batch 50 — What the pick card leaves out** *(Sonnet)* — three small omissions on the one
+  screen every member uses, grouped because they are the same file and the same fix
+  session, not because they share a cause.
+
+  **The context strip cannot line up with the names above it.** `PickCard.tsx:152` renders
+  the clubs as a single inline sentence — `Home` `v` `Away` — while the position-and-form
+  strip beneath it (`:159`) is a `grid grid-cols-2` with the away side pushed
+  `justify-end`. The names flow by text length; the pips sit at fixed column edges. They
+  align only by coincidence, and for most fixtures they visibly don't. Put both rows on the
+  same two-column grid so a club's form sits under that club's name by construction.
+
+  **"Your pick" doesn't say which competition.** The summary card
+  (`CouponPickPage.tsx:262`) prints the selection, the odds and `home v away`, and stops.
+  `CombinedAccaView` already prints `leg.competition` on every leg, so this is one surface
+  out of step with its neighbour rather than a missing feature.
+
+  **The points vanish the moment a selection is claimed.** `PickCard.tsx:278` picks exactly
+  one of three branches — "taken by X", "your pick", or "win N pts" — so both claimed
+  states drop the number. `potentialPoints()` (`lib/coupon.ts:87`) is a pure
+  `round(odds × 10)` of the displayed price, so it costs nothing to keep alongside the
+  claim state, and it is the figure that tells a member what the game is worth to whoever
+  holds it.
+
+  Verification: Vitest on `PickCard` asserting a fixture whose two clubs have differing
+  name lengths puts each club's form in its own grid column; that a selection taken by
+  another member renders both the taker and the points; that the member's own pick does the
+  same; and on `CouponPickPage` that the summary names the competition.
+
+  Scope boundary: **frontend only, no API change.** Everything needed is already on
+  `FixtureSlate`. Do not touch the grab mutation or `usePickEditor`.
+
+- [ ] **Batch 51 — Football Stats is not a coupon surface** *(Opus)* — the tab reads
+  `/leagues/{slug}/football/…` and narrows to the competitions that league plays
+  (`league_competitions()`, `football_data.py:247`), which was never what the screen is
+  for. A member opens it to look at football, not at the subset of football their coupon
+  happens to cover.
+
+  **The data was never league-scoped in the first place.** `pooled_competitions()`
+  (`football_data.py:214`) walks every competition in the shared fixture pool,
+  least-recently-synced first, and writes `teams` / `matches` / `standings` with no league
+  anywhere in them. Only the *read* narrows. So untying is a read-path change with **zero
+  extra provider cost** — the 100-requests-a-day API-Football budget is untouched, because
+  nothing about what gets ingested changes.
+
+  Serve `/api/v1/football/tables` and `/api/v1/football/results` with no slug, gated on an
+  authenticated player rather than `LeagueMemberDep`. The router docstring
+  (`routers/football.py`) already concedes the current gate is consistency rather than
+  privacy — "a league table is public information".
+
+  **The tab then has to leave the sub-nav.** `CouponSubNav` is explicitly league-bound
+  ("Every item stays inside `slug`", `CouponSubNav.tsx:9`), so an untied screen is a
+  top-level route: `TabBar.tsx:48` and `TopBar.tsx:35` stop resolving it through
+  `predictionsPath(slug, '/football')`, and `LeagueSwitchStrip` comes off the page, where it
+  would otherwise be a control that changes nothing.
+
+  **Rename it to Football Stats** while the nav is being edited, rather than twice. Roughly
+  79 test assertions mention the string, though most are hrefs rather than labels. Watch the
+  mobile tab bar: "Football Stats" beside Home / Coupon / Leagues is the longest label there
+  by some margin.
+
+  One honest limit to record in the empty state: the pool holds only competitions some
+  league's card has actually covered, so "untied" means every competition we have ever
+  ingested, not every competition in Britain.
+
+  Verification: the new endpoints return competitions drawn from the whole pool for a member
+  whose league plays one division; they still require authentication; the old league-scoped
+  routes are gone rather than left as dead code; and nav tests assert the tab reaches the
+  screen without a slug in the path.
+
+  Scope boundary: **no ingestion change and no migration.** `pooled_competitions`,
+  `sync_football_data` and the per-run cap stay exactly as Batch 45 left them.
+
+- [ ] **Batch 52 — A table that hides the column it exists to show** *(Sonnet)* — the Form column is
+  already built and already populated (`LeagueTableCard.tsx:74` and `:103`), and then
+  `hidden sm:table-cell` takes it away on every phone. The card's docstring defends that
+  trade for played/won/drawn/lost — points must stay visible without sideways scrolling —
+  and it is the right call for those four counts and the wrong one for form, which is a
+  glanceable five-glyph run and one of the two things a member opens the screen to read.
+  Find it room at narrow widths; drop goal difference to `sm` before dropping form.
+
+  **Results are grouped by day alone.** `groupByDay()` (`FootballPage.tsx:154`) buckets on
+  the formatted date, so a Saturday reads as one undifferentiated column of eighty matches
+  across four competitions — the exact failure its own docstring describes, one level up.
+  `ResultEntry` already carries `competition` and `competition_id`, so group by competition
+  within each day. Day stays the outer key: it is what a member scans for first.
+
+  Precondition, and worth checking before this batch starts: `run_sync_football_data`'s
+  docstring records that on 2026-08-20 the sweep failed all 21 competitions — 18 rejected at
+  `/standings` because the free API-Football plan carries no part of the current season, 3
+  cups resolving no id. Batch 45 made that failure loud but did not make it stop. If nothing
+  is being ingested, this batch improves the presentation of an empty screen.
+
+  Verification: Vitest asserting the form pips are present at mobile width; that results
+  render a competition heading within a day and that two competitions on one day produce two
+  groups; and that a day with a single competition does not grow a redundant second heading.
+
+  Scope boundary: **frontend only.** No API change — both fields are already served.
+
+- [ ] **Batch 53 — Form you cannot open** *(Opus)* — the pick screen draws five W/D/L pips and
+  discards the matches behind them, despite already holding them. `TeamContext.recent`
+  (`football_data.py:757`) is served on every fixture with each match's opponent, home or
+  away, goals for and against, result and kick-off, and it is already typed on the client at
+  `types.ts:80`. `FormLine` takes `form: string` and nothing else, so the payload arrives and
+  is thrown away on render.
+
+  Make a club's form open to the results it is made of — opponent, score, home or away, date.
+  On the pick screen that is **frontend only**: the data is already in the response.
+
+  In the league table it is not. `TableEntry.form` is a bare string with no `recent`, so
+  `league_tables()` has to load it the way `fixture_context` already does — `team_form()`
+  (`football_data.py:655`) takes a set of team ids and answers in one query, over-fetching
+  `limit × teams × 2` rows and trimming in Python, so a whole division costs one statement
+  rather than twenty. Add it there and both surfaces share one shape.
+
+  Optional field on `TableEntry`, for the reason Batches 38, 41 and 48 all record: Vercel
+  deploys `main` on merge while the API waits for `/ship-prod`, so a required field breaks
+  the screen in that gap.
+
+  Verification: a club with five stored matches opens to five rows with the right
+  opponent and orientation for both home and away fixtures; a club with none stays inert
+  rather than opening an empty panel; the table endpoint returns `recent` for every row in
+  one query (assert the count, as `tests/test_football_data.py` already does for the sweep);
+  and the disclosure is reachable and labelled for keyboard and screen-reader use, which
+  `FormLine`'s existing `role="img"` + `aria-label` will have to change shape to allow.
+
+  Scope boundary: **no new provider call and no migration.** Everything here is already in
+  `matches`; this batch only stops discarding it.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

@@ -2,7 +2,7 @@
 
 ## Now
 
-Batches 1-48 are closed. The Coupon is a verified
+Batches 1-49 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
@@ -504,10 +504,37 @@ pick screen says "prices may be out of date" — additive and optional, because 
 deploys `main` on merge while the API waits for `/ship-prod`. No schema change, and the
 TTL tiers are untouched.
 
+Batch 49 stopped a called-off fixture staying pickable. `sync_slate` said it
+outright — "Links are added, never removed" — so a fixture postponed after
+discovery stayed on every round that had linked it and stayed claimable right
+through the deadline, because nothing between discovery and the evening settle
+sweep read the provider's status: `fetch_slate` built each `SlateFixture` from
+the teams and the kick-off and dropped the rest, while `_VOID_STATUSES` was
+consulted only by `_settlement_for`, hours after the round had been played.
+`SlateFixture` now carries the provider's own word verbatim, the void vocabulary
+moved to `odds_provider` so discovery and settlement cannot disagree about what a
+postponement is, and `_drop_voided_fixtures` takes the link *and* the pick off an
+open round — two deletes, because `gameweek_fixtures` is a composite-key join
+with no cascade to `picks`, so unlinking alone leaves a pick off the screen and
+still visible to settlement. It stops at the lock, gated on `locks_at_utc` rather
+than the status label: a member who picked before the deadline cannot respond
+after it, and settlement already writes `void` for exactly this status. Absence
+never removes anything — a partial or failed fetch is indistinguishable from a
+quiet one — so only an explicit status acts, and the empty default means a
+Betfair catalogue and a pooled rebuild cannot unlink at all. The member is told
+via a free-form `fixture_postponed` push and left with *no pick*, the one state
+the game already understands. **Live probing found a third answer the plan had
+not anticipated:** odds-api.io does emit void words (2 of 1,599 fixtures for
+2026-08-22 came back `cancelled`) but was still returning the Hibernian v
+Kilmarnock fixture as `pending` after it had been called off — so this closes the
+general case, not the observed one, and settlement remains the backstop. No
+migration: the status rides the DTO, because the pooled row stays for the leagues
+still linking it.
+
 ## Verified
 
-- Backend: 647 pytest with a database (508 without one), Ruff check/format, and
-  strict mypy; Batch 48 close-out passed `scripts/ci-local.sh` end-to-end
+- Backend: 652 pytest with a database, Ruff check/format, and
+  strict mypy; Batch 49 close-out passed `scripts/ci-local.sh` end-to-end
   (11 checks), as every close-out since Batch 26 has. That script's pinned venv **is**
   the gate: app-starter's venv can no longer even collect the suite (no Pillow, so
   `avatar_storage.py` takes ten test files down with it) and `AGENTS.md` plus
@@ -566,17 +593,28 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **no unchecked batches**. Batch 48 closed the last
-one: the pick screen no longer dies with the odds provider — a failed refresh is
+`docs/BUILD_PLAN.md` carries **four unchecked batches**, 50-53, all of them about
+what the screens leave out rather than what the game gets wrong: the pick card's
+misaligned form strip, unnamed competition and vanishing points (50); untying
+Football Stats from a league it was never scoped by (51); a table that hides the
+Form column on every phone and results grouped by day alone (52); and form pips
+that discard the matches behind them despite already holding them (53).
+
+Batch 49 closed the last one: a fixture the provider reports called off now comes
+off an open round with the pick on it, before the deadline rather than at the
+evening settle sweep. **It is API-side and has not shipped** — Vercel deploys
+`main` on merge while the API waits for `/ship-prod`, so production keeps carrying
+a postponed fixture on the card until one runs. Batch 48 closed the one before it:
+the pick screen no longer dies with the odds provider — a failed refresh is
 served from the cache's own entries with an `odds_degraded` flag instead of a
 500, the pick path still refuses rather than freezing a price it could not
 confirm, and a `429` is no longer retried into four. Batch 47 closed the one
-before it: a league created at any hour but 06:00 now gets its cadence rounds
+before that: a league created at any hour but 06:00 now gets its cadence rounds
 immediately, from the shared fixture pool and usually for no provider requests at
-all, with the same path exposed as a "refresh rounds" admin action. **Both
+all, with the same path exposed as a "refresh rounds" admin action. **Those two
 shipped to production on 2026-08-21** (`1272dde`, Railway `854a24ec`, Vercel
 `dpl_FfGCr4FcbFaGnzaEzN33D6qAHFVE`); the gap where the API lagged the web half
-is closed.
+was closed then and has reopened with Batch 49.
 
 Batch 46 added FotMob as a
 third implementation of the football port (ADR 0007) — the first source that

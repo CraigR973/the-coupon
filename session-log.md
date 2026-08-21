@@ -1243,3 +1243,41 @@ through `015`, 357 Vitest, Node 20 build, prod-bundle Playwright
 first-Saturday watch — is the remaining work. This batch changes both halves, so the web
 banner deploys on merge while the API fallback waits for a `/ship-prod`; until then the
 flag is simply absent and the client reads that as "not degraded".
+
+## Batch 49 — A postponed fixture nobody can take off the card
+**Commits:** `d1a95d4` · verified: `scripts/ci-local.sh` PASS (11 checks) — 652 pytest
+with a database, Ruff 0.5.4 check/format, strict mypy, clean `pgserver` through `015`,
+357 Vitest, Node 20 build, prod-bundle Playwright
+
+### Key facts for future sessions
+- **The provider's answer was neither of the two the plan anticipated, and this matters.**
+  Probed live 2026-08-21: `/events` *does* carry a status and *does* emit void words — 2
+  of the 1,599 fixtures listed for 2026-08-22 came back `cancelled` — but Hibernian v
+  Kilmarnock, the fixture that prompted the batch, was still `pending` despite being
+  called off. So the general case is closed and the observed one is not. Do not expect
+  pre-lock removal to catch every postponement; settlement's `void` is still the backstop.
+  api-football cannot second-opinion it — the free plan refuses any 2026-season query.
+- **`SlateFixture.status` defaults to `""` and that default is load-bearing.** It means
+  "this source does not say", which is the truth for `FakeBetfair` (a catalogue of open
+  markets) and for `pooled_slate` (rebuilt from `fixtures`, where no status is stored).
+  Both therefore *cannot* unlink anything, which is what keeps a pooled refresh and an
+  ad-hoc rebuild safe without either of them knowing about Batch 49.
+- **Removal is gated on `locks_at_utc`, never on `GameweekStatus`.** The label is only
+  what the hourly jobs keep up with; the instant is the fact. A test dated in the past
+  would therefore pass for the wrong reason, which is why `_upcoming_saturday()` derives
+  a date from `uk_today()` rather than reusing `SAMPLE_SATURDAY` (2026-08-01).
+- **`gameweek_fixtures` has no cascade to `picks`** — it is a composite-key join, and
+  `Pick` references `fixtures`/`gameweeks` directly. Unlinking alone leaves a pick off
+  the screen but still visible to settlement. Anything that removes a link in future has
+  to delete the pick too.
+- **The postponement notification lives in `services/gameweek.py`, not
+  `notification_triggers.py`**, because that module imports this one
+  (`members_missing_picks`) and the cycle is real. `data.type` is free-form, so
+  `"fixture_postponed"` needed no enum and no migration; an `ActionType` would have.
+- **Round creation now keys on the *playable* fixtures**, so a date whose whole card is
+  called off produces no round rather than an empty one. Slightly wider than the row
+  asked for, and the natural corollary of the rest.
+
+**Next:** Batch 50 — the three omissions on the pick card. This batch is API-side, so it
+is invisible in production until a `/ship-prod` runs; until then the deployed API keeps
+carrying a called-off fixture on the card.
