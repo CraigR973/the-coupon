@@ -27,7 +27,8 @@ from src.auth import (
 )
 from src.config import settings
 from src.database import get_db
-from src.models.profile import OddsFormat, Profile
+from src.models.notification import ActionType, ActorType, AuditLog
+from src.models.profile import OddsFormat, Profile, UserRole
 from src.models.refresh_token import RefreshToken
 from src.rate_limit import limiter, login_key, per_user_key, refresh_token_key
 from src.services.avatar_storage import (
@@ -40,6 +41,7 @@ from src.services.avatar_storage import (
     reencode_avatar,
     sniff_image_type,
 )
+from src.services.push_notification_service import send_notification
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -123,6 +125,69 @@ _PIN_RESET_GENERIC = {
 # ---------------------------------------------------------------------------
 
 
+async def _revoke_all_refresh_tokens(db: AsyncSession, user_id: uuid.UUID) -> int:
+    """Revoke every live refresh token for one member. Returns how many were revoked.
+
+    The caller's own session goes with the rest. There is no way to spare it — a member
+    authenticates here with an *access* token, so the API never sees which refresh token
+    belongs to this device, and guessing by ``device_hint`` would spare an attacker who
+    copied the User-Agent. Losing the current session is the right trade anyway: the
+    client clears its tokens on the next failed refresh and asks for the new PIN
+    (``lib/api.ts`` already redirects to /login when a refresh 401s), which is exactly
+    what should happen after a credential changes.
+    """
+    result = await db.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=_now())
+    )
+    return result.rowcount or 0
+
+
+async def _notify_site_admins(
+    db: AsyncSession,
+    title: str,
+    body: str,
+    data: dict[str, str],
+    tag: str,
+) -> int:
+    """Push one message to every active site admin. Returns how many were reached.
+
+    Best-effort by design: a member's request must be recorded whether or not a push
+    goes anywhere, so a failure here is logged and swallowed rather than raised. Push
+    needs VAPID keys and an active subscription, and neither is guaranteed —
+    ``send_notification`` already answers 0 when they are missing.
+    """
+    admins = (
+        (
+            await db.execute(
+                select(Profile).where(
+                    Profile.role == UserRole.admin,
+                    Profile.deleted_at.is_(None),
+                    Profile.is_active.is_(True),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    reached = 0
+    for admin in admins:
+        try:
+            reached += await send_notification(
+                db,
+                admin.id,
+                title,
+                body,
+                data=dict(data),
+                tag=tag,
+                timezone_name=admin.timezone,
+            )
+        except Exception:  # noqa: BLE001 — one bad subscription must not lose the record
+            log.warning("admin notification failed", admin_id=str(admin.id))
+    return reached
+
+
 async def _issue_token_pair(
     user: Profile,
     db: AsyncSession,
@@ -185,6 +250,21 @@ async def login(
             status_code=status.HTTP_423_LOCKED,
             detail="Too many failed attempts. Try again later.",
         )
+
+    # A lockout that has expired gives the counter back, not one attempt.
+    #
+    # `failed_login_count` used to reset only on a *successful* login, so once it
+    # reached MAX_FAILED_ATTEMPTS the expiry of `locked_until` bought exactly one guess:
+    # a wrong answer took the count to six, which is still >= the maximum, and re-locked
+    # for another window. Forever, at one attempt per fifteen minutes. That is punishing
+    # to an attacker and fatal to a member who has simply forgotten four digits — and
+    # until this batch the "forgot PIN" path notified nobody, so there was no way back.
+    #
+    # The window is what bounds brute force, and it is unchanged: five attempts per
+    # fifteen minutes is 20/hour whatever this line does.
+    if user.locked_until is not None:
+        user.failed_login_count = 0
+        user.locked_until = None
 
     if not verify_pin(body.pin, user.pin_hash):
         user.failed_login_count += 1
@@ -349,13 +429,33 @@ async def change_pin(
     user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
+    """Change the caller's PIN and end every session opened with the old one.
+
+    A member changes their PIN when they think somebody else knows it. Writing the new
+    hash and stopping there left every already-issued refresh token live for its full
+    thirty days, renewing itself, so the session the member was trying to shut out
+    outlived the credential it was opened with. Rotation that does not revoke is theatre.
+
+    The caller's own session ends too — see :func:`_revoke_all_refresh_tokens`. The
+    24-hour access token cannot be recalled (it is stateless by design), so the practical
+    effect is that the old session keeps working until that token expires and is then
+    refused at refresh. Shortening the access TTL is a separate decision; revoking what
+    *can* be revoked is not.
+
+    Lockout state is cleared with it. A member who mistyped their way into a lockout and
+    then changed their PIN has proved they know the current one; leaving them locked out
+    afterwards would be perverse.
+    """
     if not verify_pin(body.current_pin, user.pin_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Current PIN is incorrect"
         )
     user.pin_hash = hash_pin(body.new_pin)
+    revoked = await _revoke_all_refresh_tokens(db, user.id)
+    user.failed_login_count = 0
+    user.locked_until = None
     await db.commit()
-    log.info("pin changed", user_id=str(user.id))
+    log.info("pin changed", user_id=str(user.id), sessions_revoked=revoked)
 
 
 @router.post("/pin/reset-request")
@@ -376,7 +476,47 @@ async def pin_reset_request(
     if user is None:
         return _PIN_RESET_GENERIC
 
-    log.info("pin reset requested — admin handoff required", user_id=str(user.id))
+    # Until this batch the endpoint wrote one `log.info` and returned "an admin will be
+    # notified" — which was not true. No row, no message, nothing an admin could act on;
+    # the only trace was a Railway log line, and `railway logs` caps at 500. Since this
+    # is the *only* account-recovery path a member has, the message being false meant a
+    # forgotten PIN was a lost account.
+    #
+    # Two things now happen, because they answer different questions. The audit row is
+    # the durable record — it survives, it is queryable, and it is where "who asked, and
+    # when" lives. The push is what actually reaches a person; `audit_log` has no reader
+    # anywhere in the app, so writing only there would have reproduced the same silence
+    # in a new table.
+    db.add(
+        AuditLog(
+            actor_id=user.id,
+            actor_type=ActorType.player,
+            action_type=ActionType.player_pin_reset,
+            target_table="profiles",
+            target_id=user.id,
+            # `player_pin_reset` covers both halves of the journey and this names which
+            # half. A dedicated `pin_reset_requested` value would read better, and it is
+            # deliberately not added: `ALTER TYPE ... ADD VALUE` cannot be undone, and
+            # production has no restore point (owner's 2026-07-30 deferral). Not worth an
+            # irreversible schema change for a nicer enum label.
+            changes={"stage": "requested", "display_name": user.display_name},
+        )
+    )
+    await db.commit()
+
+    reached = await _notify_site_admins(
+        db,
+        title="PIN reset requested",
+        body=f"{user.display_name} cannot sign in and has asked for a PIN reset.",
+        data={"url": "/settings", "player_id": str(user.id)},
+        tag=f"pin-reset-{user.id}",
+    )
+
+    log.info(
+        "pin reset requested — admins notified",
+        user_id=str(user.id),
+        admins_reached=reached,
+    )
     return _PIN_RESET_GENERIC
 
 

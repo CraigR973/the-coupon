@@ -483,3 +483,175 @@ async def test_patch_me_rejects_an_unknown_odds_format(client: AsyncClient) -> N
         )
 
     assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Batch 56 — a PIN change ends the sessions opened with the old PIN
+# ---------------------------------------------------------------------------
+
+
+def _rowcount(n: int) -> MagicMock:
+    """An `execute()` result for an UPDATE, which reports rows rather than scalars."""
+    r = MagicMock()
+    r.rowcount = n
+    return r
+
+
+async def test_changing_a_pin_revokes_every_refresh_token(client: AsyncClient) -> None:
+    """The whole point: a stolen session must not outlive the credential it was opened with."""
+    user = _make_user()
+    token = create_access_token(user.id, user.role)
+    # get_current_user resolves the profile, then _revoke_all_refresh_tokens updates.
+    mock_db = _stub_db([_scalar(user), _rowcount(3)])
+
+    async with _override_db(mock_db):
+        resp = await client.put(
+            "/api/v1/auth/me/pin",
+            json={"current_pin": "1234", "new_pin": "5678"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 204
+    # The second statement is the revocation, and it targets this member's live tokens.
+    revoke = mock_db.execute.await_args_list[1].args[0]
+    compiled = str(revoke).lower()
+    assert compiled.startswith("update refresh_tokens")
+    assert "revoked_at" in compiled
+    assert verify_pin("5678", user.pin_hash)
+
+
+async def test_changing_a_pin_clears_a_lockout(client: AsyncClient) -> None:
+    """Someone who proved they know the current PIN should not stay locked out."""
+    user = _make_user(failed=5, locked_until=_now() + timedelta(minutes=10))
+    token = create_access_token(user.id, user.role)
+    mock_db = _stub_db([_scalar(user), _rowcount(0)])
+
+    async with _override_db(mock_db):
+        resp = await client.put(
+            "/api/v1/auth/me/pin",
+            json={"current_pin": "1234", "new_pin": "5678"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 204
+    assert user.failed_login_count == 0
+    assert user.locked_until is None
+
+
+async def test_a_wrong_current_pin_revokes_nothing(client: AsyncClient) -> None:
+    """A failed change must not log the member out of their own sessions."""
+    user = _make_user()
+    token = create_access_token(user.id, user.role)
+    mock_db = _stub_db([_scalar(user)])
+
+    async with _override_db(mock_db):
+        resp = await client.put(
+            "/api/v1/auth/me/pin",
+            json={"current_pin": "9999", "new_pin": "5678"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 401
+    # One statement only — the profile lookup. No revocation was attempted.
+    assert mock_db.execute.await_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Batch 56 — an expired lockout returns the whole counter, not one attempt
+# ---------------------------------------------------------------------------
+
+
+async def test_an_expired_lockout_gives_back_all_five_attempts(client: AsyncClient) -> None:
+    """The ratchet: a sixth wrong guess used to re-lock immediately, forever.
+
+    `failed_login_count` reset only on success, so after the first lockout expired a
+    single wrong answer took the count from 5 to 6 — still >= MAX_FAILED_ATTEMPTS — and
+    locked the profile again. A member who had genuinely forgotten their PIN could never
+    get more than one guess per window.
+    """
+    user = _make_user(failed=5, locked_until=_now() - timedelta(minutes=1))
+    mock_db = _stub_db([_scalar(user)])
+
+    async with _override_db(mock_db):
+        resp = await client.post(
+            "/api/v1/auth/login",
+            json={"display_name": "Test User", "pin": "9999"},
+        )
+
+    assert resp.status_code == 401
+    # Counter restarted at 0 and took this one failure — not 6, and not re-locked.
+    assert user.failed_login_count == 1
+    assert user.locked_until is None
+
+
+async def test_an_unexpired_lockout_still_refuses(client: AsyncClient) -> None:
+    """Decay must not weaken the window itself."""
+    user = _make_user(failed=5, locked_until=_now() + timedelta(minutes=5))
+    mock_db = _stub_db([_scalar(user)])
+
+    async with _override_db(mock_db):
+        resp = await client.post(
+            "/api/v1/auth/login",
+            json={"display_name": "Test User", "pin": "1234"},
+        )
+
+    assert resp.status_code == 423
+    assert user.failed_login_count == 5
+
+
+# ---------------------------------------------------------------------------
+# Batch 56 — the reset request reaches somebody
+# ---------------------------------------------------------------------------
+
+
+async def test_a_pin_reset_request_records_and_notifies(client: AsyncClient) -> None:
+    """It used to write one log line and claim an admin had been told."""
+    user = _make_user()
+    admin = _make_user(role=UserRole.admin)
+    admins = MagicMock()
+    admins.scalars.return_value.all.return_value = [admin]
+    mock_db = _stub_db([_scalar(user), admins])
+
+    sent: list[tuple[uuid.UUID, str]] = []
+
+    async def _fake_send(session, user_id, title, body, **kwargs):  # noqa: ANN001, ANN202
+        sent.append((user_id, title))
+        return 1
+
+    import src.routers.auth as auth_router
+
+    original = auth_router.send_notification
+    auth_router.send_notification = _fake_send  # type: ignore[assignment]
+    try:
+        async with _override_db(mock_db):
+            resp = await client.post(
+                "/api/v1/auth/pin/reset-request",
+                json={"display_name": "Test User"},
+            )
+    finally:
+        auth_router.send_notification = original  # type: ignore[assignment]
+
+    assert resp.status_code == 200
+    # A durable record was written...
+    added = [c.args[0] for c in mock_db.add.call_args_list]
+    assert any(type(row).__name__ == "AuditLog" for row in added)
+    audit = next(row for row in added if type(row).__name__ == "AuditLog")
+    assert audit.changes["stage"] == "requested"
+    assert audit.target_id == user.id
+    # ...and a live admin was actually told.
+    assert sent == [(admin.id, "PIN reset requested")]
+
+
+async def test_an_unknown_display_name_records_nothing(client: AsyncClient) -> None:
+    """Same answer either way, so the endpoint cannot be used to enumerate members."""
+    mock_db = _stub_db([_scalar(None)])
+
+    async with _override_db(mock_db):
+        resp = await client.post(
+            "/api/v1/auth/pin/reset-request",
+            json={"display_name": "Nobody At All"},
+        )
+
+    assert resp.status_code == 200
+    assert "an admin will be notified" in resp.json()["message"]
+    assert mock_db.add.call_count == 0
