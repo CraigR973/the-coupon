@@ -454,17 +454,38 @@ def _selection_options(
     Under ``fixture`` scope a claim takes the whole game, so *every* selection on
     a claimed fixture reports that holder — otherwise the slate would offer
     selections the submit endpoint is bound to refuse with ``FIXTURE_TAKEN``.
+
+    **The caller is not their own blocker.** Only a holder who is somebody *else*
+    closes the game, exactly as ``_claim_conflict`` decides it (``holders - {player_id}``):
+    a member owns the whole game, so moving between markets inside it is a re-pick, not
+    a grab, and the API allows it. Reporting the caller as the holder of all six
+    selections would contradict that in two ways — the client greys out anything already
+    ``mine``, so the one member permitted to switch could not, and "my pick" is read back
+    off the ``mine`` flags, so the banner would name whichever selection happened to be
+    priced first rather than the one actually held. A fixture the caller holds therefore
+    marks only the selection they really have; the fixture-level ``mine`` flag is what
+    still says the game is theirs.
+
+    Legacy rows make this more than a caller-side nicety: a league switched from
+    ``selection`` to ``fixture`` scope keeps picks written under the old rule, so a
+    fixture can genuinely have several holders. Naming the first — which may be the
+    caller — would leave the game looking free to the very member the API refuses.
     """
     if fixture_odds is None:
         return []
-    whole_fixture = fixture_holders[0] if scope is PickScope.fixture and fixture_holders else None
+    others = [holder for holder in fixture_holders if holder.player_id != str(my_id)]
+    whole_fixture = others[0] if scope is PickScope.fixture and others else None
 
     options: list[SelectionOption] = []
     for selection in fixture_odds.selections:
         if selection.market.value not in offered:
             continue
         key = (str(fixture.id), selection.market.value, selection.outcome.value)
-        holder = whole_fixture or taken.get(key)
+        # Whoever holds this exact selection outranks the fixture-level blocker, so a
+        # caller looking at a game they share with somebody else still sees their own
+        # pick as theirs. Reading `whole_fixture` first would hand every selection to
+        # the other member, this caller's own included.
+        holder = taken.get(key) or whole_fixture
         options.append(
             SelectionOption(
                 market=selection.market.value,

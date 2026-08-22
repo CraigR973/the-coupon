@@ -3,6 +3,8 @@
  * Single source of truth: update here, both pages stay in sync.
  */
 
+import type { QueryClient } from '@tanstack/react-query';
+
 /** The real enum values the API serialises on league.privacy. */
 export type LeaguePrivacy = 'public_open' | 'public_request' | 'private';
 
@@ -112,4 +114,23 @@ export function isLeagueHubPath(pathname: string): boolean {
   // light the Leagues tab for the frame before their redirect lands.
   if (PREDICTIONS_PATH.test(pathname)) return false;
   return pathname === '/leagues' || pathname.startsWith('/leagues/');
+}
+
+/**
+ * Forget the cached membership list so the next read of it is the truth.
+ *
+ * Call after anything that changes which leagues the member is in — joining by
+ * invite link or code, creating one. `LeagueContext` holds `['leagues', 'mine']`
+ * for a minute, and every coupon surface gates its own query on the `hasLeagues`
+ * derived from it, so a join that navigated straight to the new league arrived at
+ * "You're not in a league yet" and stayed there until the entry went stale.
+ *
+ * `removeQueries` rather than `invalidateQueries`: invalidation leaves the stale
+ * value in place to be served while the refetch is in flight, which is a list that
+ * does not contain the league just joined — the empty state again, only briefly.
+ * Dropping the entry outright makes the next read a genuine load, so the screen
+ * shows its skeleton and then the coupon.
+ */
+export function dropStaleMemberships(queryClient: QueryClient): void {
+  queryClient.removeQueries({ queryKey: ['leagues', 'mine'] });
 }

@@ -601,12 +601,22 @@ async def test_fixture_scope_hides_every_selection_on_a_claimed_game(
         assert selection["taken_by_player_id"] == str(alice.id)
         assert selection["mine"] is False
 
-    # Alice sees the same game as entirely hers.
+    # Alice sees the game as hers at the fixture level, but only the selection she
+    # actually holds is marked `mine`, and the rest of the game stays open to her.
+    # She owns it, so moving between its markets is a re-pick the API allows
+    # (`test_fixture_scope_still_lets_a_member_repick_within_their_own_game`) — and a
+    # client greys out whatever is already taken or already `mine`, so blanking the
+    # whole game would lock the one member entitled to switch out of switching.
     alice_slate = (
         await client.get(f"/api/v1/leagues/{league.slug}/gameweek/current", headers=_auth(alice))
     ).json()
     alice_claimed = {f["fixture_id"]: f for f in alice_slate["fixtures"]}[epl]
-    assert all(s["mine"] is True for s in alice_claimed["selections"])
+    assert alice_claimed["mine"] is True
+    mine = [s for s in alice_claimed["selections"] if s["mine"]]
+    assert [(s["market"], s["outcome"]) for s in mine] == [("MATCH_ODDS", "HOME")]
+    assert all(
+        s["taken_by_player_id"] is None for s in alice_claimed["selections"] if not s["mine"]
+    )
 
 
 async def test_fixture_scope_still_lets_a_member_repick_within_their_own_game(
@@ -625,6 +635,40 @@ async def test_fixture_scope_still_lets_a_member_repick_within_their_own_game(
     switched = await _submit(client, league.slug, alice, epl, "BOTH_TEAMS_TO_SCORE", "YES")
     assert switched.status_code == 201, switched.text
     assert switched.json()["outcome"] == "YES"
+
+
+async def test_fixture_scope_names_the_other_holder_on_a_game_the_caller_also_holds(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """A league switched to the fixture rule keeps picks written under the old one.
+
+    Both members legitimately hold a selection on the same game, so the slate has to
+    pick which of them a selection reports — and reporting the *caller* would show the
+    game as free to the one member `_claim_conflict` is about to refuse.
+    """
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), league = await _seed_league(session, ["alice", "bob"])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    epl = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    # Written under the selection rule, which permits both, then the league switches.
+    assert (await _submit(client, league.slug, alice, epl, "MATCH_ODDS", "HOME")).status_code == 201
+    assert (await _submit(client, league.slug, bob, epl, "MATCH_ODDS", "DRAW")).status_code == 201
+    await _set_pick_scope(league, PickScope.fixture)
+
+    slate = (
+        await client.get(f"/api/v1/leagues/{league.slug}/gameweek/current", headers=_auth(alice))
+    ).json()
+    claimed = {f["fixture_id"]: f for f in slate["fixtures"]}[epl]
+    # Bob holds it too, so every selection Alice does not already own reads as his.
+    for selection in claimed["selections"]:
+        if (selection["market"], selection["outcome"]) == ("MATCH_ODDS", "HOME"):
+            assert selection["mine"] is True
+        else:
+            assert selection["taken_by_player_id"] == str(bob.id)
+            assert selection["mine"] is False
 
 
 async def test_the_fixture_index_is_the_race_backstop(

@@ -18,8 +18,9 @@ vi.mock('@/hooks/useInstallPrompt', () => ({
   detectStandalone: () => true,
 }));
 
-function renderJoin(token: string) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderJoin(token: string, queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+})) {
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[`/join/${token}`]}>
@@ -95,6 +96,28 @@ describe('JoinPage', () => {
           body: JSON.stringify({ code: 'ABC123' }),
         }),
       );
+    });
+  });
+
+  // The membership list is cached for a minute and every coupon surface gates its
+  // own query on it, so a join that left the stale copy in place landed the new member
+  // on "You're not in a league yet" — the one screen they had just joined to reach.
+  it('drops the cached membership list before landing on the league', async () => {
+    storeSignedInPlayer();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ league_slug: 'the-coupon' }) }),
+    );
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    // What the member had before joining: no leagues at all.
+    queryClient.setQueryData(['leagues', 'mine'], []);
+
+    renderJoin('abc123', queryClient);
+    fireEvent.click(screen.getByRole('button', { name: /join league/i }));
+
+    expect(await screen.findByText('Joined')).toBeTruthy();
+    await waitFor(() => {
+      expect(queryClient.getQueryData(['leagues', 'mine'])).toBeUndefined();
     });
   });
 

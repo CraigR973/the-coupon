@@ -181,6 +181,24 @@ describe('FootballPage — tables', () => {
     expect(screen.getByTestId('league-table-scotland-league-two')).toBeTruthy();
   });
 
+  it('reads down the pyramid whatever order the API sent, like the coupon does', async () => {
+    // The regression: tables rendered in the API's order, which is the ingestion
+    // job's, so the same divisions the member had just scrolled past on the coupon
+    // came back rearranged. Serve them upside-down and they must still read down.
+    vi.restoreAllMocks();
+    stubAuth();
+    stubFetch({ tables: [...TABLES].reverse() });
+    renderPage();
+    await screen.findByTestId('league-table-england-premier-league');
+    const rendered = screen
+      .getAllByTestId(/^league-table-/)
+      .map((el) => el.getAttribute('data-testid'));
+    expect(rendered).toEqual([
+      'league-table-england-premier-league',
+      'league-table-scotland-league-two',
+    ]);
+  });
+
   it('shows the standings figures in position order', async () => {
     renderPage();
     const table = await screen.findByTestId('league-table-england-premier-league');

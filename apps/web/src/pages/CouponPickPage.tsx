@@ -19,6 +19,7 @@ import type {
   PickOutcome,
   SelectionOption,
 } from '../lib/types';
+import { competitionRank } from '../lib/competitions';
 import { formatOdds, outcomeLabel, roundName } from '../lib/coupon';
 import { formatCalendarDate } from '../lib/time';
 import { PageHeader } from '../components/PageHeader';
@@ -61,47 +62,6 @@ interface CompetitionGroup {
   fixtures: FixtureSlate[];
 }
 
-const COMPETITION_ORDER = new Map(
-  [
-    'england-premier-league',
-    'england-championship',
-    'england-league-one',
-    'england-league-two',
-    'scotland-premiership',
-    'scotland-championship',
-    'scotland-league-one',
-    'scotland-league-two',
-  ].map((id, index) => [id, index] as const),
-);
-
-const ENGLAND_REMAINING_TIERS: Array<[RegExp, number]> = [
-  [/^england-national-league$/, 0],
-  [/^england-national-league-(north|south)$/, 1],
-  [/^england-(northern-premier|southern|isthmian)-league$/, 2],
-  [/^england-.*division-one/, 3],
-];
-
-const SCOTLAND_REMAINING_TIERS: Array<[RegExp, number]> = [
-  [/^scotland-(highland|lowland)-league$/, 0],
-  [/^scotland-.*division-one/, 1],
-];
-
-function remainingTier(competitionId: string, tiers: Array<[RegExp, number]>): number {
-  return tiers.find(([pattern]) => pattern.test(competitionId))?.[1] ?? 99;
-}
-
-function competitionRank(competitionId: string): [number, number, string] {
-  const ordered = COMPETITION_ORDER.get(competitionId);
-  if (ordered !== undefined) return [0, ordered, competitionId];
-  if (competitionId.startsWith('england-')) {
-    return [1, remainingTier(competitionId, ENGLAND_REMAINING_TIERS), competitionId];
-  }
-  if (competitionId.startsWith('scotland-')) {
-    return [2, remainingTier(competitionId, SCOTLAND_REMAINING_TIERS), competitionId];
-  }
-  return [3, 0, competitionId];
-}
-
 /**
  * The slate grouped by the provider's competition slug, each group ordered by kick-off.
  *
@@ -124,6 +84,9 @@ function groupByCompetition(fixtures: FixtureSlate[]): CompetitionGroup[] {
     .sort((a, b) => {
       const ar = competitionRank(a.competition_id);
       const br = competitionRank(b.competition_id);
+      // The shared order, with one tiebreak only this screen can apply: among
+      // competitions that rank equally the fuller card comes first, which is a
+      // property of this slate rather than of the competition.
       return (
         ar[0] - br[0] ||
         ar[1] - br[1] ||

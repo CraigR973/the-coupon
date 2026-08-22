@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Brand } from '@/components/Brand';
 import { BrowserOnboarding } from '@/components/BrowserOnboarding';
 import { Button } from '@/components/ui/button';
@@ -7,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { API_BASE } from '@/lib/api';
+import { dropStaleMemberships } from '@/lib/leagues';
 import { getAccessToken } from '@/lib/tokens';
 import { brand } from '@/theme/tokens';
 
@@ -16,6 +18,7 @@ function AppJoinFlow() {
   const { token = '' } = useParams<{ token: string }>();
   const { player } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -49,6 +52,7 @@ function AppJoinFlow() {
         throw new Error(detail);
       }
       const payload = (await response.json()) as { league_slug: string };
+      dropStaleMemberships(queryClient);
       navigate(`/leagues/${payload.league_slug}`, { replace: true });
     } catch (claimError) {
       setError(claimError instanceof Error ? claimError.message : 'Failed to join league');

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { API_BASE, apiFetch } from '@/lib/api';
+import { dropStaleMemberships } from '@/lib/leagues';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +20,7 @@ type Step = 'input' | 'confirm' | 'done';
 
 export function JoinByCodePage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [step, setStep] = useState<Step>('input');
   const [code, setCode] = useState('');
@@ -65,6 +68,7 @@ export function JoinByCodePage() {
         throw new Error(detail);
       }
       const data = await resp.json() as { league_slug: string; league_name: string };
+      dropStaleMemberships(queryClient);
       navigate(`/leagues/${data.league_slug}`, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join league');

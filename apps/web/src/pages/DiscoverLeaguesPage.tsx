@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
-import { privacyLabel } from '@/lib/leagues';
+import { dropStaleMemberships, privacyLabel } from '@/lib/leagues';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -44,7 +44,7 @@ export function DiscoverLeaguesPage() {
       await apiFetch(`/api/v1/leagues/${slug}/join`, { method: 'POST' });
       if (privacy === 'public_open') {
         toast.success('Joined league!');
-        queryClient.invalidateQueries({ queryKey: ['leagues', 'mine'] });
+        dropStaleMemberships(queryClient);
         queryClient.invalidateQueries({ queryKey: ['leagues', 'discover'] });
       } else {
         toast.success('Join request sent — waiting for admin approval.');

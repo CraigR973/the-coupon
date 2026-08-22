@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { CompetitionTable, ResultEntry } from '../lib/types';
+import { compareCompetitions } from '../lib/competitions';
 import { formatInstant } from '../lib/time';
 import { PageHeader } from '../components/PageHeader';
 import { LeagueTableCard } from '../components/LeagueTableCard';
@@ -91,6 +92,11 @@ export function FootballPage() {
 }
 
 function TablesView({ tables, timezone }: { tables: CompetitionTable[]; timezone: string }) {
+  // The pick screen's order, not the ingestion job's. These are the same divisions a
+  // member has just been reading down the coupon, so arriving at them shuffled costs a
+  // search every time — `lib/competitions` is the one order both screens read in.
+  const ordered = useMemo(() => [...tables].sort(compareCompetitions), [tables]);
+
   if (tables.length === 0) {
     return (
       <EmptyState
@@ -101,7 +107,7 @@ function TablesView({ tables, timezone }: { tables: CompetitionTable[]; timezone
   }
   return (
     <div className="flex flex-col gap-4" data-testid="football-tables">
-      {tables.map((table, index) => (
+      {ordered.map((table, index) => (
         <LeagueTableCard
           key={table.competition_id}
           table={table}
@@ -151,7 +157,9 @@ function groupByDay(results: ResultEntry[], timezone: string): ResultDay[] {
   }
   return [...days.entries()].map(([day, competitions]) => ({
     day,
-    competitions: [...competitions.values()],
+    // Within a day, the same order the coupon lists competitions in — insertion order
+    // here is the order results happened to arrive in, which is no order at all.
+    competitions: [...competitions.values()].sort(compareCompetitions),
   }));
 }
 

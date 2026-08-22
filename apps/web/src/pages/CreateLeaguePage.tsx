@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
+import { dropStaleMemberships } from '@/lib/leagues';
 import type { LeagueSummary, PickMarket, SlateWindow } from '@/lib/types';
 import { ALL_MARKETS, hhmmToMinutes, minutesToHHMM, SATURDAY_3PM_WINDOW, WEEKDAYS } from '@/lib/leagueConfig';
 import { Button } from '@/components/ui/button';
@@ -66,7 +67,7 @@ export function CreateLeaguePage() {
         method: 'POST',
         body: JSON.stringify(body),
       });
-      queryClient.invalidateQueries({ queryKey: ['leagues', 'mine'] });
+      dropStaleMemberships(queryClient);
       navigate(`/leagues/${league.slug}`, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create league');
