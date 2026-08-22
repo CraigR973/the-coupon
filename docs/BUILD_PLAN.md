@@ -1615,7 +1615,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: **no migration, no schema change, no frontend change.**
 
-- [ ] **Batch 58 — The rate limits that are decorative, and the ones that are not** —
+- [x] **Batch 58 — The rate limits that are decorative, and the ones that are not** ✅ 2026-08-22 *(Opus)* —
   `rate_limit.py:18-23` takes the **first** entry of `X-Forwarded-For` as the client
   address. That value is entirely caller-supplied and Railway appends rather than
   replaces, so rotating the header gives a fresh bucket every request and every IP-keyed

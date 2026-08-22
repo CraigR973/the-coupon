@@ -1503,3 +1503,27 @@ table pips simply will not open until **a `/ship-prod` is owed and run**.
 
 **Next:** Batch 58 — the rate limits that are decorative (X-Forwarded-For, token reuse,
 correlation id, token pruning, weak PINs).
+
+## Batch 58 — The rate limits that are decorative, and the ones that are not
+**Commits:** 9ecaa00 · verified: ruff 0.5.4 · mypy 1.11.0 · pytest 687 (clean schema, 0 skips) · lint · tsc · build · vitest 538
+
+### Key facts for future sessions
+- `client_address` counts **from the right** now. `trusted_proxy_count` (default 1) is how
+  many proxies in front of the app are ours. Raise it only if a CDN is put in front of
+  Railway — getting it too high reads a caller-supplied hop again, which is the bug.
+- **Do not prune `refresh_tokens` aggressively.** A revoked row is the only evidence
+  `/auth/refresh` has that a token was *replayed* rather than merely unknown. The 7-day
+  `REFRESH_TOKEN_RETENTION` is what keeps reuse detection working; shortening it re-hides
+  theft.
+- Reuse detection revokes **every** token for the member, because rotation leaves no
+  lineage to walk. If per-family revocation is ever wanted, the rows need a family id.
+- `WEAK_PINS` is deliberately ~34 entries. Two existing tests broke on it (Batch 56 had
+  used `5678`), which is the list working. Growing it much further starts refusing PINs
+  people picked for real reasons.
+- `Cache-Control: no-store` does **not** affect the PWA's offline cache — the Cache Storage
+  API ignores HTTP cache headers, and Workbox's `CacheableResponsePlugin` filters on status.
+- Two tests asserted the old, wrong behaviour and were rewritten:
+  `test_client_address_prefers_first_forwarded_for_ip` and `test_correlation_id_passthrough`.
+- A **`/ship-prod` is still owed** — Batches 56, 57 and 58 are all backend.
+
+**Next:** Batch 59 — dependency advisories (starlette/FastAPI, cryptography, react-router).

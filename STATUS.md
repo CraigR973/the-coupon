@@ -49,7 +49,17 @@ provider requests an hour against roughly twelve spare, is now a named
 aggregate is still unbounded — fifteen members at ten each exceeds the plan —
 and that gap is stated in a test rather than left to be rediscovered.
 
-Batches 1-57 are closed. The Coupon is a verified
+Batch 58 made the rate limits real. `X-Forwarded-For` was read from the left —
+the half a caller writes — so every IP-keyed limit in the app was bypassable by
+rotating the header. It is now counted from the right by `trusted_proxy_count`,
+verified live: seven logins with a rotating spoofed prefix hit 429 at the sixth
+where each previously bought a fresh bucket. Replaying a rotated refresh token
+now revokes every session for that member rather than letting victim and thief
+race. `X-Correlation-ID` is accepted only as a UUID, `refresh_tokens` is pruned
+nightly instead of growing forever, common PINs are refused, and every response
+carries `Cache-Control: no-store`.
+
+Batches 1-58 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
