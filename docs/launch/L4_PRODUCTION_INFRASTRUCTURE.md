@@ -612,6 +612,9 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-08-21 | Railway `api` | `8201bfac-aa5e-45db-bb6b-15f94193d9ac` | `16a64eff` (Batch 46 + pinned deps) | `015` |
 | 2026-08-21 | Vercel web | `dpl_FfGCr4FcbFaGnzaEzN33D6qAHFVE` | `1272dde` (Batches 47–48) | — |
 | 2026-08-21 | Railway `api` | `854a24ec-943b-409f-97bc-4a9e6caedc1a` | `1272dde` (Batches 47–48) | `015` |
+| 2026-08-21 | Railway `api` | `10fcb862-62cd-4398-81ac-8eb13ab64c53` (`REMOVED`) | `308bc163` (Batches 49, 51, 53) | `015` |
+| 2026-08-22 | Vercel web | `dpl_2wZLwfKo5tUostnfggM8JhanGvoH` | `87cae2e7` (review + Batches 54–62) | — |
+| 2026-08-22 | Railway `api` | `3de32d48-66f3-4df8-a1a4-548dbbf40e36` | `87cae2e7` (Batches 56–59) | `015` |
 
 The 2026-08-19 shipment carries Batch 35 and is the **first API deployment since
 `013` that applies no migration**, which is what restores the rollback target the
@@ -631,6 +634,35 @@ GitHub auto-deploy already held the stable alias. Post-deploy verification:
 `/health` reports sha `2f708c82` and migration `015`, `/health/ready` agrees at
 `015` with `db: ok`, and `014`'s backfill was confirmed by
 `SELECT count(*) FROM gameweeks WHERE number IS NULL` returning 0.
+
+The 2026-08-21 `308bc163` shipment (Batches 49, 51, 53) was made from a separate
+session and **its row was never added here**, so the table was stale when the next
+shipment's preflight read it. Both rows are backfilled above. If a shipment ends
+without updating this table, the next one starts from a wrong baseline.
+
+The 2026-08-22 shipment carries Batches 56–59 and applies **no migration** — head
+stays `015`, which is what keeps `10fcb862-62cd-4398-81ac-8eb13ab64c53` usable as a
+rollback target rather than merely recorded as one. Section 4 was skipped by design
+for the fourth time running: Vercel's GitHub integration had already built
+`87cae2e7` and the stable alias resolved to `dpl_2wZLwfKo5tUostnfggM8JhanGvoH`,
+confirmed with `vercel inspect` on the alias rather than inferred from timing.
+
+Its content is the 2026-08-22 review (`docs/review/2026-08-22/`): the backend half
+is a PIN change that now revokes every session, a reset request that reaches an
+admin, a lockout that decays, `X-Forwarded-For` read from the right so the IP rate
+limits are no longer bypassable, refresh-token reuse detection, correlation-ID
+validation, nightly `refresh_tokens` pruning, a weak-PIN blocklist,
+`Cache-Control: no-store`, two endpoints that answered 500 to a malformed UUID, a
+deadline re-checked after the odds fetch, and `cryptography` raised to 48.0.1.
+
+Post-deploy verification: `/health` reports sha `87cae2e7` and migration `015`,
+`/health/ready` agrees at `015` with `db: ok`, RLS is on all 18 public tables with
+zero grants to `anon`/`authenticated`/`PUBLIC`, and the CORS preflight from the
+stable origin returns 200 with credentials while a foreign origin is refused. Three
+of the shipped behaviours were confirmed live on production by read-only request
+rather than inferred from the sha: `Cache-Control: no-store` is present, a 311-character
+`X-Correlation-ID` comes back as a fresh 36-character UUID, and a well-formed UUID
+still round-trips.
 
 The 2026-08-21 shipment carries Batch 46 (the FotMob adapter, shipping **dark** —
 `FOOTBALL_DATA_PROVIDER` is still `none`) and the pinned dependency closure. It
