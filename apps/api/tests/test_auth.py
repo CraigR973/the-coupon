@@ -10,6 +10,8 @@ import jwt as pyjwt
 import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
+from limits import parse_many
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import (
@@ -25,6 +27,7 @@ from src.database import get_db
 from src.main import app
 from src.models.profile import OddsFormat, Profile, UserRole
 from src.models.refresh_token import RefreshToken
+from src.routers.auth import REGISTER_LIMIT
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -370,6 +373,307 @@ async def test_logout_bad_token_still_204(client: AsyncClient) -> None:
 async def test_activate_route_removed(client: AsyncClient) -> None:
     resp = await client.post("/api/v1/auth/activate", json={"code": "unknown-code"})
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Registration endpoint (public self-serve signup, owner's 2026-08-22 decision)
+# ---------------------------------------------------------------------------
+
+
+def _register_db(existing_name: object = None) -> AsyncMock:
+    """A session whose one SELECT answers the display-name uniqueness probe."""
+    db = _stub_db([_scalar(existing_name)])
+    db.flush = AsyncMock()
+    db.rollback = AsyncMock()
+    return db
+
+
+def _added_profiles(db: AsyncMock) -> list[Profile]:
+    return [c.args[0] for c in db.add.call_args_list if isinstance(c.args[0], Profile)]
+
+
+async def test_register_creates_an_account_and_signs_it_in(client: AsyncClient) -> None:
+    db = _register_db()
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": "New Member", "pin": "3719"}
+        )
+
+    assert resp.status_code == 201
+    payload = resp.json()
+    assert payload["access_token"]
+    assert payload["refresh_token"]
+    assert payload["player"]["display_name"] == "New Member"
+    # A stranger signing themselves up must never land as a site admin — that role reaches
+    # every league and can take down any member's avatar or be paged for a PIN reset.
+    assert payload["player"]["role"] == "player"
+
+
+async def test_register_stores_the_pin_hashed(client: AsyncClient) -> None:
+    db = _register_db()
+    async with _override_db(db):
+        await client.post("/api/v1/auth/register", json={"display_name": "Hashed", "pin": "3719"})
+
+    (profile,) = _added_profiles(db)
+    assert profile.pin_hash != "3719"
+    assert verify_pin("3719", profile.pin_hash)
+
+
+async def test_register_stores_the_name_with_whitespace_collapsed(client: AsyncClient) -> None:
+    """What is checked for uniqueness has to be what is stored, or the check means nothing."""
+    db = _register_db()
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": "  Sam   Smith  ", "pin": "3719"}
+        )
+
+    assert resp.status_code == 201
+    assert resp.json()["player"]["display_name"] == "Sam Smith"
+    assert [p.display_name for p in _added_profiles(db)] == ["Sam Smith"]
+
+
+async def test_register_refuses_a_taken_name(client: AsyncClient) -> None:
+    db = _register_db(existing_name=uuid.uuid4())
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": "Taken", "pin": "3719"}
+        )
+
+    assert resp.status_code == 409
+    assert "taken" in resp.json()["detail"].lower()
+    db.flush.assert_not_awaited()
+
+
+async def test_register_compares_names_case_insensitively(client: AsyncClient) -> None:
+    """`uq_profiles_display_name` is case-sensitive; a leaderboard reader is not.
+
+    "Dave" and "dave" would both be valid logins and one person twice in the standings,
+    which is exactly the impersonation an open signup invites. The endpoint compares
+    lowered, so the query it issues must be the lowered one.
+    """
+    db = _register_db(existing_name=uuid.uuid4())
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": "DAVE", "pin": "3719"}
+        )
+
+    assert resp.status_code == 409
+    rendered = str(db.execute.call_args_list[0].args[0]).lower()
+    assert "lower(" in rendered
+
+
+async def test_register_does_not_filter_out_soft_deleted_names(client: AsyncClient) -> None:
+    """`deleted_at` does not release a name.
+
+    Login filters deleted profiles out, so the row cannot be signed into — but the unique
+    constraint still holds the string, and letting a stranger register the display name of
+    a departed member would hand them that person's identity in every league's history.
+    """
+    db = _register_db(existing_name=uuid.uuid4())
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": "Departed", "pin": "3719"}
+        )
+
+    assert resp.status_code == 409
+    assert "deleted_at" not in str(db.execute.call_args_list[0].args[0])
+
+
+async def test_register_survives_losing_the_uniqueness_race(client: AsyncClient) -> None:
+    """Two registrations for one name in the same instant: the loser gets 409, not 500."""
+    db = _register_db()
+    db.flush = AsyncMock(side_effect=IntegrityError("insert", {}, Exception("duplicate key")))
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": "Racer", "pin": "3719"}
+        )
+
+    assert resp.status_code == 409
+    db.rollback.assert_awaited()
+
+
+async def test_register_refuses_a_weak_pin(client: AsyncClient) -> None:
+    db = _register_db()
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": "Weak PIN", "pin": "1234"}
+        )
+
+    assert resp.status_code == 422
+    assert "too common" in resp.json()["detail"]
+    db.flush.assert_not_awaited()
+
+
+@pytest.mark.parametrize("pin", ["123", "12345", "abcd", "", "12a4"])
+async def test_register_refuses_a_pin_that_is_not_four_digits(
+    client: AsyncClient, pin: str
+) -> None:
+    db = _register_db()
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": "Someone", "pin": pin}
+        )
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.parametrize("name", ["A", "x" * 33, "   ", ""])
+async def test_register_refuses_a_name_outside_the_length_bounds(
+    client: AsyncClient, name: str
+) -> None:
+    db = _register_db()
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": name, "pin": "3719"}
+        )
+
+    assert resp.status_code == 422
+    db.flush.assert_not_awaited()
+
+
+async def test_register_measures_length_after_collapsing(client: AsyncClient) -> None:
+    """The control for the bounds above: padding is trimmed, not counted against you."""
+    db = _register_db()
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": "  Jo  ", "pin": "3719"}
+        )
+
+    assert resp.status_code == 201
+    assert resp.json()["player"]["display_name"] == "Jo"
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "Alice \U0001f389",  # emoji — unreproducible at the sign-in form on most keyboards
+        "-Dave",  # opens with punctuation
+        "_admin",  # opens with punctuation, and reads as UI chrome
+        ".hidden",  # ditto
+        "Bob\x07",  # control character
+        "Rob<script>",  # angle brackets
+        "Zoe​Anna",  # zero-width space — two visually identical names otherwise
+    ],
+)
+async def test_register_refuses_a_name_the_login_form_cannot_reproduce(
+    client: AsyncClient, name: str
+) -> None:
+    db = _register_db()
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": name, "pin": "3719"}
+        )
+
+    assert resp.status_code == 422
+
+
+async def test_register_folds_exotic_whitespace_into_plain_spaces(client: AsyncClient) -> None:
+    """A tab is whitespace to `str.split()`, so it normalises rather than being refused.
+
+    Worth pinning because the neighbouring rejection list makes the opposite look likely:
+    the character class refuses anything it cannot render, but normalisation runs *first*,
+    and a name pasted out of a spreadsheet should register as the name it looks like. The
+    zero-width space in that list is the contrast — `str.split()` does not treat U+200B as
+    whitespace, so it survives normalisation and is then correctly refused, which is what
+    stops two visually identical names existing.
+    """
+    db = _register_db()
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": "Sarah\tJones", "pin": "3719"}
+        )
+
+    assert resp.status_code == 201
+    assert resp.json()["player"]["display_name"] == "Sarah Jones"
+
+
+async def test_register_accepts_the_punctuation_real_names_contain(client: AsyncClient) -> None:
+    db = _register_db()
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": "O'Neill-Smith Jr.", "pin": "3719"}
+        )
+
+    assert resp.status_code == 201
+
+
+async def test_register_keeps_the_browsers_timezone(client: AsyncClient) -> None:
+    db = _register_db()
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register",
+            json={"display_name": "Zoned", "pin": "3719", "timezone": "Europe/London"},
+        )
+
+    assert resp.status_code == 201
+    assert resp.json()["player"]["timezone"] == "Europe/London"
+
+
+async def test_register_refuses_an_unknown_timezone(client: AsyncClient) -> None:
+    db = _register_db()
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register",
+            json={"display_name": "Nowhere", "pin": "3719", "timezone": "Mars/Olympus"},
+        )
+
+    assert resp.status_code == 422
+
+
+async def test_register_defaults_to_utc_without_a_timezone(client: AsyncClient) -> None:
+    db = _register_db()
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": "Unzoned", "pin": "3719"}
+        )
+
+    assert resp.status_code == 201
+    assert resp.json()["player"]["timezone"] == "UTC"
+
+
+async def test_register_is_refused_when_public_signup_is_disabled(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The kill switch. Closing signup must not need a deploy, and must not touch the DB."""
+    monkeypatch.setattr(settings, "public_signup_enabled", False)
+    db = _register_db()
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/register", json={"display_name": "Too Late", "pin": "3719"}
+        )
+
+    assert resp.status_code == 403
+    assert "closed" in resp.json()["detail"].lower()
+    db.execute.assert_not_awaited()
+    db.flush.assert_not_awaited()
+
+
+async def test_disabling_public_signup_does_not_disturb_login(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The switch closes the door for new members only — it must never lock out existing ones."""
+    monkeypatch.setattr(settings, "public_signup_enabled", False)
+    user = _make_user()
+    db = _stub_db([_scalar(user), _scalar(None)])
+    async with _override_db(db):
+        resp = await client.post(
+            "/api/v1/auth/login", json={"display_name": "Test User", "pin": "1234"}
+        )
+
+    assert resp.status_code == 200
+
+
+def test_register_rate_limit_is_tight_enough_to_bound_name_squatting() -> None:
+    """Asserted rather than left in a decorator string, as `PICK_SUBMIT_LIMIT` was (Batch 57).
+
+    This is the only control between a public write endpoint with no email verification
+    and a script minting accounts to squat display names — which are globally unique and
+    are the login identifier. Five an hour per address still lets a household sign up
+    together; loosening it is a decision, not a tidy-up.
+    """
+    limit = parse_many(REGISTER_LIMIT)[0]
+    assert limit.amount <= 5
+    assert limit.GRANULARITY.seconds >= 3600
 
 
 # ---------------------------------------------------------------------------

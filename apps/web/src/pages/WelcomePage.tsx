@@ -29,7 +29,7 @@ function IOSInstructions() {
       </li>
       <li className="flex gap-3">
         <span className="shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center">4</span>
-        <span>Open the app from your home screen and use your join code or link to join a league.</span>
+        <span>Open the app from your home screen, create your account, and join a league with your code or invite link.</span>
       </li>
     </ol>
   );
@@ -48,7 +48,7 @@ function AndroidInstructions() {
       </li>
       <li className="flex gap-3">
         <span className="shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center">3</span>
-        <span>Open the app from your home screen and use your join code or link to join a league.</span>
+        <span>Open the app from your home screen, create your account, and join a league with your code or invite link.</span>
       </li>
     </ol>
   );
@@ -58,7 +58,9 @@ function DesktopInstructions() {
   return (
     <p className="text-sm font-sans text-text-secondary">
       Open this page on your phone to install the app. On desktop, you can use
-      the app directly in your browser — just{' '}
+      the app directly in your browser —{' '}
+      <Link to="/register" className="text-primary underline">create an account</Link>
+      {' '}or{' '}
       <Link to="/login" className="text-primary underline">sign in</Link>.
     </p>
   );
@@ -107,7 +109,9 @@ export function WelcomePage() {
           <Card>
             <CardContent className="pt-4 space-y-3">
               <p className="text-sm font-sans text-text-secondary">
-                Already have the app?{' '}
+                New here?{' '}
+                <Link to="/register" className="text-primary underline">Create an account</Link>
+                {' '}— already have one?{' '}
                 <Link to="/login" className="text-primary underline">Sign in</Link>.
               </p>
             </CardContent>

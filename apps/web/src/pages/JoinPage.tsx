@@ -88,11 +88,21 @@ function AppJoinFlow() {
             ) : (
               <>
                 <p className="text-sm text-center text-text-secondary">
-                  Sign in with the display name and PIN provided by your admin,
-                  then this invite will be ready to claim.
+                  Create an account or sign in, and this invite will be ready to claim.
                 </p>
+                {/* Create account leads, because an invite is overwhelmingly the first
+                    thing a *new* member sees. Both carry `next`, so whichever they pick
+                    returns here with the token intact rather than dropping them on a
+                    dashboard with no leagues. */}
                 <Button asChild className="w-full">
-                  <Link to={`/login?next=${encodeURIComponent(returnPath)}`}>Sign in to continue</Link>
+                  <Link to={`/register?next=${encodeURIComponent(returnPath)}`}>
+                    Create account
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" className="w-full">
+                  <Link to={`/login?next=${encodeURIComponent(returnPath)}`}>
+                    I already have an account
+                  </Link>
                 </Button>
               </>
             )}

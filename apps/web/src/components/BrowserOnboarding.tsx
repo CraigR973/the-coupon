@@ -5,9 +5,11 @@ import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { brand } from '@/theme/tokens';
 
 /**
- * Full-page install guidance for mobile browsers. Account creation is managed
- * privately by a league admin, so this screen only explains the game and PWA
- * installation.
+ * Full-page install guidance for mobile browsers — what a shared link reaches first on a
+ * phone, since `JoinPage` shows this instead of the claim flow until the PWA is
+ * installed. It explains the game and the install, then hands off to account creation:
+ * signup became public on 2026-08-22, so the old "your admin will provide your details"
+ * line was describing a flow that no longer exists.
  */
 export function BrowserOnboarding() {
   const { isIos, isIosSafari, canInstall, prompt } = useInstallPrompt();
@@ -64,7 +66,8 @@ export function BrowserOnboarding() {
         )}
 
         <p className="text-center text-xs font-sans text-text-muted">
-          Your league admin provides your display name and activation details.
+          Once the app is installed, create your account and join with your code or
+          invite link.
         </p>
       </div>
     </div>

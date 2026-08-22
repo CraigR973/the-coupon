@@ -192,6 +192,14 @@ class Settings(BaseSettings):
     # Background scheduler (APScheduler) — disable in tests / one-off scripts.
     scheduler_enabled: bool = True
 
+    # Public self-serve signup (owner's 2026-08-22 decision). On by default, because a
+    # shared link that dead-ends at a sign-in form is the defect this replaced. Set
+    # PUBLIC_SIGNUP_ENABLED=false to close registration without a deploy — existing
+    # members are unaffected and `POST /auth/register` starts answering 403. There is no
+    # email verification anywhere in this product, so this switch is the only way to stop
+    # account creation once it starts being abused.
+    public_signup_enabled: bool = True
+
     # Profile pictures (Batch 42). The cap is enforced before any byte is stored, and is
     # deliberately small: an avatar is displayed at a few dozen pixels, so anything larger
     # is a payload rather than a picture.

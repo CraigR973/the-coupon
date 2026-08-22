@@ -1,8 +1,16 @@
 """Small admin-only seed helpers.
 
-Private users are created directly by an operator, not through a public signup
-flow. The league bootstrap takes its administrator identity from the reviewed
-roster and uses ``ADMIN_PIN`` only as the administrator's one-off PIN input.
+This is no longer the only way a profile comes into being. Members create their
+own accounts through ``POST /auth/register`` as of 2026-08-22 (ADR 0008, which
+supersedes ADR 0001); the bootstrap below is retained for the administrator and
+for recovery. The league bootstrap takes its administrator identity from the
+reviewed roster and uses ``ADMIN_PIN`` only as the administrator's one-off PIN
+input.
+
+Re-running it rewrites ``pin_hash`` and clears ``failed_login_count`` and
+``locked_until`` for every roster entry it lists, so a member who has since
+chosen their own PIN loses it. Self-registered members are not in the roster and
+are therefore untouched — which is the disruption ADR 0001 set out to remove.
 """
 
 import argparse

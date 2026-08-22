@@ -1768,6 +1768,70 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: **tokens and the Tailwind colour scales only. No component changed.**
 
+- [ ] **Batch 63 — The product had no way to make an account** *(Opus)* — sharing the app's
+  URL sent the recipient to a sign-in form asking for a display name and PIN they could
+  never obtain. There was no account-creation path anywhere: `routers/auth.py` exposed
+  login, refresh, logout, profile update, PIN change and PIN reset request and nothing
+  else, and `Profile` rows were built in exactly two places, both in `seeds.py`. The
+  `/join/:token` invite link was worse than the front door, not better — it recognised the
+  token and then told the recipient to ask their admin for credentials no flow could issue.
+
+  ADR 0001 proposed a fix on 2026-08-01 and was never implemented. This batch does not
+  build it. The owner's 2026-08-22 decision is **open self-serve registration**:
+  `POST /api/v1/auth/register`, unauthenticated, no invite, no join code, returning the
+  same `TokenResponse` login returns so the caller lands signed in. ADR 0001's join-code
+  gate is rejected because the join code gates league *membership* and that gate already
+  exists at `POST /leagues/join-by-code`; binding account creation to one league's code
+  makes the second league a special case in a product that is now per-league, and asks an
+  invite recipient for two secrets to walk through one door. Registration therefore creates
+  an **account only** and joins no league. Recorded as ADR 0008, which supersedes ADR 0001.
+
+  What the decision costs is load-bearing and is stated in the code: `display_name` is
+  globally unique *and* is the login identifier, and there is no email or phone anywhere on
+  `Profile`. The first person to claim a name owns it across every league, permanently, and
+  the only recovery is `pin/reset-request` paging a site admin (Batch 56). The guards that
+  stand in for the verification this model does not have are the feature, not refinements
+  to it: a named `REGISTER_LIMIT` of `5/hour` keyed on Batch 58's proxy-aware
+  `client_address`; `PUBLIC_SIGNUP_ENABLED`, which closes registration without a deploy;
+  case-insensitive uniqueness that **includes soft-deleted rows**, because `deleted_at` must
+  not release a name to a stranger; the `IntegrityError` caught behind that pre-check so the
+  loser of a concurrent race is told to pick another name rather than shown a 500; a charset
+  and 2-32 length bound, since the name is typed back in at every sign-in and anything
+  unreproducible from a keyboard is a lockout waiting to happen; and `is_weak_pin`.
+
+  No migration and no new column. No audit row either: `profiles.created_at` already records
+  that an account was made and when, and a new `ActionType` means `ALTER TYPE ... ADD VALUE`,
+  which cannot be undone against a production database with no restore point (owner's
+  2026-07-30 deferral).
+
+  The client half is every surface that said the opposite. `/register` is routed and ships
+  eagerly beside `/login`, because it is now half of what a shared link leads to. `login`
+  and `register` were collapsed onto one `establishSession`, so a new account cannot inherit
+  the previous member's cached screens. `next` is threaded through both doors so an invite
+  survives the trip. `JoinPage` leads with **Create account**; `WelcomePage` and
+  `BrowserOnboarding` no longer promise that an admin will provide your details.
+
+  Two defects were found while closing this out rather than after. The post-registration
+  redirect's open-redirect guard had no test — `next` is read straight off a URL anyone can
+  send, and a protocol-relative `//host` is a path to the router but an absolute origin to
+  the browser, so without it a shared link could hand a member who has just authenticated to
+  another host; proved load-bearing by mutation before the test was kept. And a 429 read as
+  a validation failure: the limiter answers `{ error: ... }` where the client read
+  `{ detail: ... }`, so an honest household behind one NAT was told "could not create your
+  account" and invited to retry against a limit it had already spent.
+
+  Verification: `scripts/ci-local.sh` PASS (11 checks) — 33 backend test cases and 17
+  frontend tests over this endpoint, plus a browser end-to-end account creation on the
+  desktop and mobile paths.
+
+  Scope boundary: **account creation only. League joining, `max_members`, the roster
+  bootstrap and the invite token are untouched.** Consequence recorded and left for the
+  owner: a league whose `privacy` is `public_request` or `public_open` is discoverable and
+  joinable, and the population that can reach it changed from "members the operator
+  provisioned" to "anyone with an account". `the-coupon` is `private` and unaffected; the
+  `test` league is `public_open`, and the 2026-08-20 decision to leave it in place was taken
+  while account creation was closed.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

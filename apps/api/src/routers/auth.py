@@ -1,5 +1,6 @@
 """Auth endpoints: login, refresh, logout, me, pin change, pin reset."""
 
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated
@@ -9,7 +10,8 @@ import bcrypt as _bcrypt
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import (
@@ -289,6 +291,174 @@ async def login(
         user_id=str(user.id),
         role=user.role.value,
     )
+    return TokenResponse(
+        access_token=access,
+        refresh_token=refresh,
+        player=_player_info(user),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Endpoint — public registration
+# ---------------------------------------------------------------------------
+
+
+class RegisterRequest(BaseModel):
+    display_name: str
+    pin: str = Field(pattern=r"^\d{4}$")
+    #: The browser's IANA zone, so a member's first coupon already shows times where
+    #: they are. Optional because a client that does not know its zone must still be
+    #: able to register; Settings can change it afterwards either way.
+    timezone: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+#: The bound on how fast one address may mint accounts. Named rather than inlined for
+#: the same reason as `PICK_SUBMIT_LIMIT` (Batch 57) — a limit that only exists inside a
+#: decorator string cannot be asserted, and this is the one control standing between a
+#: public write endpoint and a scripted name-squatting run. Five an hour still lets a
+#: household sign up together behind one NAT.
+REGISTER_LIMIT = "5/hour"
+
+#: 2-32 rather than the column's 100. The name is the login identifier *and* what every
+#: leaderboard row, roster entry and push message renders, so the practical ceiling is
+#: what fits those, not what Postgres will hold. Existing profiles are untouched by this.
+MIN_DISPLAY_NAME_LENGTH = 2
+MAX_DISPLAY_NAME_LENGTH = 32
+
+#: Letters, digits, and the punctuation that appears in real names. Must *open* with a
+#: letter or digit so a name cannot be padded into sorting first or made to look like
+#: UI chrome. Deliberately no control characters, no combining marks, no emoji: this
+#: string is typed back in at every sign-in, so anything a member cannot reproduce from
+#: their own keyboard is a lockout waiting to happen.
+_DISPLAY_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._'-]*$")
+
+
+def _normalise_display_name(raw: str) -> str:
+    """Trim, and collapse internal runs of whitespace to single spaces.
+
+    Two names differing only by padding are the same name to every human reading a
+    leaderboard, so they must not be able to coexist. Normalising here means the
+    uniqueness check below and the stored value agree.
+    """
+    return " ".join(raw.split())
+
+
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit(REGISTER_LIMIT)
+async def register(
+    request: Request,
+    body: RegisterRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> TokenResponse:
+    """Create an account and sign it in, with no invite and no admin in the loop.
+
+    Until this endpoint the product had no account-creation path at all — not in the UI
+    and not in the API. Profiles were built by ``seeds.py`` on the server and PINs handed
+    out of band, so sharing the app's URL sent a stranger to a sign-in form they could
+    never satisfy. The owner's decision on 2026-08-22 was open self-serve signup.
+
+    What that decision costs, stated plainly because it is now load-bearing:
+    ``display_name`` is globally unique *and* is the login identifier, and there is no
+    email or phone anywhere on ``Profile``. So the first person to claim a name owns it
+    across every league, forever, and the only account recovery is
+    ``pin/reset-request``, which pages a site admin. The three guards below are what
+    stands in for the verification step this model does not have.
+
+    Registration needs no audit row: ``profiles.created_at`` already records that an
+    account was made and when, which is the same durable evidence an ``audit_log`` entry
+    would carry. A dedicated ``ActionType`` is deliberately not added — ``ALTER TYPE ...
+    ADD VALUE`` cannot be undone and production has no restore point (owner's 2026-07-30
+    deferral), the same reasoning ``pin_reset_request`` records above.
+    """
+    if not settings.public_signup_enabled:
+        # The kill switch. A public write endpoint with no email verification needs a way
+        # to be shut off that does not require a deploy, and this is it — set
+        # PUBLIC_SIGNUP_ENABLED=false and existing members are wholly unaffected.
+        log.info("registration refused — public signup disabled")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sign-ups are closed right now. Ask a league admin for an invite.",
+        )
+
+    name = _normalise_display_name(body.display_name)
+
+    if not (MIN_DISPLAY_NAME_LENGTH <= len(name) <= MAX_DISPLAY_NAME_LENGTH):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Display name must be {MIN_DISPLAY_NAME_LENGTH}-"
+                f"{MAX_DISPLAY_NAME_LENGTH} characters."
+            ),
+        )
+    if not _DISPLAY_NAME_RE.match(name):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Display name can use letters, numbers, spaces, and . _ ' - "
+                "and must start with a letter or number."
+            ),
+        )
+    if is_weak_pin(body.pin):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="That PIN is too common — choose one that is not a run or a repeat.",
+        )
+
+    if body.timezone is not None:
+        try:
+            ZoneInfo(body.timezone)
+        except (ZoneInfoNotFoundError, KeyError):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid IANA timezone identifier",
+            ) from None
+
+    # Case-insensitive, where the database's constraint is not. Postgres would happily
+    # hold "Dave" and "dave" side by side and login matches exactly, so both would work —
+    # but on a leaderboard they are one person twice, which is precisely the impersonation
+    # a public signup invites. Soft-deleted rows are *included*: `deleted_at` does not
+    # release a name, and letting a stranger take the identity of a departed member would
+    # be worse than making them pick another name.
+    taken = await db.execute(
+        select(Profile.id).where(func.lower(Profile.display_name) == name.lower())
+    )
+    if taken.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="That display name is taken — try another.",
+        )
+
+    user = Profile(
+        # Minted here rather than left to the column default, which SQLAlchemy applies at
+        # flush. `_issue_token_pair` needs the id to sign a token *and* to write the
+        # refresh row, so an id that only exists after a successful flush would make both
+        # depend on flush ordering. Same reason that function mints its own `record_id`.
+        id=uuid.uuid4(),
+        display_name=name,
+        pin_hash=hash_pin(body.pin),
+        role=UserRole.player,
+        timezone=body.timezone or "UTC",
+        odds_format=OddsFormat.decimal,
+        is_active=True,
+    )
+    db.add(user)
+    try:
+        await db.flush()
+    except IntegrityError:
+        # `uq_profiles_display_name` is the backstop for the check above losing a race
+        # with a second registration for the same name. Same answer either way, so the
+        # loser of the race is told to pick another name rather than shown a 500.
+        await db.rollback()
+        log.info("registration lost the uniqueness race", display_name=name)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="That display name is taken — try another.",
+        ) from None
+
+    device_hint = request.headers.get("User-Agent", "")[:100]
+    access, refresh = await _issue_token_pair(user, db, device_hint)
+
+    log.info("registration successful", user_id=str(user.id))
     return TokenResponse(
         access_token=access,
         refresh_token=refresh,

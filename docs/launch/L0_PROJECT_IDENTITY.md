@@ -72,6 +72,45 @@ pausing is not a material risk for production because the always-on Railway
 replica warms the connection every ten minutes and dumps daily, which exceeds
 Supabase's stated activity bar.
 
+## Public signup amendment
+
+Owner decision recorded on 2026-08-22, reversing this document's
+private-provisioning posture. Recorded in full as ADR 0008, which supersedes the
+never-implemented ADR 0001.
+
+The product ships with **open self-serve registration**. `POST /auth/register`
+is unauthenticated: anyone who reaches the app can create an account and land
+signed in, with no invite, no join code, and no administrator in the loop.
+
+The decision was forced by what the private posture actually produced. There was
+no account-creation path anywhere in the product, so sharing the app's URL sent
+the recipient to a sign-in form asking for a display name and PIN they could
+never obtain, and the `/join/:token` invite link told them to ask their admin for
+credentials that no flow could issue.
+
+What this changes about L0's record:
+
+- the initial roster is no longer how members arrive; it is retained for the
+  administrator and for recovery (see "Initial roster handling" below);
+- the 15-profile expected count remains L4's bootstrap evidence, but is no
+  longer a ceiling on the number of accounts that can exist; `max_members`
+  remains the per-league backstop and does not bound account creation; and
+- L5's "send member invites" becomes "share the link".
+
+What it does not change: the repository stays public for runner allocation, no
+email, phone number, or verification surface is introduced anywhere, and league
+membership is still gated separately from account creation. `the-coupon` itself
+is `privacy = private`, so joining it still needs a join code or an invite token.
+That is a per-league property, not a product-wide one — a league set to
+`public_request` or `public_open` is discoverable and joinable without either,
+which is now reachable by anyone with an account rather than only by provisioned
+members.
+
+Registration can be closed again without a deploy by setting
+`PUBLIC_SIGNUP_ENABLED=false`, which is the only control that stops account
+creation once it starts being abused — there is no email verification in this
+product to fall back on.
+
 ## Backup deferral
 
 Owner decision recorded on 2026-07-30: **the launch ships with no database
@@ -261,6 +300,10 @@ database, debugging, development, and documentation feature groups enabled.
 Production must never be connected to an agent MCP server.
 
 ## Initial roster handling
+
+Superseded in part by the 2026-08-22 public-signup amendment above: members now
+create their own accounts and choose their own PINs, so the roster covers the
+administrator and any member the owner provisions directly, not the league.
 
 Real display names, PINs, reset tokens, phone numbers, and invitation details
 must not be committed. The owner supplies the reviewed roster out of band in

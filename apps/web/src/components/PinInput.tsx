@@ -91,7 +91,10 @@ export function PinInput({ value, onChange, maxLength = 4, autoComplete = 'curre
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={handlePaste}
           autoComplete={i === 0 ? autoComplete : 'off'}
-          aria-label={`PIN digit ${i + 1}`}
+          // Namespaced by the group's label so a screen reader — and a test — can tell
+          // two PIN inputs on one page apart (the register form asks for it twice). The
+          // default label is "PIN", so every existing caller reads exactly as it did.
+          aria-label={`${label} digit ${i + 1}`}
           className={cn(
             'w-12 h-12 text-center text-lg font-mono tracking-widest',
             'rounded-md border border-border bg-surface text-text-primary',

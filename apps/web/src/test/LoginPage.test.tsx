@@ -6,17 +6,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LoginPage } from '@/pages/LoginPage';
 import { AuthProvider } from '@/contexts/AuthContext';
 
-function renderLogin() {
+function renderLoginAt(entry: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}>
         <AuthProvider>
           <LoginPage />
         </AuthProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   );
+}
+
+function renderLogin() {
+  return renderLoginAt('/login');
 }
 
 function fillPin(digits: string) {
@@ -43,9 +47,18 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText(/pin digit 1/i)).toBeTruthy();
   });
 
-  it('does not offer public account creation', () => {
+  // Inverted on 2026-08-22. This asserted the absence of a create-account link, which
+  // encoded the old operator-provisioned model: sharing the app's URL sent a stranger to
+  // a form they could never satisfy. Public signup is now the owner's decision.
+  it('offers public account creation', () => {
     renderLogin();
-    expect(screen.queryByRole('link', { name: /create account/i })).toBeNull();
+    expect(screen.getByRole('link', { name: /create account/i })).toBeTruthy();
+  });
+
+  it('carries ?next through to register, so an invite survives the detour', () => {
+    renderLoginAt('/login?next=%2Fjoin%2FABC123');
+    const link = screen.getByRole('link', { name: /create account/i });
+    expect(link.getAttribute('href')).toBe('/register?next=%2Fjoin%2FABC123');
   });
 
   it('shows the value-proposition tagline', () => {

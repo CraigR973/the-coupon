@@ -74,21 +74,29 @@ and touches no bookmaker account.
 bootstrap is idempotent, has run, and matches production exactly — the gap is
 that nobody has written down who the other fourteen are.
 
-Two ways to close it, both requiring the owner:
+Two ways to close it:
 
-1. Extend `.launch-private/roster.json` and re-run
-   `bootstrap-production.sh` — idempotent, so existing members are untouched.
-2. Send invites or share the join code from the app. `the-coupon` is `private`
-   with `max_members = 15`, so this is the designed path.
-
-Neither can be automated: one needs the real names and PINs, the other needs a
-signed-in admin.
+1. **Share the app link.** Signup is public as of ADR 0008: a member creates
+   their own account at `/register`, chooses their own PIN, and joins with an
+   invite link or the join code. `the-coupon` is `private` with
+   `max_members = 15`, which bounds the league rather than the number of
+   accounts. This is the designed path and needs nothing from the owner beyond
+   distributing the link.
+2. **Extend `.launch-private/roster.json` and re-run `bootstrap-production.sh`.**
+   Owner-only; needs the real names and PINs. Idempotent in the sense that it
+   creates no duplicates, but **not** harmless: it rewrites `pin_hash` and clears
+   `failed_login_count` and `locked_until` for every roster entry it lists, so a
+   listed member who has since chosen their own PIN loses it. Members who
+   registered themselves are not in the roster and are unaffected.
 
 ### Also noted
 
 - A second league, `test`, exists and is `public_open` with its own 135-fixture
   round. Left alone by owner decision on 2026-08-20. It is discoverable and
-  joinable by a real member if the roster ever grows.
+  joinable — and since ADR 0008 opened signup on 2026-08-22, the population that
+  can reach it is no longer "a real member if the roster ever grows" but anyone
+  who creates an account. The 2026-08-20 decision was taken while account
+  creation was closed; it is worth revisiting on that basis.
 - The admin PIN is **not** the value in `roster.json` — a login attempt with it
   was refused, which means it has already been changed. That closes the
   "administrator PIN is a known value" follow-up `STATUS.md` carried.

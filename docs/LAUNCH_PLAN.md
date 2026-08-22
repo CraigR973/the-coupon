@@ -413,7 +413,10 @@ application requires a separately reviewed forward recovery plan.
 
 ### L5 — Launch and first-Saturday watch
 
-- [ ] Send member invites and confirm one login per supported device class.
+- [ ] Share the app link, and confirm one account creation and one login per
+      supported device class. Signup is public as of ADR 0008; members create
+      their own accounts and choose their own PINs, so there are no PINs to
+      distribute.
 - [ ] Confirm the Monday-Saturday slate refreshes and Saturday reminder.
 - [ ] Watch the 14:30 Europe/London lock and all settlement retries.
 - [ ] Confirm standings and combined coupon after settlement.

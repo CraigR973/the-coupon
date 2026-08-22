@@ -15,6 +15,7 @@ import { UpdateBanner } from './components/UpdateBanner';
 import { InstallPromptController } from './components/InstallPromptController';
 import { NotificationsPromptController } from './components/NotificationsPromptController';
 import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
 import { JoinPage } from './pages/JoinPage';
 import { DEFAULT_LEAGUE_SLUG } from './lib/api';
 
@@ -22,7 +23,8 @@ import { DEFAULT_LEAGUE_SLUG } from './lib/api';
 // those deps out of the unauthenticated /login chunk.
 const Layout = lazyRoute(() => import('./components/Layout').then((m) => ({ default: m.Layout })));
 
-// Lazy-loaded routes: only login + join ship eagerly so the unauth entry is fast.
+// Lazy-loaded routes: only login, register and join ship eagerly so the unauth entry
+// is fast. Register is in that set because it is now half of what a shared link leads to.
 const DashboardPage = lazyRoute(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const CouponPickPage = lazyRoute(() => import('./pages/CouponPickPage').then((m) => ({ default: m.CouponPickPage })));
 const CouponCombinedPage = lazyRoute(() =>
@@ -117,6 +119,7 @@ export function App() {
                 <Routes>
                   {/* Public routes (no auth, no league context) */}
                   <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
                   <Route path="/forgot-pin" element={<ForgotPinPage />} />
                   <Route path="/join/:token" element={<JoinPage />} />
                   <Route path="/welcome" element={<WelcomePage />} />

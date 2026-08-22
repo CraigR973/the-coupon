@@ -1,6 +1,14 @@
 # ADR 0001 — Self-service signup by league join code
 
-Status: **proposed**, 2026-08-01. Not implemented.
+Status: **superseded by ADR 0008**, 2026-08-22. Never implemented as written.
+
+The problem this ADR identified was real and was fixed; the mechanism below was
+not the one chosen. ADR 0008 adds open registration at `POST /auth/register`
+rather than gating account creation on a league join code, because the join code
+gates league *membership* and that gate already exists. Everything below is
+retained as the record of what was considered — the "What already exists"
+inventory is still accurate, and the security considerations carried forward
+unchanged.
 
 ## Context
 

@@ -19,6 +19,12 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Whatever brought them to /login — usually an invite at /join/:token — has to survive
+  // the trip through account creation, or a new member registers and lands on an empty
+  // dashboard instead of the league they were invited to.
+  const next = new URLSearchParams(location.search).get('next');
+  const registerHref = next ? `/register?next=${encodeURIComponent(next)}` : '/register';
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -76,10 +82,16 @@ export function LoginPage() {
                 {isLoading ? 'Signing in…' : 'Sign in'}
               </Button>
 
-              <div className="text-center">
-                <Link to="/forgot-pin" className="text-xs font-sans text-text-muted hover:text-text-primary transition-colors">
+              <div className="space-y-2 text-center">
+                <Link to="/forgot-pin" className="block text-xs font-sans text-text-muted hover:text-text-primary transition-colors">
                   Forgot PIN?
                 </Link>
+                <p className="text-xs font-sans text-text-muted">
+                  New here?{' '}
+                  <Link to={registerHref} className="text-primary underline underline-offset-2">
+                    Create account
+                  </Link>
+                </p>
               </div>
             </form>
           </CardContent>

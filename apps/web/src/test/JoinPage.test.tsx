@@ -58,11 +58,18 @@ afterEach(() => {
 });
 
 describe('JoinPage', () => {
-  it('asks an unauthenticated invite recipient to sign in, preserving the return path', () => {
+  // Before public signup this offered sign-in alone and told the visitor their admin
+  // would supply credentials — which, for the new member an invite is usually aimed at,
+  // was an instruction they could not act on. Both doors now exist and both must keep
+  // the return path, or claiming the invite is lost on the way through.
+  it('offers an unauthenticated invite recipient both doors, preserving the return path', () => {
     renderJoin('ABC123');
 
-    expect(screen.getByText(/display name and PIN provided by your admin/i)).toBeTruthy();
-    expect(screen.getByRole('link', { name: /sign in to continue/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /create account/i })).toHaveAttribute(
+      'href',
+      '/register?next=%2Fjoin%2FABC123',
+    );
+    expect(screen.getByRole('link', { name: /already have an account/i })).toHaveAttribute(
       'href',
       '/login?next=%2Fjoin%2FABC123',
     );

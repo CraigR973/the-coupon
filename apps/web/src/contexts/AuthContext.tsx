@@ -21,6 +21,12 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (displayName: string, pin: string) => Promise<void>;
+  /**
+   * Create an account and land signed in, in one round trip. The API answers
+   * `/register` with the same token pair as `/login`, so the two share everything
+   * after the fetch — see `establishSession`.
+   */
+  register: (displayName: string, pin: string) => Promise<void>;
   logout: () => Promise<void>;
   /** Update a subset of the stored player (e.g. after avatar upload). */
   updatePlayer: (patch: Partial<StoredPlayer>) => void;
@@ -63,30 +69,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     sessionUnlockError: null,
   });
 
-  const login = useCallback(async (displayName: string, pin: string) => {
-    setState((s) => ({ ...s, isLoading: true }));
-    try {
-      const resp = await fetch(`${API_BASE}/api/v1/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ display_name: displayName, pin }),
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.detail ?? 'Login failed');
+  /**
+   * POST to an endpoint that answers with a token pair, then adopt that identity.
+   *
+   * Login and registration differ only in the URL and the fallback error text: both
+   * return `TokenResponse`, and everything after it — dropping the previous member's
+   * cached API responses, clearing react-query, storing the tokens — has to happen
+   * identically or a new account inherits the last one's cached screens.
+   */
+  const establishSession = useCallback(
+    async (path: string, body: Record<string, unknown>, fallbackError: string) => {
+      setState((s) => ({ ...s, isLoading: true }));
+      try {
+        const resp = await fetch(`${API_BASE}${path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          // The limiter answers with `{ error }`, not `{ detail }`, so a 429 would
+          // otherwise fall through to the generic message — which reads as "your
+          // details are wrong" and invites an immediate retry against a limit already
+          // spent. Registration is 5/hour, tight enough for a household behind one NAT
+          // to reach it honestly, so this has to say what actually happened.
+          if (resp.status === 429) {
+            throw new Error('Too many attempts just now. Wait a few minutes and try again.');
+          }
+          throw new Error(err.detail ?? fallbackError);
+        }
+        const data = await resp.json();
+        const player = playerFromApiResponse(data);
+        await clearApiCaches();
+        queryClient.clear();
+        storeTokens(data.access_token, data.refresh_token, player);
+        setLockedPlayer(null);
+        setState({ player, isLoading: false, sessionUnlockRequired: false, sessionUnlockError: null });
+      } catch (err) {
+        setState((s) => ({ ...s, isLoading: false }));
+        throw err;
       }
-      const data = await resp.json();
-      const player = playerFromApiResponse(data);
-      await clearApiCaches();
-      queryClient.clear();
-      storeTokens(data.access_token, data.refresh_token, player);
-      setLockedPlayer(null);
-      setState({ player, isLoading: false, sessionUnlockRequired: false, sessionUnlockError: null });
-    } catch (err) {
-      setState((s) => ({ ...s, isLoading: false }));
-      throw err;
-    }
-  }, [queryClient]);
+    },
+    [queryClient],
+  );
+
+  const login = useCallback(
+    (displayName: string, pin: string) =>
+      establishSession('/api/v1/auth/login', { display_name: displayName, pin }, 'Login failed'),
+    [establishSession],
+  );
+
+  const register = useCallback(
+    (displayName: string, pin: string) =>
+      establishSession(
+        '/api/v1/auth/register',
+        {
+          display_name: displayName,
+          pin,
+          // Sent so a member's first coupon already reads in local time. The API
+          // validates it and falls back to UTC, so a browser that cannot answer
+          // (or answers with something unknown) still registers.
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
+        },
+        'Could not create your account',
+      ),
+    [establishSession],
+  );
 
   const logout = useCallback(async () => {
     const { getRefreshToken } = await import('../lib/tokens');
@@ -153,7 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [lockedPlayer, queryClient]);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, updatePlayer, unlockStoredSession }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout, updatePlayer, unlockStoredSession }}>
       {children}
     </AuthContext.Provider>
   );
