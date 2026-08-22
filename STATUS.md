@@ -79,7 +79,15 @@ and `batch-verify.md` documented a piecemeal path that skips 151 tests without
 command docs now say so, and `phase-closeout.md` states plainly that its push
 deploys the web app before CI has necessarily reported.
 
-Batches 1-60 are closed (59 in part; see Batch 61). The Coupon is a verified
+Batch 62 finished the palette. The six contrast failures Batch 54 left behind were
+not a design decision after all: Tailwind scales colours per utility, so every
+`text-*` now resolves to a new `-ink` token while every fill, border and ring keeps
+the original. Nothing visual moved except small brand-coloured text in light mode,
+which was the thing that was wrong. **The pick screen now reports zero axe
+violations of any rule, in both themes** — it began the night with one critical and
+21 contrast failures.
+
+Batches 1-60 and 62 are closed (59 in part; see Batch 61). The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,

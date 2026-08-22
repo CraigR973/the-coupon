@@ -1573,3 +1573,23 @@ correlation id, token pruning, weak PINs).
   batch because its scope boundary was tooling and docs only.
 
 **Next:** Batch 61 — the FastAPI/starlette upgrade and the two decisions inside it.
+
+## Batch 62 — The half of the palette Batch 54 could not fix
+**Commits:** 69c2f08 · verified: `scripts/ci-local.sh` PASS (10 checks) · axe 0 violations both themes
+
+### Key facts for future sessions
+- **`text-*` and `bg-*` no longer resolve to the same value for brand names.**
+  `tailwind.config.ts` has a `textColor` scale pointing at `--*-ink`; `colors` still backs
+  every fill, border and ring. Adding a new brand colour means adding *both*.
+- **Never darken a fill to fix contrast.** That is the wrong half — it makes the near-black
+  `--on-primary` sitting on it worse. `contrast.test.ts` asserts the fill pairing precisely
+  so that move fails loudly.
+- **A `tailwind.config.ts` change needs the dev server restarted.** HMR picks up `index.css`
+  but not the config, so the old utilities keep being served — which looked exactly like a
+  broken token for a while.
+- `--text-inverse` pairs with an inverted *ground*, not with a brand fill. Text on a fill is
+  `--on-primary`. An assertion confusing the two fails on a pairing the app never renders.
+- axe measured immediately after a theme toggle catches `transition-colors` mid-flight and
+  reports the outgoing palette's value. Let it settle before trusting a reading.
+
+**Next:** Batch 61 — the FastAPI/starlette upgrade and the two decisions inside it.

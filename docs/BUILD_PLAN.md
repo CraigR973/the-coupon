@@ -1746,6 +1746,28 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: **dependencies and whatever their APIs force. No behaviour change beyond
   the 401/403 decision, and that one is deliberate and recorded.**
 
+- [x] **Batch 62 — The half of the palette Batch 54 could not fix** ✅ 2026-08-22 *(Opus)* — Batch 54
+  corrected `--text-muted` and left six light-mode failures standing, recorded as needing a
+  design decision because one value provably cannot be both a legible ink and a legible
+  fill: on white, text needs relative luminance ≤ 0.183 and a fill under the near-black
+  `--on-primary` needs ≥ 0.208.
+
+  The decision turned out to be mechanical. Tailwind scales colours per *utility*, so
+  `theme.extend.textColor` sends every `text-*` to a new `-ink` token while `bg-*`,
+  `border-*`, `ring-*`, `fill-*` and `stroke-*` keep reading `colors` untouched — no fill,
+  chip, badge or medal moves. Done in the config rather than across 179 `text-primary` call
+  sites, because that diff would say nothing and this one says the thing that is true.
+
+  Dark mode barely diverges (only `--error` was failing, on the two upper tiers). Light mode
+  is where the work was: primary, success, warning, accent, error, gold and bronze all failed
+  as text, `--warning` worst at 2.86 while carrying "You haven't grabbed a selection yet".
+
+  Verification: axe on the live pick screen at 390px reports **zero violations of any rule in
+  both themes** (light was 6). `contrast.test.ts` asserts the inks clear AA on every surface,
+  the fills still carry legible `--on-primary` / `--on-accent`, and no ink is orphaned.
+
+  Scope boundary: **tokens and the Tailwind colour scales only. No component changed.**
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
