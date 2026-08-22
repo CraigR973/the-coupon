@@ -1483,3 +1483,23 @@ table pips simply will not open until **a `/ship-prod` is owed and run**.
   review and Railway does not move on a push to `main`.
 
 **Next:** Batch 57 — three things wrong in the file that takes the pick.
+
+## Batch 57 — Three things wrong in the file that takes the pick
+**Commits:** 43183ad · verified: ruff 0.5.4 · mypy 1.11.0 · pytest 674 (clean schema, 0 skips) · lint · tsc · build · vitest 538
+
+### Key facts for future sessions
+- **The provider budget is fully committed.** Measured: peak browsing hour 28, ad-hoc
+  rounds 60/hour, leaving ~12 of the 100/hour plan. Any new provider call in the request
+  path has nowhere to come from — check `test_request_budget.py` before adding one.
+- `PICK_SUBMIT_LIMIT` bounds **one member**, not the league. Fifteen members at 10/hour is
+  150 against a 100/hour plan. `test_the_pick_path_is_not_bounded_in_total_and_this_is_known`
+  asserts that gap still exists; if it ever fails, the gap was closed and the test should be
+  replaced rather than deleted.
+- The lock re-check reads the **clock**, not the row: `pick_refusal` gets the ORM object
+  already loaded in the request's session, so a `locks_at_utc` changed by another session
+  is invisible to it. Any test of that race must move time, not the deadline.
+- `ruff format` wanted two files after this batch's edits and `ruff check` did not. Format
+  is the *first* CI step, so a check-only pass locally still fails the job — run both.
+
+**Next:** Batch 58 — the rate limits that are decorative (X-Forwarded-For, token reuse,
+correlation id, token pruning, weak PINs).

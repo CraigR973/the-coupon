@@ -39,7 +39,17 @@ and notified nobody, now writes an audit row *and* pushes every active site
 admin. **This is the first backend change since the review, so a `/ship-prod` is
 owed** — it is not live until then.
 
-Batches 1-56 are closed. The Coupon is a verified
+Batch 57 cleaned up the pick path. A malformed `fixture_id` or `gameweek_id`
+answered **500**; both are now 404 and 422, with a well-formed-but-absent id
+still 404. The lock is re-checked after the odds fetch returns, closing a window
+as long as a third party takes to answer on the one deadline the product turns
+on. And the per-member submit limit, which permitted one member to spend sixty
+provider requests an hour against roughly twelve spare, is now a named
+`PICK_SUBMIT_LIMIT` of `10/hour` asserted against the measured budget. The
+aggregate is still unbounded — fifteen members at ten each exceeds the plan —
+and that gap is stated in a test rather than left to be rediscovered.
+
+Batches 1-57 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,

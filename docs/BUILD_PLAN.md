@@ -1579,7 +1579,7 @@ answered until it lands, because until then there is no data to look at.
   notification row needs a column, it is additive and forward-only, and it needs a written
   recovery plan under `ship-prod.md` because production has no restore point.
 
-- [ ] **Batch 57 — Three things wrong in the file that takes the pick** —
+- [x] **Batch 57 — Three things wrong in the file that takes the pick** ✅ 2026-08-22 *(Opus)* —
   All three are in `routers/picks.py` and all three are cheap.
 
   **A malformed id is a 500.** `fixture_id` on the submit body (`picks.py:58`) and
