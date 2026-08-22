@@ -1543,7 +1543,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: **frontend only, no API change.** Do not restyle the pick card.
 
-- [ ] **Batch 56 — Two halves of account recovery, neither of which works** —
+- [x] **Batch 56 — Two halves of account recovery, neither of which works** ✅ 2026-08-22 *(Opus)* —
   Changing a PIN is the thing a member does when they think someone else knows it, and
   `routers/auth.py:344-358` writes the new hash and commits. It does not revoke that
   member's `refresh_tokens`, does not clear `failed_login_count` or `locked_until`, and

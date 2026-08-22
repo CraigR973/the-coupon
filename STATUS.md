@@ -29,7 +29,17 @@ were raised to 16px on mobile, so iOS Safari has no cause to zoom a focused
 field. The form disclosure went from 70x22 to 70x24, clearing WCAG 2.2 SC
 2.5.8. The pick screen now reports **zero** axe violations in both themes.
 
-Batches 1-55 are closed. The Coupon is a verified
+Batch 56 closed the account-recovery journey. Changing a PIN now revokes every
+refresh token for that member — it previously wrote the new hash and left every
+old session renewing itself for thirty days, so a stolen session outlived the
+credential it was opened with. An expired lockout now returns all five attempts
+rather than one, ending a ratchet that could lock a forgetful member out
+permanently. And `pin/reset-request`, which promised "an admin will be notified"
+and notified nobody, now writes an audit row *and* pushes every active site
+admin. **This is the first backend change since the review, so a `/ship-prod` is
+owed** — it is not live until then.
+
+Batches 1-56 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,

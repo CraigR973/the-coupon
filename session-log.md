@@ -1456,3 +1456,30 @@ table pips simply will not open until **a `/ship-prod` is owed and run**.
 - Pick screen now reports **zero** axe violations at 390px in both themes.
 
 **Next:** Batch 56 — changing a PIN revokes nothing and the reset flow notifies nobody.
+
+## Batch 56 — Two halves of account recovery, neither of which works
+**Commits:** 5f88f41 · verified: ruff 0.5.4 · mypy 1.11.0 · pytest 667 (clean schema, 0 skips) · lint · tsc · build · vitest 538
+
+### Key facts for future sessions
+- **Changing a PIN now logs the member out everywhere, including the device they used.**
+  That is deliberate, not a bug: the endpoint authenticates with an *access* token so the
+  API cannot tell which refresh token is the caller's, and `device_hint` would spare an
+  attacker who copied the User-Agent. `lib/api.ts` already bounces a failed refresh to
+  /login, so the member is simply asked for the new PIN.
+- The 24-hour access token still cannot be recalled — it is stateless. A revoked session
+  keeps working until that token expires, then dies at refresh. Shortening `ACCESS_TTL`
+  is a separate decision nobody has taken.
+- `pin/reset-request` writes `ActionType.player_pin_reset` with `changes.stage =
+  "requested"` rather than a new enum value. `ALTER TYPE ... ADD VALUE` is irreversible
+  and production has no restore point, which is not a trade worth making for a label.
+- **`audit_log` has no reader anywhere** — no query in `src/`, no frontend surface. That
+  is why the reset request also pushes. If an admin surface is ever built, that table is
+  where the history already is.
+- **Open question for the owner:** `_notify_site_admins` looks for `UserRole.admin`
+  profiles. The e2e seed creates none, so nothing was pushed in local verification. Worth
+  confirming production actually has a site admin with a live push subscription, or the
+  audit row is again the only trace.
+- A **`/ship-prod` is owed** from this batch — it is the first backend change since the
+  review and Railway does not move on a push to `main`.
+
+**Next:** Batch 57 — three things wrong in the file that takes the pick.
