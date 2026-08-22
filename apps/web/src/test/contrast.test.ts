@@ -104,31 +104,33 @@ const AA_NORMAL = 4.5;
 const INVERTED_BY_DESIGN = ['text-inverse'] as const;
 
 /**
- * Tokens that still fail AA as text and are knowingly left alone, because each
- * is used as a fill and a border as well as text, and one value provably cannot
- * do both jobs.
+ * The brand and semantic names as *text*.
  *
- * The proof, for `--primary` in light mode: to clear 4.5:1 as text on white a
- * colour needs relative luminance <= 0.183; to clear 4.5:1 as a fill under the
- * near-black `--on-primary` it needs >= 0.208. There is no such colour. These
- * need a second token (brand-as-ink, distinct from brand-as-surface), which is
- * a design decision rather than a correction, and it is specified separately in
- * `docs/BUILD_PLAN.md`.
- *
- * This list is an admission, not a suppression: it is asserted to be exactly
- * accurate below, so it cannot silently grow.
+ * Batch 62 split each of these in two, because one value provably cannot do both
+ * jobs: in light mode a green clearing 4.5:1 as text on white needs relative
+ * luminance <= 0.183, while clearing 4.5:1 as a fill under the near-black
+ * `--on-primary` needs >= 0.208. `tailwind.config.ts` points every `text-*`
+ * utility at the `-ink` half, so these are what a reader actually sees, and they
+ * are held to the same bar as the plain text tokens.
  */
-const KNOWN_DUAL_ROLE_DEBT = [
-  'primary',
-  'accent',
-  'success',
-  'warning',
-  'error',
-  'live',
-  'gold',
-  'silver',
-  'bronze',
+const INK = [
+  'primary-ink',
+  'success-ink',
+  'warning-ink',
+  'accent-ink',
+  'error-ink',
+  'live-ink',
+  'gold-ink',
+  'bronze-ink',
 ] as const;
+
+/**
+ * The same names as *fills*, which is the job they kept. These are never read as
+ * text — `bg-*`, `border-*`, `ring-*`, `fill-*` and `stroke-*` still resolve to
+ * them — so measuring them against a surface would be measuring nothing. What
+ * matters for a fill is the text that sits on it, asserted separately below.
+ */
+const FILLS = ['primary', 'accent'] as const;
 
 describe.each([
   ['dark', DARK],
@@ -149,34 +151,61 @@ describe.each([
     });
   });
 
-  it('records exactly the dual-role tokens that still fail, and no others', () => {
+  describe.each(INK)('--%s', (token) => {
+    it.each(SURFACES)(`clears AA on --%s`, (surface) => {
+      const ratio = contrast(palette[token], palette[surface]);
+      expect(
+        ratio,
+        `${palette[token]} on ${palette[surface]} is ${ratio.toFixed(2)}:1, needs ${AA_NORMAL}:1`,
+      ).toBeGreaterThanOrEqual(AA_NORMAL);
+    });
+  });
+
+  it.each(FILLS)('carries legible text on a --%s fill', (token) => {
+    // The other half of the split. A fill is judged by what sits on it, and what
+    // sits on these is --on-primary / --on-accent, which index.css records as
+    // verified. Asserted here so darkening a fill to "fix" contrast — the exact
+    // wrong move, and the one this file exists to prevent — fails loudly.
+    const on = token === 'primary' ? palette['on-primary'] : palette['on-accent'];
+    const ratio = contrast(on, palette[token]);
+    expect(
+      ratio,
+      `${on} on the --${token} fill is ${ratio.toFixed(2)}:1, needs ${AA_NORMAL}:1`,
+    ).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
+  it('leaves no text token failing AA anywhere', () => {
     const failing = Object.keys(palette)
-      .filter((token) => (KNOWN_DUAL_ROLE_DEBT as readonly string[]).includes(token))
-      .filter((token) =>
-        SURFACES.some((surface) => contrast(palette[token], palette[surface]) < AA_NORMAL),
-      )
-      .sort();
-
-    const expected = [...KNOWN_DUAL_ROLE_DEBT]
-      .filter((token) => palette[token] !== undefined)
-      .filter((token) =>
-        SURFACES.some((surface) => contrast(palette[token], palette[surface]) < AA_NORMAL),
-      )
-      .sort();
-
-    // The real assertion: nothing outside the known list may fail.
-    const unexpected = Object.keys(palette)
-      .filter((token) => !(KNOWN_DUAL_ROLE_DEBT as readonly string[]).includes(token))
-      .filter((token) => !(TEXT_ONLY as readonly string[]).includes(token))
-      .filter((token) => !(INVERTED_BY_DESIGN as readonly string[]).includes(token))
-      .filter((token) => token.startsWith('text-'))
+      .filter((token) => token.endsWith('-ink') || (TEXT_ONLY as readonly string[]).includes(token))
       .filter((token) =>
         SURFACES.some((surface) => contrast(palette[token], palette[surface]) < AA_NORMAL),
       );
 
-    expect(unexpected, `${name}: text tokens failing AA outside the known list`).toEqual([]);
-    expect(failing).toEqual(expected);
+    expect(failing, `${name}: text tokens below ${AA_NORMAL}:1`).toEqual([]);
   });
+
+  it('gives every ink token a fill counterpart, so none is orphaned', () => {
+    for (const ink of INK) {
+      const base = ink.replace(/-ink$/, '');
+      expect(palette[base], `--${base} backs --${ink}`).toBeDefined();
+    }
+  });
+
+  it.each(INVERTED_BY_DESIGN)('reads --%s against the ground it is actually on', (token) => {
+    // Asserted rather than excluded silently. This token is illegible on the surface
+    // tiers on purpose, so the meaningful pairing is the inverted one: `--text-inverse`
+    // against `--text-primary` used as a ground, which is what "inverse" means.
+    //
+    // Note it is *not* the text on a brand fill — that is `--on-primary`, asserted
+    // above. Getting those two confused is easy and produces a failing assertion for
+    // a pairing the app never renders.
+    const ratio = contrast(palette[token], palette['text-primary']);
+    expect(
+      ratio,
+      `${palette[token]} on a --text-primary ground is ${ratio.toFixed(2)}:1`,
+    ).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
 });
 
 describe('the regression this file exists for', () => {

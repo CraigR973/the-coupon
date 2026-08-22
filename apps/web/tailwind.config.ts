@@ -51,6 +51,29 @@ export default {
         silver: 'var(--silver)',
         bronze: 'var(--bronze)',
       },
+
+      // `text-*` resolves through here instead of `colors` for the brand and
+      // semantic names. A colour used as a fill sits under near-black
+      // `--on-primary` and must be light enough; the same name used as text sits
+      // on `--surface` and must be dark enough. One value cannot be both — see
+      // the note in index.css for the arithmetic — so the fill keeps the plain
+      // token and the text takes the `-ink` one.
+      //
+      // Done here rather than by renaming call sites because there are 179 uses
+      // of `text-primary` and 37 of `bg-primary`: editing either set by hand is
+      // a large diff that would say nothing, while this says exactly the thing
+      // that is true. `bg-*`, `border-*` and `ring-*` are untouched and still
+      // read `colors`, so no fill, chip, badge or medal changes.
+      textColor: {
+        primary: 'var(--primary-ink)',
+        success: 'var(--success-ink)',
+        warning: 'var(--warning-ink)',
+        accent: 'var(--accent-ink)',
+        error: 'var(--error-ink)',
+        live: 'var(--live-ink)',
+        gold: 'var(--gold-ink)',
+        bronze: 'var(--bronze-ink)',
+      },
       fontFamily: {
         sans: ['Outfit', 'system-ui', 'sans-serif'],
         // `font-display` aliases to Outfit so legacy heading/numeric usages

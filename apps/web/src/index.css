@@ -122,6 +122,29 @@
     --warning: #F59E0B;
     --error: #EF4444;
     --live: #EF4444;
+
+    /* ── Ink: the same semantics, as *text* ────────────────────────────────
+       A brand colour has two jobs and one value cannot do both. As a fill it
+       sits under `--on-primary` (near-black) and has to be light enough for
+       that to read; as text it sits on `--surface` and has to be dark enough
+       for *it* to read. The two pull opposite ways, and provably so — in light
+       mode a green clearing 4.5:1 as text on white needs relative luminance
+       <= 0.183, while clearing 4.5:1 as a fill under --on-primary needs
+       >= 0.208. No colour satisfies both.
+
+       So the fills above are untouched and these are what `text-*` resolves to,
+       wired in tailwind.config.ts via `theme.extend.textColor`. Dark mode mostly
+       needs no divergence — only --error was failing, on the two upper tiers —
+       so most of these are the fill value repeated, which keeps the pairing
+       obvious rather than implicit. */
+    --primary-ink: #10B981;
+    --success-ink: #10B981;
+    --warning-ink: #F59E0B;
+    --accent-ink: #C8943C;
+    --error-ink: #FE5353;
+    --live-ink: #FE5353;
+    --gold-ink: #E5C46B;
+    --bronze-ink: #C28B5C;
     --locked: #8690A6;
 
     /* Rank medals */
@@ -189,6 +212,21 @@
     --warning: #D97706;
     --error: #DC2626;
     --live: #DC2626;
+
+    /* Ink — see the dark palette for why these exist. Light mode is where the
+       divergence is real: every one of these failed AA as text against at least
+       one surface, and --warning was the worst of them at 2.86 while carrying
+       the most important status line the product has ("You haven't grabbed a
+       selection yet"). Each is the same hue walked toward black until it clears
+       4.5:1 on --bg, --surface and --surface-elevated alike. */
+    --primary-ink: #047F59;
+    --success-ink: #047F59;
+    --warning-ink: #A75B04;
+    --accent-ink: #8D6923;
+    --error-ink: #D72525;
+    --live-ink: #D72525;
+    --gold-ink: #8F6823;
+    --bronze-ink: #A45D29;
     --locked: #666F7D;
 
     /* Rank medals — slightly darker for contrast on light bg */
