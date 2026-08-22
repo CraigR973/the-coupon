@@ -1627,3 +1627,36 @@ correlation id, token pruning, weak PINs).
   this one cannot.
 
 **Next:** Batch 61 — the FastAPI/starlette upgrade and the two decisions inside it.
+
+## Fix — three member-reported bugs (claimed games, join, competition order)
+**Commits:** 73245a7 · verified: `scripts/ci-local.sh` PASS (11 checks), 745 backend tests against real PostgreSQL
+
+Not a `BUILD_PLAN` batch — reported from use, closed on the hotfix path like `b9e78fa`.
+
+### Key facts for future sessions
+- **Every production league is on `pick_scope = 'selection'`**, so "someone took Everton,
+  I could still take the draw" was the configured rule, not a defect. The owner wants
+  `fixture`. Switching is a **League Settings / PATCH** action, never raw SQL:
+  `_apply_pick_scope_change` refuses the switch with `PICK_SCOPE_CONFLICT` when two members
+  already share a pending game, and restamps pending rows — `picks.pick_scope` is what the
+  partial unique index reads, so rows left on the old value are exempt from the new rule.
+- **`zoe` cannot switch yet.** Zoe Waddell (HOME) and Craig (DRAW) both hold Everton v
+  Crystal Palace on the 2026-08-22 round. That clash has to clear first. The other four
+  leagues would take the switch today.
+- **Ship the API before flipping the scope.** Production ran a slate that marked *every*
+  selection on a game the caller holds as `mine`, which greys out the whole game client-side
+  and locks the one member allowed to move between its markets out of doing so. Flipping
+  first would have shipped that.
+- **`mine` and "who blocks this" are two different questions.** `_selection_options` blocks
+  only on a holder who is somebody *else* (matching `_claim_conflict`'s `holders - {player_id}`),
+  and the exact holder of a selection outranks the fixture-level blocker. Reading the
+  fixture blocker first hands the caller's own pick to the other member — which a league
+  switched from `selection` to `fixture` will really have, since old rows survive.
+- **A cache the UI gates on must be dropped, not invalidated.** `['leagues', 'mine']` is held
+  for 60s and every coupon surface gates its query on `hasLeagues`; `invalidateQueries` keeps
+  serving the stale list during the refetch, which is the "You're not in a league yet" empty
+  state again. `dropStaleMemberships` uses `removeQueries` so the screen shows a skeleton.
+- **Batch 64 (110f85b) never got a session-log entry or a STATUS mention.** Its close-out is
+  incomplete; left alone here rather than reconstructed from the diff.
+
+**Next:** Batch 61 — the FastAPI/starlette upgrade and the two decisions inside it.

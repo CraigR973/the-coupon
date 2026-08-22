@@ -110,6 +110,30 @@ made unauthenticated, reversing a documented decision), and a `public_open`
 league — the `test` league is one — is now reachable by anyone with an account
 rather than only by provisioned members.
 
+Three member-reported bugs closed on 2026-08-22 (73245a7), outside the batch
+sequence. The first was not a defect: every league is on `pick_scope = 'selection'`,
+where a claim takes one outcome and the rest of the game stays open — so "someone
+took Everton, I could still take the draw" was the configured rule. The owner wants
+one member per game, which is a **settings** change, and the fix here is the bug that
+switching would have exposed. The slate marked *every* selection on a game the caller
+holds as `mine`; a client greys out anything already taken, so the whole game went
+dead and the one member entitled to move between its markets could not, while the
+"my pick" banner named whichever selection was priced first. `_selection_options` now
+blocks only on a holder who is somebody else, matching `_claim_conflict`, with the
+exact holder of a selection outranking the fixture-level blocker — which matters
+because a league switched from `selection` to `fixture` keeps picks written under the
+old rule and can genuinely have several holders on one game. **`zoe` cannot take the
+switch yet**: two members hold Everton v Crystal Palace on the 2026-08-22 round and
+`_apply_pick_scope_change` refuses that with `PICK_SCOPE_CONFLICT`. The other four
+leagues would take it today, and the API has to ship before any of them do.
+
+The second: both join paths navigated to the new league without dropping the cached
+`['leagues', 'mine']` list, and every coupon surface gates its query on the
+`hasLeagues` derived from it — so a new member landed on "You're not in a league yet",
+the one screen they had joined to get past, for up to a minute. The third: the pyramid
+ordering lived privately inside `CouponPickPage`, so Football Stats listed the same
+divisions in the ingestion job's order; it is now `lib/competitions`, shared by both.
+
 Batches 1-60, 62 and 63 are closed (59 in part; see Batch 61). The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
