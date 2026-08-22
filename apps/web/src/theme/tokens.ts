@@ -38,7 +38,7 @@ export const colors = {
   warning: '#F59E0B',
   error: '#EF4444',
   live: '#EF4444',
-  locked: '#7B859B',
+  locked: '#8690A6',
 
   // Rank medals
   gold: '#E5C46B',

@@ -83,7 +83,14 @@
     /* Text */
     --text-primary: #F0F4FF;
     --text-secondary: #94A3B8;
-    --text-muted: #7B859B;
+    /* Muted must clear AA against every surface tier, not just the two it sits
+       on most often. It was #7B859B, which passes on --bg (5.22) and --surface
+       (4.84) and fails on --surface-elevated (4.38) and --surface-overlay
+       (3.91) — i.e. wherever a card sits on a card, which is where the pick
+       screen puts every "WIN n PTS" line. #8690A6 is the smallest lift that
+       clears all four (6.03 / 5.60 / 5.06 / 4.52) and stays distinct from
+       --text-secondary. Asserted by src/test/contrast.test.ts. */
+    --text-muted: #8690A6;
     --text-inverse: #0B0E13;
 
     /* On-brand text — locked dark in both modes so primary/accent
@@ -115,7 +122,7 @@
     --warning: #F59E0B;
     --error: #EF4444;
     --live: #EF4444;
-    --locked: #7B859B;
+    --locked: #8690A6;
 
     /* Rank medals */
     --gold: #E5C46B;
@@ -146,7 +153,11 @@
     /* Text */
     --text-primary: #14181F;
     --text-secondary: #4B5563;
-    --text-muted: #8A93A1;
+    /* Was #8A93A1, which failed AA against *every* light surface — 2.79 on
+       --surface-elevated, 3.10 on --surface, 2.91 on --bg. The light palette
+       never got the contrast pass the dark one did. #666F7D clears all four
+       (4.78 / 5.08 / 4.57 / 5.08) and keeps --text-secondary darker than it. */
+    --text-muted: #666F7D;
     --text-inverse: #FFFFFF;
 
     /* On-brand text — same dark value as dark mode; light primary/accent
@@ -178,7 +189,7 @@
     --warning: #D97706;
     --error: #DC2626;
     --live: #DC2626;
-    --locked: #9CA3AF;
+    --locked: #666F7D;
 
     /* Rank medals — slightly darker for contrast on light bg */
     --gold: #B8862E;
