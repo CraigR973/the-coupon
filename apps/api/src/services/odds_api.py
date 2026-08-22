@@ -725,12 +725,39 @@ def _as_items(payload: object) -> list[dict[str, Any]]:
     return []
 
 
-def _bookmaker_markets(bookmakers: Mapping[str, list[OAMarket]], wanted: str) -> list[OAMarket]:
-    """The pinned bookmaker's markets.
+def _is_bookmaker_variant(name: str, folded_wanted: str) -> bool:
+    """Whether ``name`` is the pinned bookmaker published under a decorated key.
 
-    Bookmaker keys are case-sensitive in the API, so the exact spelling is tried first and
-    a case-insensitive match is the fallback — the same class of exact-string hazard that
-    hid three Betfair divisions.
+    The key must *continue* with a separator rather than with more name, so ``Bet365 (no
+    latency)`` qualifies and a hypothetical ``Bet365Extra`` does not. That is what stops
+    the loosening in :func:`_bookmaker_markets` from silently adopting a different brand
+    whose name happens to begin with the pinned one.
+    """
+    candidate = name.strip().casefold()
+    if not candidate.startswith(folded_wanted):
+        return False
+    rest = candidate[len(folded_wanted) :]
+    return bool(rest) and not rest[0].isalnum()
+
+
+def _bookmaker_markets(bookmakers: Mapping[str, list[OAMarket]], wanted: str) -> list[OAMarket]:
+    """The pinned bookmaker's markets, including the feed variants it is published under.
+
+    Three passes, loosening in order, because the provider spells one bookmaker more than
+    one way. Exact first, then case-folded — bookmaker keys are case-sensitive in the API,
+    the same class of exact-string hazard that hid three Betfair divisions.
+
+    The third pass is the one that matters in production. odds-api.io publishes Bet365
+    under **two** keys, and which one an event carries is not predictable: ``Bet365``
+    holds the full book (~65 markets), while ``Bet365 (no latency)`` is a thinner, faster
+    feed carrying only ``ML``. Measured live on 2026-08-22: three of the five Scottish
+    Premiership fixtures on that day's card came back under ``(no latency)`` alone.
+    Matching on equality dropped them, so a *priced* top-flight fixture rendered "Not
+    priced yet" on the pick screen all day and could not be picked at all.
+
+    When several variants match, the richest book wins. ``(no latency)`` prices only Match
+    Odds, so preferring it over the full feed would silently cost the card its BTTS
+    selections on every fixture that carries both.
     """
     if wanted in bookmakers:
         return bookmakers[wanted]
@@ -738,7 +765,16 @@ def _bookmaker_markets(bookmakers: Mapping[str, list[OAMarket]], wanted: str) ->
     for name, markets in bookmakers.items():
         if name.strip().casefold() == folded:
             return markets
-    return []
+    variants = [
+        (name, markets)
+        for name, markets in bookmakers.items()
+        if _is_bookmaker_variant(name, folded)
+    ]
+    if not variants:
+        return []
+    # Richest book first, then by name so the choice is stable across identical payloads.
+    variants.sort(key=lambda item: (-len(item[1]), item[0]))
+    return variants[0][1]
 
 
 def _settlement_for(payload: OAEvent) -> EventSettlement:

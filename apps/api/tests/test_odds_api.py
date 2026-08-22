@@ -486,6 +486,71 @@ class TestFetchOdds:
         [fixture] = await provider.fetch_odds([AIRDRIE_ID])
         assert len(fixture.selections) == 5
 
+    async def test_no_latency_feed_alone_is_still_priced(self) -> None:
+        """The whole bug: an event carrying *only* "Bet365 (no latency)" is priced.
+
+        odds-api.io publishes Bet365 under two keys and picks between them per event.
+        Measured live on 2026-08-22, three of the five Scottish Premiership fixtures on
+        that Saturday's card came back under "(no latency)" alone, so matching on equality
+        returned no markets and the pick screen showed "Not priced yet" on a priced
+        top-flight game for the whole day.
+        """
+        no_latency = {
+            **AIRDRIE_ODDS,
+            "bookmakers": {
+                "Bet365 (no latency)": [
+                    {"name": "ML", "odds": [{"home": "4.500", "draw": "3.800", "away": "1.600"}]}
+                ]
+            },
+        }
+        [fixture] = await _provider(_routed({"/odds": no_latency})).fetch_odds([AIRDRIE_ID])
+
+        prices = {s.outcome: s.price for s in fixture.selections}
+        assert prices == {
+            Outcome.HOME: Decimal("4.500"),
+            Outcome.DRAW: Decimal("3.800"),
+            Outcome.AWAY: Decimal("1.600"),
+        }
+        # ML is all that feed carries, so BTTS is simply not offered — not invented.
+        assert {s.market for s in fixture.selections} == {Market.MATCH_ODDS}
+
+    async def test_richest_bet365_feed_wins_over_the_thin_one(self) -> None:
+        """Order in the payload must not decide it — the fuller book does.
+
+        The thin feed prices only Match Odds, so taking it when both are present would
+        quietly drop BTTS from every fixture that carries both.
+        """
+        reordered = {
+            **AIRDRIE_ODDS,
+            "bookmakers": {
+                "Bet365 (no latency)": [
+                    {"name": "ML", "odds": [{"home": "4.500", "draw": "3.800", "away": "1.600"}]}
+                ],
+                "Bet365 (fast)": AIRDRIE_ODDS["bookmakers"]["Bet365"],
+            },
+        }
+        [fixture] = await _provider(_routed({"/odds": reordered})).fetch_odds([AIRDRIE_ID])
+
+        home = next(s for s in fixture.selections if s.outcome is Outcome.HOME)
+        assert home.price == Decimal("4.333")
+        assert Market.BOTH_TEAMS_TO_SCORE in {s.market for s in fixture.selections}
+
+    async def test_a_different_brand_is_never_adopted(self) -> None:
+        """The variant match keys on a separator, so it cannot wander to another book."""
+        others = {
+            **AIRDRIE_ODDS,
+            "bookmakers": {
+                "Betfair": [
+                    {"name": "ML", "odds": [{"home": "9.999", "draw": "9.999", "away": "9.999"}]}
+                ],
+                "Bet365Extra": [
+                    {"name": "ML", "odds": [{"home": "8.888", "draw": "8.888", "away": "8.888"}]}
+                ],
+            },
+        }
+        [fixture] = await _provider(_routed({"/odds": others})).fetch_odds([AIRDRIE_ID])
+        assert fixture.selections == []
+
     async def test_empty_event_list_makes_no_request(self) -> None:
         record: list[httpx.Request] = []
         assert await _provider(_routed({}, record=record)).fetch_odds([]) == []
