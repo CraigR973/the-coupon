@@ -31,7 +31,7 @@ from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
-from src.services.football_provider import season_for
+from src.services.football_provider import FootballDataProvider, season_for
 from src.services.odds_provider import (
     UK_TZ,
     OddsProvider,
@@ -41,6 +41,7 @@ from src.services.odds_provider import (
     is_void_status,
 )
 from src.services.push_notification_service import send_notification
+from src.services.slate_verification import verify_slate
 
 # Tier boundaries for how stale a browsed price may be (see slate_odds_max_age).
 _NEAR_LOCK_SECONDS = 6 * 3600
@@ -604,7 +605,13 @@ async def active_leagues(db: AsyncSession) -> list[League]:
 
 
 async def discover_fixtures(
-    db: AsyncSession, provider: OddsProvider, leagues: Sequence[League], today: date, horizon: int
+    db: AsyncSession,
+    provider: OddsProvider,
+    leagues: Sequence[League],
+    today: date,
+    horizon: int,
+    *,
+    football: FootballDataProvider | None = None,
 ) -> list[Gameweek]:
     """Walk every league's coming cards into the pool and link them to its rounds.
 
@@ -631,6 +638,13 @@ async def discover_fixtures(
 
     Dates the provider carries nothing for are skipped rather than left as empty
     rounds. Flushes but does not commit — the caller owns the transaction.
+
+    ``football`` is the second opinion on whether a fixture is still on
+    (:func:`~src.services.slate_verification.verify_slate`). It is applied to the fetched
+    slate **once**, before the per-league loop, so the leagues sharing a window share the
+    cross-check exactly as they share the fetch. Omitting it — as the tests that care only
+    about linking do — simply skips verification and trusts the odds provider, which is
+    the behaviour that existed before Batch 64.
     """
     by_window: dict[SlateWindow, list[League]] = {}
     for league in leagues:
@@ -655,6 +669,7 @@ async def discover_fixtures(
             slate = await provider.fetch_slate(window, starts_on)
             if not slate.fixtures:
                 continue
+            slate, _ = await verify_slate(slate, football)
             for league in playing:
                 # ``None`` when the league's competition selection excludes the whole
                 # window — no round to record, but the shared fetch is unaffected.
