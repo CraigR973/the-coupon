@@ -45,7 +45,7 @@ colorama==0.4.6 ; sys_platform == 'win32'
     #   click
     #   typer
     #   uvicorn
-cryptography==46.0.3
+cryptography==48.0.1
     # via
     #   -r apps/api/requirements.in
     #   http-ece
@@ -133,7 +133,7 @@ pygments==2.21.0
     # via rich
 pyjwt==2.13.0
     # via -r apps/api/requirements.in
-python-dotenv==1.0.1
+python-dotenv==1.2.2
     # via
     #   -r apps/api/requirements.in
     #   pydantic-settings

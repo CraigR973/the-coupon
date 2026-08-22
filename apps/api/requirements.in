@@ -17,7 +17,7 @@ alembic==1.13.2
 bcrypt==4.1.3
 pyjwt==2.13.0
 starlette==0.37.2
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 pydantic==2.8.2
 pydantic-settings==2.3.4
 httpx==0.27.0
@@ -33,21 +33,28 @@ slowapi==0.1.9
 # a stranger chose.
 pillow==12.3.0
 
-# An unpinned transitive of pywebpush, and the one dependency that cannot be a single
-# version everywhere. It publishes no Intel-macOS wheel above 46.0.3, and building it
-# from source needs a Rust toolchain — which is why `scripts/ci-local.sh` had to force
-# `--only-binary` for it.
+# An unpinned transitive of pywebpush. Raised from `<=46.0.3` in Batch 59, on the
+# instruction the old comment left behind: "if a CVE lands in the gap, raise this bound".
+# Three did, and the premise the old bound rested on turned out to be wrong.
 #
-# 46.0.3 is the newest release carrying both a manylinux x86_64 and a macOS x86_64
-# wheel, so one lock installs identically in production and on the gate — which is the
-# whole point of pinning, and it removes the `--only-binary` workaround ci-local.sh
-# carried.
+# **The premise was that cryptography never sees untrusted input here.** It does.
+# `POST /push/subscribe` takes `keys` straight from the browser (`routers/notifications.py`),
+# stores it, and `send_notification` hands it to `webpush()`, which parses the
+# client-supplied `p256dh` as an EC public key. That is exactly the surface of
+# GHSA-r6ph-v2qm-q3c2 — missing prime-order subgroup validation in `load_der_public_key`
+# and `EllipticCurvePublicNumbers.public_key()`. Authenticated input, so bounded, but real.
 #
-# A platform-split marker was tried first and rejected: `--universal` collapses it back
-# to a single version anyway, so the marker read as doing something it did not.
+# 48.0.1 is chosen, not the newest, and the reason is wheels rather than caution:
 #
-# **This does pin behind the newest available (50.x).** Accepted here because nothing in
-# this application calls cryptography directly — it is pywebpush's VAPID signing, using
-# our own key, with no untrusted input parsed. If that stops being true, or a CVE lands
-# in the gap, raise this bound and let the gate rebuild on a machine that has a wheel.
-cryptography<=46.0.3
+#   46.0.5  fixes the SECT-curve subgroup attack (the reachable one, above)
+#   46.0.7  fixes a buffer overflow on non-contiguous buffers into Hash.update
+#   48.0.1  ships an OpenSSL without the 2026-06-09 advisory statically linked
+#   49.0.0  X.509 path-building blowup — this app validates no chains
+#   50.0.0  PKCS#7 EnvelopedData Bleichenbacher oracle — this app decrypts no PKCS#7
+#
+# So 48.0.1 clears everything reachable. It is also the last version publishing a macOS
+# `universal2` wheel, which installs on Intel as well as Apple silicon; 49 and 50 publish
+# no macOS wheel at all and would need a Rust toolchain to build on the local gate. The
+# old comment said there was no Intel wheel above 46.0.3 — there is no *x86_64-tagged*
+# one, but universal2 carries an x86_64 slice and installs fine.
+cryptography==48.0.1

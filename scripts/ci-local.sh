@@ -68,6 +68,11 @@ if [[ -n "${CI_LOCAL_REBUILD:-}" || ! -x "$VENV/bin/python" \
   # venv and the production image install the same versions. The flag stays so
   # that a future bump past that bound fails loudly here rather than starting a
   # silent source build that needs a Rust toolchain.
+  #
+  # Batch 59 raised that bound from 46.0.3 to 48.0.1 and this still holds: 48.0.1
+  # publishes a macOS `universal2` wheel, which carries an x86_64 slice and so
+  # installs on Intel as well as Apple silicon. 49.0.0 is where macOS wheels stop
+  # entirely — that is the bump this flag is now waiting to catch.
   if ! uv venv --python "$PY_VERSION" "$VENV" >/dev/null 2>&1 \
      || ! VIRTUAL_ENV="$VENV" uv pip install --quiet --only-binary=cryptography -r "$REQ"; then
     echo "Could not build the pinned venv from $REQ" >&2
