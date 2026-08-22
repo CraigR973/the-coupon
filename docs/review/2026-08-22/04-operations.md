@@ -59,15 +59,32 @@ credentials — the odds-api.io key — is the one Batch 36 found leaking into
 Railway's logs and recorded as still needing rotation. **Rotating it remains an
 owner action and this review did not perform it.**
 
-## OPS-04 · LOW · The service worker gives the API three seconds
+## OPS-04 · ~~LOW~~ → INFO · The service worker's three-second budget is fine — measured
 
 `apps/web/src/sw.ts:42-44` wraps `/api/v1/` GETs in `NetworkFirst` with
-`networkTimeoutSeconds: 3`, falling back to a cache holding at most 80 entries
-for an hour. Three seconds is tight for a phone on mobile data, and tighter
-against a Railway service that can cold-start. Past the timeout a member with no
-warm cache entry gets a failure rather than a slow success — on the Saturday
-morning when they open the app for the first time that week, which is exactly
-when the cache is coldest.
+`networkTimeoutSeconds: 3`, falling back to a cache of at most 80 entries held for
+an hour. This was written up as too tight for a phone on mobile data against a
+Railway service that can cold-start.
+
+**Then it was measured, and it is not.** Twelve samples against production
+`/api/v1/health`, plus three forcing a fresh TLS handshake (which is what a cold
+app open does):
+
+    warm            88 ms – 306 ms
+    fresh TLS      107 ms – 521 ms
+    budget        3000 ms
+
+Worst observed is a sixth of the budget. The service is not cold-starting either,
+and that is not luck: `run_connection_warmup` runs every ten minutes precisely to
+keep a pooled connection hot, and the numbers say it works.
+
+A phone on poor mobile data adds round-trip latency on top, so the margin is
+smaller than it looks from a fixed line — but it is a margin, and past the timeout
+the member gets cached content rather than an error whenever a cache entry exists.
+
+**No change recommended.** Recorded as a correction to this review rather than
+quietly dropped: the original finding reasoned from "Railway can cold-start"
+without checking whether this one does.
 
 ## OPS-05 · Deploy asymmetry is real and already bit once
 
