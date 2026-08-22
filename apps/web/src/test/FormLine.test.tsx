@@ -114,6 +114,16 @@ describe('FormLine as a disclosure', () => {
     expect(button.querySelector('[role="img"]')).toBeNull();
   });
 
+  it('is a big enough target to hit — WCAG 2.2 SC 2.5.8 wants 24x24', () => {
+    render(<FormLine form="WDWW" team="Arsenal FC" onToggle={vi.fn()} controls="panel-1" />);
+    const button = screen.getByRole('button');
+    // jsdom applies no Tailwind, so the rendered box is always 0 and cannot be
+    // measured here — the class is the contract. Measured live at 390px before
+    // this landed, the button was 70x22: wide enough, two pixels short of tall
+    // enough, because the pips are 14px inside `py-1`.
+    expect(button.className).toContain('min-h-6');
+  });
+
   it('reports its open state so a screen reader hears the panel appear', () => {
     render(<FormLine form="WDWW" team="Arsenal FC" onToggle={vi.fn()} expanded />);
     expect(screen.getByRole('button', { expanded: true })).toBeTruthy();

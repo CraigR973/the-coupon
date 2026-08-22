@@ -27,7 +27,13 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!-- No maximum-scale and no user-scalable=no: withdrawing zoom is a WCAG
+         1.4.4 failure, and on a phone-first app whose pick screen is a grid of
+         two-decimal odds at 10px it is the members with low vision who pay for
+         it. The reason that attribute is usually present — iOS Safari zooming
+         when an input takes focus — is handled where it belongs, by keeping
+         every input at >= 16px on mobile. See src/test/viewport.test.ts. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#071A3D" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

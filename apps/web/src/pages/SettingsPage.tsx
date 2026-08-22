@@ -257,7 +257,7 @@ function PreferencesSection() {
               value={prefs.quiet_hours_start ?? ''}
               disabled={muted}
               onChange={(e) => update({ quiet_hours_start: e.target.value || '' })}
-              className="rounded-md border border-border bg-surface-elevated px-2 py-1 text-sm font-mono text-text-primary disabled:opacity-50"
+              className="rounded-md border border-border bg-surface-elevated px-2 py-1 text-base sm:text-sm font-mono text-text-primary disabled:opacity-50"
             />
           </label>
           <label className="flex items-center gap-2 text-sm font-sans text-text-secondary">
@@ -267,7 +267,7 @@ function PreferencesSection() {
               value={prefs.quiet_hours_end ?? ''}
               disabled={muted}
               onChange={(e) => update({ quiet_hours_end: e.target.value || '' })}
-              className="rounded-md border border-border bg-surface-elevated px-2 py-1 text-sm font-mono text-text-primary disabled:opacity-50"
+              className="rounded-md border border-border bg-surface-elevated px-2 py-1 text-base sm:text-sm font-mono text-text-primary disabled:opacity-50"
             />
           </label>
           {(prefs.quiet_hours_start || prefs.quiet_hours_end) && (
@@ -487,7 +487,7 @@ function TimezoneSection() {
         value={tz}
         onChange={(e) => setTz(e.target.value)}
         aria-label="Timezone"
-        className="flex h-10 w-full items-center rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary font-sans focus:outline-none focus:ring-2 focus:ring-primary"
+        className="flex h-10 w-full items-center rounded-md border border-border bg-surface px-3 py-2 text-base sm:text-sm text-text-primary font-sans focus:outline-none focus:ring-2 focus:ring-primary"
       >
         {TIMEZONES.map((t) => (
           <option key={t} value={t}>
