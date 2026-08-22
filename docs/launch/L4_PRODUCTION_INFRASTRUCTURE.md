@@ -1184,6 +1184,47 @@ return 200 with identical bytes, and the CORS preflight from
 `https://the-coupon-production.vercel.app` returns 200 with that exact origin
 and credentials enabled.
 
+The third 2026-08-22 shipment is Batch 63, public self-serve registration, and
+applies **no migration** — head stays `015`, so
+`b96c15f4-2fdf-4f26-81ba-75b694af3765` remains usable as a rollback target.
+Rollback baselines were Railway `b96c15f4-2fdf-4f26-81ba-75b694af3765` and Vercel
+`dpl_6hXprLejKeChzHJf7vufuyfi7sD8`. New Railway deployment
+`b11eae41-ce5c-462b-a7c8-c1a4072e26a1`, message `ship production a8866f3`.
+Section 4 was skipped by design for the sixth time running: Vercel's GitHub
+integration had already built `a8866f32` and the stable alias resolved to
+`dpl_CFjitb9QW5hBf1FinfzuzMq157xk`, whose `githubCommitSha` was read from the
+Vercel API rather than inferred from timing.
+
+Its content: the product had no account-creation path at all, so sharing the
+app's URL sent the recipient to a sign-in form they could never satisfy.
+`POST /api/v1/auth/register` is now unauthenticated and returns the same token
+pair login returns. This reverses part of L0's private-provisioning posture on
+the owner's decision, recorded as ADR 0008 and amended into L0. Because the
+endpoint is an unauthenticated write that creates a row, its controls are the
+feature: `5/hour` on the proxy-aware client address, `PUBLIC_SIGNUP_ENABLED` as a
+kill switch needing no deploy, and case-insensitive uniqueness that includes
+soft-deleted rows.
+
+Post-deploy verification: `/health` reports sha `a8866f32` and migration `015`,
+`/health/ready` agrees at `015` with `db: ok`, RLS is on all 18 public tables
+with zero grants to `anon`/`authenticated`/`PUBLIC`, the deployment log carries 0
+real errors and 0 secret-leak hits, the stable web root and a SPA deep link both
+return 200 with identical bytes and the three committed headers, and the CORS
+preflight from `https://the-coupon-production.vercel.app` returns 200 with that
+exact origin and credentials enabled. `POST /auth/register` answers 422 on a
+deliberately invalid body where an absent route answers 404, confirming the
+endpoint is live without creating an account.
+
+> **Owner action owed — rotate the production database password.** During this
+> shipment's RLS recheck, `psql` was handed `$DATABASE_URL` directly; it cannot
+> parse the `postgresql+asyncpg://` dialect prefix the variable carries, and its
+> error message echoed the **entire DSN, password included**, into an agent
+> session transcript. The value is unchanged and still live. Rotate the Supabase
+> database password for `pugujiiojitstkilphrz` and update Railway's
+> `DATABASE_URL`. Recorded here rather than fixed because rotation needs the
+> Supabase dashboard, exactly as the Batch 36 provider-key exposure was.
+> The check itself was re-run through a client that never renders the DSN.
+
 **The phase was closed on 2026-08-04.** `docs/LAUNCH_PLAN.md` is the canonical
 record and carries the tick. This line previously read that the phase remained
 unchecked pending `/launch-verify L4` and `/launch-closeout L4`, which was true
