@@ -1832,6 +1832,66 @@ answered until it lands, because until then there is no data to look at.
   `test` league is `public_open`, and the 2026-08-20 decision to leave it in place was taken
   while account creation was closed.
 
+- [x] **Batch 64 — The card offered five games that were not being played** ✅ 2026-08-22 *(Opus)* — on the
+  first live Saturday, odds-api.io served the entire Scottish Premiership round as
+  `pending` while the matches were postponed or already moved to 15 September, and Bet365
+  was still quoting prices on every one of them. Rangers v St Mirren, St Johnstone v
+  Celtic, Hibernian v Kilmarnock, Motherwell v Aberdeen and Falkirk v Hearts all reached
+  members' cards, and a member's Motherwell pick had to be returned by hand.
+
+  Batch 49's `_drop_voided_fixtures` never fired, and was never going to. It waits for the
+  odds provider to report a void status, and the odds provider did not know — its `/events`
+  status lagged the real world by the whole weekend. The existing filter was honest about
+  what it knew; what was missing was a **second opinion**. FotMob already ships in
+  production for tables and results, needs no key, and did know.
+
+  `verify_slate` (`src/services/slate_verification.py`) runs once per shared fetch in
+  `discover_fixtures`, before the per-league loop, so two leagues on one window share the
+  cross-check exactly as they share the fetch. It writes `"postponed"` — a word already in
+  `VOID_STATUSES` — onto fixtures it confirms are off, and then does nothing else: the
+  existing link filter never adds them, and `_drop_voided_fixtures` takes them off an open
+  round and returns the picks with the notification it already sends. No new removal path,
+  no migration, no new column.
+
+  **Two conditions, not one, and this is the whole batch.** A fixture is off when
+  `status.cancelled` is true **or** it is not listed on the slate's date. A date-only check
+  is what let Rangers v St Mirren and St Johnstone v Celtic through a first attempt at this
+  fix: FotMob keeps a postponed match's **original** `utcTime`, so on date alone a
+  postponement is indistinguishable from a healthy fixture. Checking `cancelled` alone
+  would miss a quiet reschedule. Recorded here because the failure was silent and looked
+  exactly like success.
+
+  **Bookmaker prices are not evidence**, and reasoning from them delayed the diagnosis by a
+  pass. A price says a match is *upcoming*; it says nothing about whether it is upcoming
+  *today*.
+
+  **Failing open is the safety property, not a caveat.** A false positive deletes a real
+  fixture off a live card and returns a pick from a member who did nothing wrong and may
+  not re-pick before the lock — strictly worse than the phantom it would prevent. So an
+  unresolvable competition, an unmatched pair of names, or a failed request all leave the
+  card exactly as the odds provider gave it. Name matching goes through `team_matching`'s
+  alias layer rather than a bare token score, which is load-bearing: it rates "RC Warwick"
+  against "Racing Club Warwick" at 0.83 where the naive scorer written first gave 0.33 and
+  would have deleted a real game. Both ends of a fixture must clear `PAIR_THRESHOLD`
+  (0.80), which is what makes the subset trap safe — "Rangers" scores 0.95 against "Queens
+  Park Rangers", and only the away side tells them apart. Where several listings match, the
+  **date** chooses rather than the name score, or a home-and-away pair in one season would
+  make every home game read as moved.
+
+  Verification: `scripts/ci-local.sh` PASS, 16 new backend test cases, and — the check that
+  mattered — a run against the live production card: of **137 real fixtures it marked 8
+  off, all 8 of them ones already removed by hand, and condemned nothing that was on**.
+
+  Scope boundary and a known gap the batch does not close: **FotMob carries neither NI
+  Championship 1 nor the English non-league tiers** (National League North/South feeders,
+  Northern Premier, Southern League). Those fail open every week, not just this one — four
+  of the twelve fixtures removed by hand on the day were in exactly that position and the
+  cross-check cannot see them. A hand-removal there is still undone by the next
+  `refresh-slate`, because `sync_slate` only ever *adds* links and nothing persists the
+  judgement: there is no status column on `fixtures`. Verified by running the real job
+  against production and rolling back — 10 of 12 hand-removed fixtures re-linked to both
+  leagues, 90 minutes before the lock.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

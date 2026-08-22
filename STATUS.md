@@ -101,8 +101,8 @@ identifier, and has no email behind it, the guards are the feature rather than
 refinements to it: `5/hour` on the proxy-aware client address,
 `PUBLIC_SIGNUP_ENABLED` as a kill switch needing no deploy, case-insensitive
 uniqueness that **includes soft-deleted rows**, and a charset the login form can
-reproduce. **The API half is not live until `/ship-prod` runs, and this is the
-first batch where that gap is user-visible** — Vercel deploys the web app from
+reproduce. **The API half shipped on 2026-08-22 in `82a7a12`, closing what was the
+first batch where that gap was user-visible** — Vercel deploys the web app from
 `main` on push, so production carries a "Create account" button with no endpoint
 behind it until then. Two consequences are left as owner decisions: the kill
 switch closes the API but not the UI (gating the links needs `GET /api/v1/config`
@@ -134,7 +134,29 @@ the one screen they had joined to get past, for up to a minute. The third: the p
 ordering lived privately inside `CouponPickPage`, so Football Stats listed the same
 divisions in the ingestion job's order; it is now `lib/competitions`, shared by both.
 
-Batches 1-60, 62 and 63 are closed (59 in part; see Batch 61). The Coupon is a
+Batch 64 stopped the card offering games nobody was playing. On the first live
+Saturday odds-api.io served the whole Scottish Premiership round as `pending`
+while the matches were postponed or already moved to 15 September, and Bet365 was
+still quoting prices on every one — so Rangers v St Mirren, St Johnstone v Celtic,
+Hibernian v Kilmarnock, Motherwell v Aberdeen and Falkirk v Hearts all reached
+members' cards and a Motherwell pick had to be returned by hand. Batch 49's
+removal path was never going to fire: it waits for the odds provider to call a
+fixture void and that provider did not know. `verify_slate` now takes a second
+opinion from FotMob — already in production, no key — once per shared fetch, and
+marks confirmed-off fixtures with a word already in `VOID_STATUSES` so the existing
+link filter and `_drop_voided_fixtures` do the rest, picks returned and notified.
+**A fixture is off when `status.cancelled` is true *or* it is not listed on the
+day**; date alone is what let the two most visible games through a first attempt,
+because FotMob keeps a postponed match's original kick-off. Every uncertainty
+**fails open** — an unresolvable competition, an unmatched pair of names, a failed
+request — since deleting a real fixture off a live card is worse than the phantom
+it prevents. Against the live 137-fixture card it marked 8 off, all 8 already
+removed by hand, and condemned nothing that was on. **The gap it does not close:**
+FotMob carries neither NI Championship 1 nor the English non-league tiers, so those
+fail open every week, and because `sync_slate` only ever adds links and `fixtures`
+has no status column, a hand-removal there is undone by the next `refresh-slate`.
+
+Batches 1-60 and 62-64 are closed (59 in part; see Batch 61). The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,

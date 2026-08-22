@@ -1660,3 +1660,45 @@ Not a `BUILD_PLAN` batch — reported from use, closed on the hotfix path like `
   incomplete; left alone here rather than reconstructed from the diff.
 
 **Next:** Batch 61 — the FastAPI/starlette upgrade and the two decisions inside it.
+
+## Batch 64 — The card offered five games that were not being played
+**Commits:** 5d2a964, merge 110f85b · verified: `scripts/ci-local.sh` PASS, 16 new backend
+test cases, and a run against the live production card — 137 fixtures in, 8 marked off,
+all 8 already removed by hand, nothing condemned that was on
+
+Closed out retroactively: the code merged and reached production on 2026-08-22 before its
+paperwork existed, which the preceding hotfix entry flagged.
+
+### Key facts for future sessions
+- **A postponement is invisible on date alone.** FotMob keeps a postponed match's
+  *original* `utcTime`, so `status.cancelled` is the only tell. A date-only cross-check was
+  written first, passed review, and cleared Rangers v St Mirren and St Johnstone v Celtic —
+  the two most visible games on the card. The rule is `cancelled` **OR** date mismatch;
+  either half alone is a silent failure that looks like success.
+- **Bookmaker prices are not evidence a fixture is on.** Bet365 priced every postponed
+  Premiership game. A price says *upcoming*, never *upcoming today*. Arguing from live odds
+  cost a whole diagnostic pass.
+- **`verify_slate` deliberately fails open, and the alias layer is why it can.**
+  `team_matching`'s normaliser rates "RC Warwick" against "Racing Club Warwick" at 0.83
+  where the naive token scorer written first gave 0.33 and would have deleted a real game.
+  Both ends must clear `PAIR_THRESHOLD` 0.80 — that pair requirement is what makes the
+  subset trap safe, since "Rangers" scores 0.95 against "Queens Park Rangers".
+- **Hand-removing a fixture does not stick, and this is still true after Batch 64 for
+  anything FotMob cannot see.** `sync_slate` only ever *adds* links and nothing persists the
+  judgement — there is no status column on `fixtures`. Proved by running the real
+  `refresh-slate` against production and rolling back: 10 of 12 hand-removed fixtures
+  re-linked to both leagues, 90 minutes before the lock. FotMob carries neither NI
+  Championship 1 nor the English non-league tiers, so a removal there is provisional until
+  the round locks.
+- **A production dry run spends the scheduler's own odds-api.io budget.** Anything routed
+  through `fetch_slate` is a real metered call, not a probe. Two dry runs exhausted the
+  100/hour, and the 13:00 `refresh-slate` then almost certainly hit the same 429 and
+  no-opped — invisible except as `log.exception("slate refresh failed")`. Rebuild a `Slate`
+  from `fixtures` rows instead; FotMob is unmetered and free to hit.
+- **This batch never ran its own `/ship-prod` — it reached production as a passenger on
+  `82a7a12`.** Confirmed on the running container, not inferred from git, because
+  `railway up` uploads the *working directory* rather than the commit. That same property
+  blocked the deploy earlier: a shared dirty worktree carrying another session's in-flight
+  work would have shipped it, which is exactly what the clean-worktree preflight is for.
+
+**Next:** Batch 61 — the FastAPI/starlette upgrade and the two decisions inside it.
