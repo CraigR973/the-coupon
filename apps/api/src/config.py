@@ -173,6 +173,12 @@ class Settings(BaseSettings):
     bf_fake_mode: bool = False
 
     # App
+    #: How many reverse proxies in front of this app are ours, for reading
+    #: ``X-Forwarded-For``. Railway puts exactly one edge in front of the service, so the
+    #: rightmost entry is the address it observed and everything left of it is
+    #: caller-supplied. Raise this only if a CDN is added in front of Railway; lowering it
+    #: below 1 is meaningless and is clamped in ``rate_limit.client_address``.
+    trusted_proxy_count: int = 1
     frontend_origin: str = "http://localhost:5173"
     log_level: str = "INFO"
     # Unknown strings are rejected by the enum (fail-closed).

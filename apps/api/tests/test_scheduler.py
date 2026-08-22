@@ -98,7 +98,16 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
             "lock_gameweeks",
             "settle_gameweeks",
             "sync_football_data",
+            "prune_refresh_tokens",
         }
+
+        # Batch 58. Runs after the 03:00 backup so anything it removes is still in last
+        # night's copy.
+        prune = scheduler.get_job("prune_refresh_tokens")
+        assert prune is not None
+        assert str(prune.trigger) == "cron[hour='4', minute='30']"
+        assert prune.coalesce is True
+        assert prune.max_instances == 1
 
         backup = scheduler.get_job("daily_backup")
         assert backup is not None

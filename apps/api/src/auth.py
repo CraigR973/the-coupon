@@ -27,6 +27,61 @@ REFRESH_TTL = timedelta(days=30)
 MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_DURATION = timedelta(minutes=15)
 
+#: Four-digit PINs common enough that permitting them shrinks the keyspace to nothing.
+#:
+#: Published analyses of leaked four-digit PINs put roughly a quarter of all human choices
+#: in about twenty values — `1234` alone is close to a tenth. Against that distribution a
+#: nominal 10,000-value space behaves like a few dozen, and the durable five-attempt
+#: lockout is doing all the work.
+#:
+#: Kept deliberately short. A long blocklist starts refusing PINs people chose for real
+#: reasons and pushes them toward writing it down, which is a worse outcome than a weak
+#: PIN behind a lockout. This is the head of the distribution and nothing else: the
+#: obvious repeats, the obvious runs, and the handful of famous ones.
+WEAK_PINS = frozenset(
+    {
+        "0000",
+        "1111",
+        "2222",
+        "3333",
+        "4444",
+        "5555",
+        "6666",
+        "7777",
+        "8888",
+        "9999",
+        "1234",
+        "2345",
+        "3456",
+        "4567",
+        "5678",
+        "6789",
+        "0123",
+        "4321",
+        "5432",
+        "6543",
+        "7654",
+        "8765",
+        "9876",
+        "3210",
+        "1212",
+        "2121",
+        "1122",
+        "1313",
+        "1010",
+        "2020",
+        "6969",
+        "1004",
+        "2000",
+        "2001",
+    }
+)
+
+
+def is_weak_pin(pin: str) -> bool:
+    """True when a PIN is common enough that it is effectively no PIN at all."""
+    return pin in WEAK_PINS
+
 
 # ---------------------------------------------------------------------------
 # Bcrypt helpers

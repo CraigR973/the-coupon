@@ -16,10 +16,31 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
 def client_address(request: Request) -> str:
-    """Return the user-facing client IP, honoring Railway's proxy header."""
+    """The client IP, counted from the end of ``X-Forwarded-For`` rather than the start.
+
+    ``X-Forwarded-For`` is ``client, proxy1, proxy2 ...``: each proxy **appends** the
+    address it received the connection from, so the entries on the left are whatever the
+    caller chose to send and only the rightmost ones were written by infrastructure we
+    control.
+
+    Reading the leftmost entry — which this did — meant every IP-keyed limit in the app
+    could be defeated by sending a different ``X-Forwarded-For`` on each request: login's
+    ``5/15 minutes``, ``pin/reset-request``'s ``3/hour``, and every shared provider
+    budget. The durable per-profile lockout still bounded PIN guessing, which is the only
+    reason this was not worse.
+
+    ``settings.trusted_proxy_count`` is how many hops in front of the app are ours —
+    exactly one on Railway, which is the default. Counting that many from the right lands
+    on the address the closest trusted proxy observed, which is the furthest left an
+    attacker cannot forge. A header with fewer hops than configured falls back to its
+    leftmost entry rather than indexing past the end.
+    """
     forwarded_for = request.headers.get("X-Forwarded-For", "")
     if forwarded_for:
-        return forwarded_for.split(",", 1)[0].strip()
+        hops = [hop.strip() for hop in forwarded_for.split(",") if hop.strip()]
+        if hops:
+            depth = min(max(settings.trusted_proxy_count, 1), len(hops))
+            return hops[-depth]
     return get_remote_address(request)
 
 

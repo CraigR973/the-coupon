@@ -318,7 +318,9 @@ async def test_refresh_revoked_token(client: AsyncClient) -> None:
     record_id = uuid.uuid4()
     refresh_jwt = create_refresh_token(user.id, record_id)
 
-    mock_db = _stub_db([_scalar(None)])  # token not found / revoked
+    # Two lookups since Batch 58: no live row, then "was this one of ours, already
+    # rotated away?" — which distinguishes an unknown token from a replay.
+    mock_db = _stub_db([_scalar(None), _scalar(None)])
 
     async with _override_db(mock_db):
         resp = await client.post(
@@ -507,7 +509,7 @@ async def test_changing_a_pin_revokes_every_refresh_token(client: AsyncClient) -
     async with _override_db(mock_db):
         resp = await client.put(
             "/api/v1/auth/me/pin",
-            json={"current_pin": "1234", "new_pin": "5678"},
+            json={"current_pin": "1234", "new_pin": "8317"},
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -517,7 +519,7 @@ async def test_changing_a_pin_revokes_every_refresh_token(client: AsyncClient) -
     compiled = str(revoke).lower()
     assert compiled.startswith("update refresh_tokens")
     assert "revoked_at" in compiled
-    assert verify_pin("5678", user.pin_hash)
+    assert verify_pin("8317", user.pin_hash)
 
 
 async def test_changing_a_pin_clears_a_lockout(client: AsyncClient) -> None:
@@ -529,7 +531,7 @@ async def test_changing_a_pin_clears_a_lockout(client: AsyncClient) -> None:
     async with _override_db(mock_db):
         resp = await client.put(
             "/api/v1/auth/me/pin",
-            json={"current_pin": "1234", "new_pin": "5678"},
+            json={"current_pin": "1234", "new_pin": "8317"},
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -547,7 +549,7 @@ async def test_a_wrong_current_pin_revokes_nothing(client: AsyncClient) -> None:
     async with _override_db(mock_db):
         resp = await client.put(
             "/api/v1/auth/me/pin",
-            json={"current_pin": "9999", "new_pin": "5678"},
+            json={"current_pin": "9999", "new_pin": "8317"},
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -655,3 +657,98 @@ async def test_an_unknown_display_name_records_nothing(client: AsyncClient) -> N
     assert resp.status_code == 200
     assert "an admin will be notified" in resp.json()["message"]
     assert mock_db.add.call_count == 0
+
+
+# ---------------------------------------------------------------------------
+# Batch 58 — reusing a rotated refresh token revokes the family
+# ---------------------------------------------------------------------------
+
+
+async def test_replaying_a_rotated_refresh_token_revokes_every_session(
+    client: AsyncClient,
+) -> None:
+    """Reuse of a one-time token is the signature of theft (OAuth 2 BCP 4.13.2).
+
+    Rotation means a refresh token is used exactly once, so a second use is either the
+    victim or the thief and there is no way to tell which. Both are logged out; only the
+    one who knows the PIN gets back in. Before this the two simply raced and the loser was
+    signed out with nothing recorded.
+    """
+    user = _make_user()
+    refresh_jwt = create_refresh_token(user.id, uuid.uuid4())
+    revoked_record = _make_refresh_record(user.id, refresh_jwt)
+    revoked_record.revoked_at = _now() - timedelta(minutes=1)
+
+    # 1) no live row for this token, 2) but a revoked one exists, 3) the family revoke.
+    mock_db = _stub_db([_scalar(None), _scalar(revoked_record), _rowcount(4)])
+
+    async with _override_db(mock_db):
+        resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_jwt})
+
+    assert resp.status_code == 401
+    family_revoke = mock_db.execute.await_args_list[2].args[0]
+    assert str(family_revoke).lower().startswith("update refresh_tokens")
+
+
+async def test_an_unknown_refresh_token_revokes_nothing(client: AsyncClient) -> None:
+    """Only a token this app issued and rotated away counts as reuse."""
+    user = _make_user()
+    refresh_jwt = create_refresh_token(user.id, uuid.uuid4())
+    # No live row and no revoked row either — it was never ours.
+    mock_db = _stub_db([_scalar(None), _scalar(None)])
+
+    async with _override_db(mock_db):
+        resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_jwt})
+
+    assert resp.status_code == 401
+    # Two lookups, no third statement: nothing was revoked.
+    assert mock_db.execute.await_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Batch 58 — a PIN that is not really a PIN
+# ---------------------------------------------------------------------------
+
+
+async def test_a_common_pin_is_refused(client: AsyncClient) -> None:
+    user = _make_user()
+    token = create_access_token(user.id, user.role)
+    mock_db = _stub_db([_scalar(user)])
+
+    async with _override_db(mock_db):
+        resp = await client.put(
+            "/api/v1/auth/me/pin",
+            json={"current_pin": "1234", "new_pin": "0000"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 422
+    assert "too common" in resp.json()["detail"]
+    # The old PIN still works — nothing was written.
+    assert verify_pin("1234", user.pin_hash)
+
+
+async def test_an_ordinary_pin_is_accepted(client: AsyncClient) -> None:
+    """The blocklist is the head of the distribution, not a general policy."""
+    user = _make_user()
+    token = create_access_token(user.id, user.role)
+    mock_db = _stub_db([_scalar(user), _rowcount(1)])
+
+    async with _override_db(mock_db):
+        resp = await client.put(
+            "/api/v1/auth/me/pin",
+            json={"current_pin": "1234", "new_pin": "8317"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 204
+    assert verify_pin("8317", user.pin_hash)
+
+
+def test_the_weak_pin_list_covers_the_obvious_shapes() -> None:
+    from src.auth import is_weak_pin
+
+    for weak in ("0000", "1111", "1234", "4321", "1212", "6969"):
+        assert is_weak_pin(weak), weak
+    for fine in ("8317", "2749", "5081", "9042"):
+        assert not is_weak_pin(fine), fine

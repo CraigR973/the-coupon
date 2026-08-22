@@ -23,6 +23,7 @@ from src.auth import (
     decode_refresh_token,
     hash_pin,
     hash_token,
+    is_weak_pin,
     verify_pin,
 )
 from src.config import settings
@@ -316,7 +317,40 @@ async def refresh(
         )
     )
     token_record = result.scalar_one_or_none()
-    if token_record is None or token_record.expires_at < _now():
+    if token_record is None:
+        # Nothing live matched. Distinguish "never existed / already expired" from a
+        # *replay* of a token this app issued and has since rotated away, because the
+        # second is the signature of theft: rotation means a refresh token is used once,
+        # so a second use is either the victim or the thief, and there is no way to tell
+        # which. OAuth 2 Security BCP §4.13.2 says revoke the family; without lineage on
+        # the rows, the family is every token this member holds.
+        #
+        # Both parties are logged out and have to sign in with the PIN — which the thief
+        # does not have. Before this, the two simply raced and whoever refreshed second
+        # was quietly signed out with nothing recorded anywhere.
+        replayed = (
+            await db.execute(
+                select(RefreshToken).where(
+                    RefreshToken.id == jti,
+                    RefreshToken.user_id == user_id,
+                    RefreshToken.token_hash == token_hash,
+                    RefreshToken.revoked_at.is_not(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if replayed is not None:
+            revoked = await _revoke_all_refresh_tokens(db, user_id)
+            await db.commit()
+            log.warning(
+                "refresh token reuse detected — revoking every session for this member",
+                user_id=str(user_id),
+                jti=str(jti),
+                sessions_revoked=revoked,
+            )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
+        )
+    if token_record.expires_at < _now():
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
         )
@@ -449,6 +483,13 @@ async def change_pin(
     if not verify_pin(body.current_pin, user.pin_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Current PIN is incorrect"
+        )
+    # Checked after the current PIN, so the endpoint cannot be used to probe the
+    # blocklist without already holding the account.
+    if is_weak_pin(body.new_pin):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="That PIN is too common — choose one that is not a run or a repeat.",
         )
     user.pin_hash = hash_pin(body.new_pin)
     revoked = await _revoke_all_refresh_tokens(db, user.id)

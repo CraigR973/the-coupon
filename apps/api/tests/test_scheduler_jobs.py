@@ -1192,3 +1192,67 @@ async def test_members_missing_picks_excludes_muted_membership(session: AsyncSes
     missing = await members_missing_picks(session, gameweek)
     mine = {m.display_name.split("-")[0] for m in missing if m.league_id == str(league.id)}
     assert mine == {"alice"}
+
+
+# ── Batch 58: refresh_tokens stops growing forever ──────────────────────────
+
+
+async def test_prune_removes_dead_tokens_and_keeps_live_ones() -> None:
+    """`refresh_tokens` was append-only — a row per login *and* per rotation, never removed.
+
+    Removable means "can never authenticate again": expired, or revoked. Both wait out
+    `REFRESH_TOKEN_RETENTION` first, because a revoked row is the only evidence
+    `/auth/refresh` has that a token was *replayed* rather than simply unknown.
+    """
+    from src.models.refresh_token import RefreshToken
+    from src.scheduler import REFRESH_TOKEN_RETENTION, run_prune_refresh_tokens
+
+    now = datetime.now(UTC).replace(tzinfo=None)
+    old = now - REFRESH_TOKEN_RETENTION - timedelta(days=1)
+    recent = now - timedelta(hours=1)
+
+    async with AsyncSessionLocal() as session:
+        player = Profile(
+            display_name=f"prune-{uuid.uuid4().hex[:8]}",
+            pin_hash=hash_pin("1234"),
+            role=UserRole.player,
+        )
+        session.add(player)
+        await session.flush()
+
+        live = RefreshToken(
+            user_id=player.id, token_hash="a" * 64, expires_at=now + timedelta(days=30)
+        )
+        long_expired = RefreshToken(user_id=player.id, token_hash="b" * 64, expires_at=old)
+        long_revoked = RefreshToken(
+            user_id=player.id,
+            token_hash="c" * 64,
+            expires_at=now + timedelta(days=30),
+            revoked_at=old,
+        )
+        recently_revoked = RefreshToken(
+            user_id=player.id,
+            token_hash="d" * 64,
+            expires_at=now + timedelta(days=30),
+            revoked_at=recent,
+        )
+        session.add_all([live, long_expired, long_revoked, recently_revoked])
+        await session.commit()
+        player_id = player.id
+
+    assert await run_prune_refresh_tokens() is True
+
+    async with AsyncSessionLocal() as session:
+        remaining = {
+            row.token_hash
+            for row in (
+                await session.execute(select(RefreshToken).where(RefreshToken.user_id == player_id))
+            )
+            .scalars()
+            .all()
+        }
+
+    assert "a" * 64 in remaining, "a live token must survive"
+    assert "d" * 64 in remaining, "a recently revoked token is still reuse evidence"
+    assert "b" * 64 not in remaining, "a long-expired token should be gone"
+    assert "c" * 64 not in remaining, "a long-revoked token should be gone"

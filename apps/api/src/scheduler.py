@@ -20,11 +20,12 @@ import structlog
 from apscheduler.schedulers.asyncio import (  # type: ignore[import-untyped,unused-ignore]
     AsyncIOScheduler,
 )
-from sqlalchemy import text
+from sqlalchemy import and_, delete, or_, text
 
 from src.config import settings
 from src.database import AsyncSessionLocal
 from src.models.notification import ActionType, ActorType, AuditLog
+from src.models.refresh_token import RefreshToken
 from src.services.backup import create_backup
 from src.services.football_data import backfill_season, season_or_default, sync_football_data
 from src.services.football_session import football_session
@@ -44,6 +45,11 @@ from src.services.scoring import (
     settle_gameweeks_via_provider,
     standings,
 )
+
+#: How long a dead refresh token is kept before ``run_prune_refresh_tokens`` removes it.
+#: Long enough that a revoked row still serves as evidence for reuse detection in
+#: ``/auth/refresh``, short enough that the table does not accumulate a season of them.
+REFRESH_TOKEN_RETENTION = timedelta(days=7)
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -100,6 +106,41 @@ async def run_connection_warmup() -> bool:
         return True
     except Exception:
         log.exception("connection warmup failed")
+        return False
+
+
+async def run_prune_refresh_tokens() -> bool:
+    """Delete refresh tokens that can no longer be used. Housekeeping, not security.
+
+    ``refresh_tokens`` was append-only: every login and every rotation inserted a row and
+    nothing ever removed one. Rotation means a busy member writes a row per refresh, so
+    the table grows without bound on a Supabase Free project with 500 MB to spend.
+
+    A row is removable once it can never authenticate again — expired, or revoked. Both
+    get a grace period rather than going immediately, because a revoked row is the only
+    evidence of a *reuse* attempt: ``/auth/refresh`` distinguishes a replay from an
+    unknown token by finding the revoked row, and deleting it too eagerly would turn a
+    detected theft back into a silent 401.
+    """
+    cutoff = datetime.now(UTC).replace(tzinfo=None) - REFRESH_TOKEN_RETENTION
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                delete(RefreshToken).where(
+                    or_(
+                        RefreshToken.expires_at < cutoff,
+                        and_(
+                            RefreshToken.revoked_at.is_not(None),
+                            RefreshToken.revoked_at < cutoff,
+                        ),
+                    )
+                )
+            )
+            await session.commit()
+        log.info("pruned refresh tokens", removed=result.rowcount or 0)
+        return True
+    except Exception:
+        log.exception("refresh token prune failed")
         return False
 
 
@@ -377,6 +418,16 @@ def create_scheduler() -> AsyncIOScheduler:
         coalesce=True,
         max_instances=1,
         next_run_time=datetime.now(UTC) + timedelta(seconds=30),
+    )
+    scheduler.add_job(
+        run_prune_refresh_tokens,
+        trigger="cron",
+        hour=4,
+        minute=30,  # after the 03:00 backup, so a pruned row is still in last night's copy
+        id="prune_refresh_tokens",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
     )
     scheduler.add_job(
         run_scheduled_backup,
