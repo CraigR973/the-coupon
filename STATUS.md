@@ -20,7 +20,16 @@ are arithmetic rather than oversight: no single value clears 4.5:1 both as text
 on white and as a fill under near-black. They need a second token, which is a
 design decision and is left for the owner.
 
-Batches 1-54 are closed. The Coupon is a verified
+Batch 55 gave members back pinch-zoom. `index.html` had shipped
+`maximum-scale=1.0, user-scalable=no` — the only axe violation on every screen,
+rated critical, and a WCAG 1.4.4 failure that falls hardest on the people
+reading two-decimal odds at 10px. The reason that attribute usually exists is
+now handled where it belongs: three Settings controls that rendered at 14px
+were raised to 16px on mobile, so iOS Safari has no cause to zoom a focused
+field. The form disclosure went from 70x22 to 70x24, clearing WCAG 2.2 SC
+2.5.8. The pick screen now reports **zero** axe violations in both themes.
+
+Batches 1-55 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,

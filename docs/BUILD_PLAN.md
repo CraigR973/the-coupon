@@ -1518,7 +1518,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: **tokens only, both palettes, no component changes and no API change.**
 
-- [ ] **Batch 55 — The app takes zoom away from the people who need it** —
+- [x] **Batch 55 — The app takes zoom away from the people who need it** ✅ 2026-08-22 *(Opus)* —
   `index.html:30` ships `maximum-scale=1.0, user-scalable=no`. It is the single axe
   violation present on every screen audited, axe rates it **critical**, and it is a plain
   WCAG 2.1 AA failure (1.4.4 Resize Text).

@@ -1436,3 +1436,23 @@ table pips simply will not open until **a `/ship-prod` is owed and run**.
   specified from it.
 
 **Next:** Batch 55 — the viewport meta disables pinch-zoom app-wide.
+
+## Batch 55 — The app takes zoom away from the people who need it
+**Commits:** f92ba17 · verified: ruff 0.5.4 · mypy 1.11.0 · pytest 660 (clean schema, 0 skips) · lint · tsc · build · vitest 538
+
+### Key facts for future sessions
+- **If iOS Safari starts zooming a focused field, do not put `user-scalable=no` back.**
+  The cause is an input under 16px; fix the input. `src/test/viewport.test.ts` asserts
+  both halves so the attribute cannot return quietly.
+- That test's element scanner tracks brace depth deliberately. An earlier draft used
+  `[^>]*` to grab attributes, which stops at the `>` inside `onChange={(e) => ...}` — so
+  it never reached `className` and the whole file passed vacuously. It was only caught by
+  reverting a known-bad input and finding the test still green. Any similar JSX-scanning
+  test needs the same care.
+- `min-h-6` on `FormLine`'s disclosure is WCAG 2.2 SC 2.5.8 (24x24), not decoration.
+  Measured 70x22 before, 70x24 after.
+- The five "Find a league" links are 82x18 and **conformant** — SC 2.5.8 exempts a target
+  inline in a sentence. Do not "fix" them.
+- Pick screen now reports **zero** axe violations at 390px in both themes.
+
+**Next:** Batch 56 — changing a PIN revokes nothing and the reset flow notifies nobody.
