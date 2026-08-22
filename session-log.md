@@ -1593,3 +1593,37 @@ correlation id, token pruning, weak PINs).
   reports the outgoing palette's value. Let it settle before trusting a reading.
 
 **Next:** Batch 61 — the FastAPI/starlette upgrade and the two decisions inside it.
+
+## Batch 63 — The product had no way to make an account
+**Commits:** fbb0403 · verified: `scripts/ci-local.sh` PASS (11 checks) · browser end-to-end on the desktop and mobile paths
+
+### Key facts for future sessions
+- **A display name is now claimable by anyone, permanently.** It is globally unique, it is
+  the login identifier, and `Profile` has no email or phone — so there is no way to prove
+  who owns one and the only recovery is `pin/reset-request` paging a site admin. The
+  uniqueness check deliberately **includes soft-deleted rows**: `deleted_at` must not
+  release a departed member's identity to a stranger.
+- **`PUBLIC_SIGNUP_ENABLED=false` closes the API but not the UI.** The "Create account"
+  links on `/login`, `/join/:token` and `/welcome` stay visible and lead to a form that
+  403s. Gating them needs `GET /api/v1/config` made unauthenticated, which reverses the
+  decision written into `routers/config.py` ("nothing unauthenticated needs it, and it says
+  a little about how the deployment is configured"). Left as an owner decision.
+- **slowapi answers 429 with `{ error: ... }`, not `{ detail: ... }`.** Any client that
+  reads `detail` silently turns a rate limit into a generic failure and invites a retry
+  against a limit already spent. Fixed in `AuthContext.establishSession`; other `fetch`
+  sites have not been audited for it.
+- **`/register` is unreachable on an uninstalled mobile browser, by design.**
+  `InstallPromptController` renders `BrowserOnboarding` full-screen over every route not in
+  `SELF_MANAGED` (`/join/`, `/welcome`), so mobile installs first and registers inside the
+  PWA. The onboarding copy now says exactly that. `next` does not survive the install.
+- **A `public_open` league is now reachable by anyone with an account**, where before it
+  was limited to members the operator provisioned. `the-coupon` is `private` and
+  unaffected; the `test` league is `public_open`, and the 2026-08-20 decision to leave it
+  in place was taken while account creation was closed.
+- **This is the first batch whose Vercel/Railway gap is user-visible.** Pushing `main`
+  deploys a "Create account" button that has no endpoint behind it until `/ship-prod` runs,
+  and `/ship-prod` requires the commit to already be on `origin/main` — so the window
+  cannot be avoided, only kept short. Batches 38 and 43 were built to tolerate that gap;
+  this one cannot.
+
+**Next:** Batch 61 — the FastAPI/starlette upgrade and the two decisions inside it.

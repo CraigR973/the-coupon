@@ -87,12 +87,37 @@ which was the thing that was wrong. **The pick screen now reports zero axe
 violations of any rule, in both themes** — it began the night with one critical and
 21 contrast failures.
 
-Batches 1-60 and 62 are closed (59 in part; see Batch 61). The Coupon is a verified
-private weekly football accumulator PWA, and it is a **per-league** game: a
-member may play in several leagues at once and each owns its rounds, window,
-markets, competitions and claim size. Members sign in with display name and PIN,
-claim one unique selection per league per round, score frozen odds after
-settlement, compare standings, and view the shared combined coupon. The
+Batch 63 gave the product a way to make an account. There had never been one — not
+in the API and not in the UI — so sharing the app's URL sent the recipient to a
+sign-in form asking for a display name and PIN they could never obtain, and the
+`/join/:token` invite link told them to ask their admin for credentials no flow
+could issue. `POST /auth/register` is now unauthenticated: no invite, no join
+code, returning the same token pair login returns so the caller lands signed in.
+It creates an **account only** and joins no league, because the join code already
+gates membership. This reverses part of L0's private-provisioning posture on the
+owner's 2026-08-22 decision, recorded as ADR 0008 and superseding the
+never-implemented ADR 0001. Since `display_name` is globally unique, is the login
+identifier, and has no email behind it, the guards are the feature rather than
+refinements to it: `5/hour` on the proxy-aware client address,
+`PUBLIC_SIGNUP_ENABLED` as a kill switch needing no deploy, case-insensitive
+uniqueness that **includes soft-deleted rows**, and a charset the login form can
+reproduce. **The API half is not live until `/ship-prod` runs, and this is the
+first batch where that gap is user-visible** — Vercel deploys the web app from
+`main` on push, so production carries a "Create account" button with no endpoint
+behind it until then. Two consequences are left as owner decisions: the kill
+switch closes the API but not the UI (gating the links needs `GET /api/v1/config`
+made unauthenticated, reversing a documented decision), and a `public_open`
+league — the `test` league is one — is now reachable by anyone with an account
+rather than only by provisioned members.
+
+Batches 1-60, 62 and 63 are closed (59 in part; see Batch 61). The Coupon is a
+verified weekly football accumulator PWA whose *leagues* are private — signup
+itself is public as of Batch 63 — and it is a **per-league** game: a member may
+play in several leagues at once and each owns its rounds, window, markets,
+competitions and claim size. Members create their own account with a display
+name and PIN, join a league by code or invite link, claim one unique selection
+per league per round, score frozen odds after settlement, compare standings,
+and view the shared combined coupon. The
 single-Saturday, 14:30-lock rule is now the *default* an unconfigured league
 plays, not an assumption the schema or the API makes.
 

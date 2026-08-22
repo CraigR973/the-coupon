@@ -1768,7 +1768,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: **tokens and the Tailwind colour scales only. No component changed.**
 
-- [ ] **Batch 63 — The product had no way to make an account** *(Opus)* — sharing the app's
+- [x] **Batch 63 — The product had no way to make an account** ✅ 2026-08-22 *(Opus)* — sharing the app's
   URL sent the recipient to a sign-in form asking for a display name and PIN they could
   never obtain. There was no account-creation path anywhere: `routers/auth.py` exposed
   login, refresh, logout, profile update, PIN change and PIN reset request and nothing
