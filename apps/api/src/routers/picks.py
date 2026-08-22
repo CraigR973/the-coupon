@@ -46,6 +46,32 @@ router = APIRouter(prefix="/api/v1/leagues", tags=["picks"])
 
 Db = Annotated[AsyncSession, Depends(get_db)]
 
+#: How often one member may submit or change a pick.
+#:
+#: This is a **provider budget**, not an abuse control, and it was set as though it were
+#: the latter. Each submission freezes a price at `odds_cache_pick_ttl_seconds` (60s), so
+#: re-picking the *same* fixture inside a minute is free but moving between fixtures costs
+#: one upstream request each time — and deciding between fixtures is exactly what the hour
+#: before lock is for.
+#:
+#: At the previous `60/hour` a single member could spend sixty requests against a plan
+#: that, once `test_request_budget.py`'s peak browsing hour and the ad-hoc round allowance
+#: are subtracted, has about twelve to spare. One member could exhaust the whole
+#: allowance and the failure is silent: everyone else's prices stop refreshing.
+#:
+#: Ten is what one member can spend without being able to do that alone, and it is far
+#: more than the journey needs — a member takes one pick and changes their mind a handful
+#: of times. `test_request_budget.py` asserts it against the measured spare rather than
+#: against this comment.
+#:
+#: What it does **not** do is bound the total: fifteen members at ten each is still over
+#: the plan. Bounding that needs a shared budget on the pick path (the mechanism exists —
+#: `consume_shared_limit`) and a product decision about what a member sees when it is
+#: empty, because a pick cannot fall back to a stale price the way browsing can. That is
+#: recorded in `docs/review/2026-08-22/02-correctness.md` and deliberately not decided
+#: here.
+PICK_SUBMIT_LIMIT = "10/hour"
+
 
 def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
@@ -98,7 +124,7 @@ def _to_response(pick: Pick, fixture: Fixture) -> PickResponse:
 
 
 @router.post("/{slug}/picks", response_model=PickResponse, status_code=status.HTTP_201_CREATED)
-@limiter.limit("60/hour", key_func=per_user_key)
+@limiter.limit(PICK_SUBMIT_LIMIT, key_func=per_user_key)
 async def submit_pick(
     request: Request,
     slug: str,
@@ -125,6 +151,22 @@ async def submit_pick(
         )
 
     selection = await _snapshot_selection(provider, fixture, body.market, body.outcome)
+
+    # And again, because the line above left the process. `_snapshot_selection` is an
+    # outbound HTTP call to a third party on the request path, and the deadline it was
+    # cleared against is the one the whole product turns on — a pick that lands at
+    # 14:30:03 scores like any other. `pick_refusal` is authoritative on time rather than
+    # on `status` (see its docstring), so asking it twice is cheap and needs no lock: the
+    # second answer is simply the true one at the moment of writing.
+    refusal = pick_refusal(gameweek, _now())
+    if refusal is not None:
+        log.info(
+            "pick refused: lock passed while the price was being fetched",
+            league_id=str(league.id),
+            gameweek_id=str(gameweek.id),
+            player_id=str(player.id),
+        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=refusal)
 
     # Pre-check: has another member already claimed this? How much of the fixture a
     # claim covers is the league's choice — one selection, or the whole game.
@@ -171,11 +213,17 @@ async def submit_pick(
 @router.get("/{slug}/gameweeks/{gameweek_id}/pick", response_model=PickResponse | None)
 async def my_pick(
     slug: str,
-    gameweek_id: str,
+    gameweek_id: uuid.UUID,
     player: CurrentUser,
     league: LeagueMemberDep,
     db: Db,
 ) -> PickResponse | None:
+    """The caller's pick for one round, or ``null``.
+
+    ``gameweek_id`` is typed as a real ``UUID`` so FastAPI answers 422 for a malformed
+    one. It used to be ``str``, which reached the query and raised inside the driver as an
+    unhandled 500 — every other router in this codebase already types its ids this way.
+    """
     result = await db.execute(
         select(Pick, Fixture)
         .join(Fixture, Fixture.id == Pick.fixture_id)
@@ -196,7 +244,23 @@ async def my_pick(
 
 
 async def _resolve_fixture(fixture_id: str, db: AsyncSession) -> Fixture:
-    fixture = await db.get(Fixture, fixture_id)
+    """The fixture, or a 404 — never a 500.
+
+    ``fixture_id`` arrives as a string on the request body and the column is a real
+    ``UUID``, so handing it straight to ``db.get`` let a malformed value raise inside the
+    driver and surface as an unhandled 500. A stale link or a client bug is a client
+    error; spending a 500 on it trains you to ignore the alert that means something.
+
+    The same shape as ``routers/players.py:83`` deliberately — that is where this
+    codebase already decided what a malformed id means here.
+    """
+    try:
+        target = uuid.UUID(fixture_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Fixture not found"
+        ) from None
+    fixture = await db.get(Fixture, target)
     if fixture is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixture not found")
     return fixture

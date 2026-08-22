@@ -12,6 +12,7 @@ pgserver harness, mirroring Batch 1). It proves the pieces the pure tests can't:
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from collections.abc import AsyncIterator, Sequence
@@ -1954,3 +1955,104 @@ async def test_a_pick_is_refused_rather_than_frozen_at_a_price_we_could_not_conf
             select(func.count()).select_from(Pick).where(Pick.gameweek_id == gameweek.id)
         )
         assert picks.scalar_one() == 0, "nothing was written at an unconfirmed price"
+
+
+# ── Batch 57: a malformed id is a client error, not a 500 ────────────────────
+
+
+async def test_a_malformed_fixture_id_is_a_404_not_a_500(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """It used to reach the driver and raise. Verified over HTTP: 500 before, 404 after."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["alice"])
+        await _open_sample_gameweek(session, fake, league)
+
+    resp = await _submit(client, league.slug, alice, "not-a-uuid", "MATCH_ODDS", "HOME")
+
+    assert resp.status_code == 404, resp.text
+    assert resp.json()["detail"] == "Fixture not found"
+
+
+async def test_a_well_formed_but_absent_fixture_id_still_answers_404(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The behaviour that was already right, held in place while the other was fixed."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["alice"])
+        await _open_sample_gameweek(session, fake, league)
+
+    resp = await _submit(client, league.slug, alice, str(uuid.uuid4()), "MATCH_ODDS", "HOME")
+
+    assert resp.status_code == 404, resp.text
+
+
+async def test_a_malformed_gameweek_id_is_a_422_not_a_500(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Typed `uuid.UUID` now, so FastAPI refuses it before a query is built."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["alice"])
+        await _open_sample_gameweek(session, fake, league)
+
+    resp = await client.get(
+        f"/api/v1/leagues/{league.slug}/gameweeks/not-a-uuid/pick",
+        headers=_auth(alice),
+    )
+
+    assert resp.status_code == 422, resp.text
+
+
+# ── Batch 57: the deadline is re-checked after the provider call ─────────────
+
+
+async def test_a_lock_that_passes_during_the_odds_fetch_refuses_the_pick(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The window between clearing the deadline and committing was a real one.
+
+    `_snapshot_selection` leaves the process to price the fixture. The deadline is a
+    fixed instant and `_now()` keeps moving, so a slow answer used to be written *after*
+    lock — at whatever time the third party happened to reply. The whole product turns on
+    that instant: a pick landing at 14:30:03 scores like any other.
+
+    Simulated the way it actually happens — a fixed deadline a moment away and a provider
+    that takes longer than that to answer — rather than by moving the deadline, which the
+    request would not see: `pick_refusal` is handed the ORM object already loaded in this
+    request's session, so what it re-reads is the clock, not the row.
+    """
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["alice"])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+        # Lock a fraction of a second out: open when the request starts, shut when the
+        # price comes back.
+        gameweek.locks_at_utc = _now() + timedelta(milliseconds=250)
+        await session.commit()
+    epl = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    original_fetch = fake.fetch_odds
+
+    async def _slow_fetch(*args: object, **kwargs: object) -> object:
+        await asyncio.sleep(1.0)
+        return await original_fetch(*args, **kwargs)  # type: ignore[arg-type]
+
+    fake.fetch_odds = _slow_fetch  # type: ignore[method-assign]
+    try:
+        resp = await _submit(client, league.slug, alice, epl, "MATCH_ODDS", "HOME")
+    finally:
+        fake.fetch_odds = original_fetch  # type: ignore[method-assign]
+
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"] == "PICKS_LOCKED"
+
+    # And nothing was written.
+    async with AsyncSessionLocal() as session:
+        count = await session.scalar(
+            select(func.count()).select_from(Pick).where(Pick.gameweek_id == gameweek.id)
+        )
+    assert count == 0

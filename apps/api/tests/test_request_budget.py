@@ -235,3 +235,67 @@ def test_the_tiers_are_ordered_loosest_first() -> None:
         return slate_odds_max_age(gameweek, now, near_ttl=NEAR_TTL, far_ttl=FAR_TTL)
 
     assert ceiling(72) >= ceiling(12) >= ceiling(1)
+
+
+# ── The other provider call in the request path: freezing a pick (Batch 57) ──
+#
+# `POST /leagues/{slug}/picks` prices the one fixture being claimed, at a 60-second
+# ceiling. Re-picking the *same* fixture inside a minute is free; moving between fixtures
+# costs one request each time, which is exactly what a member does in the hour before
+# lock. The per-user limit was set independently of this budget and has to fit it.
+
+
+def _pick_submit_limits() -> dict[str, int]:
+    """The shipped per-member limit, parsed the way slowapi parses it."""
+    from limits import parse_many
+
+    from src.routers.picks import PICK_SUBMIT_LIMIT
+
+    return {item.GRANULARITY.name: item.amount for item in parse_many(PICK_SUBMIT_LIMIT)}
+
+
+async def test_one_member_cannot_exhaust_the_plan_by_changing_their_mind() -> None:
+    """No single member's whole allowance may outspend what the hour leaves.
+
+    This is the property that failed. At the previous ``60/hour`` one member could spend
+    sixty upstream requests against a plan with roughly a dozen to spare once peak
+    browsing and the ad-hoc round allowance are subtracted — and exhaustion is silent:
+    everyone else's prices simply stop refreshing.
+    """
+    spare = (
+        HOURLY_LIMIT
+        - await _tightest_browsing_hour()
+        - _ad_hoc_limits()["hour"] * (AD_HOC_ALL_UK_REQUESTS)
+    )
+    spend = _pick_submit_limits()["hour"]
+    assert spend <= spare, (
+        f"one member may spend {spend} requests an hour against {spare} spare "
+        f"(hourly {HOURLY_LIMIT} less browsing and ad-hoc rounds)"
+    )
+
+
+def test_the_pick_limit_still_covers_the_journey_it_exists_for() -> None:
+    """Tightening it must not price out a member who legitimately changes their mind.
+
+    One pick plus a few reconsiderations is the whole shape of the hour before lock. A
+    limit that does not clear that is a worse bug than the one it fixes.
+    """
+    assert _pick_submit_limits()["hour"] >= 5
+
+
+def test_the_pick_path_is_not_bounded_in_total_and_this_is_known() -> None:
+    """Recorded as a gap rather than left to be rediscovered.
+
+    A per-member limit cannot bound aggregate spend: a full league of fifteen at ten each
+    is 150 requests against a 100/hour plan. Closing it needs a *shared* budget on the
+    pick path — ``consume_shared_limit`` is the mechanism, already used by the populate
+    path — plus a product decision about what a member sees when it is empty, because a
+    pick cannot fall back to a stale price the way browsing can (``picks.py`` says why).
+    That decision is the owner's; this test states the arithmetic so it stays visible.
+    """
+    league_max_members = 15  # `leagues.max_members` default
+    worst_case = _pick_submit_limits()["hour"] * league_max_members
+    assert worst_case > HOURLY_LIMIT, (
+        "a per-member limit now bounds the aggregate — if this fails the gap has been "
+        "closed and this test should be replaced by one asserting the real bound"
+    )
