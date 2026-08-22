@@ -1552,3 +1552,24 @@ correlation id, token pruning, weak PINs).
   targets are `/leagues/${league_slug}` and `_slugify` reduces a slug to `[a-z0-9-]`.
 
 **Next:** Batch 60 — make the gate run what it claims to run.
+
+## Batch 60 — Make the gate run what it claims to run
+**Commits:** bc18bb1 · verified: `scripts/ci-local.sh` PASS (10 checks, 0 skips)
+
+### Key facts for future sessions
+- **`scripts/ci-local.sh` is the gate.** One command: pinned venv, clean `pgserver`,
+  `alembic upgrade head`, full pytest, deployment-config assertions, frontend
+  lint/typecheck/test/build. `SKIP_PROD_BUNDLE=1` drops only the Playwright smoke.
+  It already existed before this batch — the batch was specified to build it.
+- Its header comment already documented the FastAPI 403→401 `HTTPBearer` change that
+  Batch 59's upgrade trial rediscovered, and records that it once cost nine days of
+  local-pass/CI-fail. Read that file before touching the pins.
+- Hand-run pytest **must start from a clean schema every time**. The pick-flow test and
+  the e2e seeder both commit, so a reused cluster fails `test_seeds` on the second run.
+  That cost time twice during this review before it was written down.
+- **Still open (OPS-04):** the service worker gives `/api/v1/` GETs a 3-second
+  `networkTimeoutSeconds`. Tight for mobile data against a service that can cold start;
+  raising it trades a slower first paint for fewer outright failures. Left out of this
+  batch because its scope boundary was tooling and docs only.
+
+**Next:** Batch 61 — the FastAPI/starlette upgrade and the two decisions inside it.

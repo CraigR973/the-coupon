@@ -1680,7 +1680,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: **dependencies and whatever their APIs force. No behaviour change.**
   If an upgrade demands a product decision, stop and record it rather than deciding it here.
 
-- [ ] **Batch 60 — Make the gate run what it claims to run** —
+- [x] **Batch 60 — Make the gate run what it claims to run** ✅ 2026-08-22 *(Opus)* —
   Three decisions compose into a hole. `conftest.py:38-41` skips Postgres-backed tests
   when `DATABASE_URL` is unset; `batch-verify.md` treats the database run as conditional;
   `phase-closeout.md` merges, ticks and **pushes `main`** while saying "Do not poll CI".

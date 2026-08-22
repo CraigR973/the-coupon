@@ -70,7 +70,16 @@ passes 684 of 687, and the three failures are decisions rather than fixes (a
 401/403 contract change the web client reacts to, and a datetime guard that goes
 silent under pydantic 2.13). It is specified as Batch 61.
 
-Batches 1-59 are closed (59 in part; see Batch 61). The Coupon is a verified
+Batch 60 found that the one-command gate it was written to build already existed.
+`scripts/ci-local.sh` runs ten checks — a venv from the pins, a clean `pgserver`,
+`alembic upgrade head`, the **complete** pytest suite, deployment-config
+assertions and the whole frontend — and passes. Nothing pointed at it: `AGENTS.md`
+and `batch-verify.md` documented a piecemeal path that skips 151 tests without
+`DATABASE_URL` and a borrowed venv that cannot even import the suite. All three
+command docs now say so, and `phase-closeout.md` states plainly that its push
+deploys the web app before CI has necessarily reported.
+
+Batches 1-60 are closed (59 in part; see Batch 61). The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
