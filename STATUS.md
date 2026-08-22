@@ -2,7 +2,25 @@
 
 ## Now
 
-Batches 1-53 are closed. The Coupon is a verified
+A full-application review landed on 2026-08-22 (`docs/review/2026-08-22/`),
+covering engineering, security, UI/UX, accessibility, dependencies and
+operations against a running instance rather than the source alone. It found 24
+things and specified Batches 54-60 from them. The baseline it measured: **1,047
+tests green** — 660 backend against real PostgreSQL, 387 frontend — with ruff,
+mypy, eslint and tsc clean, and production serving every security header it
+should while `/api/docs` correctly 404s.
+
+Batch 54 closed the first of them. `--text-muted` had been contrast-checked
+against two of the four surface tiers and shipped, so it failed wherever a card
+sits on a card — which is where the pick screen puts every "WIN n PTS" line. The
+light palette had never had the pass the dark one got and failed against every
+light surface. Measured live with axe: dark went 7 failing nodes to 0, light 21
+to 6. The six that remain are `--primary` and `--warning` used as text, and they
+are arithmetic rather than oversight: no single value clears 4.5:1 both as text
+on white and as a fill under near-black. They need a second token, which is a
+design decision and is left for the owner.
+
+Batches 1-54 are closed. The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,

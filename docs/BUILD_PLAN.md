@@ -1482,7 +1482,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: **no new provider call and no migration.** Everything here is already in
   `matches`; this batch only stops discarding it.
 
-- [ ] **Batch 54 — A palette that was only ever checked against two of its four surfaces** —
+- [x] **Batch 54 — A palette that was only ever checked against two of its four surfaces** ✅ 2026-08-22 *(Opus)* —
   `index.css:87` records the contrast work that was done: on-primary and on-accent were
   measured and are ≥ 4.9:1 in both themes. `--text-muted` was not held to the same
   standard, and it fails.

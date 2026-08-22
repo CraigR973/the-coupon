@@ -1413,3 +1413,26 @@ Launch planning resumes at **L5 — Launch and first-Saturday watch**, the only 
 merge: Vercel takes the client immediately while the deployed API still serves
 `TableEntry` without `recent`. `TableEntry.recent` is optional precisely for that window —
 table pips simply will not open until **a `/ship-prod` is owed and run**.
+
+## Batch 54 — A palette that was only ever checked against two of its four surfaces
+**Commits:** f31cfbf · verified: ruff 0.5.4 · mypy 1.11.0 · pytest 660 (clean schema, 0 skips) · lint · tsc · build · vitest 425
+
+### Key facts for future sessions
+- `--text-muted` is now `#8690A6` (dark) / `#666F7D` (light). Both were chosen as the
+  *smallest* change that clears 4.5:1 on all four surface tiers; do not nudge them
+  back toward the old greys without re-running `src/test/contrast.test.ts`.
+- **`accessibility.test.tsx` cannot see colour and never will.** jsdom will not resolve a
+  CSS custom property, so axe's `color-contrast` rule is disabled there. That is why
+  `contrast.test.ts` exists and reads `index.css` off disk instead — Vitest stubs CSS
+  imports, so both a plain import and `?raw` hand back an empty string.
+- Six contrast failures remain in light mode and are deliberate: `--primary` and
+  `--warning` used as text. One value cannot fix them — as text on white a colour needs
+  relative luminance ≤ 0.183, as a fill under `--on-primary` it needs ≥ 0.208. They need a
+  brand-as-ink token distinct from brand-as-surface. `KNOWN_DUAL_ROLE_DEBT` in the test
+  asserts that list is exactly right, so it cannot silently grow.
+- `--locked` is defined in both palettes and referenced by **nothing** — 0 text, 0 fill,
+  0 border uses. Kept in sync with `--text-muted` rather than deleted, but it is dead.
+- The full review this came from is `docs/review/2026-08-22/`, and Batches 55-60 are
+  specified from it.
+
+**Next:** Batch 55 — the viewport meta disables pinch-zoom app-wide.
