@@ -1482,6 +1482,232 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: **no new provider call and no migration.** Everything here is already in
   `matches`; this batch only stops discarding it.
 
+- [ ] **Batch 54 — A palette that was only ever checked against two of its four surfaces** —
+  `index.css:87` records the contrast work that was done: on-primary and on-accent were
+  measured and are ≥ 4.9:1 in both themes. `--text-muted` was not held to the same
+  standard, and it fails.
+
+  Measured against each tier the palette itself defines — dark `#7B859B`: `--bg` 5.22 pass,
+  `--surface` 4.84 pass, `--surface-elevated` **4.38 fail**, `--surface-overlay` **3.91
+  fail**. It was verified on the two lower tiers and shipped, so it breaks precisely where
+  a card sits on a card, which is where the pick screen puts every `WIN n PTS` line, the
+  competition chip and the inactive tab-bar labels. axe on the live page at 390px finds
+  seven failing nodes in dark mode from that one pair.
+
+  **Light mode is worse and is the reason this is one batch rather than a tweak.**
+  `--text-muted #8A93A1` fails against *every* light surface — 2.78 on
+  `--surface-elevated`, 3.10 on `--surface`, 2.91 on `--bg`. Twenty-one failing nodes on
+  the pick screen alone, across five pairs: the muted grey, `#F59E0B` on white at **2.14**,
+  `--primary #059669` used as text at 3.54–3.76, and `#28A47E` at 2.81. The amber pair
+  carries the most important status line the product has — "You haven't grabbed a
+  selection yet" — at 2.14:1.
+
+  Fix the tokens, not the call sites; one pair is wrong in dozens of places and the
+  call sites are all correct. Smallest values that clear 4.5:1 on every tier the palette
+  defines: dark `--text-muted:#8690A6` (5.06 / 4.52, still distinct from
+  `--text-secondary #94A3B8`), light `--text-muted:#666F7D` (4.57 / 4.78 / 5.08). The
+  amber and the green-as-text need their own darker light-mode values; `--primary` is
+  already `#059669` in light mode *as a fill*, and that is a separate token from primary
+  used as text on a light ground.
+
+  Verification: a unit test that computes WCAG contrast from the tokens themselves and
+  asserts every text token against every surface token in both palettes — the check that
+  would have caught this, and that jsdom cannot do through axe. Keep
+  `test/accessibility.test.tsx` as it is; it is not the wrong test, it just cannot see
+  colour.
+
+  Scope boundary: **tokens only, both palettes, no component changes and no API change.**
+
+- [ ] **Batch 55 — The app takes zoom away from the people who need it** —
+  `index.html:30` ships `maximum-scale=1.0, user-scalable=no`. It is the single axe
+  violation present on every screen audited, axe rates it **critical**, and it is a plain
+  WCAG 2.1 AA failure (1.4.4 Resize Text).
+
+  It lands on the audience least able to absorb it. This is a phone-first PWA whose
+  central screen is a grid of two-decimal odds set at 10px, and a member with low vision
+  cannot enlarge any of it — not the price they are about to freeze, not the countdown,
+  not the table. The attribute is almost always there to stop iOS Safari zooming when an
+  input takes focus; the fix for *that* is a ≥16px font-size on the inputs, so check the
+  inputs before removing it and raise any that are under 16px.
+
+  **The same batch owes the form disclosure a target.** Batch 53 made the five form pips
+  open onto the matches behind them, which was right, but measured live the control is
+  **70 x 22 CSS px** — under the 24x24 that WCAG 2.2 SC 2.5.8 requires at AA. It is the
+  only outright target-size failure in the app. The sub-nav chips (30px) and the account
+  avatar (32px) clear 2.5.8 and sit under Apple's 44px guidance; raising them is optional
+  and is a judgement call, not a conformance one.
+
+  Verification: assert the viewport meta permits scaling; assert no input renders below
+  16px; a Vitest check that the form disclosure's rendered box is at least 24x24. Re-run
+  axe against the built app and show the critical violation gone.
+
+  Scope boundary: **frontend only, no API change.** Do not restyle the pick card.
+
+- [ ] **Batch 56 — Two halves of account recovery, neither of which works** —
+  Changing a PIN is the thing a member does when they think someone else knows it, and
+  `routers/auth.py:344-358` writes the new hash and commits. It does not revoke that
+  member's `refresh_tokens`, does not clear `failed_login_count` or `locked_until`, and
+  cannot reach the 24-hour access tokens already issued. So the session the member was
+  trying to shut out survives, and keeps renewing itself on a 30-day rotating token.
+  Rotation that does not end sessions is not rotation.
+
+  The other half never worked at all. `pin_reset_request` (`auth.py:361-380`) looks the
+  member up, writes one `log.info`, returns "an admin will be notified to reset your PIN",
+  and notifies nobody. There is no notification row, no email, no queue — the only trace
+  is a Railway log line, and `railway logs` caps at 500. `LAUNCH_PLAN.md` calls for "an
+  admin-operated, one-time PIN reset flow"; what shipped is the message without the flow,
+  and the message is untrue.
+
+  These are one batch because they are one journey, and because SEC-04 makes them
+  compound: `auth.py:181-199` resets `failed_login_count` only on a *successful* login, so
+  once it reaches five, each expiry of `locked_until` buys exactly one attempt and a wrong
+  answer re-locks for another fifteen minutes — permanently, at one guess per quarter
+  hour. A member who mistypes five times has no way back in and no working way to ask.
+  Reset the counter when the lockout expires; keep the window, drop the ratchet.
+
+  Give the reset request somewhere to land that an admin actually sees. The app already
+  has `notifications` and a push service; a row addressed to the league's admins reuses
+  what exists rather than inventing a channel.
+
+  Verification: changing a PIN revokes every other refresh token for that member and
+  leaves the current session working; a revoked token is refused at `/auth/refresh`;
+  a reset request creates something an admin can read, and still answers the same generic
+  message to an unknown display name; a lockout that has expired admits five fresh
+  attempts rather than one.
+
+  Scope boundary: **no new external channel** — no email provider, no SMS. If a
+  notification row needs a column, it is additive and forward-only, and it needs a written
+  recovery plan under `ship-prod.md` because production has no restore point.
+
+- [ ] **Batch 57 — Three things wrong in the file that takes the pick** —
+  All three are in `routers/picks.py` and all three are cheap.
+
+  **A malformed id is a 500.** `fixture_id` on the submit body (`picks.py:58`) and
+  `gameweek_id` on the path (`picks.py:174`) are typed `str` and handed to SQLAlchemy
+  against `UUID(as_uuid=True)` columns. Verified over HTTP: both answer **500**, while a
+  well-formed id that does not exist correctly answers 404. The house already has the
+  pattern — `routers/players.py:83-87` wraps `uuid.UUID(...)` in `try/except ValueError`
+  and raises 404 — and every other router types its ids `uuid.UUID` and lets FastAPI
+  answer 422. This one file is the exception.
+
+  **The deadline is checked before the network call, not after.** `pick_refusal` runs at
+  `picks.py:115`, `fetch_odds` goes out at `:127`, the commit lands at `:150`, and nothing
+  looks at the clock again in between. The window is however long a third party takes to
+  answer, on the one deadline the entire product is built around. `pick_refusal` is
+  time-authoritative by design, so re-evaluating it against the same `now` after the
+  snapshot costs one call.
+
+  **A pick can outspend the provider.** `config.py:92-119` prices the browse path
+  carefully and lands on 28 requests in the tightest hour against a 100/hour allowance.
+  The pick path is priced at "one request per fixture" — but `submit_pick` is limited to
+  `60/hour` per member (`picks.py:101`), and the 60-second cache only helps a member who
+  re-picks the *same* fixture. Sixty changes of mind across sixty fixtures is sixty
+  requests; two such members exceed the whole hourly allowance between them, before
+  browsing or discovery has spent anything. Deciding between fixtures is what the hour
+  before lock is *for*. Derive the per-user limit from the budget the way Batch 35 derived
+  the one-off round's, rather than setting it independently.
+
+  Verification: a malformed `fixture_id` and a malformed `gameweek_id` each answer 4xx,
+  not 500, and a well-formed absent one still answers 404; a pick whose odds fetch returns
+  after the deadline is refused with `PICKS_LOCKED` rather than written; a test that
+  asserts the per-user submit limit against the measured provider budget, as
+  `tests/test_request_budget.py` already does for the browse path.
+
+  Scope boundary: **no migration, no schema change, no frontend change.**
+
+- [ ] **Batch 58 — The rate limits that are decorative, and the ones that are not** —
+  `rate_limit.py:18-23` takes the **first** entry of `X-Forwarded-For` as the client
+  address. That value is entirely caller-supplied and Railway appends rather than
+  replaces, so rotating the header gives a fresh bucket every request and every IP-keyed
+  limit in the app — login at `5/15 minutes`, `pin/reset-request` at `3/hour`, the
+  shared-scope provider budgets — is bypassable by anyone who thinks to try. The durable
+  per-profile lockout still bounds PIN guessing, which is why this is not higher, but it
+  is the only thing standing. Take the rightmost untrusted hop, or a fixed trusted-proxy
+  depth counted from the right.
+
+  Four smaller items belong with it, because they are all one file or one header:
+
+  * **No refresh-token reuse detection** (`auth.py:218-258`). Rotation is implemented and
+    the old row is revoked, but replaying a revoked token returns a plain 401. Reuse of a
+    rotated refresh token is the signature of theft; the standard response is to revoke
+    the family. Today the thief and the victim simply race.
+  * **The correlation ID is attacker-controlled, unbounded and reflected**
+    (`middleware.py:16-20`). Accept it only if it parses as a UUID, else mint one.
+    Confirmed reflected in production response headers.
+  * **`refresh_tokens` is append-only.** Every login and every refresh inserts a row and
+    nothing ever deletes expired or revoked ones, on a Supabase Free project. The
+    scheduler already runs periodic work; this is one more job.
+  * **No weak-PIN policy** and **no `Cache-Control: no-store`** on authenticated JSON.
+    Roughly a quarter of human-chosen four-digit PINs fall in about twenty values, so the
+    effective keyspace is far under 10,000; a blocklist costs nothing.
+
+  Verification: a spoofed `X-Forwarded-For` no longer earns a fresh login bucket; a
+  replayed refresh token revokes the family and the test asserts the family is gone; a
+  non-UUID correlation ID is replaced rather than echoed; the prune job removes expired
+  rows and leaves live ones; a blocklisted PIN is refused at set time.
+
+  Scope boundary: **no change to the lockout window itself** — that is Batch 56's, and the
+  two must not both edit it.
+
+- [ ] **Batch 59 — Twenty-nine advisories, three packages, one real upgrade** —
+  An OSV query over the 130 pinned packages in `requirements.txt` hits three, all runtime:
+  **starlette 0.37.2** (13 advisories, 3 HIGH), **cryptography 46.0.3** (4 HIGH), and
+  **python-dotenv 1.0.1** (1, not reachable — the app only reads .env). The full report is
+  `docs/review/2026-08-22/osv-python-advisories.txt`.
+
+  The one that matters on its merits is CVE-2026-48710: missing Host-header validation
+  poisons `request.url.path` and bypasses path-based checks. The multipart DoS pair
+  (CVE-2024-47874, CVE-2025-54121) is not reachable — no route parses a form — and
+  CVE-2026-48818 is Windows-only.
+
+  `starlette` is pinned *by* `fastapi==0.111.0`, so this is a FastAPI upgrade rather than
+  a line edit, and it has a known trap already documented in the code:
+  `routers/auth.py:401-405` explains that `HTTP_413_REQUEST_ENTITY_TOO_LARGE` exists only
+  on the pinned starlette and that following the newer deprecation warning turns a local
+  warning into an `AttributeError` on the pins. Expect more of that shape.
+
+  On the frontend, `pnpm audit` reports 34, of which almost all are build-time (vite,
+  esbuild, @babel/core, brace-expansion, js-yaml) and never reach a browser. The exception
+  is **react-router / react-router-dom**: open redirect via backslash in `<Link>` and
+  `useNavigate`, rated as leading to XSS. Check whether any redirect target is
+  attacker-influenced — the invite and join-by-code paths are where to look — before
+  deciding how far to carry the upgrade.
+
+  Verification: the full gate on the pinned toolchain, with the 151 Postgres-backed tests
+  actually running; a fresh OSV query showing the runtime advisories cleared; the avatar
+  size-cap path exercised, since it is the one that names a starlette symbol directly.
+
+  Scope boundary: **dependencies and whatever their APIs force. No behaviour change.**
+  If an upgrade demands a product decision, stop and record it rather than deciding it here.
+
+- [ ] **Batch 60 — Make the gate run what it claims to run** —
+  Three decisions compose into a hole. `conftest.py:38-41` skips Postgres-backed tests
+  when `DATABASE_URL` is unset; `batch-verify.md` treats the database run as conditional;
+  `phase-closeout.md` merges, ticks and **pushes `main`** while saying "Do not poll CI".
+  So the routine gate is **509 passed, 151 skipped**, and the skipped set is the HTTP pick
+  flow, settlement, the scheduler jobs, slate persistence, seeds and all four migration
+  tests. A batch can go green, merge and auto-deploy the web app to production without the
+  core game logic having executed once.
+
+  With a `pgserver` instance and `alembic upgrade head` the same suite is **660 passed, 0
+  skipped in 88 seconds**. That is the entire cost.
+
+  **The documented toolchain cannot run the suite at all.** `AGENTS.md` and
+  `batch-verify.md` point at app-starter's venv, which has no Pillow — Batch 44's
+  dependency — so ten modules fail collection with `ModuleNotFoundError: No module named
+  'PIL'`. A dedicated venv built from `requirements-dev.txt` fixes that *and* pins ruff
+  0.5.4 and mypy 1.11.0 exactly, retiring the four paragraphs `batch-verify.md` spends
+  apologising for the divergence. Both pass clean on the pinned versions.
+
+  Make the database run the default rather than the exception, give the repo a venv of its
+  own, and say in `phase-closeout.md` what the push actually does.
+
+  Verification: a documented one-command local gate that starts the database, migrates,
+  and runs everything with zero skips; `batch-verify.md` and `AGENTS.md` updated to match;
+  a clean checkout can follow the docs and get a green suite.
+
+  Scope boundary: **tooling and documentation only. No src/ change.**
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
