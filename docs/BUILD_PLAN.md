@@ -1649,7 +1649,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: **no change to the lockout window itself** — that is Batch 56's, and the
   two must not both edit it.
 
-- [ ] **Batch 59 — Twenty-nine advisories, three packages, one real upgrade** —
+- [x] **Batch 59 — Twenty-nine advisories, three packages, one real upgrade** ✅ 2026-08-22 *(Opus)* *(part: cryptography + python-dotenv landed; the FastAPI/starlette upgrade split out to Batch 61)* —
   An OSV query over the 130 pinned packages in `requirements.txt` hits three, all runtime:
   **starlette 0.37.2** (13 advisories, 3 HIGH), **cryptography 46.0.3** (4 HIGH), and
   **python-dotenv 1.0.1** (1, not reachable — the app only reads .env). The full report is
@@ -1707,6 +1707,44 @@ answered until it lands, because until then there is no data to look at.
   a clean checkout can follow the docs and get a green suite.
 
   Scope boundary: **tooling and documentation only. No src/ change.**
+
+- [ ] **Batch 61 — The framework upgrade, and the two decisions inside it** — split out of
+  Batch 59, which raised `cryptography` and `python-dotenv` and stopped there. The remaining
+  advisories are all `starlette 0.37.2`, pinned by `fastapi==0.111.0`, and every one of them
+  is either unreachable or low-reachability here: the multipart DoS pair (CVE-2024-47874,
+  CVE-2025-54121) needs a route that parses a form and there is none, CVE-2026-48818 is
+  Windows-only, and CVE-2026-48710's Host-header path poisoning matters most to apps doing
+  path-based authorisation in middleware, which this one does not — auth is a per-route
+  dependency.
+
+  So this is hygiene rather than an emergency, and it is a batch of its own because **it was
+  built and it does not merely work**. On `fastapi 0.141.1 / starlette 1.6.0 / pydantic
+  2.13.4` (the resolution is forced: FastAPI 0.141 requires pydantic ≥ 2.9) the suite runs
+  **684 of 687**, and the three failures are decisions:
+
+  * **`HTTPBearer` now answers 401 where it answered 403** for a caller with no credentials.
+    That is correct — RFC 7235 reserves 403 for an authenticated caller who is forbidden —
+    and it is a **client-visible contract change**: `lib/api.ts:72` treats 401 specially,
+    attempting a silent refresh and then redirecting to `/login`. Decide what an anonymous
+    caller should now experience before changing it, and remember the web app deploys on
+    merge while the API waits for `/ship-prod`, so the two halves see different codes in
+    between. `test_avatar.py:508` and `test_football_router.py` assert the old value.
+  * **`test_wire_datetimes.py`'s model walk finds nothing under pydantic 2.13** — the
+    assertion is `{...} <= names` against an empty set. That test is the guard on Batch 43's
+    fix, the one that stopped a 14:30 London lock rendering as 13:30. Its introspection has
+    to be rewritten against the new API, and it must be *seen to fail* on the old bug
+    afterwards, or the guard is retired without anyone noticing.
+  * `HTTP_422_UNPROCESSABLE_ENTITY` and `HTTP_413_REQUEST_ENTITY_TOO_LARGE` are deprecated in
+    favour of `..._CONTENT`. `routers/auth.py:401` documents the reverse trap — following the
+    newer name on the *old* pins is an `AttributeError` — so the rename can only land
+    together with the upgrade, never before it.
+
+  Verification: the full gate on the new pins with zero skips; the datetime-wire guard
+  rewritten and demonstrated to fail on a naive-UTC regression; a decision recorded for the
+  401/403 change with the web client updated in the same batch if it needs to be.
+
+  Scope boundary: **dependencies and whatever their APIs force. No behaviour change beyond
+  the 401/403 decision, and that one is deliberate and recorded.**
 
 ## Verification
 

@@ -1527,3 +1527,28 @@ correlation id, token pruning, weak PINs).
 - A **`/ship-prod` is still owed** — Batches 56, 57 and 58 are all backend.
 
 **Next:** Batch 59 — dependency advisories (starlette/FastAPI, cryptography, react-router).
+
+## Batch 59 — Twenty-nine advisories, three packages, one real upgrade *(part)*
+**Commits:** 576d4d5 · verified: ruff 0.5.4 · mypy 1.11.0 · pytest 692 (clean schema, 0 skips) · lint · tsc · build · vitest 538
+
+### Key facts for future sessions
+- **cryptography does see untrusted input**, contrary to what `requirements.in` claimed
+  until now: `push/subscribe` stores the browser's `keys` verbatim and `webpush()` parses
+  `p256dh` as an EC public key. Any future reasoning about that pin has to start there.
+- The bound is now `==48.0.1`, with a **ceiling** as well as a floor, and
+  `tests/test_dependency_floors.py` asserts both with the reachability argument attached.
+  49.0.0 publishes no macOS wheel at all — that is what `--only-binary=cryptography` in
+  `ci-local.sh` is now waiting to catch.
+- "No Intel wheel above 46.0.3" was not quite right: there is no *x86_64-tagged* wheel, but
+  `universal2` carries an x86_64 slice and installs on Intel. Verified with the exact
+  `--only-binary` invocation `ci-local.sh` uses.
+- **The FastAPI upgrade was actually built and run, not estimated.** `fastapi 0.141.1 /
+  starlette 1.6.0 / pydantic 2.13.4` gives 684/687. Do not repeat that exploration —
+  Batch 61's row records the three failures and what each one costs.
+- Of those three, the one that matters most is `test_wire_datetimes.py`: its model walk
+  returns an **empty set** under pydantic 2.13, so the guard on Batch 43's 14:30-shown-as-13:30
+  fix would go quiet rather than fail loudly. Rewrite it *and* prove it still catches the bug.
+- react-router's open-redirect advisory is **not reachable**: the only data-built navigate
+  targets are `/leagues/${league_slug}` and `_slugify` reduces a slug to `[a-z0-9-]`.
+
+**Next:** Batch 60 — make the gate run what it claims to run.

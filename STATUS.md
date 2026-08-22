@@ -59,7 +59,18 @@ race. `X-Correlation-ID` is accepted only as a UUID, `refresh_tokens` is pruned
 nightly instead of growing forever, common PINs are refused, and every response
 carries `Cache-Control: no-store`.
 
-Batches 1-58 are closed. The Coupon is a verified
+Batch 59 raised `cryptography` to 48.0.1. The old `<=46.0.3` bound rested on the
+premise that the library never sees untrusted input, and that was wrong:
+`push/subscribe` stores a browser-supplied `p256dh` which `webpush()` parses as
+an EC public key, which is exactly the surface of the missing subgroup-validation
+advisory. 48.0.1 clears everything reachable and is the last release with a macOS
+universal2 wheel, so the local gate still builds without Rust. **The
+FastAPI/starlette upgrade was built, measured and deliberately not landed** — it
+passes 684 of 687, and the three failures are decisions rather than fixes (a
+401/403 contract change the web client reacts to, and a datetime guard that goes
+silent under pydantic 2.13). It is specified as Batch 61.
+
+Batches 1-59 are closed (59 in part; see Batch 61). The Coupon is a verified
 private weekly football accumulator PWA, and it is a **per-league** game: a
 member may play in several leagues at once and each owns its rounds, window,
 markets, competitions and claim size. Members sign in with display name and PIN,
