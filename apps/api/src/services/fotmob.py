@@ -44,6 +44,7 @@ import structlog
 
 from src.services.football_provider import (
     CompetitionKey,
+    FixtureState,
     FootballDataAPIError,
     FootballDataProvider,
     LeagueTable,
@@ -437,6 +438,58 @@ class FotMobProvider(FootballDataProvider):
                 )
             )
         return results
+
+    async def fetch_fixture_states(
+        self, competition: CompetitionKey, season: int
+    ) -> list[FixtureState]:
+        """Every match FotMob lists for the competition, played or not, with its status.
+
+        Shares the memoised payload with :meth:`fetch_table` and :meth:`fetch_results`, so
+        a cross-check of a card that spans a competition already swept costs no request.
+
+        Unlike :meth:`fetch_results` this keeps the cancelled ones — they are the entire
+        point. ``status.cancelled`` is what marks a postponement, and it is the *only*
+        thing that does: FotMob leaves ``utcTime`` at the original kick-off, so a
+        postponed match reads as a perfectly healthy one on date alone.
+        """
+        league_id = await self.league_id_for(competition)
+        if league_id is None:
+            return []
+        payload = await self._league(league_id, season)
+        matches = (payload.get("fixtures") or {}).get("allMatches")
+        if not isinstance(matches, list):
+            matches = (payload.get("matches") or {}).get("allMatches")
+        if not isinstance(matches, list):
+            return []
+
+        # Same attribution as fetch_results: a composite id carries several divisions.
+        override = _COMPETITION_OVERRIDES.get(competition.slug)
+        wanted_group = override[1] if override else None
+        index = self._division_index(payload) if wanted_group is not None else {}
+
+        states: list[FixtureState] = []
+        for match in matches:
+            if not isinstance(match, dict):
+                continue
+            status = match.get("status") or {}
+            home, away = _team_ref(match.get("home") or {}), _team_ref(match.get("away") or {})
+            if home is None or away is None:
+                continue
+            if wanted_group is not None and index.get(home.provider_team_id) != wanted_group:
+                continue
+            kickoff = _parse_utc(status.get("utcTime") or match.get("utcTime"))
+            if kickoff is None:
+                continue
+            states.append(
+                FixtureState(
+                    home=home.name,
+                    away=away.name,
+                    kickoff_utc=kickoff,
+                    cancelled=bool(status.get("cancelled")),
+                    reason=str((status.get("reason") or {}).get("long") or ""),
+                )
+            )
+        return states
 
     # -- transport -------------------------------------------------------------
 

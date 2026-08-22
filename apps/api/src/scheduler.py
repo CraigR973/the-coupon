@@ -161,10 +161,16 @@ async def run_discover_fixtures() -> bool:
     """
     try:
         provider = await odds_session.acquire()
+        football = await football_session.acquire()
         async with AsyncSessionLocal() as session:
             leagues = await active_leagues(session)
             gameweeks = await discover_fixtures(
-                session, provider, leagues, _uk_today(), settings.slate_horizon_weeks
+                session,
+                provider,
+                leagues,
+                _uk_today(),
+                settings.slate_horizon_weeks,
+                football=football,
             )
             gameweek_ids = [str(g.id) for g in gameweeks]
             windows = len({window_for(league) for league in leagues})
@@ -199,10 +205,13 @@ async def run_refresh_slate() -> bool:
     """
     try:
         provider = await odds_session.acquire()
+        football = await football_session.acquire()
         async with AsyncSessionLocal() as session:
             leagues = await active_leagues(session)
             # Horizon of 1: only the round about to be played.
-            gameweeks = await discover_fixtures(session, provider, leagues, _uk_today(), 1)
+            gameweeks = await discover_fixtures(
+                session, provider, leagues, _uk_today(), 1, football=football
+            )
             refreshed = len(gameweeks)
             await session.commit()
         if refreshed:

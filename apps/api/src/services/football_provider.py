@@ -162,6 +162,28 @@ class MatchResult(BaseModel):
     status: str = ""
 
 
+class FixtureState(BaseModel):
+    """Where a *scheduled* match stands, according to the football-data source.
+
+    The counterpart to :class:`MatchResult`, which only describes matches that were
+    played. This describes ones that have not been yet, and exists for a single question
+    the odds provider cannot answer: **is this fixture still on?**
+
+    ``cancelled`` is the provider's own postponement flag. It has to be carried
+    separately from ``kickoff_utc`` because a postponed match keeps its *original*
+    kick-off in FotMob's payload — the date alone cannot tell a postponement from a
+    healthy fixture, which is exactly how two Premiership games survived a date-only
+    cross-check and stayed pickable (Batch 64).
+    """
+
+    home: str
+    away: str
+    kickoff_utc: datetime
+    cancelled: bool = False
+    #: The provider's words for *why* — "Postponed", "Cancelled" — for the log line.
+    reason: str = ""
+
+
 def season_for(day: date) -> int:
     """The season a date falls in, named by its starting year.
 
@@ -214,3 +236,18 @@ class FootballDataProvider(ABC):
         Unbounded is the season backfill; bounded is the scheduled top-up. Returns an
         empty list — never raises — for a competition the provider does not carry.
         """
+
+    async def fetch_fixture_states(
+        self, competition: CompetitionKey, season: int
+    ) -> list[FixtureState]:
+        """Every scheduled match this source lists for the competition, with its status.
+
+        Deliberately **not** abstract, and defaulting to "I don't know". The one caller
+        (:mod:`src.services.slate_verification`) treats an empty list as *no opinion* and
+        leaves the card exactly as the odds provider gave it, so a provider that cannot
+        answer this costs nothing beyond the cross-check it does not get. Only the FotMob
+        adapter overrides it; api-football's free plan refuses the current season outright.
+
+        Returns an empty list — never raises — for a competition it does not carry.
+        """
+        return []
