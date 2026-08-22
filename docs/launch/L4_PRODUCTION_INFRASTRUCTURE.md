@@ -615,6 +615,8 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-08-21 | Railway `api` | `10fcb862-62cd-4398-81ac-8eb13ab64c53` (`REMOVED`) | `308bc163` (Batches 49, 51, 53) | `015` |
 | 2026-08-22 | Vercel web | `dpl_2wZLwfKo5tUostnfggM8JhanGvoH` | `87cae2e7` (review + Batches 54–62) | — |
 | 2026-08-22 | Railway `api` | `3de32d48-66f3-4df8-a1a4-548dbbf40e36` | `87cae2e7` (Batches 56–59) | `015` |
+| 2026-08-22 | Vercel web | `dpl_3hnnyDkhAzoasUgiodL7sRL3H1yN` | `b9e78fa` (odds hotfix) | — |
+| 2026-08-22 | Railway `api` | `b96c15f4-2fdf-4f26-81ba-75b694af3765` | `b9e78fa` (odds hotfix) | `015` |
 
 The 2026-08-19 shipment carries Batch 35 and is the **first API deployment since
 `013` that applies no migration**, which is what restores the rollback target the
@@ -1152,6 +1154,35 @@ PIN is currently a known value and must be changed at first login.
 >
 > `SCHEDULER_ENABLED` has been `true` since 2026-08-04. Read **Shipment
 > history** for what is actually deployed.
+
+The second 2026-08-22 shipment is an unplanned hotfix, not a batch, and applies
+**no migration** — head stays `015`, so `3de32d48-66f3-4df8-a1a4-548dbbf40e36`
+remains usable as a rollback target. Rollback baselines were Railway
+`3de32d48-66f3-4df8-a1a4-548dbbf40e36` and Vercel
+`dpl_2wZLwfKo5tUostnfggM8JhanGvoH`. Section 4 was skipped by design for the
+fifth time running: Vercel's GitHub integration had already built `b9e78fa` and
+the stable alias resolved to `dpl_3hnnyDkhAzoasUgiodL7sRL3H1yN`, whose
+`githubCommitSha` was read from the Vercel API rather than inferred from timing.
+The commit touches only `apps/api`, so the web bundle is unchanged in substance.
+
+Its content: `odds-api.io` publishes Bet365 under two bookmaker keys — `Bet365`
+carrying the full book, and `Bet365 (no latency)` carrying only `ML` — and
+`_bookmaker_markets` matched on exact then case-folded equality, so an event
+served under the decorated key returned no markets and the pick screen showed
+"Not priced yet" on a fixture that was priced the whole time. Measured against
+the live card that morning: of 137 fixtures, 121 priced before the fix and 124
+after, and all three recovered were Scottish Premiership — Falkirk v Hearts,
+Rangers v St Mirren, and St Johnstone v Celtic, which were unpickable until
+this shipped. The remaining 13 are dropped from `/odds/multi` by the provider
+altogether and are genuine non-coverage rather than a matching failure.
+
+Post-deploy verification: `/health` reports sha `b9e78fa` and migration `015`,
+`/health/ready` agrees at `015` with `db: ok`, RLS is on all 18 public tables
+with zero grants to `anon`/`authenticated`/`PUBLIC`, the deployment log carries
+0 errors and 0 secret-leak hits, the stable web root and a SPA deep link both
+return 200 with identical bytes, and the CORS preflight from
+`https://the-coupon-production.vercel.app` returns 200 with that exact origin
+and credentials enabled.
 
 **The phase was closed on 2026-08-04.** `docs/LAUNCH_PLAN.md` is the canonical
 record and carries the tick. This line previously read that the phase remained
