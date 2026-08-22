@@ -50,11 +50,41 @@ the user invokes `/launch-closeout <L0-L5>`.
 
 Never `cd`; use absolute paths or a tool working directory.
 
+### The gate is one command
+
+```bash
+scripts/ci-local.sh              # everything CI runs; SKIP_PROD_BUNDLE=1 to drop the slowest job
+```
+
+**Use this before close-out, not the piecemeal commands below.** It builds its own venv
+from `apps/api/requirements-dev.txt`, so the versions match the pins rather than whatever
+is on `PATH`; it starts a clean `pgserver` and runs `alembic upgrade head` before pytest,
+so the **151 Postgres-backed tests actually execute** instead of skipping; and it checks
+the deployment config and the frontend as well. Ten checks, no skips.
+
+Running pytest without `DATABASE_URL` is **509 passed, 151 skipped**, and the skipped set
+is the HTTP pick flow, settlement, the scheduler jobs, slate persistence, seeds and every
+migration test — that is, the core of the game. A green run in that mode says very little.
+
+### Running one thing at a time
+
+The commands below are for iterating on a single file. They are not the gate.
+
 Backend:
 
 ```text
 PYTHONPATH=/Users/craigrobinson/the-coupon/apps/api
 /Users/craigrobinson/app-starter/apps/api/.venv/bin/{python,mypy}
+```
+
+**That borrowed venv cannot collect the suite.** It has no Pillow, which Batch 44 made a
+dependency of `services/avatar_storage.py`, so ten test modules — `test_auth`,
+`test_picks_flow`, `test_health` among them — fail at import with
+`ModuleNotFoundError: No module named 'PIL'`. It is fine for a quick `mypy` and nothing
+else. `scripts/ci-local.sh` builds a complete one; reuse it directly if you want a shell:
+
+```text
+/Users/craigrobinson/.cache/the-coupon/ci-local-venv/bin/{python,ruff,mypy,alembic}
 ```
 
 **Ruff is the exception — run the pinned version, not the venv's.** The borrowed

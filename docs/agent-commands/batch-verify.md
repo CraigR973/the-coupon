@@ -7,7 +7,28 @@ description: Run The Coupon's local verification gate.
 `$ARGUMENTS` must identify a batch in `docs/BUILD_PLAN.md`. Read that row and
 the Verification section before running checks.
 
-Confirm the current branch is not `main`, then run:
+Confirm the current branch is not `main`, then run **the whole gate as one command**:
+
+```bash
+/Users/craigrobinson/the-coupon/scripts/ci-local.sh
+```
+
+That is the gate. It builds a venv from the pins, starts a clean `pgserver`, runs
+`alembic upgrade head`, and then runs ruff, mypy, the **complete** pytest suite, the
+deployment-config assertions, and the frontend's lint/typecheck/test/build — ten checks.
+`SKIP_PROD_BUNDLE=1` drops only the Playwright deep-link smoke.
+
+**Running pytest without a database is not this gate.** It is `509 passed, 151 skipped`,
+and the skipped set is the HTTP pick flow, settlement, the scheduler jobs, slate
+persistence, seeds and every migration test. Treating the database run as conditional —
+"when database behavior is in scope" — is how a batch reaches `main` without the core of
+the game having executed once, and `/phase-closeout` pushes `main`, which deploys the web
+app. It is 88 seconds. Run it.
+
+The rest of this file is the same checks run individually, for iterating on one file
+before the gate. They are not a substitute for it.
+
+---
 
 **Ruff — use the version CI pins, not the shared venv's.** The venv this repo
 borrows (app-starter's) ships a much newer ruff than `requirements-dev.txt`
@@ -58,10 +79,14 @@ PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" \
   pnpm --dir /Users/craigrobinson/the-coupon/apps/web test
 ```
 
-When database behavior is in scope, use a clean pip `pgserver` instance, run
-`alembic upgrade head`, then rerun pytest with `DATABASE_URL` set. When browser
-behavior is in scope, run the production-preview Playwright flow and retain its
-screenshots.
+A database is not optional — see the top of this file. If you are running pytest by
+hand rather than through `ci-local.sh`, set `DATABASE_URL` to a clean `pgserver` instance
+and run `alembic upgrade head` first, and **start from a clean schema on every rerun**:
+the HTTP pick-flow test and the e2e seeder both commit, so a reused cluster fails
+`test_seeds` on the second run for reasons that have nothing to do with your change.
+
+When browser behavior is in scope, run the production-preview Playwright flow and retain
+its screenshots.
 
 Report every command and result. Do not commit or merge; close-out remains a
 separate user-triggered action.

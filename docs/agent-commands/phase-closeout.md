@@ -11,8 +11,12 @@ This workflow runs only when the user explicitly invokes
 1. Confirm the batch row is unchecked, the current branch matches
    `feat/*`, `fix/*`, or `chore/*`, and the worktree contains only the intended
    batch changes.
-2. Run or confirm the complete `/batch-verify N` gate. For Batch 6 this includes
-   clean scratch-database migration and browser screenshots.
+2. Run or confirm the complete `/batch-verify N` gate — which means
+   `scripts/ci-local.sh`, not pytest on its own. Without a database that suite is
+   `509 passed, 151 skipped` and the skips are the pick flow, settlement and the
+   scheduler; step 8 below pushes `main`, and Vercel deploys the web app from it, so a
+   batch can reach members without the core of the game having run. For Batch 6 this also
+   includes browser screenshots.
 3. Stage only the batch's explicit files and create a Conventional Commit.
 4. Capture the feature branch and commit SHA, then fast-forward local `main`:
 
@@ -47,6 +51,11 @@ This workflow runs only when the user explicitly invokes
    feature branch, never force-push, never push any other branch. Stop and
    report if the push is rejected (e.g. `origin/main` has diverged); never
    force past a rejection.
+
+   **This push deploys.** Vercel builds and releases the web app from `main` on every
+   push, so the frontend half of the batch reaches members within a few minutes and
+   before CI has necessarily reported. The API half does not move until `/ship-prod`.
+   Nothing here waits for either, which is why step 2 has to be the real gate.
 
 9. Report the deployed-API gap, without acting on it:
 
