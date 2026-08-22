@@ -825,6 +825,67 @@ by the time the API shipped; section 4 was skipped by design that day. The
 GitHub auto-deploy did not fire within the workflow's window, so section 4's
 explicit CLI path ran instead (see above).
 
+### 2026-08-22 — `82a7a120`, the three-bug fix (no migration)
+
+Source commit `82a7a120`, on `origin/main`, gate green (`scripts/ci-local.sh`,
+11 checks, 745 backend tests against real PostgreSQL) with a GitHub Actions
+`Quality` run present and successful for the commit. **This shipment carried two
+merges, not one:** Batch 64 (`5d2a9645`, the FotMob card cross-check) had merged
+but never shipped, so the deployed API was still `a8866f32` from the Batch 63
+shipment. Both reached production together.
+
+Railway `5af73dae-58a3-4574-b28b-a70166fe04a3`, `SUCCESS`. Its predecessor —
+this shipment's rollback baseline — is `b11eae41-ce5c-462b-a7c8-c1a4072e26a1`,
+which was serving `a8866f32` at head `015`. **No Alembic revision**, so head
+stays `015` and no forward recovery plan was required; `b11eae41` bundles the
+same head and can boot.
+
+Section 4 was skipped by design: the GitHub integration had already built
+`82a7a120` as `dpl_CT48uzP7g4LA1VFp4ZhKDbr6eZ6k`, whose `githubCommitSha` was
+read from the Vercel API rather than inferred from timing, and which already
+held the stable alias. Its predecessor is `dpl_CPg2f2MLDACo7W4Y3xaxor8qcXei`.
+
+Its content: three bugs reported from use. The first was **not a defect** —
+every league is on `pick_scope = 'selection'`, where a claim takes one outcome
+and the rest of the game stays open. The owner wants one member per game, which
+is a settings change; what shipped is the bug that switching would have exposed.
+The slate marked *every* selection on a game the caller holds as `mine`, so a
+client greys out the whole game and the one member entitled to move between its
+markets could not, while the "my pick" banner named whichever selection was
+priced first. `_selection_options` now blocks only on a holder who is somebody
+else, matching `_claim_conflict`, with the exact holder of a selection
+outranking the fixture-level blocker — which matters because a league switched
+from `selection` to `fixture` keeps rows written under the old rule. The other
+two are web-only: both join paths left the cached `['leagues', 'mine']` list in
+place, so a new member landed on "You're not in a league yet"; and Football
+Stats ordered competitions differently from the coupon.
+
+Post-deploy verification: `/health` reports sha `82a7a120` and migration `015`,
+`/health/ready` agrees at `015` with `db: ok`, the deployment manifest confirms
+exactly one replica in `europe-west4-drams3a` with serverless sleep disabled,
+IPv6 egress enabled and healthcheck `/api/v1/health/ready` (`limitOverride:
+null`, i.e. plan defaults rather than a pinned 0.25 vCPU / 500 MB), RLS is on
+all 18 public tables with zero grants to `anon`/`authenticated`/`PUBLIC`, the
+deployment log carries 0 genuine errors and 0 secret-leak hits, the stable web
+root and a SPA deep link both return 200 with identical bytes and the three
+committed headers, the CORS preflight from
+`https://the-coupon-production.vercel.app` returns 200 with that exact origin
+and credentials enabled, and `/api/docs` still 404s.
+
+> **Log scanning reads `event`, not `message`.** structlog writes its content to
+> `event` and leaves `message` empty, so a scan of `message` alone inspects none
+> of the application's own lines — it silently passed over `scheduler started`
+> and every apscheduler line here before the scan was widened to the whole
+> record. Railway also tags uvicorn's and alembic's stderr as `level=error`, so
+> six `INFO:` lines present as errors and are not. Scan whole records and
+> classify by content, not by level.
+
+> **The 2026-08-22 owner action is still owed** — rotate the production database
+> password for `pugujiiojitstkilphrz` and update Railway's `DATABASE_URL`. This
+> shipment's RLS recheck was run through an asyncpg client that never renders
+> the DSN, so it did not repeat the exposure, but the leaked value is unchanged
+> and still live.
+
 ### Current rollback baselines
 
 Updated after the 2026-08-21 shipment of `1272dde` (Batches 47–48, no
