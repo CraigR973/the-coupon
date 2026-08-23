@@ -4,6 +4,7 @@ import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouteLeague } from '../hooks/useRouteLeague';
 import type { LeagueDetail, Standing } from '../lib/types';
+import { PickShapeLine, VoidDenominatorNote } from '../components/PickShapeLine';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/ui/skeleton';
@@ -68,7 +69,17 @@ export function LeaderboardPage() {
       )}
 
       {standings.length > 0 && (
-        <ol className="flex flex-col gap-2" data-testid="standings">
+        <>
+        {/* Said once for the table rather than on every row: the odds figures and the
+            played count have different denominators, and a leaderboard that shows both
+            without saying so is lying quietly. */}
+        <VoidDenominatorNote
+          shape={{
+            picks_played: standings.reduce((n, s) => n + s.picks_played, 0),
+            picks_priced: standings.reduce((n, s) => n + (s.picks_priced ?? s.picks_played), 0),
+          }}
+        />
+        <ol className="mt-2 flex flex-col gap-2" data-testid="standings">
           {standings.map((s) => {
             const isMe = s.player_id === player?.id;
             return (
@@ -93,6 +104,9 @@ export function LeaderboardPage() {
                     <p className="text-xs font-sans text-text-muted">
                       {s.picks_won}/{s.picks_played} won
                     </p>
+                    {/* Batch 70: the owner's fifth point. Renders nothing at all when the
+                        deployed API has not shipped the figures yet. */}
+                    <PickShapeLine shape={s} />
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="font-mono text-lg font-semibold tabular-nums text-text-primary">{s.total_points}</p>
@@ -103,6 +117,7 @@ export function LeaderboardPage() {
             );
           })}
         </ol>
+        </>
       )}
     </div>
   );

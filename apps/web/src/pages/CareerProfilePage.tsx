@@ -6,6 +6,7 @@ import type { PerLeagueSummary } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
 import { StatCard } from '../components/StatCard';
+import { PickShapeGrid, PickShapeLine, hasPickShape } from '../components/PickShapeLine';
 import { Avatar } from '../components/ui/avatar';
 import { Skeleton } from '../components/ui/skeleton';
 
@@ -87,6 +88,17 @@ export function CareerProfilePage() {
         </p>
       </section>
 
+      {/* Batch 70. Summed across leagues rather than averaged: every league prices in the
+          same decimal odds, so a cumulative total across three of them is a real number. */}
+      {hasPickShape(data) && (
+        <section data-testid="career-pick-shape">
+          <h2 className="mb-3 font-sans text-base font-semibold tracking-tight text-text-primary">
+            What you pick
+          </h2>
+          <PickShapeGrid shape={data} />
+        </section>
+      )}
+
       <section>
         <h2 className="mb-3 font-sans text-base font-semibold tracking-tight text-text-primary">
           By league
@@ -131,6 +143,7 @@ function LeagueRecordRow({ entry, playerId }: { entry: PerLeagueSummary; playerI
           <span className="mx-1.5">·</span>
           {entry.picks_won}/{entry.picks_played} won
         </p>
+        <PickShapeLine shape={entry} />
       </div>
       <span className="shrink-0 font-mono text-sm tabular-nums text-text-primary">
         {entry.total_points} pts

@@ -70,6 +70,16 @@ class PlayerProfile(BaseModel):
     # Wins as a percentage of settled picks, rounded to a whole number. `None`
     # rather than 0 when nothing has settled — an untested record is not a bad one.
     win_rate_pct: int | None
+    # Batch 70's pick-shape figures, taken from the same `Standing` the leaderboard
+    # renders. Optional with defaults, because the web app deploys ahead of the API.
+    picks_priced: int = 0
+    cumulative_odds: float = 0.0
+    average_odds: float | None = None
+    points_per_pick: float | None = None
+    best_return: int | None = None
+    longshot_picks: int = 0
+    favourite_picks: int = 0
+    longshot_odds: float = 3.0
     history: list[SettledPick]
 
 
@@ -110,7 +120,17 @@ async def player_profile(
         picks_played=row.picks_played,
         picks_won=row.picks_won,
         rank=row.rank,
-        win_rate_pct=(round(100 * row.picks_won / row.picks_played) if row.picks_played else None),
+        # Read off the row rather than recomputed here. It used to be recomputed, which
+        # is how a profile and a leaderboard end up a rounding step apart.
+        win_rate_pct=row.win_rate_pct,
+        picks_priced=row.picks_priced,
+        cumulative_odds=row.cumulative_odds,
+        average_odds=row.average_odds,
+        points_per_pick=row.points_per_pick,
+        best_return=row.best_return,
+        longshot_picks=row.longshot_picks,
+        favourite_picks=row.favourite_picks,
+        longshot_odds=row.longshot_odds,
         history=await _settled_history(db, league.id, target),
     )
 

@@ -31,7 +31,7 @@ from src.rate_limit import limiter, per_user_key
 from src.schemas import UtcDatetime
 from src.services.coupon import combined_odds
 from src.services.gameweek import current_round_order
-from src.services.scoring import standings_by_league
+from src.services.scoring import LONGSHOT_ODDS, standings_by_league
 
 router = APIRouter(prefix="/api/v1/me", tags=["me"])
 
@@ -110,6 +110,15 @@ class PerLeagueSummary(BaseModel):
     total_points: int
     picks_played: int
     picks_won: int
+    # Batch 70. Optional with defaults for the window where this app is deployed and the
+    # API is not; see `Standing` for why the two denominators differ.
+    picks_priced: int = 0
+    cumulative_odds: float = 0.0
+    average_odds: float | None = None
+    points_per_pick: float | None = None
+    best_return: int | None = None
+    longshot_picks: int = 0
+    favourite_picks: int = 0
     # `None` when the league has no rounds yet.
     current_round: CurrentRound | None
 
@@ -131,6 +140,18 @@ class CrossLeagueSummary(BaseModel):
     picks_played: int
     picks_won: int
     win_rate_pct: int | None
+    # Batch 70, summed across leagues rather than averaged: every league prices in the
+    # same decimal odds, so a cumulative total across three of them is a real number,
+    # and the average is that total over the picks that actually ran — not the mean of
+    # three per-league means, which would weight a one-pick league like a full season.
+    picks_priced: int = 0
+    cumulative_odds: float = 0.0
+    average_odds: float | None = None
+    points_per_pick: float | None = None
+    best_return: int | None = None
+    longshot_picks: int = 0
+    favourite_picks: int = 0
+    longshot_odds: float = 3.0
     leagues_count: int
     per_league: list[PerLeagueSummary]
 
@@ -211,6 +232,13 @@ async def cross_league_summary(
                 total_points=standing.total_points if standing else 0,
                 picks_played=standing.picks_played if standing else 0,
                 picks_won=standing.picks_won if standing else 0,
+                picks_priced=standing.picks_priced if standing else 0,
+                cumulative_odds=standing.cumulative_odds if standing else 0.0,
+                average_odds=standing.average_odds if standing else None,
+                points_per_pick=standing.points_per_pick if standing else None,
+                best_return=standing.best_return if standing else None,
+                longshot_picks=standing.longshot_picks if standing else 0,
+                favourite_picks=standing.favourite_picks if standing else 0,
                 current_round=rounds.get(row.id),
             )
         )
@@ -219,14 +247,26 @@ async def cross_league_summary(
 
     picks_played = sum(entry.picks_played for entry in per_league)
     picks_won = sum(entry.picks_won for entry in per_league)
+    total_points = sum(entry.total_points for entry in per_league)
+    picks_priced = sum(entry.picks_priced for entry in per_league)
+    cumulative_odds = sum(entry.cumulative_odds for entry in per_league)
+    returns = [entry.best_return for entry in per_league if entry.best_return is not None]
 
     return CrossLeagueSummary(
         avg_rank=round(sum(ranks_for_avg) / len(ranks_for_avg), 2) if ranks_for_avg else None,
         avg_rank_leagues=len(ranks_for_avg),
-        total_points=sum(entry.total_points for entry in per_league),
+        total_points=total_points,
         picks_played=picks_played,
         picks_won=picks_won,
         win_rate_pct=round(100 * picks_won / picks_played) if picks_played else None,
+        picks_priced=picks_priced,
+        cumulative_odds=round(cumulative_odds, 2),
+        average_odds=round(cumulative_odds / picks_priced, 2) if picks_priced else None,
+        points_per_pick=round(total_points / picks_played, 2) if picks_played else None,
+        best_return=max(returns) if returns else None,
+        longshot_picks=sum(entry.longshot_picks for entry in per_league),
+        favourite_picks=sum(entry.favourite_picks for entry in per_league),
+        longshot_odds=float(LONGSHOT_ODDS),
         leagues_count=len(membership_rows),
         per_league=per_league,
     )

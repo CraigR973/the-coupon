@@ -2093,9 +2093,87 @@ async def test_cross_league_summary_shows_an_unpicked_round_and_no_leagues(
         "picks_played": 0,
         "picks_won": 0,
         "win_rate_pct": None,
+        # Batch 70's figures, at their zero. Asserted as an exact shape on purpose: a
+        # field silently appearing or vanishing from this response is what the deployed
+        # web app would meet in the window before `/ship-prod`.
+        "picks_priced": 0,
+        "cumulative_odds": 0.0,
+        "average_odds": None,
+        "points_per_pick": None,
+        "best_return": None,
+        "longshot_picks": 0,
+        "favourite_picks": 0,
+        "longshot_odds": 3.0,
         "leagues_count": 0,
         "per_league": [],
     }
+
+
+# ── Batch 70: one aggregate, three surfaces, one answer ───────────────────────
+
+
+async def test_the_leaderboard_the_profile_and_the_home_summary_agree(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """`Standing` is the single ranking rule, and this is the property that makes it worth it.
+
+    The leaderboard, the per-league profile and the cross-league summary read the same
+    aggregate on purpose, so the figures cannot disagree. Batch 70 added seven fields to
+    it, which is exactly the change that could make them start disagreeing — the profile
+    used to recompute win rate for itself.
+
+    One fixture set, three endpoints, field by field.
+    """
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), league = await _seed_league(session, ["alice", "bob"])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    slug = league.slug
+
+    assert (
+        await _submit(client, slug, alice, fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME")
+    ).status_code == 201
+    assert (
+        await _submit(client, slug, bob, fixtures[SAMPLE_SL2_EVENT_ID], "MATCH_ODDS", "AWAY")
+    ).status_code == 201
+    await _settle_sample_round(fake, gameweek.id)
+
+    table = (await client.get(f"/api/v1/leagues/{slug}/standings", headers=_auth(alice))).json()
+    row = next(entry for entry in table if entry["player_id"] == str(alice.id))
+    profile = (
+        await client.get(f"/api/v1/leagues/{slug}/players/{alice.id}/profile", headers=_auth(alice))
+    ).json()
+    summary = (await client.get("/api/v1/me/cross-league-summary", headers=_auth(alice))).json()
+    card = {entry["slug"]: entry for entry in summary["per_league"]}[slug]
+
+    shared = (
+        "total_points",
+        "picks_played",
+        "picks_won",
+        "picks_priced",
+        "cumulative_odds",
+        "average_odds",
+        "points_per_pick",
+        "best_return",
+        "longshot_picks",
+        "favourite_picks",
+    )
+    for field in shared:
+        assert row[field] == profile[field] == card[field], field
+    assert row["win_rate_pct"] == profile["win_rate_pct"]
+
+    # And Alice's own numbers are the ones her single won pick implies.
+    assert row["picks_played"] == 1
+    assert row["picks_priced"] == 1
+    assert row["cumulative_odds"] == 1.9
+    assert row["average_odds"] == 1.9
+    assert row["favourite_picks"] == 1, "1.90 is short of the longshot line"
+    assert row["best_return"] == 19  # round(1.9 × 10)
+
+    # A member in one league sees that league's figures as their whole record.
+    assert summary["cumulative_odds"] == card["cumulative_odds"]
+    assert summary["longshot_odds"] == row["longshot_odds"]
 
 
 # ── Batch 48: the pick screen survives the odds provider ──────────────────────

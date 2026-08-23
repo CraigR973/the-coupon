@@ -225,15 +225,67 @@ async def settle_gameweek_via_provider(
     return (await settle_gameweeks_via_provider(db, provider, [gameweek])).get(gameweek.id, 0)
 
 
+#: Where a pick stops being the obvious one, in decimal odds.
+#:
+#: A line has to be somewhere, and 3.00 is chosen against the scoring rule rather than by
+#: taste: a winner scores ``round(odds × 10)``, so one hit at 3.00 outscores two at evens.
+#: It also sits clear of the 1.50-2.50 band most match-odds favourites occupy, so the split
+#: separates members rather than putting almost everyone on one side of it.
+LONGSHOT_ODDS = Decimal("3.00")
+
+
 class Standing(BaseModel):
-    """One row of a leaderboard's season table."""
+    """One row of a leaderboard's season table.
+
+    **The single ranking rule in the codebase.** :func:`standings_by_league` is read by
+    the leaderboard, by ``routers/players.py``'s profile and by ``routers/me.py``'s
+    cross-league summary, deliberately, so the three can never disagree — which is why
+    Batch 70 added its figures here once rather than to each surface.
+
+    Everything below ``rank`` is Batch 70 and **every one of them is optional with a
+    default**. Vercel deploys the web app from ``main`` on merge while the API waits for
+    ``/ship-prod``, so a required field would break the leaderboard for everyone in the
+    gap: the trap Batches 38, 41 and 48 each recorded.
+
+    **Two denominators, and the difference is real.** ``picks_played`` counts won, lost
+    *and* void, because a member who claimed a fixture that was then postponed did take
+    part in that round. The odds figures count only ``picks_priced`` — won and lost — for
+    the opposite reason: a void pick never ran, so folding its price into a cumulative
+    total credits a member for a bet that was never struck. A leaderboard showing both
+    denominators without saying so is lying quietly, so the UI says so.
+    """
 
     player_id: str
     display_name: str
     total_points: int
+    #: Won, lost **and** void — every round this member took part in.
     picks_played: int
     picks_won: int
     rank: int
+    #: Won and lost only: the picks that actually ran, and the denominator for every odds
+    #: figure below. Zero for a member whose only picks were voided.
+    picks_priced: int = 0
+    #: The sum of the prices this member took, over ``picks_priced``. A *sum*, not a
+    #: product: an accumulator's product over a season is a number nobody can read.
+    cumulative_odds: float = 0.0
+    #: ``cumulative_odds / picks_priced``, or ``None`` before anything has run.
+    average_odds: float | None = None
+    #: Total points over ``picks_played``. The figure that separates two members on the
+    #: same total: the same points from fewer rounds is the better record.
+    points_per_pick: float | None = None
+    #: The best single return, in points. ``None`` until something has settled.
+    best_return: int | None = None
+    #: Wins over ``picks_played``, as a whole percentage. Computed here rather than by
+    #: each surface, which is how the profile and the summary used to disagree by a
+    #: rounding step.
+    win_rate_pct: int | None = None
+    #: How the priced picks split around :data:`LONGSHOT_ODDS`. The number that actually
+    #: answers "what kind of picks is this person making".
+    longshot_picks: int = 0
+    favourite_picks: int = 0
+    #: The line the split is drawn at, carried on the row so the screen labels it from
+    #: the value it was computed with rather than from a constant of its own.
+    longshot_odds: float = float(LONGSHOT_ODDS)
 
 
 def _rank_rows(rows: Sequence[Any]) -> list[Standing]:
@@ -245,6 +297,10 @@ def _rank_rows(rows: Sequence[Any]) -> list[Standing]:
     standings_out: list[Standing] = []
     for row in ranked:
         total = int(row.total_points)
+        played = int(row.picks_played)
+        priced = int(row.picks_priced)
+        cumulative = float(row.cumulative_odds or 0)
+        longshots = int(row.longshot_picks)
         # Competition ranking: everyone with a strictly higher total is above you.
         rank = sum(1 for r in ranked if int(r.total_points) > total) + 1
         standings_out.append(
@@ -252,9 +308,17 @@ def _rank_rows(rows: Sequence[Any]) -> list[Standing]:
                 player_id=str(row.player_id),
                 display_name=row.display_name,
                 total_points=total,
-                picks_played=int(row.picks_played),
+                picks_played=played,
                 picks_won=int(row.picks_won),
                 rank=rank,
+                picks_priced=priced,
+                cumulative_odds=round(cumulative, 2),
+                average_odds=round(cumulative / priced, 2) if priced else None,
+                points_per_pick=round(total / played, 2) if played else None,
+                best_return=int(row.best_return) if row.best_return is not None else None,
+                win_rate_pct=round(100 * int(row.picks_won) / played) if played else None,
+                longshot_picks=longshots,
+                favourite_picks=priced - longshots,
             )
         )
     return standings_out
@@ -277,6 +341,10 @@ async def standings_by_league(
         return {}
 
     settled = Pick.status.in_((PickStatus.won, PickStatus.lost, PickStatus.void))
+    # The odds figures count only what actually ran. A void pick is a round the member
+    # took part in — so it stays in ``picks_played`` — and a bet that was never struck,
+    # so its price is not theirs to be credited with.
+    priced = Pick.status.in_((PickStatus.won, PickStatus.lost))
     display_name = func.coalesce(LeagueMembership.display_name_override, Profile.display_name)
     rows = await db.execute(
         select(
@@ -288,6 +356,20 @@ async def standings_by_league(
             func.coalesce(func.sum(case((Pick.status == PickStatus.won, 1), else_=0)), 0).label(
                 "picks_won"
             ),
+            func.coalesce(func.sum(case((priced, 1), else_=0)), 0).label("picks_priced"),
+            func.coalesce(func.sum(case((priced, Pick.odds_at_pick), else_=0)), 0).label(
+                "cumulative_odds"
+            ),
+            func.max(Pick.points_awarded).label("best_return"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        ((priced) & (Pick.odds_at_pick >= LONGSHOT_ODDS), 1),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("longshot_picks"),
         )
         .select_from(LeagueMembership)
         .join(Profile, Profile.id == LeagueMembership.player_id)

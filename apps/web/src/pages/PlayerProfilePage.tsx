@@ -10,6 +10,7 @@ import type { PlayerProfile, SettledPick, PickStatus } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
 import { StatCard } from '../components/StatCard';
+import { PickShapeGrid, hasPickShape } from '../components/PickShapeLine';
 import { Avatar } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
@@ -100,6 +101,17 @@ export function PlayerProfilePage() {
           </p>
         )}
       </section>
+
+      {/* Batch 70 — the owner's fifth point, on the profile as well as the table. Absent
+          entirely until the API carrying it has shipped. */}
+      {hasPickShape(profile) && (
+        <section data-testid="profile-pick-shape">
+          <h2 className="mb-3 font-sans text-base font-semibold tracking-tight text-text-primary">
+            What they pick
+          </h2>
+          <PickShapeGrid shape={profile} />
+        </section>
+      )}
 
       <section>
         <div className="mb-3 flex items-center justify-between gap-3">

@@ -298,6 +298,31 @@ export interface Standing {
   picks_played: number;
   picks_won: number;
   rank: number;
+  // ── Batch 70: what kind of picks this member is making ──────────────────────
+  //
+  // Every one optional, because Vercel deploys this app from `main` on merge while the
+  // API waits for `/ship-prod` — for that window the figures simply are not there.
+  //
+  // **Two denominators, deliberately.** `picks_played` counts won, lost *and* void: a
+  // member whose fixture was postponed took part in that round. The odds figures count
+  // only `picks_priced` — won and lost — because a bet that never ran is not a price
+  // they should be credited with. A screen showing both without saying so is lying
+  // quietly, so every screen that shows them says so.
+  /** Won and lost only: the picks that actually ran. */
+  picks_priced?: number;
+  /** The sum of the prices taken over `picks_priced`. A sum, not an accumulator. */
+  cumulative_odds?: number;
+  average_odds?: number | null;
+  /** Points over `picks_played` — the same total from fewer rounds is a better record. */
+  points_per_pick?: number | null;
+  best_return?: number | null;
+  /** How the priced picks split around `longshot_odds`. */
+  longshot_picks?: number;
+  favourite_picks?: number;
+  /** The line the split was drawn at, carried so the label cannot drift from it. */
+  longshot_odds?: number;
+  /** Wins over `picks_played`. Computed by the API so every surface agrees. */
+  win_rate_pct?: number | null;
 }
 
 // ── Player profile — GET /leagues/{slug}/players/{id}/profile ──────────────
@@ -332,6 +357,28 @@ export interface PlayerProfile {
   rank: number;
   /** null until something settles — an untested record is not a bad one. */
   win_rate_pct: number | null;
+  // ── Batch 70: what kind of picks this member is making ──────────────────────
+  //
+  // Every one optional, because Vercel deploys this app from `main` on merge while the
+  // API waits for `/ship-prod` — for that window the figures simply are not there.
+  //
+  // **Two denominators, deliberately.** `picks_played` counts won, lost *and* void: a
+  // member whose fixture was postponed took part in that round. The odds figures count
+  // only `picks_priced` — won and lost — because a bet that never ran is not a price
+  // they should be credited with. A screen showing both without saying so is lying
+  // quietly, so every screen that shows them says so.
+  /** Won and lost only: the picks that actually ran. */
+  picks_priced?: number;
+  /** The sum of the prices taken over `picks_priced`. A sum, not an accumulator. */
+  cumulative_odds?: number;
+  average_odds?: number | null;
+  /** Points over `picks_played` — the same total from fewer rounds is a better record. */
+  points_per_pick?: number | null;
+  best_return?: number | null;
+  /** How the priced picks split around `longshot_odds`. */
+  longshot_picks?: number;
+  favourite_picks?: number;
+  longshot_odds?: number;
   history: SettledPick[];
 }
 
@@ -375,6 +422,27 @@ export interface PerLeagueSummary {
   total_points: number;
   picks_played: number;
   picks_won: number;
+  // ── Batch 70: what kind of picks this member is making ──────────────────────
+  //
+  // Every one optional, because Vercel deploys this app from `main` on merge while the
+  // API waits for `/ship-prod` — for that window the figures simply are not there.
+  //
+  // **Two denominators, deliberately.** `picks_played` counts won, lost *and* void: a
+  // member whose fixture was postponed took part in that round. The odds figures count
+  // only `picks_priced` — won and lost — because a bet that never ran is not a price
+  // they should be credited with. A screen showing both without saying so is lying
+  // quietly, so every screen that shows them says so.
+  /** Won and lost only: the picks that actually ran. */
+  picks_priced?: number;
+  /** The sum of the prices taken over `picks_priced`. A sum, not an accumulator. */
+  cumulative_odds?: number;
+  average_odds?: number | null;
+  /** Points over `picks_played` — the same total from fewer rounds is a better record. */
+  points_per_pick?: number | null;
+  best_return?: number | null;
+  /** How the priced picks split around `longshot_odds`. */
+  longshot_picks?: number;
+  favourite_picks?: number;
   /** null when the league has no rounds yet. */
   current_round: CurrentRound | null;
 }
@@ -394,6 +462,28 @@ export interface CrossLeagueSummary {
   picks_won: number;
   /** null until something settles — an untested record is not a bad one. */
   win_rate_pct: number | null;
+  // ── Batch 70: what kind of picks this member is making ──────────────────────
+  //
+  // Every one optional, because Vercel deploys this app from `main` on merge while the
+  // API waits for `/ship-prod` — for that window the figures simply are not there.
+  //
+  // **Two denominators, deliberately.** `picks_played` counts won, lost *and* void: a
+  // member whose fixture was postponed took part in that round. The odds figures count
+  // only `picks_priced` — won and lost — because a bet that never ran is not a price
+  // they should be credited with. A screen showing both without saying so is lying
+  // quietly, so every screen that shows them says so.
+  /** Won and lost only: the picks that actually ran. */
+  picks_priced?: number;
+  /** The sum of the prices taken over `picks_priced`. A sum, not an accumulator. */
+  cumulative_odds?: number;
+  average_odds?: number | null;
+  /** Points over `picks_played` — the same total from fewer rounds is a better record. */
+  points_per_pick?: number | null;
+  best_return?: number | null;
+  /** How the priced picks split around `longshot_odds`. */
+  longshot_picks?: number;
+  favourite_picks?: number;
+  longshot_odds?: number;
   leagues_count: number;
   per_league: PerLeagueSummary[];
 }
