@@ -1847,3 +1847,53 @@ service tests, 3 new HTTP-level tests, 7 new frontend test cases
 **Next:** Batch 69 — the operational half of the admin console. (Batch 68 is deliberately
 out of the unattended run: it cannot start without an odds figure only the owner can
 evidence.)
+
+## Batch 69 — The operational half of the admin console
+**Commits:** f6cd9b3 (ff-merged to local main) · verified: `scripts/ci-local.sh` PASS
+(11 checks, 806 backend tests against real PostgreSQL, 687 frontend), 20 new backend test
+cases, 3 new budget assertions in `test_request_budget.py`, 12 new frontend test cases
+
+### Key facts for future sessions
+- **The durable fixture status is NOT in this batch, and the row's own instruction is
+  why.** `fixtures` has no status column, so an admin removal that survives the next
+  `refresh-slate` needs a migration; the row says to decide before starting and split it
+  out if it does. It does. FotMob still carries neither NI Championship 1 nor the English
+  non-league tiers, so a hand-removal there is still undone by the next refresh — the gap
+  Batch 64 recorded is unchanged and now needs a batch of its own.
+- **The manual trigger shares the ad-hoc slate bucket rather than taking one of its own.**
+  `PROVIDER_SLATE_FETCH_LIMIT` / `PROVIDER_SLATE_FETCH_SCOPE`, imported from
+  `routers/leagues.py`, and there is a test asserting the two are the same object. Two
+  `2/hour` limits against a plan with room for two is `4/hour` — the arithmetic error
+  Batch 57 found on the pick path.
+- **The bucket is denominated in slate walks, not presses.** One ad-hoc fetch is one walk
+  of the thirty UK competitions, so `ManualJob.budget_units` is `ceil(provider_requests /
+  30)` and discovery — which walks the whole `slate_horizon_weeks` horizon — is charged
+  twice. Charging it once would let an admin spend sixty requests against a bucket sized
+  for thirty.
+- **`backup` and `football-backfill` are deliberately not offered as buttons.** Backup
+  writes a file to the container's disk that an admin pressing from a phone cannot reach;
+  the backfill is a one-off whole-season pull. Both stay in `run_scheduled.JOBS` for the
+  cron entry point, so excluding them from the screen is a list, not a removal.
+- **Manual settlement takes a scoreline, not market verdicts.** Both markets follow from
+  a score, and asking an admin to say separately whether both teams scored is asking for
+  arithmetic the code can do and for a mistake nothing would catch. The score becomes an
+  `EventSettlement` and goes into `settle_gameweek` **unchanged**, so hand-entered and
+  provider-supplied results write identical rows — asserted field by field on two
+  identical rounds settled each way.
+- **A settled round refuses a second settlement (409).** This corrects a round that is
+  stuck, not one that is finished; rewriting a settled week would move points members have
+  already seen. A genuine correction means editing the pick, which is a different act.
+- **A path parameter named `key` was shadowed by a local `key = per_user_key(request)`,**
+  and the endpoint returned the rate-limit key as the job name. Caught by an exact-equality
+  assertion on the response body, which a looser `status_code == 200` would have missed.
+- **Run mypy the way `ci-local.sh` runs it.** `mypy /abs/path/src` with `PYTHONPATH` set
+  passed while `mypy src` from `apps/api` failed with two `comparison-overlap` errors: the
+  409 guard narrows `gameweek.status` to "not settled", and `settle_gameweek` is precisely
+  the call that can have changed it since. Re-read through `GameweekStatus(...)` after the
+  call rather than trusting the narrowed attribute.
+- **`enabled` and `running` are separate fields on the scheduler status on purpose.** The
+  configured intent and the fact come apart in the one case worth knowing about — a
+  container whose APScheduler never started — and the runbook's answer to that is the
+  external cron, which the manual triggers are now a third route to.
+
+**Next:** Batch 70 — what kind of picks people are actually making.

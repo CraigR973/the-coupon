@@ -2068,7 +2068,7 @@ answered until it lands, because until then there is no data to look at.
   depends on it, so an unattended run skips it and continues rather than halting on it. It is
   worked interactively once the odds exist.
 
-- [ ] **Batch 69 — The operational half of the admin console** — the rest of the owner's sixth
+- [x] **Batch 69 — The operational half of the admin console** ✅ 2026-08-23 — the rest of the owner's sixth
   point (2026-08-23), after Batch 66 takes the part that strands members.
 
   Ports **Dashboard**, **Sync** and **Results** from `wc_2026_predictor`: active members,

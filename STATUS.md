@@ -225,7 +225,27 @@ as web, so the scorelines are not live until a `/ship-prod` runs** — every new
 field is optional with a default, so the screen degrades rather than breaks in the
 gap.
 
-Batches 1-60, 62-67 are closed (59 in part; see Batch 61). The Coupon is a
+Batch 69 built the operational half of the admin console. Dashboard, Sync and
+Results, and the value is measurable in work already done by hand: Batch 64
+opened with a Motherwell pick returned manually and twelve fixtures removed
+manually, and Batch 68 is a backfill run straight against the database. **A
+manual trigger runs the coroutine the scheduler runs**, taken from the same
+registry an external cron uses, so there is no second implementation to drift.
+**A trigger that spends the odds provider's budget says what it costs before it
+is pressed** — roughly 100 requests an hour across the whole deployment, shared
+with the scheduler's own jobs, and exhaustion is silent — and draws on the very
+same per-admin bucket the ad-hoc slate fetch uses rather than a second one beside
+it. The bucket counts *slate walks*, so discovery, which walks the whole horizon,
+is charged twice. Results takes a **scoreline** rather than a set of market
+verdicts and feeds it into the existing `settle_gameweek` unchanged, so a
+hand-entered result and a provider-supplied one write identical `picks` rows; a
+round that has already settled refuses a second settlement, because this corrects
+a round that is stuck rather than rewriting a week members have seen. **The
+durable fixture status is deliberately not here** — `fixtures` has no status
+column, so it needs a migration, and the row says to split that out. **API-side
+as well as web, so it is not live until a `/ship-prod` runs.**
+
+Batches 1-60, 62-67 and 69 are closed (59 in part; see Batch 61). The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -875,9 +895,9 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **six unchecked batches**: 61, and the post-launch
-member-report set 68-72 specified on 2026-08-23 (Batches 65, 66 and 67 of that set are
-closed).
+`docs/BUILD_PLAN.md` carries **five unchecked batches**: 61, and the post-launch
+member-report set 68 and 70-72 specified on 2026-08-23 (Batches 65, 66, 67 and 69 of that
+set are closed).
 Batch 61 — the FastAPI/starlette upgrade split out of Batch 59 — is deliberately
 parked; Batch 68 needs an odds figure only the owner can evidence and is worked
 interactively. `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and
