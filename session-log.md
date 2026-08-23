@@ -1936,3 +1936,41 @@ service tests, 1 new HTTP-level agreement test, 8 new frontend test cases
   aggregate — a second query on a path that costs one — and the row ruled it out.
 
 **Next:** Batch 71 — Football Stats opens expanded and shows part of the results.
+
+## Batch 71 — Football Stats opens expanded and shows part of the results
+**Commits:** bfeb0bf (ff-merged to local main) · verified: `scripts/ci-local.sh` PASS
+(11 checks, 818 backend tests against real PostgreSQL, 695 frontend), 3 new backend
+service tests, 1 new HTTP-level test, and a read-only production measurement before and
+after
+
+### Key facts for future sessions
+- **The measurement, because "looks fuller" is not a verification.** Read-only against
+  production on 2026-08-23, via the `railway ssh` form in
+  `docs/runbooks/launch-readiness.md`:
+  - the whole table: **567 finished matches across 18 competitions**, every one inside the
+    30-day lookback — so **ingestion is healthy** and this was *not* Batch 45's failure
+    mode, which is the thing the row insisted be checked rather than assumed;
+  - Saturday 2026-08-22: **145 matches across 17 competitions**;
+  - what the shipped `limit=20` returned: **20 rows covering 6 of those 17**;
+  - what the new 3-day window returns on the same data: **150 rows, all 17 competitions,
+    3 days** — inside the 400-row backstop.
+- **A flat row count was the wrong shape, not just the wrong number.** The screen groups
+  by day and then by competition, so the unit of the answer has to be the day; raising 20
+  to 200 would have moved the cliff rather than removed it. `football_recent_results_limit`
+  is gone; `football_results_days` (3) and `football_results_max_rows` (400) replace it.
+  Neither was ever set in any deployment config, so the rename ships as a code default.
+- **"Days that have results", not calendar days.** Production's distribution runs from one
+  match a day to 145; counting calendar days would empty the screen every midweek.
+- **A naive-UTC timestamp needs `AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/London'`.** One
+  conversion alone reads the naive value *as* London time — an hour wrong in summer, and
+  it puts a 23:30 Friday kick-off on the wrong day. Same rule as `match_link._uk_date`.
+- **The comment beside the old setting was itself the misreading.** It said "how many
+  results a competition shows on the football-data screen"; it was a global cap across
+  every pooled competition at once. Worth remembering that a wrong comment beside a right
+  constant is how a defect survives a review.
+- **Collapsing every table cost six other tests their premise.** They read rows and form
+  from the Premier League card without expanding it, because it used to open by default.
+  They now call an `openTable()` helper, which is the honest shape: none of them was
+  asserting what the screen shows on arrival.
+
+**Next:** Batch 72 — live scores while the round is being played.

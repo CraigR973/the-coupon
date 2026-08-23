@@ -264,7 +264,25 @@ an aggregate. **API-side as well as web, so the figures are not live until a
 `/ship-prod` runs** — every field is additive with a default, so the table
 degrades rather than breaks in the gap.
 
-Batches 1-60, 62-67, 69 and 70 are closed (59 in part; see Batch 61). The Coupon is a
+Batch 71 fixed two independent defects on Football Stats. The screen now opens
+**collapsed** — one open division out of thirty was the right instinct with the
+wrong answer, since the reader has not asked for any of them yet. The results half
+was diagnosed before it was fixed, read-only against production on 2026-08-23,
+because Batch 45 is the reason to check rather than assume: **ingestion is
+healthy** — 567 finished matches across 18 competitions, all inside the 30-day
+lookback — and **the read cap was the defect**. Saturday 2026-08-22 held 145
+finished matches across 17 competitions, and the flat 20-row limit returned twenty
+rows covering **six** of them; eleven divisions fell off the end of a global row
+count, which is exactly the "partially there" that was reported. A flat count is
+the wrong *shape* as well as the wrong number, because the screen groups by day
+and then by competition: `/football/results` now returns every match on the three
+most recent days that have results — days, not calendar days, so a Wednesday still
+answers with the weekend — behind a row backstop that exists only to bound a
+pathological ingestion. Measured against the same production data: **150 rows, all
+17 competitions**. **API-side as well as web, so the fuller results are not live
+until a `/ship-prod` runs**; the collapse fix is frontend-only and lands on merge.
+
+Batches 1-60, 62-67 and 69-71 are closed (59 in part; see Batch 61). The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -914,8 +932,8 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **four unchecked batches**: 61, and the post-launch
-member-report set 68, 71 and 72 specified on 2026-08-23 (Batches 65, 66, 67, 69 and 70 of
+`docs/BUILD_PLAN.md` carries **three unchecked batches**: 61, and the post-launch
+member-report set 68 and 72 specified on 2026-08-23 (Batches 65, 66, 67, 69, 70 and 71 of
 that set are closed).
 Batch 61 — the FastAPI/starlette upgrade split out of Batch 59 — is deliberately
 parked; Batch 68 needs an odds figure only the owner can evidence and is worked

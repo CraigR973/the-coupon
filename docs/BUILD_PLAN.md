@@ -2141,7 +2141,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: **`Standing` and the three surfaces that read it.** No new tables, no history
   endpoint.
 
-- [ ] **Batch 71 — Football Stats opens expanded and shows part of the results** — the owner's
+- [x] **Batch 71 — Football Stats opens expanded and shows part of the results** ✅ 2026-08-23 — the owner's
   third and fourth points (2026-08-23), two small independent defects on one screen.
 
   The first is one line. `FootballPage.tsx:118` passes `defaultOpen={index === 0}` with a
