@@ -83,7 +83,7 @@ export function TabBar() {
   // role — the same flag `/api/v1/admin` enforces — so a player never sees an entry
   // whose every screen would bounce them home.
   const adminConsole: TabDef = {
-    to: '/admin/players',
+    to: '/admin/dashboard',
     label: 'Site admin',
     Icon: ShieldCheck,
     match: (p) => p.startsWith('/admin'),

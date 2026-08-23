@@ -299,3 +299,57 @@ def test_the_pick_path_is_not_bounded_in_total_and_this_is_known() -> None:
         "a per-member limit now bounds the aggregate — if this fails the gap has been "
         "closed and this test should be replaced by one asserting the real bound"
     )
+
+
+# ── Batch 69: the manual sync trigger draws on the same budget ─────────────────
+#
+# An admin refreshing a slate by hand at 14:00 on a Saturday can 429 the refresh that
+# matters, and exhaustion is silent: picks stay `pending` and the week never finishes.
+# The trigger therefore charges the *existing* per-admin bucket rather than a second one
+# beside it — two `2/hour` limits against a plan with room for two is `4/hour`, which is
+# the shape of the bug Batch 57 found on the pick path.
+
+
+def _sync_jobs() -> dict[str, object]:
+    from src.services.admin_ops import manual_jobs
+
+    return {job.key: job for job in manual_jobs()}
+
+
+def test_the_manual_trigger_adds_no_allowance_of_its_own() -> None:
+    """It shares the ad-hoc bucket, so the whole allowance is still the ad-hoc one."""
+    from src.routers.admin import PROVIDER_SLATE_FETCH_LIMIT as trigger_limit
+    from src.routers.leagues import PROVIDER_SLATE_FETCH_LIMIT as ad_hoc_limit
+
+    assert trigger_limit is ad_hoc_limit
+
+
+def test_the_costliest_manual_job_fits_what_the_hour_leaves_spare() -> None:
+    """Pressing the most expensive button once must not outspend the hour on its own.
+
+    Discovery is the expensive one: it walks every cadence date in the horizon, where a
+    refresh walks only the next. This is the same property Batch 57 asserted for the pick
+    limit — a single actor's single action, measured against what the plan has left after
+    peak browsing.
+    """
+    jobs = _sync_jobs()
+    worst = max(job.provider_requests for job in jobs.values())  # type: ignore[attr-defined]
+    spare = HOURLY_LIMIT - _daily_discovery() // len(upcoming_saturdays_for_budget())
+    assert worst <= spare, f"one press costs {worst} requests against {spare} spare in the hour"
+
+
+def test_the_whole_manual_allowance_fits_beside_the_scheduled_runs() -> None:
+    """The bucket is denominated in slate walks, so the cap is walks × the walk cost.
+
+    ``2/hour`` of walks at 30 requests each is 60 — the number the ad-hoc endpoint was
+    already sized to, which is the point of sharing the bucket rather than adding one.
+    """
+    allowance = _ad_hoc_limits()["hour"] * AD_HOC_ALL_UK_REQUESTS
+    jobs = _sync_jobs()
+    for job in jobs.values():
+        units = job.budget_units  # type: ignore[attr-defined]
+        cost = job.provider_requests  # type: ignore[attr-defined]
+        assert cost <= units * AD_HOC_ALL_UK_REQUESTS, (
+            f"{job.key} costs {cost} requests but is charged {units} walk(s)"  # type: ignore[attr-defined]
+        )
+    assert allowance <= HOURLY_LIMIT

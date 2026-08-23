@@ -214,6 +214,13 @@ describe('the wrapper the pages share', () => {
       </MemoryRouter>,
     );
     const links = markup.getAllByRole('link').map((a) => a.getAttribute('href'));
-    expect(links).toEqual(['/admin/players', '/admin/invites', '/admin/leagues']);
+    expect(links).toEqual([
+      '/admin/dashboard',
+      '/admin/players',
+      '/admin/results',
+      '/admin/sync',
+      '/admin/invites',
+      '/admin/leagues',
+    ]);
   });
 });

@@ -190,6 +190,6 @@ describe('the site-admin entry in the More sheet', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /site admin/i }));
 
-    expect(navigate).toHaveBeenCalledWith('/admin/players');
+    expect(navigate).toHaveBeenCalledWith('/admin/dashboard');
   });
 });

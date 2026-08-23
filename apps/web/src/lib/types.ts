@@ -597,3 +597,94 @@ export interface AdminResetPinResult {
   pin_cleared: boolean;
   sessions_revoked: number;
 }
+
+// ── Site admin: the operational half (Batch 69) ────────────────────────────────
+
+export interface AdminUpcomingLock {
+  league_slug: string;
+  league_name: string;
+  gameweek_id: string;
+  starts_on: string;
+  locks_at_utc: string;
+  picks_in: number;
+  members: number;
+}
+
+/**
+ * A round past its lock that has not settled. The shape that hangs forever: the odds
+ * provider never resolved the fixtures, so the picks stay pending and the settle sweep
+ * finds nothing to do three times a day.
+ */
+export interface AdminStuckRound {
+  league_slug: string;
+  league_name: string;
+  gameweek_id: string;
+  starts_on: string;
+  locks_at_utc: string;
+  pending_picks: number;
+}
+
+export interface AdminAuditEntry {
+  id: string;
+  actor_name: string | null;
+  action_type: string;
+  target_table: string;
+  target_id: string | null;
+  timestamp: string;
+}
+
+export interface AdminSchedulerState {
+  /** What the settings ask for. */
+  enabled: boolean;
+  /** What the running container actually has. The two come apart, which is the point. */
+  running: boolean;
+  jobs: Array<{ id: string; next_run_utc: string | null }>;
+}
+
+export interface AdminDashboard {
+  active_members: number;
+  members_awaiting_pin: number;
+  leagues: number;
+  upcoming_locks: AdminUpcomingLock[];
+  stuck_rounds: AdminStuckRound[];
+  recent_audit: AdminAuditEntry[];
+  scheduler: AdminSchedulerState;
+}
+
+export interface AdminSyncJob {
+  key: string;
+  label: string;
+  summary: string;
+  /** Estimated calls against odds-api.io's metered plan. 0 is free. */
+  provider_requests: number;
+  spends_budget: boolean;
+  /** Hits against the shared bucket one press costs — the bucket counts slate walks. */
+  budget_units: number;
+  next_run_utc: string | null;
+}
+
+export interface AdminSyncJobs {
+  jobs: AdminSyncJob[];
+  hourly_budget: number;
+  budget_limit: string;
+}
+
+export interface AdminPendingFixture {
+  fixture_id: string;
+  provider_event_id: string;
+  home: string;
+  away: string;
+  competition: string;
+  kickoff_utc: string;
+  pending_picks: number;
+}
+
+export interface AdminPendingRound {
+  league_slug: string;
+  league_name: string;
+  gameweek_id: string;
+  starts_on: string;
+  status: GameweekStatus;
+  locks_at_utc: string;
+  fixtures: AdminPendingFixture[];
+}

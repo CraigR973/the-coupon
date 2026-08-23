@@ -73,6 +73,15 @@ const AdminInvitesPage = lazyRoute(() =>
 const AdminAllLeaguesPage = lazyRoute(() =>
   import('./pages/admin/AllLeaguesPage').then((m) => ({ default: m.AllLeaguesPage })),
 );
+const AdminDashboardPage = lazyRoute(() =>
+  import('./pages/admin/DashboardPage').then((m) => ({ default: m.AdminDashboardPage })),
+);
+const AdminSyncPage = lazyRoute(() =>
+  import('./pages/admin/SyncPage').then((m) => ({ default: m.SyncPage })),
+);
+const AdminResultsPage = lazyRoute(() =>
+  import('./pages/admin/ResultsPage').then((m) => ({ default: m.AdminResultsPage })),
+);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -237,8 +246,11 @@ export function App() {
                             player home rather than rendering a screen whose every
                             request would 403. */}
                         <Route element={<ProtectedRoute requireAdmin />}>
-                          <Route path="/admin" element={<Navigate to="/admin/players" replace />} />
+                          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+                          <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
                           <Route path="/admin/players" element={<AdminPlayersPage />} />
+                          <Route path="/admin/results" element={<AdminResultsPage />} />
+                          <Route path="/admin/sync" element={<AdminSyncPage />} />
                           <Route path="/admin/invites" element={<AdminInvitesPage />} />
                           <Route path="/admin/leagues" element={<AdminAllLeaguesPage />} />
                         </Route>

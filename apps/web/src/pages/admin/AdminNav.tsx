@@ -4,13 +4,16 @@ import { cn } from '@/lib/utils';
 /**
  * The site-admin console's own sub-nav.
  *
- * Three screens rather than one, because they answer three different questions and the
- * one an admin arrives with is usually "where is this person" — the PIN-reset push lands
- * on Players directly. Operational admin (dashboard, sync, results) is Batch 69 and will
- * add to this row rather than replace it.
+ * Dashboard first because it is the one an admin opens on a Saturday morning; Players
+ * second because the PIN-reset push lands there directly and that is the arrival with a
+ * member waiting on the other end. Results and Sync are the operational half (Batch 69),
+ * and the two least-visited screens sit at the end of the row.
  */
 const TABS = [
+  { to: '/admin/dashboard', label: 'Dashboard' },
   { to: '/admin/players', label: 'Players' },
+  { to: '/admin/results', label: 'Results' },
+  { to: '/admin/sync', label: 'Sync' },
   { to: '/admin/invites', label: 'Invites' },
   { to: '/admin/leagues', label: 'All leagues' },
 ] as const;
