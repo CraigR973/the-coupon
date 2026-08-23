@@ -92,7 +92,17 @@ def hash_pin(pin: str) -> str:
     return bcrypt.hashpw(pin.encode(), bcrypt.gensalt()).decode()
 
 
-def verify_pin(pin: str, hashed: str) -> bool:
+def verify_pin(pin: str, hashed: str | None) -> bool:
+    """True when ``pin`` matches the stored hash.
+
+    ``hashed`` is ``None`` for a member mid-reset (Batch 66), and that verifies
+    **nothing** — an absent credential is not a blank one. Handled here as well as at
+    the call site so a path that forgets to check cannot fall through to bcrypt with a
+    ``None``; the login route still checks first, because "your PIN was cleared" and
+    "your PIN is wrong" are different things to tell a member.
+    """
+    if hashed is None:
+        return False
     return bcrypt.checkpw(pin.encode(), hashed.encode())
 
 

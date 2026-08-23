@@ -526,3 +526,63 @@ export interface LeagueInvite {
   expires_at: string | null;
   used_at: string | null;
 }
+
+// ── Site admin console (Batch 66) ──────────────────────────────────────────────
+//
+// Site admin, not league admin: these read across every league, including ones the
+// caller is not a member of. `/api/v1/admin/*` refuses anyone whose profile role is
+// not `admin`, so every screen behind them is gated on the same flag.
+
+export interface AdminPlayer {
+  id: string;
+  display_name: string;
+  role: 'player' | 'admin';
+  is_active: boolean;
+  /**
+   * False between an admin clearing this member's PIN and the member choosing a new
+   * one. It is the difference between "cannot remember their PIN" and "has already
+   * been reset and has not come back yet", which look identical otherwise.
+   */
+  pin_set: boolean;
+  failed_login_count: number;
+  locked_until: string | null;
+  deleted_at: string | null;
+  league_count: number;
+  created_at: string;
+}
+
+export interface AdminInvite {
+  id: string;
+  token: string;
+  display_name_hint: string | null;
+  league_id: string;
+  league_name: string;
+  league_slug: string;
+  created_by_name: string | null;
+  claimed_by_name: string | null;
+  claimed_at: string | null;
+  expires_at: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AdminLeague {
+  id: string;
+  slug: string;
+  name: string;
+  privacy: 'public_open' | 'public_request' | 'private';
+  join_code: string | null;
+  member_count: number;
+  max_members: number;
+  created_at: string;
+  deleted_at: string | null;
+}
+
+/**
+ * What a PIN reset did. `temp_pin` is deliberately absent: no temporary PIN is minted
+ * and nothing passes through the admin — the member chooses their own at `/set-pin`.
+ */
+export interface AdminResetPinResult {
+  pin_cleared: boolean;
+  sessions_revoked: number;
+}

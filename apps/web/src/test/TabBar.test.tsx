@@ -24,11 +24,12 @@ vi.mock('framer-motion', () => ({
   },
 }));
 
+const { auth } = vi.hoisted(() => ({
+  auth: { player: { id: 'p1', displayName: 'Alice', role: 'player', timezone: 'UTC' } },
+}));
+
 vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({
-    player: { id: 'p1', displayName: 'Alice', role: 'player', timezone: 'UTC' },
-    logout: vi.fn(),
-  }),
+  useAuth: () => ({ player: auth.player, logout: vi.fn() }),
 }));
 
 const { league } = vi.hoisted(() => ({
@@ -45,6 +46,7 @@ vi.mock('@/components/ui/sheet', () => ({
 beforeEach(() => {
   league.activeSlug = 'the-coupon';
   league.hasLeagues = true;
+  auth.player = { id: 'p1', displayName: 'Alice', role: 'player', timezone: 'UTC' };
 });
 
 describe('TabBar mobile positioning', () => {
@@ -161,5 +163,33 @@ describe('TabBar mobile positioning', () => {
 
     const more = screen.getByRole('button', { name: /more/i });
     expect(more.querySelector('span')?.className).toContain('bg-primary');
+  });
+});
+
+// Batch 66. The console is behind `requireAdmin`, so an entry a player could tap would
+// bounce them straight home — the gate on the link and the gate on the route are the same
+// flag, and this is the half a reader sees.
+describe('the site-admin entry in the More sheet', () => {
+  function openMore() {
+    render(
+      <MemoryRouter>
+        <TabBar />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /more/i }));
+  }
+
+  it('is absent for a player', () => {
+    openMore();
+    expect(screen.queryByRole('button', { name: /site admin/i })).toBeNull();
+  });
+
+  it('is present for a site admin and opens the players screen', () => {
+    auth.player = { id: 'a1', displayName: 'Gaffer', role: 'admin', timezone: 'UTC' };
+    openMore();
+
+    fireEvent.click(screen.getByRole('button', { name: /site admin/i }));
+
+    expect(navigate).toHaveBeenCalledWith('/admin/players');
   });
 });

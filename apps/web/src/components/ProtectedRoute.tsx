@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { PIN_NOT_SET } from '../lib/api';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { PinInput } from './PinInput';
@@ -36,7 +37,16 @@ function PinUnlockGate() {
     event.preventDefault();
     try {
       await unlockStoredSession(pin);
-    } catch {
+    } catch (err) {
+      // Their PIN was cleared while this session sat saved on the device. The stored
+      // refresh token is already revoked, so there is nothing here to unlock — send them
+      // to choose a new PIN rather than leaving them retyping one that no longer exists.
+      if (err instanceof Error && err.message === PIN_NOT_SET) {
+        navigate(`/set-pin?name=${encodeURIComponent(player?.displayName ?? '')}`, {
+          replace: true,
+        });
+        return;
+      }
       setPin('');
     }
   };

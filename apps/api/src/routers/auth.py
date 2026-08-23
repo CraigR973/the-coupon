@@ -30,7 +30,6 @@ from src.auth import (
 )
 from src.config import settings
 from src.database import get_db
-from src.models.notification import ActionType, ActorType, AuditLog
 from src.models.profile import OddsFormat, Profile, UserRole
 from src.models.refresh_token import RefreshToken
 from src.rate_limit import limiter, login_key, per_user_key, refresh_token_key
@@ -43,6 +42,13 @@ from src.services.avatar_storage import (
     avatar_storage,
     reencode_avatar,
     sniff_image_type,
+)
+from src.services.credentials import (
+    STAGE_REQUESTED,
+    STAGE_SET,
+    pin_reset_audit,
+    pin_reset_is_claimable,
+    revoke_all_refresh_tokens,
 )
 from src.services.push_notification_service import send_notification
 
@@ -122,29 +128,20 @@ _PIN_RESET_GENERIC = {
     "message": "If that display name is registered, an admin will be notified to reset your PIN."
 }
 
+#: The ``detail`` a login carries when the account has no credential to check. A code
+#: rather than a sentence because the client routes on it — ``lib/api.ts`` surfaces
+#: ``detail`` verbatim, so a sentence here would be shown *and* unmatchable.
+PIN_NOT_SET = "PIN_NOT_SET"
+
+
+class PinSetRequest(BaseModel):
+    display_name: str
+    pin: str = Field(pattern=r"^\d{4}$")
+
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-async def _revoke_all_refresh_tokens(db: AsyncSession, user_id: uuid.UUID) -> int:
-    """Revoke every live refresh token for one member. Returns how many were revoked.
-
-    The caller's own session goes with the rest. There is no way to spare it — a member
-    authenticates here with an *access* token, so the API never sees which refresh token
-    belongs to this device, and guessing by ``device_hint`` would spare an attacker who
-    copied the User-Agent. Losing the current session is the right trade anyway: the
-    client clears its tokens on the next failed refresh and asks for the new PIN
-    (``lib/api.ts`` already redirects to /login when a refresh 401s), which is exactly
-    what should happen after a credential changes.
-    """
-    result = await db.execute(
-        update(RefreshToken)
-        .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
-        .values(revoked_at=_now())
-    )
-    return result.rowcount or 0
 
 
 async def _notify_site_admins(
@@ -245,6 +242,22 @@ async def login(
         verify_pin(body.pin, user.pin_hash)
         log.info("login failed — inactive profile", user_id=str(user.id))
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    # An admin cleared this member's PIN and they have not chosen a new one yet (Batch
+    # 66). There is nothing to verify, so this is not "invalid credentials" — telling
+    # them that would send a member whose PIN was reset *at their own request* round the
+    # forgot-PIN loop for a second time. A distinct code sends them to `/set-pin`.
+    #
+    # The dummy verify keeps the response time in the same band as a wrong PIN, so the
+    # code is the only difference an observer sees. Which is a disclosure — it says this
+    # display name exists and is mid-reset — and an unavoidable one: the member has to be
+    # told what to do next, and they arrive holding nothing but their name. It is bounded
+    # instead: `PIN_RESET_CLAIM_WINDOW` closes the state, and it only exists because an
+    # admin deliberately opened it.
+    if user.pin_hash is None:
+        verify_pin(body.pin, _DUMMY_HASH)
+        log.info("login refused — pin cleared, not yet set", user_id=str(user.id))
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PIN_NOT_SET)
 
     if user.locked_until is not None and user.locked_until > now:
         verify_pin(body.pin, user.pin_hash)
@@ -509,7 +522,7 @@ async def refresh(
             )
         ).scalar_one_or_none()
         if replayed is not None:
-            revoked = await _revoke_all_refresh_tokens(db, user_id)
+            revoked = await revoke_all_refresh_tokens(db, user_id)
             await db.commit()
             log.warning(
                 "refresh token reuse detected — revoking every session for this member",
@@ -640,7 +653,8 @@ async def change_pin(
     thirty days, renewing itself, so the session the member was trying to shut out
     outlived the credential it was opened with. Rotation that does not revoke is theatre.
 
-    The caller's own session ends too — see :func:`_revoke_all_refresh_tokens`. The
+    The caller's own session ends too — see
+    :func:`~src.services.credentials.revoke_all_refresh_tokens`. The
     24-hour access token cannot be recalled (it is stateless by design), so the practical
     effect is that the old session keeps working until that token expires and is then
     refused at refresh. Shortening the access TTL is a separate decision; revoking what
@@ -662,7 +676,7 @@ async def change_pin(
             detail="That PIN is too common — choose one that is not a run or a repeat.",
         )
     user.pin_hash = hash_pin(body.new_pin)
-    revoked = await _revoke_all_refresh_tokens(db, user.id)
+    revoked = await revoke_all_refresh_tokens(db, user.id)
     user.failed_login_count = 0
     user.locked_until = None
     await db.commit()
@@ -698,28 +712,17 @@ async def pin_reset_request(
     # when" lives. The push is what actually reaches a person; `audit_log` has no reader
     # anywhere in the app, so writing only there would have reproduced the same silence
     # in a new table.
-    db.add(
-        AuditLog(
-            actor_id=user.id,
-            actor_type=ActorType.player,
-            action_type=ActionType.player_pin_reset,
-            target_table="profiles",
-            target_id=user.id,
-            # `player_pin_reset` covers both halves of the journey and this names which
-            # half. A dedicated `pin_reset_requested` value would read better, and it is
-            # deliberately not added: `ALTER TYPE ... ADD VALUE` cannot be undone, and
-            # production has no restore point (owner's 2026-07-30 deferral). Not worth an
-            # irreversible schema change for a nicer enum label.
-            changes={"stage": "requested", "display_name": user.display_name},
-        )
-    )
+    db.add(pin_reset_audit(user, user, STAGE_REQUESTED))
     await db.commit()
 
     reached = await _notify_site_admins(
         db,
         title="PIN reset requested",
         body=f"{user.display_name} cannot sign in and has asked for a PIN reset.",
-        data={"url": "/settings", "player_id": str(user.id)},
+        # Batch 56 sent the admin to their own settings page, because there was nowhere
+        # else to send them: the notification was real and the action behind it did not
+        # exist. Batch 66 built the screen, so the push now lands on the member.
+        data={"url": f"/admin/players?player={user.id}", "player_id": str(user.id)},
         tag=f"pin-reset-{user.id}",
     )
 
@@ -729,6 +732,70 @@ async def pin_reset_request(
         admins_reached=reached,
     )
     return _PIN_RESET_GENERIC
+
+
+_PIN_SET_REFUSED = "That reset is no longer available. Ask an admin to reset your PIN again."
+
+
+@router.post("/pin/set", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("5/hour", key_func=login_key)
+async def set_pin_after_reset(
+    request: Request,
+    body: PinSetRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    """Choose a PIN for an account an admin has cleared. The far end of the reset journey.
+
+    Unauthenticated, because the member has nothing to authenticate with — that is the
+    whole state. What bounds it is not a secret but the state itself: this succeeds only
+    while ``pin_hash IS NULL``, which only an admin can cause, and only inside
+    :data:`~src.services.credentials.PIN_RESET_CLAIM_WINDOW` of them causing it. Setting
+    a PIN closes the window by making the condition false, so it is single-use without
+    needing to be marked as used.
+
+    It issues **no session**. Login stays the one place a token pair is minted, and the
+    member signs in with the PIN they just chose — one extra round trip in exchange for
+    not having an unauthenticated endpoint that hands out credentials.
+
+    Every refusal is the same message and the same status, so the endpoint cannot be used
+    to sort display names into "mid-reset" and "not". A caller who genuinely is mid-reset
+    already learned that from ``/login``.
+    """
+    refusal = HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=_PIN_SET_REFUSED,
+    )
+    user = (
+        await db.execute(
+            select(Profile).where(
+                Profile.display_name == body.display_name,
+                Profile.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if user is None or not user.is_active or user.pin_hash is not None:
+        raise refusal
+    if not await pin_reset_is_claimable(db, user, _now()):
+        log.info("pin set refused — reset window closed", user_id=str(user.id))
+        raise refusal
+    # After the window check, so the blocklist cannot be probed by anyone who is not
+    # already inside a live reset — the ordering `change_pin` uses for the same reason.
+    if is_weak_pin(body.pin):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="That PIN is too common — choose one that is not a run or a repeat.",
+        )
+
+    user.pin_hash = hash_pin(body.pin)
+    user.failed_login_count = 0
+    user.locked_until = None
+    user.updated_at = _now()
+    # Belt and braces: the reset already revoked everything, but a token minted between
+    # the two would otherwise survive a credential it never saw.
+    revoked = await revoke_all_refresh_tokens(db, user.id)
+    db.add(pin_reset_audit(user, user, STAGE_SET))
+    await db.commit()
+    log.info("pin set after reset", user_id=str(user.id), sessions_revoked=revoked)
 
 
 # ---------------------------------------------------------------------------

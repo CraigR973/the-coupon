@@ -22,6 +22,16 @@ export const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
  */
 export const DEFAULT_LEAGUE_SLUG = 'the-coupon';
 
+/**
+ * The `detail` a login (or a session unlock) carries when the account has no credential
+ * to check — an admin cleared it and the member has not chosen a new one yet (Batch 66).
+ *
+ * A code rather than a sentence because two screens route on it: `/login` and the stored
+ * session's PIN gate both send the member to `/set-pin` instead of telling them their
+ * PIN is wrong, which would send them round the forgot-PIN loop that got them here.
+ */
+export const PIN_NOT_SET = 'PIN_NOT_SET';
+
 let refreshPromise: Promise<void> | null = null;
 
 async function silentRefresh(): Promise<void> {

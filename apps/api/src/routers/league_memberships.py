@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import CurrentUser, generate_join_code, generate_opaque_token, hash_pin
+from src.auth import CurrentUser, generate_join_code, generate_opaque_token
 from src.database import get_db
 from src.models.invite import Invite
 from src.models.league import League
@@ -30,6 +30,7 @@ from src.routers.leagues import (
     _upsert_membership,
 )
 from src.schemas import UtcDatetime
+from src.services.credentials import STAGE_RESET, clear_pin, pin_reset_audit
 from src.services.notification_triggers import notify_member_joined
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -457,7 +458,19 @@ async def revoke_league_invite(
 
 
 class LeagueResetPinResponse(BaseModel):
-    temp_pin: str
+    """What the reset did.
+
+    ``temp_pin`` is kept, always ``null``, and is the shape of the answer rather than a
+    value: it was a four-digit PIN this endpoint minted and returned for the admin to read
+    out. Dropping the field outright would break any client still reading it during the
+    window where Vercel has the new web app and Railway still has the old API — the trap
+    Batches 38, 41 and 48 each recorded — so it goes null first and can be removed once
+    both halves have shipped.
+    """
+
+    temp_pin: str | None = None
+    pin_cleared: bool = True
+    sessions_revoked: int = 0
 
 
 @router.post(
@@ -472,6 +485,21 @@ async def reset_member_pin(
     admin_ctx: LeagueAdminDep,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> LeagueResetPinResponse:
+    """Clear a member's PIN. The league-admin half of the same act the site console does.
+
+    **This used to mint a temporary PIN and leave every session alive.** Two defects in
+    one endpoint: a secret the admin had to read out — writable down, shareable, reusable,
+    and chosen by somebody other than the member — and no revocation, so a session opened
+    under the old PIN kept renewing itself for thirty days past the reset. Batch 56
+    established that a credential change revokes; this endpoint predated it and was never
+    brought along, which is precisely the failure mode the shared
+    :func:`~src.services.credentials.clear_pin` now exists to prevent.
+
+    The member chooses their own at ``/auth/pin/set``, bounded by
+    ``PIN_RESET_CLAIM_WINDOW`` — which is why the audit row below is written at stage
+    ``reset`` rather than under ``league_member_pin_reset``: that value carries no stage,
+    and the window is read from the stage.
+    """
     player, league = admin_ctx
 
     # Confirm target is an active member
@@ -490,23 +518,16 @@ async def reset_member_pin(
     if target is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player not found")
 
-    import secrets as _secrets  # noqa: PLC0415
-
-    temp_pin = _secrets.randbelow(9000) + 1000  # 1000–9999
-    target.pin_hash = hash_pin(str(temp_pin))
-    target.updated_at = _now()
-    db.add(
-        _audit(
-            player,
-            ActionType.league_member_pin_reset,
-            "profiles",
-            target_player_id,
-            {"league_slug": slug},
-        )
-    )
+    revoked = await clear_pin(db, target)
+    db.add(pin_reset_audit(player, target, STAGE_RESET, {"league_slug": slug}))
     await db.commit()
-    log.info("pin reset by league admin", target=str(target_player_id), league=slug)
-    return LeagueResetPinResponse(temp_pin=str(temp_pin))
+    log.info(
+        "pin cleared by league admin",
+        target=str(target_player_id),
+        league=slug,
+        sessions_revoked=revoked,
+    )
+    return LeagueResetPinResponse(sessions_revoked=revoked)
 
 
 # ---------------------------------------------------------------------------

@@ -12,6 +12,7 @@ from src.logging_config import configure_logging
 from src.middleware import CorrelationIdMiddleware, SecurityHeadersMiddleware
 from src.rate_limit import limiter
 from src.routers import (
+    admin,
     auth,
     coupon,
     football,
@@ -92,3 +93,4 @@ app.include_router(football.router)
 app.include_router(picks.router)
 app.include_router(coupon.router)
 app.include_router(players.router)
+app.include_router(admin.router)

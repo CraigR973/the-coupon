@@ -807,7 +807,7 @@ async def test_changing_a_pin_revokes_every_refresh_token(client: AsyncClient) -
     """The whole point: a stolen session must not outlive the credential it was opened with."""
     user = _make_user()
     token = create_access_token(user.id, user.role)
-    # get_current_user resolves the profile, then _revoke_all_refresh_tokens updates.
+    # get_current_user resolves the profile, then revoke_all_refresh_tokens updates.
     mock_db = _stub_db([_scalar(user), _rowcount(3)])
 
     async with _override_db(mock_db):

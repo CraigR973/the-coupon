@@ -8,6 +8,7 @@ import {
   Trophy,
   MoreHorizontal,
   Settings as SettingsIcon,
+  ShieldCheck,
   User,
   LogOut,
   type LucideIcon,
@@ -77,6 +78,16 @@ export function TabBar() {
     Icon: SettingsIcon,
     match: (p) => p.startsWith('/settings'),
   };
+  // Site admin is in the More sheet rather than a tab of its own: it is the rarest
+  // destination in the app and there are five primary slots. The gate is the profile
+  // role — the same flag `/api/v1/admin` enforces — so a player never sees an entry
+  // whose every screen would bounce them home.
+  const adminConsole: TabDef = {
+    to: '/admin/players',
+    label: 'Site admin',
+    Icon: ShieldCheck,
+    match: (p) => p.startsWith('/admin'),
+  };
   const SECONDARY: ReadonlyArray<TabDef> = player
     ? [
         {
@@ -85,6 +96,7 @@ export function TabBar() {
           Icon: User,
           match: (p) => p.startsWith('/profile'),
         },
+        ...(player.role === 'admin' ? [adminConsole] : []),
         settings,
       ]
     : [settings];

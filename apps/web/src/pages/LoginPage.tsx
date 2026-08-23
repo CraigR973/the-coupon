@@ -8,13 +8,16 @@ import { Label } from '@/components/ui/label';
 import { PinInput } from '@/components/PinInput';
 import { Brand } from '@/components/Brand';
 import { brand } from '@/theme/tokens';
+import { PIN_NOT_SET } from '@/lib/api';
 
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [displayName, setDisplayName] = useState('');
+  const [displayName, setDisplayName] = useState(
+    () => new URLSearchParams(location.search).get('name') ?? '',
+  );
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -36,7 +39,14 @@ export function LoginPage() {
         ? requested
         : '/';
       navigate(destination, { replace: true });
-    } catch {
+    } catch (err) {
+      // An admin cleared this member's PIN and they have not chosen a new one yet. It
+      // is not a wrong PIN — there is no PIN — and telling them it was would send them
+      // round the forgot-PIN loop a second time, which is the loop that got them here.
+      if (err instanceof Error && err.message === PIN_NOT_SET) {
+        navigate(`/set-pin?name=${encodeURIComponent(displayName.trim())}`);
+        return;
+      }
       setError('Invalid display name or PIN.');
     } finally {
       setIsLoading(false);

@@ -14,4 +14,16 @@ test('production bundle serves deep links through the SPA shell', async ({ page 
   await page.goto('/leagues/the-coupon/predictions/coupon?gw=abc');
   await expect(page).toHaveURL('/login');
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+
+  // Batch 66. The far end of a PIN reset is a *public* route — the member arrives with
+  // no credential, which is the whole state — so it has to render for a signed-out
+  // browser rather than bouncing to /login like everything else here.
+  await page.goto('/set-pin?name=Lewis');
+  await expect(page.getByRole('heading', { name: 'Choose a new PIN' })).toBeVisible();
+
+  // And the admin console is the opposite: authenticated *and* role-gated, so a
+  // signed-out deep link lands on sign-in rather than on an empty console.
+  await page.goto('/admin/players');
+  await expect(page).toHaveURL('/login');
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 });

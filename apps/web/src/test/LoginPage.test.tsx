@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LoginPage } from '@/pages/LoginPage';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -21,6 +21,23 @@ function renderLoginAt(entry: string) {
 
 function renderLogin() {
   return renderLoginAt('/login');
+}
+
+/** Login plus the screen it redirects a cleared credential to (Batch 66). */
+function renderLoginWithSetPinRoute(entry: string) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[entry]}>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/set-pin" element={<div>choose a new pin</div>} />
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
 }
 
 function fillPin(digits: string) {
@@ -135,5 +152,31 @@ describe('LoginPage', () => {
       expect(cachesDelete).toHaveBeenCalledWith('api-coupon');
     });
     expect(localStorage.getItem('coupon_player')).toContain('Alice');
+  });
+
+  // Batch 66. An admin cleared this member's PIN at their own request. Telling them
+  // their credentials are invalid would send them back round the forgot-PIN loop that
+  // got them here — the loop that, until this batch, ended in silence.
+  it('sends a member whose PIN was cleared to choose a new one', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: false,
+        status: 409,
+        json: () => Promise.resolve({ detail: 'PIN_NOT_SET' }),
+      }),
+    );
+
+    renderLoginWithSetPinRoute('/login');
+    fireEvent.change(screen.getByLabelText(/display name/i), { target: { value: 'Lewis' } });
+    fillPin('1234');
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+
+    expect(await screen.findByText('choose a new pin')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('arrives with the display name filled when set-pin hands it back', () => {
+    renderLoginAt('/login?name=Lewis');
+    expect((screen.getByLabelText(/display name/i) as HTMLInputElement).value).toBe('Lewis');
   });
 });

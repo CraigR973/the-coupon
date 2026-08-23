@@ -59,7 +59,20 @@ const LeagueAdminInvitesPage = lazyRoute(() =>
 
 // Auth / onboarding
 const ForgotPinPage = lazyRoute(() => import('./pages/ForgotPinPage').then((m) => ({ default: m.ForgotPinPage })));
+const SetPinPage = lazyRoute(() => import('./pages/SetPinPage').then((m) => ({ default: m.SetPinPage })));
 const WelcomePage = lazyRoute(() => import('./pages/WelcomePage').then((m) => ({ default: m.WelcomePage })));
+
+// Site admin (Batch 66). Lazy like everything else, and behind `requireAdmin` — a
+// member who is not a site admin never loads a byte of it.
+const AdminPlayersPage = lazyRoute(() =>
+  import('./pages/admin/PlayersPage').then((m) => ({ default: m.PlayersPage })),
+);
+const AdminInvitesPage = lazyRoute(() =>
+  import('./pages/admin/InvitesPage').then((m) => ({ default: m.InvitesPage })),
+);
+const AdminAllLeaguesPage = lazyRoute(() =>
+  import('./pages/admin/AllLeaguesPage').then((m) => ({ default: m.AllLeaguesPage })),
+);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -121,6 +134,9 @@ export function App() {
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/register" element={<RegisterPage />} />
                   <Route path="/forgot-pin" element={<ForgotPinPage />} />
+                  {/* The far end of an admin PIN reset. Public, because the member has
+                      no credential to authenticate with — that is the whole state. */}
+                  <Route path="/set-pin" element={<SetPinPage />} />
                   <Route path="/join/:token" element={<JoinPage />} />
                   <Route path="/welcome" element={<WelcomePage />} />
 
@@ -215,6 +231,17 @@ export function App() {
                         <Route path="/leagues/:slug/admin/settings" element={<LeagueSettingsPage />} />
                         <Route path="/leagues/:slug/admin/requests" element={<LeagueJoinRequestsPage />} />
                         <Route path="/leagues/:slug/admin/invites" element={<LeagueAdminInvitesPage />} />
+
+                        {/* Site admin — people and access (Batch 66). A second gate
+                            inside the authenticated one: `requireAdmin` bounces a
+                            player home rather than rendering a screen whose every
+                            request would 403. */}
+                        <Route element={<ProtectedRoute requireAdmin />}>
+                          <Route path="/admin" element={<Navigate to="/admin/players" replace />} />
+                          <Route path="/admin/players" element={<AdminPlayersPage />} />
+                          <Route path="/admin/invites" element={<AdminInvitesPage />} />
+                          <Route path="/admin/leagues" element={<AdminAllLeaguesPage />} />
+                        </Route>
                       </Route>
                     </Route>
                   </Route>

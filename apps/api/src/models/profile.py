@@ -35,7 +35,12 @@ class Profile(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     __tablename__ = "profiles"
 
     display_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    pin_hash: Mapped[str] = mapped_column(String(60), nullable=False)
+    #: The bcrypt hash of this member's four-digit PIN, or ``NULL`` for *no credential*
+    #: (Batch 66). ``NULL`` is only ever written by an admin PIN reset and only ever
+    #: cleared by the member choosing a new one, and it means the account cannot be
+    #: signed into at all — not that it can be signed into with anything. Every read
+    #: path has to say which of the two it means; see ``src/services/credentials.py``.
+    pin_hash: Mapped[str | None] = mapped_column(String(60), nullable=True)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="player_role", create_type=False),
         nullable=False,
