@@ -56,20 +56,9 @@ from src.services.football_provider import (
     season_for,
 )
 from src.services.odds_provider import UK_TZ, Slate, SlateFixture
-from src.services.team_matching import normalise_name, similarity
+from src.services.team_matching import PAIR_THRESHOLD, pair_score
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
-
-#: How alike a club name must be to count as the same club. Both ends of the fixture must
-#: clear it independently, which is a far stronger claim than either alone: two unrelated
-#: matches sharing one plausible club name is common in a division, sharing both is not.
-#:
-#: Below :data:`~src.services.team_matching.MATCH_THRESHOLD` (0.86) on purpose. That
-#: constant guards *writing an alias row* — a permanent, wrong-until-corrected link — so
-#: it is set to refuse anything less than near-certain. The judgement here is one-shot and
-#: fails open, and the pair requirement carries the confidence the single-name threshold
-#: would otherwise have to.
-PAIR_THRESHOLD = 0.80
 
 #: The status written onto a fixture found to be off. One of
 #: :data:`~src.services.odds_provider.VOID_STATUSES`, so every existing path — the link
@@ -81,14 +70,6 @@ VOID_STATUS = "postponed"
 def _uk_date(fixture: FixtureState) -> date:
     """A fixture's kick-off as a UK calendar date, which is what ``starts_on`` is."""
     return fixture.kickoff_utc.astimezone(UK_TZ).date()
-
-
-def _pair_score(fixture: SlateFixture, candidate: FixtureState) -> float:
-    """How well a candidate matches *both* ends of the fixture, worst end first."""
-    return min(
-        similarity(normalise_name(fixture.home), normalise_name(candidate.home)),
-        similarity(normalise_name(fixture.away), normalise_name(candidate.away)),
-    )
 
 
 def _verdict(
@@ -158,7 +139,11 @@ async def verify_slate(slate: Slate, football: FootballDataProvider | None) -> t
             continue
 
         for fixture in fixtures:
-            scored = [state for state in states if _pair_score(fixture, state) >= PAIR_THRESHOLD]
+            scored = [
+                state
+                for state in states
+                if pair_score(fixture.home, fixture.away, state.home, state.away) >= PAIR_THRESHOLD
+            ]
             if not scored:
                 unverifiable += 1
                 continue

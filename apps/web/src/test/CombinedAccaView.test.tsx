@@ -110,3 +110,74 @@ describe('CombinedAccaView', () => {
     expect(screen.getByText(/not all legs landed/i)).toBeTruthy();
   });
 });
+
+// Batch 67. Between one round ending and the next opening, this screen is the *result*
+// rather than the coupon: a won/lost badge says what happened to the pick, not what the
+// game finished. The join that reaches the score fails open, so "no score" is a state the
+// view has to render properly rather than an error case.
+describe('a settled round', () => {
+  const settledCoupon = () =>
+    coupon({
+      status: 'settled',
+      all_won: false,
+      legs: [
+        { ...LEG_A, status: 'won', points_awarded: 20, home_goals: 2, away_goals: 1 },
+        { ...LEG_B, status: 'lost', points_awarded: 0, home_goals: null, away_goals: null },
+      ],
+    });
+
+  it('shows the scoreline for a leg whose match resolved', () => {
+    render(<CombinedAccaView coupon={settledCoupon()} />);
+    expect(screen.getByText(/Forfar 2–1 Brechin/)).toBeTruthy();
+  });
+
+  it('shows the outcome and no score for a leg that could not be resolved', () => {
+    render(<CombinedAccaView coupon={settledCoupon()} />);
+    // Bob's leg still reports that it lost…
+    expect(screen.getAllByText(/lost/i).length).toBeGreaterThan(0);
+    // …and prints no scoreline at all, rather than a nil-nil that would be a lie.
+    expect(screen.queryByText(/Celtic \d+–\d+ Rangers/)).toBeNull();
+  });
+
+  it('shows what each leg scored', () => {
+    render(<CombinedAccaView coupon={settledCoupon()} />);
+    expect(screen.getByText('20 pts')).toBeTruthy();
+    expect(screen.getByText('0 pts')).toBeTruthy();
+  });
+
+  it("marks the reader's own leg and nobody else's", () => {
+    render(<CombinedAccaView coupon={settledCoupon()} myPlayerId="p1" />);
+    expect(screen.getAllByText('You')).toHaveLength(1);
+    expect(screen.getByTestId('acca-leg-0').className).toContain('border-primary');
+    expect(screen.getByTestId('acca-leg-1').className).not.toContain('border-primary');
+  });
+
+  it('marks nothing when the reader is not in this league', () => {
+    render(<CombinedAccaView coupon={settledCoupon()} />);
+    expect(screen.queryByText('You')).toBeNull();
+  });
+
+  it('prints no scoreline on a round that has not settled', () => {
+    // The API withholds them, but a client reading a cached settled response into an
+    // open round must not print a final score against a pick still running.
+    render(
+      <CombinedAccaView
+        coupon={coupon({ legs: [{ ...LEG_A, home_goals: 2, away_goals: 1 }] })}
+      />,
+    );
+    expect(screen.queryByText(/Forfar 2–1 Brechin/)).toBeNull();
+  });
+
+  it('reads the same when the deployed API predates the fields', () => {
+    // Vercel ships the web app on merge while the API waits for /ship-prod, so for that
+    // window every leg arrives without any of the three. It must degrade, not break.
+    render(
+      <CombinedAccaView
+        coupon={coupon({ status: 'settled', all_won: false, legs: [{ ...LEG_A, status: 'won' }] })}
+        myPlayerId="p1"
+      />,
+    );
+    expect(screen.getAllByText(/won/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/pts$/)).toBeNull();
+  });
+});

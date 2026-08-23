@@ -23,7 +23,7 @@ from typing import Any
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient, Response
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,8 +35,10 @@ from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
 from src.models.league import League, PickScope
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
+from src.models.match import Match
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile, UserRole
+from src.models.team import Team
 from src.services import coupon as coupon_svc
 from src.services import scoring
 from src.services.betfair import (
@@ -52,6 +54,7 @@ from src.services.betfair import (
 from src.services.gameweek import fixtures_for, members_missing_picks, sync_slate, window_for
 from src.services.odds_cache import CachingOddsProvider
 from src.services.odds_provider import Competition, FixtureOdds, OddsProviderAPIError
+from src.services.team_matching import normalise_name
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -991,6 +994,218 @@ async def test_results_lists_only_settled_gameweeks_with_winner_and_outcome(
     assert row["leg_count"] == 2
     assert row["combined_odds"] == 5.89  # 1.9 × 3.1
     assert row["all_won"] is False  # Bob's Brechin lost
+
+
+# ── Batch 67: what a round looks like once it has been played ──────────────────
+#
+# `CombinedAccaView` showed a won/lost badge per leg and an "All legs won" line, which is
+# the outcome and not the *result*. The scoreline is not on `fixtures` — the odds provider
+# settles in market and outcome terms and keeps no goals — so it is reached through a
+# name-based join to `matches`, and a wrong join would print a false scoreline against a
+# real member's pick. These walk that through the endpoint the screen actually calls.
+
+
+async def _record_played_match(
+    home: str, away: str, competition_id: str, kickoff: datetime, score: tuple[int, int]
+) -> None:
+    """A finished match on the football-data side, as the sweep would have written it.
+
+    Existing matches in the same competition and window are cleared first, and that is
+    load-bearing rather than tidiness: this module commits, the fixture pool is shared by
+    ``provider_event_id``, so every test here works against the *same* Arsenal v Chelsea
+    row. Without the clear, the third test to seed a result finds three candidates on one
+    day and `scorelines_for` correctly refuses to guess between them — the ambiguity guard
+    firing on an artefact of test order rather than on anything real.
+    """
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            delete(Match).where(
+                Match.competition_id == competition_id,
+                Match.kickoff_utc >= kickoff - timedelta(days=7),
+                Match.kickoff_utc <= kickoff + timedelta(days=7),
+            )
+        )
+        teams = []
+        for name in (home, away):
+            team = Team(
+                provider_team_id=f"t-{uuid.uuid4().hex[:10]}",
+                name=name,
+                normalised_name=normalise_name(name),
+                competition_id=competition_id,
+            )
+            session.add(team)
+            teams.append(team)
+        await session.flush()
+        session.add(
+            Match(
+                provider_match_id=f"m-{uuid.uuid4().hex[:10]}",
+                competition_id=competition_id,
+                competition="Sampled",
+                season=2026,
+                kickoff_utc=kickoff,
+                home_team_id=teams[0].id,
+                away_team_id=teams[1].id,
+                home_goals=score[0],
+                away_goals=score[1],
+                finished=True,
+            )
+        )
+        await session.commit()
+
+
+async def _settle_sample_round(fake: FakeBetfair, gameweek_id: uuid.UUID) -> None:
+    """Arsenal and Forfar win, and the round settles — the canned result the suite uses."""
+    async with AsyncSessionLocal() as session:
+        fake.close_markets(
+            {
+                SAMPLE_EPL_MATCH_ODDS_MKT: SAMPLE_ARSENAL_SEL,
+                SAMPLE_SL2_MATCH_ODDS_MKT: SAMPLE_FORFAR_SEL,
+            }
+        )
+        settlements = await fake.settle([SAMPLE_EPL_EVENT_ID, SAMPLE_SL2_EVENT_ID])
+        stored = (
+            await session.execute(select(Gameweek).where(Gameweek.id == gameweek_id))
+        ).scalar_one()
+        await scoring.settle_gameweek(session, stored, settlements)
+        await session.commit()
+
+
+async def test_a_settled_coupon_carries_each_legs_scoreline_and_points(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The result, next to the outcome, for the legs whose match could be resolved.
+
+    Both legs of the sample card are settled; only one of them has a played match on the
+    football side. The other is the failing-open case in the same response: its outcome
+    renders, its scoreline does not, and nothing errors.
+    """
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), league = await _seed_league(session, ["alice", "bob"])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+        epl_fixture = (
+            (
+                await session.execute(
+                    select(Fixture).where(Fixture.provider_event_id == SAMPLE_EPL_EVENT_ID)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        assert epl_fixture is not None
+        kickoff, competition_id = epl_fixture.kickoff_utc, epl_fixture.competition_id
+    slug = league.slug
+
+    assert (
+        await _submit(client, slug, alice, fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME")
+    ).status_code == 201
+    assert (
+        await _submit(client, slug, bob, fixtures[SAMPLE_SL2_EVENT_ID], "MATCH_ODDS", "AWAY")
+    ).status_code == 201
+
+    # Only the Arsenal game is on the football side. The Scottish one is the competition
+    # the source does not carry — the every-week case for the non-league tiers.
+    await _record_played_match("Arsenal", "Chelsea", competition_id, kickoff, (2, 1))
+    await _settle_sample_round(fake, gameweek.id)
+
+    coupon = (await client.get(f"/api/v1/leagues/{slug}/coupon", headers=_auth(alice))).json()
+
+    assert coupon["status"] == "settled"
+    by_fixture = {leg["fixture_id"]: leg for leg in coupon["legs"]}
+    won = by_fixture[fixtures[SAMPLE_EPL_EVENT_ID]]
+    assert (won["home_goals"], won["away_goals"]) == (2, 1)
+    assert won["status"] == "won"
+    assert won["points_awarded"] == 19  # round(1.9 × 10)
+
+    unresolved = by_fixture[fixtures[SAMPLE_SL2_EVENT_ID]]
+    assert unresolved["home_goals"] is None, "no match to resolve means no score, not nil-nil"
+    assert unresolved["away_goals"] is None
+    assert unresolved["status"] == "lost", "the outcome still renders"
+    assert unresolved["points_awarded"] == 0
+
+
+async def test_an_unsettled_round_carries_no_scoreline(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """A partial score beside a pending pick would read as final. Live scores are Batch 72."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["alice"])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+        epl_fixture = (
+            (
+                await session.execute(
+                    select(Fixture).where(Fixture.provider_event_id == SAMPLE_EPL_EVENT_ID)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        assert epl_fixture is not None
+        kickoff, competition_id = epl_fixture.kickoff_utc, epl_fixture.competition_id
+    slug = league.slug
+
+    assert (
+        await _submit(client, slug, alice, fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME")
+    ).status_code == 201
+    await _record_played_match("Arsenal", "Chelsea", competition_id, kickoff, (2, 1))
+
+    coupon = (await client.get(f"/api/v1/leagues/{slug}/coupon", headers=_auth(alice))).json()
+
+    assert coupon["status"] != "settled"
+    assert all(leg["home_goals"] is None for leg in coupon["legs"])
+
+
+async def test_scrolling_back_to_an_older_settled_round_shows_its_result(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Not only the most recent one — the owner's seventh point is browsing history.
+
+    The round is named explicitly while a *newer* one is current, which is the state a
+    member is in when they scroll back through the season.
+    """
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["alice"])
+        older = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, older.id)
+        epl_fixture = (
+            (
+                await session.execute(
+                    select(Fixture).where(Fixture.provider_event_id == SAMPLE_EPL_EVENT_ID)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        assert epl_fixture is not None
+        kickoff, competition_id = epl_fixture.kickoff_utc, epl_fixture.competition_id
+    slug = league.slug
+
+    assert (
+        await _submit(client, slug, alice, fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME")
+    ).status_code == 201
+    await _record_played_match("Arsenal", "Chelsea", competition_id, kickoff, (3, 0))
+    await _settle_sample_round(fake, older.id)
+
+    async with AsyncSessionLocal() as session:
+        newer = await _open_sample_gameweek(
+            session, fake, await session.get(League, league.id), weeks_later=1
+        )
+    current = (await client.get(f"/api/v1/leagues/{slug}/coupon", headers=_auth(alice))).json()
+    assert current["gameweek_id"] == str(newer.id), "the league has moved on"
+
+    browsed = (
+        await client.get(
+            f"/api/v1/leagues/{slug}/coupon?gameweek_id={older.id}", headers=_auth(alice)
+        )
+    ).json()
+
+    assert browsed["gameweek_id"] == str(older.id)
+    leg = browsed["legs"][0]
+    assert (leg["home_goals"], leg["away_goals"]) == (3, 0)
 
 
 async def test_an_unknown_or_malformed_gameweek_id_is_a_404(

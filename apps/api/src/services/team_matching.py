@@ -151,6 +151,36 @@ def similarity(left: str, right: str, *, allow_subset: bool = True) -> float:
     return score
 
 
+#: How alike a club name must be for a *pair* of them to count as the same match. Both
+#: ends must clear it independently, which is a far stronger claim than either alone: two
+#: unrelated matches sharing one plausible club name is common in a division, sharing both
+#: is not.
+#:
+#: Below :data:`MATCH_THRESHOLD` (0.86) on purpose. That constant guards *writing an alias
+#: row* — a permanent, wrong-until-corrected link — so it refuses anything less than
+#: near-certain. A pair judgement is one-shot, is never written down, and fails open, and
+#: the pair requirement carries the confidence the single-name threshold would otherwise
+#: have to.
+#:
+#: Batch 64 introduced this for the FotMob slate cross-check; Batch 67 reuses it to reach
+#: a played match's scoreline from a coupon leg. It lives here rather than in either
+#: caller because it is the same judgement about the same kind of name.
+PAIR_THRESHOLD = 0.80
+
+
+def pair_score(home: str, away: str, other_home: str, other_away: str) -> float:
+    """How well two fixtures match on *both* ends, worst end first.
+
+    Names are normalised here rather than by the caller, so a caller holding raw
+    provider text and one holding a stored ``normalised_name`` cannot disagree about
+    what was compared.
+    """
+    return min(
+        similarity(normalise_name(home), normalise_name(other_home)),
+        similarity(normalise_name(away), normalise_name(other_away)),
+    )
+
+
 def best_match(name: str, candidates: Sequence[Team]) -> tuple[Team | None, float]:
     """The candidate a normalised name most likely means, and its score.
 

@@ -250,6 +250,17 @@ export interface CouponLeg {
   runner_name: string;
   odds: number;
   status: PickStatus;
+  // ── Batch 67. All three optional, because Vercel deploys the web app on merge while
+  // the API waits for /ship-prod: for that window the deployed API sends none of them.
+  /** What this pick scored, once the round settled. */
+  points_awarded?: number | null;
+  /**
+   * The final score, on a settled round whose fixture resolved to a played match.
+   * Both are null together, and null means *no score to show* — never nil-nil. The
+   * join is name-based and fails open rather than guessing (see `match_link.py`).
+   */
+  home_goals?: number | null;
+  away_goals?: number | null;
 }
 
 export interface Coupon {

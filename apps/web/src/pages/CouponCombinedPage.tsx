@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
 import { useGameweekHistory, useSelectedGameweekId } from '../hooks/useGameweekHistory';
 import { useRouteLeague } from '../hooks/useRouteLeague';
@@ -21,6 +22,7 @@ import { Skeleton } from '../components/ui/skeleton';
  */
 export function CouponCombinedPage() {
   const { slug, name: leagueName } = useRouteLeague();
+  const { player } = useAuth();
   const { hasLeagues, isLoading: leaguesLoading } = useLeague();
   const gameweekId = useSelectedGameweekId();
 
@@ -62,7 +64,15 @@ export function CouponCombinedPage() {
     );
   }
 
-  const roundLabel = history.isLatest ? 'This week' : 'Earlier in the season';
+  // A settled round is a result, not a coupon, and saying so is half of what Batch 67
+  // is for: between one round ending and the next opening this screen is where the week
+  // is read back. `isLatest` alone cannot say that — the newest round is settled for the
+  // days between the results landing and the next card opening.
+  const roundLabel = coupon?.status === 'settled'
+    ? 'Result'
+    : history.isLatest
+      ? 'This week'
+      : 'Earlier in the season';
 
   return (
     <div>
@@ -93,7 +103,7 @@ export function CouponCombinedPage() {
         />
       )}
 
-      {coupon && <CombinedAccaView coupon={coupon} />}
+      {coupon && <CombinedAccaView coupon={coupon} myPlayerId={player?.id} />}
     </div>
   );
 }

@@ -30,12 +30,24 @@ export function buildCouponShareText(coupon: Coupon): string {
   return lines.join('\n');
 }
 
+/** A settled leg's scoreline, or null when there is none to show. */
+function scoreline(leg: CouponLeg): string | null {
+  if (leg.home_goals == null || leg.away_goals == null) return null;
+  return `${leg.home_goals}–${leg.away_goals}`;
+}
+
 /**
  * The combined per-leaderboard accumulator for a gameweek: every member's one
  * pick stacked into a single acca to reference on a real book. Presentation
  * only — the caller fetches GET /leagues/{slug}/coupon.
+ *
+ * On a **settled** round this is the result rather than the coupon (Batch 67): each leg
+ * shows the scoreline its fixture finished, the points it scored, and the reader's own
+ * leg is marked, so "how the week went" and "how I did" are one glance rather than two
+ * screens. `myPlayerId` is a prop rather than a `useAuth()` call so this stays a pure
+ * presentation component.
  */
-export function CombinedAccaView({ coupon }: { coupon: Coupon }) {
+export function CombinedAccaView({ coupon, myPlayerId }: { coupon: Coupon; myPlayerId?: string }) {
   const oddsFormat = useOddsFormat();
 
   if (coupon.leg_count === 0) {
@@ -91,21 +103,39 @@ export function CombinedAccaView({ coupon }: { coupon: Coupon }) {
       {/* Legs */}
       <ol className="flex flex-col gap-2">
         {coupon.legs.map((leg, i) => (
-          <LegRow key={`${leg.player_id}-${leg.fixture_id}`} leg={leg} index={i} settled={settled} />
+          <LegRow
+            key={`${leg.player_id}-${leg.fixture_id}`}
+            leg={leg}
+            index={i}
+            settled={settled}
+            isMine={leg.player_id === myPlayerId}
+          />
         ))}
       </ol>
     </div>
   );
 }
 
-function LegRow({ leg, index, settled }: { leg: CouponLeg; index: number; settled: boolean }) {
+function LegRow({
+  leg,
+  index,
+  settled,
+  isMine,
+}: {
+  leg: CouponLeg;
+  index: number;
+  settled: boolean;
+  isMine: boolean;
+}) {
   const oddsFormat = useOddsFormat();
   const selection = outcomeLabel(leg.market, leg.outcome, leg.home, leg.away);
+  const score = settled ? scoreline(leg) : null;
   return (
     <li
       className={cn(
         'flex items-center gap-3 rounded-lg border border-border bg-surface p-3',
         settled && leg.status === 'lost' && 'opacity-60',
+        isMine && 'border-primary',
       )}
       data-testid={`acca-leg-${index}`}
     >
@@ -116,15 +146,30 @@ function LegRow({ leg, index, settled }: { leg: CouponLeg; index: number; settle
         <div className="flex items-center gap-2">
           <p className="truncate text-sm font-sans font-medium text-text-primary">{selection}</p>
           <Badge variant="muted">{marketTag(leg.market)}</Badge>
+          {isMine && <Badge variant="accent">You</Badge>}
         </div>
         <p className="truncate text-xs font-sans text-text-muted">
           {leg.competition} · {leg.home} v {leg.away} · {leg.player_name}
         </p>
+        {/* The result, not the outcome. Absent when the leg's fixture could not be
+            resolved to a played match — the join fails open rather than guessing, so
+            there is simply nothing here rather than a wrong scoreline. */}
+        {score && (
+          <p className="mt-0.5 font-mono text-xs tabular-nums text-text-secondary">
+            <span className="sr-only">Final score: </span>
+            {leg.home} {score} {leg.away}
+          </p>
+        )}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5">
         <span className="font-mono text-sm tabular-nums text-text-primary">{formatOdds(leg.odds, oddsFormat)}</span>
         {settled && (
           <Badge variant={STATUS_VARIANT[leg.status]}>{pickStatusLabel(leg.status)}</Badge>
+        )}
+        {settled && leg.points_awarded != null && (
+          <span className="font-mono text-[11px] tabular-nums text-text-muted">
+            {leg.points_awarded} pts
+          </span>
         )}
       </div>
     </li>
