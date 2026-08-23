@@ -1892,6 +1892,314 @@ answered until it lands, because until then there is no data to look at.
   against production and rolling back — 10 of 12 hand-removed fixtures re-linked to both
   leagues, 90 minutes before the lock.
 
+- [ ] **Batch 65 — The week ends at the lock, and it should end at the results** — the first
+  member-reported problem of the post-launch batches (owner, 2026-08-23): "the leagues seem
+  to jump straight to the next week as soon as the picks are locked". They do, and there are
+  **two independent causes**. Fixing either one alone leaves the complaint half-standing, so
+  they belong in one batch.
+
+  **The ordering.** `current_round_order` (`src/services/gameweek.py:226`) ranks a round top
+  when it is accepting picks *right now*, tie-broken by whichever locks soonest.
+  `accepting_picks` calls a round claimable when its status is pickable, its
+  `picks_open_at_utc` is null **or** past, and its lock is ahead. Discovery runs daily at
+  06:00 over `slate_horizon_weeks`, and for a league with no `pick_open_offset_minutes` it
+  writes next week's round `open` with `picks_open_at_utc = NULL` — which satisfies
+  `accepting_picks` the instant the row exists. So from Sunday onwards *both* rounds are in
+  the top tier and only the soonest-lock tiebreak keeps this week in front. At 14:30 on
+  Saturday that tiebreak stops applying and the league jumps a week, mid-afternoon, with its
+  own games still being played.
+
+  **The settings.** `models/gameweek.py:53` states it plainly: "Neither instant is re-derived
+  once a round exists: a window change applies to rounds discovered from then on." That is
+  the owner's second sentence — an announced opening "applies to each round not just one".
+  An admin who sets the offset today changes nothing about the rounds already discovered
+  ahead of them, which for a `slate_horizon_weeks` horizon is every round they can currently
+  see. The setting appears to do nothing for weeks.
+
+  The fix is a tier above the accepting tier for a round that has **locked and not yet
+  settled** — the one being played — and re-derivation of `picks_open_at_utc` and
+  `locks_at_utc` for every future round of a league whose window settings change, bounded to
+  rounds that have not locked. A locked round already open to nobody is not competing with
+  anything for the member's attention; a round in play is what they want to look at.
+
+  **A round that never settles must not pin the league forever**, and that is the load-bearing
+  constraint rather than a caveat. Settlement sweeps at 18:00, 20:00 and 22:00 daily and a
+  fixture the provider never resolves leaves picks pending indefinitely — Batch 64's phantom
+  Scottish Premiership round is exactly that shape. So the in-play tier needs an expiry
+  measured from the window's end, after which the round stops outranking a claimable one.
+  Pick the bound from the settlement cadence, not from taste, and state it in a test.
+
+  **Both call sites move together or Home and the Coupon tab disagree.** `current_round_order`
+  is deliberately returned as ORDER BY clauses rather than applied, because it has two
+  callers — `latest_gameweek` per league and a window function over many leagues in
+  `routers/me.py` — and its own docstring records that they have to move in step. A change
+  here that misses `me.py` puts the home card and the coupon on different rounds, side by
+  side, in one glance.
+
+  Verification: `scripts/ci-local.sh` PASS; a test that walks one league across a full cycle
+  — scheduled, open, locked, in play, settled, next round opening — and asserts which round
+  is current at each step; a test that a settings change re-derives unlocked rounds and
+  leaves locked ones alone; a test that an unsettled round stops outranking a claimable one
+  past the bound; and the `me.py` window function asserted against `latest_gameweek` on the
+  same fixture data.
+
+  Scope boundary: **ordering and re-derivation only.** What the screen renders in each state
+  is Batch 67, and live scores are Batch 72.
+
+- [ ] **Batch 66 — A member who forgets their PIN has no way back in** — not on the owner's
+  list, found while scoping Batch 69 (2026-08-23), and moved ahead of everything else on it
+  because it is live and it strands people.
+
+  Batch 56 made `pin/reset-request` truthful. It had promised "an admin will be notified" and
+  notified nobody; it now writes an audit row and pushes every active site admin. **The
+  notification is real and the action behind it does not exist.** The push sends the admin to
+  `data={"url": "/settings"}` — their own settings page — because there is nowhere else to
+  send them. `routers/auth.py:672` is the whole recovery path a member has, and exactly one
+  endpoint in the API uses the `AdminUser` dependency: avatar removal at `auth.py:867`. There
+  is no admin PIN reset, no unlock, and no screen. The audit row is durable and unread, which
+  is the same silence Batch 56 set out to end, one table further along.
+
+  The reference implementation is `wc_2026_predictor/apps/api/src/routers/admin.py` and
+  `apps/web/src/pages/admin/`, which carry `POST /players/{id}/reset-pin`,
+  `POST /players/{id}/unlock`, `GET /players`, `DELETE /players/{id}`, invite list/revoke, and
+  a league list with join-code rotation, surfaced as a role-gated group in the More menu. This
+  batch ports the people half: **Players, Invites, All Leagues**, plus the `/admin` route group
+  and the `role === 'admin'` gate on `TabBar`.
+
+  **An admin PIN reset must revoke every refresh token for that member.** Batch 56 established
+  this for a member changing their own PIN — the old behaviour wrote the new hash and left
+  every existing session renewing itself for thirty days, so a stolen session outlived the
+  credential it was opened with. An admin-issued reset is the same act performed by someone
+  else and inherits the same rule; writing it as a new endpoint is exactly how that gets
+  forgotten.
+
+  Two decisions, taken by the owner on 2026-08-23 and recorded here rather than left to the
+  implementation. **An admin reset clears the credential and forces set-on-next-login**; it
+  does not mint a temporary PIN. No secret passes through the admin, there is no interim value
+  to be shared or reused, and the member chooses their own — which also means the reset path
+  writes no hash at all and the existing charset rules keep applying at the point the member
+  sets one. **`DELETE /players/{id}` soft-deletes**, setting `deleted_at` and keeping the
+  member's settled picks so past leaderboards stay as they were played. Their display name
+  stays reserved as a consequence, not an oversight: `display_name` is globally unique, is the
+  login identifier, and Batch 63's case-insensitive uniqueness check **includes soft-deleted
+  rows** specifically so a departed member's name cannot be re-registered by someone else.
+  Freeing the name would mean reversing that, which is a different decision from deleting a
+  player and is not in this batch.
+
+  Verification: `scripts/ci-local.sh` PASS; a test that an admin reset revokes the target's
+  refresh tokens; a test that every new endpoint refuses a non-admin caller; a test that the
+  reset-request push now points at a screen that exists; and the journey walked end to end —
+  member requests, admin is paged, admin acts, member signs in.
+
+  Scope boundary: **people and access only.** Dashboard, sync and results are Batch 69.
+
+- [ ] **Batch 67 — What a round looks like once it has been played** — the owner's second and
+  seventh points (2026-08-23): between one round ending and the next opening, show "the
+  completed state of this week's overall coupon and how you did individually", and a completed
+  gameweek should "show the result from the coupon when scrolling back through them".
+
+  Batch 65 makes the right round current; this decides what it renders. Today
+  `CombinedAccaView` shows a won/lost badge per leg and an "All legs won" line, and
+  `Coupon.all_won` is null until settlement — which is the outcome but not the **result**. The
+  member wants the scoreline.
+
+  **The scoreline is not on `fixtures`, and that is the whole cost of this batch.** The fixture
+  table carries `provider_event_id`, `home`, `away`, `kickoff_utc`, `competition` and
+  `competition_id`, and no goals of any kind; the odds provider settles in market/outcome terms
+  (`EventSettlement` carries `settled_markets` and `outcomes`, no scores). Scores live on
+  `matches`, on the football-data side, keyed by `teams` rows rather than by the fixture's name
+  strings. So a coupon leg reaches its scoreline only through a name-based join, which is the
+  same problem Batch 64 solved for the FotMob cross-check and should reuse the same tool:
+  `team_matching`'s alias layer, both ends over `PAIR_THRESHOLD`, date choosing between
+  candidates. **A wrong join here prints a false scoreline against a real member's pick**, so
+  it fails to *no score shown* rather than to a guess, exactly as Batch 64 fails open.
+
+  Whether to persist the resolved link or resolve it per read is the batch's one real design
+  decision. Resolving per read costs a join on a screen that is not hot; persisting adds a
+  column and a backfill but makes the answer stable. Record the choice.
+
+  The individual half — "how you did" — needs no new data: `Pick.status` and
+  `points_awarded` are already written by settlement, `standings` already ranks, and
+  `GameweekMember` already exists on the slate response. It needs a place to appear.
+
+  Verification: `scripts/ci-local.sh` PASS; a settled round rendering each leg's scoreline with
+  its won/lost outcome; a leg whose match cannot be resolved rendering the outcome with no
+  score and no error; the member's own row distinguished; and the completed view reachable by
+  scrolling back to any settled round, not only the most recent.
+
+  Scope boundary: **settled rounds only.** In-play scores are Batch 72.
+
+- [ ] **Batch 68 — Two rounds that were played before the app was watching** — the owner's
+  first and eighth points (2026-08-23): backfill the last two weeks' results into a league,
+  and correct Lewis Steele's pick for the round of 22 August.
+
+  Mostly data, but it carries one finding worth recording because it closes off an approach
+  that looks obvious. **odds-api.io cannot supply retrospective prices.** `odds_api.py:494`
+  already documents it, verified 2026-08-04: once a fixture settles, `/odds` returns it with
+  `status: "settled"` but no `scores` key and no bookmakers, and `/odds/multi` drops it
+  entirely. Both endpoints carry only what is still priced. No amount of the provider's hourly
+  budget produces a historic price, so there is nothing to probe and nothing to spend.
+
+  That makes the odds an **input to this batch, not an output of it**. The owner holds a
+  screenshot covering one of the two rounds. The other has no automated source, and since a
+  winning pick scores `round(odds × 10)` (`services/scoring.py:48`), an invented price is an
+  invented leaderboard position. **The batch does not proceed on a guessed odd.** The
+  alternatives are a price the owner can evidence, or that round landing settled but unscored,
+  and which one is an owner decision to be recorded here before any row is written.
+
+  What has to be written, in order: the `gameweeks` rows with their real `starts_on` and
+  `locks_at_utc`, the `fixtures`, the `gameweek_fixtures` links, then one `pick` per member
+  carrying `odds_at_pick`, `status` and `points_awarded`, then the gameweek flipped to
+  `settled` with `settled_at`. **Standings need no repair** — `standings_by_league` aggregates
+  live from `picks` on every read, so there is no derived table to rebuild and no risk of one
+  disagreeing with its inputs.
+
+  Verification: every backfilled pick's `points_awarded` recomputed independently against
+  `points_for(odds)` rather than trusted from the insert; the league's leaderboard compared
+  against a hand-tally of the two rounds; the coupon for each backfilled round rendering the
+  same legs the screenshot shows; and a written note of which odds are evidenced and which,
+  if any, are not.
+
+  Scope boundary: **one league, two rounds, one corrected pick.** Not a general import path —
+  that is Batch 69's manual-results screen.
+
+  **Deliberately out of the 65→72 sequential run** (owner, 2026-08-23). It is the only batch
+  on the list that cannot start without an input the owner has to supply, and nothing else
+  depends on it, so an unattended run skips it and continues rather than halting on it. It is
+  worked interactively once the odds exist.
+
+- [ ] **Batch 69 — The operational half of the admin console** — the rest of the owner's sixth
+  point (2026-08-23), after Batch 66 takes the part that strands members.
+
+  Ports **Dashboard**, **Sync** and **Results** from `wc_2026_predictor`: active members,
+  upcoming locks per league, rounds sitting locked and unsettled, recent audit, scheduler
+  status; per-job status and manual trigger for discovery, slate refresh, settlement and the
+  football sync; and pending results with manual entry and override.
+
+  The value is measurable in work already done by hand. Batch 64 opened with a Motherwell pick
+  returned manually and twelve fixtures removed manually; Batch 68 is a backfill performed
+  directly against the database. Every one of those is this screen.
+
+  **A manual sync trigger spends a shared, rate-limited budget**, and the button must say so.
+  odds-api.io allows roughly 100 requests an hour across the whole deployment and the
+  scheduler's own jobs are sized against it; an admin refreshing a slate by hand at 14:00 on a
+  Saturday can 429 the refresh that matters. Batch 57 sized `PICK_SUBMIT_LIMIT` against the
+  measured spare budget for exactly this reason. The trigger needs its own limit, and the
+  screen needs to show what a run will cost before it is pressed.
+
+  There is one gap this batch can close that Batch 64 explicitly could not. FotMob carries
+  neither NI Championship 1 nor the English non-league tiers, so a phantom fixture there fails
+  open every week, and a hand-removal **is undone by the next `refresh-slate`** because
+  `sync_slate` only ever adds links and no status column on `fixtures` persists the judgement.
+  An admin removal that writes a durable status is the missing half. Whether that belongs here
+  or in its own batch depends on whether it needs a migration — decide before starting, and if
+  it does, split it out.
+
+  Verification: `scripts/ci-local.sh` PASS; every endpoint refused to a non-admin; a manual
+  settlement producing byte-identical `picks` rows to the scheduled path on the same input; the
+  sync trigger's rate limit asserted against the measured provider budget the way Batch 57
+  asserts the submit limit; and the dashboard's "unsettled rounds" count checked against a
+  round deliberately left pending.
+
+  Scope boundary: **read, trigger and correct.** No new scheduled jobs.
+
+- [ ] **Batch 70 — What kind of picks are people actually making** — the owner's fifth and
+  ninth points (2026-08-23): cumulative odds and average odds pick on the league table, the
+  same figures on the profile page, and whatever else is worth showing.
+
+  These are one change rather than two. `services/scoring.py:228`'s `Standing` is the single
+  ranking rule in the codebase — `standings_by_league` is read by the leaderboard, by
+  `routers/players.py`'s profile and by `routers/me.py`'s cross-league summary, and its
+  docstring records that this is deliberate so the three can never disagree. Add the columns to
+  the aggregate once and every surface gets them, including the two the owner did not ask
+  about.
+
+  Beyond the two requested, the figures worth adding are the ones that separate two members on
+  the same points: **points per pick played** (the same total from fewer rounds is a better
+  record), **best single return**, **win rate**, and a **favourite/longshot split** — the share
+  of picks below and above some odds line — which is the number that actually answers "what
+  kind of picks is this person making". A longest-streak figure is tempting and is deliberately
+  left out: it needs ordered history rather than an aggregate, which is a second query on a
+  path that currently costs one.
+
+  **Void picks are the decision to record.** `_SETTLED` counts won, lost *and* void, so a
+  postponed fixture already sits in `picks_played` and drags a cumulative-odds total upward for
+  a pick that never ran. Cumulative odds and average odds should almost certainly exclude void
+  while `picks_played` keeps counting it — but the two figures then have different
+  denominators, and a leaderboard that does not say so is lying quietly. Say so in the UI.
+
+  **Every new field ships additive with a default.** Vercel deploys the web app from `main` on
+  merge while the API waits for `/ship-prod`, so a required field breaks the leaderboard in the
+  gap — the trap Batches 38, 41 and 48 each recorded, and the reason `odds_degraded` and
+  `taken_at` are shaped the way they are.
+
+  Verification: `scripts/ci-local.sh` PASS; each new figure computed independently in a test
+  rather than asserted against its own SQL; a member with a void pick asserted to have the
+  intended denominator on both figures; and the leaderboard, profile and home summary asserted
+  to agree on one fixture set.
+
+  Scope boundary: **`Standing` and the three surfaces that read it.** No new tables, no history
+  endpoint.
+
+- [ ] **Batch 71 — Football Stats opens expanded and shows part of the results** — the owner's
+  third and fourth points (2026-08-23), two small independent defects on one screen.
+
+  The first is one line. `FootballPage.tsx:118` passes `defaultOpen={index === 0}` with a
+  comment explaining that thirty divisions would otherwise open at once — true, but the answer
+  is all of them closed, not one of them open. The owner wants the screen collapsed on open.
+
+  The second needs diagnosis before a fix, and the batch must not skip it. **The prime suspect
+  is the read cap, not the ingestion.** `/football/results` returns
+  `football_recent_results_limit` — 20 — as a flat global cap: `recent_results`
+  (`services/football_data.py:628`) orders every finished match across every pooled competition
+  by kickoff and takes the newest twenty. One busy Saturday across thirty divisions is well
+  past twenty matches, so every other competition falls off the end and the screen reads as
+  "partially there" while being exactly what it was asked for. The ingestion side looks
+  healthy by comparison — the sweep covers 30 competitions a run over a 30-day lookback — but
+  Batch 45 is the reason to check rather than assume: that job returned success for weeks while
+  carrying nothing, and only the summary line knew.
+
+  So: confirm which it is against production data first, then fix. If it is the cap, a flat
+  limit is the wrong shape regardless — results grouped by day want a *date* window or a
+  per-competition allowance, not a global row count.
+
+  Verification: `scripts/ci-local.sh` PASS; the screen asserted to render with no competition
+  expanded; and, for the results half, a stated measurement of what production actually holds
+  before and after, because "looks fuller" is not a verification.
+
+  Scope boundary: **these two defects.** No redesign of the screen.
+
+- [ ] **Batch 72 — Live scores while the round is being played** — the remaining half of the
+  owner's second point (2026-08-23), phrased there as a genuine question: "potentially live
+  state if it is not too much overhead".
+
+  It is not much overhead, and the reason is that the source is already here. FotMob ships in
+  production for tables, results and form, **needs no key and has no rate limit to protect**,
+  and `services/fotmob.py` already reads every match a competition lists, played or not, with
+  its status — the same call Batch 64's `verify_slate` leans on. Nothing new is contracted,
+  no budget is spent, and Batch 67 has already built the fixture-to-match join this would read
+  through.
+
+  Last on purpose, and separable on purpose: it is the only item on the owner's list that is
+  an enhancement rather than a defect, and if the join in Batch 67 proves unreliable for a
+  competition FotMob does not carry, this is the batch to drop rather than the one to force.
+
+  **Live scores are display only and must not touch settlement.** The odds provider settles
+  picks, in market and outcome terms, through `settle_gameweek`; a second source that also
+  moves `Pick.status` is two authorities on one fact and the failure mode is a member seeing
+  points awarded and then withdrawn. FotMob may say what the score is; only `EventSettlement`
+  says what a pick did.
+
+  Polling belongs on the scheduler, bounded to leagues with a round actually in play, not on
+  the request path — the mistake `routers/football.py` opens by describing, where a read path
+  that could reach upstream would be exhausted by one member refreshing.
+
+  Verification: `scripts/ci-local.sh` PASS; a test that a live score never writes to `picks`;
+  a test that polling stops when no league has a round in play; and a competition FotMob does
+  not carry rendering the round without scores rather than erroring.
+
+  Scope boundary: **display during an in-play round.** Settlement is unchanged.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
