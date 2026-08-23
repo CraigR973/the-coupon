@@ -1802,3 +1802,48 @@ routes
   the same class of omission that left the league-admin reset unrevoked for ten batches.
 
 **Next:** Batch 67 — what a round looks like once it has been played.
+
+## Batch 67 — What a round looks like once it has been played
+**Commits:** 7e28702 (ff-merged to local main) · verified: `scripts/ci-local.sh` PASS
+(11 checks, 783 backend tests against real PostgreSQL, 675 frontend), 11 new backend
+service tests, 3 new HTTP-level tests, 7 new frontend test cases
+
+### Key facts for future sessions
+- **Decision — the fixture-to-match link is resolved per read, not persisted.** The row
+  left it open. Persisting adds a column *and* a backfill against a database with no
+  restore point, and Batch 66 had already spent this run's one migration; resolving costs
+  one extra query on a screen read a handful of times a week per league. The deciding
+  argument was not cost: a stored link goes stale when an alias is **corrected**, and the
+  alias layer is the part most likely to need correcting. If Batch 72 makes this hot, the
+  shape to reach for is a cache in front of it, never a column.
+- **`PAIR_THRESHOLD` and `pair_score` moved from `slate_verification` into
+  `team_matching`.** Batch 64 put them where the first caller was. They are a judgement
+  about club names, so they belong with the rest of the name matching; `pair_score` now
+  takes four raw strings and normalises them itself, so a caller holding provider text and
+  one holding a stored `normalised_name` cannot disagree about what was compared.
+- **`CANDIDATE_WINDOW` is ±3 days, and the *order* of the two rules is what matters.**
+  Name first, then date — never name score alone. A home-and-away pair inside one season
+  matches both ends equally well, so "best score wins" would pick arbitrarily between two
+  correct-looking answers. Batch 64 learned the same lesson from the other side, where
+  choosing by name compared the card against a game six months out.
+- **The ambiguity guard fired for real, in the test suite, on the first run.** Three
+  finished "Arsenal v Chelsea" rows on one day, because `test_picks_flow.py` commits and
+  the fixture pool is shared by `provider_event_id`, so every test in that module works
+  against the *same* fixture row. `_record_played_match` now clears the competition's
+  window before seeding. Worth knowing twice over: the guard works, and that module's
+  non-hermetic seeding accumulates across tests in ways that look like product bugs.
+- **UK-date comparison, not UTC-date.** A 23:30 UTC Friday kick-off is Saturday in UTC and
+  Friday in London, and the two records store the same instant. Comparing raw dates would
+  separate matches a member thinks of as the same night.
+- **Only `finished` matches produce a scoreline, and only settled rounds ask for one.**
+  Two gates, deliberately: an in-play match carries a partial score, and a partial score
+  printed beside a settled pick would say the round is still moving. Batch 72 reads the
+  in-play side and must not reuse this path unchanged.
+- **All three new `CouponLeg` fields are optional with a default** — `points_awarded`,
+  `home_goals`, `away_goals` — and there is a frontend test asserting the view still reads
+  correctly when the deployed API sends none of them, which is exactly the Vercel-ahead-of-
+  Railway window.
+
+**Next:** Batch 69 — the operational half of the admin console. (Batch 68 is deliberately
+out of the unattended run: it cannot start without an odds figure only the owner can
+evidence.)

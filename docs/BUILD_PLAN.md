@@ -1993,7 +1993,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: **people and access only.** Dashboard, sync and results are Batch 69.
 
-- [ ] **Batch 67 — What a round looks like once it has been played** — the owner's second and
+- [x] **Batch 67 — What a round looks like once it has been played** ✅ 2026-08-23 — the owner's second and
   seventh points (2026-08-23): between one round ending and the next opening, show "the
   completed state of this week's overall coupon and how you did individually", and a completed
   gameweek should "show the result from the coupon when scrolling back through them".

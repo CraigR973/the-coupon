@@ -201,7 +201,31 @@ that adds an Alembic revision** — 016 drops `NOT NULL` from `profiles.pin_hash
 so the `/ship-prod` carrying it wants a written forward recovery plan first.
 **API-side as well as web, so it is not live until that ship runs.**
 
-Batches 1-60 and 62-66 are closed (59 in part; see Batch 61). The Coupon is a
+Batch 67 made a played round show its result. `CombinedAccaView` carried a
+won/lost badge per leg and an "All legs won" line, which is the *outcome* and not
+the result — the member wants the scoreline, and between one round ending and the
+next opening this screen is where the week is read back. **The scoreline was not
+in the product at all:** `fixtures` carries the teams, the kick-off and the
+competition and no goals of any kind, and the odds provider settles in market and
+outcome terms, so a won leg knew it had won and not by what. Scores live on
+`matches`, keyed by `teams` rather than by the fixture's free-text names, so a leg
+reaches one only through the name-based join Batch 64 built for the FotMob
+cross-check — `PAIR_THRESHOLD` and `pair_score` have moved into `team_matching`
+where the rest of the name work lives, and both callers now share them. **A wrong
+join would print a false scoreline against a real member's pick**, so it fails to
+*no score shown* rather than to a guess: both ends of the fixture must clear the
+threshold independently, the date chooses between candidates rather than the name
+score, and two candidates the date cannot separate resolve to nothing. **The link
+is resolved per read rather than persisted** — the batch's one open design
+decision — because a stored link goes stale when an alias is corrected, and the
+alias layer is the part most likely to need correcting. Settled rounds only; live
+scores are Batch 72. Each leg also carries what it scored and the reader's own leg
+is marked, so how the week went and how I did are one glance. **API-side as well
+as web, so the scorelines are not live until a `/ship-prod` runs** — every new
+field is optional with a default, so the screen degrades rather than breaks in the
+gap.
+
+Batches 1-60, 62-67 are closed (59 in part; see Batch 61). The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -851,8 +875,8 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **seven unchecked batches**: 61, and the post-launch
-member-report set 67-72 specified on 2026-08-23 (Batches 65 and 66 of that set are
+`docs/BUILD_PLAN.md` carries **six unchecked batches**: 61, and the post-launch
+member-report set 68-72 specified on 2026-08-23 (Batches 65, 66 and 67 of that set are
 closed).
 Batch 61 — the FastAPI/starlette upgrade split out of Batch 59 — is deliberately
 parked; Batch 68 needs an odds figure only the owner can evidence and is worked
