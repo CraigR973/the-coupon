@@ -15,8 +15,10 @@ What these tests hold to:
   per-admin bucket the ad-hoc round endpoint spends, so neither can outspend it;
 * a neighbour's one-off date produces no round for the new league — a creation-time
   populate walks the *cadence* only;
-* "refresh rounds" may add fixtures to an unlocked round and may never move the instants
-  members have been told, and it does not touch a locked round at all.
+* "refresh rounds" may add fixtures to an unlocked round and may never move an instant
+  of its own, and it does not touch a locked round at all;
+* the settings edit itself *does* restamp both ends of the claim period, on unlocked
+  rounds only — Batch 65, and the reverse of the rule the refresh still obeys.
 
 Postgres-backed and **non-hermetic**: these drive the HTTP endpoints, which commit
 through their own sessions. Every league here is given a window of its own — a distinct
@@ -432,20 +434,24 @@ async def test_a_pooled_refresh_costs_nothing_and_so_charges_nothing(
 # ── Refresh rounds: what it may change, and what it may not ─────────────────────
 
 
-async def test_refresh_rounds_rebuilds_a_moved_window_without_moving_the_announced_instants(
+async def test_the_settings_edit_restamps_an_unlocked_round_and_the_refresh_leaves_it(
     client_and_counter: tuple[AsyncClient, CountingBetfair],
 ) -> None:
-    """The scenario "refresh rounds" exists for, and the rule it must not break.
+    """Who may move a claim period, and who may not — the two halves in one journey.
 
     An admin who moves the fixture window has unlocked rounds built against the old one
-    and, before this batch, waited for 06:00 to see the new card. A refresh rebuilds them
+    and, before Batch 47, waited for 06:00 to see the new card. A refresh rebuilds them
     from the pool at once.
 
-    What it may not do is restamp the claim period. Both ends are derived when a round is
-    created and never re-derived (Batch 27 set the rule; Batch 40 declined to add an admin
-    override), so the round below gains the fixtures of its new window while keeping the
-    opening and the lock its members were told — which the moved window would otherwise
-    have shifted by an hour.
+    **The edit itself restamps both ends** on every round that has not locked (Batch 65).
+    Until then neither instant was ever re-derived, and discovery writes a
+    ``slate_horizon_weeks`` horizon ahead, so an admin who announced an opening changed
+    nothing about any round their members could currently see — the setting appeared to
+    do nothing for weeks.
+
+    **The refresh must still not touch them.** Topping a round's card up from the pool is
+    a different act from changing the settings, and a deadline that moved as a side effect
+    of adding a fixture would be a deadline nobody decided to move.
     """
     client, counter = client_and_counter
     admin = await _player()
@@ -455,8 +461,8 @@ async def test_refresh_rounds_rebuilds_a_moved_window_without_moving_the_announc
 
     slug = await _create_league(client, admin, before_window, pick_open_offset_minutes=2880)
     before = (await _rounds(slug))[0]
-    opens_at, locks_at = before.picks_open_at_utc, before.locks_at_utc
-    assert opens_at is not None, "the league announced an opening, so it must be stamped"
+    assert before.picks_open_at_utc is not None, "the league announced an opening"
+    assert before.locks_at_utc == before_window.locks_at(before.starts_on)
 
     # The admin moves the window an hour earlier; that hour's fixtures are already pooled.
     new_card = await _pool_cadence(after_window, competition_id="test-div-e")
@@ -470,6 +476,13 @@ async def test_refresh_rounds_rebuilds_a_moved_window_without_moving_the_announc
     )
     assert moved.status_code == 200, moved.text
 
+    restamped = (await _rounds(slug))[0]
+    assert restamped.locks_at_utc == after_window.locks_at(
+        restamped.starts_on
+    ), "the round the members can see follows the settings that describe it"
+    assert restamped.picks_open_at_utc == after_window.utc_before_open(restamped.starts_on, 2880)
+    opens_at, locks_at = restamped.picks_open_at_utc, restamped.locks_at_utc
+
     response = await client.post(f"/api/v1/leagues/{slug}/gameweeks/refresh", headers=_auth(admin))
     assert response.status_code == 200, response.text
     rebuilt = [
@@ -478,15 +491,45 @@ async def test_refresh_rounds_rebuilds_a_moved_window_without_moving_the_announc
     assert rebuilt and rebuilt[0]["created"] is False, "the existing round, topped up in place"
 
     after = (await _rounds(slug))[0]
-    assert after.picks_open_at_utc == opens_at, "a claim period members were told cannot move"
+    assert after.picks_open_at_utc == opens_at, "a rebuild moves no instant of its own"
     assert after.locks_at_utc == locks_at
-    assert locks_at != after_window.locks_at(
-        after.starts_on
-    ), "the moved window would have shifted the lock, which is what must not happen"
     # Both cards stay linked: a member may already hold a pick on the old one, and a
     # pooled slate carries no provider status, so nothing here can unlink anything.
     assert await _linked(after.id) == {old_card[0].id, new_card[0].id}
     assert counter.slate_calls == []
+
+
+async def test_the_settings_edit_leaves_a_locked_rounds_deadline_alone(
+    client_and_counter: tuple[AsyncClient, CountingBetfair],
+) -> None:
+    """The half of the old rule that was load-bearing, kept.
+
+    Members were told a deadline and claimed against it. An admin editing the window
+    afterwards may reshape what has not happened yet and nothing else.
+    """
+    client, _ = client_and_counter
+    admin = await _player()
+    window = _window(THURSDAY, 20 * 60 + 15)
+    await _pool_cadence(window, competition_id="test-div-h")
+
+    slug = await _create_league(client, admin, window, pick_open_offset_minutes=2880)
+    existing = (await _rounds(slug))[0]
+    async with AsyncSessionLocal() as session:
+        stored = await session.get(Gameweek, existing.id)
+        assert stored is not None
+        stored.status = GameweekStatus.locked
+        await session.commit()
+    frozen = (existing.picks_open_at_utc, existing.locks_at_utc)
+
+    edited = await client.patch(
+        f"/api/v1/leagues/{slug}",
+        json={"lock_offset_minutes": 90, "pick_open_offset_minutes": 4320},
+        headers=_auth(admin),
+    )
+    assert edited.status_code == 200, edited.text
+
+    after = (await _rounds(slug))[0]
+    assert (after.picks_open_at_utc, after.locks_at_utc) == frozen
 
 
 async def test_refresh_rounds_leaves_a_locked_round_alone(

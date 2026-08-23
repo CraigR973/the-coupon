@@ -187,6 +187,55 @@ def initial_status(picks_open_at_utc: datetime | None, now: datetime) -> Gamewee
     return GameweekStatus.open
 
 
+async def rederive_claim_periods(
+    db: AsyncSession, league: League, now: datetime | None = None
+) -> list[Gameweek]:
+    """Restamp both ends of the claim period on every round this league has not locked.
+
+    Batch 65. Until now neither instant was ever re-derived: a window change applied to
+    rounds discovered from then on, and discovery runs a ``slate_horizon_weeks`` horizon
+    ahead, so an admin who announced an opening today changed nothing about any round
+    their members could currently see. The setting appeared to do nothing for weeks —
+    the owner's report was that an announced opening should apply "to each round not just
+    one".
+
+    **Bounded to rounds that have not locked**, which is the rule the old behaviour was
+    protecting and is kept: a deadline members have already been told, and claimed
+    against, cannot move. Locked and settled rounds are left exactly as they are, and so
+    is any round whose stored lock has already passed while the hourly lock job catches
+    up — time is the authority here as it is in :func:`pick_refusal`.
+
+    ``status`` is deliberately **not** re-derived alongside the instants. Flipping a
+    round back from ``open`` to ``scheduled`` would tell members a round they may already
+    hold a pick on has not opened yet, and it buys nothing: :func:`pick_refusal` and
+    :func:`accepting_picks` both read the instant rather than the label, and
+    :func:`open_due_gameweeks` re-labels on its next run.
+
+    Returns the rounds that actually moved. Flushes but does not commit — the caller
+    owns the transaction.
+    """
+    moment = _utc_now() if now is None else now
+    result = await db.execute(
+        select(Gameweek).where(
+            Gameweek.league_id == league.id,
+            Gameweek.status.in_(PICKABLE_STATES),
+            Gameweek.locks_at_utc > moment,
+        )
+    )
+    window = window_for(league)
+    moved: list[Gameweek] = []
+    for gameweek in result.scalars().all():
+        locks_at = window.locks_at(gameweek.starts_on)
+        opens_at = picks_open_at(league, gameweek.starts_on)
+        if locks_at == gameweek.locks_at_utc and opens_at == gameweek.picks_open_at_utc:
+            continue
+        gameweek.locks_at_utc = locks_at
+        gameweek.picks_open_at_utc = opens_at
+        moved.append(gameweek)
+    await db.flush()
+    return moved
+
+
 def selected_competition_slugs(league: League) -> frozenset[str] | None:
     """The competition slugs this league plays, or ``None`` for *all UK leagues*.
 
@@ -223,6 +272,72 @@ def accepting_picks(now: datetime) -> ColumnElement[bool]:
     )
 
 
+#: Minutes in a day, for the window arithmetic below.
+_MINUTES_PER_DAY = 24 * 60
+
+#: How long past the close of its own window a locked round keeps outranking a
+#: claimable one — the bound that stops a round which never settles pinning its league
+#: to a week that is over.
+#:
+#: Taken from the settlement cadence rather than from taste: ``src/scheduler.py`` sweeps
+#: for settlement at 18:00, 20:00 and 22:00 **every** day, so two days is six consecutive
+#: sweeps. A round the provider has not resolved by then is not being played, it is stuck
+#: — Batch 64's phantom Scottish Premiership round is exactly that shape — and the member
+#: is better served by the round they can still claim on.
+IN_PLAY_GRACE_MINUTES = 2 * _MINUTES_PER_DAY
+
+
+def _minutes_from_lock_to_window_close() -> ColumnElement[int]:
+    """SQL for how long after its lock a round's own play window closes.
+
+    A **correlated read** of the owning league rather than a join, so
+    :func:`current_round_order` stays a bag of ORDER BY clauses a caller can drop into
+    any query over ``gameweeks`` — including the window function in ``routers/me.py``,
+    where a join would have to be threaded through a subquery — without also having to
+    remember a join whose absence would be a silent cross product rather than an error.
+
+    Integer arithmetic rather than timezone conversion. ``locks_at_utc`` is already
+    ``lock_offset_minutes`` before the window opens, so the close is that offset, plus
+    the whole days the window spans, plus the difference between its end and start
+    minutes. A DST change inside the window makes this an hour out at most, which is
+    nothing against :data:`IN_PLAY_GRACE_MINUTES`.
+
+    ``span_days`` is taken modulo 7 **twice**: PostgreSQL's ``%`` truncates towards zero,
+    so a window running Friday to Monday (``0 - 4``) would otherwise span minus four days.
+    """
+    span_days = func.mod(func.mod(League.slate_end_weekday - League.slate_start_weekday, 7) + 7, 7)
+    return (
+        select(
+            League.lock_offset_minutes
+            + span_days * _MINUTES_PER_DAY
+            + (League.slate_end_minute - League.slate_start_minute)
+        )
+        .where(League.id == Gameweek.league_id)
+        .correlate(Gameweek)
+        .scalar_subquery()
+    )
+
+
+def in_play(now: datetime) -> ColumnElement[bool]:
+    """SQL for the round being played right now: locked, not settled, not yet stale.
+
+    Time is the authority, not ``status`` — the lock job runs hourly, so between 14:30
+    and the top of the hour a round is past its deadline while still labelled ``open``,
+    and asking ``status == locked`` would let the league jump a week for half an hour.
+    The same reasoning :func:`pick_refusal` already applies in the other direction.
+
+    ``now`` is naive-UTC, as stored.
+    """
+    stale_at = Gameweek.locks_at_utc + func.make_interval(
+        0, 0, 0, 0, 0, _minutes_from_lock_to_window_close() + IN_PLAY_GRACE_MINUTES
+    )
+    return and_(
+        Gameweek.status != GameweekStatus.settled,
+        Gameweek.locks_at_utc <= now,
+        stale_at > now,
+    )
+
+
 def current_round_order(
     now: datetime | None = None, today: date | None = None
 ) -> tuple[ColumnElement[Any], ...]:
@@ -234,14 +349,25 @@ def current_round_order(
     still show Saturday. Home renders those cards side by side, so the disagreement is
     visible in one glance.
 
-    Three tiers, in the order a member would name them:
+    Four tiers, in the order a member would name them:
 
-    1. rounds accepting picks right now, **the one locking soonest first** — once a
+    1. the round being **played right now** — locked, not yet settled, and inside
+       :data:`IN_PLAY_GRACE_MINUTES` of its own window closing; the most recently locked
+       first, which is the one they last claimed on;
+    2. rounds accepting picks right now, **the one locking soonest first** — once a
        Boxing Day round and the 20 December Saturday are both open, the one to act on
        is the one that shuts first;
-    2. failing that, the most recent ``starts_on`` at or before today — the round just
+    3. failing that, the most recent ``starts_on`` at or before today — the round just
        played, which is what a settled league should be showing;
-    3. failing that, the earliest ahead — a league whose season has not started yet.
+    4. failing that, the earliest ahead — a league whose season has not started yet.
+
+    Tier 1 is Batch 65 and it is what stops the week ending at the lock. Discovery runs
+    daily over ``slate_horizon_weeks``, and for a league announcing no opening it writes
+    next week's round with ``picks_open_at_utc`` NULL — which satisfies
+    :func:`accepting_picks` the instant the row exists. From Sunday onwards both rounds
+    were therefore in the top tier, and only the soonest-lock tiebreak kept this week in
+    front; at 14:30 on Saturday that tiebreak stopped applying and the league jumped a
+    week mid-afternoon, with its own games still being played.
 
     Returned as ORDER BY clauses rather than applied here because the rule has two call
     sites — :func:`latest_gameweek` per league, and a window function over many leagues
@@ -252,10 +378,13 @@ def current_round_order(
     Both instants default to the real clock; they are arguments so a test can put a
     league's Boxing Day round on either side of "now" without waiting for December.
     """
-    accepting = accepting_picks(_utc_now() if now is None else now)
+    moment = _utc_now() if now is None else now
+    playing = in_play(moment)
+    accepting = accepting_picks(moment)
     already_started = Gameweek.starts_on <= (uk_today() if today is None else today)
     return (
-        case((accepting, 0), (already_started, 1), else_=2).asc(),
+        case((playing, 0), (accepting, 1), (already_started, 2), else_=3).asc(),
+        case((playing, Gameweek.locks_at_utc), else_=None).desc(),
         case((accepting, Gameweek.locks_at_utc), else_=None).asc(),
         case((already_started, Gameweek.starts_on), else_=None).desc(),
         Gameweek.starts_on.asc(),
@@ -355,8 +484,10 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
     but not a selection still cost one fetch and simply link different subsets of it.
 
     Both ends of the claim period — ``locks_at_utc`` and ``picks_open_at_utc`` — are
-    fixed when the round is created and never re-derived on a refresh, so an admin
-    editing the window cannot move a deadline members have already been told.
+    written when the round is created and never re-derived **here**, so topping up a
+    round's card cannot move a deadline as a side effect. Restamping them is a deliberate
+    act of the settings edit itself and is bounded to unlocked rounds; see
+    :func:`rederive_claim_periods`.
 
     Links are added, and removed only on the provider's say-so. A fixture that simply
     *drops off* a later refresh stays on the round: a partial or failed fetch looks
@@ -820,7 +951,8 @@ async def populate_cadence_rounds(
     draws for the daily job. Rounds that *are* rebuilt keep both ends of their claim
     period: :func:`sync_slate` derives ``picks_open_at_utc`` and ``locks_at_utc`` only
     when it creates a round, so refreshing one can add fixtures but can never move a
-    deadline members have already been told.
+    deadline as a side effect. The settings edit that restamps them does so explicitly
+    and only on unlocked rounds (:func:`rederive_claim_periods`).
 
     Flushes but does not commit — the caller owns the transaction.
     """

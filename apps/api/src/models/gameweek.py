@@ -48,8 +48,15 @@ class Gameweek(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     ``picks_open_at_utc`` is the other end of the same claim period (Batch 27), derived
     from ``pick_open_offset_minutes``. ``NULL`` is the rule every round had before it
     existed — claimable as soon as discovery writes the row — so an unconfigured league
-    is unchanged. Neither instant is re-derived once a round exists: a window change
-    applies to rounds discovered from then on, exactly as it always has.
+    is unchanged.
+
+    Both instants are re-derived when the league's window settings change, but **only
+    while the round has not locked** (Batch 65, :func:`~src.services.gameweek.
+    rederive_claim_periods`). Before that a window change applied solely to rounds
+    discovered from then on, which over a ``slate_horizon_weeks`` horizon meant none the
+    members could yet see, so an announced opening appeared to do nothing for weeks. A
+    locked round keeps the deadline it was claimed against, which is the half of the old
+    rule that was load-bearing.
     """
 
     __tablename__ = "gameweeks"

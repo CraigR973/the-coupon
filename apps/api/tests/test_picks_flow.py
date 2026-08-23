@@ -18,6 +18,7 @@ import uuid
 from collections.abc import AsyncIterator, Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -844,7 +845,13 @@ async def test_gameweek_list_counts_fixtures_and_this_leagues_picks(
 async def test_slate_and_coupon_read_a_named_gameweek(
     client_and_fake: tuple[AsyncClient, FakeBetfair],
 ) -> None:
-    """Both reads default to the round in play and both accept an explicit gameweek."""
+    """Both reads default to the round in play and both accept an explicit gameweek.
+
+    "In play" is Batch 65's meaning of it: the round whose picks are locked and whose
+    results are not in yet. Members reported the leagues jumping "straight to the next
+    week as soon as the picks are locked", and this is that complaint at the two surfaces
+    it was seen on. The week turns when the round settles, not when it shuts.
+    """
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice,), league = await _seed_league(session, ["alice"])
@@ -874,12 +881,42 @@ async def test_slate_and_coupon_read_a_named_gameweek(
             session, fake, await session.get(League, league.id), weeks_later=1
         )
 
-    # Default: the round now in play, which has no picks.
-    default_slate = (
-        await client.get(f"/api/v1/leagues/{slug}/gameweek/current", headers=_auth(alice))
+    async def default_slate() -> dict[str, Any]:
+        return (
+            await client.get(f"/api/v1/leagues/{slug}/gameweek/current", headers=_auth(alice))
+        ).json()
+
+    async def default_coupon() -> dict[str, Any]:
+        return (await client.get(f"/api/v1/leagues/{slug}/coupon", headers=_auth(alice))).json()
+
+    # Default while the older round is being played: that round, with Alice's leg on it —
+    # even though next week's card already exists and is already taking picks.
+    playing = await default_slate()
+    assert playing["gameweek_id"] == str(older.id)
+    assert playing["members_missing_picks"] == 0
+    assert (await default_coupon())["leg_count"] == 1
+
+    # Named: next week's round, browsed forward to from the one in play.
+    ahead = (
+        await client.get(
+            f"/api/v1/leagues/{slug}/gameweek/current?gameweek_id={newer.id}",
+            headers=_auth(alice),
+        )
     ).json()
-    assert default_slate["gameweek_id"] == str(newer.id)
-    assert default_slate["members_missing_picks"] == 1
+    assert ahead["gameweek_id"] == str(newer.id)
+    assert ahead["members_missing_picks"] == 1
+
+    # The results land. Only now does the week turn.
+    async with AsyncSessionLocal() as session:
+        stored = (
+            await session.execute(select(Gameweek).where(Gameweek.id == older.id))
+        ).scalar_one()
+        stored.status = GameweekStatus.settled
+        stored.settled_at = _now()
+        await session.commit()
+
+    assert (await default_slate())["gameweek_id"] == str(newer.id)
+    assert (await default_slate())["members_missing_picks"] == 1
 
     # Named: the older one, where Alice's pick is still visible.
     past_slate = (
@@ -899,11 +936,9 @@ async def test_slate_and_coupon_read_a_named_gameweek(
     assert past_coupon["gameweek_id"] == str(older.id)
     assert past_coupon["leg_count"] == 1
 
-    default_coupon = (
-        await client.get(f"/api/v1/leagues/{slug}/coupon", headers=_auth(alice))
-    ).json()
-    assert default_coupon["gameweek_id"] == str(newer.id)
-    assert default_coupon["leg_count"] == 0
+    settled_default = await default_coupon()
+    assert settled_default["gameweek_id"] == str(newer.id)
+    assert settled_default["leg_count"] == 0
 
 
 async def test_results_lists_only_settled_gameweeks_with_winner_and_outcome(

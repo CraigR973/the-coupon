@@ -5,7 +5,11 @@ Covers the pieces the pure/unit tests can't — the DB-driven halves of the four
 * ``refresh_slate``            — a provider slate becomes gameweek + fixtures (and an empty
   slate creates nothing), asking only for the competitions the league plays (Batch 35);
 * ``latest_gameweek``          — which round a league is *currently on* when it holds a
-  one-off outside its cadence (Batch 35);
+  one-off outside its cadence (Batch 35), when its own round is being played (Batch 65),
+  and when that round never settles; asserted against ``routers/me.py``'s window function
+  on the same fixture data, because the rule is spelled twice and they must agree;
+* ``rederive_claim_periods``   — a window edit restamps unlocked rounds and only those
+  (Batch 65);
 * ``lock_due_gameweeks``       — an open gameweek past 14:30 flips to ``locked``;
 * ``open_due_gameweeks``       — a scheduled gameweek past its announced pick-open time
   flips to ``open`` (Batch 27), and one that never opened still locks;
@@ -46,6 +50,7 @@ from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile, UserRole
+from src.routers.me import _latest_rounds
 from src.services.betfair import (
     SAMPLE_ARSENAL_SEL,
     SAMPLE_EPL_EVENT_ID,
@@ -59,6 +64,7 @@ from src.services.betfair import (
     FakeBetfair,
 )
 from src.services.gameweek import (
+    IN_PLAY_GRACE_MINUTES,
     current_open_gameweeks,
     discover_fixtures,
     fixtures_for,
@@ -66,6 +72,8 @@ from src.services.gameweek import (
     lock_due_gameweeks,
     members_missing_picks,
     open_due_gameweeks,
+    picks_open_at,
+    rederive_claim_periods,
     refresh_slate,
     settleable_gameweeks,
     sync_slate,
@@ -896,6 +904,400 @@ async def test_a_season_not_yet_started_shows_the_earliest_round_ahead(
     current = await latest_gameweek(session, league.id)
 
     assert current is not None and current.starts_on == today + timedelta(days=30)
+
+
+# ── Batch 65: the week ends at the results, not at the lock ────────────────────
+#
+# Two rounds are all it takes. Discovery runs a `slate_horizon_weeks` horizon ahead, and
+# for a league announcing no opening it writes next week's round with
+# `picks_open_at_utc` NULL — which `accepting_picks` admits the instant the row exists.
+# From Sunday onwards both rounds sat in the top tier and only the soonest-lock tiebreak
+# kept this week in front; at 14:30 on Saturday that tiebreak stopped applying and the
+# league jumped a week, mid-afternoon, with its own games still being played.
+#
+# Instants are placed relative to the real clock rather than injected, because
+# `latest_gameweek` takes no clock argument and these have to exercise the call the
+# routers actually make.
+
+FRIDAY, MONDAY = 4, 0
+
+#: How long after its lock the default Saturday-15:00 window closes: the 30-minute lock
+#: offset, no days spanned, and no difference between the window's end and start minute.
+DEFAULT_MINUTES_LOCK_TO_CLOSE = 30
+
+
+def _naive_now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+async def _round_in_state(
+    session: AsyncSession,
+    league: League,
+    starts_on: date,
+    *,
+    status: GameweekStatus,
+    locks_in: timedelta,
+    opens_in: timedelta | None,
+) -> Gameweek:
+    """A round whose claim period is placed relative to now, not to its own window.
+
+    The window's derivation is exercised elsewhere; what these tests need is a round
+    parked at a chosen point of its life, which means writing the instants directly.
+    """
+    now = _naive_now()
+    gameweek = Gameweek(
+        league_id=league.id,
+        starts_on=starts_on,
+        status=status,
+        locks_at_utc=now + locks_in,
+        picks_open_at_utc=None if opens_in is None else now + opens_in,
+    )
+    session.add(gameweek)
+    await session.flush()
+    return gameweek
+
+
+async def test_a_league_walks_a_full_round_cycle_without_jumping_the_week(
+    session: AsyncSession,
+) -> None:
+    """One league, one round, every state it passes through — and which one is current.
+
+    The member-reported defect is the fourth step. Everything before it already held, and
+    is asserted here so the new top tier cannot buy it at the cost of the old rule.
+    """
+    _, league = await _seed_league(session, ["full-cycle"])
+    today = uk_today()
+    playing = await _round_in_state(
+        session,
+        league,
+        today,
+        status=GameweekStatus.scheduled,
+        locks_in=timedelta(hours=3),
+        opens_in=timedelta(hours=1),
+    )
+    upcoming = await _round_in_state(
+        session,
+        league,
+        today + timedelta(days=7),
+        status=GameweekStatus.scheduled,
+        locks_in=timedelta(days=7, hours=3),
+        opens_in=timedelta(days=7, hours=1),
+    )
+
+    async def current() -> Gameweek:
+        found = await latest_gameweek(session, league.id)
+        assert found is not None
+        return found
+
+    assert (await current()).id == playing.id, "scheduled: the round about to be played"
+
+    # It opens. Nothing else has.
+    playing.status = GameweekStatus.open
+    playing.picks_open_at_utc = _naive_now() - timedelta(hours=1)
+    await session.flush()
+    assert (await current()).id == playing.id, "open: the one round taking picks"
+
+    # Discovery writes next week's round with no announced opening — claimable at once.
+    upcoming.status = GameweekStatus.open
+    upcoming.picks_open_at_utc = None
+    await session.flush()
+    assert (await current()).id == playing.id, "two claimable rounds: the one shutting first"
+
+    # 14:30 Saturday. This is where the league used to jump a week.
+    playing.status = GameweekStatus.locked
+    playing.locks_at_utc = _naive_now() - timedelta(hours=1)
+    await session.flush()
+    assert (await current()).id == playing.id, "locked and being played: still this week"
+
+    # The results land.
+    playing.status = GameweekStatus.settled
+    playing.settled_at = _naive_now()
+    await session.flush()
+    assert (await current()).id == upcoming.id, "settled: now, and only now, the week turns"
+
+
+async def test_a_round_that_never_settles_stops_pinning_the_league(
+    session: AsyncSession,
+) -> None:
+    """The load-bearing bound: settlement can simply never arrive.
+
+    Settlement sweeps at 18:00, 20:00 and 22:00 every day, so `IN_PLAY_GRACE_MINUTES` is
+    six consecutive sweeps past the close of the round's own window. A round the provider
+    has not resolved by then — Batch 64's phantom Scottish Premiership round is exactly
+    that shape — is stuck, not in play, and must hand the league back to the round its
+    members can still claim on.
+    """
+    _, league = await _seed_league(session, ["never-settles"])
+    today = uk_today()
+    stuck = await _round_in_state(
+        session,
+        league,
+        today,
+        status=GameweekStatus.locked,
+        locks_in=-timedelta(minutes=DEFAULT_MINUTES_LOCK_TO_CLOSE + IN_PLAY_GRACE_MINUTES - 5),
+        opens_in=None,
+    )
+    claimable = await _round_in_state(
+        session,
+        league,
+        today + timedelta(days=7),
+        status=GameweekStatus.open,
+        locks_in=timedelta(days=7),
+        opens_in=None,
+    )
+
+    current = await latest_gameweek(session, league.id)
+    assert current is not None and current.id == stuck.id, "inside the bound it is still in play"
+
+    stuck.locks_at_utc = _naive_now() - timedelta(
+        minutes=DEFAULT_MINUTES_LOCK_TO_CLOSE + IN_PLAY_GRACE_MINUTES + 5
+    )
+    await session.flush()
+
+    current = await latest_gameweek(session, league.id)
+    assert current is not None and current.id == claimable.id, "past it, the claimable round wins"
+
+
+async def test_the_in_play_bound_is_measured_from_the_leagues_own_window(
+    session: AsyncSession,
+) -> None:
+    """A Friday-to-Monday league is still playing on Monday night.
+
+    The bound runs from the close of the window, not from the lock, so a league whose
+    round spans three days keeps its in-play tier three days longer than the default
+    Saturday one. Measuring from the lock would drop a long-weekend league out of its own
+    round while Monday's games were being played — the single-window assumption
+    `AGENTS.md` calls a bug.
+    """
+    tag = uuid.uuid4().hex[:8]
+    owner = Profile(display_name=f"span-{tag}", pin_hash=hash_pin("1234"), role=UserRole.player)
+    session.add(owner)
+    await session.flush()
+    long_weekend = League(
+        slug=f"span-{tag}",
+        name=f"Span {tag}",
+        created_by=owner.id,
+        slate_start_weekday=FRIDAY,
+        slate_start_minute=19 * 60,
+        slate_end_weekday=MONDAY,
+        slate_end_minute=22 * 60,
+    )
+    session.add(long_weekend)
+    await session.flush()
+
+    span_minutes = 3 * 24 * 60 + (22 * 60 - 19 * 60)
+    today = uk_today()
+    # Well past the default window's bound, and well inside this league's.
+    stuck = await _round_in_state(
+        session,
+        long_weekend,
+        today,
+        status=GameweekStatus.locked,
+        locks_in=-timedelta(
+            minutes=DEFAULT_MINUTES_LOCK_TO_CLOSE + span_minutes + IN_PLAY_GRACE_MINUTES - 60
+        ),
+        opens_in=None,
+    )
+    await _round_in_state(
+        session,
+        long_weekend,
+        today + timedelta(days=7),
+        status=GameweekStatus.open,
+        locks_in=timedelta(days=7),
+        opens_in=None,
+    )
+
+    current = await latest_gameweek(session, long_weekend.id)
+    assert current is not None and current.id == stuck.id
+
+
+async def test_home_and_the_coupon_pick_the_same_round_in_every_state(
+    session: AsyncSession,
+) -> None:
+    """The rule is spelled twice and the two spellings are asserted against each other.
+
+    `latest_gameweek` orders one league's rounds; `routers/me.py` runs a window function
+    over many leagues at once. Home renders every league's card side by side, so a
+    disagreement is visible in one glance — and the new tier is exactly the kind of
+    change that reaches one spelling and not the other.
+    """
+    players, playing_league = await _seed_league(session, ["home-vs-coupon"])
+    member = next(iter(players.values()))
+    tag = uuid.uuid4().hex[:8]
+    stuck_league = League(slug=f"stuck-{tag}", name=f"Stuck {tag}", created_by=member.id)
+    settled_league = League(slug=f"done-{tag}", name=f"Done {tag}", created_by=member.id)
+    session.add_all([stuck_league, settled_league])
+    await session.flush()
+    for league in (stuck_league, settled_league):
+        session.add(LeagueMembership(league_id=league.id, player_id=member.id))
+    await session.flush()
+
+    today = uk_today()
+    # One league mid-round, one whose round is stuck past the bound, one fully settled —
+    # every tier of the order, on one fixture set.
+    await _round_in_state(
+        session,
+        playing_league,
+        today,
+        status=GameweekStatus.locked,
+        locks_in=-timedelta(hours=1),
+        opens_in=None,
+    )
+    await _round_in_state(
+        session,
+        playing_league,
+        today + timedelta(days=7),
+        status=GameweekStatus.open,
+        locks_in=timedelta(days=7),
+        opens_in=None,
+    )
+    await _round_in_state(
+        session,
+        stuck_league,
+        today - timedelta(days=14),
+        status=GameweekStatus.locked,
+        locks_in=-timedelta(minutes=DEFAULT_MINUTES_LOCK_TO_CLOSE + IN_PLAY_GRACE_MINUTES + 60),
+        opens_in=None,
+    )
+    await _round_in_state(
+        session,
+        stuck_league,
+        today + timedelta(days=3),
+        status=GameweekStatus.open,
+        locks_in=timedelta(days=3),
+        opens_in=None,
+    )
+    for offset in (21, 14):
+        gameweek = await _round_in_state(
+            session,
+            settled_league,
+            today - timedelta(days=offset),
+            status=GameweekStatus.settled,
+            locks_in=-timedelta(days=offset),
+            opens_in=None,
+        )
+        gameweek.settled_at = _naive_now()
+    await session.flush()
+
+    league_ids = [playing_league.id, stuck_league.id, settled_league.id]
+    home = await _latest_rounds(session, league_ids, member.id)
+
+    for league_id in league_ids:
+        coupon = await latest_gameweek(session, league_id)
+        assert coupon is not None
+        assert home[league_id].gameweek_id == str(
+            coupon.id
+        ), "home's card and the coupon must name the same round"
+
+
+# ── Batch 65: a window edit reaches the rounds the league already holds ─────────
+
+
+async def test_a_settings_change_restamps_unlocked_rounds_and_leaves_locked_ones(
+    session: AsyncSession,
+) -> None:
+    """The owner's second sentence: an announced opening applies to each round, not one.
+
+    Discovery writes a `slate_horizon_weeks` horizon ahead, so before this batch every
+    round the member could see was already stamped against the old settings and the new
+    ones appeared to do nothing for weeks. The half of the old rule that was load-bearing
+    is kept: a round that has locked keeps the deadline it was claimed against.
+    """
+    _, league = await _seed_league(session, ["restamp"])
+    today = uk_today()
+    unlocked = await _round_in_state(
+        session,
+        league,
+        today + timedelta(days=7),
+        status=GameweekStatus.open,
+        locks_in=timedelta(days=7),
+        opens_in=None,
+    )
+    also_unlocked = await _round_in_state(
+        session,
+        league,
+        today + timedelta(days=14),
+        status=GameweekStatus.scheduled,
+        locks_in=timedelta(days=14),
+        opens_in=timedelta(days=10),
+    )
+    locked = await _round_in_state(
+        session,
+        league,
+        today,
+        status=GameweekStatus.locked,
+        locks_in=-timedelta(hours=1),
+        opens_in=None,
+    )
+    settled = await _round_in_state(
+        session,
+        league,
+        today - timedelta(days=7),
+        status=GameweekStatus.settled,
+        locks_in=-timedelta(days=7),
+        opens_in=None,
+    )
+    frozen = {gw.id: (gw.locks_at_utc, gw.picks_open_at_utc) for gw in (locked, settled)}
+
+    league.slate_start_minute = 19 * 60 + 45
+    league.lock_offset_minutes = 45
+    league.pick_open_offset_minutes = 3 * 24 * 60
+    await session.flush()
+
+    moved = await rederive_claim_periods(session, league)
+
+    assert {gw.id for gw in moved} == {unlocked.id, also_unlocked.id}
+    window = window_for(league)
+    for gameweek in (unlocked, also_unlocked):
+        assert gameweek.locks_at_utc == window.locks_at(gameweek.starts_on)
+        assert gameweek.picks_open_at_utc == picks_open_at(league, gameweek.starts_on)
+    for gameweek in (locked, settled):
+        assert (gameweek.locks_at_utc, gameweek.picks_open_at_utc) == frozen[gameweek.id]
+
+
+async def test_dropping_an_announced_opening_clears_it_from_unlocked_rounds(
+    session: AsyncSession,
+) -> None:
+    """`NULL` is a value here, not "unchanged" — the league stops announcing an opening.
+
+    An unlocked round has to follow it back to claimable-on-sight, or a league that turns
+    the setting off keeps a gate its settings no longer describe.
+    """
+    _, league = await _seed_league(session, ["stop-announcing"])
+    league.pick_open_offset_minutes = 5 * 24 * 60
+    await session.flush()
+    ahead = await _round_in_state(
+        session,
+        league,
+        uk_today() + timedelta(days=7),
+        status=GameweekStatus.scheduled,
+        locks_in=timedelta(days=7),
+        opens_in=timedelta(days=2),
+    )
+
+    league.pick_open_offset_minutes = None
+    await session.flush()
+    moved = await rederive_claim_periods(session, league)
+
+    assert [gw.id for gw in moved] == [ahead.id]
+    assert ahead.picks_open_at_utc is None
+
+
+async def test_restamping_an_unchanged_window_moves_nothing(session: AsyncSession) -> None:
+    """Idempotent, so an edit to an unrelated setting cannot churn a deadline."""
+    _, league = await _seed_league(session, ["no-op"])
+    starts_on = uk_today() + timedelta(days=7)
+    round_ = Gameweek(
+        league_id=league.id,
+        starts_on=starts_on,
+        status=GameweekStatus.open,
+        locks_at_utc=window_for(league).locks_at(starts_on),
+        picks_open_at_utc=picks_open_at(league, starts_on),
+    )
+    session.add(round_)
+    await session.flush()
+
+    assert await rederive_claim_periods(session, league) == []
 
 
 # ── lock → settle → leaderboard (the Batch 4 e2e slice) ─────────────────────────

@@ -35,7 +35,13 @@ from src.models.pick import Pick, PickStatus
 from src.models.profile import Profile, UserRole
 from src.rate_limit import consume_shared_limit, limiter, per_user_key
 from src.schemas import UtcDatetime
-from src.services.gameweek import PopulatedRounds, populate_cadence_rounds, refresh_slate, uk_today
+from src.services.gameweek import (
+    PopulatedRounds,
+    populate_cadence_rounds,
+    rederive_claim_periods,
+    refresh_slate,
+    uk_today,
+)
 from src.services.notification_triggers import notify_member_joined
 from src.services.odds_provider import OddsProvider, OddsProviderError
 
@@ -46,6 +52,22 @@ router = APIRouter(prefix="/api/v1/leagues", tags=["leagues"])
 
 def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+#: The league columns a round's claim period is derived from. Any edit that touches one
+#: of these restamps the league's unlocked rounds (Batch 65). The two end-of-window
+#: fields are in the list even though neither instant reads them, because the same
+#: settings decide how long a locked round counts as *in play*
+#: (``services.gameweek.in_play``), and splitting the trigger by field is how one of
+#: them would later be forgotten.
+WINDOW_SETTING_FIELDS = (
+    "slate_start_weekday",
+    "slate_start_minute",
+    "slate_end_weekday",
+    "slate_end_minute",
+    "lock_offset_minutes",
+    "pick_open_offset_minutes",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -984,10 +1006,10 @@ async def update_league(
         changes["pick_scope"] = {"from": league.pick_scope.value, "to": body.pick_scope.value}
         league.pick_scope = body.pick_scope
 
-    # Weekly window — each of the five fields independently editable. Existing rounds
-    # keep the ``locks_at_utc`` and ``picks_open_at_utc`` they were synced with; only
-    # rounds discovered from now on use the new window, exactly as a window change has
-    # always applied. That is what stops an edit moving a deadline members were told.
+    # Weekly window — each of the five fields independently editable. Rounds that have
+    # not locked are restamped with the new window below (Batch 65); locked and settled
+    # ones keep the instants they were synced with, which is what stops an edit moving a
+    # deadline members were already told and claimed against.
     window_fields = {
         "slate_start_weekday": body.slate_start_weekday,
         "slate_start_minute": body.slate_start_minute,
@@ -1015,6 +1037,21 @@ async def update_league(
     else:
         # A lock moved on its own must still leave a stored opening valid.
         _check_claim_period(league.pick_open_offset_minutes, league.lock_offset_minutes)
+
+    # Batch 65: the window edit reaches the rounds this league already holds. Every one
+    # that has not locked is restamped from the new settings, so an announced opening
+    # applies to each round rather than only to the ones discovery has yet to write —
+    # which, over a ``slate_horizon_weeks`` horizon, was none the member could see.
+    # Run once for the whole block above, because ``locks_at_utc`` and
+    # ``picks_open_at_utc`` each derive from more than one of those fields.
+    if any(field in changes for field in WINDOW_SETTING_FIELDS):
+        restamped = await rederive_claim_periods(db, league)
+        if restamped:
+            log.info(
+                "league.claim_periods_restamped",
+                league_id=str(league.id),
+                rounds=len(restamped),
+            )
 
     # Offered markets — null means unchanged; a list replaces the set (deduped, non-empty).
     if body.offered_markets is not None:
