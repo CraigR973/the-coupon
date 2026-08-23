@@ -338,6 +338,22 @@ def in_play(now: datetime) -> ColumnElement[bool]:
     )
 
 
+async def is_in_play(db: AsyncSession, gameweek: Gameweek, now: datetime | None = None) -> bool:
+    """Whether *this* round is the one being played, by :func:`in_play`'s definition.
+
+    The single-row form of the predicate, and it is a query rather than a Python check
+    because the grace is measured from the close of the **league's** window, which lives
+    on a row this one does not carry. Asking the database is what keeps one definition of
+    "in play" rather than two that agree until a league changes its window.
+    """
+    found = await db.execute(
+        select(Gameweek.id).where(
+            Gameweek.id == gameweek.id, in_play(_utc_now() if now is None else now)
+        )
+    )
+    return found.scalar_one_or_none() is not None
+
+
 def current_round_order(
     now: datetime | None = None, today: date | None = None
 ) -> tuple[ColumnElement[Any], ...]:

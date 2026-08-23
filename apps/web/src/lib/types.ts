@@ -255,12 +255,20 @@ export interface CouponLeg {
   /** What this pick scored, once the round settled. */
   points_awarded?: number | null;
   /**
-   * The final score, on a settled round whose fixture resolved to a played match.
-   * Both are null together, and null means *no score to show* — never nil-nil. The
-   * join is name-based and fails open rather than guessing (see `match_link.py`).
+   * The score, on a settled round or a round being played, when the leg's fixture
+   * resolved to a match carrying one. Both are null together, and null means *no score
+   * to show* — never nil-nil. The join is name-based and fails open rather than
+   * guessing (see `match_link.py`).
    */
   home_goals?: number | null;
   away_goals?: number | null;
+  /**
+   * Whether that score is the result or the state of play (Batch 72). Defaults to true
+   * so a deployed API that predates it is read as final, which is what it always was.
+   * A screen that renders a running score the same way it renders a final one tells a
+   * member their pick has landed when it has not.
+   */
+  score_is_final?: boolean;
 }
 
 export interface Coupon {

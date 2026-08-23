@@ -98,8 +98,17 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
             "lock_gameweeks",
             "settle_gameweeks",
             "sync_football_data",
+            "live_scores",
             "prune_refresh_tokens",
         }
+
+        # Batch 72. Ten minutes, and almost always free: the job reads the database first
+        # and returns without a request unless some league has a round in play.
+        live = scheduler.get_job("live_scores")
+        assert live is not None
+        assert str(live.trigger) == "cron[minute='*/10']"
+        assert live.coalesce is True
+        assert live.max_instances == 1
 
         # Batch 58. Runs after the 03:00 backup so anything it removes is still in last
         # night's copy.

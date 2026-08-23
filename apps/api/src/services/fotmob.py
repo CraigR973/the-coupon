@@ -257,16 +257,25 @@ class FotMobProvider(FootballDataProvider):
 
     # -- the one payload -------------------------------------------------------
 
-    async def _league(self, league_id: str, season: int) -> dict[str, Any]:
+    async def _league(
+        self, league_id: str, season: int, *, refresh: bool = False
+    ) -> dict[str, Any]:
         """The league payload, fetched at most once per id per client.
 
         The lock matters: a sweep can ask for ``8947`` four times in quick succession
         and without it each caller starts its own request, which is exactly the
         quadrupling this adapter exists to avoid.
+
+        ``refresh`` exists for one caller and is load-bearing for it. The memo lives for
+        the life of the client and the client is process-wide, so a *live* score read
+        through the memo would return the same payload for as long as the process ran —
+        polling every ten minutes and reporting half-time forever. It replaces the memo
+        rather than bypassing it, so the fresher payload is what everything else sees
+        too and the request is not paid for twice.
         """
         key = f"{league_id}:{season}"
         async with self._lock:
-            if key not in self._payloads:
+            if refresh or key not in self._payloads:
                 self._payloads[key] = await self._get(
                     LEAGUE_PATH, {"id": league_id, "season": season_param(season)}
                 )
@@ -438,6 +447,74 @@ class FotMobProvider(FootballDataProvider):
                 )
             )
         return results
+
+    async def fetch_live_scores(
+        self, competition: CompetitionKey, season: int
+    ) -> list[MatchResult]:
+        """Matches in progress right now, with the score so far (Batch 72).
+
+        The same ``allMatches`` list :meth:`fetch_results` reads, filtered the other way:
+        started, not finished, not called off. FotMob needs no key and has no rate limit
+        to protect, which is the whole reason live scores are affordable at all — nothing
+        new is contracted and no budget is spent.
+
+        **Forces a payload refresh.** The memo is per client and the client is
+        process-wide, so reading a live score through it would answer with whatever the
+        first caller of the day saw.
+
+        ``finished=False`` with a partial score is a deliberate combination:
+        :func:`~src.services.football_data.sync_results` writes ``finished`` from
+        ``result.finished and home_goals is not None``, so an in-play match stores its
+        running score *and* stays out of every read that gates on ``finished`` — the
+        results screen, the form line, and Batch 67's settled scorelines.
+        """
+        league_id = await self.league_id_for(competition)
+        if league_id is None:
+            return []
+        payload = await self._league(league_id, season, refresh=True)
+        matches = (payload.get("fixtures") or {}).get("allMatches")
+        if not isinstance(matches, list):
+            return []
+
+        override = _COMPETITION_OVERRIDES.get(competition.slug)
+        wanted_group = override[1] if override else None
+        index = self._division_index(payload) if wanted_group is not None else {}
+
+        live: list[MatchResult] = []
+        for match in matches:
+            if not isinstance(match, dict):
+                continue
+            status = match.get("status") or {}
+            if not status.get("started") or status.get("finished") or status.get("cancelled"):
+                continue
+            home, away = _team_ref(match.get("home") or {}), _team_ref(match.get("away") or {})
+            if home is None or away is None:
+                continue
+            if wanted_group is not None and index.get(home.provider_team_id) != wanted_group:
+                continue
+            kickoff = _parse_utc(status.get("utcTime"))
+            if kickoff is None:
+                continue
+            home_goals, away_goals = _split_score(status.get("scoreStr"))
+            if home_goals is None or away_goals is None:
+                # Kicked off but no score published yet. Nil-nil is a real scoreline and
+                # "we do not know" is not, so this stays absent rather than becoming 0-0.
+                continue
+            live.append(
+                MatchResult(
+                    provider_match_id=str(match.get("id")),
+                    competition=competition,
+                    season=season,
+                    kickoff_utc=kickoff,
+                    home=home,
+                    away=away,
+                    home_goals=home_goals,
+                    away_goals=away_goals,
+                    finished=False,
+                    status=str(status.get("liveTime", {}).get("short") or "LIVE")[:24],
+                )
+            )
+        return live
 
     async def fetch_fixture_states(
         self, competition: CompetitionKey, season: int

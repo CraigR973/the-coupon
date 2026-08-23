@@ -39,6 +39,7 @@ from src.services.gameweek import (
     uk_today,
     window_for,
 )
+from src.services.live_scores import poll_live_scores
 from src.services.notification_triggers import send_pick_reminders
 from src.services.odds_session import odds_session
 from src.services.scoring import (
@@ -360,6 +361,48 @@ async def run_sync_football_data() -> bool:
         return False
 
 
+async def run_live_scores() -> bool:
+    """Refresh the running score for any round being played right now (Batch 72).
+
+    **Costs nothing when nothing is on**, which is most hours of most weeks:
+    :func:`~src.services.live_scores.competitions_in_play` answers from the database and
+    the job returns before touching a provider. That is what makes a ten-minute cadence
+    affordable rather than rude.
+
+    Bounded the other way too. "In play" is Batch 65's definition, so a round the odds
+    provider never settles stops being polled once it passes the grace measured from its
+    own window closing — without that, Batch 64's phantom Premiership round would have
+    kept a competition being fetched every ten minutes until May.
+
+    **Writes only to ``teams`` and ``matches``. Never to ``picks``.** Settlement has one
+    authority and it is the odds provider; a live score that moved a pick's status would
+    be a member watching points awarded and then withdrawn.
+
+    No provider, or a provider that cannot answer, is a success that did nothing — the
+    round simply renders without scores, which is the degradation this feature is
+    supposed to have.
+    """
+    try:
+        provider = await football_session.acquire()
+        if provider is None:
+            return True
+        async with AsyncSessionLocal() as session:
+            sweep = await poll_live_scores(
+                session,
+                provider,
+                season=season_or_default(settings.football_season),
+                now=_utc_now(),
+                limit=settings.live_scores_competitions_per_run,
+            )
+            await session.commit()
+        if sweep.rounds_in_play:
+            log.info("live scores polled", **sweep.summary())
+        return True
+    except Exception:
+        log.exception("live score poll failed")
+        return False
+
+
 async def run_backfill_football_season() -> bool:
     """Pull a whole season of results and tables in one pass — the Batch 16 backfill.
 
@@ -479,6 +522,20 @@ def create_scheduler() -> AsyncIOScheduler:
         coalesce=True,
         max_instances=1,
     )
+    # Every ten minutes, and almost always free: the job reads the database first and
+    # returns without a request unless some league has a round in play. Ten minutes is
+    # chosen against what it is for — a member glancing at a score during the round —
+    # rather than against a rate limit, because FotMob has none to protect.
+    scheduler.add_job(
+        run_live_scores,
+        trigger="cron",
+        minute="*/10",
+        id="live_scores",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+    )
+
     scheduler.add_job(
         run_sync_football_data,
         trigger="cron",

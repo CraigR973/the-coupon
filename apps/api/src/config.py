@@ -178,6 +178,11 @@ class Settings(BaseSettings):
     # A backstop, not a page size. Nothing observed comes close to it; it is here so a
     # pathological ingestion cannot turn one request into an unbounded response.
     football_results_max_rows: int = 400
+    # How many competitions one live-score poll may walk (Batch 72). FotMob needs no key
+    # and has no rate limit to protect, so this is politeness and a blast-radius bound
+    # rather than a budget: a poll only ever runs while some league has a round in play,
+    # and a round draws on a handful of divisions, not thirty.
+    live_scores_competitions_per_run: int = 12
 
     # Betfair Exchange API — only read when `odds_provider` is `betfair`. Production
     # uses non-interactive certificate login.

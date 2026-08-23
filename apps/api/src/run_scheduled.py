@@ -21,6 +21,7 @@ Jobs:
     lock           lock any gameweek past its 14:30 deadline
     settle         settle locked gameweeks against provider results + recompute standings
     sync-football  top up league tables, results and form for the competitions on the card
+    live-scores    refresh the running score for any round being played right now
     football-backfill  pull a whole season of results and tables in one pass (one-off)
 """
 
@@ -33,6 +34,7 @@ from collections.abc import Awaitable, Callable
 from src.scheduler import (
     run_backfill_football_season,
     run_discover_fixtures,
+    run_live_scores,
     run_lock_gameweeks,
     run_open_gameweeks,
     run_pick_reminders,
@@ -51,6 +53,7 @@ JOBS: dict[str, Callable[[], Awaitable[bool]]] = {
     "lock": run_lock_gameweeks,
     "settle": run_settle_gameweeks,
     "sync-football": run_sync_football_data,
+    "live-scores": run_live_scores,
     "football-backfill": run_backfill_football_season,
 }
 

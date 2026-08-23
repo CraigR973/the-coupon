@@ -30,10 +30,20 @@ export function buildCouponShareText(coupon: Coupon): string {
   return lines.join('\n');
 }
 
-/** A settled leg's scoreline, or null when there is none to show. */
+/** A leg's scoreline, or null when there is none to show. */
 function scoreline(leg: CouponLeg): string | null {
   if (leg.home_goals == null || leg.away_goals == null) return null;
   return `${leg.home_goals}–${leg.away_goals}`;
+}
+
+/**
+ * True when this leg's score is the state of play rather than the result (Batch 72).
+ *
+ * Defaults to *final*, so a deployed API that predates the field is read the way it has
+ * always meant — Vercel ships this app on merge while the API waits for `/ship-prod`.
+ */
+function isLive(leg: CouponLeg): boolean {
+  return leg.score_is_final === false;
 }
 
 /**
@@ -60,6 +70,10 @@ export function CombinedAccaView({ coupon, myPlayerId }: { coupon: Coupon; myPla
   }
 
   const settled = coupon.status === 'settled';
+  // A round being played carries scores that are not results. The API decides which —
+  // it evaluates the same `in_play` rule the round ordering uses — and says so per leg,
+  // so this reads the legs rather than second-guessing the status.
+  const live = !settled && coupon.legs.some(isLive);
 
   async function copyCouponText() {
     try {
@@ -72,6 +86,13 @@ export function CombinedAccaView({ coupon, myPlayerId }: { coupon: Coupon; myPla
 
   return (
     <div className="flex flex-col gap-4">
+      {live && (
+        <p className="font-sans text-xs text-text-muted">
+          Scores are from matches still being played and are not results. Points are
+          awarded when the round settles.
+        </p>
+      )}
+
       {/* Summary card */}
       <div className="rounded-lg border border-border bg-surface p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -108,6 +129,7 @@ export function CombinedAccaView({ coupon, myPlayerId }: { coupon: Coupon; myPla
             leg={leg}
             index={i}
             settled={settled}
+            showScore={settled || live}
             isMine={leg.player_id === myPlayerId}
           />
         ))}
@@ -120,16 +142,19 @@ function LegRow({
   leg,
   index,
   settled,
+  showScore,
   isMine,
 }: {
   leg: CouponLeg;
   index: number;
   settled: boolean;
+  showScore: boolean;
   isMine: boolean;
 }) {
   const oddsFormat = useOddsFormat();
   const selection = outcomeLabel(leg.market, leg.outcome, leg.home, leg.away);
-  const score = settled ? scoreline(leg) : null;
+  const score = showScore ? scoreline(leg) : null;
+  const running = isLive(leg);
   return (
     <li
       className={cn(
@@ -155,10 +180,17 @@ function LegRow({
             resolved to a played match — the join fails open rather than guessing, so
             there is simply nothing here rather than a wrong scoreline. */}
         {score && (
-          <p className="mt-0.5 font-mono text-xs tabular-nums text-text-secondary">
-            <span className="sr-only">Final score: </span>
-            {leg.home} {score} {leg.away}
-          </p>
+          // A div rather than a paragraph: `Badge` renders a block, and a block inside a
+          // <p> is invalid markup the browser silently rewrites.
+          <div className="mt-0.5 flex items-center gap-2">
+            <span className="font-mono text-xs tabular-nums text-text-secondary">
+              <span className="sr-only">{running ? 'Score so far: ' : 'Final score: '}</span>
+              {leg.home} {score} {leg.away}
+            </span>
+            {/* Said in words as well as colour: 2-1 at half time and 2-1 at full time
+                are opposite news to somebody holding that pick. */}
+            {running && <Badge variant="live">Live</Badge>}
+          </div>
         )}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5">

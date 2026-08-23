@@ -181,3 +181,70 @@ describe('a settled round', () => {
     expect(screen.queryByText(/pts$/)).toBeNull();
   });
 });
+
+// Batch 72 — live scores while the round is being played.
+//
+// The load-bearing distinction: a running score and a result are opposite news to
+// somebody holding that pick, and the view must never let the first read as the second.
+describe('a round being played', () => {
+  const livePlaying = () =>
+    coupon({
+      status: 'locked',
+      all_won: null,
+      legs: [
+        { ...LEG_A, status: 'pending', home_goals: 2, away_goals: 1, score_is_final: false },
+        { ...LEG_B, status: 'pending' },
+      ],
+    });
+
+  it('shows the score so far and marks it live', () => {
+    render(<CombinedAccaView coupon={livePlaying()} />);
+    expect(screen.getByText(/Forfar 2–1 Brechin/)).toBeTruthy();
+    expect(screen.getByText('Live')).toBeTruthy();
+  });
+
+  it('says in words that these are not results', () => {
+    render(<CombinedAccaView coupon={livePlaying()} />);
+    expect(screen.getByText(/not results/i)).toBeTruthy();
+    expect(screen.getByText(/Points are awarded when the round settles/i)).toBeTruthy();
+  });
+
+  it('leaves every pick pending — a live score decides nothing', () => {
+    render(<CombinedAccaView coupon={livePlaying()} />);
+    // No won/lost badge on a round that has not settled: FotMob may say what the score
+    // is, only settlement says what a pick did.
+    expect(screen.queryByText(/^won$/i)).toBeNull();
+    expect(screen.queryByText(/^lost$/i)).toBeNull();
+  });
+
+  it('does not mark a settled round live', () => {
+    render(
+      <CombinedAccaView
+        coupon={coupon({
+          status: 'settled',
+          all_won: false,
+          legs: [{ ...LEG_A, status: 'won', home_goals: 2, away_goals: 1 }],
+        })}
+      />,
+    );
+    expect(screen.getByText(/Forfar 2–1 Brechin/)).toBeTruthy();
+    expect(screen.queryByText('Live')).toBeNull();
+    expect(screen.queryByText(/not results/i)).toBeNull();
+  });
+
+  it('treats a score with no flag as final, the way the old API meant it', () => {
+    // Vercel ships this app on merge while the API waits for /ship-prod, so for that
+    // window `score_is_final` is simply absent — and absent has always meant final.
+    render(
+      <CombinedAccaView
+        coupon={coupon({
+          status: 'settled',
+          all_won: false,
+          legs: [{ ...LEG_A, status: 'won', home_goals: 2, away_goals: 1 }],
+        })}
+      />,
+    );
+    expect(screen.queryByText('Live')).toBeNull();
+  });
+});
+

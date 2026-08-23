@@ -38,6 +38,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 
+import sqlalchemy as sa
 import structlog
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -62,10 +63,17 @@ CANDIDATE_WINDOW = timedelta(days=3)
 
 
 class Scoreline(BaseModel):
-    """A played match's final score, as the coupon shows it."""
+    """A match's score, as the coupon shows it.
+
+    ``final`` is the difference between a result and a running score (Batch 72). Both are
+    real answers and they mean opposite things to a member: 2-1 at full time is what
+    happened, 2-1 at half time is what is happening. A screen that prints them the same
+    way is telling somebody their pick has landed when it has not.
+    """
 
     home_goals: int
     away_goals: int
+    final: bool = True
 
 
 def _uk_date(moment: datetime) -> date:
@@ -80,9 +88,9 @@ def _uk_date(moment: datetime) -> date:
 
 
 async def scorelines_for(
-    db: AsyncSession, fixtures: Sequence[Fixture]
+    db: AsyncSession, fixtures: Sequence[Fixture], *, include_live: bool = False
 ) -> dict[uuid.UUID, Scoreline]:
-    """The final score for each fixture that can be resolved to a finished match.
+    """The score for each fixture that can be resolved to a match with one.
 
     Keyed by ``fixtures.id``. A fixture that resolves to nothing — a competition the
     football source does not carry, a club whose name will not match, two candidates the
@@ -93,9 +101,15 @@ async def scorelines_for(
     across a handful of divisions, and the candidate pool for a division is small once
     bounded by :data:`CANDIDATE_WINDOW`.
 
-    Only ``finished`` matches count. An in-play match carries a partial score, and
-    printing a running scoreline against a *settled* pick would say the round is still
-    moving when it is over. Live scores are Batch 72 and read a different gate.
+    ``include_live`` is the Batch 72 gate. Off, only ``finished`` matches count, which is
+    what a settled round wants: a partial score printed against a pick that has already
+    scored would say the round is still moving when it is over. On, a match that has
+    kicked off and has a published score comes back with ``final=False``, and the caller
+    is responsible for rendering the two differently.
+
+    A match is only ever in one of those states, so turning the gate on cannot change what
+    a finished match answers — which is why the settled path and the in-play path can
+    share this function rather than forking it.
     """
     if not fixtures:
         return {}
@@ -119,7 +133,7 @@ async def scorelines_for(
                 .join(away_team, away_team.id == Match.away_team_id)
                 .where(
                     Match.competition_id == competition_id,
-                    Match.finished.is_(True),
+                    sa.true() if include_live else Match.finished.is_(True),
                     Match.home_goals.is_not(None),
                     Match.away_goals.is_not(None),
                     Match.kickoff_utc >= min(kickoffs) - CANDIDATE_WINDOW,
@@ -186,4 +200,4 @@ def _resolve(fixture: Fixture, rows: Sequence[tuple[Match, str, str]]) -> Scorel
     match = candidates[0][0]
     if match.home_goals is None or match.away_goals is None:
         return None
-    return Scoreline(home_goals=match.home_goals, away_goals=match.away_goals)
+    return Scoreline(home_goals=match.home_goals, away_goals=match.away_goals, final=match.finished)

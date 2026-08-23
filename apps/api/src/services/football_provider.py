@@ -251,3 +251,21 @@ class FootballDataProvider(ABC):
         Returns an empty list — never raises — for a competition it does not carry.
         """
         return []
+
+    async def fetch_live_scores(
+        self, competition: CompetitionKey, season: int
+    ) -> list[MatchResult]:
+        """Matches currently being played, with the score so far (Batch 72).
+
+        Non-abstract and defaulting to "I don't know", for the same reason
+        :meth:`fetch_fixture_states` is: only the FotMob adapter can answer it, and a
+        provider that cannot must cost nothing beyond the live scores it does not
+        supply. The caller renders the round without them rather than erroring.
+
+        The results carry ``finished=False`` and a partial score, which is exactly what
+        :class:`~src.models.match.Match` was shaped for — ``finished`` is the gate, not
+        the presence of goals — so the same ``sync_results`` writes them.
+
+        Returns an empty list — never raises — for a competition it does not carry.
+        """
+        return []

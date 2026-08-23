@@ -20,6 +20,7 @@ from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.pick import Pick, PickStatus
 from src.models.profile import Profile
+from src.services.gameweek import is_in_play
 from src.services.match_link import scorelines_for
 
 _TWO_DP = Decimal("0.01")
@@ -56,12 +57,16 @@ class CouponLeg(BaseModel):
     #: What this pick scored, once the round settled. ``None`` while it is still running,
     #: and also for a pick settled before ``points_awarded`` existed.
     points_awarded: int | None = None
-    #: The final score, when the leg's fixture could be resolved to a played match.
+    #: The score, when the leg's fixture could be resolved to a match carrying one.
     #: Both are ``None`` together, and ``None`` means *no score to show* rather than
     #: nil-nil — a wrong scoreline against a real member's pick is worse than none, so
     #: :mod:`src.services.match_link` fails open into this.
     home_goals: int | None = None
     away_goals: int | None = None
+    #: Whether that score is the result or the state of play (Batch 72). ``False`` only
+    #: on a round being played; a screen that renders a running score the same way it
+    #: renders a final one tells a member their pick has landed when it has not.
+    score_is_final: bool = True
 
 
 class Coupon(BaseModel):
@@ -100,8 +105,18 @@ async def build_coupon(db: AsyncSession, league_id: uuid.UUID, gameweek: Gamewee
     )
     rows = result.all()
 
+    # Two states carry a score, and they are not the same score. A settled round shows the
+    # result; a round being played shows how it stands, marked as not final (Batch 72).
+    # "Being played" is Batch 65's own `in_play` predicate, evaluated here rather than
+    # restated, so the round the coupon calls current and the round it prints live scores
+    # for cannot come apart.
     settled = gameweek.status == GameweekStatus.settled
-    scores = await scorelines_for(db, [fixture for _, fixture, _ in rows]) if settled else {}
+    playing = not settled and await is_in_play(db, gameweek)
+    scores = (
+        await scorelines_for(db, [fixture for _, fixture, _ in rows], include_live=playing)
+        if settled or playing
+        else {}
+    )
 
     legs: list[CouponLeg] = []
     odds: list[Decimal] = []
@@ -124,6 +139,7 @@ async def build_coupon(db: AsyncSession, league_id: uuid.UUID, gameweek: Gamewee
                 points_awarded=pick.points_awarded,
                 home_goals=score.home_goals if score else None,
                 away_goals=score.away_goals if score else None,
+                score_is_final=score.final if score else True,
             )
         )
 
