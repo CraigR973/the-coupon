@@ -1946,7 +1946,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: **ordering and re-derivation only.** What the screen renders in each state
   is Batch 67, and live scores are Batch 72.
 
-- [ ] **Batch 66 — A member who forgets their PIN has no way back in** — not on the owner's
+- [x] **Batch 66 — A member who forgets their PIN has no way back in** ✅ 2026-08-23 — not on the owner's
   list, found while scoping Batch 69 (2026-08-23), and moved ahead of everything else on it
   because it is live and it strands people.
 

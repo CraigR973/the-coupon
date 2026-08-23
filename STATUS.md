@@ -179,7 +179,29 @@ replace, kept exactly where it is load-bearing: a locked round keeps the deadlin
 its members claimed against. **API-side only, so it is not live until a
 `/ship-prod` runs.**
 
-Batches 1-60 and 62-65 are closed (59 in part; see Batch 61). The Coupon is a
+Batch 66 gave a forgotten PIN a way back. Batch 56 made `pin/reset-request`
+truthful — it writes an audit row and pushes every active site admin — and **the
+action behind that notification did not exist**: the push sent the admin to their
+own settings page because there was nowhere else to send them, and exactly one
+endpoint in the API used the `AdminUser` dependency. The people half of the admin
+console now exists — Players, Invites, All Leagues, behind `/api/v1/admin` and an
+`/admin` route group gated on `role === 'admin'` — and the push lands on the
+member it names. **An admin reset clears the credential rather than minting a
+temporary PIN** (owner's decision): no secret passes through the admin, nothing
+interim can be shared or reused, and the member chooses their own at `/set-pin`
+where the existing charset rules apply. A cleared PIN is the *absence* of one —
+login refuses it outright with `PIN_NOT_SET` — and the cleared state is claimable
+only for 24 hours, read from the audit row the reset already writes rather than
+from a column of its own. Both admin surfaces now share one implementation: the
+league-admin reset predated Batch 56's revoke rule and never obeyed it, minting a
+readable four-digit PIN and leaving every old session renewing itself for thirty
+days. Player deletes are soft, so past leaderboards read as they were played, and
+the display name stays reserved. **This is the only batch of the post-launch run
+that adds an Alembic revision** — 016 drops `NOT NULL` from `profiles.pin_hash` —
+so the `/ship-prod` carrying it wants a written forward recovery plan first.
+**API-side as well as web, so it is not live until that ship runs.**
+
+Batches 1-60 and 62-66 are closed (59 in part; see Batch 61). The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -829,8 +851,9 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **eight unchecked batches**: 61, and the post-launch
-member-report set 66-72 specified on 2026-08-23 (Batch 65 of that set is closed).
+`docs/BUILD_PLAN.md` carries **seven unchecked batches**: 61, and the post-launch
+member-report set 67-72 specified on 2026-08-23 (Batches 65 and 66 of that set are
+closed).
 Batch 61 — the FastAPI/starlette upgrade split out of Batch 59 — is deliberately
 parked; Batch 68 needs an odds figure only the owner can evidence and is worked
 interactively. `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and

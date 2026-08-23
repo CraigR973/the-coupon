@@ -1750,3 +1750,55 @@ the complaint half-standing.
   layer, which is where the member saw the defect.
 
 **Next:** Batch 66 — a member who forgets their PIN has no way back in.
+
+## Batch 66 — A member who forgets their PIN has no way back in
+**Commits:** e765e75 (ff-merged to local main) · verified: `scripts/ci-local.sh` PASS
+(11 checks, 769 backend tests against real PostgreSQL, 668 frontend), 16 new backend and
+16 new frontend test cases, and the prod-bundle Playwright smoke extended to both new
+routes
+
+### Key facts for future sessions
+- **This batch adds Alembic revision 016 — the only schema change in the 65→72 run.**
+  `profiles.pin_hash` drops `NOT NULL`. No data moves and the constraint is only relaxed,
+  so it is safe against a live database; the *downgrade* fails while any member is
+  mid-reset, which is correct rather than a defect. Production has no restore point
+  (owner's 2026-07-30 deferral), so the `/ship-prod` that carries this wants a written
+  forward recovery plan.
+- **The row's decision required the migration.** "Clears the credential and forces
+  set-on-next-login" is only expressible if the column admits NULL. The alternative that
+  avoids a migration — a sentinel value in `pin_hash` — puts an in-band signal in a
+  credential column, which is how a "is this a hash or a marker?" bug gets written later.
+  `Mapped[str | None]` makes mypy walk every read path instead.
+- **A cleared PIN is claimable by whoever names the account, and that is inherent.** No
+  secret passes through the admin, so nothing proves the caller is the member, and display
+  names are on every leaderboard. Bounded rather than accepted: `PIN_RESET_CLAIM_WINDOW` is
+  24 hours, read from the `player_pin_reset` audit row the reset already writes. **No new
+  column** — `pin_hash IS NULL` already carries the state, and setting a PIN closes the
+  window by making its own condition false, so it is single-use without a "used" flag.
+- **The audit row is load-bearing, not decoration.** `/auth/pin/set` reads it for the
+  window, so a reset that is not recorded is a reset that cannot be used. It has to be the
+  *newest* row for that member: `pin/reset-request` writes the same `ActionType` at stage
+  `requested`, so a member asking again must not re-open a window an admin did not.
+- **A pre-existing league-admin PIN reset was found, and it was the defect the row
+  describes.** `POST /leagues/{slug}/members/{id}/reset-pin` minted a temporary four-digit
+  PIN, returned it for the admin to read out, skipped `is_weak_pin`, and **revoked
+  nothing** — sessions opened under the old PIN kept renewing for thirty days past it.
+  Nothing in `apps/web` called it and no test asserted `temp_pin`, so it was changeable
+  without a deploy-window risk. It now shares `services/credentials.clear_pin`.
+- **Decision — `temp_pin` stays in that response, always null, rather than being
+  removed.** Vercel deploys the web app on merge while the API waits for `/ship-prod`, so
+  a removed field breaks any client still reading it in the gap — the trap Batches 38, 41
+  and 48 each recorded. It can go once both halves have shipped.
+- **Decision — no new `ActionType` values.** `ALTER TYPE ... ADD VALUE` cannot be undone.
+  The unlock endpoint therefore writes **no audit row at all** (structlog only) — it takes
+  nothing away and grants no access, so that is the proportionate trade — and the site
+  delete reuses `member_removed` with `target_table="profiles"` and `{"scope": "site"}`.
+- **`from __future__ import annotations` breaks FastAPI dependency aliases.** Ten test
+  modules failed at collection with `PydanticUndefinedAnnotation: name 'AdminUser' is not
+  defined` until it was removed from `routers/admin.py`. No other router in the repo has
+  it, which is now known to be the reason rather than a style choice.
+- **The non-admin gate is asserted by walking `admin_router.routes`**, not by listing
+  endpoints. A hand-written list only covers the routes somebody remembered to add to it —
+  the same class of omission that left the league-admin reset unrevoked for ten batches.
+
+**Next:** Batch 67 — what a round looks like once it has been played.
