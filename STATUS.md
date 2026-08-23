@@ -245,7 +245,26 @@ durable fixture status is deliberately not here** — `fixtures` has no status
 column, so it needs a migration, and the row says to split that out. **API-side
 as well as web, so it is not live until a `/ship-prod` runs.**
 
-Batches 1-60, 62-67 and 69 are closed (59 in part; see Batch 61). The Coupon is a
+Batch 70 put the shape of a member's picks on the screens that already rank them.
+Cumulative and average odds on the league table and the profile, plus the figures
+that separate two members on the same points: points per pick played, best single
+return, win rate and a favourite/longshot split at 3.00. **One change rather than
+several** — `Standing` is the single ranking rule in the codebase and the
+leaderboard, the profile and the cross-league summary all read it, so the figures
+went into the aggregate once and every surface got them, including the two the
+owner did not ask about. The profile's own win-rate computation went with it: it
+divided the same two numbers the row already carried, which is how a profile and
+a leaderboard end up a rounding step apart. **Void picks are the decision:**
+`picks_played` counts them because a member whose fixture was postponed took part
+in that round, and the odds figures do not, because a bet that never ran is not a
+price to credit them with — so the two denominators genuinely differ, and a note
+saying so ships *with* the figures on every surface and disappears when they
+agree. Longest streak is deliberately absent: it needs ordered history rather than
+an aggregate. **API-side as well as web, so the figures are not live until a
+`/ship-prod` runs** — every field is additive with a default, so the table
+degrades rather than breaks in the gap.
+
+Batches 1-60, 62-67, 69 and 70 are closed (59 in part; see Batch 61). The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -895,9 +914,9 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **five unchecked batches**: 61, and the post-launch
-member-report set 68 and 70-72 specified on 2026-08-23 (Batches 65, 66, 67 and 69 of that
-set are closed).
+`docs/BUILD_PLAN.md` carries **four unchecked batches**: 61, and the post-launch
+member-report set 68, 71 and 72 specified on 2026-08-23 (Batches 65, 66, 67, 69 and 70 of
+that set are closed).
 Batch 61 — the FastAPI/starlette upgrade split out of Batch 59 — is deliberately
 parked; Batch 68 needs an odds figure only the owner can evidence and is worked
 interactively. `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and

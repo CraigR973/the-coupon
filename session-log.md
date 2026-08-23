@@ -1897,3 +1897,42 @@ cases, 3 new budget assertions in `test_request_budget.py`, 12 new frontend test
   external cron, which the manual triggers are now a third route to.
 
 **Next:** Batch 70 — what kind of picks people are actually making.
+
+## Batch 70 — What kind of picks are people actually making
+**Commits:** 6b58d9e (ff-merged to local main) · verified: `scripts/ci-local.sh` PASS
+(11 checks, 814 backend tests against real PostgreSQL, 695 frontend), 7 new backend
+service tests, 1 new HTTP-level agreement test, 8 new frontend test cases
+
+### Key facts for future sessions
+- **Decision — void picks count in `picks_played` and not in the odds figures.** The row
+  called this the decision to record. A postponed fixture is a round the member took part
+  in, so it stays in the played count; it is also a bet that never ran, so its price is
+  not folded into a cumulative total. `picks_priced` (won + lost) is the new denominator
+  and is on the wire, so the difference is visible in the data rather than only in prose.
+- **"Say so in the UI" is a component, not a comment.** `VoidDenominatorNote` renders
+  wherever the figures render and renders *nothing* when the two denominators agree —
+  printing it always would train readers to ignore it by the time it mattered.
+- **`LONGSHOT_ODDS` is 3.00 and travels on every row as `longshot_odds`.** Chosen against
+  the scoring rule rather than by taste: a winner scores `round(odds × 10)`, so one hit at
+  3.00 outscores two at evens, and 3.00 sits clear of the 1.50-2.50 band most match-odds
+  favourites occupy. Carried per row so the screen labels the split from the value it was
+  computed with — the same reason `odds_degraded` travels with the odds.
+- **`round(2.675, 2)` is `2.67`, not `2.68`.** 10.70 / 4 is not exactly representable as a
+  float. Left as it lands rather than nudged, because the same rounding runs on every
+  surface and they therefore agree with each other; the test says so in a comment so it is
+  not "fixed" later.
+- **The profile's own win-rate computation was deleted, not kept alongside.** It divided
+  the same two numbers the aggregate already had, which is precisely how a profile and a
+  leaderboard end up a rounding step apart. There is now one computation, in `Standing`.
+- **Cumulative odds is a *sum*, not a product.** An accumulator's product over a season is
+  a number nobody can read. The cross-league summary sums across leagues and divides by
+  the summed `picks_priced` rather than averaging three per-league means, which would
+  weight a one-pick league like a full season.
+- **`test_cross_league_summary_shows_an_unpicked_round_and_no_leagues` asserts the summary
+  as an exact dict.** That is a feature: adding a field to that response fails there
+  immediately, which is the same surface the deployed web app meets before `/ship-prod`.
+  Any future field has to be added to that literal deliberately.
+- **Longest streak is deliberately absent.** It needs ordered history rather than an
+  aggregate — a second query on a path that costs one — and the row ruled it out.
+
+**Next:** Batch 71 — Football Stats opens expanded and shows part of the results.

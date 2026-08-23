@@ -2103,7 +2103,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: **read, trigger and correct.** No new scheduled jobs.
 
-- [ ] **Batch 70 — What kind of picks are people actually making** — the owner's fifth and
+- [x] **Batch 70 — What kind of picks are people actually making** ✅ 2026-08-23 — the owner's fifth and
   ninth points (2026-08-23): cumulative odds and average odds pick on the league table, the
   same figures on the profile page, and whatever else is worth showing.
 
