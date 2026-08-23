@@ -298,7 +298,7 @@ async def test_the_old_league_scoped_routes_are_gone(client: AsyncClient, seed: 
 
 @pytest.mark.asyncio
 async def test_results_come_back_newest_first(client: AsyncClient, seed: Seed) -> None:
-    response = await client.get(RESULTS_URL, params={"limit": 100}, headers=seed.auth(seed.member))
+    response = await client.get(RESULTS_URL, params={"days": 14}, headers=seed.auth(seed.member))
 
     assert response.status_code == 200
     results = response.json()
@@ -311,17 +311,33 @@ async def test_results_come_back_newest_first(client: AsyncClient, seed: Seed) -
 
 
 @pytest.mark.asyncio
-async def test_the_result_limit_is_honoured(client: AsyncClient, seed: Seed) -> None:
-    response = await client.get(RESULTS_URL, params={"limit": 3}, headers=seed.auth(seed.member))
+async def test_a_day_of_results_means_every_competition_that_played(
+    client: AsyncClient, seed: Seed
+) -> None:
+    """Batch 71 — the defect the owner reported, at the endpoint.
+
+    The old flat row cap took the newest twenty matches across the whole pool, and the
+    screen groups by day and then by competition, so most divisions fell off the end of a
+    busy day. Production on 2026-08-23 held 145 finished matches on 2026-08-22 across 17
+    competitions, and the newest twenty covered six.
+
+    A day now means *the whole day*: every competition that played on it is present.
+    """
+    response = await client.get(RESULTS_URL, params={"days": 1}, headers=seed.auth(seed.member))
 
     assert response.status_code == 200
-    assert len(response.json()) == 3
+    ours = seed.ours(response.json())
+    newest_day = ours[0]["kickoff_utc"][:10]
+    assert {entry["kickoff_utc"][:10] for entry in ours} == {newest_day}
+    # Both canned competitions played that day, and both are here — which is exactly what
+    # a cap of one or two rows would have hidden.
+    assert len({entry["competition_id"] for entry in ours}) == 2
 
 
 @pytest.mark.asyncio
-async def test_the_result_limit_is_capped_by_the_endpoint(client: AsyncClient, seed: Seed) -> None:
+async def test_the_day_window_is_capped_by_the_endpoint(client: AsyncClient, seed: Seed) -> None:
     """Bounded at the signature so no caller can ask for the whole match table."""
-    response = await client.get(RESULTS_URL, params={"limit": 500}, headers=seed.auth(seed.member))
+    response = await client.get(RESULTS_URL, params={"days": 500}, headers=seed.auth(seed.member))
 
     assert response.status_code == 422
 

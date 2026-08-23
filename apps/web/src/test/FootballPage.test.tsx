@@ -174,6 +174,20 @@ beforeEach(() => {
   stubFetch();
 });
 
+/**
+ * Open one competition and hand back its card.
+ *
+ * Batch 71 made every division start collapsed, so a test that wants to read *inside* a
+ * table has to say so — which is the honest shape anyway: none of these are asserting
+ * what the screen shows on arrival.
+ */
+async function openTable(testId = 'league-table-england-premier-league'): Promise<HTMLElement> {
+  const table = await screen.findByTestId(testId);
+  const header = within(table).getAllByRole('button')[0];
+  if (header.getAttribute('aria-expanded') === 'false') fireEvent.click(header);
+  return table;
+}
+
 describe('FootballPage — tables', () => {
   it('renders a table per competition in the pool', async () => {
     renderPage();
@@ -201,7 +215,7 @@ describe('FootballPage — tables', () => {
 
   it('shows the standings figures in position order', async () => {
     renderPage();
-    const table = await screen.findByTestId('league-table-england-premier-league');
+    const table = await openTable();
     const rows = within(table).getAllByRole('row').slice(1); // drop the header
     expect(within(rows[0]).getByRole('rowheader').textContent).toBe('Arsenal FC');
     expect(rows[0].textContent).toContain('+52');
@@ -211,22 +225,28 @@ describe('FootballPage — tables', () => {
 
   it('says when the table was last ingested — nothing here is live', async () => {
     renderPage();
-    const table = await screen.findByTestId('league-table-england-premier-league');
+    const table = await openTable();
     expect(table.textContent).toMatch(/As of 6 Aug, 06:30/);
   });
 
-  it('opens only the first competition, so thirty divisions stay scannable', async () => {
+  // Batch 71 — inverted. This asserted that the *first* competition opened, which was the
+  // right instinct with the wrong answer: the reader has not asked for any of them yet,
+  // and opening whichever sorts first makes it look chosen. The owner asked for the
+  // screen collapsed on open.
+  it('opens with every competition collapsed', async () => {
     renderPage();
     await screen.findByTestId('league-table-england-premier-league');
-    const [first, second] = screen.getAllByRole('button', { name: /premier league|league two/i });
-    expect(first.getAttribute('aria-expanded')).toBe('true');
-    expect(second.getAttribute('aria-expanded')).toBe('false');
+    const headers = screen.getAllByRole('button', { name: /premier league|league two/i });
+    expect(headers.length).toBeGreaterThan(1);
+    for (const header of headers) {
+      expect(header.getAttribute('aria-expanded')).toBe('false');
+    }
   });
 
   it('expands a collapsed competition on tap', async () => {
     renderPage();
     await screen.findByTestId('league-table-england-premier-league');
-    const scotland = screen.getAllByRole('button', { expanded: false })[0];
+    const scotland = screen.getAllByRole('button', { name: /league two/i })[0];
     fireEvent.click(scotland);
     expect(screen.getByTestId('table-row-t-forfar')).toBeTruthy();
   });
@@ -239,7 +259,7 @@ describe('FootballPage — tables', () => {
 
   it('keeps form visible at mobile width — the GD column hides instead', async () => {
     renderPage();
-    const table = await screen.findByTestId('league-table-england-premier-league');
+    const table = await openTable();
     const row = within(table).getByTestId('table-row-t-arsenal');
     const formCell = row.querySelector('td:last-child');
     expect(formCell?.className).not.toMatch(/\bhidden\b/);
@@ -288,7 +308,7 @@ describe('FootballPage — opening a table row’s form', () => {
   it('opens the matches behind the pips in a row of their own', async () => {
     stubFetch({ tables: TABLES_WITH_FORM });
     renderPage();
-    const table = await screen.findByTestId('league-table-england-premier-league');
+    const table = await openTable();
 
     fireEvent.click(within(table).getByLabelText(/Arsenal FC form, oldest first/));
 
@@ -307,7 +327,7 @@ describe('FootballPage — opening a table row’s form', () => {
   it('closes it again, and opens only one club at a time', async () => {
     stubFetch({ tables: TABLES_WITH_FORM });
     renderPage();
-    const table = await screen.findByTestId('league-table-england-premier-league');
+    const table = await openTable();
     const pips = within(table).getByLabelText(/Arsenal FC form, oldest first/);
 
     fireEvent.click(pips);
@@ -321,7 +341,7 @@ describe('FootballPage — opening a table row’s form', () => {
   it('leaves a row with a form string but no stored matches inert', async () => {
     stubFetch({ tables: TABLES_WITH_FORM });
     renderPage();
-    const table = await screen.findByTestId('league-table-england-premier-league');
+    const table = await openTable();
 
     const chelsea = within(table).getByLabelText(/Chelsea FC form, oldest first/);
     expect(chelsea.tagName).not.toBe('BUTTON');

@@ -31,7 +31,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import AsyncSessionLocal
 from src.models.fixture import Fixture
+from src.models.match import Match
 from src.models.standing import Standing
+from src.models.team import Team
 from src.services.fake_football import (
     ARSENAL,
     CHELSEA,
@@ -494,7 +496,7 @@ async def test_ingesting_the_same_results_twice_writes_no_duplicates(
     await sync_competition(session, provider, epl, SAMPLE_SEASON)
 
     assert first.matches == 8
-    assert len(await recent_results(session, [epl], limit=100)) == 8
+    assert len(await recent_results(session, [epl], days=14, max_rows=100)) == 8
 
 
 # ── What a whole run reports about itself (Batch 45) ──────────────────────────
@@ -785,17 +787,19 @@ async def test_a_season_that_was_never_ingested_reads_empty(session: AsyncSessio
 
 @pytest_db
 @pytest.mark.asyncio
-async def test_recent_results_are_newest_first_and_capped(session: AsyncSession) -> None:
+async def test_recent_results_are_newest_first_and_bounded_by_days(
+    session: AsyncSession,
+) -> None:
     epl = _epl(uuid.uuid4().hex[:8])
     await sync_competition(session, CountingFootballData.with_sample_data(), epl, SAMPLE_SEASON)
 
-    results = await recent_results(session, [epl], limit=3)
+    results = await recent_results(session, [epl], days=1, max_rows=100)
 
-    assert len(results) == 3
     assert [result.kickoff_utc for result in results] == sorted(
         (result.kickoff_utc for result in results), reverse=True
     )
-    assert results[0].kickoff_utc.date() == date(2026, 5, 2)
+    # One day means *one day of matches*, all of them, rather than one match.
+    assert {result.kickoff_utc.date() for result in results} == {date(2026, 5, 2)}
     assert (results[0].home, results[0].home_goals) == (CHELSEA[1], 0)
     assert (results[0].away, results[0].away_goals) == (ARSENAL[1], 1)
 
@@ -867,6 +871,133 @@ async def test_a_fixture_whose_clubs_are_unknown_simply_has_no_context(
     assert str(unknown.id) not in contexts
 
 
+# ── Batch 71: a busy Saturday, at the shape production actually holds ──────────
+#
+# Measured read-only against production on 2026-08-23: 567 finished matches across 18
+# competitions, every one inside the 30-day lookback — so the *ingestion* was healthy,
+# which Batch 45 is the reason to check rather than assume. 145 of them were on Saturday
+# 2026-08-22 across 17 competitions, and the flat `limit=20` returned twenty rows
+# covering **six**. Eleven divisions vanished off the end of a global row count, which is
+# the "partially there" a member reported.
+#
+# Reconstructed here at that shape rather than asserted against production, because a
+# test that needs a live database is a test that does not run.
+
+
+async def _busy_day(session: AsyncSession, competitions: int, per_competition: int) -> date:
+    """One Saturday played across many divisions, as a real card looks."""
+    day = date(2026, 8, 22)
+    for index in range(competitions):
+        slug = f"busy-{uuid.uuid4().hex[:8]}"
+        teams = []
+        for side in ("home", "away"):
+            team = Team(
+                provider_team_id=f"t-{uuid.uuid4().hex[:10]}",
+                name=f"{side.title()} {index}",
+                normalised_name=f"{side} {index}",
+                competition_id=slug,
+            )
+            session.add(team)
+            teams.append(team)
+        await session.flush()
+        for match_index in range(per_competition):
+            session.add(
+                Match(
+                    provider_match_id=f"m-{uuid.uuid4().hex[:10]}",
+                    competition_id=slug,
+                    competition=f"Busy Division {index}",
+                    season=SAMPLE_SEASON,
+                    kickoff_utc=datetime(2026, 8, 22, 14, 0) + timedelta(minutes=match_index),
+                    home_team_id=teams[0].id,
+                    away_team_id=teams[1].id,
+                    home_goals=1,
+                    away_goals=0,
+                    finished=True,
+                )
+            )
+    await session.flush()
+    return day
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_one_busy_saturday_returns_every_competition_that_played(
+    session: AsyncSession,
+) -> None:
+    """The defect, and the fix, at production's measured shape.
+
+    Seventeen competitions, 145 matches, one day. A flat cap of twenty would return six
+    divisions; a day window returns all seventeen.
+    """
+    await _busy_day(session, competitions=17, per_competition=9)
+    keys = [
+        CompetitionKey(slug=slug, name=name)
+        for slug, name in (
+            await session.execute(
+                select(Match.competition_id, Match.competition)
+                .where(Match.competition.like("Busy Division%"))
+                .distinct()
+            )
+        ).all()
+    ]
+
+    results = await recent_results(session, keys, days=1, max_rows=400)
+
+    assert len(results) == 17 * 9
+    assert len({entry.competition_id for entry in results}) == 17
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_the_row_cap_is_a_backstop_and_not_a_page_size(session: AsyncSession) -> None:
+    """It exists so a pathological ingestion cannot answer with everything.
+
+    Set absurdly low here to prove it still bites; the shipped value is far above
+    anything a real Saturday produces.
+    """
+    await _busy_day(session, competitions=17, per_competition=9)
+    keys = [
+        CompetitionKey(slug=slug, name=name)
+        for slug, name in (
+            await session.execute(
+                select(Match.competition_id, Match.competition)
+                .where(Match.competition.like("Busy Division%"))
+                .distinct()
+            )
+        ).all()
+    ]
+
+    assert len(await recent_results(session, keys, days=1, max_rows=5)) == 5
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_the_window_counts_days_with_results_not_calendar_days(
+    session: AsyncSession,
+) -> None:
+    """A Wednesday still answers with the weekend.
+
+    Counting calendar days would empty the screen every midweek — production's own
+    distribution has days holding one match and days holding 145.
+    """
+    epl = _epl(uuid.uuid4().hex[:8])
+    await sync_competition(session, CountingFootballData.with_sample_data(), epl, SAMPLE_SEASON)
+    stored = (
+        (await session.execute(select(Match).where(Match.competition_id == epl.slug)))
+        .scalars()
+        .all()
+    )
+    # Push the two oldest a month back, leaving a long gap behind the recent ones.
+    for match in sorted(stored, key=lambda m: m.kickoff_utc)[:2]:
+        match.kickoff_utc -= timedelta(days=30)
+    await session.flush()
+
+    days_present = {m.kickoff_utc.date() for m in stored}
+    results = await recent_results(session, [epl], days=len(days_present), max_rows=400)
+
+    assert len(results) == len(stored), "every day that has results is reachable"
+
+
 @pytest_db
 @pytest.mark.asyncio
 async def test_reading_a_slate_of_no_fixtures_asks_the_database_nothing(
@@ -874,4 +1005,4 @@ async def test_reading_a_slate_of_no_fixtures_asks_the_database_nothing(
 ) -> None:
     assert await fixture_context(session, [], season=SAMPLE_SEASON, form_matches=5) == {}
     assert await league_tables(session, [], SAMPLE_SEASON, form_matches=5) == []
-    assert await recent_results(session, [], limit=10) == []
+    assert await recent_results(session, [], days=3, max_rows=10) == []

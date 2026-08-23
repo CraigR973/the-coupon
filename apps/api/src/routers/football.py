@@ -76,14 +76,23 @@ async def competition_tables(
 async def previous_results(
     player: CurrentUser,
     db: Db,
-    limit: Annotated[int | None, Query(ge=1, le=100)] = None,
+    days: Annotated[int | None, Query(ge=1, le=14)] = None,
 ) -> list[ResultEntry]:
-    """The most recent finished matches across the pool's competitions, newest first.
+    """Every finished match on the most recent match days, newest first.
 
-    Capped at 100 by the query constraint; omitting ``limit`` means "the configured page
-    size", so the client does not have to know it.
+    **Days, not rows** (Batch 71). The old ``limit`` was a flat row cap across every
+    pooled competition at once — 20 by default — and the screen groups results by day and
+    then by competition, so a busy Saturday lost most of its divisions off the end of it.
+    Production on 2026-08-23 held 145 finished matches on 2026-08-22 across 17
+    competitions; the newest twenty covered six of them.
+
+    ``days`` names how many days *that have results* to return, so a Wednesday still
+    answers with the weekend. Omitting it means the configured window.
     """
     competitions = await pooled_competitions(db)
     return await recent_results(
-        db, competitions, limit=limit or settings.football_recent_results_limit
+        db,
+        competitions,
+        days=days or settings.football_results_days,
+        max_rows=settings.football_results_max_rows,
     )

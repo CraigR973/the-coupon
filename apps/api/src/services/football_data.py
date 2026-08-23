@@ -28,7 +28,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import structlog
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.fixture import Fixture
@@ -625,27 +625,71 @@ async def league_tables(
     return [tables[slug] for slug in slugs if slug in tables]
 
 
+#: The zone a match day is named in. Matches the ``Europe/London`` anchor the slate
+#: window and every ``starts_on`` already use, so "Saturday's results" means the same
+#: Saturday everywhere in the product.
+UK_TZ_NAME = "Europe/London"
+
+
+def _uk_match_day() -> ColumnElement[date]:
+    """A match's kick-off as the UK calendar date a member would call it.
+
+    ``kickoff_utc`` is stored naive, so the first ``AT TIME ZONE`` labels it UTC and the
+    second moves it to London. One conversion alone would read a naive UTC instant *as*
+    London time, which is an hour wrong in summer and puts a 23:30 Friday kick-off on the
+    wrong day.
+    """
+    return cast(Match.kickoff_utc.op("AT TIME ZONE")("UTC").op("AT TIME ZONE")(UK_TZ_NAME), Date)
+
+
 async def recent_results(
-    db: AsyncSession, competitions: Sequence[CompetitionKey], *, limit: int
+    db: AsyncSession, competitions: Sequence[CompetitionKey], *, days: int, max_rows: int
 ) -> list[ResultEntry]:
-    """The latest finished matches across the given competitions, newest first."""
+    """Every finished match on the most recent ``days`` that have any, newest first.
+
+    **Days, not rows** (Batch 71). This used to take the newest ``limit`` matches across
+    every pooled competition at once, and the screen groups them by day and then by
+    competition — so on a busy Saturday most competitions fell off the end of a flat cap
+    and the screen read as "partially there". Measured against production on 2026-08-23:
+    145 finished matches on 2026-08-22 across 17 competitions, of which the newest twenty
+    covered six.
+
+    The days are the most recent ones that *have* results, not the last ``days`` calendar
+    days: a midweek gap would otherwise return an empty screen on a Wednesday. UK calendar
+    days, because that is what a member means by "Saturday's results" and what the client
+    groups on.
+
+    ``max_rows`` is a backstop rather than a page size — it exists so a pathological
+    ingestion cannot turn one request into an unbounded response, and nothing observed
+    comes near it.
+    """
     slugs = [competition.slug for competition in competitions]
-    if not slugs or limit <= 0:
+    if not slugs or days <= 0 or max_rows <= 0:
         return []
+    played = (
+        Match.competition_id.in_(slugs),
+        Match.finished.is_(True),
+        Match.home_goals.is_not(None),
+        Match.away_goals.is_not(None),
+    )
+    match_day = _uk_match_day()
+    wanted_days = (
+        select(match_day.label("day"))
+        .where(*played)
+        .distinct()
+        .order_by(match_day.desc())
+        .limit(days)
+        .scalar_subquery()
+    )
     home_team = Team.__table__.alias("home_team")
     away_team = Team.__table__.alias("away_team")
     rows = await db.execute(
         select(Match, home_team.c.name, away_team.c.name)
         .join(home_team, home_team.c.id == Match.home_team_id)
         .join(away_team, away_team.c.id == Match.away_team_id)
-        .where(
-            Match.competition_id.in_(slugs),
-            Match.finished.is_(True),
-            Match.home_goals.is_not(None),
-            Match.away_goals.is_not(None),
-        )
+        .where(*played, match_day.in_(wanted_days))
         .order_by(Match.kickoff_utc.desc(), Match.provider_match_id)
-        .limit(limit)
+        .limit(max_rows)
     )
     return [
         ResultEntry(

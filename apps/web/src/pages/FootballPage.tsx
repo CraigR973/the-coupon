@@ -107,15 +107,17 @@ function TablesView({ tables, timezone }: { tables: CompetitionTable[]; timezone
   }
   return (
     <div className="flex flex-col gap-4" data-testid="football-tables">
-      {ordered.map((table, index) => (
+      {ordered.map((table) => (
         <LeagueTableCard
           key={table.competition_id}
           table={table}
           timezone={timezone}
-          // Only the first is expanded: thirty divisions would otherwise open onto
-          // several hundred rows — and untying the screen from a league made that
-          // the ordinary case rather than the extreme one.
-          defaultOpen={index === 0}
+          // Every division starts closed (Batch 71). One-of-thirty-open was the right
+          // instinct — thirty expanded tables is several hundred rows — with the wrong
+          // answer: the reader has not asked for *any* of them yet, and opening the one
+          // that happens to sort first makes it look chosen. The owner asked for the
+          // screen collapsed on open.
+          defaultOpen={false}
         />
       ))}
     </div>

@@ -155,10 +155,29 @@ class Settings(BaseSettings):
     # How far back the scheduled top-up asks for results. Long enough to pick up a match
     # rearranged after the fact; the season backfill is what fills history.
     football_results_lookback_days: int = 30
-    # How many recent matches make up a form line, and how many results a competition
-    # shows on the football-data screen.
+    # How many recent matches make up a form line.
     football_form_matches: int = 5
-    football_recent_results_limit: int = 20
+    # How much of the results screen is served, in **match days** rather than rows
+    # (Batch 71).
+    #
+    # It was `football_recent_results_limit: int = 20`, and the comment beside it said
+    # "how many results a competition shows" — which was never what it did. It was a flat
+    # cap across every pooled competition at once, and the screen groups by day and then
+    # by competition, so a busy Saturday simply fell off the end of it. Measured against
+    # production on 2026-08-23: 567 finished matches across 18 competitions, 145 of them
+    # on Saturday 2026-08-22 across 17 competitions, of which the newest twenty covered
+    # **six**. Eleven divisions vanished, which is exactly the "partially there" a member
+    # reported.
+    #
+    # Days rather than rows because the unit of the answer should match the unit of the
+    # display. Three covers a whole weekend — Friday night through Sunday — which is what
+    # "previous results" means to somebody who plays a Saturday game. They are the three
+    # most recent days that *have* results, not three calendar days, so a midweek gap
+    # cannot return an empty screen.
+    football_results_days: int = 3
+    # A backstop, not a page size. Nothing observed comes close to it; it is here so a
+    # pathological ingestion cannot turn one request into an unbounded response.
+    football_results_max_rows: int = 400
 
     # Betfair Exchange API — only read when `odds_provider` is `betfair`. Production
     # uses non-interactive certificate login.
