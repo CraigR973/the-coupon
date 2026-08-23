@@ -1702,3 +1702,51 @@ paperwork existed, which the preceding hotfix entry flagged.
   work would have shipped it, which is exactly what the clean-worktree preflight is for.
 
 **Next:** Batch 61 — the FastAPI/starlette upgrade and the two decisions inside it.
+
+## Batch 65 — The week ends at the lock, and it should end at the results
+**Commits:** a2a6dca (ff-merged to local main) · verified: `scripts/ci-local.sh` PASS
+(11 checks, 753 backend tests against real PostgreSQL), 9 new backend test cases
+
+Two independent causes of one member report, fixed together because either alone leaves
+the complaint half-standing.
+
+### Key facts for future sessions
+- **A correlated subquery is legal inside a PostgreSQL window `ORDER BY`.** That is what
+  keeps `current_round_order` a self-contained bag of ORDER BY clauses: the in-play bound
+  needs the owning league's window, and a *join* would have to be added to both call sites
+  — where a future caller forgetting it produces a silent cross product rather than an
+  error. Probed against pgserver before committing to the shape.
+- **`span_days` needs `((a - b) % 7 + 7) % 7` in SQL.** PostgreSQL's `%` truncates
+  toward zero, so a Friday-to-Monday window (`0 - 4`) computes as *minus four days* where
+  Python's `%` gives three. The Python `SlateWindow.span_days` is correct; a naive
+  transliteration into SQL is not.
+- **The in-play bound is measured from the window's *close*, not the lock.** Measuring
+  from the lock is right only for a league whose window is a single point — the default
+  Saturday 15:00 — and drops a long-weekend league out of its own round while Monday's
+  games are being played. Derived as `lock_offset + span_days + (end_minute -
+  start_minute)` minutes after `locks_at_utc`, which needs no timezone conversion in SQL
+  and is at most an hour out across a DST change.
+- **Decision — the bound is 48 hours (`IN_PLAY_GRACE_MINUTES`), from the settlement
+  cadence.** Settlement sweeps at 18:00, 20:00 and 22:00 daily, so two days is six
+  consecutive sweeps: a round unresolved by then is stuck, not in play. Stated in
+  `test_a_round_that_never_settles_stops_pinning_the_league` on both sides of the line.
+- **Decision — `status` is not re-derived when a window edit restamps the instants.**
+  Only `picks_open_at_utc` and `locks_at_utc` move. Flipping a round back from `open` to
+  `scheduled` would tell members a round they may already hold a pick on has not opened,
+  and it buys nothing: `pick_refusal` and `accepting_picks` both read the instant, and
+  `open_due_gameweeks` re-labels on its next run.
+- **Decision — the restamp is logged, not written into the audit row's `changes`.** That
+  payload is a `{field: {from, to}}` map and a count does not fit it; Batch 69's console
+  will render it. `league.claim_periods_restamped` carries the league and the round count.
+- **Batch 27's "neither instant is ever re-derived" is now half-true and the docs said it
+  in four places.** `models/gameweek.py`, `sync_slate`, `populate_cadence_rounds` and
+  `test_round_population.py`'s header all asserted it. The surviving half is the
+  load-bearing one: a *locked* round keeps the deadline it was claimed against.
+- **Two existing tests asserted the old behaviour as their subject and were rewritten, not
+  patched.** `test_refresh_rounds_rebuilds_a_moved_window_without_moving_the_announced_
+  instants` held that a PATCH may not move an unlocked round's instants — now exactly
+  backwards — and `test_slate_and_coupon_read_a_named_gameweek` defaulted to next week's
+  round while last week's was still being played. Both now assert the new rule at the HTTP
+  layer, which is where the member saw the defect.
+
+**Next:** Batch 66 — a member who forgets their PIN has no way back in.

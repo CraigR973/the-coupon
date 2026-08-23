@@ -156,7 +156,30 @@ FotMob carries neither NI Championship 1 nor the English non-league tiers, so th
 fail open every week, and because `sync_slate` only ever adds links and `fixtures`
 has no status column, a hand-removal there is undone by the next `refresh-slate`.
 
-Batches 1-60 and 62-64 are closed (59 in part; see Batch 61). The Coupon is a
+Batch 65 stopped the leagues jumping a week at 14:30 on Saturday. Members
+reported them going "straight to the next week as soon as the picks are locked",
+and there were **two independent causes**. `current_round_order` ranked a round
+top only while it was accepting picks; discovery writes next week's round a
+`slate_horizon_weeks` horizon ahead with `picks_open_at_utc` NULL, which counts
+as claimable the instant the row exists, so from Sunday onwards both rounds sat
+in the top tier and only the soonest-lock tiebreak kept this week in front — and
+at the lock that tiebreak stopped applying, mid-afternoon, with the league's own
+games still being played. A new top tier holds the round that has **locked and
+not yet settled**, so the week now turns on the results rather than the deadline.
+It is bounded: 48 hours past the close of the league's own window, which is six
+consecutive 18:00/20:00/22:00 settlement sweeps, so a round the provider never
+resolves — Batch 64's phantom Premiership round is that shape — cannot pin its
+league forever. The window's close is read **per league**, so a Friday-to-Monday
+round is still in play on Monday night. The second cause was the settings: a
+window edit changed nothing about any round already discovered, which over the
+horizon was every round a member could see, so an announced opening appeared to
+do nothing for weeks. An edit now restamps both ends of the claim period on every
+round that has **not locked** — the forward-only rule Batch 40 declined to
+replace, kept exactly where it is load-bearing: a locked round keeps the deadline
+its members claimed against. **API-side only, so it is not live until a
+`/ship-prod` runs.**
+
+Batches 1-60 and 62-65 are closed (59 in part; see Batch 61). The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -806,10 +829,12 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **no unchecked batches**. Every batch through 53 is
-closed, and the remaining plan is the launch one: `docs/LAUNCH_PLAN.md` has a single
-open phase, **L5 — Launch and first-Saturday watch**, with L0-L4 ticked since
-2026-08-04.
+`docs/BUILD_PLAN.md` carries **eight unchecked batches**: 61, and the post-launch
+member-report set 66-72 specified on 2026-08-23 (Batch 65 of that set is closed).
+Batch 61 — the FastAPI/starlette upgrade split out of Batch 59 — is deliberately
+parked; Batch 68 needs an odds figure only the owner can evidence and is worked
+interactively. `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and
+first-Saturday watch**, with L0-L4 ticked since 2026-08-04.
 
 Batch 53 closed the last of them: a form line now opens onto the matches it is made
 of, on the pick card and in the league table. **It is API-side as well as web, and

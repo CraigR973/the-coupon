@@ -1892,7 +1892,7 @@ answered until it lands, because until then there is no data to look at.
   against production and rolling back — 10 of 12 hand-removed fixtures re-linked to both
   leagues, 90 minutes before the lock.
 
-- [ ] **Batch 65 — The week ends at the lock, and it should end at the results** — the first
+- [x] **Batch 65 — The week ends at the lock, and it should end at the results** ✅ 2026-08-23 — the first
   member-reported problem of the post-launch batches (owner, 2026-08-23): "the leagues seem
   to jump straight to the next week as soon as the picks are locked". They do, and there are
   **two independent causes**. Fixing either one alone leaves the complaint half-standing, so
