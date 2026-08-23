@@ -282,7 +282,28 @@ pathological ingestion. Measured against the same production data: **150 rows, a
 17 competitions**. **API-side as well as web, so the fuller results are not live
 until a `/ship-prod` runs**; the collapse fix is frontend-only and lands on merge.
 
-Batches 1-60, 62-67 and 69-71 are closed (59 in part; see Batch 61). The Coupon is a
+Batch 72 put the score on the screen while the round is being played — the last of
+the post-launch list and the only enhancement on it. It is affordable because the
+source is already here: FotMob ships in production for tables, results and form,
+**needs no key and has no rate limit to protect**, and Batch 67 had already built
+the join a live score is read through. **It is display only and never touches
+settlement:** the odds provider settles picks, and a second source moving
+`Pick.status` would be two authorities on one fact — a member watching points
+awarded and then withdrawn. The poll writes to `teams` and `matches` and nothing
+else, and a test snapshots every pick row around a poll to prove it. **Polling
+lives on the scheduler, every ten minutes, bounded to leagues with a round
+actually in play** — Batch 65's own predicate, so a quiet Tuesday reads the
+database and returns without a request, and a round the provider never settles
+stops being polled once it passes the grace measured from its own window closing.
+A running score stores with `finished=False`, which keeps it out of the results
+screen, the form line and the settled scorelines, all three of which gate on it;
+a competition FotMob does not carry renders the round without scores rather than
+erroring. The leg says which kind of score it is and the screen says so in words,
+because 2-1 at half time and 2-1 at full time are opposite news to somebody
+holding that pick. **API-side as well as web, so live scores are not live until a
+`/ship-prod` runs.**
+
+Batches 1-60, 62-67 and 69-72 are closed (59 in part; see Batch 61). The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -932,9 +953,11 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **three unchecked batches**: 61, and the post-launch
-member-report set 68 and 72 specified on 2026-08-23 (Batches 65, 66, 67, 69, 70 and 71 of
-that set are closed).
+`docs/BUILD_PLAN.md` carries **two unchecked batches**, both deliberately parked:
+**Batch 61**, the FastAPI/starlette upgrade split out of Batch 59, and **Batch 68**, the
+two-round backfill, which cannot start without an odds figure only the owner can evidence
+and is worked interactively. Every other batch of the post-launch member-report set —
+65, 66, 67, 69, 70, 71, 72 — is closed.
 Batch 61 — the FastAPI/starlette upgrade split out of Batch 59 — is deliberately
 parked; Batch 68 needs an odds figure only the owner can evidence and is worked
 interactively. `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and

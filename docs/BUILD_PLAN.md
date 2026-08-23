@@ -2169,7 +2169,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: **these two defects.** No redesign of the screen.
 
-- [ ] **Batch 72 — Live scores while the round is being played** — the remaining half of the
+- [x] **Batch 72 — Live scores while the round is being played** ✅ 2026-08-23 — the remaining half of the
   owner's second point (2026-08-23), phrased there as a genuine question: "potentially live
   state if it is not too much overhead".
 

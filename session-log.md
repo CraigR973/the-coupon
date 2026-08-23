@@ -1974,3 +1974,46 @@ after
   asserting what the screen shows on arrival.
 
 **Next:** Batch 72 — live scores while the round is being played.
+
+## Batch 72 — Live scores while the round is being played
+**Commits:** f05aaaa (ff-merged to local main) · verified: `scripts/ci-local.sh` PASS
+(11 checks, 827 backend tests against real PostgreSQL, 700 frontend), 9 new backend tests,
+5 new frontend test cases
+
+### Key facts for future sessions
+- **The FotMob payload memo is per client and the client is process-wide.** A live read
+  through it returns whatever the first caller of the day saw — a poll every ten minutes
+  reporting half-time until the container restarts. `_league(..., refresh=True)` replaces
+  the memo rather than bypassing it, so the fresher payload is what everything else sees
+  and the request is not paid for twice. This is the single easiest way to have shipped
+  this batch broken and had every test pass.
+- **`Match.finished` was already the right gate, and nothing needed to change to respect
+  it.** `sync_results` writes `finished = result.finished and home_goals is not None`, so
+  an in-play `MatchResult` stores its running score and stays out of the results screen,
+  the form line and Batch 67's settled scorelines — all three filter on `finished`. The
+  model's own docstring predicted this use.
+- **`fetch_live_scores` is non-abstract on the port with a `[]` default**, the pattern
+  `fetch_fixture_states` set for the same reason: only FotMob can answer, and a provider
+  that cannot must cost nothing beyond the scores it does not supply. api-football and the
+  fake needed no change at all.
+- **The poll is bounded by Batch 65's `in_play`, and that does a second job here.** It
+  stops a round the provider never settles being polled forever — Batch 64's phantom
+  Premiership round would otherwise have kept a competition fetched every ten minutes
+  until May. `is_in_play` (single-row) is a *query*, not a Python check, because the grace
+  is measured from the league's window and that lives on a row the gameweek does not carry.
+- **A kicked-off match with no published score is skipped, not stored as 0-0.** Nil-nil is
+  a real scoreline and "we do not know" is not.
+- **Four live-score tests passed alone and failed in the suite.** The poll is deliberately
+  global — every league's in-play round — and other modules in the suite *commit*, so
+  their rounds were in play too. The tests now scope every assertion to the competition
+  slug they created, and the `_Live` fake answers for one slug rather than for whatever it
+  is asked about. Worth remembering as a class: "assert nothing happened" is not a safe
+  assertion against a shared committed database.
+- **`Badge` renders a block, so it cannot go inside a `<p>`.** Caught by React's
+  `validateDOMNesting` warning in a test that was otherwise passing; the browser silently
+  rewrites the markup.
+- **`score_is_final` defaults to `true` on the wire and in the client.** Absent has always
+  meant final, so the deployed web app reads a pre-Batch-72 API exactly as it always did.
+
+**Next:** Batch 68 (needs an odds figure only the owner can evidence) and Batch 61 (the
+FastAPI/starlette upgrade), both deliberately outside the unattended run.
