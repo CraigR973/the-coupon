@@ -617,6 +617,13 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-08-22 | Railway `api` | `3de32d48-66f3-4df8-a1a4-548dbbf40e36` | `87cae2e7` (Batches 56–59) | `015` |
 | 2026-08-22 | Vercel web | `dpl_3hnnyDkhAzoasUgiodL7sRL3H1yN` | `b9e78fa` (odds hotfix) | — |
 | 2026-08-22 | Railway `api` | `b96c15f4-2fdf-4f26-81ba-75b694af3765` | `b9e78fa` (odds hotfix) | `015` |
+| 2026-08-22 | Vercel web | `dpl_CT48uzP7g4LA1VFp4ZhKDbr6eZ6k` | `82a7a120` (Batch 64 + three-bug fix) | — |
+| 2026-08-22 | Railway `api` | `5af73dae-58a3-4574-b28b-a70166fe04a3` (`REMOVED`) | `82a7a120` (Batch 64 + three-bug fix) | `015` |
+| 2026-08-24 | Vercel web | `dpl_52QhjHArVNNyof4mFksBJuyFXVyz` | `df8304f` (Batches 65–67, 69–72) | — |
+| 2026-08-24 | Railway `api` | `e2cbbf2d-0626-4fdb-b2c2-c348d97165d8` (`REMOVED`) | `df8304f` (Batches 65–67, 69–72) | **`016`** |
+| 2026-08-24 | Vercel web | `dpl_ALgZHtgeDFXGVWD73m3rVH164txg` | `18dfb9f` (Batch 68 backfill module) | — |
+| 2026-08-24 | Railway `api` | `5922cf17-1767-4ab8-b225-9c0d2fd6b44f` | `18dfb9f` (Batch 68 backfill module) | `016` |
+| 2026-08-24 | Vercel web | `dpl_4omNbVGwXhBM8hRZAQ2cESTbND86` | `af50d22` (Batch 68 close-out, docs only) | — |
 
 The 2026-08-19 shipment carries Batch 35 and is the **first API deployment since
 `013` that applies no migration**, which is what restores the rollback target the
@@ -1157,6 +1164,125 @@ nobody has used yet:
 ```sql
 SELECT count(*) AS unnumbered FROM gameweeks WHERE number IS NULL;  -- expect 0
 ```
+
+### 2026-08-22 — `82a7a120` rows added retrospectively
+
+The narrative for that shipment is the section above and was written at the
+time; its **table rows were never added**, which is why the table appeared to
+end at `b9e78fa` while production had moved on twice. Added here from the
+section's own recorded IDs rather than re-derived. Nothing about the shipment
+changed — only the index caught up with it.
+
+The lesson is about this file, not that deploy: `/ship-prod` §1.8 reads the
+rollback baselines from the platforms, so a stale table costs nothing at deploy
+time and everything to a reader trying to work out what is live.
+
+### 2026-08-24 — `df8304f`, the post-launch member-report set (**migration `016`**)
+
+Source commit `df8304f`, on `origin/main`, gate green (`scripts/ci-local.sh`,
+11 checks, 827 backend tests against real PostgreSQL) with a GitHub Actions
+`Quality` run present and successful for the commit.
+
+**Seven batches in one shipment** — 65, 66, 67, 69, 70, 71 and 72, the whole
+post-launch set built from member reports on 2026-08-23. Batch 68 was held back
+because it needed odds only the owner could evidence.
+
+Railway `e2cbbf2d-0626-4fdb-b2c2-c348d97165d8`, `SUCCESS`. Its predecessor —
+this shipment's rollback baseline — was
+`5af73dae-58a3-4574-b28b-a70166fe04a3`, serving `82a7a120` at head `015`.
+
+**This is the first shipment since `015` to carry an Alembic revision**, so
+§1.7's forward-recovery-plan gate applied. The plan is
+`docs/runbooks/migration-016-recovery.md`, written and shipped in the same
+commit. Revision `016` drops `NOT NULL` from `profiles.pin_hash`: a
+catalogue-only change that moves no data, and **forward-compatible with the
+previous image**, because pre-Batch-66 code reads the column and never writes
+`NULL`. That is the load-bearing property — `5af73dae` remains a bootable
+rollback target and a rollback needs no `alembic downgrade`, unlike the `014`
+case recorded above.
+
+Section 4 was skipped by design, for the ninth time running: the GitHub
+integration had already built `df8304f` as
+`dpl_52QhjHArVNNyof4mFksBJuyFXVyz`, whose `githubCommitSha` was read from the
+Vercel API rather than inferred from timing, and which already held the stable
+alias.
+
+Post-deploy verification: `/health` reports sha `df8304f` and migration `016`,
+`/health/ready` agrees at `016` with `db: ok`, the boot log shows
+`Running upgrade 015 -> 016` with no errors, and a 38-line bounded log review
+found zero error or traceback lines and zero secret-shaped matches across
+connection-string, JWT, bcrypt, private-key, long-token and key-assignment
+patterns. `016` was confirmed in the database directly: `alembic_version` at
+`016`, `profiles.pin_hash` `is_nullable = YES`, 13 active profiles and **0**
+holding `NULL` — nobody stranded mid-reset. The stable web root and a deep link
+return `200` with a byte-identical SPA asset and the committed security headers,
+and an `OPTIONS` preflight from the exact stable origin returns `200` with
+credentials enabled while a foreign origin is refused `400`. The new surface was
+probed unauthenticated: every `/api/v1/admin/*` route answers `403` rather than
+`404`, and `/auth/pin/set` answers `409` — shipped and gated.
+
+**One trap fired during preflight and is worth recording.** A bare
+`vercel list --prod` returned **the-coupon-staging**, silently, exactly as
+§4 warns: `.vercel/project.json` points at staging. It was caught because the
+output named the project, and redone with `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID`
+set. Nothing was acted on from the wrong reading.
+
+### 2026-08-24 — `18dfb9f`, the Batch 68 backfill module (no migration)
+
+Source commit `18dfb9f`, gate green (11 checks, 846 backend tests). Head stays
+`016`, so no forward recovery plan was required and `e2cbbf2d` bundles the same
+head and can boot.
+
+Railway `5922cf17-1767-4ab8-b225-9c0d2fd6b44f`, `SUCCESS`; rollback baseline
+`e2cbbf2d-0626-4fdb-b2c2-c348d97165d8`. Section 4 skipped again —
+`dpl_ALgZHtgeDFXGVWD73m3rVH164txg` carried `18dfb9f`, confirmed from the Vercel
+API. Post-deploy: `/health` reports `18dfb9f` at `016`, `/health/ready` agrees
+with `db: ok`.
+
+**This shipment exists to run something, not to change behaviour.** It carries
+`apps/api/src/backfill_august_2026.py`, whose only purpose is one execution
+against production; no route, job or read path changed. It is recorded as a
+shipment because the container it produced is the one the backfill ran inside.
+
+The backfill was then applied at **21:27 UTC**: 26 picks across three rounds of
+`2-1-hibs`, two rounds created and one added to. Verified in the database — 36
+settled picks, **0** mismatches against `round(odds × 10)`, no round left
+pending — and hand-tallied against both bet365 slips, 24 legs, every line
+agreeing. Details and the evidence attribution are in
+`docs/backfills/2026-08-rounds.md`.
+
+**Running a module inside the container needs the container's own environment,
+and `railway ssh` does not give it to you.** The plain `python` is the Nix one
+without the app's dependencies, and even `/opt/venv/bin/python` fails —
+`greenlet` cannot load `libstdc++.so.6` — because `LD_LIBRARY_PATH` is set for
+pid 1 and not for an ssh shell. Take it from `/proc/1/environ`, and **never
+print that file**: it holds `DATABASE_URL`, both JWT secrets and the VAPID
+private key. The working form is:
+
+```bash
+cd /app && export LD_LIBRARY_PATH=$(tr "\0" "\n" < /proc/1/environ \
+  | grep "^LD_LIBRARY_PATH=" | cut -d= -f2-) \
+  && PYTHONPATH=/app/apps/api /opt/venv/bin/python -m <module>
+```
+
+### The current rollback baselines
+
+For the next `/ship-prod`, and to be confirmed live rather than trusted from
+here (§1.8):
+
+| Stack | Baseline | Commit | Head |
+| --- | --- | --- | --- |
+| Railway `api` | `5922cf17-1767-4ab8-b225-9c0d2fd6b44f` | `18dfb9f` | `016` |
+| Vercel web | `dpl_4omNbVGwXhBM8hRZAQ2cESTbND86` | `af50d22` | — |
+
+The Vercel entry is a **docs-only** auto-deploy from the Batch 68 close-out. It
+is the baseline anyway, because it is what currently holds the stable alias —
+the same reason `5e6e522e-…` is recorded above rather than the shipment before
+it.
+
+**Every image from `e2cbbf2d` onward is bootable against head `016`, and so is
+`5af73dae` before it** — see the migration-016 recovery plan. The rollback
+target is not emptied by this shipment.
 
 ## Gate state
 
