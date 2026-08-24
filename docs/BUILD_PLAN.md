@@ -2029,7 +2029,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: **settled rounds only.** In-play scores are Batch 72.
 
-- [ ] **Batch 68 — Two rounds that were played before the app was watching** — the owner's
+- [x] **Batch 68 — Two rounds that were played before the app was watching** ✅ 2026-08-24 — the owner's
   first and eighth points (2026-08-23): backfill the last two weeks' results into a league,
   and correct Lewis Steele's pick for the round of 22 August.
 

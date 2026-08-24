@@ -303,7 +303,29 @@ because 2-1 at half time and 2-1 at full time are opposite news to somebody
 holding that pick. **API-side as well as web, so live scores are not live until a
 `/ship-prod` runs.**
 
-Batches 1-60, 62-67 and 69-72 are closed (59 in part; see Batch 61). The Coupon is a
+Batch 68 wrote in the two rounds the league played before the product existed.
+2-1 Hibs played on 8 and 15 August 2026 and The Coupon's first stored round is
+22 August, which was also missing two members' picks. The owner supplied both
+bet365 slips and both coupons on 2026-08-24, which is what unblocked it: **the
+odds are an input to this batch, not an output** — odds-api.io returns no
+retrospective price, so there was nothing to probe and nothing to spend, and a
+winning pick scores `round(odds × 10)`, which makes an invented price an invented
+leaderboard position. **Nothing invents an outcome either:** the 26 picks were
+written `pending` with no points and settled by the same `settle_gameweek` the
+evening sweep calls, against the scorelines already ingested from FotMob — so the
+coupons say what was picked, FotMob says what happened, and the points are
+computed rather than transcribed. A rehearsal against production before anything
+was written resolved 25 of the 26 through the real matcher and found **every
+FotMob scoreline agreeing with the settled slip's own tick and cross marks**. The
+twenty-sixth is Aberdeen v Dundee, which is Scotland League Cup Group C — a
+competition no source carries, alongside NI Championship 1 and the English
+non-league tiers — and its 3–0 came from the slip and the owner independently,
+through a fallback that may only fill a hole and never override stored data.
+**Applied to production on 2026-08-24**: three rounds settled, 36 settled picks,
+zero points mismatches against `round(odds × 10)`, and a 24-leg hand tally
+agreeing on every line. All twelve members now show three rounds played.
+
+Batches 1-60, 62-72 are closed (59 in part; see Batch 61). The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -953,11 +975,9 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **two unchecked batches**, both deliberately parked:
-**Batch 61**, the FastAPI/starlette upgrade split out of Batch 59, and **Batch 68**, the
-two-round backfill, which cannot start without an odds figure only the owner can evidence
-and is worked interactively. Every other batch of the post-launch member-report set —
-65, 66, 67, 69, 70, 71, 72 — is closed.
+`docs/BUILD_PLAN.md` carries **one unchecked batch**: **Batch 61**, the
+FastAPI/starlette upgrade split out of Batch 59 and deliberately parked. The whole
+post-launch member-report set — 65 through 72 — is closed and in production.
 Batch 61 — the FastAPI/starlette upgrade split out of Batch 59 — is deliberately
 parked; Batch 68 needs an odds figure only the owner can evidence and is worked
 interactively. `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and

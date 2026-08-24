@@ -2017,3 +2017,58 @@ after
 
 **Next:** Batch 68 (needs an odds figure only the owner can evidence) and Batch 61 (the
 FastAPI/starlette upgrade), both deliberately outside the unattended run.
+
+## Batch 68 — Two rounds that were played before the app was watching
+**Commits:** 18dfb9f (ff-merged, pushed) · shipped to production as Railway
+`5922cf17-1767-4ab8-b225-9c0d2fd6b44f` · **backfill applied to production 2026-08-24
+21:27 UTC** · verified: `scripts/ci-local.sh` PASS (11 checks, 846 backend tests), 19 new
+backend test cases, a production dry run, and a 24-leg hand tally
+
+The owner supplied both bet365 slips and both coupons on 2026-08-24, which unblocked the
+batch. 26 picks written across three rounds; the league's 12 members all now show three
+rounds played.
+
+### Key facts for future sessions
+- **A betting slip states its own return, and that is the check worth writing.** The
+  8 August slip is £3.50 to return £1,660.24; the twelve fractions multiply to 474.28, so
+  474.28 × 3.50 = £1,659.99 — 0.015%, bet365's own rounding. A single mis-converted
+  fraction (19/20 as 1.90) is invisible on re-reading and moves a member's points by a
+  whole unit. A second test asserts each stored decimal is its own fraction rounded to 2dp,
+  because the product alone survives two errors that cancel.
+- **Do the product check on the fractions, not on the stored decimals.** The 2dp values
+  drift ~1.1% high over twelve legs (4/6 → 1.67 three times), which is `Numeric(6, 2)`
+  doing its job. My first version compared the decimals and failed at a tolerance tight
+  enough to be worth having.
+- **Nothing invents an outcome.** Picks were written `pending` with no points and settled
+  by `settle_gameweek` against the scorelines already in `matches`. So the coupons say what
+  was picked and FotMob says what happened, and `points_awarded` is *computed*. Verified
+  in production: 36 settled picks, **0 mismatches** against `round(odds × 10)`.
+- **The rehearsal is the thing that made this safe.** Dumping production's candidate
+  matches and running the real `pair_score`/`PAIR_THRESHOLD` locally resolved 25 of 26
+  before anything was written — and found **every FotMob scoreline agreeing with the
+  settled 15 August slip's own ✓/✗ marks**. Two independent sources, no disagreement.
+- **A naive SQL preflight lied.** Joining `teams.name = fixtures.home` reported 20 failures;
+  the two providers spell clubs differently ("Everton" vs "Everton FC"), which is the entire
+  reason Batch 67's join is similarity-based. If a check contradicts a shipped matcher,
+  suspect the check.
+- **Scotland League Cup Group C is carried by nothing.** Aberdeen v Dundee, 15 August, has
+  zero finished matches in production — it joins NI Championship 1 and the English
+  non-league tiers on that list. Handled by `KNOWN_SCORES`, which may only *fill* a hole:
+  the run raises if an entry there would override a score the store holds. Owner confirmed
+  3-0 independently of the slip, so that value has two sources — better attested than the
+  two 22 August prices.
+- **Decision — rounds land with `number = NULL`.** 22 August is "Gameweek 1" and members
+  were told so. `next_gameweek_number` would name these 3 and 4, putting a later number on
+  an earlier date; renumbering 22 August would rewrite a name in use. The column is nullable
+  for exactly this and nothing keys on it.
+- **Running a module against production needs the container's own environment.** The prod
+  database is IPv6-only, so it has to run inside Railway — and `railway ssh` gives neither
+  the venv (`/opt/venv/bin/python`) nor `LD_LIBRARY_PATH`, so greenlet fails to load
+  `libstdc++.so.6`. Take it from `/proc/1/environ` without printing it; that file holds
+  every secret the service has.
+- **Test isolation, again.** `apply()` originally committed, which broke the rollback
+  fixture for every later test; it now flushes and the CLI commits, matching the codebase
+  convention. And unscoped `select(Pick)` assertions passed alone and failed in the full
+  suite. Third batch running to hit that — assume the suite is non-hermetic by default.
+
+**Next:** Batch 61 — the FastAPI/starlette upgrade, the last unchecked row.
