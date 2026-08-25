@@ -32,7 +32,7 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import AsyncIterator, Collection
-from datetime import UTC, date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 import pytest_asyncio
@@ -225,6 +225,30 @@ async def _rounds(slug: str) -> list[Gameweek]:
             .order_by(Gameweek.starts_on)
         )
         return list(result.scalars().all())
+
+
+def _first_unlocked(rounds: list[Gameweek]) -> tuple[int, Gameweek]:
+    """The earliest round whose deadline is still ahead, with its position in the cadence.
+
+    ``upcoming_slate_dates`` includes **today** by date alone, never by time of day, so a
+    league created after its own window has already locked is born holding a round that
+    can never move again — :func:`rederive_claim_periods` bounds itself on
+    ``locks_at_utc > now``, deliberately. Taking ``rounds[0]`` therefore asserts on a
+    round whose mutability depends on the wall clock: it is the round the members can see
+    for most of the week, and a dead one for the hours after the window passes on the
+    league's own weekday.
+
+    Every league in this module plays a weekday of its own, so this fired on exactly one
+    test on exactly one weekday — Tuesday, after 18:45 London — and passed the other
+    167 hours.
+    """
+    now = datetime.now(UTC).replace(tzinfo=None)
+    for index, gameweek in enumerate(rounds):
+        if gameweek.locks_at_utc > now:
+            return index, gameweek
+    raise AssertionError(
+        "the whole horizon has locked — a league cannot be created into a dead cadence"
+    )
 
 
 async def _linked(gameweek_id: uuid.UUID) -> set[uuid.UUID]:
@@ -460,7 +484,9 @@ async def test_the_settings_edit_restamps_an_unlocked_round_and_the_refresh_leav
     old_card = await _pool_cadence(before_window, competition_id="test-div-e")
 
     slug = await _create_league(client, admin, before_window, pick_open_offset_minutes=2880)
-    before = (await _rounds(slug))[0]
+    # Not `[0]`: on the league's own weekday that round may already have locked, and a
+    # locked deadline is the one thing the edit must never move.
+    cadence_index, before = _first_unlocked(await _rounds(slug))
     assert before.picks_open_at_utc is not None, "the league announced an opening"
     assert before.locks_at_utc == before_window.locks_at(before.starts_on)
 
@@ -476,7 +502,7 @@ async def test_the_settings_edit_restamps_an_unlocked_round_and_the_refresh_leav
     )
     assert moved.status_code == 200, moved.text
 
-    restamped = (await _rounds(slug))[0]
+    restamped = (await _rounds(slug))[cadence_index]
     assert restamped.locks_at_utc == after_window.locks_at(
         restamped.starts_on
     ), "the round the members can see follows the settings that describe it"
@@ -490,12 +516,12 @@ async def test_the_settings_edit_restamps_an_unlocked_round_and_the_refresh_leav
     ]
     assert rebuilt and rebuilt[0]["created"] is False, "the existing round, topped up in place"
 
-    after = (await _rounds(slug))[0]
+    after = (await _rounds(slug))[cadence_index]
     assert after.picks_open_at_utc == opens_at, "a rebuild moves no instant of its own"
     assert after.locks_at_utc == locks_at
     # Both cards stay linked: a member may already hold a pick on the old one, and a
     # pooled slate carries no provider status, so nothing here can unlink anything.
-    assert await _linked(after.id) == {old_card[0].id, new_card[0].id}
+    assert await _linked(after.id) == {old_card[cadence_index].id, new_card[cadence_index].id}
     assert counter.slate_calls == []
 
 
