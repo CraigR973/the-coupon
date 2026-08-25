@@ -2280,8 +2280,8 @@ answered until it lands, because until then there is no data to look at.
   the product can change a display name after registration today, which is a real gap and the
   obvious follow-up, but it is not this batch.
 
-- [ ] **Batch 75 — The nightly backup pulls the whole database across the internet and throws it
-  away** — found on 2026-08-25 while diagnosing why the Supabase project answers 402
+- [x] **Batch 75 — The nightly backup pulls the whole database across the internet and throws it
+  away** ✅ 2026-08-25 *(Opus)* — found on 2026-08-25 while diagnosing why the Supabase project answers 402
   `exceed_egress_quota`. Not a member-visible defect; a standing cost that buys nothing.
 
   `scheduler.py:484` runs `pg_dump` at 03:00 UTC every day. Three facts make it waste rather

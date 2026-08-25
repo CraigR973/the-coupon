@@ -2190,3 +2190,37 @@ Postgres-backed tests · **script shipped, NOT applied to production**
   oversight later.
 
 **Next:** Batch 75 — removing the nightly `pg_dump` that writes to a tmpfs no volume backs.
+
+## Batch 75 — The nightly backup pulls the whole database across the internet and throws it away
+**Commit:** d012ebf (ff-merged) · verified: `scripts/ci-local.sh` PASS (11 checks)
+
+### Key facts for future sessions
+- **Production has no backup at all, and this batch made that visible rather than causing
+  it.** `docs/launch/L4_PRODUCTION_INFRASTRUCTURE.md:105` records the owner's 2026-07-30
+  deferral: no managed backup, no PITR. So `backup-restore.md`'s "Supabase managed
+  backups are the source of record" is **aspirational, not current**. The nightly dump was
+  never a fallback — it wrote to `/tmp` on a service with no volume — but it logged
+  `"scheduled backup complete"` every night, which was a false signal. **The real gap is
+  still open and is not this batch's to close.**
+- **Removing it is not the egress fix and must not be cited as one.** 12 MB of database
+  and this job put The Coupon near 1 GB/month against a 5 GB allowance, and Supabase meters
+  egress **per organisation** — so the thing that spent the quota may be a different
+  project entirely. That question is unanswered.
+- **The schedule went; the capability stayed.** `python -m src.run_scheduled backup` runs
+  the same coroutine. `services/backup.py`, `settings.backup_dir`, `test_backup.py` and the
+  `backup_failed` / `backup_downloaded` enum values are all untouched — enum values are
+  irreversible to remove, for the reason `unlock_player` records.
+- **Assert a removed job absent, and pair the assertion.** `daily_backup is None` in
+  `test_scheduler.py` plus "the manual path still resolves to the same coroutine" in
+  `test_run_scheduled.py`. **Either alone passes the wrong change**: delete the coroutine
+  and the first still passes; restore the nightly `add_job` and the second still passes.
+- **A comment justifying a time can outlive the thing it referenced.**
+  `prune_refresh_tokens` ran at 04:30 "after the 03:00 backup so a pruned row is in last
+  night's copy". The hour kept a real reason — PITR holds that property *better*, since it
+  recovers a row deleted at 04:30 to any second before it — rather than being left
+  pointing at a job that no longer exists.
+- **Launch-phase docs were deliberately not rewritten.** `LAUNCH_PLAN.md`, `L0` and `L3`
+  describe the nightly dump; they are dated records of what was true then, the same
+  convention Batch 74 applied to `invites.display_name_hint`.
+
+**Next:** Batch 76 — notification triggers, and making the per-league mute actually work.
