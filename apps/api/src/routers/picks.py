@@ -35,9 +35,12 @@ from src.deps import LeagueMemberDep, OddsProviderDep
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekFixture
 from src.models.league import League, PickScope
+from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome
+from src.models.profile import Profile
 from src.rate_limit import limiter, per_user_key
 from src.services.gameweek import PICKABLE_STATES, pick_refusal
+from src.services.notification_triggers import notify_pick_made
 from src.services.odds_provider import OddsProviderError, Selection
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -183,6 +186,11 @@ async def submit_pick(
         )
     )
     pick = existing.scalar_one_or_none()
+    # Captured *before* `_apply_selection` overwrites the row. `submit_pick` updates in
+    # place, so after that call there is nothing left to say whether this was a claim or a
+    # move — and they are different events to everyone else in the league (Batch 76). A
+    # move frees the old selection back into the grab, which is the more useful half.
+    moved = pick is not None
     if pick is None:
         pick = Pick(league_id=league.id, gameweek_id=gameweek.id, player_id=player.id)
         db.add(pick)
@@ -204,7 +212,62 @@ async def submit_pick(
         player_id=str(player.id),
         selection=f"{body.market.value}:{body.outcome.value}",
     )
-    return _to_response(pick, fixture)
+
+    # Serialised before the alert, not after. The block below rolls back on failure, and a
+    # rollback expires every object in the session — so building the response afterwards
+    # would re-read a committed row through an implicit lazy load, outside the transaction
+    # that was just discarded. The response is the endpoint's contract; nothing about
+    # announcing the pick may put it at risk.
+    response = _to_response(pick, fixture)
+
+    # Batch 76 — announce the grab. After the commit, deliberately: the pick is the thing
+    # that must land, and a push that fails must not roll one back. Failures are swallowed
+    # for the same reason, so a dead subscription cannot turn a successful claim into a
+    # 500 the member reads as "it did not save".
+    #
+    # Sends are inline, matching `notify_member_joined`. Eleven webpush calls on the
+    # submit path is a real latency cost and it is accepted rather than unnoticed —
+    # moving delivery off the request is the delivery-layer change this batch is scoped
+    # out of, and reach is 5 active subscriptions across 13 profiles today.
+    try:
+        await notify_pick_made(
+            db,
+            gameweek,
+            picker_id=player.id,
+            picker_name=await _league_display_name(db, league.id, player),
+            league_name=league.name,
+            selection=pick.runner_name,
+            odds=pick.odds_at_pick,
+            moved=moved,
+        )
+        await db.commit()
+    except Exception:
+        log.exception(
+            "pick alert failed",
+            league_id=str(league.id),
+            gameweek_id=str(gameweek.id),
+        )
+        await db.rollback()
+
+    return response
+
+
+async def _league_display_name(db: AsyncSession, league_id: uuid.UUID, player: Profile) -> str:
+    """What this league calls the picker — the override when set, else their profile name.
+
+    The alert has to read the way the leaderboard does; a member who set an override in
+    one league is that name to everybody in it.
+    """
+    override = (
+        await db.execute(
+            select(LeagueMembership.display_name_override).where(
+                LeagueMembership.league_id == league_id,
+                LeagueMembership.player_id == player.id,
+                LeagueMembership.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    return override or player.display_name
 
 
 # ── Read: my pick for a gameweek ──────────────────────────────────────────────

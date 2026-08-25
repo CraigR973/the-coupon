@@ -666,6 +666,10 @@ async def _drop_voided_fixtures(
             },
             tag=f"fixture-postponed-{gameweek.id}",
             timezone_name=player.timezone,
+            # Batch 76. This call is the reason the gate exists: it notified members who
+            # had muted this very league, because `send_notification` had no league to
+            # check against until now.
+            league_id=league.id,
         )
 
 
@@ -1097,6 +1101,52 @@ async def settleable_gameweeks(db: AsyncSession, now: datetime) -> list[Gameweek
     return list(result.scalars().all())
 
 
+#: How far before the deadline the single reminder goes, and how wide the job's window is.
+#:
+#: The tolerance exists because the job fires hourly: an exact ``T-3h`` predicate would
+#: match only if a lock happened to fall on the minute the job runs. Half an hour either
+#: side of three hours means every round is caught exactly once by an hourly sweep, which
+#: is the cheap shape — one indexed range scan, no state, and nothing to reconcile if a run
+#: is missed.
+REMINDER_OFFSET = timedelta(hours=3)
+REMINDER_TOLERANCE = timedelta(minutes=30)
+
+
+async def gameweeks_due_a_reminder(db: AsyncSession, now: datetime) -> list[Gameweek]:
+    """Rounds locking in about three hours that can still be picked on — Batch 76.
+
+    **This replaces reminding daily.** ``current_open_gameweeks`` returned every open
+    round with a future lock, and the job ran at 11:00 every day, so 2-1 Hibs' 29 August
+    round — open from the moment it was discovered — nudged every member without a pick on
+    the 25th, 26th, 27th, 28th *and* 29th. They share a ``tag``, so the tray collapsed
+    them, but each one buzzed a phone. The owner asked for one reminder, three hours out.
+
+    Eligibility mirrors ``pick_refusal`` rather than testing ``status == open``, and that
+    is not incidental: Batch 73 established that ``status`` is only the label the hourly
+    jobs have caught up with. A round whose opening has passed but which ``run_open_gameweeks``
+    has not relabelled yet is claimable, and with a window this narrow a one-hour lag would
+    not delay its reminder — it would lose it. ``scheduled`` rounds *before* their opening
+    stay excluded, for the reason they always were: nagging a member for a pick they are
+    not yet allowed to make is worse than not reminding them.
+    """
+    window_opens = now + REMINDER_OFFSET - REMINDER_TOLERANCE
+    window_closes = now + REMINDER_OFFSET + REMINDER_TOLERANCE
+    result = await db.execute(
+        select(Gameweek)
+        .where(
+            Gameweek.status.in_(PICKABLE_STATES),
+            Gameweek.locks_at_utc >= window_opens,
+            Gameweek.locks_at_utc < window_closes,
+            or_(
+                Gameweek.picks_open_at_utc.is_(None),
+                Gameweek.picks_open_at_utc <= now,
+            ),
+        )
+        .order_by(Gameweek.starts_on.desc())
+    )
+    return list(result.scalars().all())
+
+
 async def current_open_gameweeks(db: AsyncSession, now: datetime) -> list[Gameweek]:
     """Every still-open round whose lock is in the future — the ones to remind for.
 
@@ -1106,6 +1156,14 @@ async def current_open_gameweeks(db: AsyncSession, now: datetime) -> list[Gamewe
 
     ``scheduled`` is deliberately excluded: nagging a member for a pick they are not
     yet allowed to make is worse than not reminding them at all.
+
+    **This no longer drives the pick reminder.** Batch 76 moved that to
+    :func:`gameweeks_due_a_reminder`, which selects on the deadline rather than on "open
+    with a future lock" — this predicate matched a round every day from discovery until
+    lock, which is exactly the repeat nagging the owner asked to stop. Nothing in ``src``
+    calls this now; it survives as the plain statement of "rounds currently claimable by
+    the label", which the selection tests use, and is a fair candidate for removal the next
+    time somebody is in here.
     """
     result = await db.execute(
         select(Gameweek)
@@ -1118,28 +1176,77 @@ async def current_open_gameweeks(db: AsyncSession, now: datetime) -> list[Gamewe
     return list(result.scalars().all())
 
 
-class MissingPickMember(BaseModel):
-    """A member who still owes a pick for a gameweek — one pick-reminder recipient."""
+class NotificationTarget(BaseModel):
+    """One member of a round's league, resolved to everything a notification needs.
+
+    Named for what it is since Batch 76. It was ``MissingPickMember`` while the pick
+    reminder was the only trigger that resolved recipients this way; three triggers now
+    do, and only one of them cares whether the member has picked.
+    """
 
     player_id: str
+    #: The name this league knows them by — the override when set, so an alert reads the
+    #: way the leaderboard does.
     display_name: str
     timezone: str
     league_id: str
-    #: The league's address, so a reminder can link to *that* league's pick screen.
+    #: The league's address, so a notification can link to *that* league's pick screen.
     league_slug: str
     league_name: str
 
 
-async def members_missing_picks(db: AsyncSession, gameweek: Gameweek) -> list[MissingPickMember]:
+#: The name this was known by before Batch 76 generalised it.
+MissingPickMember = NotificationTarget
+
+
+async def notification_targets(
+    db: AsyncSession,
+    gameweek: Gameweek,
+    *,
+    without_picks_only: bool = False,
+    excluding: uuid.UUID | None = None,
+) -> list[NotificationTarget]:
+    """Active, unmuted members of this round's league — who a trigger may notify.
+
+    ``without_picks_only`` narrows to members who still owe a pick, which is the pick
+    reminder and nothing else. ``excluding`` drops one player, which is the pick alert
+    not telling the picker about their own pick.
+
+    Batch 76 generalised this out of ``members_missing_picks``. The filters are what
+    matter and they are shared deliberately: three triggers now resolve recipients, and
+    three copies of "active, not deleted, not muted, this league" would drift.
+    """
+    return await _targets(db, gameweek, without_picks_only=without_picks_only, excluding=excluding)
+
+
+async def members_missing_picks(db: AsyncSession, gameweek: Gameweek) -> list[NotificationTarget]:
     """Members of *this round's league* with no pick for it — the reminder recipients.
 
     Filtered to ``gameweek.league_id``. Before Batch 14 a round was global, and this
     query had no league filter at all, so a reminder for one round was sent to every
     member of every league in the database. Excludes deleted memberships/leagues and
-    inactive/deleted profiles, and memberships with ``notification_muted`` — a muted
-    league is never targeted, rather than targeted and suppressed, which also keeps
-    ``send_pick_reminders``' return count honest about who was actually nudged.
+    inactive/deleted profiles, and memberships with ``notification_muted``.
+
+    **The mute filter stays, now that ``send_notification`` enforces it too** (Batch
+    76). It is not belt-and-braces for its own sake. It is the cheaper shape — one
+    indexed ``WHERE`` against N calls that each look the membership up and return 0 —
+    and it is what keeps ``send_pick_reminders``' return count honest. That count
+    reports who was *targeted*; targeting muted members and suppressing them
+    downstream would have it claim a league was reminded when nobody was.
+    ``send_notification`` is the authority; this filter makes the arithmetic above it
+    true.
     """
+    return await _targets(db, gameweek, without_picks_only=True, excluding=None)
+
+
+async def _targets(
+    db: AsyncSession,
+    gameweek: Gameweek,
+    *,
+    without_picks_only: bool,
+    excluding: uuid.UUID | None,
+) -> list[NotificationTarget]:
+    """The one query behind both. See :func:`notification_targets`."""
     display_name = func.coalesce(LeagueMembership.display_name_override, Profile.display_name)
     rows = await db.execute(
         select(
@@ -1166,11 +1273,12 @@ async def members_missing_picks(db: AsyncSession, gameweek: Gameweek) -> list[Mi
             League.deleted_at.is_(None),
             Profile.deleted_at.is_(None),
             Profile.is_active.is_(True),
-            Pick.id.is_(None),
+            *([Pick.id.is_(None)] if without_picks_only else []),
+            *([LeagueMembership.player_id != excluding] if excluding is not None else []),
         )
     )
     return [
-        MissingPickMember(
+        NotificationTarget(
             player_id=str(row.player_id),
             display_name=row.display_name,
             timezone=row.timezone,

@@ -4,6 +4,11 @@ send_notification() is the single entry point for all push delivery.
 It respects preferences (global_mute, quiet hours), calls pywebpush for each
 active PushSubscription, and auto-disables subscriptions that accumulate
 3 consecutive send failures.
+
+Since Batch 76 it also respects the **per-league** mute, when the caller says which
+league the message is about. That column has existed on ``league_memberships`` since
+Batch 32 and until now only one query honoured it, which meant a member who muted a
+league still got its postponement alerts. See ``league_id`` below.
 """
 
 from __future__ import annotations
@@ -22,6 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
+from src.models.league_membership import LeagueMembership
 from src.models.notification import NotificationPreferences, PushSubscription
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -77,12 +83,30 @@ async def send_notification(
     tag: str | None = None,
     timezone_name: str = "UTC",
     now_utc: datetime | None = None,
+    league_id: UUID | None = None,
 ) -> int:
     """Deliver a push notification to all active subscriptions for user_id.
 
     Returns the count of successfully sent pushes. Skips delivery when
     preferences block it. Auto-disables subscriptions after _FAIL_THRESHOLD
     consecutive failures.
+
+    ``league_id`` names the league the message is *about*, and gates it on that
+    membership's ``notification_muted``. Batch 76 added it, and the gap it closes is
+    older than that: the column has been on ``league_memberships`` since Batch 32, but
+    the only code reading it was a ``WHERE`` clause inside ``members_missing_picks``.
+    This function took a ``user_id`` and no league, so it *could not* check — which is
+    why ``fixture_postponed`` notified members who had muted the league it was about.
+
+    It matters more now than it did. Batch 76 stacks two high-volume triggers on top of
+    this, the owner has declined a separate opt-out for them, and so this column is a
+    member's only recourse against the volume.
+
+    **A missing membership row does not suppress.** The gate fires only on an explicit
+    ``notification_muted = True``, so this is purely additive: no message that goes out
+    today stops going out because a row could not be found. The callers already restrict
+    themselves to active members, and a member who has left a league mid-round should
+    still be told their pick was returned.
     """
     if not settings.vapid_private_key or not settings.vapid_public_key:
         log.debug("VAPID keys not configured — skipping push", user_id=str(user_id))
@@ -90,6 +114,26 @@ async def send_notification(
 
     now = now_utc.replace(tzinfo=None) if now_utc is not None else _utc_now()
     local_current = _local_now(timezone_name, now)
+
+    # ── Check the per-league mute ─────────────────────────────────────────────
+    # Before the global preferences, because it is the more specific opt-out and answers
+    # from one indexed row. A caller that passes no `league_id` is saying the message is
+    # not about a league — an admin alert, say — and there is nothing to check.
+    if league_id is not None:
+        muted = await session.execute(
+            select(LeagueMembership.notification_muted).where(
+                LeagueMembership.league_id == league_id,
+                LeagueMembership.player_id == user_id,
+                LeagueMembership.deleted_at.is_(None),
+            )
+        )
+        if muted.scalar_one_or_none() is True:
+            log.debug(
+                "notification suppressed by league mute",
+                user_id=str(user_id),
+                league_id=str(league_id),
+            )
+            return 0
 
     # ── Check preferences ─────────────────────────────────────────────────────
     prefs_result = await session.execute(

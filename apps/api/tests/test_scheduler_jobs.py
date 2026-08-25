@@ -1482,7 +1482,9 @@ async def test_open_and_settleable_selection(session: AsyncSession) -> None:
     before = gameweek.locks_at_utc - timedelta(hours=1)
     after = gameweek.locks_at_utc + timedelta(hours=1)
 
-    # Before lock: open and remindable, not yet settleable.
+    # Before lock: open, not yet settleable. Not "remindable" — since Batch 76 that is
+    # `gameweeks_due_a_reminder`, which wants the lock about three hours out, not merely
+    # ahead. This asserts the label, which is all this helper claims.
     assert gameweek.id in {g.id for g in await current_open_gameweeks(session, before)}
     assert gameweek.id not in {g.id for g in await settleable_gameweeks(session, before)}
 
@@ -1503,8 +1505,9 @@ async def test_a_scheduled_round_opens_when_its_announced_time_arrives(
     gameweek.picks_open_at_utc = opens_at
     await session.flush()
 
-    # A minute early it stays shut, and is not a reminder candidate — nagging a member
-    # for a pick they cannot make yet is worse than not reminding them at all.
+    # A minute early it stays shut and does not read as claimable — nagging a member for
+    # a pick they cannot make yet is worse than not reminding them at all, which Batch 76's
+    # `gameweeks_due_a_reminder` carries forward in its own predicate.
     # Scoped to this round rather than asserting an empty sweep: the HTTP pick-flow
     # tests commit rounds of their own into the shared scratch database.
     early = opens_at - timedelta(minutes=1)
@@ -1512,7 +1515,7 @@ async def test_a_scheduled_round_opens_when_its_announced_time_arrives(
     assert gameweek.status is GameweekStatus.scheduled
     assert gameweek.id not in {g.id for g in await current_open_gameweeks(session, early)}
 
-    # On the instant it opens, and only then does it start reminding.
+    # On the instant it opens, and only then does it read as claimable.
     assert gameweek.id in {g.id for g in await open_due_gameweeks(session, opens_at)}
     assert gameweek.status is GameweekStatus.open
     assert gameweek.id in {g.id for g in await current_open_gameweeks(session, opens_at)}

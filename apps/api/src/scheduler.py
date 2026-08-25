@@ -33,8 +33,8 @@ from src.services.football_data import backfill_season, season_or_default, sync_
 from src.services.football_session import football_session
 from src.services.gameweek import (
     active_leagues,
-    current_open_gameweeks,
     discover_fixtures,
+    gameweeks_due_a_reminder,
     lock_due_gameweeks,
     open_due_gameweeks,
     settleable_gameweeks,
@@ -42,7 +42,7 @@ from src.services.gameweek import (
     window_for,
 )
 from src.services.live_scores import poll_live_scores
-from src.services.notification_triggers import send_pick_reminders
+from src.services.notification_triggers import notify_picks_open, send_pick_reminders
 from src.services.odds_session import odds_session
 from src.services.scoring import (
     settle_gameweeks_via_provider,
@@ -257,9 +257,18 @@ async def run_open_gameweeks() -> bool:
         async with AsyncSessionLocal() as session:
             opened = await open_due_gameweeks(session, _utc_now())
             gameweek_ids = [str(g.id) for g in opened]
+            # Batch 76. The job has returned the rounds it moved since Batch 27 and told
+            # nobody; this is the announcement. Inside the same session and before the
+            # commit, so a round is never left opened-but-unannounced.
+            told = {str(g.id): await notify_picks_open(session, g) for g in opened}
             await session.commit()
         if gameweek_ids:
-            log.info("gameweeks opened", count=len(gameweek_ids), gameweek_ids=gameweek_ids)
+            log.info(
+                "gameweeks opened",
+                count=len(gameweek_ids),
+                gameweek_ids=gameweek_ids,
+                notified=told,
+            )
         return True
     except Exception:
         log.exception("gameweek open failed")
@@ -456,16 +465,23 @@ async def run_backfill_football_season() -> bool:
 
 
 async def run_pick_reminders() -> bool:
-    """Nudge members who still owe a pick, in every league with an open round.
+    """Nudge members who still owe a pick, about three hours before their round locks.
 
     Iterates rather than taking "the" open round: since Batch 14 each league has its
     own, so reminding only one would silently leave every other league unreminded.
+
+    **Hourly since Batch 76, and it reminds once rather than daily.** It ran at 11:00
+    every day against "every open round with a future lock", so a round open from
+    discovery nudged the same member on five consecutive days. The predicate now selects
+    on the deadline (``gameweeks_due_a_reminder``), and the cadence is hourly because a
+    three-hour offset cannot be hit by a job that runs once a day. Most runs match nothing
+    and log at debug — that is the expected shape, not a fault.
     """
     try:
         async with AsyncSessionLocal() as session:
-            gameweeks = await current_open_gameweeks(session, _utc_now())
+            gameweeks = await gameweeks_due_a_reminder(session, _utc_now())
             if not gameweeks:
-                log.info("pick reminder: no open gameweek")
+                log.debug("pick reminder: nothing locking in about three hours")
                 return True
             reminded = {
                 str(gameweek.id): await send_pick_reminders(session, gameweek)
@@ -568,8 +584,10 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(
         run_pick_reminders,
         trigger="cron",
-        hour=11,  # daily; the job itself only reminds leagues with an open round
-        minute=0,
+        # Hourly at :15 — Batch 76. Clear of `open_gameweeks` at :01 and the lock sweep at
+        # :00 so the three never interleave. Daily at 11:00 could not deliver a reminder
+        # three hours before a deadline that moves with each league's window.
+        minute=15,
         timezone="Europe/London",
         id="pick_reminders",
         replace_existing=True,

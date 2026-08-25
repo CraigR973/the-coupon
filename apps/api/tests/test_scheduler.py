@@ -145,7 +145,9 @@ def test_create_scheduler_domain_jobs_fire_on_uk_wall_clock() -> None:
             # Discovery is daily and early — the pre-fetch half of the Batch 11 split.
             "discover_fixtures": "cron[hour='6', minute='0']",
             "refresh_slate": "cron[hour='9,13', minute='0']",
-            "pick_reminders": "cron[hour='11', minute='0']",
+            # Hourly at :15 since Batch 76 — a daily job cannot deliver a reminder three
+            # hours before a deadline that moves with each league's window.
+            "pick_reminders": "cron[minute='15']",
             # Hourly, a minute clear of the lock sweep so the two never interleave.
             "open_gameweeks": "cron[minute='1']",
             "lock_gameweeks": "cron[minute='0']",
@@ -427,7 +429,7 @@ async def test_run_pick_reminders_sends_and_commits() -> None:
     gameweek.id = uuid.uuid4()
     with (
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
-        patch("src.scheduler.current_open_gameweeks", new=AsyncMock(return_value=[gameweek])),
+        patch("src.scheduler.gameweeks_due_a_reminder", new=AsyncMock(return_value=[gameweek])),
         patch("src.scheduler.send_pick_reminders", new=AsyncMock(return_value=2)) as remind,
     ):
         await run_pick_reminders()
@@ -437,11 +439,16 @@ async def test_run_pick_reminders_sends_and_commits() -> None:
 
 @pytest.mark.asyncio
 async def test_run_pick_reminders_no_open_gameweek_is_noop() -> None:
-    """With no open gameweek to remind for, the job returns without sending or committing."""
+    """Nothing locking in about three hours means no send and no commit.
+
+    Batch 76 made this the *common* case rather than the exception: the job runs hourly
+    against a `T-3h +/- 30min` window, so most runs match nothing. That is the designed
+    shape, which is why the job logs it at debug rather than info.
+    """
     session = AsyncMock()
     with (
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
-        patch("src.scheduler.current_open_gameweeks", new=AsyncMock(return_value=[])),
+        patch("src.scheduler.gameweeks_due_a_reminder", new=AsyncMock(return_value=[])),
         patch("src.scheduler.send_pick_reminders", new=AsyncMock()) as remind,
     ):
         await run_pick_reminders()
