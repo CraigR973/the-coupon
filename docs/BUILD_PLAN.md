@@ -2323,7 +2323,7 @@ answered until it lands, because until then there is no data to look at.
   change to the restore runbook's conclusion, and no attempt to reduce egress anywhere else —
   if the usage breakdown later points at a real consumer in this project, that is its own batch.
 
-- [ ] **Batch 76 — Notifications for the three moments that matter** — the owner's request
+- [x] **Batch 76 — Notifications for the three moments that matter** ✅ 2026-08-26 *(Opus)* — the owner's request
   (2026-08-25). Three triggers the product does not have, and one gap underneath them that has
   to close first.
 

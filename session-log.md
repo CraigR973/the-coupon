@@ -2224,3 +2224,47 @@ Postgres-backed tests · **script shipped, NOT applied to production**
   convention Batch 74 applied to `invites.display_name_hint`.
 
 **Next:** Batch 76 — notification triggers, and making the per-league mute actually work.
+
+## Batch 76 — Notifications for the three moments that matter
+**Commit:** dc4fe16 (ff-merged) · verified: `scripts/ci-local.sh` PASS (11 checks), 11 new
+Postgres-backed tests
+
+### Key facts for future sessions
+- **`send_notification` now takes `league_id`, and a trigger that forgets it fails
+  silently.** The message still sends; only the mute goes unconsulted. That is why each
+  trigger has an explicit assertion that it passes the kwarg — the behaviour is invisible
+  otherwise. **Any new league-scoped notification must pass it.**
+- **The mute gate fires only on an explicit `notification_muted = True`.** A missing
+  membership does not suppress, deliberately, so Batch 76 is purely additive.
+- **Testing the gate needs VAPID configured.** `send_notification` bails out at the top
+  when VAPID keys are unset, so a test asserting `== 0` with them unset passes on the
+  early return and proves nothing. Patch `settings.vapid_*` and
+  `_send_push_sync` instead, and assert the push was not attempted.
+- **`members_missing_picks` keeps its own mute filter on purpose.** Not belt-and-braces:
+  `send_pick_reminders` returns who was *targeted*, so suppressing downstream instead
+  would have that count claim a league was reminded when nobody was.
+- **The reminder is hourly now and most runs match nothing** — that is the designed shape,
+  which is why the empty case logs at debug. `gameweeks_due_a_reminder` selects
+  `locks_at_utc` in `T-3h ± 30min`; an exact predicate cannot be hit by a cron.
+- **Its eligibility mirrors `pick_refusal`, not `status == open`** — Batch 73's lesson, and
+  it matters more here: with a 30-minute window, an hour of stale label loses the reminder
+  rather than delaying it.
+- **`submit_pick` builds its response before the alert block.** The block rolls back on
+  failure and **a rollback expires every object in the session**, so serialising afterwards
+  would lazy-load the committed row outside the transaction just discarded. Watch for this
+  anywhere a post-commit side effect can roll back.
+- **`moved` must be captured before `_apply_selection`.** The pick updates in place, so
+  afterwards nothing distinguishes a claim from a move.
+- **The pick alert sends inline**, matching `notify_member_joined` — up to eleven webpush
+  calls on the submit path. Accepted, not overlooked: moving delivery off the request is a
+  delivery-layer change. **Reach is 5 active subscriptions across 13 profiles**, so most of
+  the 132-sends-per-round volume does not land today. Revisit before subscriptions grow.
+- **`current_open_gameweeks` is now orphaned** — no caller in `src`. Kept because removing
+  it forces timing rewrites in two tests whose subjects are elsewhere; its docstring says
+  so and it is a fair removal candidate.
+- **The picks-open trigger is dead code in 2-1 Hibs** until `pick_open_offset_minutes` is
+  set on that league — its rounds are born `open` at discovery, so `open_due_gameweeks`
+  never moves one. Correct for `the-coupon`, which carries the offset.
+
+**Next:** `docs/BUILD_PLAN.md` has no unchecked batches. Owed: `/ship-prod`, and the
+Batch 74 production run.
