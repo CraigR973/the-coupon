@@ -354,6 +354,25 @@ on the league's own weekday after its lock that round is born dead. The test use
 Tuesday window, so it failed on Tuesdays after 18:45 London and passed the other 167
 hours of the week.
 
+Batches 73-76 closed the owner's 2026-08-25 list. **Batch 73** stopped a round
+claiming to be open while it refused picks: `status` is only the label the hourly jobs
+have caught up with, so the badge read Open both before a round's opening instant and
+for up to an hour after its deadline. `pickRefusal` in `lib/coupon.ts` is now the
+written-down rule, mirroring the API's own. The same defect was on the settings screen
+twice over — its round list filtered on `status`, and its copy told admins a change
+"never restamps a round that already exists", which Batch 40 wrote correctly and Batch
+65 falsified. `PickShapeLine` also lost its longshot split and names its figure
+`avg odds selected`. **Batch 74** is a script, not a change: 2-1 Hibs' four rounds
+renumbered 1-4 and three members renamed, reversing a decision Batch 68 made
+deliberately. It fails closed and is **not yet applied**. **Batch 75** deleted a
+nightly `pg_dump` that crossed the internet to write an uncompressed copy of a 12 MB
+database into a `/tmp` no volume backed, keeping the same job runnable on demand.
+**Batch 76** gave the product the notifications it never had — picks opening, somebody
+claiming or moving, and one reminder three hours before the lock instead of one a day —
+and closed the gap underneath them: `league_memberships.notification_muted` had existed
+since Batch 32 with exactly one query honouring it, so `send_notification` could not
+check a mute it was never told about.
+
 Batches 1-72 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
@@ -1004,17 +1023,33 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **four unchecked batches**, all specified on
-2026-08-25 from the owner's points: **73** (a round badge that says "open" while
-picks are refused, plus the longshot split coming off `PickShapeLine`), **74**
-(renumbering 2-1 Hibs' four rounds and renaming three members, as a backfill script
-with a dry run), **75** (removing the nightly `pg_dump` that writes to a tmpfs no
-volume backs), and **76** (notification triggers for picks-open, somebody-picked and
-a once-per-round reminder, on top of making the per-league mute actually reach
-`send_notification`). **76 depends on 73.** Batch 61 closed on 2026-08-25, so the
-whole post-launch member-report set and the framework upgrade are both done.
+`docs/BUILD_PLAN.md` has **no unchecked batches**. 73-76 closed on 2026-08-25/26
+alongside the framework upgrade in 61, so every batch specified to date is on `main`.
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday
 watch**, with L0-L4 ticked since 2026-08-04.
+
+**Two things are owed, and both need the owner.**
+
+**A `/ship-prod` is owed and this one carries real change.** The deployed API is
+several batches behind: the FastAPI 0.141 upgrade, the anonymous-caller status code
+moving from 403 to 401, and — the one to weigh — Batch 76's notification triggers,
+which start alerting every member of a league on every pick. Vercel has already
+shipped the web halves of 73, so the two sides are apart until it runs.
+
+**Batch 74 is written but not applied.** `python -m src.backfill_names_and_numbers
+--dry-run` against production, then `--apply`, then **Craig, Marc and Lewis must be
+told their new sign-in names** — `display_name` is the login identifier and nothing in
+the product tells them. `docs/backfills/2026-08-names-and-numbers.md` carries the
+checklist. It could not be dry-run from the session that wrote it: every Supabase MCP
+query timed out, while the deployed API kept answering, so the failure was the MCP's
+connection path and not the database.
+
+Two follow-ups neither batch claimed. **2-1 Hibs has no `pick_open_offset_minutes`**,
+so its rounds are born `open` at discovery and Batch 76's picks-open trigger is dead
+code there until the owner sets one. And **production still has no managed backup and
+no PITR** (the 2026-07-30 deferral); Batch 75 removed a nightly dump that was destroyed
+on every redeploy, which changes nothing about recoverability but stops the logs
+claiming a backup happened.
 
 Batch 53 closed the last of them: a form line now opens onto the matches it is made
 of, on the pick card and in the league table. **It is API-side as well as web, and
