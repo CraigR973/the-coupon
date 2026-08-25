@@ -14,13 +14,33 @@ secret. This is not a migration, and deliberately so — buckets live in
 Supabase's `storage` schema, which does not exist in the throwaway `pgserver`
 instance CI runs against, so a migration touching it would fail every run.
 
-> **Steps 1 and 2 were completed on 2026-08-20.** The bucket exists and its
-> policy is in place, verified below. Only step 3's service-role key remains,
-> and it is the one part that cannot be done from here — the project's JWT
-> secret is not reachable from the database (`app.settings.jwt_secret` is
-> absent), so a service-role token cannot be minted over the connection the API
-> already holds. `SUPABASE_URL` is already set; `AVATAR_STORAGE` is still unset,
-> so uploads answer 503 and the Settings card stays unmounted until you finish.
+> **Steps 1-3 are done. The blocker is now Supabase billing, not this runbook.**
+> The bucket exists, its policy is in place, and `SUPABASE_URL` and
+> `SUPABASE_SERVICE_KEY` are both present on the production service. Flipping
+> `AVATAR_STORAGE` to `supabase` works exactly as designed — verified in the
+> running container on 2026-08-25, where `avatar_storage()` returned
+> `SupabaseAvatarStorage` with `enabled = True`.
+>
+> **But the Supabase project is restricted and the feature cannot work until it
+> is not.** A read-only `GET /storage/v1/bucket` with the service key answers
+> **402**, `exceed_egress_quota` — *"Service for this project is restricted …
+> The project owner must upgrade their plan or remove spend caps to restore
+> service."* That is a project-level restriction, not a bad key; a bad key
+> answers 401/403. An upload against it raises `AvatarStorageError`, which
+> `routers/auth.py` maps to **502**, so the member gets a failure toast.
+>
+> **So the flag was set and then reverted to `none` the same day**, deliberately.
+> With `supabase` set, `GET /api/v1/config` reports `avatar_uploads: true` and
+> `SettingsPage` mounts a control that fails on every press — the exact state
+> `components/AvatarUpload.tsx` records the component sat unmounted for two
+> batches to avoid. `none` is the honest state while the quota stands.
+>
+> **The order is: clear the restriction first, then flip the flag.** Re-run the
+> 402 probe in step 4 before setting it, and treat a 200 as the precondition.
+> Note the same project hosts the production database
+> (`db.pugujiiojitstkilphrz.supabase.co`); direct Postgres was still answering
+> on 2026-08-25 with `/health/ready` reporting `db: ok`, but the egress quota is
+> worth clearing on the database's account, not the avatars'.
 
 ## 1. Create the bucket ✅ done 2026-08-20
 
@@ -88,13 +108,23 @@ the bucket directly, bypassing every check in `upload_avatar`.
 
 ## 3. Seal the configuration — **the remaining step**
 
-`SUPABASE_URL` is already set to `https://pugujiiojitstkilphrz.supabase.co`
-(2026-08-20, with `--skip-deploys`, so production was not disturbed). Two
-variables remain, and setting `AVATAR_STORAGE` is what actually turns the
-feature on:
+`SUPABASE_URL` (`https://pugujiiojitstkilphrz.supabase.co`) and
+`SUPABASE_SERVICE_KEY` are both already set, so **only `AVATAR_STORAGE` is
+left**, and setting it is what actually turns the feature on:
 
 ```bash
-railway variables --set AVATAR_STORAGE=supabase --set SUPABASE_URL=https://<ref>.supabase.co --set SUPABASE_SERVICE_KEY=<service-role key>
+railway variables --set AVATAR_STORAGE=supabase \
+  --project e030ebe3-e7fc-43c9-9478-4e80cafaa126 \
+  --environment 8f18cb49-5137-4557-900a-031bcab4ac38 \
+  --service d59f4f17-3e7d-4b3b-bf40-30620150fa2f
+```
+
+The selectors are not optional: the CLI is linked to **staging**, so a bare
+`railway variables --set` writes to the wrong service. Had either of the other
+two variables been missing, they would go on the same command:
+
+```bash
+railway variables --set SUPABASE_URL=https://<ref>.supabase.co --set SUPABASE_SERVICE_KEY=<service-role key>
 ```
 
 - `SUPABASE_URL` is the project REST base, no trailing slash and no `/storage`.

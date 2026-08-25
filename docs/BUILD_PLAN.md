@@ -2200,6 +2200,205 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: **display during an in-play round.** Settlement is unchanged.
 
+- [ ] **Batch 73 — A round can say "open" while it is refusing picks** — the owner's fifth point
+  (2026-08-25), with a second small display defect on the league screens carried alongside it.
+
+  `2-1-hibs` has `pick_open_offset_minutes` unset, so its 29 August round carries no opening gate
+  at all and today's badge is telling the truth. Setting the offset is the owner's change and
+  needs no code: Batch 65's `rederive_claim_periods` already restamps every unlocked round, so
+  the setting applies to each gameweek rather than only to the next one discovered. **But it
+  cannot ship first.** `rederive_claim_periods` deliberately does not re-derive `status`, and
+  `open_due_gameweeks` only ever flips `scheduled -> open`, never back. Save 720 minutes on that
+  league today and the round keeps `status = 'open'` while `pick_refusal` answers
+  `PICKS_NOT_OPEN` — `components/GameweekNav.tsx:52` reads the label, so the screen would still
+  say **Open** while every pick is refused. That is the defect; the config change is what
+  exposes it.
+
+  **The label is not the authority and the screen should stop treating it as one.**
+  `pick_refusal` already records that time decides in both directions and that `status` is only
+  what the scheduler keeps up with — which means a round is mislabelled for up to an hour after
+  either instant passes, at the lock end as well as at the opening. `GameweekSummary` already
+  carries `picks_open_at_utc` and `locks_at_utc`, so the badge can mirror `pick_refusal` on the
+  client and be right at both ends without a new field. Whether `rederive_claim_periods` should
+  *also* flip an unclaimed round back to `scheduled` is a second, narrower question: its
+  docstring refuses because a member may already hold a pick on that round, and 2-1 Hibs' 29
+  August round holds none, so a flip-back bounded by `pick_count = 0` is defensible. Prefer the
+  client fix; treat the flip-back as optional.
+
+  `components/PickOpenSchedule.tsx:32` still tells the admin that a settings change "never
+  restamps a round that already exists" — untrue since Batch 65, and it is the text they read
+  while making this exact change.
+
+  The second defect is independent of all of the above, paired here on Batch 71's precedent for
+  two small ones: `PickShapeLine` renders `avg 2.67 · 0 at 3.00+`. Drop the longshot split and
+  name the figure `avg odds selected`. **Both callers change** — the league table and the career
+  profile — while `PickShapeGrid` on the player profile keeps its own separate
+  `Longshots (3.00+)` figure, which is not in scope. Two tests in `PickShape.test.tsx` assert
+  the current string, and the second exists only to prove the label tracks the league's
+  configured line, so it loses its subject.
+
+  Verification: `scripts/ci-local.sh` PASS; a test that the badge reads "not open" for a round
+  whose `status` is `open` but whose `picks_open_at_utc` is still ahead; the mirror test at the
+  lock end; and a test that the standings line renders no longshot split.
+
+  Scope boundary: **the label, not the state machine.** No new setting — the per-league offset
+  already exists — and no change to `pick_refusal`, locking or settlement. Setting 720 minutes
+  on 2-1 Hibs is the owner's action once this ships.
+
+- [ ] **Batch 74 — Four rounds and three members in 2-1 Hibs are called the wrong thing** — the
+  owner's first and fourth points (2026-08-25). Production data, delivered the way Batch 68 was:
+  one idempotent script with a dry run, an evidence note under `docs/backfills/`, and nothing
+  done by hand.
+
+  **The renumbering reverses Batch 68's decision, and the owner has made that call.**
+  `backfill_august_2026.py:462` left 8 and 15 August unnumbered rather than renumber 22 August,
+  on the reasoning that members had already been told it was "Gameweek 1". The owner wants the
+  season to read 1-4 from 8 August, so 22 August becomes Gameweek 3 and the name people used is
+  rewritten. Four rows: `8->1, 15->2, 22->3, 29->4`. No code follows — `next_gameweek_number` is
+  one past the season maximum, so the next discovered round takes 5 on its own.
+
+  **The rename changes how three people sign in.** `profiles.display_name` is globally unique
+  and *is* the login identifier (`routers/auth.py:374`); the owner chose it over
+  `league_memberships.display_name_override`, which is per-league and cosmetic. Craig -> Craig
+  Robinson, Birch -> Marc Birch, Lewis -> Lewis Steele. Checked against production on
+  2026-08-25: none of the three target names is held, by a live or a soft-deleted row.
+  Consequences to carry rather than discover afterwards — the JWT subject is the player id so
+  nobody is signed out, but the **next** sign-in and any forgotten-PIN request need the new name
+  and the three must be told; and the freed names become registrable by anyone, which Batch 63's
+  case-insensitive reservation otherwise prevents only for deleted members.
+  `invites.display_name_hint` and the audit payloads keep the old strings, correctly — both are
+  records of what was true then.
+
+  It fails closed, like Batch 68: every round and every profile must resolve to exactly one row
+  or the run raises before writing anything.
+
+  Verification: `scripts/ci-local.sh` PASS; the script asserted idempotent by running it twice in
+  a test; a test that a target name already in use aborts the whole run before writing; and the
+  four rounds asserted to read 1-4 in `starts_on` order afterwards.
+
+  Scope boundary: **one league's rounds, three profiles.** No admin rename screen — nothing in
+  the product can change a display name after registration today, which is a real gap and the
+  obvious follow-up, but it is not this batch.
+
+- [ ] **Batch 75 — The nightly backup pulls the whole database across the internet and throws it
+  away** — found on 2026-08-25 while diagnosing why the Supabase project answers 402
+  `exceed_egress_quota`. Not a member-visible defect; a standing cost that buys nothing.
+
+  `scheduler.py:484` runs `pg_dump` at 03:00 UTC every day. Three facts make it waste rather
+  than insurance. It is **`--format=plain`** (`services/backup.py:89`), so the dump is
+  uncompressed and larger than the 12 MB database it copies. It writes to
+  `settings.backup_dir`, which is **`/tmp/the_coupon_backups`** (`config.py:214`), and the
+  production service has **no volume mounted** — verified 2026-08-25, `df` shows only `overlay`
+  and `tmpfs`, and the directory did not exist at all after that day's two redeploys had wiped
+  it. And `docs/runbooks/backup-restore.md:3` already settles what it is worth: *"Supabase
+  managed backups/PITR are the production backup source of record. The old application `/tmp`
+  backups are not durable enough for launch recovery."*
+
+  So every night the full database crosses the public internet — the API is on Railway, the
+  database is on Supabase, and that transfer is metered egress — to produce a file the runbook
+  says is not the backup and the next deploy destroys.
+
+  **This is not the fix for the egress restriction and must not be written up as one.** The
+  arithmetic does not reach the cap on its own: 12 MB of database and this job put The Coupon
+  under roughly 1 GB a month against a 5 GB free-tier allowance, and Supabase meters egress per
+  *organisation*, so the consumer may not be this project at all. Removing the job removes a
+  cost that returns nothing; finding what actually spent the quota is the owner's dashboard
+  question and stays open regardless.
+
+  **Remove the schedule, keep the on-demand path.** `run_scheduled.py:48` exposes the same
+  coroutine as `python -m src.run_scheduled backup`, which is the right tool before a risky
+  migration and costs nothing on the days nobody runs it. So `services/backup.py`,
+  `settings.backup_dir` and `test_backup.py` all stay; what goes is the `add_job` registration,
+  and `scheduler.py:478`'s comment anchoring the token prune to "after the 03:00 backup" needs a
+  reason that still exists. The `backup_failed` and `backup_downloaded` values in
+  `models/notification.py` stay — the manual path still raises the first, and removing an enum
+  value is irreversible for the reason `unlock_player` records.
+
+  Verification: `scripts/ci-local.sh` PASS; `test_scheduler.py` asserting `daily_backup` is
+  **absent** from the registered job ids rather than merely not asserting it present; and
+  `test_run_scheduled.py` asserting the manual `backup` job still runs, so the removal is proved
+  to be of the schedule and not of the capability.
+
+  Scope boundary: **one `add_job` call and its comment.** No change to what a backup *is*, no
+  change to the restore runbook's conclusion, and no attempt to reduce egress anywhere else —
+  if the usage breakdown later points at a real consumer in this project, that is its own batch.
+
+- [ ] **Batch 76 — Notifications for the three moments that matter** — the owner's request
+  (2026-08-25). Three triggers the product does not have, and one gap underneath them that has
+  to close first.
+
+  `send_notification` is reached from five places and only three are domain events: a pick
+  reminder, a postponed fixture, and a member joining (admins only). Nothing fires when picks
+  open, and nothing fires when somebody claims a selection — which is the event the game is
+  actually built around, the whole coupon being a land-grab.
+
+  **The per-league mute has to reach `send_notification` before anything is stacked on top.**
+  `notification_muted` has been a `league_memberships` column since Batch 32, but the only code
+  honouring it is a `WHERE` clause inside `members_missing_picks` (`gameweek.py:1165`).
+  `send_notification` takes a `user_id` and no league, so it *cannot* check it — which is why
+  `fixture_postponed` (`gameweek.py:656`) ignores the mute today. The owner has declined a
+  separate opt-out for pick alerts, so this column becomes a member's only recourse against the
+  volume below and it must actually work. Add an optional `league_id` to `send_notification`
+  and gate on the membership row there; then either drop the now-redundant filter in
+  `members_missing_picks` or keep it as the cheaper query, but say which and why.
+
+  **Picks open.** `run_open_gameweeks` (`scheduler.py:228`) already flips `scheduled -> open`
+  hourly and returns the rounds it moved; it just tells nobody. Notify every active, unmuted
+  member of that round's league. **This depends on Batch 73 and on the owner's config change** —
+  `2-1-hibs` has `pick_open_offset_minutes` unset, so its rounds are born `open` at discovery
+  (`gameweek.py:177`) and that job will never move one. Until 720 minutes is saved on the league
+  there is no opening instant and the trigger is dead code in production. Ship it regardless: it
+  is correct for `the-coupon`, which already carries the offset.
+
+  **The reminder fires daily and should fire once.** `current_open_gameweeks`
+  (`gameweek.py:1100`) returns every open round whose lock is ahead and the job runs at 11:00
+  every day (`scheduler.py:438`, registered at `:551`), so 2-1 Hibs' 29 August round — open
+  since discovery — nudges every member without a pick on the 25th, 26th, 27th, 28th and 29th.
+  They share a `tag` so the tray collapses them, but each one buzzes the phone. The owner wants
+  **one reminder three hours before the lock.** That is a change to which rounds the job selects,
+  not to the copy: select on `locks_at_utc` falling in the target window rather than on "open
+  with a future lock", and raise the cadence so a three-hour offset can be hit at all — hourly
+  against a `T-3h ± 30min` predicate is the cheap shape. `_lock_label`
+  (`notification_triggers.py:55`) already renders the deadline on the member's own clock and
+  needs nothing.
+
+  **Somebody picked.** The hook is `submit_pick` once the write has landed (`picks.py:198`),
+  notifying every other active, unmuted member of the league. The copy carries what the owner
+  asked for — who, what, which league, at what price: *"Dave took Arsenal to win at 1.80 in 2-1
+  Hibs."* Everything needed is on the row already (`runner_name`, `market`, `outcome`,
+  `odds_at_pick`), and **none of it is a disclosure**: `_gameweek_members`
+  (`routers/gameweek.py:344`) already serves every member's pick, holder name and frozen price
+  to any member of that league, before lock, because the land-grab is unreadable otherwise.
+
+  A change notifies too, with its own copy — *"Dave moved to Celtic at 2.10"* — which is the
+  owner's call and the more useful half of the event: a member switching frees their old
+  selection back into the grab, and nothing in the product announces that today. `submit_pick`
+  updates in place, so the trigger must capture whether the row existed *before*
+  `_apply_selection` overwrites it.
+
+  **The volume is accepted, not overlooked.** Twelve members each notifying eleven others is 132
+  targeted sends per round in 2-1 Hibs, before changes. The owner has chosen this over a digest
+  and over a per-league toggle. Two things keep it survivable and both are required: a collapsing
+  `tag` per `(league, round)` so the tray holds one live pick alert rather than a stack of
+  eleven, and the mute fix above. Reach is currently 5 active subscriptions across 13 profiles,
+  so most of that volume does not land today — a reason to get the shape right now, not a reason
+  to relax it.
+
+  Verification: `scripts/ci-local.sh` PASS; a test that a member with `notification_muted` on a
+  league receives none of the three and still receives another league's; a test that opening a
+  round notifies that league's members and nobody else's; a test that the reminder selects a
+  round locking in three hours and skips one locking in three days; a test that a pick notifies
+  the other members and never the picker; a test that a *changed* pick sends the move copy rather
+  than the claim copy; and a test that the alert carries the frozen `odds_at_pick` rather than a
+  live price.
+
+  Scope boundary: **triggers and the mute gate — not the delivery layer, not a new setting.** No
+  notification history table: push stays fire-and-forget and a message that misses is still gone,
+  which is a real limitation and a separate batch if it ever matters. No new preference beyond
+  making the existing per-league mute work. Setting `pick_open_offset_minutes` on 2-1 Hibs stays
+  the owner's action, and Batch 73 is a prerequisite for the opening trigger being *visible*
+  rather than for this batch compiling.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

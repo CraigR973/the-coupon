@@ -1272,7 +1272,7 @@ here (§1.8):
 
 | Stack | Baseline | Commit | Head |
 | --- | --- | --- | --- |
-| Railway `api` | `5922cf17-1767-4ab8-b225-9c0d2fd6b44f` | `18dfb9f` | `016` |
+| Railway `api` | `a5728aa4-8ac2-4a69-8d56-aaed9b1b9e7d` | `18dfb9f` | `016` |
 | Vercel web | `dpl_4omNbVGwXhBM8hRZAQ2cESTbND86` | `af50d22` | — |
 
 The Vercel entry is a **docs-only** auto-deploy from the Batch 68 close-out. It
@@ -1283,6 +1283,32 @@ it.
 **Every image from `e2cbbf2d` onward is bootable against head `016`, and so is
 `5af73dae` before it** — see the migration-016 recovery plan. The rollback
 target is not emptied by this shipment.
+
+### 2026-08-25 — two config-only redeploys, avatar storage on and back off
+
+**No commit shipped.** `18dfb9f` and head `016` throughout; only
+`AVATAR_STORAGE` moved, which is why the Railway baseline above is now
+`a5728aa4` rather than `5922cf17` — a config-only redeploy is still the
+deployment a rollback lands on, per the avatar runbook.
+
+| Deployment | Set to | Result |
+| --- | --- | --- |
+| `a5728aa4-8ac2-4a69-8d56-aaed9b1b9e7d` | `AVATAR_STORAGE=supabase` | `SUCCESS` 11:48 UTC |
+| `691128d6` (live) | `AVATAR_STORAGE=none` | `SUCCESS` 11:52 UTC |
+
+The flag worked and the feature still cannot: in the container `avatar_storage()`
+returned `SupabaseAvatarStorage` with `enabled = True`, but the Supabase project
+answers **402 `exceed_egress_quota`** on a read-only `GET /storage/v1/bucket`
+with the service key, so every upload would have raised `AvatarStorageError` and
+surfaced as a 502. Reverted the same day rather than leave a control mounted that
+fails on every press. Detail and the ordering rule — clear the restriction, *then*
+set the flag — are in `docs/runbooks/avatar-storage.md`.
+
+**The restriction is on the project that also hosts the production database**
+(`db.pugujiiojitstkilphrz.supabase.co`). Direct Postgres was unaffected at the
+time — queries ran and `/health/ready` reported `db: ok` — but a project-level
+egress restriction is a database risk before it is an avatar one, and it is
+recorded here rather than only in the feature's runbook for that reason.
 
 ## Gate state
 
