@@ -2117,3 +2117,42 @@ on `fastapi 0.141.1 / starlette 1.6.0 / pydantic 2.13.4`
   code, and Vercel has already shipped the web half.
 
 **Next:** Batch 73 — the round badge that reads `status` rather than time.
+
+## Batch 73 — A round can say "open" while it is refusing picks
+**Commit:** 72b1c4a (ff-merged) · verified: `scripts/ci-local.sh` PASS (11 checks, **715
+frontend tests across 48 files**, plus the whole backend and the Playwright smoke)
+
+### Key facts for future sessions
+- **`lib/coupon.ts` now holds the rule.** `pickRefusal(round, now)` mirrors the API's
+  `pick_refusal` case for case, **including the ordering**: the opening gate is tested
+  before the deadline, so a round that has not opened answers `PICKS_NOT_OPEN` rather than
+  `PICKS_LOCKED` and is still restampable. A fixture that locked before it opened is what
+  proved this — the component kept the round, correctly, and the fixture was the wrong
+  thing. Mirror the order, not just the outcomes.
+- **`status` is a lagging label, everywhere.** `open_due_gameweeks` moves
+  `scheduled -> open`; the lock job moves `open -> locked`; neither runs backwards and both
+  are hourly. **Any screen that branches on `status` is wrong for up to an hour at each end
+  of the claim period.** Two were found this batch; assume more when touching a surface
+  that labels a round.
+- **The settings page was actively lying to admins.** Its copy said a change "never
+  restamps a round that already exists" — correct when Batch 40 wrote it, false from Batch
+  65, and it is the sentence an admin reads *while making that change*. **When a batch
+  changes a rule, grep the UI copy for the old rule.** Batch 65 did not.
+- **The same screen's round list had the same bug.** `upcoming()` filtered on `status`, so
+  a round past its deadline was listed as one the setting still moves, when
+  `rederive_claim_periods` bounds on `locks_at_utc > now` and skips it.
+- **A time-aware filter turns date-blind fixtures into a clock bomb.**
+  `LeagueSettingsPage.test.tsx` carries absolute August 2026 dates. They were safe only
+  because the old filter ignored dates entirely; the new one would have passed on
+  2026-08-25 and failed from 2026-08-29. Pinned to a fixed `NOW` — the same failure
+  `dfc5291` had just removed from the backend, nearly reintroduced on the frontend.
+- **`CouponPickPage` deliberately still states the rule a third time**, through
+  `useCountdown`, because it must flip live while a member watches and it gates *submission*
+  rather than a label. Both sides carry a pointer to the other. **Candidate follow-up:**
+  fold it onto `pickRefusal` once someone is willing to test the submit path properly.
+- **`PickShapeLine` lost the longshot split** (`avg 2.67 · 0 at 3.00+`) and is now
+  `avg odds selected 2.67`. The split lives on `PickShapeGrid`, and the test proving the
+  label tracks the league's configured line **moved there rather than being deleted** —
+  the guarantee still applies on the surface that still shows it.
+
+**Next:** Batch 74 — renumbering 2-1 Hibs' rounds and renaming three members.

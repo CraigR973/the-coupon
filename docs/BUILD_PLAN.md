@@ -2200,7 +2200,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: **display during an in-play round.** Settlement is unchanged.
 
-- [ ] **Batch 73 — A round can say "open" while it is refusing picks** — the owner's fifth point
+- [x] **Batch 73 — A round can say "open" while it is refusing picks** ✅ 2026-08-25 *(Opus)* — the owner's fifth point
   (2026-08-25), with a second small display defect on the league screens carried alongside it.
 
   `2-1-hibs` has `pick_open_offset_minutes` unset, so its 29 August round carries no opening gate
