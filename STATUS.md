@@ -325,7 +325,36 @@ through a fallback that may only fill a hole and never override stored data.
 zero points mismatches against `round(odds × 10)`, and a 24-leg hand tally
 agreeing on every line. All twelve members now show three rounds played.
 
-Batches 1-60, 62-72 are closed (59 in part; see Batch 61). The Coupon is a
+Batch 61 raised the framework, and found a guard that had been walking nothing.
+`fastapi 0.141.1 / starlette 1.6.0 / pydantic 2.13.4` clears the last of Batch 59's
+advisories — all of them `starlette 0.37.2` pinned by `fastapi==0.111.0`, and all
+unreachable here, so this was hygiene rather than an emergency. The three move as a
+set because FastAPI 0.141 requires pydantic ≥ 2.9, and 19 transitives that 0.111
+bundled disappear with them; none was used, and `routers/auth.py` already recorded
+that avatar upload reads the raw request body *specifically* so `python-multipart`
+never became a dependency. **The serious finding is `test_wire_datetimes.py`.** Batch
+43's guard walks the app's own routes so a response model written later is covered
+the day it is added — and FastAPI 0.141 stopped copying an included router's routes
+onto the parent, so `app.routes` went from 73 `APIRoute`s to **18 routes, none of them
+an `APIRoute`**. The guard had not started passing wrongly; it had lost every route in
+the application, which is worse, because a guard with no subject looks exactly like a
+guard with nothing to report. It now descends by structure rather than by class name,
+works on both shapes, and asserts floors as well as named models. It was demonstrated
+failing on Batch 43's original bug afterwards. `HTTPBearer` also moved from 403 to 401
+for a credential-less caller, which is correct — RFC 7235 reserves 403 for a caller
+who *is* authenticated — and the decision was that the web client needs no change:
+`lib/api.ts` keys on 401 alone, so the anonymous case moves onto the refresh-then-login
+path and improves. Widening it to 403 would sign a member out for reaching an admin
+route, and the file now says so. **This is API-side and a `/ship-prod` is owed.**
+
+An unrelated blocker was fixed first, on its own branch (`dfc5291`). The gate was
+already red on `main`: `test_round_population.py` asserted on `rounds[0]` and assumed
+it was still claimable, but `upcoming_slate_dates` includes today by *date* alone, so
+on the league's own weekday after its lock that round is born dead. The test used a
+Tuesday window, so it failed on Tuesdays after 18:45 London and passed the other 167
+hours of the week.
+
+Batches 1-72 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -975,13 +1004,17 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **one unchecked batch**: **Batch 61**, the
-FastAPI/starlette upgrade split out of Batch 59 and deliberately parked. The whole
-post-launch member-report set — 65 through 72 — is closed and in production.
-Batch 61 — the FastAPI/starlette upgrade split out of Batch 59 — is deliberately
-parked; Batch 68 needs an odds figure only the owner can evidence and is worked
-interactively. `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and
-first-Saturday watch**, with L0-L4 ticked since 2026-08-04.
+`docs/BUILD_PLAN.md` carries **four unchecked batches**, all specified on
+2026-08-25 from the owner's points: **73** (a round badge that says "open" while
+picks are refused, plus the longshot split coming off `PickShapeLine`), **74**
+(renumbering 2-1 Hibs' four rounds and renaming three members, as a backfill script
+with a dry run), **75** (removing the nightly `pg_dump` that writes to a tmpfs no
+volume backs), and **76** (notification triggers for picks-open, somebody-picked and
+a once-per-round reminder, on top of making the per-league mute actually reach
+`send_notification`). **76 depends on 73.** Batch 61 closed on 2026-08-25, so the
+whole post-launch member-report set and the framework upgrade are both done.
+`docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday
+watch**, with L0-L4 ticked since 2026-08-04.
 
 Batch 53 closed the last of them: a form line now opens onto the matches it is made
 of, on the pick card and in the league table. **It is API-side as well as web, and

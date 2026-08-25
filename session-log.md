@@ -2072,3 +2072,48 @@ rounds played.
   suite. Third batch running to hit that — assume the suite is non-hermetic by default.
 
 **Next:** Batch 61 — the FastAPI/starlette upgrade, the last unchecked row.
+
+## Batch 61 — The framework upgrade, and the two decisions inside it
+**Commits:** a5966af (ff-merged, pushed) · preceded by dfc5291, an unrelated blocker fixed
+on its own branch first · verified: `scripts/ci-local.sh` PASS (11 checks, **845 backend
+tests against real PostgreSQL, zero skips**, whole frontend, Playwright deep-link smoke)
+on `fastapi 0.141.1 / starlette 1.6.0 / pydantic 2.13.4`
+
+### Key facts for future sessions
+- **`main` was already red when this started, and it was a clock bomb.**
+  `test_the_settings_edit_restamps_an_unlocked_round_and_the_refresh_leaves_it` took
+  `rounds[0]` and assumed it was still claimable. `upcoming_slate_dates` includes today by
+  *date* alone, never by time of day, so on the league's own weekday after its lock the
+  round is born dead and `rederive_claim_periods` correctly refuses to restamp it. The test
+  used a TUESDAY window, so it failed Tuesdays after 18:45 London and passed the other 167
+  hours. Fixed separately in dfc5291 — **run the gate before branching**, or a red baseline
+  looks like your change.
+- **The datetime-wire guard had lost every route, not just its models.** The batch row
+  predicted "the model walk finds nothing under pydantic 2.13"; the real cause is FastAPI's.
+  0.141 stopped copying an included router's routes onto the parent and mounts a private
+  `_IncludedRouter`, so `isinstance(route, APIRoute)` matched **0 of 18** where it had
+  matched 73. Batch 43's guard was walking an empty set — any response model added since
+  would have been unguarded. `_api_routes` now descends by structure (`.routes`, else
+  `.original_router.routes`), which works on both shapes and names no private class.
+- **A guard that finds nothing looks exactly like a guard with nothing to report.** That is
+  why the walk now asserts floors (>50 routes, >20 models) as well as three named models:
+  the named-model check alone is satisfiable while having lost almost everything.
+- **The 401/403 decision is "change nothing in the client", and the reason matters.**
+  `lib/api.ts` keys on 401 alone; the anonymous case moves there for free and improves.
+  **Do not widen that branch to 403** — a real 403 is a signed-in member reaching an admin
+  route, and refresh-then-redirect would sign them out for asking. Safe because every
+  bearer-protected call is under `<ProtectedRoute />`.
+- **The status-constant rename could only land with the upgrade.** Both old names still
+  resolve on starlette 1.6.0 but now raise `StarletteDeprecationWarning`; on the old pins
+  the new names were an `AttributeError`. `routers/auth.py` carried a comment warning
+  against this exact rename and now carries its reverse.
+- **19 transitives disappeared and none were used.** 0.111 bundled python-multipart,
+  email-validator, jinja2, orjson, ujson, fastapi-cli, typer and rich; 0.141 puts them
+  behind a `[standard]` extra. `routers/auth.py` already documents that avatar upload reads
+  the raw body *specifically* so python-multipart never became a dependency — that decision
+  is what made this drop free.
+- **`/ship-prod` is owed and this one actually matters.** Every previous drift this session
+  was docs and tests. This changes the API's dependency tree and its anonymous-caller status
+  code, and Vercel has already shipped the web half.
+
+**Next:** Batch 73 — the round badge that reads `status` rather than time.

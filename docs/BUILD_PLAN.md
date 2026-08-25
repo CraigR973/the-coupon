@@ -1708,7 +1708,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: **tooling and documentation only. No src/ change.**
 
-- [ ] **Batch 61 — The framework upgrade, and the two decisions inside it** — split out of
+- [x] **Batch 61 — The framework upgrade, and the two decisions inside it** ✅ 2026-08-25 *(Opus)* — split out of
   Batch 59, which raised `cryptography` and `python-dotenv` and stopped there. The remaining
   advisories are all `starlette 0.37.2`, pinned by `fastapi==0.111.0`, and every one of them
   is either unreachable or low-reachability here: the multipart DoS pair (CVE-2024-47874,
