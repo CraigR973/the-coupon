@@ -131,3 +131,71 @@ const STATUS_LABELS: Record<PickStatus, string> = {
 export function pickStatusLabel(status: PickStatus): string {
   return STATUS_LABELS[status] ?? status;
 }
+
+/** Why a round refuses a pick, or `null` when it accepts one. */
+export type PickRefusal = 'PICKS_NOT_OPEN' | 'PICKS_LOCKED' | null;
+
+/** The statuses a round can still be claimed on — the API's `PICKABLE_STATES`. */
+export const PICKABLE_STATUSES: ReadonlySet<string> = new Set(['scheduled', 'open']);
+
+/** The three fields the claim-period rule reads, on whichever shape carries them. */
+export interface ClaimPeriod {
+  status: string;
+  locks_at_utc: string;
+  picks_open_at_utc?: string | null;
+}
+
+/**
+ * Why this round refuses a pick right now, or `null` when it accepts one.
+ *
+ * A direct mirror of the API's `pick_refusal` (`services/gameweek.py`), and the reason it
+ * exists here is that **`status` is not the authority and never was**. It is the label
+ * the hourly scheduler keeps up with: `open_due_gameweeks` only ever moves
+ * `scheduled -> open` and never back, and the lock job only ever moves `open -> locked`.
+ * So a round is mislabelled for up to an hour after either instant passes — at the
+ * opening as well as at the deadline — and a screen that reads the label is wrong for
+ * that hour in both directions. Time decides; status only rules out a round settlement
+ * has finished with.
+ *
+ * Batch 73. The case that made it visible: a league whose `pick_open_offset_minutes` is
+ * saved for the first time has `rederive_claim_periods` restamp every unlocked round
+ * (Batch 65) *without* re-deriving `status`, so a round keeps `status = 'open'` while the
+ * API answers `PICKS_NOT_OPEN` — the badge said **Open** while every pick was refused.
+ *
+ * **`CouponPickPage` states this same rule a second time**, through `useCountdown` rather
+ * than through a `now` argument, because it needs the claim period to flip live while a
+ * member is sitting on the screen and it is already rendering those countdowns. That copy
+ * gates whether a pick can be submitted at all, so Batch 73 left it alone rather than
+ * rewiring the one path where being subtly wrong stops the product working. If the rule
+ * below changes, change it there too.
+ */
+export function pickRefusal(round: ClaimPeriod, now: number = Date.now()): PickRefusal {
+  if (!PICKABLE_STATUSES.has(round.status)) return 'PICKS_LOCKED';
+  if (round.picks_open_at_utc && now < Date.parse(round.picks_open_at_utc)) {
+    return 'PICKS_NOT_OPEN';
+  }
+  if (now >= Date.parse(round.locks_at_utc)) return 'PICKS_LOCKED';
+  return null;
+}
+
+/** How a round's state should read, and whether that reads as live. */
+export interface RoundState {
+  label: string;
+  open: boolean;
+}
+
+/**
+ * The badge a round should carry — derived from the clock, not from `status`.
+ *
+ * `settled` and `locked` keep their own words because those are reached by settlement
+ * rather than by a deadline passing, and "Settled" tells a member something "Locked"
+ * does not. Everything else follows :func:`pickRefusal`.
+ */
+export function roundStateLabel(round: ClaimPeriod, now: number = Date.now()): RoundState {
+  if (round.status === 'settled') return { label: 'Settled', open: false };
+  if (round.status === 'locked') return { label: 'Locked', open: false };
+  const refusal = pickRefusal(round, now);
+  if (refusal === 'PICKS_NOT_OPEN') return { label: 'Not open', open: false };
+  if (refusal === 'PICKS_LOCKED') return { label: 'Locked', open: false };
+  return { label: 'Open', open: true };
+}

@@ -9,6 +9,8 @@ import {
   selectionKey,
   pickStatusLabel,
   roundName,
+  pickRefusal,
+  roundStateLabel,
 } from '@/lib/coupon';
 
 describe('formatOdds', () => {
@@ -121,5 +123,86 @@ describe('roundName', () => {
   it('names Gameweek 0 rather than treating it as absent', () => {
     // Guards the falsy-check bug: `number || fallback` would drop a legitimate 0.
     expect(roundName(0, 'Sat 8 Aug 2026')).toBe('Gameweek 0');
+  });
+});
+
+/**
+ * Batch 73 — the claim period is decided by the clock, and `status` is only the label
+ * the hourly jobs have caught up with.
+ *
+ * These mirror the API's `pick_refusal` case for case. The pair that matter are the two
+ * where `status` and the instants disagree, because those are the hour-long windows the
+ * screen used to get wrong — one at each end.
+ */
+describe('pickRefusal', () => {
+  const OPENS = '2026-08-29T09:00:00Z';
+  const LOCKS = '2026-08-29T14:30:00Z';
+  const round = { status: 'open', picks_open_at_utc: OPENS, locks_at_utc: LOCKS };
+  const at = (iso: string) => Date.parse(iso);
+
+  it('accepts a pick inside the claim period', () => {
+    expect(pickRefusal(round, at('2026-08-29T12:00:00Z'))).toBeNull();
+  });
+
+  it('refuses a round labelled open whose opening has not arrived', () => {
+    // The case the owner hit: saving `pick_open_offset_minutes` restamps every unlocked
+    // round (Batch 65) without re-deriving `status`, so the round keeps `open` while the
+    // API answers PICKS_NOT_OPEN. `open_due_gameweeks` never moves a label backwards.
+    expect(pickRefusal(round, at('2026-08-29T08:59:00Z'))).toBe('PICKS_NOT_OPEN');
+  });
+
+  it('refuses a round labelled open whose deadline has passed', () => {
+    // The mirror, and the one that has always been there: the lock job runs hourly, so
+    // a round reads `open` for up to an hour after nobody can claim on it.
+    expect(pickRefusal(round, at('2026-08-29T14:30:00Z'))).toBe('PICKS_LOCKED');
+  });
+
+  it('treats a round with no announced opening as claimable from discovery', () => {
+    // `picks_open_at_utc = null` is no gate at all, not an offset of zero.
+    const ungated = { status: 'scheduled', picks_open_at_utc: null, locks_at_utc: LOCKS };
+    expect(pickRefusal(ungated, at('2026-08-20T00:00:00Z'))).toBeNull();
+  });
+
+  it('lets status alone decide a round settlement has finished with', () => {
+    // `locked` and `settled` are reached by settlement rather than by a clock, so no
+    // instant can talk them back open.
+    const inside = at('2026-08-29T12:00:00Z');
+    expect(pickRefusal({ ...round, status: 'locked' }, inside)).toBe('PICKS_LOCKED');
+    expect(pickRefusal({ ...round, status: 'settled' }, inside)).toBe('PICKS_LOCKED');
+  });
+});
+
+describe('roundStateLabel', () => {
+  const OPENS = '2026-08-29T09:00:00Z';
+  const LOCKS = '2026-08-29T14:30:00Z';
+  const round = { status: 'open', picks_open_at_utc: OPENS, locks_at_utc: LOCKS };
+  const at = (iso: string) => Date.parse(iso);
+
+  it('reads Open only while a pick would actually be taken', () => {
+    expect(roundStateLabel(round, at('2026-08-29T12:00:00Z'))).toEqual({
+      label: 'Open',
+      open: true,
+    });
+  });
+
+  it('reads Not open for a round labelled open before its opening', () => {
+    expect(roundStateLabel(round, at('2026-08-29T08:59:00Z'))).toEqual({
+      label: 'Not open',
+      open: false,
+    });
+  });
+
+  it('reads Locked for a round labelled open after its deadline', () => {
+    expect(roundStateLabel(round, at('2026-08-29T15:00:00Z'))).toEqual({
+      label: 'Locked',
+      open: false,
+    });
+  });
+
+  it('keeps Settled as its own word', () => {
+    // "Locked" and "Settled" are not interchangeable to a member: one says come back
+    // never, the other says the points are in.
+    const settled = { ...round, status: 'settled' };
+    expect(roundStateLabel(settled, at('2026-08-30T12:00:00Z')).label).toBe('Settled');
   });
 });

@@ -45,14 +45,24 @@ export function VoidDenominatorNote({ shape }: { shape: PickShape }) {
   );
 }
 
-/** The compact form: average price and the favourite/longshot split. */
+/**
+ * The compact form: the one figure, named.
+ *
+ * Batch 73 dropped the longshot split this used to carry — `avg 2.67 · 0 at 3.00+` — on
+ * the owner's call. Two figures in a line this size read as a ratio rather than as two
+ * unrelated counts, and the second was usually zero, which made the first harder to read
+ * for nothing. `avg` alone was also ambiguous on a table whose other columns are points:
+ * naming it `avg odds selected` says which average it is.
+ *
+ * The split is not gone from the product — `PickShapeGrid` on the player profile still
+ * carries `Longshots (n.nn+)` and `Favourites`, which is the surface with room to explain
+ * them.
+ */
 export function PickShapeLine({ shape }: { shape: PickShape }) {
   if (!hasPickShape(shape)) return null;
-  const line = shape.longshot_odds ?? 3;
-  const longshots = shape.longshot_picks ?? 0;
   return (
     <span className="font-sans text-xs text-text-muted">
-      avg {shape.average_odds?.toFixed(2) ?? '—'} · {longshots} at {line.toFixed(2)}+
+      avg odds selected {shape.average_odds?.toFixed(2) ?? '—'}
     </span>
   );
 }

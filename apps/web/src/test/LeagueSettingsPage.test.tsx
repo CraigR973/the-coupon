@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -308,13 +308,23 @@ describe('LeagueSettingsPage — when picks open (Batch 27)', () => {
   });
 });
 
-// ── Batch 40: the forward-only rule, made visible ─────────────────────────────
+// ── Batch 40's schedule block, corrected in Batch 73 ──────────────────────────
 //
-// `pick_open_offset_minutes` is stamped at discovery and the settings PATCH never
-// restamps an existing round — correct, because an edit must not move a deadline members
-// were already told. The complaint that produced this batch was that the rule is
-// invisible exactly when it bites: an admin sets twelve hours, saves, and picks open
-// anyway, because the round on the board predates the setting and has no gate at all.
+// Batch 40 wrote this against a forward-only rule: the settings PATCH never restamped an
+// existing round. **Batch 65 changed that** — `rederive_claim_periods` now moves both ends
+// of the claim period on every round that has not locked — so the copy this block asserts
+// is the copy an admin reads while making that change, and it said the opposite.
+//
+// What survived is the half that was load-bearing: a round that has already locked keeps
+// its deadline, because members were told it and claimed against it. And a round with
+// `picks_open_at_utc = null` has no gate at all rather than an older offset, which is the
+// case that reads as "my setting was ignored".
+//
+// The clock is pinned below. These fixtures carry absolute dates, and Batch 73 made the
+// list depend on `locks_at_utc` rather than on `status` alone — so against the real clock
+// they would pass today and start failing on 2026-08-29, which is precisely the failure
+// `fix/round-population-clock-bomb` had just been landed to remove from the backend.
+const NOW = '2026-08-20T12:00:00Z'; // gw-29 and gw-22 ahead of their deadlines, gw-15 past
 
 const ROUNDS = [
   // Newest first, exactly as `GET /leagues/{slug}/gameweeks` returns them.
@@ -355,6 +365,12 @@ describe('LeagueSettingsPage — when picks actually open', () => {
   // offset in one response, so waiting for the name waits for the data under test.
   const formReady = () => screen.findByDisplayValue('The Coupon');
 
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(NOW));
+  });
+  afterEach(() => vi.useRealTimers());
+
   it('names a scheduled round that has no opening gate at all', async () => {
     // The production case on 2026-08-20, and the one that reads as "my setting was
     // ignored". It is not on an older offset; it has no gate.
@@ -384,19 +400,47 @@ describe('LeagueSettingsPage — when picks actually open', () => {
     await formReady();
 
     await screen.findByTestId('pick-open-schedule');
-    // A locked round's opening is history; showing it would invite the restamp this
-    // batch decided against.
+    // A locked round's opening is history, and `rederive_claim_periods` bounds itself on
+    // `locks_at_utc > now`, so listing one would promise a restamp that will not happen.
     expect(screen.queryByTestId('pick-open-round-gw-15')).toBeNull();
   });
 
-  it('says the setting applies to rounds discovered from now on', async () => {
+  it('drops a round still labelled open whose deadline has already passed', async () => {
+    // Batch 73, and the same defect as the round badge: `status` is only what the hourly
+    // lock job has caught up with. Filtering on it alone listed this round as something
+    // the setting still moves, an hour after the API had stopped moving it.
+    const stale = [
+      {
+        ...ROUNDS[0],
+        gameweek_id: 'gw-stale',
+        status: 'open',
+        // Opened, then locked — an hour before NOW, with the hourly job not yet run. Both
+        // instants are in the past on purpose: `pick_refusal` tests the opening gate first,
+        // so a round that has not opened answers PICKS_NOT_OPEN and is still restampable.
+        picks_open_at_utc: '2026-08-20T08:00:00Z',
+        locks_at_utc: '2026-08-20T11:00:00Z',
+      },
+    ];
+    stubApi(undefined, { pick_open_offset_minutes: 720 }, stale);
+    renderPage();
+    await formReady();
+
+    expect(screen.queryByTestId('pick-open-round-gw-stale')).toBeNull();
+  });
+
+  it('says the change reaches the rounds it is listing, and stops at a locked one', async () => {
+    // Batch 73. This copy told the admin the opposite of what the API does: since Batch 65
+    // the PATCH restamps every unlocked round, so "these keep the opening they were created
+    // with" was false about the very rounds printed directly above it.
     stubApi(undefined, { pick_open_offset_minutes: 720 }, ROUNDS);
     renderPage();
     await formReady();
 
     const block = await screen.findByTestId('pick-open-schedule');
+    expect(block.textContent).toMatch(/moves the opening on every round listed here/i);
     expect(block.textContent).toMatch(/applies to rounds discovered from now on/i);
-    expect(block.textContent).toMatch(/keep the opening they were created with/i);
+    expect(block.textContent).toMatch(/already locked keeps its deadline/i);
+    expect(block.textContent).not.toMatch(/keep the opening they were created with/i);
   });
 
   it('renders nothing when no round is still ahead', async () => {

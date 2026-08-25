@@ -32,17 +32,27 @@ function shape(overrides: Partial<PickShape> = {}): PickShape {
 }
 
 describe('the pick-shape figures', () => {
-  it('renders the average price and the split', () => {
+  it('names the one figure it shows', () => {
+    // Batch 73 — `avg` alone was ambiguous on a table whose other columns are points.
     render(<PickShapeLine shape={shape()} />);
-    expect(screen.getByText(/avg 2\.67/)).toBeTruthy();
-    expect(screen.getByText(/2 at 3\.00\+/)).toBeTruthy();
+    expect(screen.getByText(/avg odds selected 2\.67/)).toBeTruthy();
   });
 
-  it('labels the split from the line it was computed with', () => {
+  it('renders no longshot split', () => {
+    // Dropped in Batch 73 on the owner's call: two figures at this size read as a ratio,
+    // and the second was usually zero. The split survives on `PickShapeGrid`, below.
+    const { container } = render(<PickShapeLine shape={shape({ longshot_picks: 2 })} />);
+    expect(container.textContent).not.toMatch(/3\.00\+/);
+    expect(container.textContent).not.toMatch(/ at /);
+  });
+
+  it('labels the grid split from the line it was computed with', () => {
     // The line travels with the figure, so the label cannot drift from the value the
-    // split was made at — the same reason `odds_degraded` travels with the odds.
-    render(<PickShapeLine shape={shape({ longshot_odds: 4 })} />);
-    expect(screen.getByText(/at 4\.00\+/)).toBeTruthy();
+    // split was made at — the same reason `odds_degraded` travels with the odds. Batch 73
+    // moved this off `PickShapeLine`, which no longer shows a split, onto the surface
+    // that still does rather than dropping the guarantee with the line.
+    render(<PickShapeGrid shape={shape({ longshot_odds: 4 })} />);
+    expect(screen.getByText(/Longshots \(4\.00\+\)/)).toBeTruthy();
   });
 
   it('shows every figure on the full grid', () => {

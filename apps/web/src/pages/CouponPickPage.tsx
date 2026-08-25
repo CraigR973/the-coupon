@@ -132,6 +132,11 @@ export function CouponPickPage() {
   // the claim period and `status` only rules out a round settlement has finished with.
   // Deriving "shut" from `status === 'open'` alone would hold members out of a round
   // whose opening has passed until the hourly job got round to relabelling it.
+  //
+  // Batch 73 made `pickRefusal` in `lib/coupon.ts` the written-down form of this rule, for
+  // the surfaces that only *label* a round. This stays expressed through the countdowns
+  // because it needs to flip live while a member watches, and because it decides whether a
+  // pick can be submitted rather than what a badge says. Keep the two in step.
   const notOpenYet =
     !!slate?.picks_open_at_utc && !openCountdown.expired && PICKABLE.has(slate.status);
   const locked = !slate || !PICKABLE.has(slate.status) || notOpenYet || countdown.expired;

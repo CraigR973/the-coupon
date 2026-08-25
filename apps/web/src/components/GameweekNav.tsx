@@ -1,20 +1,13 @@
 import { ChevronLeft, ChevronRight, History } from 'lucide-react';
 import type { GameweekHistory } from '../hooks/useGameweekHistory';
 import { Badge } from './ui/badge';
-import { roundName } from '../lib/coupon';
+import { roundName, roundStateLabel } from '../lib/coupon';
 import { formatCalendarDate } from '../lib/time';
 import { cn } from '../lib/utils';
 
 export interface GameweekNavProps {
   history: GameweekHistory;
 }
-
-const STATUS_LABEL: Record<string, string> = {
-  scheduled: 'Not open',
-  open: 'Open',
-  locked: 'Locked',
-  settled: 'Settled',
-};
 
 /**
  * Move back and forward through the season's gameweeks.
@@ -30,6 +23,11 @@ export function GameweekNav({ history }: GameweekNavProps) {
   // to label; fall back to the newest rather than rendering a broken control.
   const current = selected ?? gameweeks[0];
   if (!current) return null;
+
+  // Derived from the stored instants rather than from `status`, which the hourly jobs
+  // only ever move forwards: this badge said "Open" on a round whose opening had not
+  // arrived, and "Open" on one whose deadline had passed, for up to an hour either way.
+  const state = roundStateLabel(current);
 
   return (
     <div
@@ -49,9 +47,7 @@ export function GameweekNav({ history }: GameweekNavProps) {
           {roundName(current.number, formatCalendarDate(current.starts_on, 'EEE d MMM yyyy'))}
         </span>
         <span className="flex items-center gap-1.5">
-          <Badge variant={current.status === 'open' ? 'success' : 'muted'}>
-            {STATUS_LABEL[current.status] ?? current.status}
-          </Badge>
+          <Badge variant={state.open ? 'success' : 'muted'}>{state.label}</Badge>
           <span className="font-mono text-[10px] tabular-nums text-text-muted">
             {current.pick_count}/{current.fixture_count}
           </span>

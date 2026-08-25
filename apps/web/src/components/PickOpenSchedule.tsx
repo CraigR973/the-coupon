@@ -1,5 +1,5 @@
 import type { GameweekSummary } from '../lib/types';
-import { roundName } from '../lib/coupon';
+import { pickRefusal, roundName } from '../lib/coupon';
 import { formatCalendarDate, formatInstant } from '../lib/time';
 
 export interface PickOpenScheduleProps {
@@ -12,7 +12,12 @@ export interface PickOpenScheduleProps {
 }
 
 /**
- * Rounds an opening time can still apply to — anything not yet locked or settled.
+ * Rounds an opening time can still apply to — anything whose deadline is still ahead.
+ *
+ * Filtered on `pickRefusal` rather than on `status` (Batch 73), because `status` is only
+ * what the hourly jobs have caught up with and `rederive_claim_periods` bounds itself on
+ * `locks_at_utc > now`. A round still labelled `open` an hour after its deadline would
+ * otherwise be listed here as something this setting moves, which it is not.
  *
  * `Array.isArray` rather than trusting the parameter: the web app deploys ahead of the
  * API, so an older deployment can answer this route with a shape this build does not
@@ -21,24 +26,28 @@ export interface PickOpenScheduleProps {
 function upcoming(gameweeks: GameweekSummary[]): GameweekSummary[] {
   if (!Array.isArray(gameweeks)) return [];
   return gameweeks
-    .filter((gw) => gw?.status === 'scheduled' || gw?.status === 'open')
+    .filter((gw) => gw && pickRefusal(gw) !== 'PICKS_LOCKED')
     .slice()
     .reverse(); // the list arrives newest first; the next round up is the useful one
 }
 
 /**
- * What the rounds already on the board will actually do (Batch 40).
+ * What the rounds already on the board will actually do (Batch 40, corrected in Batch 73).
  *
- * `pick_open_offset_minutes` is applied at **discovery**, and a settings change
- * deliberately never restamps a round that already exists — moving a deadline members
- * were already told is the one thing the PATCH refuses to do. That rule is correct and
- * it is staying, but it was invisible at exactly the moment it bites: an admin sets
- * twelve hours, saves, sees picks open anyway, and nothing on the screen explains why.
+ * **This screen used to say the opposite of the truth.** It told the admin a settings
+ * change "never restamps a round that already exists", which was right when Batch 40
+ * wrote it and wrong from Batch 65 onwards: `rederive_claim_periods` now restamps both
+ * ends of the claim period on every round that has **not locked**, so the setting reaches
+ * each round the admin can see rather than only the next one discovered. That is the text
+ * they read while making this exact change, so it was wrong at the worst possible moment.
  *
- * So this says it plainly. A round carrying `picks_open_at_utc = null` predates the
- * setting and has **no opening gate at all** — it is claimable from the moment discovery
- * wrote it, which is the documented pre-Batch-27 rule and not an older offset. That is
- * the case that reads as "my setting was ignored", so it is the one named most clearly.
+ * The half that did not change is the half that was load-bearing: a round that has
+ * already locked keeps its deadline, because members were told it and claimed against it.
+ *
+ * A round carrying `picks_open_at_utc = null` has **no opening gate at all** — it is
+ * claimable from the moment discovery wrote it, which is the documented pre-Batch-27 rule
+ * and not an older offset. That is the case that reads as "my setting was ignored", so it
+ * is the one named most clearly.
  */
 export function PickOpenSchedule({ gameweeks, timezone, announced }: PickOpenScheduleProps) {
   const rounds = upcoming(gameweeks);
@@ -71,8 +80,8 @@ export function PickOpenSchedule({ gameweeks, timezone, announced }: PickOpenSch
       </ul>
       <p className="text-xs font-sans text-text-muted">
         {announced
-          ? 'Changing the time below applies to rounds discovered from now on. These keep the opening they were created with.'
-          : 'These rounds keep the opening they were created with. Turning the setting on applies to rounds discovered from now on.'}
+          ? 'Changing the time below moves the opening on every round listed here, and applies to rounds discovered from now on. A round that has already locked keeps its deadline.'
+          : 'Turning the setting on moves the opening on every round listed here, and applies to rounds discovered from now on. A round that has already locked keeps its deadline.'}
       </p>
     </div>
   );
