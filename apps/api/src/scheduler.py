@@ -1,9 +1,11 @@
 """Background scheduler — APScheduler harness.
 
-The skeleton ships two domain-agnostic jobs:
-  - daily_backup: database backup at 03:00 UTC
+The skeleton ships one domain-agnostic job:
   - connection_warmup: a cheap ``SELECT 1`` every 10 min so the first request
     after a quiet spell usually lands on a warm pooled connection.
+
+``daily_backup`` used to sit alongside it and was removed in Batch 75 — see
+:func:`run_scheduled_backup`, which is still here and still callable on demand.
 
 Add your app's jobs to ``create_scheduler`` following the commented example at
 the bottom. Each job function should log and swallow its own errors so a single
@@ -70,7 +72,25 @@ def _uk_today() -> date:
 
 
 async def run_scheduled_backup() -> bool:
-    """Daily backup job — runs at 03:00 UTC."""
+    """A database backup, on demand: ``python -m src.run_scheduled backup``.
+
+    **Not scheduled.** Batch 75 removed the 03:00 UTC registration, because nightly it was
+    a cost that returned nothing: ``--format=plain`` (``services/backup.py:89``) means the
+    dump is uncompressed and larger than the 12 MB database it copies, and it lands in
+    ``settings.backup_dir`` — ``/tmp/the_coupon_backups``, on a service with no volume
+    mounted, verified 2026-08-25 by a ``df`` showing only ``overlay`` and ``tmpfs`` and a
+    directory that no longer existed after that day's two redeploys. The API runs on
+    Railway and the database on Supabase, so the whole thing crossed the public internet as
+    metered egress to write a file the next deploy destroyed.
+
+    ``docs/runbooks/backup-restore.md:3`` had already settled what it was worth: Supabase's
+    managed backups and PITR are the production source of record, and these were "not
+    durable enough for launch recovery".
+
+    The capability stays because it is genuinely useful *deliberately* — before a risky
+    migration, say — and costs nothing on the days nobody runs it. It still raises
+    ``backup_failed`` on the audit log, which is why that ``ActionType`` stays too.
+    """
     try:
         info = await create_backup(settings.backup_dir, settings.database_url)
         log.info("scheduled backup complete", filename=info.filename, size_bytes=info.size_bytes)
@@ -475,18 +495,16 @@ def create_scheduler() -> AsyncIOScheduler:
         run_prune_refresh_tokens,
         trigger="cron",
         hour=4,
-        minute=30,  # after the 03:00 backup, so a pruned row is still in last night's copy
+        # 04:30 UTC: a quiet hour, and comfortably before the 06:00 London jobs below.
+        #
+        # Batch 58 chose it to land *after* the 03:00 `pg_dump`, so a pruned row was still
+        # in last night's copy. Batch 75 deleted that job and the reason survives it
+        # unchanged: `docs/runbooks/backup-restore.md` names Supabase's managed backups and
+        # PITR as the source of record, and those run whatever this scheduler does. The
+        # property was never coming from the dump — PITR recovers a row deleted at 04:30
+        # to any second before it, which the dump could not do.
+        minute=30,
         id="prune_refresh_tokens",
-        replace_existing=True,
-        coalesce=True,
-        max_instances=1,
-    )
-    scheduler.add_job(
-        run_scheduled_backup,
-        trigger="cron",
-        hour=3,
-        minute=0,
-        id="daily_backup",
         replace_existing=True,
         coalesce=True,
         max_instances=1,

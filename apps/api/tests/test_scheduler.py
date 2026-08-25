@@ -90,7 +90,6 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
         job_ids = {j.id for j in scheduler.get_jobs()}
         assert job_ids == {
             "connection_warmup",
-            "daily_backup",
             "discover_fixtures",
             "refresh_slate",
             "pick_reminders",
@@ -110,19 +109,21 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
         assert live.coalesce is True
         assert live.max_instances == 1
 
-        # Batch 58. Runs after the 03:00 backup so anything it removes is still in last
-        # night's copy.
+        # Batch 58 put this after the 03:00 backup; Batch 75 deleted that job and the hour
+        # stayed, because Supabase's managed backups and PITR are what actually hold the
+        # property (`docs/runbooks/backup-restore.md`) and 04:30 UTC is still a quiet hour
+        # before the 06:00 London jobs.
         prune = scheduler.get_job("prune_refresh_tokens")
         assert prune is not None
         assert str(prune.trigger) == "cron[hour='4', minute='30']"
         assert prune.coalesce is True
         assert prune.max_instances == 1
 
-        backup = scheduler.get_job("daily_backup")
-        assert backup is not None
-        assert str(backup.trigger) == "cron[hour='3', minute='0']"
-        assert backup.coalesce is True
-        assert backup.max_instances == 1
+        # Batch 75. Asserted absent rather than merely left out of the set above: a job
+        # nobody asserts is a job that can come back in a merge without anyone noticing,
+        # and the whole point of the batch is that this one must not run nightly.
+        # `run_scheduled_backup` itself is untouched — see test_run_scheduled.py.
+        assert scheduler.get_job("daily_backup") is None
 
         warmup = scheduler.get_job("connection_warmup")
         assert warmup is not None
@@ -466,8 +467,8 @@ async def test_scheduler_lifespan_starts_and_stops(monkeypatch: pytest.MonkeyPat
     async with lifespan(app):
         scheduler = app.state.scheduler
         assert scheduler.running is True
-        assert scheduler.get_job("daily_backup") is not None
         assert scheduler.get_job("connection_warmup") is not None
+        assert scheduler.get_job("daily_backup") is None  # Batch 75
 
     await asyncio.sleep(0)
     assert scheduler.running is False

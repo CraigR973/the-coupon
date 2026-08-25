@@ -67,3 +67,26 @@ def test_main_rejects_unknown_job(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sys, "argv", ["run_scheduled", "not-a-job"])
     with pytest.raises(SystemExit):
         run_scheduled.main()
+
+
+def test_the_backup_is_still_reachable_on_demand_after_batch_75() -> None:
+    """Batch 75 removed a *schedule*, not a capability, and this is the half that proves it.
+
+    Paired deliberately with `test_scheduler.py`'s assertion that `daily_backup` is absent
+    from the registered jobs. Either test alone is satisfiable by the wrong change: delete
+    the coroutine and the scheduler assertion still passes; restore the nightly `add_job`
+    and this one still passes. Together they pin the batch's actual claim — the 03:00 UTC
+    run is gone and `python -m src.run_scheduled backup` still works, which is the tool
+    worth having before a risky migration and costs nothing on the days nobody runs it.
+    """
+    from src.scheduler import create_scheduler
+
+    scheduler_instance = create_scheduler()
+    try:
+        assert scheduler_instance.get_job("daily_backup") is None
+    finally:
+        if scheduler_instance.running:
+            scheduler_instance.shutdown(wait=False)
+
+    assert run_scheduled.JOBS["backup"] is scheduler.run_scheduled_backup
+    assert callable(run_scheduled.JOBS["backup"])
