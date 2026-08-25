@@ -2156,3 +2156,37 @@ frontend tests across 48 files**, plus the whole backend and the Playwright smok
   the guarantee still applies on the surface that still shows it.
 
 **Next:** Batch 74 — renumbering 2-1 Hibs' rounds and renaming three members.
+
+## Batch 74 — Four rounds and three members in 2-1 Hibs are called the wrong thing
+**Commit:** 9cf1686 (ff-merged) · verified: `scripts/ci-local.sh` PASS (11 checks), 9 new
+Postgres-backed tests · **script shipped, NOT applied to production**
+
+### Key facts for future sessions
+- **The production dry run is still owed.** `python -m src.backfill_names_and_numbers
+  --dry-run`, then `--apply`, then **tell Craig, Marc and Lewis their new sign-in names**.
+  `docs/backfills/2026-08-names-and-numbers.md` carries the pre-flight checklist.
+- **A Supabase MCP timeout is not a database outage, and this session proved it.** Every
+  query through the MCP timed out including `select 1`; `check-deploy-drift.sh` run
+  immediately afterwards had the deployed API answering with `migration 016`, which it can
+  only know by querying that same database. **Discriminate this way before reporting an
+  outage** — the failure was confined to the MCP's connection path (probably the pooler
+  endpoint rather than the direct DSN), while members were served normally throughout.
+- **Renaming a profile releases its name more completely than deleting one does.**
+  `auth.py:436` reserves names case-insensitively and **deliberately includes soft-deleted
+  rows**, so a departed member keeps their name — but a rename leaves no row holding the
+  old one, so "Craig", "Birch" and "Lewis" become registrable by anyone the moment this
+  applies. Counter-intuitive and worth remembering before any future rename.
+- **`display_name` is the login identifier**, matched exactly at `auth.py:228` and again at
+  `auth.py:695` for PIN resets. The JWT subject is the player id, so a rename signs nobody
+  out — it breaks their *next* sign-in instead, which is the failure nobody connects to a
+  change made days earlier.
+- **`(league_id, number)` carries no unique constraint** — `uq_gameweeks_league_starts_on`
+  is the only one on `gameweeks`. Two rounds can both be "Gameweek 3" and only an explicit
+  read catches it, which is why `_assert_season_reads` re-queries rather than trusting the
+  plan it just applied.
+- **This reverses Batch 68's numbering decision, and that decision was not wrong.** It
+  weighed rewriting a name members had used against a season that read out of order; the
+  owner has now weighed it the other way. Both comments say so, so neither reads as an
+  oversight later.
+
+**Next:** Batch 75 — removing the nightly `pg_dump` that writes to a tmpfs no volume backs.
