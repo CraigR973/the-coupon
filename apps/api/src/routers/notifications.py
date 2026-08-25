@@ -235,7 +235,7 @@ async def patch_preferences(
             return _dt(2000, 1, 1, h, m)
         except (ValueError, AttributeError):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Invalid time format: {val!r}",
             )
 
@@ -249,7 +249,7 @@ async def patch_preferences(
             league_ids = {uuid.UUID(lid) for lid in body.league_mutes}
         except ValueError:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Invalid league_id in league_mutes",
             )
         membership_result = await db.execute(

@@ -397,7 +397,7 @@ async def register(
 
     if not (MIN_DISPLAY_NAME_LENGTH <= len(name) <= MAX_DISPLAY_NAME_LENGTH):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"Display name must be {MIN_DISPLAY_NAME_LENGTH}-"
                 f"{MAX_DISPLAY_NAME_LENGTH} characters."
@@ -405,7 +405,7 @@ async def register(
         )
     if not _DISPLAY_NAME_RE.match(name):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 "Display name can use letters, numbers, spaces, and . _ ' - "
                 "and must start with a letter or number."
@@ -413,7 +413,7 @@ async def register(
         )
     if is_weak_pin(body.pin):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="That PIN is too common — choose one that is not a run or a repeat.",
         )
 
@@ -422,7 +422,7 @@ async def register(
             ZoneInfo(body.timezone)
         except (ZoneInfoNotFoundError, KeyError):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Invalid IANA timezone identifier",
             ) from None
 
@@ -614,7 +614,7 @@ async def update_profile(
             ZoneInfo(body.timezone)
         except (ZoneInfoNotFoundError, KeyError):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Invalid IANA timezone identifier",
             )
         values["timezone"] = body.timezone
@@ -672,7 +672,7 @@ async def change_pin(
     # blocklist without already holding the account.
     if is_weak_pin(body.new_pin):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="That PIN is too common — choose one that is not a run or a repeat.",
         )
     user.pin_hash = hash_pin(body.new_pin)
@@ -782,7 +782,7 @@ async def set_pin_after_reset(
     # already inside a live reset — the ordering `change_pin` uses for the same reason.
     if is_weak_pin(body.pin):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="That PIN is too common — choose one that is not a run or a repeat.",
         )
 
@@ -816,12 +816,14 @@ async def _read_capped(request: Request, cap: int) -> bytes:
         total += len(chunk)
         if total > cap:
             raise HTTPException(
-                # `HTTP_413_REQUEST_ENTITY_TOO_LARGE`, not the newer
-                # `HTTP_413_CONTENT_TOO_LARGE`: the pinned starlette==0.37.2 has only the
-                # old name, and the shared dev venv's newer starlette has both and warns
-                # about the old one. Following that warning turns a warning locally into
-                # an AttributeError on the pins — which is what CI and production run.
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                # `HTTP_413_CONTENT_TOO_LARGE` since Batch 61 raised starlette to 1.6.0.
+                # The reverse of this used to be the trap: on the old starlette==0.37.2
+                # pins only `HTTP_413_CONTENT_TOO_LARGE` existed, so following the
+                # dev venv's deprecation warning turned a local warning into an
+                # AttributeError in CI and production. Both names resolve on 1.6.0 and the
+                # old one now raises StarletteDeprecationWarning, so the rename could only
+                # land *with* the upgrade — never before it.
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=f"Avatar must be under {cap // 1024} KB",
             )
         chunks.append(chunk)

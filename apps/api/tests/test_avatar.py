@@ -504,5 +504,8 @@ async def test_config_reports_uploads_on_once_a_backend_answers(client: AsyncCli
 
 
 async def test_config_needs_a_signed_in_member(client: AsyncClient) -> None:
+    # 401 rather than 403 since Batch 61: `HTTPBearer` on fastapi==0.141.1 answers a
+    # *missing* credential with 401, which is what RFC 7235 reserves it for. Nothing
+    # about who may read this route changed — only the code that says "you sent none".
     resp = await client.get("/api/v1/config")
-    assert resp.status_code == 403
+    assert resp.status_code == 401

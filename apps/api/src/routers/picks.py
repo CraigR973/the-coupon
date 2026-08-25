@@ -147,7 +147,7 @@ async def submit_pick(
     # client posts a fixture id and market straight past the pick screen.
     if body.market not in league.offered_markets:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="MARKET_NOT_OFFERED"
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="MARKET_NOT_OFFERED"
         )
 
     selection = await _snapshot_selection(provider, fixture, body.market, body.outcome)
@@ -345,7 +345,7 @@ async def _snapshot_selection(
             if selection.market.value == market.value and selection.outcome.value == outcome.value:
                 return selection
     raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="SELECTION_NOT_AVAILABLE"
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="SELECTION_NOT_AVAILABLE"
     )
 
 

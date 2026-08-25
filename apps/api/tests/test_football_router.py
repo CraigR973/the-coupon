@@ -275,14 +275,15 @@ async def test_a_season_with_nothing_ingested_is_empty_rather_than_an_error(
 
 @pytest.mark.asyncio
 async def test_an_anonymous_caller_is_refused(client: AsyncClient, seed: Seed) -> None:
-    # 403, not 401. `HTTPBearer` answers a missing Authorization header with 403
-    # on the pinned fastapi==0.111.0; later versions changed it to 401. This
-    # asserts what `requirements.txt` actually ships, which is what production
-    # runs. Written against a newer FastAPI, it failed every CI run from Batch 16
-    # (2026-08-06) to 2026-08-15 while passing locally — see scripts/ci-local.sh,
-    # which now installs the pins so the two cannot diverge again.
-    assert (await client.get(TABLES_URL)).status_code == 403
-    assert (await client.get(RESULTS_URL)).status_code == 403
+    # 401 since Batch 61 raised the pins to fastapi==0.141.1. `HTTPBearer` answered a
+    # missing Authorization header with 403 on fastapi==0.111.0 and answers 401 now,
+    # which is the correct code: RFC 7235 reserves 403 for a caller who *is*
+    # authenticated and still forbidden. This asserts what `requirements.txt` ships,
+    # which is what production runs — written against the wrong version it failed every
+    # CI run from Batch 16 (2026-08-06) to 2026-08-15 while passing locally, which is
+    # why scripts/ci-local.sh installs the pins rather than borrowing a venv.
+    assert (await client.get(TABLES_URL)).status_code == 401
+    assert (await client.get(RESULTS_URL)).status_code == 401
 
 
 @pytest.mark.asyncio

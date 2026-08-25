@@ -17,11 +17,13 @@ from __future__ import annotations
 
 import types
 import typing
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Annotated, get_args, get_origin, get_type_hints
 
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
+from starlette.routing import BaseRoute
 
 from src.main import app
 from src.schemas import UtcDatetime, stamp_utc
@@ -82,10 +84,47 @@ def _element_types(hint: object) -> list[object]:
     return []
 
 
+def _api_routes() -> list[APIRoute]:
+    """Every ``APIRoute`` the app serves, however it happens to be mounted.
+
+    ``app.routes`` was a flat list of ``APIRoute`` up to fastapi 0.111. **0.141 stopped
+    copying an included router's routes onto the parent** and mounts a
+    ``fastapi.routing._IncludedRouter`` in their place, so ``isinstance(route, APIRoute)``
+    matched nothing at all: 18 routes where there had been 73, and none of them carrying
+    a ``response_model``. The guard below did not start passing wrongly — it started
+    walking an empty set, which is worse, because a guard that has lost its subject looks
+    exactly like a guard with nothing to report.
+
+    The descent is therefore written against *structure*, not against either version's
+    class names — collect anything that is an ``APIRoute``, then follow whatever holds
+    more routes: ``.routes`` on a mount, ``.original_router`` on an included router. That
+    keeps working on the old shape (where the first branch alone finds everything) and on
+    the new one, and does not name a private class that may be renamed again.
+    """
+    found: list[APIRoute] = []
+    seen: set[int] = set()
+
+    def walk(routes: Iterable[BaseRoute]) -> None:
+        for route in routes:
+            if id(route) in seen:
+                continue
+            seen.add(id(route))
+            if isinstance(route, APIRoute):
+                found.append(route)
+            nested = getattr(route, "routes", None)
+            if nested is None:
+                nested = getattr(getattr(route, "original_router", None), "routes", None)
+            if nested:
+                walk(nested)
+
+    walk(app.routes)
+    return found
+
+
 def _response_models() -> list[type[BaseModel]]:
     models: list[type[BaseModel]] = []
-    for route in app.routes:
-        if isinstance(route, APIRoute) and route.response_model is not None:
+    for route in _api_routes():
+        if route.response_model is not None:
             for member in _unwrap(route.response_model):
                 models.extend(
                     m
@@ -139,9 +178,23 @@ def test_the_walk_finds_the_models_it_claims_to() -> None:
 
     ``CurrentRound`` is nested two models deep under ``/me/cross-league-summary``, so
     it also proves the closure follows nesting rather than stopping at the route.
+
+    The two floors are here because fastapi 0.141 proved the failure is real rather than
+    theoretical: its new mounting shape took this walk to **zero** routes, and three
+    named models is a check you can satisfy while having lost almost everything else.
+    Both numbers are deliberately well under what the app actually serves — they catch a
+    collapse, not a refactor.
     """
+    routes = _api_routes()
+    assert len(routes) > 50, (
+        f"the walk found only {len(routes)} routes — an included router is not being "
+        "followed, and everything mounted under it is unguarded"
+    )
     names = {m.__name__ for m in _reachable(_response_models())}
     assert {"GameweekSlateResponse", "LeagueDetailResponse", "CurrentRound"} <= names
+    assert (
+        len(names) > 20
+    ), f"only {len(names)} models reached — the closure is not following nesting"
 
 
 def test_every_serialised_datetime_carries_an_offset() -> None:

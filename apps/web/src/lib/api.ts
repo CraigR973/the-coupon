@@ -79,6 +79,24 @@ export async function apiFetch<T>(
 
   const resp = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
+  // 401 only, deliberately — do not add 403 here (Batch 61).
+  //
+  // The API moved to fastapi 0.141, where `HTTPBearer` answers a *missing* credential
+  // with 401 instead of the 403 that fastapi 0.111 sent. That is the correct code:
+  // RFC 7235 reserves 403 for a caller who is authenticated and still forbidden. So
+  // this branch now also catches the anonymous case, which previously fell through to
+  // the generic error below — a silent refresh followed by `/login` is a better answer
+  // for a member whose access token has gone missing than an error toast.
+  //
+  // Widening this to `|| resp.status === 403` would be a regression, not a belt-and-
+  // braces: a genuine 403 is a signed-in member hitting something they may not have,
+  // and refreshing then redirecting would sign them out for asking.
+  //
+  // The redirect is safe because every bearer-protected call sits under
+  // `<ProtectedRoute />`; the six public routes reach no such endpoint. And nothing
+  // needed to change for the deploy gap — Vercel ships this app on merge while the API
+  // waits for `/ship-prod`, so for a while the old 403 arrives and takes exactly the
+  // path it takes today.
   if (resp.status === 401) {
     // Access token was rejected — attempt one refresh then retry
     try {

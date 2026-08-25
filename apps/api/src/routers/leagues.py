@@ -313,7 +313,7 @@ def _clean_markets(value: list[PickMarket]) -> list[PickMarket]:
             seen.append(market)
     if not seen:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="offered_markets must contain at least one market",
         )
     return seen
@@ -408,7 +408,7 @@ def _check_claim_period(pick_open_offset: int | None, lock_offset: int) -> None:
     """
     if pick_open_offset is not None and pick_open_offset < lock_offset:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="pick_open_offset_minutes must be at least lock_offset_minutes",
         )
 
@@ -995,7 +995,7 @@ async def update_league(
     if body.max_members is not None and body.max_members != league.max_members:
         if body.max_members < await _active_member_count(league.id, db):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="max_members cannot be lower than current member count",
             )
         changes["max_members"] = {"from": league.max_members, "to": body.max_members}
@@ -1259,7 +1259,7 @@ async def create_gameweek(
 
     gameweek = await refresh_slate(db, provider, league, body.starts_on)
     if gameweek is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="NO_FIXTURES")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="NO_FIXTURES")
     await db.commit()
     await db.refresh(gameweek)
 
@@ -1410,7 +1410,7 @@ async def delete_league(
     player, league = admin_ctx
     if body.confirm_name != league.name:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="confirm_name does not match league name",
         )
     league.deleted_at = _now()

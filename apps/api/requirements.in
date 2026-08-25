@@ -9,17 +9,31 @@
 # `--universal` matters: the resolution carries environment markers, so one file
 # serves both the Linux image production runs and the macOS the local gate runs on.
 
-fastapi==0.111.0
+# Batch 61. Raised from 0.111.0, which pinned `starlette 0.37.2` and every remaining
+# advisory with it. None of them is reachable here — the multipart DoS pair
+# (CVE-2024-47874, CVE-2025-54121) needs a route that parses a form and there is none,
+# CVE-2026-48818 is Windows-only, and CVE-2026-48710's Host-header path poisoning
+# matters to apps doing path-based authorisation in middleware, which this one does not:
+# auth is a per-route dependency. So this is hygiene, and it is pinned as a set because
+# the resolution is forced — FastAPI 0.141 requires pydantic >= 2.9.
+fastapi==0.141.1
 uvicorn[standard]==0.30.1
 sqlalchemy[asyncio]==2.0.31
 asyncpg==0.29.0
 alembic==1.13.2
 bcrypt==4.1.3
 pyjwt==2.13.0
-starlette==0.37.2
+# Pinned explicitly rather than left to fastapi's floor, so the advisory set this batch
+# closes is visible in the file that records it.
+starlette==1.6.0
 python-dotenv==1.2.2
-pydantic==2.8.2
-pydantic-settings==2.3.4
+# Forced by fastapi 0.141 (>= 2.9). The upgrade is not free: it moves `HTTPBearer` to
+# 401 for a credential-less caller (RFC 7235 — 403 is for an *authenticated* caller who
+# is forbidden), and it changes the model introspection `tests/test_wire_datetimes.py`
+# walks to prove Batch 43's UTC-offset guard still has a subject. Both are handled in
+# this batch rather than absorbed.
+pydantic==2.13.4
+pydantic-settings==2.13.0
 httpx==0.27.0
 apscheduler==3.10.4
 tzlocal==5.2

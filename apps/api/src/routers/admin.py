@@ -249,7 +249,7 @@ async def delete_player(request: Request, player_id: uuid.UUID, admin: AdminUser
     """
     if player_id == admin.id:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="You cannot delete your own account here.",
         )
     player = await _load_player(db, player_id)
@@ -998,7 +998,7 @@ async def settle_manually(
             continue
         if result.home_goals is None or result.away_goals is None:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="A result needs both scores, or void.",
             )
         settlements.append(
