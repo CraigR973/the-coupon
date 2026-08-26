@@ -2359,3 +2359,27 @@ before its 13:30 lock) and left `status = 'open'`.
   `acca-leg-N`, so those testids and strings survived the refactor deliberately.
 
 **Next:** Batch 79 — the settled week reaching the home card, and the rank history under it.
+
+## Batch 79 — The week ends and home has nothing to say about it
+**Commits:** 1c6aaf9 · verified: `scripts/ci-local.sh` PASS (11 checks), 734 frontend tests, 8 new Postgres-backed tests
+
+### Key facts for future sessions
+- **Never read a settled round off `current_round`.** `accepting_picks` treats a NULL
+  `picks_open_at_utc` as open *now*, so on a league announcing no opening the next round
+  outranks the settled one from the moment discovery writes it. Anything about "the week
+  just gone" needs its own query; `last_result` is that query.
+- **`standings_by_league` now takes `exclude_gameweek_ids`, and the exclusion is in the
+  JOIN.** In a `WHERE` it would drop members whose only pick was in the excluded round
+  instead of ranking them at zero. This is the rank-history mechanism — there is still no
+  snapshot table and `models/standing.py` remains the *football club* table.
+- **The summary is nine fixed queries now, not five**, and the docstring says so. All
+  four additions are set-based; adding a sixth league still adds rows, not round trips.
+- **`points_awarded is None` is not zero.** A void pick scored nothing because it never
+  ran; the card says "was void" and prints no points, which is the same distinction
+  `picks_played` vs `picks_priced` exists to keep on the leaderboard.
+- **Batch 80 consumes this batch's read.** Per-player per-round history for the form line
+  is the same rows the rank cutoff walks — write it once, in `scoring.py`.
+- **A `/ship-prod` is owed.** Every new field is optional with a default, so the pushed
+  web app renders exactly as before until Railway ships the API.
+
+**Next:** Batch 80 — form on the leaderboard.

@@ -388,7 +388,18 @@ the combined coupon, where Batch 67 put the scorelines and points. `GameweekNav`
 printing `pick_count/fixture_count`, a fraction of fixtures sitting beside the roster's
 fraction of members with nothing distinguishing them.
 
-Batches 1-78 are closed. The Coupon is a
+**Batch 79** is the second of the three and the one with a finding under it. The home
+card printed `Settled` and said nothing else about the week just gone. The result could
+not be read off `current_round`, because `current_round_order` ranks a round accepting
+picks above one already started and `accepting_picks` treats a NULL opening as open now:
+on a league announcing no opening, next week's round displaces the settled one the moment
+discovery writes it, so the member never sees their week — while the identical code works
+on a league that announces one. `last_result` is its own read. Rank movement is
+`standings_by_league` run twice with the reported round excluded rather than a snapshot
+table, so movement and rank cannot come from different arithmetic. `GameweekResult` gained
+`picks_won`, because `all_won` reads the same for five of six and none of six.
+
+Batches 1-79 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1038,15 +1049,10 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` has **two unchecked batches, 79 and 80**, specified on 2026-08-26
-from the owner's three points; Batch 78 was the first of the three and closed the same
-day. Both remaining ones need per-round history that does not exist yet — the leaderboard
-`Standing` is computed from every settled pick as one `GROUP BY` with no per-round
-dimension — so **Batch 79 writes the read Batch 80 consumes**, and 79 is also where the
-finding sits that decides its own shape: a settled round is displaced from the home card
-by next week's the moment discovery writes it, on any league that announces no opening.
-`docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday
-watch**, with L0-L4 ticked since 2026-08-04.
+`docs/BUILD_PLAN.md` has **one unchecked batch, 80** — form on the leaderboard, the last
+of the owner's three points of 2026-08-26. Batches 78 and 79 closed the same day.
+`docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday watch**,
+with L0-L4 ticked since 2026-08-04.
 
 **Batch 74 was applied and the API shipped, both on 2026-08-26**, so the two items
 previously owed here are done: production serves `a7573e32`, `/api/v1/health` and
@@ -1061,11 +1067,12 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**A `/ship-prod` is owed for Batch 77.** The implementation is API-only: when a settings
-edit stamps a future opening onto an unclaimed `open` round, `rederive_claim_periods`
-now returns it to `scheduled`, making it selectable by `open_due_gameweeks` and therefore
-eligible for Batch 76's opening notification. A round holding a pick stays `open`.
-2-1 Hibs' Gameweek 4 was already corrected by hand, so no production data repair remains.
+**A `/ship-prod` is owed for Batch 79**, and only for Batch 79. Batch 77's API change is
+live — `check-deploy-drift.sh` put the deployed image at `41f4d7df` on 2026-08-26, which
+carries it — so the line previously standing here was stale. Batch 79 is the next API
+change after it: `last_result`, `next_opens_at_utc`, `points_awarded` and `picks_won` are
+all absent from production until it ships, and every one of them is optional with a
+default, so the home card and the Season rows render exactly as they did in the meantime.
 
 **Production still has no managed backup and no PITR** (the owner's 2026-07-30 deferral).
 Batch 75 removed a nightly dump that `/tmp` destroyed on every redeploy, which changes

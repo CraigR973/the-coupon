@@ -2519,7 +2519,7 @@ answered until it lands, because until then there is no data to look at.
   lock rule. Renaming a tab changes `ITEMS` in `CouponSubNav.tsx:6` and not the route: the
   `/results` path stays what it is, because members have it in their history.
 
-- [ ] **Batch 79 — The week ends and home has nothing to say about it** — the owner's second point
+- [x] **Batch 79 — The week ends and home has nothing to say about it** ✅ 2026-08-26 — the owner's second point
   (2026-08-26). `LeagueHomeCard` (`DashboardPage.tsx:88`) renders every league the member plays
   from one request, and when a round settles it prints the word `Settled` and stops. The week that
   just happened — whether their pick came in, what it scored, how many of the league's picks landed,
