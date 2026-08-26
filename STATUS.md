@@ -377,7 +377,18 @@ after a league adds a future opening to an already-discovered round: an unclaime
 `open` round moves back to `scheduled`, while a round holding a legitimate pick stays
 `open` and records the declined transition at info level.
 
-Batches 1-77 are closed. The Coupon is a
+**Batch 78** is the first of the owner's three points of 2026-08-26 and the only
+frontend-only one. `GameweekMember` and `CouponLeg` carry the same seven facts, so the
+pick screen's roster and the combined coupon were two implementations of one list, and
+they had drifted apart — only one marked the reader's own row. `PickRow` is now the row
+both draw, taking a `lead` that says which fact is the heading: the roster asks who has
+picked, the coupon asks what is riding on the week. The section's third tab was renamed
+**Season**, because it was called Results and showed none — every row of it navigates to
+the combined coupon, where Batch 67 put the scorelines and points. `GameweekNav` stopped
+printing `pick_count/fixture_count`, a fraction of fixtures sitting beside the roster's
+fraction of members with nothing distinguishing them.
+
+Batches 1-78 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1027,8 +1038,13 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` has **no unchecked batches**. Batch 77 closed on 2026-08-26,
-so every batch specified to date is on `main`.
+`docs/BUILD_PLAN.md` has **two unchecked batches, 79 and 80**, specified on 2026-08-26
+from the owner's three points; Batch 78 was the first of the three and closed the same
+day. Both remaining ones need per-round history that does not exist yet — the leaderboard
+`Standing` is computed from every settled pick as one `GROUP BY` with no per-round
+dimension — so **Batch 79 writes the read Batch 80 consumes**, and 79 is also where the
+finding sits that decides its own shape: a settled round is displaced from the home card
+by next week's the moment discovery writes it, on any league that announces no opening.
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday
 watch**, with L0-L4 ticked since 2026-08-04.
 

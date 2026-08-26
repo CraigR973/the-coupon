@@ -2334,3 +2334,28 @@ before its 13:30 lock) and left `status = 'open'`.
   shipped.
 
 **Next:** Launch phase L5 — launch and first-Saturday watch; ship the Batch 77 API change.
+
+## Batch 78 — Your pick, the combined coupon and the results are three names for one list
+**Commits:** dfe55a9 · verified: `scripts/ci-local.sh` PASS (11 checks), 727 frontend tests
+
+### Key facts for future sessions
+- **`PickRow` is now the only row in the coupon section**, and its `lead` prop is the
+  whole design: `player` for the roster (who has picked), `selection` for the acca (what
+  is riding on it). Same facts, opposite hierarchy. Adding a fact to one list means
+  adding it to `PickEntry`, not to a component.
+- **Two differences between the two lists are real and are kept.** A roster entry can
+  have `selection: null` — a member who picked nothing appears nowhere in the slate, which
+  is the roster's entire reason to exist — and a leg can carry settlement. That is why
+  `PickEntry` has a nullable selection and optional status/points/score rather than there
+  being two types.
+- **The Season tab is still routed at `/results`.** Only the label and the page title
+  changed; `predictionsPath(slug, '/results')` and every existing link are untouched,
+  because members have the URL in their history.
+- **`GameweekNav` no longer prints a fixture-denominated fraction.** Anything wanting
+  "picks over members" must read the roster, which is the only place that denominator
+  exists on the client; `GameweekSummary` carries no member count.
+- **The e2e flow was a real constraint, not just a check.** `coupon-flow.spec.ts` pins
+  `my-pick-summary`, `member-roster` ("2 of 3 picked", "1 to go", "Yet to pick") and
+  `acca-leg-N`, so those testids and strings survived the refactor deliberately.
+
+**Next:** Batch 79 — the settled week reaching the home card, and the rank history under it.

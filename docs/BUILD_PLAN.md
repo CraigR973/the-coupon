@@ -2459,7 +2459,7 @@ answered until it lands, because until then there is no data to look at.
   made every surface read the clock, so this is about the label the *scheduler* keys on, not
   the one members see.
 
-- [ ] **Batch 78 — Your pick, the combined coupon and the results are three names for one list** — the
+- [x] **Batch 78 — Your pick, the combined coupon and the results are three names for one list** ✅ 2026-08-26 — the
   owner's first point (2026-08-26). Three tabs (`CouponSubNav.tsx:6`) that share a shell —
   `PageHeader`, `LeagueSwitchStrip`, `CouponSubNav`, and on two of the three `GameweekNav` — and
   then overlap five more ways underneath it. No defect: everything here renders correctly and a
