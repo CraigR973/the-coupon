@@ -4,7 +4,8 @@ import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouteLeague } from '../hooks/useRouteLeague';
 import type { LeagueDetail, Standing } from '../lib/types';
-import { PickShapeLine, VoidDenominatorNote } from '../components/PickShapeLine';
+import { PickShapeLine, VoidDenominatorNote, hasPickShape } from '../components/PickShapeLine';
+import { PickFormLine } from '../components/PickFormLine';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/ui/skeleton';
@@ -79,6 +80,15 @@ export function LeaderboardPage() {
             picks_priced: standings.reduce((n, s) => n + (s.picks_priced ?? s.picks_played), 0),
           }}
         />
+        {/* Batch 80. `V` is the letter a reader will not guess, and it is exactly the one
+            that must not be mistaken for a defeat — a void fixture never ran. Said once
+            for the table, like the denominator note above it. */}
+        {standings.some((s) => (s.recent_form?.length ?? 0) > 0) && (
+          <p className="mt-1 font-sans text-[11px] text-text-muted">
+            Form covers the last five settled rounds, oldest first — W won, L lost, V void
+            — with what each one scored.
+          </p>
+        )}
         <ol className="mt-2 flex flex-col gap-2" data-testid="standings">
           {standings.map((s) => {
             const isMe = s.player_id === player?.id;
@@ -105,8 +115,14 @@ export function LeaderboardPage() {
                       {s.picks_won}/{s.picks_played} won
                     </p>
                     {/* Batch 70: the owner's fifth point. Renders nothing at all when the
-                        deployed API has not shipped the figures yet. */}
-                    <PickShapeLine shape={s} />
+                        deployed API has not shipped the figures yet. Batch 80's run sits
+                        beside it and follows the same rule. */}
+                    {(hasPickShape(s) || (s.recent_form?.length ?? 0) > 0) && (
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <PickShapeLine shape={s} />
+                        <PickFormLine form={s.recent_form} player={s.display_name} />
+                      </div>
+                    )}
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="font-mono text-lg font-semibold tabular-nums text-text-primary">{s.total_points}</p>

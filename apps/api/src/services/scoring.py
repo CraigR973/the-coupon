@@ -234,6 +234,31 @@ async def settle_gameweek_via_provider(
 LONGSHOT_ODDS = Decimal("3.00")
 
 
+#: How many settled rounds a form run covers. Five is the football convention every
+#: other form line in this product already uses, so the two read the same way.
+RECENT_FORM_ROUNDS = 5
+
+
+class FormRound(BaseModel):
+    """One settled round in a member's recent run (Batch 80).
+
+    ``status`` is the pick's, so it is ``won``, ``lost`` or **``void``** — never ``draw``.
+    A coupon pick has no drawn state: a void fixture never ran, which is a different
+    thing from a bet that ran and lost, and it is the same distinction ``picks_played``
+    and ``picks_priced`` exist to keep further up this file.
+
+    ``points`` is what the round scored, zero for anything that did not win. It is
+    carried per round rather than left to the pips because points here are
+    ``round(odds × 10)``: one win at 5.00 outscores two at 2.00, so a run of letters
+    understates a member who takes long prices and overstates one who does not.
+    """
+
+    gameweek_id: str
+    starts_on: date
+    status: str
+    points: int
+
+
 class Standing(BaseModel):
     """One row of a leaderboard's season table.
 
@@ -286,9 +311,15 @@ class Standing(BaseModel):
     #: The line the split is drawn at, carried on the row so the screen labels it from
     #: the value it was computed with rather than from a constant of its own.
     longshot_odds: float = float(LONGSHOT_ODDS)
+    #: The last :data:`RECENT_FORM_ROUNDS` settled rounds, **most recent first** — the
+    #: order every form payload in this product is sent in, reversed by the screen that
+    #: draws it. Empty unless the caller asked for it; see ``with_form``.
+    recent_form: list[FormRound] = []
 
 
-def _rank_rows(rows: Sequence[Any]) -> list[Standing]:
+def _rank_rows(
+    rows: Sequence[Any], form: dict[uuid.UUID, list[FormRound]] | None = None
+) -> list[Standing]:
     """Order one league's aggregated rows and assign competition ranks."""
     ranked = sorted(
         rows,
@@ -319,15 +350,77 @@ def _rank_rows(rows: Sequence[Any]) -> list[Standing]:
                 win_rate_pct=round(100 * int(row.picks_won) / played) if played else None,
                 longshot_picks=longshots,
                 favourite_picks=priced - longshots,
+                recent_form=(form or {}).get(row.player_id, []),
             )
         )
     return standings_out
+
+
+async def recent_form_by_league(
+    db: AsyncSession,
+    league_ids: Sequence[uuid.UUID],
+    limit: int = RECENT_FORM_ROUNDS,
+) -> dict[tuple[uuid.UUID, uuid.UUID], list[FormRound]]:
+    """Each member's last ``limit`` settled rounds, keyed by ``(league, player)``.
+
+    One query for every league and every member in them. The slice is a window function
+    rather than a Python truncation of the whole season: a leaderboard's cost must not
+    grow with how long the league has been running, and it is the same shape the current
+    round and the last result are already selected with.
+
+    Ordered most recent first, which is how every form payload in this product is sent
+    and the opposite of how a form line is drawn — the screen reverses it, so that the
+    nth pip is the nth row of any panel opened underneath.
+    """
+    if not league_ids:
+        return {}
+
+    ranked = (
+        select(
+            Pick.league_id,
+            Pick.player_id,
+            Gameweek.id.label("gameweek_id"),
+            Gameweek.starts_on,
+            Pick.status,
+            Pick.points_awarded,
+            func.row_number()
+            .over(
+                partition_by=(Pick.league_id, Pick.player_id),
+                order_by=(Gameweek.starts_on.desc(), Gameweek.id.desc()),
+            )
+            .label("rn"),
+        )
+        .join(Gameweek, Gameweek.id == Pick.gameweek_id)
+        .where(
+            Pick.league_id.in_(league_ids),
+            Gameweek.status == GameweekStatus.settled,
+            Pick.status.in_((PickStatus.won, PickStatus.lost, PickStatus.void)),
+        )
+        .subquery()
+    )
+    rows = (await db.execute(select(ranked).where(ranked.c.rn <= limit))).all()
+
+    form: dict[tuple[uuid.UUID, uuid.UUID], list[FormRound]] = {}
+    for row in sorted(rows, key=lambda r: r.rn):
+        form.setdefault((row.league_id, row.player_id), []).append(
+            FormRound(
+                gameweek_id=str(row.gameweek_id),
+                starts_on=row.starts_on,
+                status=row.status.value,
+                # A void round scored nothing because it never ran, and a lost one because
+                # it lost. Both are zero here; the status is what tells them apart.
+                points=int(row.points_awarded or 0),
+            )
+        )
+    return form
 
 
 async def standings_by_league(
     db: AsyncSession,
     league_ids: Sequence[uuid.UUID],
     exclude_gameweek_ids: Sequence[uuid.UUID] | None = None,
+    *,
+    with_form: bool = False,
 ) -> dict[uuid.UUID, list[Standing]]:
     """Season tables for several leagues at once, keyed by league id.
 
@@ -337,7 +430,9 @@ async def standings_by_league(
 
     The per-league table is exactly what :func:`standings` returns, because that is
     now this function over a single id: there is one ranking rule in the codebase and
-    the leaderboard, the profile and the summary all read it.
+    the leaderboard, the profile and the summary all read it. Since Batch 80 that holds
+    *given the same* ``with_form`` — the ranking is identical either way and only the run
+    of recent results is conditional.
 
     ``exclude_gameweek_ids`` runs the same aggregate with those rounds left out, which is
     how Batch 79 says "you moved up two": the table as it stood *before* the round being
@@ -348,6 +443,11 @@ async def standings_by_league(
 
     The exclusion belongs to the **join**, not to a ``WHERE``: a member whose only pick
     is in the excluded round still has a row in the table before it, worth zero.
+
+    ``with_form`` costs one more query and is off by default deliberately. The screens
+    that want a run of results ask for one — the leaderboard and the player profile, both
+    through :func:`standings` — while ``routers/me.py`` calls this twice per request to
+    difference two tables and would otherwise pay for a run it never renders.
     """
     if not league_ids:
         return {}
@@ -402,7 +502,15 @@ async def standings_by_league(
     grouped: dict[uuid.UUID, list[Any]] = {}
     for row in rows.all():
         grouped.setdefault(row.league_id, []).append(row)
-    return {league_id: _rank_rows(league_rows) for league_id, league_rows in grouped.items()}
+
+    form = await recent_form_by_league(db, league_ids) if with_form else {}
+    return {
+        league_id: _rank_rows(
+            league_rows,
+            {player_id: run for (lid, player_id), run in form.items() if lid == league_id},
+        )
+        for league_id, league_rows in grouped.items()
+    }
 
 
 async def standings(db: AsyncSession, league_id: uuid.UUID) -> list[Standing]:
@@ -410,8 +518,13 @@ async def standings(db: AsyncSession, league_id: uuid.UUID) -> list[Standing]:
 
     Every current member gets a row (0 until they score). Members tied on total share a
     rank; display order breaks ties by wins then name.
+
+    Carries ``recent_form`` (Batch 80). This is the single-league read, and both of its
+    callers — the leaderboard and the player profile — are screens where a season total
+    alone cannot separate a member who has won the last four rounds from one who has
+    scored nothing since July.
     """
-    return (await standings_by_league(db, [league_id])).get(league_id, [])
+    return (await standings_by_league(db, [league_id], with_form=True)).get(league_id, [])
 
 
 class GameweekResult(BaseModel):

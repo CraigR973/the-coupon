@@ -1900,9 +1900,17 @@ async def test_standings_by_league_keeps_leagues_apart(
     await _settle_all(gameweek, fake)
 
     async with AsyncSessionLocal() as session:
-        tables = await scoring.standings_by_league(session, [first.id, second.id])
+        # Batch 80: `standings` asks for the form run, so the batched call has to be asked
+        # for the same thing before the two can be compared. Everything else about them
+        # must still be identical — there is one ranking rule in the codebase.
+        tables = await scoring.standings_by_league(session, [first.id, second.id], with_form=True)
         assert tables[first.id] == await scoring.standings(session, first.id)
         assert tables[second.id] == await scoring.standings(session, second.id)
+
+        # And the default really is off, which is what keeps `routers/me.py` from paying
+        # for a run it never renders — twice per request, since it differences two tables.
+        lean = await scoring.standings_by_league(session, [first.id, second.id])
+        assert all(row.recent_form == [] for row in lean[first.id])
 
     in_first = next(s for s in tables[first.id] if s.player_id == str(alice.id))
     in_second = next(s for s in tables[second.id] if s.player_id == str(alice.id))

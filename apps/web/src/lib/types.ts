@@ -304,6 +304,22 @@ export interface GameweekResult {
 
 // ── Standings — GET /leagues/{slug}/standings ──────────────────────────────
 
+/**
+ * One settled round in a member's recent run (Batch 80).
+ *
+ * `status` is the pick's, so it is `won`, `lost` or **`void`** — never `draw`. A coupon
+ * pick has no drawn state, and a void fixture never ran, which is not the same as a bet
+ * that ran and lost. That is why this does not reuse `FormResult`, which is a football
+ * club's W/D/L and means something else.
+ */
+export interface FormRound {
+  gameweek_id: string;
+  starts_on: string; // ISO date (yyyy-mm-dd)
+  status: PickStatus;
+  /** What the round scored — zero for anything that did not win. */
+  points: number;
+}
+
 export interface Standing {
   player_id: string;
   display_name: string;
@@ -336,6 +352,12 @@ export interface Standing {
   longshot_odds?: number;
   /** Wins over `picks_played`. Computed by the API so every surface agrees. */
   win_rate_pct?: number | null;
+  /**
+   * The last five settled rounds, **most recent first** — the order every form payload
+   * here is sent in, reversed by the component that draws it (Batch 80). Absent on an
+   * API that predates it, which renders as no run at all rather than as an empty one.
+   */
+  recent_form?: FormRound[];
 }
 
 // ── Player profile — GET /leagues/{slug}/players/{id}/profile ──────────────
