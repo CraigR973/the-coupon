@@ -2399,6 +2399,66 @@ answered until it lands, because until then there is no data to look at.
   the owner's action, and Batch 73 is a prerequisite for the opening trigger being *visible*
   rather than for this batch compiling.
 
+- [ ] **Batch 77 — A round stays labelled `open` before it has opened, and the notification pays for it** —
+  found in production on 2026-08-26, the first time a league configured
+  `pick_open_offset_minutes` after Batch 65 shipped. Not member-visible; it costs a
+  notification that nobody would notice was missing.
+
+  **The defect is a comment that stopped being true.** `rederive_claim_periods`
+  (`services/gameweek.py:208`) records why it does not re-derive `status` alongside the
+  instants, and gives two reasons. The first is sound and must survive: flipping a round
+  back to `scheduled` "would tell members a round they may already hold a pick on has not
+  opened yet". **The second is simply false** — it claims `open_due_gameweeks` "re-labels
+  on its next run", and that function (`gameweek.py:1049`) selects `status == scheduled`
+  only. A round left `open` with an opening instant in the future is never revisited by
+  anything, ever.
+
+  The state is reachable exactly one way, and it is the ordinary way. A league with no
+  offset has its rounds born `open` at discovery (`gameweek.py:177`). The admin then saves
+  an offset, `rederive_claim_periods` stamps `picks_open_at_utc` into the future on every
+  unlocked round — correctly — and leaves the label alone. The round now reads `open`
+  while `pick_refusal` answers `PICKS_NOT_OPEN`.
+
+  **Until Batch 76 this genuinely bought nothing, which is why the comment survived
+  review.** `pick_refusal` reads the instants, so picks were always refused correctly, and
+  Batch 73 made the badge read the clock too. Batch 76 changed the arithmetic:
+  `run_open_gameweeks` is now the trigger for the picks-open notification, so a round it
+  can never select is a round whose league is never told picks have opened. Silent by
+  construction — picks are refused correctly, the badge reads correctly, and the only
+  symptom is a push that does not arrive.
+
+  **`rederive_claim_periods` must set `status` back to `scheduled` when it stamps an
+  opening into the future — but only where the first half of that comment does not
+  apply.** The decision the row exists to settle is what "does not apply" means, and the
+  honest answer is picks: a round nobody has claimed on can be relabelled freely, and a
+  round holding picks cannot, because those picks were made legitimately while it was open
+  and telling their owners the round has not opened is worse than a stale label. Recommended:
+  revert only when the round holds no picks, and log at info when it declines to, because
+  that is the case somebody will eventually have to reason about.
+
+  Note this is the **first backwards status transition in the product**. Every job to date
+  moves a round forwards only — `open_due_gameweeks` `scheduled -> open`,
+  `lock_due_gameweeks` `-> locked` — and `next_gameweek_number`, settlement and scoring all
+  assume monotonic progress. Check nothing keys on that assumption before adding the edge.
+
+  **2-1 Hibs' Gameweek 4 was corrected by hand on 2026-08-26** (`status` set to `scheduled`,
+  guarded on `status = 'open'`, a future `picks_open_at_utc`, and zero picks). That is the
+  only round known to have been in this state; the fix here is so it does not need doing
+  again.
+
+  Verification: `scripts/ci-local.sh` PASS; a test that saving an offset onto a league whose
+  round is `open` with no picks leaves that round `scheduled` **and** that
+  `open_due_gameweeks` then opens it at the stamped instant — the two halves together, since
+  the first alone is satisfiable by a change that breaks the flip; a test that the same edit
+  leaves a round holding a pick as `open`; and a test that a locked or settled round is
+  untouched either way, which `rederive_claim_periods`' existing bound already guarantees and
+  must keep guaranteeing.
+
+  Scope boundary: **`rederive_claim_periods` and its comment.** No change to `pick_refusal`,
+  to `open_due_gameweeks`' own predicate, or to what any screen displays — Batch 73 already
+  made every surface read the clock, so this is about the label the *scheduler* keys on, not
+  the one members see.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

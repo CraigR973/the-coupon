@@ -1023,33 +1023,39 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` has **no unchecked batches**. 73-76 closed on 2026-08-25/26
-alongside the framework upgrade in 61, so every batch specified to date is on `main`.
+`docs/BUILD_PLAN.md` carries **one unchecked batch**: **Batch 77**, written on 2026-08-26
+after the defect it describes was hit in production. 61 and 73-76 all closed on
+2026-08-25/26 and are shipped.
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday
 watch**, with L0-L4 ticked since 2026-08-04.
 
-**Two things are owed, and both need the owner.**
+**Batch 74 was applied and the API shipped, both on 2026-08-26**, so the two items
+previously owed here are done: production serves `a7573e32`, `/api/v1/health` and
+`/health/ready` agree at migration `016`, and `check-deploy-drift.sh` reports **in sync**.
+2-1 Hibs' rounds read Gameweek 1-4 and the three renamed members carry their new names.
 
-**A `/ship-prod` is owed and this one carries real change.** The deployed API is
-several batches behind: the FastAPI 0.141 upgrade, the anonymous-caller status code
-moving from 403 to 401, and — the one to weigh — Batch 76's notification triggers,
-which start alerting every member of a league on every pick. Vercel has already
-shipped the web halves of 73, so the two sides are apart until it runs.
+What is outstanding now:
 
-**Batch 74 is written but not applied.** `python -m src.backfill_names_and_numbers
---dry-run` against production, then `--apply`, then **Craig, Marc and Lewis must be
-told their new sign-in names** — `display_name` is the login identifier and nothing in
-the product tells them. `docs/backfills/2026-08-names-and-numbers.md` carries the
-checklist. It could not be dry-run from the session that wrote it: every Supabase MCP
-query timed out, while the deployed API kept answering, so the failure was the MCP's
-connection path and not the database.
+**Craig Robinson, Marc Birch and Lewis Steele have not been told their sign-in names
+changed.** Nobody was signed out — the JWT subject is the player id — so this surfaces
+only at the next session expiry or PIN reset, which means the failure arrives days later
+looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
+a rename releases a name outright where a deletion would have kept it reserved.
 
-Two follow-ups neither batch claimed. **2-1 Hibs has no `pick_open_offset_minutes`**,
-so its rounds are born `open` at discovery and Batch 76's picks-open trigger is dead
-code there until the owner sets one. And **production still has no managed backup and
-no PITR** (the 2026-07-30 deferral); Batch 75 removed a nightly dump that was destroyed
-on every redeploy, which changes nothing about recoverability but stops the logs
-claiming a backup happened.
+**Batch 77 is open**, written after 2-1 Hibs hit it live: the owner set
+`pick_open_offset_minutes` to 720 on 2026-08-26, `rederive_claim_periods` stamped the
+opening onto Gameweek 4 correctly, and left it labelled `open`. Picks were refused
+correctly throughout and the badge read correctly — but `open_due_gameweeks` selects
+`scheduled` rounds only, so it could never have fired Batch 76's picks-open notification
+for that round. **Gameweek 4 was corrected by hand**; the batch is so it stops recurring.
+
+**Production still has no managed backup and no PITR** (the owner's 2026-07-30 deferral).
+Batch 75 removed a nightly dump that `/tmp` destroyed on every redeploy, which changes
+nothing about recoverability but stops the logs claiming a backup happened. This remains
+the largest standing risk and it needs an owner decision before it needs any code.
+
+**What actually spent the Supabase egress quota is still unknown.** Supabase meters per
+*organisation*, so the consumer may not be this project at all.
 
 Batch 53 closed the last of them: a form line now opens onto the matches it is made
 of, on the pick card and in the league table. **It is API-side as well as web, and

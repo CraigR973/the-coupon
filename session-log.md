@@ -2284,3 +2284,31 @@ a test.
   from `railway variables --kv` into a file that never reaches context. **Not the Supabase
   MCP** — that points at `wc2026-predictor`, a different product, and its timeouts read
   exactly like a Coupon outage.
+
+### 2026-08-26 — production configuration change, and Batch 77 written
+The owner set `pick_open_offset_minutes = 720` on 2-1 Hibs. `rederive_claim_periods`
+restamped Gameweek 4 correctly (`picks_open_at_utc = 2026-08-29 02:00`, twelve hours
+before its 13:30 lock) and left `status = 'open'`.
+
+- **This is Batch 73's scenario hit for real, and the fix held.** Picks were refused
+  throughout (`pick_refusal` -> `PICKS_NOT_OPEN`, GW4 had zero picks) and the badge read
+  "Not open". Nothing member-visible was wrong.
+- **What was wrong was invisible.** `open_due_gameweeks` selects `status == scheduled`
+  only, so it could never have fired Batch 76's picks-open notification for that round.
+  A silent loss: refusal correct, badge correct, push absent.
+- **`rederive_claim_periods`' own comment (`gameweek.py:208`) is half wrong.** It says
+  status is not re-derived because `open_due_gameweeks` "re-labels on its next run". It
+  does not. The *other* half of that comment is sound and must survive — a round holding
+  picks must not be told it has not opened. That split is the whole design of Batch 77.
+- **The owner asked for GW4 to be set to `locked`; that would have killed the round.**
+  `pick_refusal` treats any status outside `scheduled`/`open` as terminally shut, so
+  `locked` means unpickable forever, not "not open yet". Set to **`scheduled`** instead,
+  guarded on `status='open'` + future `picks_open_at_utc` + zero picks. **"Locked" in this
+  product is not the plain-English word** — check before honouring it.
+- **The direct asyncpg route died mid-session.** The Supabase host is IPv6-only and this
+  Mac's IPv6 route disappeared between the deploy and this change; `host` still resolved
+  it while Python's `getaddrinfo` failed for both families. Fell back to `railway ssh`
+  with a base64-uploaded script, which worked. **Both paths are worth keeping in mind —
+  neither is reliably available.**
+
+**Next:** Batch 77 — have `rederive_claim_periods` re-derive `status` where no picks exist.
