@@ -2268,3 +2268,19 @@ Postgres-backed tests
 
 **Next:** `docs/BUILD_PLAN.md` has no unchecked batches. Owed: `/ship-prod`, and the
 Batch 74 production run.
+
+### Batch 74 — applied to production 2026-08-26
+`--dry-run`, then `--apply` at 06:13:41 UTC, then an independent read to verify rather than
+trusting the run's own output. 2-1 Hibs now reads Gameweek 1-4 in date order; the three
+profiles carry their new names; **36 picks and 12 memberships untouched**. A second
+`--apply` reported every row `==`, proving idempotency against production and not only in
+a test.
+
+- **`Craig`, `Birch` and `Lewis` are now free for anyone to register.** Renaming releases a
+  name outright, unlike deleting a member — see the Batch 74 notes above.
+- **The three have not been told.** Nobody was signed out (the JWT subject is the player
+  id), so this only bites at the next sign-in or a PIN reset.
+- The right path to production from this Mac is a **direct asyncpg connection**, DSN pulled
+  from `railway variables --kv` into a file that never reaches context. **Not the Supabase
+  MCP** — that points at `wc2026-predictor`, a different product, and its timeouts read
+  exactly like a Coupon outage.

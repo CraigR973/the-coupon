@@ -82,8 +82,40 @@ case-insensitively and including soft-deleted rows, the same test `auth.py:436` 
 | `Birch` | 1 | `Marc Birch` | 0 | OK |
 | `Lewis` | 1 | `Lewis Steele` | 0 | OK |
 
-So `--apply` will resolve cleanly whenever it is run. **It has not been run. Nothing in
-production has changed.**
+## Applied to production on 2026-08-26
+
+`--dry-run` printed exactly the plan above, then `--apply` at **06:13:41 UTC**. Verified
+afterwards by an independent read rather than by trusting the run's own output:
+
+```
+2026-08-08  Gameweek 1  (settled)
+2026-08-15  Gameweek 2  (settled)
+2026-08-22  Gameweek 3  (settled)
+2026-08-29  Gameweek 4  (open)
+```
+
+The season reads 1-4 in `starts_on` order. All three profiles carry their new names, none
+of the three old names is held by any row, and **36 picks and 12 active memberships were
+untouched** — this batch renames and renumbers, it does not move a single pick.
+
+`--apply` was then run a **second** time and reported every round and every name as `==`,
+changing nothing. That is the idempotency claim proved against production rather than only
+in a test, and it means a repeat run — accidental or deliberate — is safe.
+
+### Still outstanding
+
+**Craig, Marc and Lewis have not been told.** Their next sign-in needs the new name, and
+nothing in the product tells them:
+
+| Was | Now signs in as |
+| --- | --- |
+| Craig | **Craig Robinson** |
+| Birch | **Marc Birch** |
+| Lewis | **Lewis Steele** |
+
+Nobody has been signed out — the JWT subject is the player id — so this surfaces only when
+a session expires or a PIN reset is requested. **`Craig`, `Birch` and `Lewis` are now
+registrable by anyone.**
 
 ### A wrong turn worth recording
 

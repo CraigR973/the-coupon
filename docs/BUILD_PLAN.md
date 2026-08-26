@@ -2245,7 +2245,7 @@ answered until it lands, because until then there is no data to look at.
   already exists — and no change to `pick_refusal`, locking or settlement. Setting 720 minutes
   on 2-1 Hibs is the owner's action once this ships.
 
-- [x] **Batch 74 — Four rounds and three members in 2-1 Hibs are called the wrong thing** ✅ 2026-08-25 *(Opus — script shipped, not yet applied to production)* — the
+- [x] **Batch 74 — Four rounds and three members in 2-1 Hibs are called the wrong thing** ✅ 2026-08-25 *(Opus — applied to production 2026-08-26)* — the
   owner's first and fourth points (2026-08-25). Production data, delivered the way Batch 68 was:
   one idempotent script with a dry run, an evidence note under `docs/backfills/`, and nothing
   done by hand.
