@@ -2586,7 +2586,7 @@ answered until it lands, because until then there is no data to look at.
   written for. The Results page gains one number, not a layout. Nothing here touches settlement or
   scoring: every figure is read from picks that are already resolved.
 
-- [ ] **Batch 80 — A leaderboard that cannot tell a hot streak from a season average** — the owner's
+- [x] **Batch 80 — A leaderboard that cannot tell a hot streak from a season average** ✅ 2026-08-26 — the owner's
   third point (2026-08-26). `LeaderboardPage.tsx` shows rank, name, total points, played, won and
   Batch 70's odds figures, and every one of them is a season aggregate: `standings_by_league`
   (`scoring.py:327`) collapses every settled pick into one row per player. A member who has scored

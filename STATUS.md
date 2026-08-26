@@ -399,7 +399,16 @@ on a league that announces one. `last_result` is its own read. Rank movement is
 table, so movement and rank cannot come from different arithmetic. `GameweekResult` gained
 `picks_won`, because `all_won` reads the same for five of six and none of six.
 
-Batches 1-79 are closed. The Coupon is a
+**Batch 80** closes the three. Every leaderboard figure was a season aggregate, so a
+member who had won the last four rounds read the same as one who had scored nothing since
+July. `Standing.recent_form` carries the last five settled rounds, sliced by
+`row_number()` so a table's cost does not grow with the season. It is drawn by
+`PickFormLine` and **not** by `FormLine`: a coupon pick has no drawn state, and letting a
+void borrow the draw's pip would erase the `picks_played`/`picks_priced` distinction in
+the place a reader would most likely believe it. Each round carries what it scored,
+because points are `round(odds × 10)` and one win at 5.00 outscores two at 2.00.
+
+Batches 1-80 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1049,8 +1058,9 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` has **one unchecked batch, 80** — form on the leaderboard, the last
-of the owner's three points of 2026-08-26. Batches 78 and 79 closed the same day.
+`docs/BUILD_PLAN.md` has **no unchecked batches**. Batches 78, 79 and 80 — the owner's
+three points of 2026-08-26 — all closed that day, so every batch specified to date is on
+`main`.
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday watch**,
 with L0-L4 ticked since 2026-08-04.
 
@@ -1067,12 +1077,13 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**A `/ship-prod` is owed for Batch 79**, and only for Batch 79. Batch 77's API change is
+**A `/ship-prod` is owed for Batches 79 and 80**, which one deploy covers. Batch 77's API change is
 live — `check-deploy-drift.sh` put the deployed image at `41f4d7df` on 2026-08-26, which
-carries it — so the line previously standing here was stale. Batch 79 is the next API
-change after it: `last_result`, `next_opens_at_utc`, `points_awarded` and `picks_won` are
-all absent from production until it ships, and every one of them is optional with a
-default, so the home card and the Season rows render exactly as they did in the meantime.
+carries it — so the line previously standing here was stale. Those two are the next API changes after
+it: `last_result`, `next_opens_at_utc`, `points_awarded`, `picks_won` and `recent_form`
+are all absent from production until it ships, and every one of them is optional with a
+default — so the home card, the Season rows and the leaderboard render exactly as they did
+in the meantime, which is also what the tests assert.
 
 **Production still has no managed backup and no PITR** (the owner's 2026-07-30 deferral).
 Batch 75 removed a nightly dump that `/tmp` destroyed on every redeploy, which changes

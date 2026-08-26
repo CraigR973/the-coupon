@@ -2383,3 +2383,28 @@ before its 13:30 lock) and left `status = 'open'`.
   web app renders exactly as before until Railway ships the API.
 
 **Next:** Batch 80 — form on the leaderboard.
+
+## Batch 80 — A leaderboard that cannot tell a hot streak from a season average
+**Commits:** ea7f1e3 · verified: `scripts/ci-local.sh` PASS (11 checks), 741 frontend tests, 7 new Postgres-backed tests
+
+### Key facts for future sessions
+- **`PickFormLine` is not `FormLine` and must not be merged into it.** `FormResult` is a
+  football club's W/D/L; a coupon pick is won/lost/void. A void fixture never ran, which
+  is the same distinction `picks_played` vs `picks_priced` protects — collapsing it into
+  `D` would undo Batch 70 in its most visible place.
+- **`with_form` is off by default in `standings_by_league`.** `routers/me.py` calls it
+  twice per request to difference two tables and renders no run, so it must not pay for
+  one. `standings()` passes True, which is how the leaderboard *and* the player profile
+  get form from one change.
+- **The batched-vs-single equality invariant now reads "given the same `with_form`".**
+  `test_standings_by_league_keeps_leagues_apart` asserts both halves; if you ever make
+  form unconditional, that test is the one that will tell you honestly.
+- **The run is sliced server-side** by `row_number()` partitioned on (league, player), so
+  a leaderboard costs two queries whatever the size of the league *or* the length of the
+  season. There is a test asserting exactly two SELECTs.
+- **Order is newest-first on the wire, oldest-first on screen** — the same contract every
+  other form payload here follows, so the nth pip is the nth row of any panel.
+- **`PerLeagueSummary` deliberately does not carry form.** Home gained Batch 79's result
+  panel instead; adding a run there was considered and declined rather than missed.
+
+**Next:** `/ship-prod` for Batches 79-80, then Launch phase L5.
