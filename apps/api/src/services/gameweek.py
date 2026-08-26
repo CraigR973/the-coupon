@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+import structlog
 from fastapi import HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import ColumnElement, and_, case, delete, func, or_, select
@@ -42,6 +43,8 @@ from src.services.odds_provider import (
 )
 from src.services.push_notification_service import send_notification
 from src.services.slate_verification import verify_slate
+
+log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 # Tier boundaries for how stale a browsed price may be (see slate_odds_max_age).
 _NEAR_LOCK_SECONDS = 6 * 3600
@@ -205,11 +208,12 @@ async def rederive_claim_periods(
     is any round whose stored lock has already passed while the hourly lock job catches
     up — time is the authority here as it is in :func:`pick_refusal`.
 
-    ``status`` is deliberately **not** re-derived alongside the instants. Flipping a
-    round back from ``open`` to ``scheduled`` would tell members a round they may already
-    hold a pick on has not opened yet, and it buys nothing: :func:`pick_refusal` and
-    :func:`accepting_picks` both read the instant rather than the label, and
-    :func:`open_due_gameweeks` re-labels on its next run.
+    ``status`` follows a newly future opening only when the round holds no picks. That is
+    the one safe backwards transition: :func:`open_due_gameweeks` selects ``scheduled``
+    rows, so leaving an unclaimed round labelled ``open`` would prevent the opening job
+    (and its notification) from ever seeing it. A round with a pick stays ``open`` because
+    that pick was made legitimately before the settings edit; the refusal helpers still
+    enforce the newly stamped instant, and the declined transition is logged for operators.
 
     Returns the rounds that actually moved. Flushes but does not commit — the caller
     owns the transaction.
@@ -222,15 +226,35 @@ async def rederive_claim_periods(
             Gameweek.locks_at_utc > moment,
         )
     )
+    gameweeks = list(result.scalars().all())
+    picked_gameweek_ids: set[uuid.UUID] = set()
+    if gameweeks:
+        pick_result = await db.execute(
+            select(Pick.gameweek_id)
+            .where(Pick.gameweek_id.in_([gameweek.id for gameweek in gameweeks]))
+            .distinct()
+        )
+        picked_gameweek_ids = set(pick_result.scalars().all())
+
     window = window_for(league)
     moved: list[Gameweek] = []
-    for gameweek in result.scalars().all():
+    for gameweek in gameweeks:
         locks_at = window.locks_at(gameweek.starts_on)
         opens_at = picks_open_at(league, gameweek.starts_on)
         if locks_at == gameweek.locks_at_utc and opens_at == gameweek.picks_open_at_utc:
             continue
         gameweek.locks_at_utc = locks_at
         gameweek.picks_open_at_utc = opens_at
+        if gameweek.status is GameweekStatus.open and opens_at is not None and opens_at > moment:
+            if gameweek.id in picked_gameweek_ids:
+                log.info(
+                    "gameweek status reversion declined: round holds picks",
+                    league_id=str(league.id),
+                    gameweek_id=str(gameweek.id),
+                    picks_open_at_utc=opens_at.isoformat(),
+                )
+            else:
+                gameweek.status = GameweekStatus.scheduled
         moved.append(gameweek)
     await db.flush()
     return moved

@@ -1237,7 +1237,7 @@ async def test_a_settings_change_restamps_unlocked_rounds_and_leaves_locked_ones
         locks_in=-timedelta(days=7),
         opens_in=None,
     )
-    frozen = {gw.id: (gw.locks_at_utc, gw.picks_open_at_utc) for gw in (locked, settled)}
+    frozen = {gw.id: (gw.status, gw.locks_at_utc, gw.picks_open_at_utc) for gw in (locked, settled)}
 
     league.slate_start_minute = 19 * 60 + 45
     league.lock_offset_minutes = 45
@@ -1252,7 +1252,68 @@ async def test_a_settings_change_restamps_unlocked_rounds_and_leaves_locked_ones
         assert gameweek.locks_at_utc == window.locks_at(gameweek.starts_on)
         assert gameweek.picks_open_at_utc == picks_open_at(league, gameweek.starts_on)
     for gameweek in (locked, settled):
-        assert (gameweek.locks_at_utc, gameweek.picks_open_at_utc) == frozen[gameweek.id]
+        assert (gameweek.status, gameweek.locks_at_utc, gameweek.picks_open_at_utc) == frozen[
+            gameweek.id
+        ]
+
+
+async def test_adding_a_future_opening_reschedules_an_unclaimed_round_until_that_instant(
+    session: AsyncSession,
+) -> None:
+    """The scheduler must be able to find the round after an admin adds the gate."""
+    _, league = await _seed_league(session, ["future-opening"])
+    moment = _naive_now()
+    gameweek = await _round_in_state(
+        session,
+        league,
+        uk_today() + timedelta(days=7),
+        status=GameweekStatus.open,
+        locks_in=timedelta(days=7),
+        opens_in=None,
+    )
+
+    league.pick_open_offset_minutes = 3 * 24 * 60
+    await session.flush()
+    moved = await rederive_claim_periods(session, league, now=moment)
+
+    opens_at = picks_open_at(league, gameweek.starts_on)
+    assert opens_at is not None and opens_at > moment
+    assert [round_.id for round_ in moved] == [gameweek.id]
+    assert gameweek.picks_open_at_utc == opens_at
+    assert gameweek.status is GameweekStatus.scheduled
+
+    assert gameweek.id in {round_.id for round_ in await open_due_gameweeks(session, opens_at)}
+    assert gameweek.status is GameweekStatus.open
+
+
+async def test_adding_a_future_opening_keeps_a_round_with_a_pick_open(
+    session: AsyncSession,
+) -> None:
+    """A legitimate claim makes the old label safer than a backwards transition."""
+    players, league = await _seed_league(session, ["already-picked"])
+    gameweek, fixture, _ = await _open_gameweek(session, league, uk_today() + timedelta(days=7))
+    session.add(
+        _pick(
+            league,
+            gameweek,
+            fixture,
+            players["already-picked"],
+            PickOutcome.HOME,
+            "Arsenal",
+            "1.90",
+        )
+    )
+    await session.flush()
+
+    moment = _naive_now()
+    league.pick_open_offset_minutes = 3 * 24 * 60
+    await session.flush()
+    moved = await rederive_claim_periods(session, league, now=moment)
+
+    assert [round_.id for round_ in moved] == [gameweek.id]
+    assert gameweek.picks_open_at_utc is not None
+    assert gameweek.picks_open_at_utc > moment
+    assert gameweek.status is GameweekStatus.open
 
 
 async def test_dropping_an_announced_opening_clears_it_from_unlocked_rounds(
