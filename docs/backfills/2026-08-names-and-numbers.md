@@ -60,29 +60,45 @@ Consequences, written down here because they are the reason this is not a cosmet
 - **`invites.display_name_hint` and the audit payloads keep the old strings**, correctly.
   Both are records of what was true when written, not pointers to a profile.
 
-## What was checked, and what could not be
+## What was checked
 
-The batch row records a production check on 2026-08-25: none of the three target names is
-held, by a live or a soft-deleted row.
+**Verified read-only against production on 2026-08-26**, over a direct `asyncpg`
+connection to `db.pugujiiojitstkilphrz.supabase.co`. Nothing was written.
 
-**That check was not re-run before this note was written**, and the reason is worth
-recording precisely, because the obvious reading of it is wrong.
+```
+2026-08-08  number=None  status=settled
+2026-08-15  number=None  status=settled
+2026-08-22  number=1     status=settled
+2026-08-29  number=2     status=open
+```
 
-Every query through the Supabase MCP timed out, including `select 1`. That looks like a
-database outage and is not one: `scripts/check-deploy-drift.sh` was run immediately
-afterwards and the deployed API answered, reporting `migration 016` — which it can only
-know by querying that same database. **Production was serving members normally throughout.**
-The failure is confined to the MCP's own connection path, most likely the pooler endpoint
-it dials rather than the direct DSN the API holds, and it is consistent with the
-egress-quota state this project entered on the same day.
+All four rounds exist, so nothing aborts on a missing Saturday. And each of the three
+target names is free while each old name is held exactly once — checked
+case-insensitively and including soft-deleted rows, the same test `auth.py:436` applies:
 
-So this batch ships the script, its tests and this note; **the dry run against production
-has not been performed, and nothing has been applied.** It needs a session with working
-database access — the direct DSN, or a Railway shell — not a wait for anything to recover.
+| Old name | Held | Target | Held | |
+| --- | --- | --- | --- | --- |
+| `Craig` | 1 | `Craig Robinson` | 0 | OK |
+| `Birch` | 1 | `Marc Birch` | 0 | OK |
+| `Lewis` | 1 | `Lewis Steele` | 0 | OK |
 
-That ordering is safe rather than awkward: the script fails closed. If any of the three
-target names has been taken since the row was written, `--dry-run` says so and `--apply`
-refuses — and it refuses the renumbering too, so the run cannot half-land.
+So `--apply` will resolve cleanly whenever it is run. **It has not been run. Nothing in
+production has changed.**
+
+### A wrong turn worth recording
+
+An earlier draft of this note said the check could not be performed because "the Supabase
+MCP timed out on every query, including `select 1`", and reasoned that production must
+still be healthy because the deployed API was answering.
+
+The reasoning was sound and the premise was wrong. **The Supabase MCP is not attached to
+this project at all** — `docs/launch/L0_PROJECT_IDENTITY.md` lists it as pointing at
+`wc2026-predictor`, explicitly excluded, and states The Coupon's production database "is
+never attached to MCP". Those timeouts were a different product's database. The Coupon's
+was reachable the whole time, directly, from the `ci-local` venv.
+
+The lesson is not "the MCP was down". It is that a tool answering slowly looks identical
+to a tool pointed somewhere else, and only checking *which database* distinguishes them.
 
 ## Before applying
 
