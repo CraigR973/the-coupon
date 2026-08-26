@@ -420,7 +420,7 @@ async def standings_by_league(
     league_ids: Sequence[uuid.UUID],
     exclude_gameweek_ids: Sequence[uuid.UUID] | None = None,
     *,
-    with_form: bool = False,
+    with_form: bool = True,
 ) -> dict[uuid.UUID, list[Standing]]:
     """Season tables for several leagues at once, keyed by league id.
 
@@ -430,9 +430,9 @@ async def standings_by_league(
 
     The per-league table is exactly what :func:`standings` returns, because that is
     now this function over a single id: there is one ranking rule in the codebase and
-    the leaderboard, the profile and the summary all read it. Since Batch 80 that holds
-    *given the same* ``with_form`` — the ranking is identical either way and only the run
-    of recent results is conditional.
+    the leaderboard, the profile and the summary all read it. That holds *given the same*
+    ``with_form`` — the ranking is identical either way and only the run of recent results
+    is conditional.
 
     ``exclude_gameweek_ids`` runs the same aggregate with those rounds left out, which is
     how Batch 79 says "you moved up two": the table as it stood *before* the round being
@@ -444,10 +444,12 @@ async def standings_by_league(
     The exclusion belongs to the **join**, not to a ``WHERE``: a member whose only pick
     is in the excluded round still has a row in the table before it, worth zero.
 
-    ``with_form`` costs one more query and is off by default deliberately. The screens
-    that want a run of results ask for one — the leaderboard and the player profile, both
-    through :func:`standings` — while ``routers/me.py`` calls this twice per request to
-    difference two tables and would otherwise pay for a run it never renders.
+    ``with_form`` costs one more query and is **on** by default (Batch 81): every table
+    this returns is drawn somewhere, with exactly one exception. ``routers/me.py`` calls
+    this a second time with ``exclude_gameweek_ids`` to rewind the table and difference the
+    two ranks, and that rewound table is never rendered — it passes ``with_form=False``.
+    Batch 80 had the default the other way round, which made every screen the exception
+    and the one throwaway call the norm.
     """
     if not league_ids:
         return {}
@@ -524,7 +526,7 @@ async def standings(db: AsyncSession, league_id: uuid.UUID) -> list[Standing]:
     alone cannot separate a member who has won the last four rounds from one who has
     scored nothing since July.
     """
-    return (await standings_by_league(db, [league_id], with_form=True)).get(league_id, [])
+    return (await standings_by_league(db, [league_id])).get(league_id, [])
 
 
 class GameweekResult(BaseModel):

@@ -4,10 +4,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
 import { useCrossLeagueSummary } from '../hooks/useCrossLeagueSummary';
 import { useOddsFormat } from '../hooks/useOddsFormat';
-import type { GameweekStatus, LastResult, PerLeagueSummary } from '../lib/types';
+import type { FormRound, GameweekStatus, LastResult, PerLeagueSummary } from '../lib/types';
 import { formatOdds, outcomeLabel, roundName } from '../lib/coupon';
 import { predictionsPath } from '../lib/leagues';
 import { formatCalendarDate } from '../lib/time';
+import { PickFormLine } from '../components/PickFormLine';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/ui/skeleton';
@@ -188,7 +189,9 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
         )}
       </button>
 
-      {entry.last_result && <LastResultPanel result={entry.last_result} />}
+      {entry.last_result && (
+        <LastResultPanel result={entry.last_result} form={entry.recent_form} />
+      )}
 
       <Link
         to={`/leagues/${entry.slug}/leaderboard`}
@@ -222,8 +225,16 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
  *
  * Movement never rides on colour alone: the arrow is decorative and the direction is a
  * word underneath it, the same rule the live scoreline follows.
+ *
+ * Batch 81 hangs the season's run of five here rather than on the standings link below.
+ * Two reasons, and the second is the binding one: a run belongs with "how it is going"
+ * rather than beside a tap target, and `PickFormLine` carries a `role="img"` label that
+ * spells the run out in words — nested in a link, that whole sentence is appended to the
+ * link's accessible name. A member with any form necessarily has a `last_result`, since
+ * both come from a settled round holding that member's pick, so this panel can never be
+ * the thing that hides a run.
  */
-function LastResultPanel({ result }: { result: LastResult }) {
+function LastResultPanel({ result, form }: { result: LastResult; form?: FormRound[] }) {
   const movement = result.rank_movement;
   const mine = result.my_pick;
   const label = roundName(result.number, formatCalendarDate(result.starts_on, 'EEE d MMM'));
@@ -277,11 +288,14 @@ function LastResultPanel({ result }: { result: LastResult }) {
         )}
       </p>
 
-      <p className="mt-0.5 font-sans text-xs text-text-muted">
-        {result.leg_count === 0
-          ? 'Nobody picked this round'
-          : `${result.picks_won} of ${result.leg_count} ${result.leg_count === 1 ? 'pick' : 'picks'} landed`}
-      </p>
+      <div className="mt-0.5 flex items-end justify-between gap-3">
+        <p className="font-sans text-xs text-text-muted">
+          {result.leg_count === 0
+            ? 'Nobody picked this round'
+            : `${result.picks_won} of ${result.leg_count} ${result.leg_count === 1 ? 'pick' : 'picks'} landed`}
+        </p>
+        <PickFormLine form={form} className="shrink-0" />
+      </div>
     </div>
   );
 }

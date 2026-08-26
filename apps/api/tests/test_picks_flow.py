@@ -1900,17 +1900,18 @@ async def test_standings_by_league_keeps_leagues_apart(
     await _settle_all(gameweek, fake)
 
     async with AsyncSessionLocal() as session:
-        # Batch 80: `standings` asks for the form run, so the batched call has to be asked
-        # for the same thing before the two can be compared. Everything else about them
-        # must still be identical — there is one ranking rule in the codebase.
-        tables = await scoring.standings_by_league(session, [first.id, second.id], with_form=True)
+        # Batch 80 added the form run; Batch 81 made it the default, so the batched call
+        # and the per-league one agree without either being asked for anything special.
+        # There is one ranking rule in the codebase and these two must never disagree.
+        tables = await scoring.standings_by_league(session, [first.id, second.id])
         assert tables[first.id] == await scoring.standings(session, first.id)
         assert tables[second.id] == await scoring.standings(session, second.id)
 
-        # And the default really is off, which is what keeps `routers/me.py` from paying
-        # for a run it never renders — twice per request, since it differences two tables.
-        lean = await scoring.standings_by_league(session, [first.id, second.id])
+        # `with_form=False` survives for exactly one caller: the table `routers/me.py`
+        # rewinds to difference two ranks, which is never drawn.
+        lean = await scoring.standings_by_league(session, [first.id, second.id], with_form=False)
         assert all(row.recent_form == [] for row in lean[first.id])
+        assert any(row.recent_form for row in tables[first.id]), "the default really is on"
 
     in_first = next(s for s in tables[first.id] if s.player_id == str(alice.id))
     in_second = next(s for s in tables[second.id] if s.player_id == str(alice.id))

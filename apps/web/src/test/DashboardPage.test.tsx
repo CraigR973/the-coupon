@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -389,6 +389,61 @@ describe('the week just gone', () => {
     await screen.findByTestId('home-card-the-coupon');
     expect(screen.queryByTestId('last-result')).toBeNull();
     expect(screen.queryByTestId('rank-movement')).toBeNull();
+  });
+
+  // ── Batch 81: the run reaches home ─────────────────────────────────────────
+
+  it('draws the season\u2019s run of five inside the result panel', async () => {
+    const [first, ...rest] = withResult().per_league;
+    stubFetch({
+      ...SUMMARY,
+      per_league: [
+        {
+          ...first,
+          recent_form: [
+            { gameweek_id: 'g5', starts_on: '2026-08-22', status: 'won', points: 35 },
+            { gameweek_id: 'g4', starts_on: '2026-08-15', status: 'void', points: 0 },
+          ],
+        },
+        ...rest,
+      ],
+    });
+    renderPage();
+    const panel = await screen.findByTestId('last-result');
+    // Oldest first on screen, whatever order the API sent.
+    expect(within(panel).getByTestId('pick-form').textContent).toBe('VW35');
+  });
+
+  it('keeps the run out of the standings link\u2019s accessible name', async () => {
+    // `PickFormLine` is a `role="img"` whose label spells the run out in words. Nested in
+    // a link, that whole sentence is appended to the link's name — "Standings, #1 of 4,
+    // 38 pts, last rounds oldest first: won 35 points, void".
+    const [first, ...rest] = withResult().per_league;
+    stubFetch({
+      ...SUMMARY,
+      per_league: [
+        {
+          ...first,
+          recent_form: [
+            { gameweek_id: 'g5', starts_on: '2026-08-22', status: 'won', points: 35 },
+          ],
+        },
+        ...rest,
+      ],
+    });
+    renderPage();
+    await screen.findByTestId('pick-form');
+    for (const link of screen.getAllByRole('link')) {
+      expect(link.textContent ?? '').not.toContain('oldest first');
+      expect(link.getAttribute('aria-label') ?? '').not.toContain('oldest first');
+    }
+  });
+
+  it('draws no run at all against an API that sends none', async () => {
+    stubFetch(withResult());
+    renderPage();
+    await screen.findByTestId('last-result');
+    expect(screen.queryByTestId('pick-form')).toBeNull();
   });
 
   it('counts down to the next opening once the round has settled', async () => {

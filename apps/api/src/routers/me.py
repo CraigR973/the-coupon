@@ -31,7 +31,7 @@ from src.rate_limit import limiter, per_user_key
 from src.schemas import UtcDatetime
 from src.services.coupon import combined_odds
 from src.services.gameweek import PICKABLE_STATES, current_round_order
-from src.services.scoring import LONGSHOT_ODDS, standings_by_league
+from src.services.scoring import LONGSHOT_ODDS, FormRound, standings_by_league
 
 router = APIRouter(prefix="/api/v1/me", tags=["me"])
 
@@ -153,6 +153,10 @@ class PerLeagueSummary(BaseModel):
     best_return: int | None = None
     longshot_picks: int = 0
     favourite_picks: int = 0
+    #: The last five settled rounds, most recent first (Batch 81). Read straight off the
+    #: league's own season table, so home and the leaderboard can never draw different
+    #: runs for the same member.
+    recent_form: list[FormRound] = []
     # `None` when the league has no rounds yet.
     current_round: CurrentRound | None
     # Batch 79, both optional with defaults for the deploy gap.
@@ -267,7 +271,14 @@ async def cross_league_summary(
     # against the table now. Both come from `standings_by_league`, so the number attached
     # to a rank can never have been produced by different arithmetic to the rank itself.
     settled_ids = [uuid.UUID(result.gameweek_id) for result in results.values()]
-    before = await standings_by_league(db, league_ids, settled_ids) if settled_ids else {}
+    # `with_form=False` is the one place it belongs (Batch 81): this table exists to be
+    # subtracted from the one above, never to be drawn, so a run of recent results on it
+    # would be a query paid for and thrown away.
+    before = (
+        await standings_by_league(db, league_ids, settled_ids, with_form=False)
+        if settled_ids
+        else {}
+    )
 
     per_league: list[PerLeagueSummary] = []
     ranks_for_avg: list[int] = []
@@ -295,6 +306,7 @@ async def cross_league_summary(
                 best_return=standing.best_return if standing else None,
                 longshot_picks=standing.longshot_picks if standing else 0,
                 favourite_picks=standing.favourite_picks if standing else 0,
+                recent_form=standing.recent_form if standing else [],
                 current_round=rounds.get(row.id),
                 last_result=result,
                 next_opens_at_utc=openings.get(row.id),

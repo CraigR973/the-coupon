@@ -506,6 +506,12 @@ export interface PerLeagueSummary {
   /** How the priced picks split around `longshot_odds`. */
   longshot_picks?: number;
   favourite_picks?: number;
+  /**
+   * The last five settled rounds, most recent first (Batch 81). Read off the league's own
+   * season table, so home and the leaderboard can never draw different runs for the same
+   * member. Absent on an API that predates it, which renders as no run at all.
+   */
+  recent_form?: FormRound[];
   // ── Batch 79, both optional for the same deploy gap ─────────────────────────
   /** The week just gone, whether or not it is still the current round. */
   last_result?: LastResult | null;

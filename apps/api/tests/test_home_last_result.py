@@ -395,3 +395,77 @@ async def test_a_settled_round_nobody_picked_has_no_coupon_outcome(
     assert result["all_won"] is None
     assert result["my_pick"] is None
     assert result["rank_movement"] is None or result["rank_movement"] == 0
+
+
+# ── Batch 81: the run reaches home ───────────────────────────────────────────
+
+
+async def test_the_summary_carries_each_leagues_own_form_run(
+    session: AsyncSession, client: AsyncClient
+) -> None:
+    """A member plays several leagues at once and each is its own game.
+
+    Read straight off the league's season table, so home and the leaderboard cannot draw
+    different runs for the same member.
+    """
+    alice = await _profile(session, "alice")
+    first = await _league(session, alice, [alice])
+    second = await _league(session, alice, [alice])
+    for league, status, points in (
+        (first, PickStatus.won, 50),
+        (second, PickStatus.lost, None),
+    ):
+        settled = await _round(
+            session,
+            league,
+            starts_on=date.today() - timedelta(days=1),
+            status=GameweekStatus.settled,
+            locks_at=_now() - timedelta(days=2),
+        )
+        await _pick(session, league, settled, alice, status=status, points=points)
+    await session.commit()
+
+    response = await client.get("/api/v1/me/cross-league-summary", headers=_auth(alice))
+    by_slug = {entry["slug"]: entry for entry in response.json()["per_league"]}
+
+    assert [r["points"] for r in by_slug[first.slug]["recent_form"]] == [50]
+    assert [r["status"] for r in by_slug[second.slug]["recent_form"]] == ["lost"]
+
+
+async def test_rank_movement_is_unaffected_by_the_run_now_being_default(
+    session: AsyncSession, client: AsyncClient
+) -> None:
+    """The rewound table still asks for no form, and still measures the right thing.
+
+    Batch 81 flipped the default, which means the *only* remaining `with_form=False` is
+    the throwaway table underneath rank movement. If that call ever stops passing it, this
+    keeps working and nothing tells you — so the assertion here is the movement, and
+    `test_standings_by_league_keeps_leagues_apart` holds the flag itself.
+    """
+    alice = await _profile(session, "alice")
+    bob = await _profile(session, "bob")
+    league = await _league(session, alice, [alice, bob])
+    earlier = await _round(
+        session,
+        league,
+        starts_on=date.today() - timedelta(days=8),
+        status=GameweekStatus.settled,
+        locks_at=_now() - timedelta(days=9),
+    )
+    await _pick(session, league, earlier, bob, status=PickStatus.won, odds="5.00", points=50)
+    await _pick(session, league, earlier, alice, status=PickStatus.lost, odds="2.00")
+    latest = await _round(
+        session,
+        league,
+        starts_on=date.today() - timedelta(days=1),
+        status=GameweekStatus.settled,
+        locks_at=_now() - timedelta(days=2),
+    )
+    await _pick(session, league, latest, alice, status=PickStatus.won, odds="9.00", points=90)
+    await _pick(session, league, latest, bob, status=PickStatus.lost, odds="2.00")
+    await session.commit()
+
+    entry = await _summary(client, alice)
+
+    assert entry["last_result"]["rank_movement"] == 1
+    assert [r["status"] for r in entry["recent_form"]] == ["won", "lost"]
