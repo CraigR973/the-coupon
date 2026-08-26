@@ -2459,6 +2459,183 @@ answered until it lands, because until then there is no data to look at.
   made every surface read the clock, so this is about the label the *scheduler* keys on, not
   the one members see.
 
+- [ ] **Batch 78 — Your pick, the combined coupon and the results are three names for one list** — the
+  owner's first point (2026-08-26). Three tabs (`CouponSubNav.tsx:6`) that share a shell —
+  `PageHeader`, `LeagueSwitchStrip`, `CouponSubNav`, and on two of the three `GameweekNav` — and
+  then overlap five more ways underneath it. No defect: everything here renders correctly and a
+  member can do everything they could before. The cost is that the same facts are read three
+  times in three shapes, and the section is harder to hold in the head than the thing it
+  describes.
+
+  **The roster and the acca are the same list.** `GameweekMember` (`types.ts:157`) and `CouponLeg`
+  (`types.ts:241`) carry the same seven fields — player name, home, away, competition, market,
+  outcome, odds. `MemberRoster` (`MemberRoster.tsx:22`) adds the members who have *not* picked,
+  which is real and which the slate genuinely cannot show, because a member with no pick appears
+  nowhere in it. `CombinedAccaView` (`CombinedAccaView.tsx:60`) adds the leg index, the scoreline,
+  the status, the points and Copy text. Everything else is common. Once a round locks the roster
+  is the combined coupon with its numbers taken out. One component, two states.
+
+  **Your own pick renders three times inside one section.** The green summary card
+  (`CouponPickPage.tsx:230`), your row in the roster, and your `LegRow` carrying both
+  `border-primary` and a `You` badge (`CombinedAccaView.tsx:163`) — four times counting the home
+  card, which Batch 79 is about to give more to say.
+
+  **The tab named Results does not show a result.** Every row navigates to the combined coupon
+  (`ResultsPage.tsx:101`), because Batch 67 put the scorelines, the points and the won/lost badges
+  in `CombinedAccaView` and made the eyebrow read `Result` on a settled round
+  (`CouponCombinedPage.tsx:74`). So a member reads how the week finished on the tab called
+  Combined coupon, and the tab called Results is a season index. That is the crossover behind the
+  complaint, and it is a naming problem before it is a code one. Recommended: rename it Season and
+  leave the reading of a settled round where Batch 67 put it, rather than moving that rendering
+  into a list row that has no space for it.
+
+  **Two round-pickers for the same destinations.** `GameweekNav` steps one round at a time on two
+  tabs; Results jumps straight to any of them. Both are useful; neither knows about the other.
+
+  **Two `x of y` counters with different denominators, adjacent on one screen.** `GameweekNav.tsx:52`
+  prints `pick_count/fixture_count` — picks over *fixtures*. `MemberRoster.tsx:37` prints
+  `n of m picked` — picks over *members*. They sit within a few hundred pixels of each other, both
+  read as a fraction of the same quantity, and neither says which it is. Pick one and say it;
+  members are what the sentence means.
+
+  The structural read, for the record: this is **one round in two states plus a season index**, not
+  three screens. Before the lock the combined coupon is a partial list of who has grabbed what,
+  which is what the roster already is; after the lock the pick screen and the combined coupon show
+  nearly the same thing. It is redundant in both states, for opposite reasons. The larger
+  resolution drops to two tabs with the pick screen switching from fixtures to acca at the lock;
+  the smaller keeps three and removes the duplication inside them. **Recommended: the smaller**,
+  because the larger moves `usePickEditor` and the whole of `coupon-flow.spec.ts` for a gain that
+  is arguable rather than obvious.
+
+  Verification: `scripts/ci-local.sh` PASS; a test that the shared list renders both of the things
+  only one of its two callers used to show — a member who has not picked, and a settled leg's
+  points — from one component; a test that the pick screen shows the member's own selection exactly
+  once; a test that the two counters agree on a denominator; and `coupon-flow.spec.ts` passing
+  unchanged, since nothing here changes what a member can do.
+
+  Scope boundary: **the three coupon surfaces and the components they share — no API change.**
+  `/gameweek/current`, `/coupon` and `/results` keep their shapes; this is about what the web app
+  does with them. No change to `PickCard`, to the competition grouping, to `OddsGuide`, or to the
+  lock rule. Renaming a tab changes `ITEMS` in `CouponSubNav.tsx:6` and not the route: the
+  `/results` path stays what it is, because members have it in their history.
+
+- [ ] **Batch 79 — The week ends and home has nothing to say about it** — the owner's second point
+  (2026-08-26). `LeagueHomeCard` (`DashboardPage.tsx:88`) renders every league the member plays
+  from one request, and when a round settles it prints the word `Settled` and stops. The week that
+  just happened — whether their pick came in, what it scored, how many of the league's picks landed,
+  whether they moved in the table, when the next one opens — is the thing a member opens the app for
+  on a Sunday, and none of it is there.
+
+  **Two of the five are already on the wire.** `MyPick.status` (`me.py:78`) says whether the pick
+  came in and the card never reads it — the cheapest of the five by a distance. `Pick.points_awarded`
+  and the won/lost split of the round are on rows `_latest_rounds` already loads (`me.py:315`), so
+  the member's points and the count of legs that came in are a counter inside a loop that already
+  runs: fields on `MyPick` and `CurrentRound`, not a query.
+
+  **The result must not ride on `current_round`, or on half the leagues it will never be seen.**
+  `current_round_order` (`gameweek.py:381`) ranks a round accepting picks above a round already
+  started, and `accepting_picks` (`gameweek.py:285`) treats `picks_open_at_utc IS NULL` as open
+  now. A league that announces no opening has next week's round born claimable at discovery
+  (`gameweek.py:177`), so the moment discovery writes it, it outranks the round that just settled
+  and the home card moves on — the member's result never appears at all. A league that *does*
+  announce an opening holds the settled round until the opening arrives, and the identical code
+  works perfectly. The feature would therefore render or not render according to a settings toggle
+  nobody would ever connect to it, and it would look like a bug in the leagues where it is absent.
+  `PerLeagueSummary` (`me.py:101`) needs its own `last_result`, sourced independently of which round
+  is current. **This is the finding the batch turns on** — everything else here is arithmetic.
+
+  **"When the next gameweek opens" needs a second round on the payload.** The card already counts
+  down to an opening through `notOpenYet` (`DashboardPage.tsx:97`), but `_latest_rounds`
+  (`me.py:275`) takes `rn == 1` and `CurrentRound` is one round, so when the current round is
+  settled there is nothing to count down to. Widen the window function to two rows per league, or
+  carry the next opening instant on its own — the smaller field says the whole sentence.
+
+  **Rank movement is the only part with no foundation under it.** There is no rank history in this
+  product. `models/standing.py` is the *football club* table, not the leaderboard; the leaderboard
+  `Standing` (`scoring.py:237`) is computed from every settled pick on every request as one
+  `GROUP BY` with no per-round dimension. `me.py:211` already records the gap in a comment — the
+  sibling project reads rank from a stored snapshot and this codebase has no such table. Two routes:
+  give `standings_by_league` (`scoring.py:327`) a cutoff and run it twice, or write a snapshot at
+  settlement. **Recommended: the cutoff.** No migration, no backfill, nothing new to keep in step,
+  and the single ranking rule stays in the one place `scoring.py:237` is emphatic about. Movement is
+  then rank now minus rank with the most recently settled round excluded — the same round the rest
+  of the card is reporting, so all four sentences on it refer to one week.
+
+  **`GameweekResult` cannot say how many came in either.** It carries `all_won` and `winner_points`
+  and no won count (`scoring.py:404`), so the Results row (`ResultsPage.tsx:126`) can only say the
+  coupon won or lost — nothing between five of six and none of six. The same field answers the
+  owner's second item on both surfaces, and it belongs in `gameweek_results` (`scoring.py:416`)
+  beside the counts it already computes.
+
+  Every new field optional with a default. Vercel ships the web app from `main` on merge while the
+  API waits for `/ship-prod`, so a required field breaks home for everyone in the gap — the trap
+  Batches 38, 41, 48 and 70 each recorded and `scoring.py:237` documents at length.
+
+  Verification: `scripts/ci-local.sh` PASS; a test that a league with `picks_open_at_utc` NULL and a
+  freshly discovered next round still returns the settled week's `last_result`, which is the case
+  the whole batch turns on and the one a naive implementation passes by accident on the *other*
+  league shape; a test that a member who won reads their points and the round's won count, and that
+  a member whose pick was void reads neither as a zero; a test that rank movement is computed
+  against the round being reported rather than against the whole season; a test that the next
+  opening is carried when the current round is settled; and a test that an API answering without
+  any of the new fields leaves the card rendering exactly as it does today.
+
+  Scope boundary: **the home card, `/me/cross-league-summary`, and the counts behind them.** No
+  snapshot table and no migration. **No change to `current_round_order`** — that ordering is correct
+  for the question it answers, and the fix is to stop asking it a second question it was never
+  written for. The Results page gains one number, not a layout. Nothing here touches settlement or
+  scoring: every figure is read from picks that are already resolved.
+
+- [ ] **Batch 80 — A leaderboard that cannot tell a hot streak from a season average** — the owner's
+  third point (2026-08-26). `LeaderboardPage.tsx` shows rank, name, total points, played, won and
+  Batch 70's odds figures, and every one of them is a season aggregate: `standings_by_league`
+  (`scoring.py:327`) collapses every settled pick into one row per player. A member who has scored
+  nothing since July and one who has won the last four rounds read identically on every figure the
+  table carries, which is the one comparison a leaderboard is for.
+
+  **The component already exists.** `FormLine` (`FormLine.tsx`) draws the run as pips carrying the
+  letter *and* the colour, holds an accessible label, and opens onto `FormMatches` when given
+  `onToggle` — built for club form in Batches 52 and 53 and raised to a conformant 24x24 target in
+  Batch 55. Directly reusable, with one correction: `FormResult` is `'W' | 'D' | 'L'`
+  (`types.ts:78`) and a coupon pick is won, lost or **void**. A void must not borrow the draw's pip.
+  A postponed fixture is a round the member took part in and a bet that never ran, which is exactly
+  the distinction `Standing`'s two denominators exist to keep (`scoring.py:237`), and collapsing it
+  into `D` here would undo that in the one place it is most visible.
+
+  **Pips alone undersell this league.** Points are `round(odds × 10)` (`scoring.py:48`), so one win
+  at 5.00 outscores two at 2.00 and a run of five wins can be worth less than a run of two.
+  Football form is W/D/L because football points are 3/1/0; these are not. Recommended: the pips
+  carry the run and the points carry the weight — five rounds with what each scored beside them,
+  rather than five bare letters. This is a judgement call and the owner's to make, and it is the
+  one decision in the batch that changes what gets built rather than how.
+
+  **The read is one query, and Batch 79 half-writes it.** Per player, per settled gameweek, newest
+  first, limited to the last five: `Pick` joined to settled `Gameweek` ordered by `starts_on`,
+  sliced per player. Those are the same rows the rank cutoff walks. It belongs in `scoring.py`
+  beside `standings_by_league`, so the one ranking rule keeps its neighbours and the leaderboard,
+  the profile and the summary go on reading the same numbers.
+
+  **It reaches three surfaces for the price of one.** `PerLeagueSummary` (`me.py:101`) mirrors
+  `Standing`'s fields deliberately, so form added to `Standing` arrives on home and on the player
+  profile whether or not either asked for it. Decide that on purpose rather than discovering it in
+  a screenshot.
+
+  Optional with defaults, for the deploy-asymmetry reason Batch 79 states.
+
+  Verification: `scripts/ci-local.sh` PASS; a test that a void round renders as neither a win nor a
+  loss and is not quietly dropped out of the run, which would make four rounds look like five; a
+  test that a member with fewer than five settled rounds renders what they have rather than
+  padding; a test that the run is ordered oldest-last, matching `FormLine`'s documented contract
+  and every other form line in the app; a test that the standings query count does not grow with
+  the number of members; and a test that the row renders unchanged against an API sending no form
+  at all.
+
+  Scope boundary: **the leaderboard row and the read behind it.** No new endpoint — this is a field
+  on `Standing`, served by the route that already exists (`routers/coupon.py:41`). No disclosure
+  panel: `FormMatches` on a member's run is a second decision, and a leaderboard row is the wrong
+  place to litigate it. Depends on Batch 79 only for where the per-round read lives; either order
+  ships, provided that function is written once.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
