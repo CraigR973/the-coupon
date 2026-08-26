@@ -1072,10 +1072,10 @@ owner's call, so every batch specified to date is on `main`.
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday watch**,
 with L0-L4 ticked since 2026-08-04.
 
-**Batch 74 was applied and the API shipped, both on 2026-08-26**, so the two items
-previously owed here are done: production serves `a7573e32`, `/api/v1/health` and
-`/health/ready` agree at migration `016`, and `check-deploy-drift.sh` reports **in sync**.
-2-1 Hibs' rounds read Gameweek 1-4 and the three renamed members carry their new names.
+**Everything specified is shipped.** Production serves `f41a383a` after the 2026-08-26
+`/ship-prod` of Batches 79-81; `/api/v1/health` and `/health/ready` agree at migration
+`016`, and `check-deploy-drift.sh` reports **in sync**. Batch 74 was applied the same day,
+so 2-1 Hibs' rounds read Gameweek 1-4 and the three renamed members carry their new names.
 
 What is outstanding now:
 
@@ -1085,13 +1085,32 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**A `/ship-prod` is owed for Batches 79, 80 and 81**, which one deploy covers. Batch 77's API change is
-live — `check-deploy-drift.sh` put the deployed image at `41f4d7df` on 2026-08-26, which
-carries it — so the line previously standing here was stale. Those two are the next API changes after
-it: `last_result`, `next_opens_at_utc`, `points_awarded`, `picks_won` and `recent_form` (on both the
-standing and the summary) are all absent from production until it ships, and every one of them is optional with a
-default — so the home card, the Season rows and the leaderboard render exactly as they did
-in the meantime, which is also what the tests assert.
+**No `/ship-prod` is owed.** Batches 79-81 went to production on 2026-08-26 as Railway
+deployment `a8ab5234-06c2-41d3-8358-405d95910d15`, message `ship production f41a383`,
+behind which `134822f6-91f1-4cc1-9d8f-4619a0a84270` (commit `41f4d7df`) is the rollback
+baseline — **available**, because this shipment applied no migration, so both images bundle
+head `016` and either can boot against the database. `last_result`, `next_opens_at_utc`,
+`points_awarded`, `picks_won` and `recent_form` are all live.
+
+Section 4 was **skipped by design**: the Vercel project is GitHub-connected and its
+auto-deploy of the same push already held the stable alias as
+`dpl_2GudGyA2GvSZWZ3kfju5t56VjF4h`. That was confirmed by fetching all 62 chunks of the
+served bundle and finding this shipment's strings in them, not by comparing timestamps —
+the alias record has been wrong on timing before.
+
+Post-deploy verification: 18 of 18 public tables carry RLS and the effective
+`anon`/`authenticated`/`PUBLIC` table grants are empty; the web root and two deep links
+serve one identical SPA asset with the committed security headers; a preflight from the
+stable origin returns the exact origin with credentials enabled while a foreign origin is
+refused with 400; `/api/docs` 404s; and two bounded log snapshots showed zero errors and
+zero matches across six secret-leakage patterns.
+
+**One item was not verified: the 0.25 vCPU / 500 MB service limits.** `railway.toml` does
+not declare them and the GraphQL schema reachable from the CLI rejects `cpuLimit` and
+`memoryLimit` on `serviceInstances`, so `/ship-prod` step 3 cannot check them the way it
+checks replicas, region, sleep, egress and healthcheck — all of which did verify against
+the deployment manifest. They are plan defaults and nothing suggests a change; recorded so
+the next shipment does not re-derive the same dead end.
 
 **Production still has no managed backup and no PITR** (the owner's 2026-07-30 deferral).
 Batch 75 removed a nightly dump that `/tmp` destroyed on every redeploy, which changes
