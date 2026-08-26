@@ -5,12 +5,18 @@ import { cn } from '@/lib/utils';
 const ITEMS: ReadonlyArray<{ section: PredictionsSection; label: string; exact: boolean }> = [
   { section: '', label: 'Your pick', exact: true },
   { section: '/coupon', label: 'Combined coupon', exact: false },
-  { section: '/results', label: 'Results', exact: false },
+  { section: '/results', label: 'Season', exact: false },
 ];
 
 /**
  * Sub-nav across the weekly-coupon surfaces: the player's own pick screen, the
- * leaderboard's combined accumulator, and how the week finished.
+ * leaderboard's combined accumulator, and the season behind them.
+ *
+ * The third one was called "Results" until Batch 78 and showed none: every row of it
+ * navigates to the combined coupon, because Batch 67 put the scorelines, the points and
+ * the won/lost badges *there* — a settled round is read as a coupon that finished. The
+ * label was the only thing claiming otherwise, so the label changed rather than the
+ * screen. The route stays `/results`: members have it in their history.
  *
  * Football Stats sat here until Batch 51, on the argument that it was context for a
  * pick rather than a section of its own. That argument held only while the screen

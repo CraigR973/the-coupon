@@ -48,8 +48,13 @@ export function GameweekNav({ history }: GameweekNavProps) {
         </span>
         <span className="flex items-center gap-1.5">
           <Badge variant={state.open ? 'success' : 'muted'}>{state.label}</Badge>
+          {/* Batch 78: this printed `pick_count/fixture_count` — picks over *fixtures* —
+              a few hundred pixels from the roster's "n of m picked", which is picks over
+              *members*. Both read as one fraction of one thing and they were fractions of
+              different things. The count members actually ask for is the roster's, so this
+              one stops pretending to be a ratio and says what it counts. */}
           <span className="font-mono text-[10px] tabular-nums text-text-muted">
-            {current.pick_count}/{current.fixture_count}
+            {current.pick_count} {current.pick_count === 1 ? 'pick' : 'picks'}
           </span>
         </span>
       </div>

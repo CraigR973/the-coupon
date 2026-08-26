@@ -269,6 +269,7 @@ export function CouponPickPage() {
           members={slate.members}
           missingCount={slate.members_missing_picks}
           oddsFormat={oddsFormat}
+          myPlayerId={player?.id}
         />
       )}
 

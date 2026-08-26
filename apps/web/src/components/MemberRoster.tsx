@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { GameweekMember, OddsFormat } from '../lib/types';
-import { formatOdds, marketTag, outcomeLabel } from '../lib/coupon';
+import { entriesFromMembers, PickRow } from './PickRow';
 import { Badge } from './ui/badge';
 import { cn } from '../lib/utils';
 
@@ -9,6 +9,8 @@ export interface MemberRosterProps {
   members: GameweekMember[];
   missingCount: number;
   oddsFormat: OddsFormat;
+  /** Marks the reader's own row, the same way the combined coupon marks their leg. */
+  myPlayerId?: string;
 }
 
 /**
@@ -18,12 +20,24 @@ export interface MemberRosterProps {
  * labelled with its holder for the land-grab to be legible — but it also names
  * the members who have picked *nothing*, who by definition appear nowhere in
  * the slate. Collapsed by default so it does not push the fixtures down.
+ *
+ * Batch 78 made the rows themselves `PickRow`, which is also what the combined coupon
+ * draws. The two lists had been separate implementations of one list, and had drifted:
+ * this one did not mark the reader's own row and did not truncate the same way. What is
+ * left here is the part that is genuinely a roster and not a coupon — the count, the
+ * disclosure, and the members with nothing to show.
  */
-export function MemberRoster({ members, missingCount, oddsFormat }: MemberRosterProps) {
+export function MemberRoster({
+  members,
+  missingCount,
+  oddsFormat,
+  myPlayerId,
+}: MemberRosterProps) {
   const [open, setOpen] = useState(false);
   if (members.length === 0) return null;
 
   const pickedCount = members.length - missingCount;
+  const entries = entriesFromMembers(members, myPlayerId);
 
   return (
     <div className="mb-4 rounded-lg border border-border bg-surface" data-testid="member-roster">
@@ -37,11 +51,7 @@ export function MemberRoster({ members, missingCount, oddsFormat }: MemberRoster
           {pickedCount} of {members.length} picked
         </span>
         <span className="flex items-center gap-2">
-          {missingCount > 0 && (
-            <Badge variant="warning">
-              {missingCount} to go
-            </Badge>
-          )}
+          {missingCount > 0 && <Badge variant="warning">{missingCount} to go</Badge>}
           <ChevronDown
             className={cn('h-4 w-4 text-text-muted transition-transform', open && 'rotate-180')}
             aria-hidden
@@ -51,43 +61,14 @@ export function MemberRoster({ members, missingCount, oddsFormat }: MemberRoster
 
       {open && (
         <ul className="border-t border-border">
-          {members.map((member) => (
-            <li
-              key={member.player_id}
-              className="flex items-start justify-between gap-3 border-b border-border/50 px-4 py-2.5 last:border-b-0"
-              data-testid={`roster-${member.player_id}`}
-            >
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-sans text-text-primary">
-                  {member.display_name}
-                </span>
-                {member.has_picked && member.market && member.outcome ? (
-                  <span className="block truncate text-xs font-sans text-text-muted">
-                    {outcomeLabel(
-                      member.market,
-                      member.outcome,
-                      member.home ?? 'Home',
-                      member.away ?? 'Away',
-                    )}
-                    <span className="mx-1.5">·</span>
-                    <span className="font-mono">{marketTag(member.market)}</span>
-                    {member.competition && (
-                      <>
-                        <span className="mx-1.5">·</span>
-                        {member.competition}
-                      </>
-                    )}
-                  </span>
-                ) : (
-                  <span className="block text-xs font-sans text-warning">Yet to pick</span>
-                )}
-              </span>
-              {member.odds !== null && (
-                <span className="shrink-0 font-mono text-xs tabular-nums text-text-primary">
-                  {formatOdds(member.odds, oddsFormat)}
-                </span>
-              )}
-            </li>
+          {entries.map((entry) => (
+            <PickRow
+              key={entry.player_id}
+              entry={entry}
+              oddsFormat={oddsFormat}
+              lead="player"
+              testId={`roster-${entry.player_id}`}
+            />
           ))}
         </ul>
       )}

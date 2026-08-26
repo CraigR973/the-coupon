@@ -409,7 +409,7 @@ describe('CouponPickPage', () => {
     expect(within(nav).getByLabelText('Older gameweek')).not.toBeDisabled();
     expect(nav.textContent).toContain('Open');
     // pick_count / fixture_count for the selected week.
-    expect(nav.textContent).toContain('1/2');
+    expect(nav.textContent).toContain('1 pick');
   });
 
   it('follows the round the API resolved to, not the top of the list', async () => {
@@ -447,7 +447,7 @@ describe('CouponPickPage', () => {
     const nav = await screen.findByTestId('gameweek-nav');
 
     // `gw1`'s counts, not the one-off's 0/5 — the label follows the slate.
-    await waitFor(() => expect(nav.textContent).toContain('1/2'));
+    await waitFor(() => expect(nav.textContent).toContain('1 pick'));
     expect(nav.textContent).toContain('Aug 2026');
     // Both directions are reachable: the one-off ahead, the settled week behind.
     expect(within(nav).getByLabelText('Newer gameweek')).not.toBeDisabled();
@@ -494,6 +494,26 @@ describe('CouponPickPage', () => {
     expect(screen.getByTestId('roster-p1').textContent).toContain('Draw');
     expect(screen.getByTestId('roster-p1').textContent).toContain('Scottish League 2');
     expect(within(screen.getByTestId('roster-p2')).getByText('Yet to pick')).toBeTruthy();
+  });
+
+  // ── Batch 78: one round, one list ─────────────────────────────────────────
+
+  it('shows the caller’s own selection once, with the rest behind a disclosure', async () => {
+    renderPage();
+    // The pick screen opens with every competition and the roster closed, so the summary
+    // card is the only place the member's own bet is drawn. It used to be one of three.
+    const summary = await screen.findByTestId('my-pick-summary');
+    expect(within(summary).getByText('Draw')).toBeTruthy();
+    expect(screen.queryByTestId('roster-p1')).toBeNull();
+    expect(screen.queryByTestId('pick-card-fx1')).toBeNull();
+  });
+
+  it('marks the caller’s own roster row the way the combined coupon marks their leg', async () => {
+    renderPage();
+    const roster = await screen.findByTestId('member-roster');
+    fireEvent.click(within(roster).getByRole('button'));
+    expect(within(screen.getByTestId('roster-p1')).getByText('You')).toBeTruthy();
+    expect(within(screen.getByTestId('roster-p2')).queryByText('You')).toBeNull();
   });
 
   // ── Batch 29: league identity ─────────────────────────────────────────────
@@ -636,7 +656,7 @@ describe('CouponPickPage', () => {
     expect(within(subNav).getByRole('link', { name: 'Combined coupon' }).getAttribute('href')).toBe(
       '/leagues/the-coupon/predictions/coupon',
     );
-    expect(within(subNav).getByRole('link', { name: 'Results' }).getAttribute('href')).toBe(
+    expect(within(subNav).getByRole('link', { name: 'Season' }).getAttribute('href')).toBe(
       '/leagues/the-coupon/predictions/results',
     );
   });

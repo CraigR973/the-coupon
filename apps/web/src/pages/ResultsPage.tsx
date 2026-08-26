@@ -19,6 +19,11 @@ import { Skeleton } from '../components/ui/skeleton';
  * Every settled gameweek this league has played, newest first — the week-by-week
  * record that stepping back through `GameweekNav` one round at a time never
  * surfaced on its own. Each row opens that week's combined coupon.
+ *
+ * Titled **Season** since Batch 78, and that is what it has always been. It was called
+ * Results while showing none: the scorelines, the points and the won/lost badges live in
+ * `CombinedAccaView`, where Batch 67 put them, and every row here navigates there. The
+ * route keeps its `/results` path because members have it in their history.
  */
 export function ResultsPage() {
   const { slug, name: leagueName } = useRouteLeague();
@@ -42,7 +47,7 @@ export function ResultsPage() {
   if (!leaguesLoading && !hasLeagues) {
     return (
       <div>
-        <PageHeader title="Results" />
+        <PageHeader title="Season" />
         <EmptyState
           title="You're not in a league yet"
           description={
@@ -61,7 +66,7 @@ export function ResultsPage() {
   return (
     <div>
       <PageHeader
-        title="Results"
+        title="Season"
         eyebrow={leagueName ? `${leagueName} · Every settled gameweek` : 'Every settled gameweek'}
       />
       <LeagueSwitchStrip currentSlug={slug} className="mb-5" />

@@ -91,3 +91,23 @@ describe('the round badge', () => {
     expect(screen.getByText('Open')).toBeTruthy();
   });
 });
+
+describe('the round counter (Batch 78)', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('counts picks and no longer prints them over the fixture count', () => {
+    // `3/10` sat a few hundred pixels from the roster's "1 of 2 picked". Both read as one
+    // fraction of one thing; they were picks over fixtures and picks over members.
+    at('2026-08-29T12:00:00Z');
+    const { container } = render(<GameweekNav history={history(round())} />);
+    expect(screen.getByText('3 picks')).toBeTruthy();
+    expect(container.textContent).not.toContain('3/10');
+  });
+
+  it('says pick, singular, when there is one', () => {
+    at('2026-08-29T12:00:00Z');
+    render(<GameweekNav history={history(round({ pick_count: 1 }))} />);
+    expect(screen.getByText('1 pick')).toBeTruthy();
+  });
+});
