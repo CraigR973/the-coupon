@@ -4,9 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
 import { useCrossLeagueSummary } from '../hooks/useCrossLeagueSummary';
 import { useOddsFormat } from '../hooks/useOddsFormat';
-import type { GameweekStatus, PerLeagueSummary } from '../lib/types';
-import { formatOdds, outcomeLabel } from '../lib/coupon';
+import type { GameweekStatus, LastResult, PerLeagueSummary } from '../lib/types';
+import { formatOdds, outcomeLabel, roundName } from '../lib/coupon';
 import { predictionsPath } from '../lib/leagues';
+import { formatCalendarDate } from '../lib/time';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/ui/skeleton';
@@ -91,6 +92,11 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
   const round = entry.current_round;
   const countdown = useCountdown(round?.locks_at_utc ?? FAR_PAST);
   const openCountdown = useCountdown(round?.picks_open_at_utc ?? FAR_PAST);
+  // The *next* round's opening, which is a different instant to this round's: once a
+  // round has settled or locked there is nothing left to count down to on it, and "when
+  // does the next one open" is the question a member has on a Sunday.
+  const nextOpenCountdown = useCountdown(entry.next_opens_at_utc ?? FAR_PAST);
+  const nextOpens = !!entry.next_opens_at_utc && !nextOpenCountdown.expired;
   // Same rule as the pick screen and the API: the stored instants decide, `status` only
   // rules out a round settlement has finished with.
   const notOpenYet =
@@ -120,7 +126,11 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
         </div>
 
         {!round ? (
-          <p className="font-sans text-sm text-text-muted">No coupon published yet.</p>
+          <p className="font-sans text-sm text-text-muted">
+            {nextOpens
+              ? `Picks open in ${formatCountdown(nextOpenCountdown)}.`
+              : 'No coupon published yet.'}
+          </p>
         ) : round.my_pick ? (
           <>
             <p className="font-sans text-sm font-medium text-text-primary">
@@ -159,7 +169,9 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
               )}
               <span className="tabular-nums">
                 {round.status === 'settled'
-                  ? 'Settled'
+                  ? nextOpens
+                    ? `Next opens in ${formatCountdown(nextOpenCountdown)}`
+                    : 'Settled'
                   : notOpenYet
                     ? `Opens in ${formatCountdown(openCountdown)}`
                     : locked
@@ -175,6 +187,8 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
           </div>
         )}
       </button>
+
+      {entry.last_result && <LastResultPanel result={entry.last_result} />}
 
       <Link
         to={`/leagues/${entry.slug}/leaderboard`}
@@ -193,6 +207,81 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
           <span className="ml-1.5">{entry.total_points} pts</span>
         </span>
       </Link>
+    </div>
+  );
+}
+
+/**
+ * How the week just gone actually went (Batch 79).
+ *
+ * Four facts the card printed the word `Settled` in place of: whether the member's pick
+ * came in, what it scored, how many of the league's picks landed, and whether they moved
+ * in the table. It is a sibling of the coupon button rather than part of it because the
+ * two answer different rounds — on most leagues the round above this panel is next
+ * week's, not the one being reported.
+ *
+ * Movement never rides on colour alone: the arrow is decorative and the direction is a
+ * word underneath it, the same rule the live scoreline follows.
+ */
+function LastResultPanel({ result }: { result: LastResult }) {
+  const movement = result.rank_movement;
+  const mine = result.my_pick;
+  const label = roundName(result.number, formatCalendarDate(result.starts_on, 'EEE d MMM'));
+
+  return (
+    <div className="border-t border-border px-4 py-3" data-testid="last-result">
+      <div className="flex items-center justify-between gap-3">
+        <p className="truncate font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+          Result · {label}
+        </p>
+        {movement != null && movement !== 0 && (
+          <span
+            className={cn(
+              'shrink-0 font-mono text-xs tabular-nums',
+              movement > 0 ? 'text-success' : 'text-error',
+            )}
+            data-testid="rank-movement"
+          >
+            <span aria-hidden>{movement > 0 ? '▲' : '▼'}</span>
+            {Math.abs(movement)}
+            <span className="sr-only">
+              {' '}
+              {movement > 0 ? 'places gained' : 'places lost'}
+            </span>
+          </span>
+        )}
+      </div>
+
+      <p className="mt-1 font-sans text-sm font-medium text-text-primary">
+        {!mine ? (
+          <span className="text-text-muted">You didn’t pick this round</span>
+        ) : mine.status === 'won' ? (
+          <>
+            <span className="text-success">Your pick won</span>
+            {mine.points_awarded != null && (
+              <>
+                <span className="mx-1.5 text-text-muted">·</span>
+                <span className="font-mono tabular-nums">{mine.points_awarded} pts</span>
+              </>
+            )}
+          </>
+        ) : mine.status === 'void' ? (
+          // A void pick is not a loss: the fixture never ran, so there was nothing to
+          // win. Saying "lost" here would be the same conflation the leaderboard's two
+          // denominators exist to avoid.
+          <span className="text-text-muted">Your pick was void</span>
+        ) : mine.status === 'lost' ? (
+          <span className="text-text-muted">Your pick didn’t come in</span>
+        ) : (
+          <span className="text-text-muted">Your pick hasn’t settled</span>
+        )}
+      </p>
+
+      <p className="mt-0.5 font-sans text-xs text-text-muted">
+        {result.leg_count === 0
+          ? 'Nobody picked this round'
+          : `${result.picks_won} of ${result.leg_count} ${result.leg_count === 1 ? 'pick' : 'picks'} landed`}
+      </p>
     </div>
   );
 }

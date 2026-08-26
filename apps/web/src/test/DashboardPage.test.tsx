@@ -285,3 +285,128 @@ describe('DashboardPage', () => {
     );
   });
 });
+
+// ── Batch 79: the week just gone ──────────────────────────────────────────────
+
+/** `SUMMARY`'s first league, with a settled week attached. */
+function withResult(result: Partial<import('@/lib/types').LastResult> = {}): CrossLeagueSummary {
+  const [first, ...rest] = SUMMARY.per_league;
+  return {
+    ...SUMMARY,
+    per_league: [
+      {
+        ...first,
+        last_result: {
+          gameweek_id: 'gw-old',
+          starts_on: '2026-08-22',
+          number: 4,
+          leg_count: 6,
+          picks_won: 4,
+          combined_odds: 22.5,
+          all_won: false,
+          my_pick: {
+            fixture_id: 'f-9',
+            home: 'Forfar',
+            away: 'Brechin',
+            market: 'MATCH_ODDS',
+            outcome: 'HOME',
+            runner_name: 'Forfar',
+            odds: 3.5,
+            status: 'won',
+            points_awarded: 35,
+          },
+          rank_movement: 2,
+          ...result,
+        },
+      },
+      ...rest,
+    ],
+  };
+}
+
+describe('the week just gone', () => {
+  it('says the pick came in, what it scored, and how many landed', async () => {
+    stubFetch(withResult());
+    renderPage();
+    const panel = await screen.findByTestId('last-result');
+    expect(panel.textContent).toContain('Gameweek 4');
+    expect(panel.textContent).toContain('Your pick won');
+    expect(panel.textContent).toContain('35 pts');
+    expect(panel.textContent).toContain('4 of 6 picks landed');
+  });
+
+  it('reads a rise in words as well as in colour', async () => {
+    stubFetch(withResult());
+    renderPage();
+    const movement = await screen.findByTestId('rank-movement');
+    expect(movement.textContent).toContain('2');
+    expect(movement.textContent).toContain('places gained');
+  });
+
+  it('leaves the movement out entirely when the member did not move', async () => {
+    stubFetch(withResult({ rank_movement: 0 }));
+    renderPage();
+    await screen.findByTestId('last-result');
+    expect(screen.queryByTestId('rank-movement')).toBeNull();
+  });
+
+  it('calls a void pick void rather than a loss', async () => {
+    // A void fixture never ran. "Didn't come in" would be the same conflation the
+    // leaderboard's two denominators exist to avoid.
+    stubFetch(
+      withResult({
+        my_pick: {
+          fixture_id: 'f-9',
+          home: 'Forfar',
+          away: 'Brechin',
+          market: 'MATCH_ODDS',
+          outcome: 'HOME',
+          runner_name: 'Forfar',
+          odds: 3.5,
+          status: 'void',
+          points_awarded: null,
+        },
+      }),
+    );
+    renderPage();
+    const panel = await screen.findByTestId('last-result');
+    expect(panel.textContent).toContain('Your pick was void');
+    expect(panel.textContent).not.toContain('pts');
+  });
+
+  it('says so when the member did not pick that round', async () => {
+    stubFetch(withResult({ my_pick: null }));
+    renderPage();
+    const panel = await screen.findByTestId('last-result');
+    expect(panel.textContent).toContain('You didn’t pick this round');
+  });
+
+  it('renders exactly as it did before against an API that sends none of it', async () => {
+    // Vercel deploys this app from `main` on merge while the API waits for /ship-prod.
+    // For that window every Batch 79 field is absent, and the card must be untouched.
+    stubFetch(SUMMARY);
+    renderPage();
+    await screen.findByTestId('home-card-the-coupon');
+    expect(screen.queryByTestId('last-result')).toBeNull();
+    expect(screen.queryByTestId('rank-movement')).toBeNull();
+  });
+
+  it('counts down to the next opening once the round has settled', async () => {
+    const [first, ...rest] = withResult().per_league;
+    stubFetch({
+      ...SUMMARY,
+      per_league: [
+        {
+          ...first,
+          current_round: { ...first.current_round!, status: 'settled' },
+          next_opens_at_utc: new Date(Date.now() + 2 * 86_400_000).toISOString(),
+        },
+        ...rest,
+      ],
+    });
+    renderPage();
+    const card = await screen.findByTestId('home-card-the-coupon');
+    expect(card.textContent).toContain('Next opens in');
+    expect(card.textContent).not.toContain('Settled');
+  });
+});

@@ -295,6 +295,11 @@ export interface GameweekResult {
   combined_odds: number;
   /** null when the round had no picks, true only if every leg won. */
   all_won: boolean | null;
+  /**
+   * How many legs landed (Batch 79). Optional because the web app deploys ahead of the
+   * API; absent means the row shows the coupon outcome alone, as it did before.
+   */
+  picks_won?: number;
 }
 
 // ── Standings — GET /leagues/{slug}/standings ──────────────────────────────
@@ -402,6 +407,34 @@ export interface MyPick {
   runner_name: string;
   odds: number;
   status: PickStatus;
+  /**
+   * What this pick scored, once the round settled (Batch 79). `null` while it is still
+   * running, and on a lost or void pick — the difference between nothing and zero.
+   * Optional because the web app deploys ahead of the API.
+   */
+  points_awarded?: number | null;
+}
+
+/**
+ * The week just gone, as it concerns the caller (Batch 79).
+ *
+ * Carried separately from `current_round` because a settled round does not stay current:
+ * on a league that announces no opening, next week's round outranks it the moment
+ * discovery writes it, and the member would never see how their week went.
+ */
+export interface LastResult {
+  gameweek_id: string;
+  starts_on: string; // ISO date (yyyy-mm-dd)
+  /** What members call the round; null on one discovered before Batch 41. */
+  number: number | null;
+  leg_count: number;
+  /** How many legs landed. `all_won` alone cannot tell five of six from none of six. */
+  picks_won: number;
+  combined_odds: number;
+  all_won: boolean | null;
+  my_pick: MyPick | null;
+  /** Places gained over this round — positive up, null when there was no table before. */
+  rank_movement?: number | null;
 }
 
 /** A league's latest round as it concerns the caller — a home card's body. */
@@ -451,6 +484,15 @@ export interface PerLeagueSummary {
   /** How the priced picks split around `longshot_odds`. */
   longshot_picks?: number;
   favourite_picks?: number;
+  // ── Batch 79, both optional for the same deploy gap ─────────────────────────
+  /** The week just gone, whether or not it is still the current round. */
+  last_result?: LastResult | null;
+  /**
+   * When this league next starts accepting picks, if that instant is still ahead.
+   * `null` when no future round announces an opening — including the ordinary case of a
+   * league that announces none, whose next round is claimable from discovery.
+   */
+  next_opens_at_utc?: string | null;
   /** null when the league has no rounds yet. */
   current_round: CurrentRound | null;
 }

@@ -994,6 +994,8 @@ async def test_results_lists_only_settled_gameweeks_with_winner_and_outcome(
     assert row["leg_count"] == 2
     assert row["combined_odds"] == 5.89  # 1.9 × 3.1
     assert row["all_won"] is False  # Bob's Brechin lost
+    # Batch 79: `all_won` alone reads the same for five of six and none of six.
+    assert row["picks_won"] == 1, "Alice's Arsenal landed and Bob's Brechin did not"
 
 
 # ── Batch 67: what a round looks like once it has been played ──────────────────

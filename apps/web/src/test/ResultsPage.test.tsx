@@ -35,6 +35,7 @@ const RESULTS: GameweekResult[] = [
     leg_count: 3,
     combined_odds: 12.5,
     all_won: false,
+    picks_won: 2,
   },
   {
     gameweek_id: 'gw-1',
@@ -146,6 +147,20 @@ describe('ResultsPage', () => {
     renderPage();
     await screen.findByTestId('results-list');
     expect(screen.getByText(/the coupon/i, { selector: 'p' })).toBeTruthy();
+  });
+
+  it('says how many legs landed, not only whether every one did (Batch 79)', async () => {
+    renderPage();
+    const row = await screen.findByTestId('result-gw-2');
+    expect(row.textContent).toContain('2 of 3 landed');
+  });
+
+  it('renders the row unchanged against an API that does not send the count', async () => {
+    renderPage();
+    // `gw-1` carries no `picks_won`, the shape a deployed API predating Batch 79 sends.
+    const row = await screen.findByTestId('result-gw-1');
+    expect(row.textContent).toContain('Alice, Carol tied');
+    expect(row.textContent).not.toContain('landed');
   });
 
   it('shows the no-league state and skips the results query for a member of no league', async () => {

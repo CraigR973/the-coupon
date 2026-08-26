@@ -22,7 +22,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from pydantic import BaseModel
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.fixture import Fixture
@@ -325,7 +325,9 @@ def _rank_rows(rows: Sequence[Any]) -> list[Standing]:
 
 
 async def standings_by_league(
-    db: AsyncSession, league_ids: Sequence[uuid.UUID]
+    db: AsyncSession,
+    league_ids: Sequence[uuid.UUID],
+    exclude_gameweek_ids: Sequence[uuid.UUID] | None = None,
 ) -> dict[uuid.UUID, list[Standing]]:
     """Season tables for several leagues at once, keyed by league id.
 
@@ -336,6 +338,16 @@ async def standings_by_league(
     The per-league table is exactly what :func:`standings` returns, because that is
     now this function over a single id: there is one ranking rule in the codebase and
     the leaderboard, the profile and the summary all read it.
+
+    ``exclude_gameweek_ids`` runs the same aggregate with those rounds left out, which is
+    how Batch 79 says "you moved up two": the table as it stood *before* the round being
+    reported, differenced against the table now. It is a parameter rather than a second
+    function, and rather than a stored snapshot, precisely so that the one ranking rule
+    keeps applying — a movement computed by different arithmetic to the rank it is
+    attached to is a number that can disagree with the leaderboard the member then opens.
+
+    The exclusion belongs to the **join**, not to a ``WHERE``: a member whose only pick
+    is in the excluded round still has a row in the table before it, worth zero.
     """
     if not league_ids:
         return {}
@@ -377,7 +389,8 @@ async def standings_by_league(
             Pick,
             (Pick.player_id == LeagueMembership.player_id)
             & (Pick.league_id == LeagueMembership.league_id)
-            & settled,
+            & settled
+            & (Pick.gameweek_id.notin_(exclude_gameweek_ids) if exclude_gameweek_ids else true()),
         )
         .where(
             LeagueMembership.league_id.in_(league_ids),
@@ -411,6 +424,10 @@ class GameweekResult(BaseModel):
     leg_count: int
     combined_odds: float
     all_won: bool | None
+    #: How many legs actually landed. Batch 79: ``all_won`` could only say *every* leg or
+    #: *not every* leg, so five of six and none of six read identically. Optional with a
+    #: default because the web app deploys ahead of the API.
+    picks_won: int = 0
 
 
 async def gameweek_results(db: AsyncSession, league_id: uuid.UUID) -> list[GameweekResult]:
@@ -466,6 +483,7 @@ async def gameweek_results(db: AsyncSession, league_id: uuid.UUID) -> list[Gamew
                 all_won=all(status_ == PickStatus.won for _, _, status_, _ in picks)
                 if picks
                 else None,
+                picks_won=sum(1 for _, _, status_, _ in picks if status_ == PickStatus.won),
             )
         )
     results.sort(key=lambda r: r.starts_on, reverse=True)

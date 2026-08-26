@@ -118,6 +118,15 @@ export function ResultsPage() {
                       : result.winner_names.length === 1
                         ? `${result.winner_names[0]} won`
                         : `${result.winner_names.join(', ')} tied`}
+                    {/* Batch 79. `all_won` could only say every leg or not every leg, so
+                        five of six and none of six read the same. Absent on an API that
+                        predates the field, which renders as the row always did. */}
+                    {result.picks_won != null && result.leg_count > 0 && (
+                      <>
+                        <span className="mx-1.5">·</span>
+                        {result.picks_won} of {result.leg_count} landed
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
