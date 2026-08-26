@@ -2636,7 +2636,7 @@ answered until it lands, because until then there is no data to look at.
   place to litigate it. Depends on Batch 79 only for where the per-round read lives; either order
   ships, provided that function is written once.
 
-- [ ] **Batch 81 — Form stops at the leaderboard, and home is where the member actually looks** — the
+- [x] **Batch 81 — Form stops at the leaderboard, and home is where the member actually looks** ✅ 2026-08-26 — the
   owner's call on 2026-08-26, immediately after Batch 80 closed. Not a defect: a decision
   taken inside Batch 80 and reversed on sight of it.
 

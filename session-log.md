@@ -2408,3 +2408,26 @@ before its 13:30 lock) and left `status = 'open'`.
   panel instead; adding a run there was considered and declined rather than missed.
 
 **Next:** `/ship-prod` for Batches 79-80, then Launch phase L5.
+
+## Batch 81 — Form stops at the leaderboard, and home is where the member actually looks
+**Commits:** 7fa75da · verified: `scripts/ci-local.sh` PASS (11 checks), 744 frontend tests
+
+### Key facts for future sessions
+- **`with_form` now defaults to `True`, and there is exactly one caller passing `False`:**
+  the `exclude_gameweek_ids` call in `routers/me.py` that rewinds the table to difference
+  two ranks. Any table that gets drawn carries form. If you add a third caller, ask
+  whether it renders before turning the run off.
+- **Never put `PickFormLine` inside a link.** It is a `role="img"` with an `aria-label`
+  spelling the run out in words, so the whole sentence is appended to the link's
+  accessible name. `DashboardPage.test.tsx` walks every link on the page asserting this.
+- **Form implies a last result.** Both derive from a settled round holding that member's
+  pick, so hanging the run inside `LastResultPanel` cannot hide it. That implication is
+  load-bearing for where it is drawn.
+- **`PerLeagueSummary.recent_form` is read straight off the league's season table**, the
+  same `Standing` the leaderboard renders, so home and the leaderboard cannot disagree
+  about the same member's run.
+- **This reversed a Batch 80 decision, it did not fix a defect.** The session log entry
+  above still records the original reasoning; the half that survived is that the throwaway
+  table should not pay for a run.
+
+**Next:** `/ship-prod` for Batches 79-81, then Launch phase L5.
