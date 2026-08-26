@@ -2636,6 +2636,48 @@ answered until it lands, because until then there is no data to look at.
   place to litigate it. Depends on Batch 79 only for where the per-round read lives; either order
   ships, provided that function is written once.
 
+- [ ] **Batch 81 — Form stops at the leaderboard, and home is where the member actually looks** — the
+  owner's call on 2026-08-26, immediately after Batch 80 closed. Not a defect: a decision
+  taken inside Batch 80 and reversed on sight of it.
+
+  **Batch 80 put `recent_form` behind `with_form`, defaulting off, and left it off
+  `PerLeagueSummary` deliberately.** The reasoning was that `routers/me.py` calls
+  `standings_by_league` twice per request to difference two tables and should not pay for
+  a run it never renders, and that home had just gained Batch 79's result panel and did
+  not need more. The first half is still right for *one* of those two calls. The second
+  half is what the owner has overturned: home is the screen a member opens, and a run of
+  five is the fastest read of how a league is going that the product has.
+
+  Flip the default to **on**, and keep the parameter for the one caller that genuinely
+  does not want it — the table `routers/me.py` rewinds to compute rank movement is never
+  rendered, so it passes `with_form=False` explicitly. That inverts which call is the
+  exception, which is the right way round: a table that gets drawn carries form, and a
+  table that exists only to be subtracted does not.
+
+  `PerLeagueSummary` gains `recent_form`, and the home card draws it inside Batch 79's
+  result panel rather than as a fourth strip — the card is already league name, pick,
+  countdown, result and standings, and a run belongs with "how the week went" rather than
+  beside a tap target. **It must not go inside the standings `Link`.** `PickFormLine`
+  carries `role="img"` and an `aria-label` spelling the run out in words, and nesting that
+  in a link appends the whole sentence to the link's accessible name — the run would be
+  read out as part of "Standings, #3 of 12".
+
+  A member with form always has a `last_result`: both derive from a settled round holding
+  that member's pick, so the panel is never the thing that hides a run. Say so where the
+  code relies on it.
+
+  Verification: `scripts/ci-local.sh` PASS; a test that the cross-league summary carries
+  the run for each league and keeps them apart; a test that the rewound table used for
+  rank movement still carries **no** form, since that is the whole reason the parameter
+  survives; the Batch 80 equality test updated to assert the new default rather than the
+  old one; and a test that the home card renders exactly as it does today against an API
+  that sends no run.
+
+  Scope boundary: **the default, the summary field, and the home card's result panel.**
+  No change to `PickFormLine`, to what the leaderboard or the profile draw, or to how the
+  run is computed — `recent_form_by_league` and its window are Batch 80's and are already
+  proven. No new strip on the card.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
