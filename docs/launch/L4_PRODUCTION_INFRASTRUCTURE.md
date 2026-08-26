@@ -624,6 +624,10 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-08-24 | Vercel web | `dpl_ALgZHtgeDFXGVWD73m3rVH164txg` | `18dfb9f` (Batch 68 backfill module) | — |
 | 2026-08-24 | Railway `api` | `5922cf17-1767-4ab8-b225-9c0d2fd6b44f` | `18dfb9f` (Batch 68 backfill module) | `016` |
 | 2026-08-24 | Vercel web | `dpl_4omNbVGwXhBM8hRZAQ2cESTbND86` | `af50d22` (Batch 68 close-out, docs only) | — |
+| 2026-08-25 | Railway `api` | `a5728aa4-8ac2-4a69-8d56-aaed9b1b9e7d` (`REMOVED`) | `18dfb9f` (redeploy, no new commit) | `016` |
+| 2026-08-25 | Railway `api` | `691128d6-619f-4b8c-949c-af3667c6e50b` (`REMOVED`) | `18dfb9f` (redeploy, no new commit) | `016` |
+| 2026-08-26 | Vercel web | `dpl_6co4m3VtCnLMz1JPJY5GYdXUiezH` | `a7573e32` (Batches 61, 73–76) | — |
+| 2026-08-26 | Railway `api` | `53a76dcd-ece2-4813-80a4-3f81739467d9` | `a7573e32` (Batches 61, 73–76) | `016` |
 
 The 2026-08-19 shipment carries Batch 35 and is the **first API deployment since
 `013` that applies no migration**, which is what restores the rollback target the
@@ -1449,3 +1453,41 @@ lands here.
 `bf_user`, `bf_pass`, `bf_cert_file`, or `bf_key_file`. The successful
 deployment above is therefore also evidence that all five are correctly sealed
 and that the certificate pair materializes at its fixed runtime paths.
+
+The 2026-08-26 shipment carries **Batches 61, 73, 74, 75 and 76** and applies **no
+migration** — head stays `016`, which keeps
+`691128d6-619f-4b8c-949c-af3667c6e50b` usable as a rollback target rather than merely
+recorded as one. Section 4 was skipped by design for the fifth time running: Vercel's
+GitHub integration had already built `a7573e32` and the stable alias resolved to
+`dpl_6co4m3VtCnLMz1JPJY5GYdXUiezH`, confirmed by reading `meta.githubCommitSha` from the
+Vercel API rather than inferred from timing.
+
+**Its preflight found this table stale, exactly as the warning above predicts.** The
+record named `5922cf17-1767-4ab8-b225-9c0d2fd6b44f` as current, but that deployment is
+`REMOVED`: two redeploys on 2026-08-25 — `a5728aa4` and then `691128d6`, both of `18dfb9f`
+with no new commit — were never written down. Both are backfilled above. The baseline used
+for this shipment was read from the platform, not from here.
+
+Content: the FastAPI 0.141 / starlette 1.6 / pydantic 2.13 upgrade, a round badge that
+reads the clock rather than `status`, the 2-1 Hibs renumber-and-rename backfill (applied
+separately at 06:13 UTC, before this deployment), the removal of the nightly `pg_dump`, and
+three new notification triggers with the per-league mute gate underneath them.
+
+Post-deploy verification: `/health` reports sha `a7573e32` and migration `016`,
+`/health/ready` agrees at `016` with `db: ok`, RLS **and FORCE RLS** are on all 18 public
+tables with zero grants to `anon`/`authenticated`/`PUBLIC`, and the CORS preflight from the
+stable origin returns 200 with credentials while `https://evil.example` gets 400 and no
+`Access-Control-Allow-Origin`. The web root and a SPA deep link both return 200 and serve a
+byte-identical asset, carrying all three committed headers. The boot log shows
+`scheduler started`, **no `daily_backup` job** (Batch 75) and `pick_reminders` present
+(Batch 76); its six `level=error` records are all uvicorn/alembic stderr reading `INFO:`,
+the documented Railway misclassification, and a content scan found zero real errors and no
+credential, connection-string, token or PIN leakage.
+
+**A new interaction this runbook predates.** Section 3 notes that a stalled deployment runs
+two containers, both with `SCHEDULER_ENABLED=true`, and that the *daily 11:00* pick
+reminders would double-notify. Batch 76 moved reminders to **hourly at `:15`**, which
+widens that window from once a day to once an hour — though it also narrows the blast
+radius, since the job now only matches rounds locking in about three hours. This shipment
+was unaffected: it reached `SUCCESS` in ~90 seconds and no league had a round in the
+reminder window.
