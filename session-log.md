@@ -2312,3 +2312,25 @@ before its 13:30 lock) and left `status = 'open'`.
   neither is reliably available.**
 
 **Next:** Batch 77 — have `rederive_claim_periods` re-derive `status` where no picks exist.
+
+## Batch 77 — A round stays labelled `open` before it has opened, and the notification pays for it
+**Commits:** c435179 · verified: `scripts/ci-local.sh` PASS (11 checks)
+
+### Key facts for future sessions
+- **The backwards transition is deliberately narrower than re-deriving lifecycle state.**
+  Only an `open` round whose newly stamped opening is in the future and which holds no
+  pick becomes `scheduled`; dropping an opening does not move `scheduled -> open`.
+- **A pick of any status protects the old label.** The service reads all picked gameweek
+  ids in one indexed query rather than issuing one existence query per round, and logs at
+  info when it declines the transition.
+- **The unchanged-instant early return survives.** This fixes the state when a settings
+  edit restamps the round; it does not turn `rederive_claim_periods` into a general repair
+  sweep for an already-stale row whose instants did not move.
+- **No monotonic-status dependency was found.** Numbering ignores status; selection and
+  current-round ordering treat `scheduled` and `open` as the same pickable class; locking
+  covers both; and settlement is driven by time and terminal state.
+- **`/ship-prod` is owed.** Merging `main` deploys no material web change for this
+  API-only batch, while Railway keeps the old `rederive_claim_periods` until explicitly
+  shipped.
+
+**Next:** Launch phase L5 — launch and first-Saturday watch; ship the Batch 77 API change.

@@ -354,7 +354,8 @@ on the league's own weekday after its lock that round is born dead. The test use
 Tuesday window, so it failed on Tuesdays after 18:45 London and passed the other 167
 hours of the week.
 
-Batches 73-76 closed the owner's 2026-08-25 list. **Batch 73** stopped a round
+Batches 73-77 closed the owner's 2026-08-25 list and its production follow-up.
+**Batch 73** stopped a round
 claiming to be open while it refused picks: `status` is only the label the hourly jobs
 have caught up with, so the badge read Open both before a round's opening instant and
 for up to an hour after its deadline. `pickRefusal` in `lib/coupon.ts` is now the
@@ -364,16 +365,19 @@ twice over — its round list filtered on `status`, and its copy told admins a c
 65 falsified. `PickShapeLine` also lost its longshot split and names its figure
 `avg odds selected`. **Batch 74** is a script, not a change: 2-1 Hibs' four rounds
 renumbered 1-4 and three members renamed, reversing a decision Batch 68 made
-deliberately. It fails closed and is **not yet applied**. **Batch 75** deleted a
+deliberately; it was applied and independently verified on 2026-08-26. **Batch 75** deleted a
 nightly `pg_dump` that crossed the internet to write an uncompressed copy of a 12 MB
 database into a `/tmp` no volume backed, keeping the same job runnable on demand.
 **Batch 76** gave the product the notifications it never had — picks opening, somebody
 claiming or moving, and one reminder three hours before the lock instead of one a day —
 and closed the gap underneath them: `league_memberships.notification_muted` had existed
 since Batch 32 with exactly one query honouring it, so `send_notification` could not
-check a mute it was never told about.
+check a mute it was never told about. **Batch 77** made the opening trigger reachable
+after a league adds a future opening to an already-discovered round: an unclaimed
+`open` round moves back to `scheduled`, while a round holding a legitimate pick stays
+`open` and records the declined transition at info level.
 
-Batches 1-72 are closed. The Coupon is a
+Batches 1-77 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -963,19 +967,19 @@ columns exist to prevent.
 
 ## Verified
 
-- Backend: 660 pytest with a database, Ruff check/format, and
-  strict mypy; Batch 53 close-out passed `scripts/ci-local.sh` end-to-end
+- Backend: the complete PostgreSQL-backed pytest suite, Ruff check/format, and
+  strict mypy; Batch 77 close-out passed `scripts/ci-local.sh` end-to-end
   (11 checks), as every close-out since Batch 26 has. That script's pinned venv **is**
   the gate: app-starter's venv can no longer even collect the suite (no Pillow, so
   `avatar_storage.py` takes ten test files down with it) and `AGENTS.md` plus
   `docs/agent-commands/batch-verify.md` still document that stale path
-- Database: clean `pgserver` migration through revision `013`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
+- Database: clean `pgserver` migration through revision `016`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 18 public tables under a Supabase-like role setup. The count was 13 at
   revision `004`; `009`-`013` added the rest, and every one of the 18 was
   confirmed RLS-enabled *and* forced against production on 2026-08-19, with
   `anon`, `authenticated` and `PUBLIC` holding no table privileges and no schema
   `USAGE`
-- Frontend: Node 20 production build, TypeScript, ESLint, and 387 Vitest, the
+- Frontend: Node 20 production build, TypeScript, ESLint, and 715 Vitest, the
   suite now pinned to a non-UTC zone (`America/New_York`) so an instant parsed
   as local time cannot pass unnoticed
 - Browser: production-bundle smoke plus the full live staging story, including
@@ -1023,9 +1027,8 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **one unchecked batch**: **Batch 77**, written on 2026-08-26
-after the defect it describes was hit in production. 61 and 73-76 all closed on
-2026-08-25/26 and are shipped.
+`docs/BUILD_PLAN.md` has **no unchecked batches**. Batch 77 closed on 2026-08-26,
+so every batch specified to date is on `main`.
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday
 watch**, with L0-L4 ticked since 2026-08-04.
 
@@ -1042,12 +1045,11 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**Batch 77 is open**, written after 2-1 Hibs hit it live: the owner set
-`pick_open_offset_minutes` to 720 on 2026-08-26, `rederive_claim_periods` stamped the
-opening onto Gameweek 4 correctly, and left it labelled `open`. Picks were refused
-correctly throughout and the badge read correctly — but `open_due_gameweeks` selects
-`scheduled` rounds only, so it could never have fired Batch 76's picks-open notification
-for that round. **Gameweek 4 was corrected by hand**; the batch is so it stops recurring.
+**A `/ship-prod` is owed for Batch 77.** The implementation is API-only: when a settings
+edit stamps a future opening onto an unclaimed `open` round, `rederive_claim_periods`
+now returns it to `scheduled`, making it selectable by `open_due_gameweeks` and therefore
+eligible for Batch 76's opening notification. A round holding a pick stays `open`.
+2-1 Hibs' Gameweek 4 was already corrected by hand, so no production data repair remains.
 
 **Production still has no managed backup and no PITR** (the owner's 2026-07-30 deferral).
 Batch 75 removed a nightly dump that `/tmp` destroyed on every redeploy, which changes

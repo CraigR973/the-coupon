@@ -2399,7 +2399,7 @@ answered until it lands, because until then there is no data to look at.
   the owner's action, and Batch 73 is a prerequisite for the opening trigger being *visible*
   rather than for this batch compiling.
 
-- [ ] **Batch 77 — A round stays labelled `open` before it has opened, and the notification pays for it** —
+- [x] **Batch 77 — A round stays labelled `open` before it has opened, and the notification pays for it** ✅ 2026-08-26 —
   found in production on 2026-08-26, the first time a league configured
   `pick_open_offset_minutes` after Batch 65 shipped. Not member-visible; it costs a
   notification that nobody would notice was missing.
