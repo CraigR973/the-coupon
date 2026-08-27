@@ -41,8 +41,17 @@ async def notify_member_joined(
     session: AsyncSession,
     player_name: str,
     league_name: str,
+    league_id: uuid.UUID,
 ) -> None:
-    """Notify admins when an existing player joins a league via code or invite."""
+    """Notify admins when an existing player joins a league via code or invite.
+
+    ``league_id`` is required rather than optional, which is the point of Batch 85. This
+    was the one trigger Batch 76 did not update, so a site admin who had muted a league
+    still got its "New member" push — the message names the league in both its title and
+    its body, so it is exactly the kind ``send_notification``'s league gate exists for.
+    Leaving the parameter defaulted would have let a fourth call site reintroduce the
+    same omission silently.
+    """
     for admin in await _admin_players(session):
         await send_notification(
             session,
@@ -50,6 +59,7 @@ async def notify_member_joined(
             f"New member: {league_name}",
             f"{player_name} has joined {league_name}.",
             timezone_name=admin.timezone,
+            league_id=league_id,
         )
 
 

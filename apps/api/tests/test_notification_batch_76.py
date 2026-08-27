@@ -32,7 +32,11 @@ from src.models.league_membership import LeagueMembership
 from src.models.notification import PushSubscription
 from src.models.profile import Profile, UserRole
 from src.services.gameweek import gameweeks_due_a_reminder, notification_targets
-from src.services.notification_triggers import notify_pick_made, notify_picks_open
+from src.services.notification_triggers import (
+    notify_member_joined,
+    notify_pick_made,
+    notify_picks_open,
+)
 from src.services.push_notification_service import send_notification
 
 pytestmark = pytest.mark.skipif(
@@ -53,11 +57,11 @@ def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
-async def _profile(db: AsyncSession, name: str) -> Profile:
+async def _profile(db: AsyncSession, name: str, *, role: UserRole = UserRole.player) -> Profile:
     person = Profile(
         display_name=f"{name}-{uuid.uuid4().hex[:8]}",
         pin_hash=hash_pin("8351"),
-        role=UserRole.player,
+        role=role,
     )
     db.add(person)
     await db.flush()
@@ -400,3 +404,63 @@ async def test_the_pick_alert_collapses_per_league_and_round(session: AsyncSessi
         )
 
     assert send.await_args_list[0].kwargs["tag"] == f"pick-made-{league.id}-{gameweek.id}"
+
+
+# ── Batch 85: the fourth trigger, which Batch 76 missed ────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_a_muted_league_suppresses_its_member_joined_alert(session: AsyncSession) -> None:
+    """The trigger Batch 76 left behind, held to the same rule as the other three.
+
+    ``notify_member_joined`` called ``send_notification`` with no ``league_id``, so the
+    gate had nothing to check and a site admin who had muted a league still got its
+    "New member" push — while the message names that league in both its title and its
+    body. Two admins here, one muted and one not, because suppressing everything would
+    pass just as well as suppressing the right one.
+    """
+    owner = await _profile(session, "owner")
+    quiet_admin = await _profile(session, "quiet-admin", role=UserRole.admin)
+    loud_admin = await _profile(session, "loud-admin", role=UserRole.admin)
+    league = await _league(session, owner, "Hibs")
+    await _join(session, league, quiet_admin, muted=True)
+    await _join(session, league, loud_admin, muted=False)
+    for admin in (quiet_admin, loud_admin):
+        session.add(
+            PushSubscription(
+                user_id=admin.id,
+                subscription={"endpoint": "https://example.test/x", "keys": {}},
+                is_active=True,
+            )
+        )
+    await session.flush()
+
+    with (
+        patch.object(settings, "vapid_private_key", "priv"),
+        patch.object(settings, "vapid_public_key", "pub"),
+        patch("src.services.push_notification_service._send_push_sync") as push,
+    ):
+        await notify_member_joined(session, "Newcomer", league.name, league.id)
+
+    assert push.call_count == 1, "only the admin who has not muted this league is told"
+
+
+@pytest.mark.asyncio
+async def test_member_joined_passes_the_league_through(session: AsyncSession) -> None:
+    """The mechanism, so a failure says *why* rather than only that nothing arrived.
+
+    ``league_id`` is a required parameter rather than a defaulted one, so a future call
+    site cannot reintroduce the omission by leaving it off — but nothing stops it being
+    dropped between here and ``send_notification``, which is what this pins.
+    """
+    owner = await _profile(session, "owner")
+    admin = await _profile(session, "admin", role=UserRole.admin)
+    league = await _league(session, owner, "Hibs")
+    await _join(session, league, admin)
+
+    with patch(
+        "src.services.notification_triggers.send_notification", new=AsyncMock(return_value=1)
+    ) as send:
+        await notify_member_joined(session, "Newcomer", league.name, league.id)
+
+    assert send.await_args_list[0].kwargs["league_id"] == league.id

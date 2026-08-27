@@ -1604,7 +1604,7 @@ async def join_league(
     if league.privacy == LeaguePrivacy.public_open:
         await _upsert_membership(league.id, player.id, db)
         db.add(_audit(player, ActionType.member_joined, "league_memberships", league.id))
-        await notify_member_joined(db, player.display_name, league.name)
+        await notify_member_joined(db, player.display_name, league.name, league.id)
         await db.commit()
         log.info("league joined", league_id=str(league.id), player_id=str(player.id))
         return JoinResponse(status="joined")
