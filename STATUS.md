@@ -439,7 +439,19 @@ checked against production first: that host is IPv6-only with no route from the
 workstation, and the project's REST API is 402 under the egress quota. `/ship-prod` is
 where 017 first meets real data.
 
-Batches 1-83 are closed. The Coupon is a
+**Batch 84** shut a league window out of the hour the clocks change. Every local instant
+a window produces is `datetime(y, m, d, tzinfo=UK_TZ) + timedelta(minutes=...)` — wall-clock
+arithmetic — so on the last Sunday of March 01:00-02:00 does not exist, on the last Sunday
+of October it happens twice, and Python resolved both silently through `fold=0`. Since Batch
+63 any member can create a league, so any member could configure one. `create_league` and
+`update_league` now answer 422 and name which of the four instants is at fault — opening,
+close, lock, or announced opening, each built by the same arithmetic. The check sits in the
+handlers rather than the request schemas because a PATCH naming only a minute is judged
+against the weekday already stored. Transition days are read from `zoneinfo`, not assumed.
+The default Saturday 15:00 window is unaffected, and validation is on write only, so no
+existing league is re-judged.
+
+Batches 1-84 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1096,8 +1108,8 @@ start → close-out cycles with **one `/ship-prod` at the group boundary**.
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday watch**,
 with L0-L4 ticked since 2026-08-04.
 
-**Group A (Batches 82, 83, 84, 85) is in progress and is API-only.** Batches 82 and 83 are
-on `main`; 84 and 85 follow, then one `/ship-prod` closes the group. **That ship now carries
+**Group A (Batches 82, 83, 84, 85) is in progress and is API-only.** Batches 82, 83 and 84 are
+on `main`; 85 follows, then one `/ship-prod` closes the group. **That ship now carries
 migration 017**, so it is the first of the group that can fail on boot rather than merely
 fail to help. Nothing in it reaches members
 on a close-out push, which is why the group can run without the deploy asymmetry that broke
@@ -1116,8 +1128,8 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**A `/ship-prod` is owed** — Batches 82 and 83 are backend changes sitting on `main` and
-unshipped, and Group A's remaining batches join them before the group's single ship. The
+**A `/ship-prod` is owed** — Batches 82, 83 and 84 are backend changes sitting on `main`
+and unshipped, and Batch 85 joins them before the group's single ship. The
 SSRF Batch 82 closes stays open in production until then, and **that ship applies migration
 017**, which is the group's one irreversible-ish step: it refuses to run if two profiles
 already differ only by case, which would leave the API refusing to boot until one is

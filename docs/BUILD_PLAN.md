@@ -2722,7 +2722,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the registration race only. No change to the case-insensitive
   pre-check's user-facing message or to login.
 
-- [ ] **Batch 84 — A league's window can be configured to land on the DST-transition hour**
+- [x] **Batch 84 — A league's window can be configured to land on the DST-transition hour** ✅ 2026-08-27
   — specified from `docs/review/2026-08-26/02-correctness.md`, CORR-05 (LOW, reachability
   increased). `services/odds_provider.py:264-273` constructs local instants as
   `datetime(y, m, d, tzinfo=UK_TZ) + timedelta(...)`, which is ambiguous/undefined at the

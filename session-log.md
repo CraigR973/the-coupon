@@ -2497,3 +2497,31 @@ attempt**, see below
 - **API-only. Group A still owes one `/ship-prod`** (82, 83, 84, 85).
 
 **Next:** Batch 84 — reject a league window landing in the DST-transition hour.
+
+## Batch 84 — A league's window can be configured to land on the DST-transition hour
+**Commits:** e267e0b · verified: `scripts/ci-local.sh` PASS (11 checks), green first attempt
+
+### Key facts for future sessions
+- **The check runs in the handlers, not in `CreateLeagueRequest`/`UpdateLeagueRequest`**,
+  which is where the finding put it. A PATCH naming only `slate_start_minute` is legal,
+  and whether that minute is safe depends on the weekday already stored — the request body
+  never sees it. `_check_claim_period` sits in the handlers for exactly this reason and
+  says so; the new check is its neighbour.
+- **Four instants are checked, not one.** Opening, close, lock, and announced opening are
+  each built by the same wall-clock arithmetic. The lock is the interesting one: a Sunday
+  03:00 window with a 90-minute lock is a *safe window with an unsafe lock*, which is why
+  `_recurs_into_a_transition` normalises a possibly-negative minute onto its real weekday
+  before testing it.
+- **Transition days come from `zoneinfo`, by walking the year and sampling the offset at
+  noon** — not from "the last Sunday of March". `test_transitions_are_read_from_zoneinfo_not_assumed`
+  asserts what the tz database says, so if the UK ever changes the rule that test fails
+  first and explains the others.
+- **The rejected range is 01:00-01:59 on a Sunday, and it is rejected outright** rather
+  than only for the two rounds a year that hit it. A weekly window recurs into both
+  transitions, and a config that is silently wrong twice a year is the finding.
+- **No existing league is affected.** The default is Saturday 15:00 with a 30-minute lock
+  → Saturday 14:30, and there is a test pinning that. Validation is on write only, so a
+  stored window is never re-judged on read and no league can be bricked by this.
+- **API-only. Group A still owes one `/ship-prod`** (82, 83, 84, 85).
+
+**Next:** Batch 85 — the last of Group A, then `/ship-prod`.
