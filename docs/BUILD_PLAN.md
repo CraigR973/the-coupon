@@ -2703,7 +2703,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the subscribe endpoint's validation only. No change to delivery, to
   the notification triggers, or to the VAPID signing path.
 
-- [ ] **Batch 83 — Two concurrent registrations for case-variant names both succeed**
+- [x] **Batch 83 — Two concurrent registrations for case-variant names both succeed** ✅ 2026-08-27
   — specified from `docs/review/2026-08-26/02-correctness.md`, CORR-06 (MED).
   `/auth/register` pre-checks display-name uniqueness case-insensitively specifically to
   stop leaderboard impersonation by case variant, but the backstop —

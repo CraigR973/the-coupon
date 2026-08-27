@@ -2458,3 +2458,42 @@ before its 13:30 lock) and left `status = 'open'`.
   that ship runs.
 
 **Next:** Batch 83 — the case-variant registration race (needs a migration).
+
+## Batch 83 — Two concurrent registrations for case-variant names both succeed
+**Commits:** 811bea0 · verified: `scripts/ci-local.sh` PASS (11 checks) — **red on the first
+attempt**, see below
+
+### Gate failures and how they were fixed
+- **`test_logging_config.py::test_an_odds_call_publishes_no_key_even_with_httpx_logging_on`
+  failed on the first full-gate run**, asserting `"HTTP Request" in output` against an
+  empty stream. It passed alone and passed on `main`, so it was not a pre-existing red.
+  Cause: `migrations/env.py:20` calls `fileConfig(config.config_file_name)`, and
+  `logging.config.fileConfig` defaults to `disable_existing_loggers=True` — so running a
+  migration **in-process** sets `disabled = True` on `httpx` for the rest of the session.
+  Fixed by restoring the flags in the new test module, not by touching the logging test.
+
+### Key facts for future sessions
+- **Any new test file that runs alembic in-process and sorts before `test_logging_config.py`
+  will break the suite.** `test_migration_012` and `test_migration_014` have leaked this
+  since they were written; they are only safe because `m` > `l`. The real fix is
+  `disable_existing_loggers=False` in `migrations/env.py`, which is outside this batch.
+- **The index is `uq_profiles_display_name_lower`, not a constraint.** Postgres cannot
+  express `UNIQUE (lower(col))` as a table constraint, so `op.drop_constraint` will not
+  find it — a later migration touching it must use `op.drop_index`.
+- **017 refuses to run on a database that already holds a collision, and names the rows.**
+  That check is hand-written rather than left to the unique violation, because this
+  migration runs on boot: "duplicate key value" in a container log does not say which
+  member to rename, and the service stays down until somebody works it out.
+- **017 was NOT verified against production data.** The prod Postgres host
+  (`db.pugujiiojitstkilphrz.supabase.co`) has AAAA records only and this workstation has
+  no IPv6 route; the project's REST API answers **402** under the egress quota. The
+  runtime check is what stands in for it. **`/ship-prod` is the first time this migration
+  meets real data** — if the API fails to boot, read the error, it names the profiles.
+- **The Supabase MCP server is not production** and must not be pointed at it —
+  `ship-prod.md:12` records the prod project as "never to be attached to MCP". Its
+  `execute_sql` timed out here, which is the right outcome.
+- **The index covers soft-deleted rows deliberately**, matching the pre-check's own
+  refusal to filter on `deleted_at`: a departed member's name stays reserved.
+- **API-only. Group A still owes one `/ship-prod`** (82, 83, 84, 85).
+
+**Next:** Batch 84 — reject a league window landing in the DST-transition hour.

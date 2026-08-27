@@ -427,7 +427,19 @@ no internal IP literal. The bypasses that matter are handled by reading
 `https://fcm.googleapis.com@evil.example/`. **API-only, so it is not live until Group A's
 `/ship-prod`.**
 
-Batches 1-82 are closed. The Coupon is a
+**Batch 83** made the display-name backstop match the check it backs up. `/auth/register`
+compares names lowered — "Dave" and "dave" are one person twice in the standings — but
+`uq_profiles_display_name` compared them raw, so two concurrent registrations for the two
+spellings both read *not taken*, both satisfied the constraint, and both committed.
+Migration **017** replaces it with a unique index on `lower(display_name)`, created before
+the old constraint is dropped so no instant exists without a rule, and covering
+soft-deleted rows exactly as the pre-check does. **It refuses to run on a database that
+already holds a collision, and names the rows** — this runs on boot, and it could not be
+checked against production first: that host is IPv6-only with no route from the
+workstation, and the project's REST API is 402 under the egress quota. `/ship-prod` is
+where 017 first meets real data.
+
+Batches 1-83 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1084,8 +1096,10 @@ start → close-out cycles with **one `/ship-prod` at the group boundary**.
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday watch**,
 with L0-L4 ticked since 2026-08-04.
 
-**Group A (Batches 82, 83, 84, 85) is in progress and is API-only.** Batch 82 is on `main`;
-83, 84 and 85 follow, then one `/ship-prod` closes the group. Nothing in it reaches members
+**Group A (Batches 82, 83, 84, 85) is in progress and is API-only.** Batches 82 and 83 are
+on `main`; 84 and 85 follow, then one `/ship-prod` closes the group. **That ship now carries
+migration 017**, so it is the first of the group that can fail on boot rather than merely
+fail to help. Nothing in it reaches members
 on a close-out push, which is why the group can run without the deploy asymmetry that broke
 the Coupon tab on 2026-08-06.
 
@@ -1102,9 +1116,13 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**A `/ship-prod` is owed** — Batch 82 is a backend change sitting on `main` and unshipped,
-and Group A's remaining batches join it before the group's single ship. The SSRF the batch
-closes stays open in production until then.
+**A `/ship-prod` is owed** — Batches 82 and 83 are backend changes sitting on `main` and
+unshipped, and Group A's remaining batches join them before the group's single ship. The
+SSRF Batch 82 closes stays open in production until then, and **that ship applies migration
+017**, which is the group's one irreversible-ish step: it refuses to run if two profiles
+already differ only by case, which would leave the API refusing to boot until one is
+renamed. Nothing here could verify prod's profile names in advance, so read the error if
+the deploy stalls — it names them.
 
 Batches 79-81 went to production on 2026-08-26 as Railway
 deployment `a8ab5234-06c2-41d3-8358-405d95910d15`, message `ship production f41a383`,
