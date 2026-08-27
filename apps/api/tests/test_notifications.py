@@ -257,7 +257,7 @@ async def test_subscribe_push() -> None:
             r = await client.post(
                 "/api/v1/push/subscribe",
                 json={
-                    "endpoint": "https://fcm.example/push/abc",
+                    "endpoint": "https://fcm.googleapis.com/fcm/send/abc123",
                     "keys": {"auth": "aaa", "p256dh": "bbb"},
                     "device_hint": "Chrome/120",
                 },
@@ -267,6 +267,66 @@ async def test_subscribe_push() -> None:
         mock_db.add.assert_called_once()
     finally:
         app.dependency_overrides.clear()
+
+
+# ── Batch 82: the subscribe endpoint is an SSRF sink unless it is validated ────
+
+
+async def _subscribe(endpoint: str) -> int:
+    """POST one endpoint to /push/subscribe and return the status code."""
+    user = _user()
+    mock_db = AsyncMock()
+    mock_db.execute.return_value = MagicMock(scalar_one_or_none=MagicMock(return_value=None))
+
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_db] = _db_with(mock_db)
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            r = await client.post(
+                "/api/v1/push/subscribe",
+                json={"endpoint": endpoint, "keys": {"auth": "aaa", "p256dh": "bbb"}},
+            )
+        return r.status_code
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://fcm.googleapis.com/fcm/send/abc",  # plaintext
+        "file:///etc/passwd",  # not even http
+        "https://127.0.0.1/push",  # loopback
+        "https://[::1]/push",  # loopback, v6
+        "https://10.1.2.3/push",  # private range
+        "https://172.16.4.5/push",  # private range
+        "https://192.168.0.9/push",  # private range
+        "https://169.254.169.254/latest/meta-data/",  # link-local: the metadata service
+        "https://attacker.example.com/collect",  # off-allowlist name
+        "https://fcm.googleapis.com.evil.example/x",  # allowlisted host as a prefix
+        "https://evil.example/x?u=fcm.googleapis.com",  # allowlisted host in the query
+        "https://fcm.googleapis.com@evil.example/x",  # allowlisted host as userinfo
+        "https://notify.windows.com.evil.example/x",  # suffix match must not be loose
+    ],
+)
+async def test_subscribe_rejects_untrusted_endpoint(endpoint: str) -> None:
+    status_code = await _subscribe(endpoint)
+    assert 400 <= status_code < 500, f"{endpoint} should have been refused"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://fcm.googleapis.com/fcm/send/abc123",
+        "https://updates.push.services.mozilla.com/wpush/v2/abc123",
+        "https://web.push.apple.com/QABC123",
+        "https://par02p.notify.windows.com/w/?token=abc",
+    ],
+)
+async def test_subscribe_accepts_real_push_services(endpoint: str) -> None:
+    assert await _subscribe(endpoint) == 201
 
 
 @pytest.mark.asyncio

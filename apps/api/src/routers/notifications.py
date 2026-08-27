@@ -1,11 +1,13 @@
 """Push subscription and notification preference endpoints."""
 
+import ipaddress
 import uuid
 from typing import Annotated, Any
+from urllib.parse import urlsplit
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,10 +30,71 @@ Db = Annotated[AsyncSession, Depends(get_db)]
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 
+#: The push services a real browser subscription can name. Delivery POSTs to this
+#: host server-side (``pywebpush``), so an unchecked endpoint is an SSRF primitive with
+#: an attacker-chosen destination — hence an allowlist rather than a denylist.
+ALLOWED_PUSH_HOSTS = frozenset(
+    {
+        "fcm.googleapis.com",  # Chrome, Edge, and every other Chromium browser
+        "updates.push.services.mozilla.com",  # Firefox
+        "web.push.apple.com",  # Safari
+    }
+)
+
+#: Windows/WNS shards the host per-datacentre, so this one is a suffix match.
+ALLOWED_PUSH_HOST_SUFFIXES = (".notify.windows.com",)
+
+
+def _is_internal_host(host: str) -> bool:
+    """True if ``host`` is an IP literal pointing somewhere inside our own network.
+
+    Belt-and-braces behind the allowlist: no private address can also be an allowed
+    push host, but the check is cheap and keeps the refusal reason honest.
+    """
+    try:
+        ip = ipaddress.ip_address(host)  # ``hostname`` has already unwrapped [v6]
+    except ValueError:
+        return False  # a name, not a literal — the allowlist is what governs it
+    # ``::ffff:127.0.0.1`` is loopback wearing an IPv6 coat; unwrap before judging.
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return (
+        ip.is_private  # 10/8, 172.16/12, 192.168/16, fc00::/7
+        or ip.is_loopback  # 127/8, ::1
+        or ip.is_link_local  # 169.254/16, fe80::/10
+        or ip.is_reserved
+        or ip.is_unspecified  # 0.0.0.0, ::
+    )
+
+
+def _validate_push_endpoint(value: str) -> str:
+    """Reject any endpoint a genuine browser subscription could not have produced."""
+    parts = urlsplit(value)
+    if parts.scheme != "https":
+        raise ValueError("Push endpoint must use https")
+
+    host = (parts.hostname or "").lower()
+    if not host:
+        raise ValueError("Push endpoint must name a host")
+
+    if _is_internal_host(host):
+        raise ValueError("Push endpoint must not name an internal address")
+
+    if host not in ALLOWED_PUSH_HOSTS and not host.endswith(ALLOWED_PUSH_HOST_SUFFIXES):
+        raise ValueError("Push endpoint is not a recognised push service")
+
+    return value
+
+
 class SubscribeRequest(BaseModel):
     endpoint: str
     keys: dict[str, str]
     device_hint: str | None = None
+
+    @field_validator("endpoint")
+    @classmethod
+    def _check_endpoint(cls, value: str) -> str:
+        return _validate_push_endpoint(value)
 
 
 class UnsubscribeRequest(BaseModel):
