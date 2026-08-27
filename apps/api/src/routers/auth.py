@@ -458,9 +458,12 @@ async def register(
     try:
         await db.flush()
     except IntegrityError:
-        # `uq_profiles_display_name` is the backstop for the check above losing a race
-        # with a second registration for the same name. Same answer either way, so the
-        # loser of the race is told to pick another name rather than shown a 500.
+        # `uq_profiles_display_name_lower` (migration 017) is the backstop for the check
+        # above losing a race with a second registration for the same name. It is a
+        # functional unique index on `lower(display_name)`, so it catches the *case-variant*
+        # race too — "Dave" against "dave" — which the case-sensitive constraint it replaced
+        # let through, defeating the whole point of comparing lowered above. Same answer
+        # either way, so the loser is told to pick another name rather than shown a 500.
         await db.rollback()
         log.info("registration lost the uniqueness race", display_name=name)
         raise HTTPException(

@@ -445,11 +445,12 @@ async def test_register_refuses_a_taken_name(client: AsyncClient) -> None:
 
 
 async def test_register_compares_names_case_insensitively(client: AsyncClient) -> None:
-    """`uq_profiles_display_name` is case-sensitive; a leaderboard reader is not.
+    """The pre-check compares lowered, so the query it issues must be the lowered one.
 
     "Dave" and "dave" would both be valid logins and one person twice in the standings,
-    which is exactly the impersonation an open signup invites. The endpoint compares
-    lowered, so the query it issues must be the lowered one.
+    which is exactly the impersonation an open signup invites. Migration 017 backs this
+    up at the database with a unique index on `lower(display_name)`; the race that needs
+    is covered against a real database in `test_display_name_race.py`.
     """
     db = _register_db(existing_name=uuid.uuid4())
     async with _override_db(db):
