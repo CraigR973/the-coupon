@@ -451,7 +451,14 @@ against the weekday already stored. Transition days are read from `zoneinfo`, no
 The default Saturday 15:00 window is unaffected, and validation is on write only, so no
 existing league is re-judged.
 
-Batches 1-84 are closed. The Coupon is a
+**Batch 85** closed the last gap in Batch 76's work. `notify_member_joined` was the one
+trigger of the four that never passed `league_id` into `send_notification`, so the
+per-league mute had nothing to check and a site admin who had muted a league still got its
+"New member" push — a message that names that league in both its title and its body. The
+parameter is required rather than defaulted, so a fourth call site cannot reintroduce the
+omission silently.
+
+Batches 1-85 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1108,10 +1115,10 @@ start → close-out cycles with **one `/ship-prod` at the group boundary**.
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday watch**,
 with L0-L4 ticked since 2026-08-04.
 
-**Group A (Batches 82, 83, 84, 85) is in progress and is API-only.** Batches 82, 83 and 84 are
-on `main`; 85 follows, then one `/ship-prod` closes the group. **That ship now carries
-migration 017**, so it is the first of the group that can fail on boot rather than merely
-fail to help. Nothing in it reaches members
+**Group A (Batches 82, 83, 84, 85) is complete and is API-only.** All four are on `main`
+and none of them has reached members: the group's single `/ship-prod` is what carries them,
+and **it applies migration 017**, so it is the first shipment since 016 that can fail on
+boot rather than merely fail to help. Nothing in it reaches members
 on a close-out push, which is why the group can run without the deploy asymmetry that broke
 the Coupon tab on 2026-08-06.
 
@@ -1128,8 +1135,8 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**A `/ship-prod` is owed** — Batches 82, 83 and 84 are backend changes sitting on `main`
-and unshipped, and Batch 85 joins them before the group's single ship. The
+**A `/ship-prod` is owed** — Batches 82, 83, 84 and 85 are all backend changes sitting on
+`main` and unshipped. The
 SSRF Batch 82 closes stays open in production until then, and **that ship applies migration
 017**, which is the group's one irreversible-ish step: it refuses to run if two profiles
 already differ only by case, which would leave the API refusing to boot until one is

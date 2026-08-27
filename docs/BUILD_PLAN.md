@@ -2739,8 +2739,8 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: validation only. No change to how non-transition windows are computed.
 
-- [ ] **Batch 85 — The "member joined" notification skips the per-league mute it was Batch
-  76's job to enforce everywhere** — specified from `docs/review/2026-08-26/02-correctness.md`,
+- [x] **Batch 85 — The "member joined" notification skips the per-league mute it was Batch
+  76's job to enforce everywhere** ✅ 2026-08-27 — specified from `docs/review/2026-08-26/02-correctness.md`,
   CORR-07 (LOW). `notify_member_joined` (`services/notification_triggers.py:40-53`) is the
   one trigger Batch 76 didn't update to pass `league_id` into `send_notification`, so a
   site admin who has muted a league still gets its "new member" push.

@@ -2525,3 +2525,25 @@ attempt**, see below
 - **API-only. Group A still owes one `/ship-prod`** (82, 83, 84, 85).
 
 **Next:** Batch 85 — the last of Group A, then `/ship-prod`.
+
+## Batch 85 — The "member joined" notification skips the per-league mute
+**Commits:** c6e53eb · verified: `scripts/ci-local.sh` PASS (11 checks), green first attempt
+
+### Key facts for future sessions
+- **`league_id` is a required parameter on `notify_member_joined`, deliberately.** A
+  default of `None` would have let a fourth call site reintroduce exactly the omission
+  this batch fixes, silently and with no test failing. All four triggers now take it.
+- **Nothing else about the notification changed.** No `url`, `data` or `tag` was added,
+  so tapping it still does what it did — the other three triggers carry those and this one
+  does not, which is a real inconsistency but not this batch's.
+- **The mute test needed two admins.** Suppressing *everything* passes a one-admin test
+  just as well as suppressing the right one, so the muted and unmuted admin are both in
+  the same league and the assertion is `push.call_count == 1`.
+- **`_profile` in `test_notification_batch_76.py` now takes `role=`**, defaulting to
+  `player` so every existing caller is untouched. `notify_member_joined` notifies site
+  admins, so the test needed profiles the other triggers' tests never did.
+- **Group A is complete (82, 83, 84, 85) and every batch in it is API-only.** The
+  `/ship-prod` at this boundary is the one that carries all four to members, and it
+  applies **migration 017**.
+
+**Next:** `/ship-prod` for Group A, then Group B (Batches 86, 88, 87 — web only, no ship).
