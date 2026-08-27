@@ -3,7 +3,8 @@
 import re
 import uuid
 from collections.abc import Callable
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
+from functools import lru_cache
 from typing import Annotated, Any
 
 import structlog
@@ -43,7 +44,7 @@ from src.services.gameweek import (
     uk_today,
 )
 from src.services.notification_triggers import notify_member_joined
-from src.services.odds_provider import OddsProvider, OddsProviderError
+from src.services.odds_provider import UK_TZ, OddsProvider, OddsProviderError
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -413,6 +414,124 @@ def _check_claim_period(pick_open_offset: int | None, lock_offset: int) -> None:
         )
 
 
+#: Every local instant a league's window produces is built as
+#: ``datetime(y, m, d, tzinfo=UK_TZ) + timedelta(minutes=...)``
+#: (``services/odds_provider.py``). That is *wall-clock* arithmetic, so on the two days a
+#: year British time shifts, the result may name an hour that never happens or happens
+#: twice — and Python resolves it silently via ``fold=0`` rather than raising. A weekly
+#: window is checked against this many years of transitions, which is far longer than any
+#: league's settings survive unedited.
+_DST_HORIZON_YEARS = 5
+MINUTES_PER_DAY = 24 * 60
+
+
+@lru_cache(maxsize=64)
+def _uk_transition_days(year: int) -> tuple[date, ...]:
+    """The days in ``year`` on which British local time changes its UTC offset.
+
+    Read out of ``zoneinfo`` by walking the year rather than hardcoded as "the last
+    Sunday of March and of October", so the rule staying true is the tz database's job
+    and not this module's. Offsets are sampled at noon, which is never itself inside a
+    transition.
+    """
+    days: list[date] = []
+    cursor = date(year, 1, 1)
+    previous = datetime(cursor.year, cursor.month, cursor.day, 12, tzinfo=UK_TZ).utcoffset()
+    while cursor < date(year, 12, 31):
+        cursor += timedelta(days=1)
+        offset = datetime(cursor.year, cursor.month, cursor.day, 12, tzinfo=UK_TZ).utcoffset()
+        if offset != previous:
+            days.append(cursor)
+            previous = offset
+    return tuple(days)
+
+
+def _is_undefined_locally(naive: datetime) -> bool:
+    """True if this wall time does not exist, or exists twice, in British local time."""
+    # Non-existent: the clock jumped over it, so a round trip through UTC lands elsewhere.
+    aware = naive.replace(tzinfo=UK_TZ)
+    if aware.astimezone(UTC).astimezone(UK_TZ).replace(tzinfo=None) != naive:
+        return True
+    # Ambiguous: the clock repeated it, so the two folds disagree about the offset.
+    return (
+        naive.replace(tzinfo=UK_TZ, fold=0).utcoffset()
+        != naive.replace(tzinfo=UK_TZ, fold=1).utcoffset()
+    )
+
+
+def _recurs_into_a_transition(weekday: int, minute: int) -> bool:
+    """True if a weekly ``(weekday, minute)`` instant ever lands in a transition hour.
+
+    ``minute`` may be negative or past midnight — a lock or an opening is measured
+    *backwards* from the window's start — so it is normalised onto its real weekday
+    first, which is the whole reason a 03:00 Sunday window with a 90-minute lock is
+    caught while the window itself is fine.
+    """
+    total = weekday * MINUTES_PER_DAY + minute
+    weekday, minute = (total // MINUTES_PER_DAY) % 7, total % MINUTES_PER_DAY
+    this_year = datetime.now(UK_TZ).year
+    for year in range(this_year, this_year + _DST_HORIZON_YEARS):
+        for day in _uk_transition_days(year):
+            if day.weekday() != weekday:
+                continue
+            if _is_undefined_locally(
+                datetime(day.year, day.month, day.day) + timedelta(minutes=minute)
+            ):
+                return True
+    return False
+
+
+def _check_dst_safe_window(
+    *,
+    start_weekday: int,
+    start_minute: int,
+    end_weekday: int,
+    end_minute: int,
+    lock_offset_minutes: int,
+    pick_open_offset_minutes: int | None,
+) -> None:
+    """Refuse a window whose instants would land in the hour the clocks change.
+
+    Checked on the *resulting* configuration rather than a submitted field, for the same
+    reason ``_check_claim_period`` is: a PATCH that only moves the lock can push it into
+    the transition hour without ever naming the window it derives from.
+
+    All four instants are checked, not just the opening, because each is built by the
+    same wall-clock arithmetic and each is read as a real deadline: the opening and close
+    bound the provider query, the lock is when picks stop, and the announced opening is
+    when members are told they may claim.
+    """
+    unsafe = [
+        label
+        for label, weekday, minute in (
+            ("the window opening", start_weekday, start_minute),
+            ("the window close", end_weekday, end_minute),
+            ("the pick lock", start_weekday, start_minute - lock_offset_minutes),
+            *(
+                [
+                    (
+                        "the announced pick opening",
+                        start_weekday,
+                        start_minute - pick_open_offset_minutes,
+                    )
+                ]
+                if pick_open_offset_minutes is not None
+                else []
+            ),
+        )
+        if _recurs_into_a_transition(weekday, minute)
+    ]
+    if unsafe:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"This window puts {' and '.join(unsafe)} in the hour British clocks "
+                "change, which happens either twice or not at all on those two Sundays. "
+                "Move it outside 01:00-02:00 on a Sunday."
+            ),
+        )
+
+
 def _competitions_out(league: League) -> list[CompetitionRef] | None:
     """The league's competition selection, or ``None`` for the all-UK group."""
     if league.competitions is None:
@@ -633,6 +752,14 @@ async def create_league(
     exactly where every league stood before this batch, and the 06:00 job fills it in.
     """
     _check_claim_period(body.pick_open_offset_minutes, body.lock_offset_minutes)
+    _check_dst_safe_window(
+        start_weekday=body.slate_start_weekday,
+        start_minute=body.slate_start_minute,
+        end_weekday=body.slate_end_weekday,
+        end_minute=body.slate_end_minute,
+        lock_offset_minutes=body.lock_offset_minutes,
+        pick_open_offset_minutes=body.pick_open_offset_minutes,
+    )
     slug = await _unique_slug(db, body.name)
     markets = (
         _clean_markets(body.offered_markets)
@@ -1037,6 +1164,20 @@ async def update_league(
     else:
         # A lock moved on its own must still leave a stored opening valid.
         _check_claim_period(league.pick_open_offset_minutes, league.lock_offset_minutes)
+
+    # The clock-change check has to run on the *merged* league, so it cannot live in
+    # ``UpdateLeagueRequest`` the way it does in ``CreateLeagueRequest``: a PATCH naming
+    # only ``slate_start_minute`` is legal, and whether that minute is safe depends on the
+    # weekday already stored. Before ``rederive_claim_periods`` below, so a refused window
+    # never restamps a round.
+    _check_dst_safe_window(
+        start_weekday=league.slate_start_weekday,
+        start_minute=league.slate_start_minute,
+        end_weekday=league.slate_end_weekday,
+        end_minute=league.slate_end_minute,
+        lock_offset_minutes=league.lock_offset_minutes,
+        pick_open_offset_minutes=league.pick_open_offset_minutes,
+    )
 
     # Batch 65: the window edit reaches the rounds this league already holds. Every one
     # that has not locked is restamped from the new settings, so an announced opening
