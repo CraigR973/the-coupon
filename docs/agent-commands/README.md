@@ -24,11 +24,13 @@ Launch flow:
 ```
 
 Implementation belongs on the working branch created by the matching start
-workflow — for batches, `/batch-start` does this itself. Close-out is always
-an explicit user action and is the only workflow that commits, integrates,
-ticks the applicable source-of-record checklist, and appends a final log
-entry. Build history is recorded in `session-log.md`;
-launch history is recorded in `launch-log.md`.
+workflow — for batches, `/batch-start` does this itself. Close-out is the only
+workflow that commits, integrates, ticks the applicable source-of-record
+checklist, and appends a final log entry. **Build-batch close-out runs
+automatically** after a green `/batch-start` gate (owner decision, 2026-08-27;
+see `AGENTS.md`), and its push deploys the web app. **Launch close-out remains an
+explicit user action.** Build history is recorded in `session-log.md`; launch
+history is recorded in `launch-log.md`.
 
 The repository has no remote or deployment environments yet. The two ship
 commands therefore stop safely until launch infrastructure is configured.

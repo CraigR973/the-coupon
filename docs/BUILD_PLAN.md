@@ -37,8 +37,10 @@ Odds sit behind the provider-neutral `OddsProvider` port
 priced by Bet365, per ADR 0002 — with `BetfairAdapter` / `Betfair` retained as a
 fallback and `FakeBetfair` supplying deterministic catalogue and market-book
 shapes for tests (`ODDS_PROVIDER=fake`). Football tables and results come through
-a second port, `FootballDataProvider`, live as `ApiFootballProvider` and canned as
-`FakeFootballData`.
+a second port, `FootballDataProvider`. `FotMobProvider` is production per ADR 0007
+(`FOOTBALL_DATA_PROVIDER=fotmob`) — the only free source carrying the current
+season across all six English step 6-7 divisions the card needs; `ApiFootballProvider`
+is retained as an alternate, and `FakeFootballData` is canned for tests.
 
 ## Build batches
 
@@ -2677,6 +2679,420 @@ answered until it lands, because until then there is no data to look at.
   No change to `PickFormLine`, to what the leaderboard or the profile draw, or to how the
   run is computed — `recent_form_by_league` and its window are Batch 80's and are already
   proven. No new strip on the card.
+
+- [ ] **Batch 82 — Push subscriptions trust the endpoint an anonymous caller hands them**
+  — specified from `docs/review/2026-08-26/01-security.md`, SEC-12 (HIGH). `POST
+  /api/v1/push/subscribe` (`routers/notifications.py:31-113`) accepts any string as
+  `endpoint` and stores it verbatim. Delivery hands it straight to `pywebpush.webpush()`,
+  which POSTs to it server-side with no host/scheme check. Since Batch 63, anyone can
+  self-register, subscribe, and trigger a send via `/push/test` or an ordinary
+  notification trigger — an authenticated SSRF primitive with a fully attacker-chosen,
+  attacker-cadenced destination.
+
+  Validate `endpoint` before persisting a subscription: require `https://`, reject
+  loopback/link-local/private-range hosts (`127.0.0.0/8`, `169.254.0.0/16`,
+  `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, and IPv6 equivalents), and prefer an
+  allowlist of the known push-service hosts (`fcm.googleapis.com`,
+  `updates.push.services.mozilla.com`, `*.notify.windows.com`, `web.push.apple.com`) —
+  a legitimate browser subscription will only ever produce one of those.
+
+  Verification: a test that `/push/subscribe` rejects a non-HTTPS endpoint, a
+  private-range host, and a host outside the allowlist with 4xx rather than 201; a test
+  that a real push-service host still subscribes successfully.
+
+  Scope boundary: the subscribe endpoint's validation only. No change to delivery, to
+  the notification triggers, or to the VAPID signing path.
+
+- [ ] **Batch 83 — Two concurrent registrations for case-variant names both succeed**
+  — specified from `docs/review/2026-08-26/02-correctness.md`, CORR-06 (MED).
+  `/auth/register` pre-checks display-name uniqueness case-insensitively specifically to
+  stop leaderboard impersonation by case variant, but the backstop —
+  `uq_profiles_display_name` — is a case-sensitive constraint on the raw column. Two
+  concurrent registrations for `"Dave"` and `"dave"` both pass the pre-check and both
+  pass the constraint, producing exactly the duplicate identity the pre-check exists to
+  prevent. Only reachable since Batch 63 opened unauthenticated self-registration.
+
+  Close the actual race, not just the common case: either replace the unique constraint
+  with a functional unique index on `lower(display_name)` (needs a migration), or take a
+  `pg_advisory_xact_lock` keyed on the lowercased name before the pre-check.
+
+  Verification: a test that fires two concurrent registrations for case-variant names
+  against a real (not mocked) database and asserts exactly one succeeds.
+
+  Scope boundary: the registration race only. No change to the case-insensitive
+  pre-check's user-facing message or to login.
+
+- [ ] **Batch 84 — A league's window can be configured to land on the DST-transition hour**
+  — specified from `docs/review/2026-08-26/02-correctness.md`, CORR-05 (LOW, reachability
+  increased). `services/odds_provider.py:264-273` constructs local instants as
+  `datetime(y, m, d, tzinfo=UK_TZ) + timedelta(...)`, which is ambiguous/undefined at the
+  DST-transition hour itself. `create_league`/`update_league` accept any minute on any
+  weekday with no validation against this, and since Batch 63 any self-registered member
+  can reach `create_league` — before that, only owner-vetted accounts could.
+
+  Reject a league window/lock configuration whose computed local instant would fall in
+  the DST-transition hour, in the `CreateLeagueRequest`/`UpdateLeagueRequest` validators
+  in `routers/leagues.py`, with a clear 422 rather than a silent `fold=0` resolution.
+
+  Verification: a test that creating or updating a league with a window landing in the
+  transition hour is rejected; a test that every other window still succeeds.
+
+  Scope boundary: validation only. No change to how non-transition windows are computed.
+
+- [ ] **Batch 85 — The "member joined" notification skips the per-league mute it was Batch
+  76's job to enforce everywhere** — specified from `docs/review/2026-08-26/02-correctness.md`,
+  CORR-07 (LOW). `notify_member_joined` (`services/notification_triggers.py:40-53`) is the
+  one trigger Batch 76 didn't update to pass `league_id` into `send_notification`, so a
+  site admin who has muted a league still gets its "new member" push.
+
+  Give `notify_member_joined` a `league_id` parameter and pass it through at both call
+  sites (`routers/league_memberships.py:93,147`, `routers/leagues.py:1466`), matching the
+  other three triggers.
+
+  Verification: a test that a muted league's "member joined" notification is suppressed,
+  matching the existing coverage pattern for the other three triggers.
+
+  Scope boundary: this one trigger only.
+
+- [ ] **Batch 86 — Login and registration are the only screens with no landmark or heading**
+  — specified from `docs/review/2026-08-26/03-ux-accessibility.md`, UX-07 (moderate, axe:
+  `landmark-one-main`, `page-has-heading-one`, `region`). `LoginPage`/`RegisterPage`
+  render outside `Layout`/`ProtectedRoute`, so they get neither the `<main>` landmark nor
+  the `<h1>` every authenticated screen gets from `PageHeader`. New territory —
+  `/register` didn't exist as a public route before Batch 63.
+
+  Wrap both pages' content in a `<main>` and promote the card title ("Sign in" / "Create
+  account") to an `<h1>`, or add a visually-hidden one if the current `<h2>` styling
+  should stay as-is visually.
+
+  Verification: axe-core reports zero violations of these three rules on `/login` and
+  `/register` in both themes.
+
+  Scope boundary: these two pages' shell only. No visual redesign.
+
+- [ ] **Batch 87 — The service worker caches authenticated JSON the server marked `no-store`**
+  — specified from `docs/review/2026-08-26/01-security.md`, SEC-13 (LOW). `sw.ts:40-50`'s
+  Workbox `NetworkFirst` route caches every `/api/v1/*` 200 response for up to an hour,
+  independent of `Cache-Control: no-store` (SEC-11's fix). Mitigated on logout/login-switch
+  via `clearApiCaches()`, but a device that's merely *locked* (not logged out) keeps up to
+  an hour of the previous reader's league data in Cache Storage.
+
+  Either make the route's `matchCallback` skip caching when the response carries
+  `Cache-Control: no-store`, or drop `CacheableResponsePlugin` for `/api/v1/*` entirely —
+  `NetworkFirst`'s in-flight fallback covers the flaky-connection case this route exists
+  for without persisting anything to Cache Storage.
+
+  Verification: a test/manual check that an authenticated GET response is absent from
+  Cache Storage immediately after the request completes.
+
+  Scope boundary: the service worker's caching strategy only.
+
+- [ ] **Batch 88 — The login/register redirect guard misses the backslash open-redirect bypass**
+  — specified from `docs/review/2026-08-26/04-operations.md`, OPS-08 (MED). `LoginPage.tsx:37-40`
+  and `RegisterPage.tsx:57-60` guard `?next=` against `//evil.com` but not `/\evil.com`,
+  which browsers resolve identically for `http(s)` schemes (GHSA-wrjc-x8rr-h8h6). No fix
+  exists on react-router 6.x; the complete fix is a v7 migration, out of proportion to
+  this specific gap.
+
+  Harden both guards to also reject a destination whose second character is `\`, or
+  resolve `destination` through `new URL(requested, location.origin)` and compare
+  `.origin` before navigating.
+
+  Verification: a test that `?next=/\evil.com` (and `/\/evil.com`) redirect to `/`, not
+  off-origin, on both pages.
+
+  Scope boundary: the two redirect guards only. Not the react-router major-version
+  migration — track that separately if it's ever taken on.
+
+- [ ] **Batch 89 — Pick submission has a per-member limit but no aggregate one**
+  — specified from `docs/review/2026-08-26/04-operations.md`, OPS-10, continuing CORR-03
+  from the 2026-08-22 review. `PICK_SUBMIT_LIMIT = 10/hour` bounds one member; a league at
+  its actual ceiling (`max_members = 50`) can generate `500/hour` against a `100/hour`
+  odds-provider plan — a 5x overshoot. `consume_shared_limit` already exists and is used
+  elsewhere (`routers/leagues.py:122`, `routers/admin.py:814`) but isn't wired into the
+  pick-submit path. Public self-registration (Batch 63) makes a league actually reaching
+  toward that ceiling a live possibility rather than a hypothetical.
+
+  Wire `consume_shared_limit` into `POST /picks`, keyed per league per hour against the
+  provider budget. Owner decision 2026-08-27: when the shared bucket is empty the pick is
+  **refused with a clear, specific reason** — "too many picks being made right now, try
+  again in a few minutes" — not queued and not served a cached price. That keeps the
+  frozen-odds invariant intact (`routers/picks.py:72` documents why a pick can never
+  freeze a price it could not confirm) and leaves the member in no doubt that their claim
+  did not land, which matters in a first-come land-grab.
+
+  Verification: `test_the_pick_path_is_not_bounded_in_total_and_this_is_known`
+  (`tests/test_request_budget.py:286-301`) replaced by one asserting the real bound; a
+  test that the 51st pick in an hour against a full-budget league is refused with a
+  clear reason.
+
+  Scope boundary: the pick-submit path only. No change to `PICK_SUBMIT_LIMIT` itself.
+
+- [ ] **Batch 90 — Pick submission — the app's core action — has no offline resilience**
+  — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-B01 (HIGH).
+  `usePickEditor.ts:67-86` is a bare `useMutation` around `POST .../picks`: no retry, no
+  offline detection, no queued/background-sync submission. A failed request under a weak
+  signal — the exact circumstance this app is used hardest under, a Saturday afternoon —
+  surfaces only as a generic "Could not save your pick — try again," indistinguishable
+  from a real 409 conflict, with no way for the member to tell whether their claim landed
+  before someone else took the selection. Reads already get a resilient Workbox
+  `NetworkFirst` cache with an offline fallback; the one write that matters gets nothing.
+
+  Give pick submission genuine offline resilience: detect offline/flaky state before
+  submitting, distinguish "definitely failed, retry" from "unknown — check before
+  retrying" (a retry that silently double-submits a claim is worse than the current
+  failure), and surface the real state (queued / confirmed / lost-the-race) rather than
+  one generic toast.
+
+  Verification: a test that a submission during simulated offline/timeout state does not
+  silently double-submit on reconnect; a test that the UI distinguishes "your claim is
+  unconfirmed" from "someone else got there first."
+
+  Scope boundary: pick submission's client-side resilience and messaging. No change to
+  the server-side lock-then-fetch-odds ordering (Batch 57), which already handles the
+  server half of this correctly.
+
+- [ ] **Batch 91 — New leagues default to fully open with no explanation**
+  — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-B02/FEAT-A05 (MED).
+  `CreateLeaguePage.tsx:24` initialises `privacy = 'public_open'` with no copy explaining
+  what that now means: since Batch 63 opened self-registration, "open" means any stranger
+  with an account, not just people the creator already knows — in a product whose own
+  one-line description is "private."
+
+  Owner decision 2026-08-27: **change the default to invite-only.** The least-private
+  option should not be what someone gets by not touching a dropdown, in a product whose
+  premise is privacy — a friend spinning up "our Saturday crew" almost certainly means a
+  private league. Add explanatory copy to the selector as well, so each option's actual
+  consequence is legible at the point of choice.
+
+  Verification: a test that a league created without specifying privacy is invite-only; a
+  test/manual check that the selector's copy reflects the real consequence of each option.
+
+  Scope boundary: `CreateLeaguePage`'s default and copy. No change to the privacy enum,
+  and **no change to existing leagues** — production's `test` league stays `public_open`
+  as it was deliberately left on 2026-08-20.
+
+- [ ] **Batch 92 — A settled result can't be shared, only the pre-lock coupon can**
+  — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-B06 (LOW).
+  `CombinedAccaView.tsx` has copy-to-clipboard for the pre-lock coupon (Batch 24); nothing
+  equivalent exists for "we hit 5/6 this week" or a season rank — the two moments members
+  are most likely to want to show someone outside the app. Today that requires a
+  screenshot.
+
+  Extend the existing clipboard-share pattern to the settled result view and the
+  standings screen.
+
+  Verification: a test that the settled-result share text includes the score line and
+  matches the existing coupon-share format's conventions.
+
+  Scope boundary: share text generation and the button, reusing the existing
+  clipboard mechanism. No new share targets (e.g. native share sheet) beyond what
+  Batch 24 already established.
+
+- [ ] **Batch 93 — Three renamed members were never told, and their old names are now
+  registrable by strangers** — specified from `docs/review/2026-08-26/05-feature-gaps.md`,
+  FEAT-A08 (LOW). Batch 74 renamed three members for sign-in purposes; nobody was signed
+  out (the JWT subject is the player id, so their session kept working), so the surprise
+  lands at next PIN reset/session expiry, days later and looking unrelated. The freed
+  short names are now open to registration by anyone, per Batch 63.
+
+  Notify the three affected members directly (in-app notification or push, per the
+  existing notification path) that their sign-in name changed and what it changed to.
+
+  Verification: confirm the three affected accounts receive the notification once,
+  idempotently, on this batch's deploy.
+
+  Scope boundary: a one-time notification for the three already-affected accounts. No
+  general "display name changed" notification system unless a future batch renames
+  someone again.
+
+- [ ] **Batch 94 — League admins have no audit-trail visibility into their own league**
+  — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-B04 (MED). `AuditLog`
+  rows are written for league-level admin actions (promote/demote/remove a member,
+  settings changes), but the only reader anywhere in the API is the site-admin-only
+  `GET /api/v1/admin/dashboard`, capped at 25 rows, global across every league in the
+  deployment. In this product a league "admin" is usually just the friend who set the
+  league up, not the site operator, and that person can't see who changed the fixture
+  window or who was removed from their own league.
+
+  Add a league-scoped audit endpoint (`GET /api/v1/leagues/{slug}/audit-log`, gated by
+  `LeagueAdminDep`) and a page/section surfacing it, filtered to that league only, with
+  pagination rather than the dashboard's flat 25-row cap.
+
+  Verification: a test that a league admin sees only their own league's audit rows, with
+  no cross-league leakage; a test that a non-admin member is refused.
+
+  Scope boundary: read access to existing `AuditLog` rows. No change to what gets
+  written or to the site-admin dashboard.
+
+- [ ] **Batch 95 — The scored history of the game has no second copy**
+  — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-A02 (HIGH); owner
+  decision 2026-08-27: **durable logical backups**, not managed PITR. `picks.odds_at_pick`,
+  `points_awarded` and `status` exist in exactly one place. Batch 75 removed the nightly
+  `pg_dump` because it wrote to `/tmp` on a service with no mounted volume — every dump
+  was lost on the next redeploy — and explicitly disclaimed being the fix.
+
+  Restore a scheduled logical backup, written to durable off-box storage rather than the
+  container filesystem. `scripts/agent/l3-logical-backup.py` and
+  `l3-restore-rehearsal.py` already exist and are the starting point; what they need is a
+  destination that survives a redeploy and a schedule that runs them.
+
+  **Two things to settle inside this batch.** The storage destination is an owner choice
+  (S3, R2, Backblaze — anything off-platform). And the dump pulls the whole database out
+  over Supabase egress, which is the same quota FEAT-A09 has an unattributed consumer on
+  — so this batch should not land before that investigation has at least established
+  headroom, or it risks re-triggering the `exceed_egress_quota` 402 that took avatar
+  storage down on 2026-08-25.
+
+  Verification: a restore rehearsal against a scratch database proving the dump is
+  actually recoverable, not merely written; a test that the job's destination is
+  configured and reachable before the dump starts, so a misconfigured target fails loudly
+  rather than silently producing nothing.
+
+  Scope boundary: logical backup and restore rehearsal. Not managed PITR — that was
+  considered and set aside on 2026-08-27.
+
+- [ ] **Batch 96 — "Season tables" that never start a new season**
+  — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-B03 (MED); owner
+  decision 2026-08-27: **add a real season boundary**. `standings_by_league`
+  (`services/scoring.py:418-460`) aggregates every settled pick a league has ever played,
+  unbounded by date, despite its own docstring calling the result "Season tables." A
+  league that runs three years reads as one never-ending table.
+
+  Give standings a season boundary and archive past seasons so they stay viewable.
+  `season_bounds` / `next_gameweek_number` (`services/gameweek.py:66-94`) already
+  establish what a season *is* for gameweek numbering — reuse that definition rather than
+  inventing a second one, so the leaderboard and the round numbers can never disagree
+  about which season a round belongs to.
+
+  Verification: a test that a settled round outside the current season is excluded from
+  the live table and present in the archived one; a test that a league spanning a season
+  boundary reports the correct totals on both sides of it; a test that `recent_form`
+  (Batch 80) does not silently span the boundary.
+
+  Scope boundary: the season boundary, the archive read, and the screens that draw them.
+  No change to how points are computed, and no cross-league or league-vs-league
+  comparison — that was a separate idea and is not being taken.
+
+- [ ] **Batch 97 — Home stops a third of the way down the screen**
+  — specified from `docs/review/2026-08-26/06-ux-design.md`, UX-09; owner decision
+  2026-08-27: **both more content and a scale pass**. At 390×844 the home card and Batch
+  79's result panel end within the top third and leave ~400px of empty background, which
+  reads as unfinished rather than minimal. This is now the main lever for the app's
+  visual quality, since team imagery was considered and declined (UX-10).
+
+  Two halves, deliberately in one batch because doing either alone leaves the screen
+  looking wrong. **Content:** give home more to say — the next round's opening/lock
+  countdown, the member's *other* leagues (this is a multi-league product and home draws
+  one card), and/or a recent-activity line. **Scale:** let what is there breathe — larger
+  type, more generous spacing, a taller hero — so the screen fills by design.
+
+  Verification: `scripts/ci-local.sh` PASS; screenshots at 390×844 in both themes showing
+  the screen filling the viewport; axe-core reporting zero violations on home in both
+  themes, since this batch adds new content to a screen that currently has none.
+
+  Scope boundary: the home screen. Standings looked sparse in the review screenshots too,
+  but that was a three-member test seed — a real 15-50 member league fills it, so
+  standings is explicitly not in scope.
+
+- [ ] **Batch 98 — Avatar initials use fill colours as text colours**
+  — specified from `docs/review/2026-08-26/03-ux-accessibility.md`, UX-08 (serious,
+  axe `color-contrast`); owner decision 2026-08-27: **solid fill with high-contrast
+  text**. `avatar.tsx`'s `PALETTE` renders initials in raw medal/brand fill tokens over a
+  15%-tint background. Bronze measures 4.05:1 against a 4.5:1 requirement, and the
+  existing `--bronze-ink` only reaches 4.14:1 — a token swap does not clear it. Only 2 of
+  6 palette slots were exercised by the review's seed, so the others are unverified
+  rather than known-good.
+
+  Drop the tint: solid coloured avatar, white or near-black initials chosen per slot for
+  contrast. This clears AA by construction on every slot instead of tuning six colours
+  against a wash, and permanently retires the fill-versus-text collision `index.css:126-131`
+  already describes.
+
+  Verification: every one of the six palette slots measured against its own background in
+  both themes, all ≥4.5:1 — not just the two the seed happened to hash onto; axe-core
+  reporting zero `color-contrast` violations on standings in both themes.
+
+  Scope boundary: the avatar component's colour treatment. No change to `tintFor()`'s
+  hashing, so a given member keeps their existing slot.
+
+- [ ] **Batch 99 — Every rate limit resets on redeploy**
+  — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-A03 (MED); owner
+  decision 2026-08-27: **make the security-critical limits durable, leave the rest**.
+  Counters live in process memory, so a Railway restart hands every IP-keyed limiter a
+  fresh bucket — and this project redeploys often.
+
+  Move the counters where a reset is a security event to Postgres: `/auth/login` and
+  `/auth/pin/reset-request`. Leave the provider-budget limiters in memory, where a reset
+  costs provider requests rather than protection. The per-profile PIN lockout is already
+  durable and stays as it is — this batch closes the IP-keyed half that sits in front of
+  it.
+
+  Verification: a test that a login limiter's count survives a simulated process restart;
+  a test that the provider-budget limiter deliberately does *not*, so the split is
+  asserted rather than assumed.
+
+  Scope boundary: the login and PIN-reset limiters. No new infrastructure — Postgres, not
+  Redis.
+
+- [ ] **Batch 100 — Migration-on-boot is safe only while nobody raises the replica count**
+  — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-A04 (LOW); owner
+  decision 2026-08-27: **guard the precondition in code**. `alembic upgrade head` runs
+  inside the web process on boot, which is correct only because `railway.toml` pins
+  `numReplicas = 1`. Today the constraint is held by a note asking people to read it.
+
+  Make the app enforce it: detect a replica count above one at boot and refuse to migrate
+  (failing loudly, or skipping the migration and letting a designated instance own it)
+  rather than letting two processes race `alembic upgrade head` against the same database.
+
+  Verification: a test that the guard trips when the replica count is >1, and that the
+  single-replica path is unchanged.
+
+  Scope boundary: the boot-time guard. Migrations stay in the web process — moving them
+  to a separate release step was considered and set aside on 2026-08-27.
+
+- [ ] **Batch 101 — Three shipped features rest on a provider whose terms forbid us, with no trigger**
+  — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-A07 (LOW); owner
+  decision 2026-08-27: **define a trigger and alert on it**. FotMob's terms prohibit
+  automated access; the owner took that knowingly and it stays revisitable. What is
+  missing is the "revisit" signal: FotMob now underpins Football Stats (Batch 46/51), the
+  void-fixture cross-check that removes phantom fixtures before lock (Batch 64), and live
+  in-play scores (Batch 72), and TheSportsDB is named as the fallback with nothing
+  tracking when to reach for it.
+
+  Decide what counts as "this has bitten" — sustained request failures, a block, a
+  changed response shape — and alert on it, so the switch is a deliberate decision rather
+  than something discovered on a Saturday when the card breaks. The void-fixture
+  cross-check is the one that affects whether a member's pick is valid, so it should
+  carry the loudest signal.
+
+  Verification: a test that the trigger fires on the defined failure condition and stays
+  quiet on an ordinary transient error.
+
+  Scope boundary: detection and alerting. This batch does not build the TheSportsDB
+  adapter — that was considered and set aside as a separate future call.
+
+- [ ] **Batch 102 — react-router 6 has no patch for its open-redirect advisory**
+  — specified from `docs/review/2026-08-26/01-security.md`, SEC-10; owner decision
+  2026-08-27: **migrate to react-router 7**. The advisory (GHSA-jjmj-jmhj-qwj2 /
+  GHSA-wrjc-x8rr-h8h6) is genuinely unreachable in this tree — re-derived against the
+  actual fix commit, not the advisory title — but there is no fix on the 6.x line at all,
+  so it re-surfaces as open on every dependency scan and each scan costs someone the
+  reachability analysis again.
+
+  Take the major-version upgrade to react-router 7.18+. This has its own blast radius —
+  data routers, the loader API — which is why it is its own batch rather than folded into
+  the review's fixes.
+
+  **Land Batch 88 first.** That batch closes the app's own `?next=` backslash gap, which
+  is a real code-level defect independent of the framework version; this batch should not
+  be what the fix waits on.
+
+  Verification: `scripts/ci-local.sh` PASS; the Playwright deep-link smoke passing against
+  the prod bundle, since routing is exactly what this batch changes; Batch 88's redirect
+  tests still green on the new major.
+
+  Scope boundary: the react-router upgrade and whatever it forces. No routing redesign.
 
 ## Verification
 

@@ -41,10 +41,60 @@ file:
 - `/ship-staging [message]` → `docs/agent-commands/ship-staging.md`
 - `/ship-prod` → `docs/agent-commands/ship-prod.md`
 
-Close-out is explicit. Do not commit, merge, tick a build batch, or append its
-final session-log entry until the user invokes `/phase-closeout <id>`. Do not
-commit, merge, tick a launch phase, or append its final launch-log entry until
-the user invokes `/launch-closeout <L0-L5>`.
+**Build-batch close-out is automatic** (owner decision, 2026-08-27, overriding the
+global rule that close-out waits for a slash command). When `/batch-start <N>`
+finishes and the full `scripts/ci-local.sh` gate is green, run
+`docs/agent-commands/phase-closeout.md` for that batch without being asked —
+including step 8's push. Stop and report instead of closing out if the worktree
+holds anything beyond that batch, or if the batch row is already ticked.
+
+### A red gate: fix it, but only in one direction
+
+A red gate does not stop the run by itself — fix the failure and rerun the whole
+gate, up to **three attempts at the same failing check** (owner decision,
+2026-08-27). Classify it first, because only one class is yours to fix inside the
+batch:
+
+- **The batch's own doing** — lint, format, types, a test it wrote or broke. Fix
+  the code and rerun. This is the normal case and needs no permission.
+- **The environment** — the documented one is `test_seeds` failing on a reused
+  PostgreSQL cluster, because the HTTP pick-flow test and the e2e seeder both
+  commit (`batch-verify.md`). Reset to a clean schema and rerun; do not touch the
+  test. Environment resets do not count against the three attempts.
+- **A pre-existing red on `main`** — **stop and report.** A red baseline is fixed
+  on its own `fix/` branch and closed out first, never folded into the batch. The
+  same applies if the fix would require changes outside this batch's scope
+  boundary. If you cannot tell which class it is, run the failing test alone
+  against `main` before assuming it is yours.
+
+**Never reach green by weakening the gate.** Deleting or skipping a test,
+loosening an assertion, changing an expected value to match what the code now
+emits, adding `# type: ignore` or an eslint-disable to silence rather than solve,
+marking `xfail`, or lowering a threshold are all forbidden as a route to green —
+including when they would technically be defensible. Close-out now deploys, so
+this gate is the last thing standing between a mistake and members; an agent that
+edits the gate to satisfy the gate has removed the only safeguard left. If green
+genuinely requires changing a test's expectations, that is a decision to report,
+not to take.
+
+**Report every failure and fix in the close-out report**, including ones fixed on
+the first attempt. With no manual review before the push, that report is the only
+record of what went wrong on the way to shipping.
+
+**What that push means.** Step 8 pushes `main` and Vercel releases the web app
+from it, so a batch's frontend half reaches members minutes after it verifies,
+before CI has necessarily reported. Two consequences to hold:
+
+- A batch whose web half calls an API route the deployed image does not serve
+  breaks production until `/ship-prod` runs. Step 9 prints the drift; when it
+  says a ship is owed and the batch added both halves of one feature, say so
+  loudly in the close-out report rather than leaving it in the output.
+- The owner's review window is now *after* the deploy, not before it. Report
+  what shipped clearly enough to be reverted.
+
+**Launch close-out stays explicit.** Do not commit, merge, tick a launch phase,
+or append its final launch-log entry until the user invokes
+`/launch-closeout <L0-L5>`.
 
 ## Toolchain
 
@@ -60,7 +110,9 @@ scripts/ci-local.sh              # everything CI runs; SKIP_PROD_BUNDLE=1 to dro
 from `apps/api/requirements-dev.txt`, so the versions match the pins rather than whatever
 is on `PATH`; it starts a clean `pgserver` and runs `alembic upgrade head` before pytest,
 so the **151 Postgres-backed tests actually execute** instead of skipping; and it checks
-the deployment config and the frontend as well. Ten checks, no skips.
+the deployment config and the frontend as well. Eleven checks, no skips — ten with
+`SKIP_PROD_BUNDLE=1`, which drops the Playwright deep-link smoke against the
+prod bundle.
 
 Running pytest without `DATABASE_URL` is **509 passed, 151 skipped**, and the skipped set
 is the HTTP pick flow, settlement, the scheduler jobs, slate persistence, seeds and every

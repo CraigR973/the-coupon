@@ -18,7 +18,8 @@ description: Generate the next Coupon batch prompt from the checked build plan.
    - the relevant Verification bullets verbatim;
    - still-relevant gotchas from the preceding session-log entry;
    - the backend and frontend toolchain from `AGENTS.md`;
-   - instructions to work on a `feat/` branch, ship tests, and stop before
-     `/phase-closeout <N>`.
+   - instructions to work on a `feat/` branch, ship tests, and close out
+     automatically on a green gate per `AGENTS.md` — noting that the close-out
+     push deploys the web half to members.
 
 Never invent a batch or acceptance criterion. The user chooses the model.

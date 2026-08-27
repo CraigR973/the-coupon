@@ -88,5 +88,6 @@ the HTTP pick-flow test and the e2e seeder both commit, so a reused cluster fail
 When browser behavior is in scope, run the production-preview Playwright flow and retain
 its screenshots.
 
-Report every command and result. Do not commit or merge; close-out remains a
-separate user-triggered action.
+Report every command and result. Do not commit or merge from *this* workflow —
+`/batch-verify` is the standalone gate and stops here. Automatic close-out runs
+from `/batch-start` instead (see `AGENTS.md`), which calls this same gate first.

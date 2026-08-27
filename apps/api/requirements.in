@@ -64,7 +64,12 @@ pillow==12.3.0
 #   46.0.7  fixes a buffer overflow on non-contiguous buffers into Hash.update
 #   48.0.1  ships an OpenSSL without the 2026-06-09 advisory statically linked
 #   49.0.0  X.509 path-building blowup — this app validates no chains
+#   49.0.0  wildcard-SAN escape in `cryptography.x509.verification` — same, no chain validation here
 #   50.0.0  PKCS#7 EnvelopedData Bleichenbacher oracle — this app decrypts no PKCS#7
+#
+# Re-audited 2026-08-26 (docs/review/2026-08-26/04-operations.md, OPS-07): same three
+# CVEs, same disposition. If the macOS-wheel gap ever closes (or a Rust toolchain
+# becomes acceptable in CI), 49.0.0+ clears all three at once.
 #
 # So 48.0.1 clears everything reachable. It is also the last version publishing a macOS
 # `universal2` wheel, which installs on Intel as well as Apple silicon; 49 and 50 publish

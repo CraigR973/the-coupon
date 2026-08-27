@@ -4,9 +4,13 @@ description: Close a verified Coupon batch on local main.
 
 # /phase-closeout
 
-This workflow runs only when the user explicitly invokes
-`/phase-closeout <N>`. `$ARGUMENTS` must be a numeric batch present in
-`docs/BUILD_PLAN.md`.
+`$ARGUMENTS` must be a numeric batch present in `docs/BUILD_PLAN.md`.
+
+This workflow runs **automatically** once `/batch-start <N>` has finished and the
+full `scripts/ci-local.sh` gate is green (owner decision, 2026-08-27; see
+`AGENTS.md`). It can still be invoked directly as `/phase-closeout <N>`. Do not
+run it — stop and report instead — if the gate is red, if the worktree holds
+changes beyond the batch, or if the batch row is already ticked.
 
 1. Confirm the batch row is unchecked, the current branch matches
    `feat/*`, `fix/*`, or `chore/*`, and the worktree contains only the intended
