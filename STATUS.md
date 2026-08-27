@@ -1115,10 +1115,21 @@ start → close-out cycles with **one `/ship-prod` at the group boundary**.
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday watch**,
 with L0-L4 ticked since 2026-08-04.
 
-**Group A (Batches 82, 83, 84, 85) is complete and is API-only.** All four are on `main`
-and none of them has reached members: the group's single `/ship-prod` is what carries them,
-and **it applies migration 017**, so it is the first shipment since 016 that can fail on
-boot rather than merely fail to help. Nothing in it reaches members
+**Group A (Batches 82, 83, 84, 85) is complete and shipped.** Production serves
+`3cb8b4f1` at migration **`017`** after the 2026-08-27 `/ship-prod`, Railway deployment
+`caeb17c2-732c-4195-9322-e7b84e7db3d8`. `check-deploy-drift.sh` reports **in sync**.
+
+**Migration 017's unverified precondition resolved clean.** It refuses to run if two
+profiles already collide case-insensitively, and whether any did could not be checked
+beforehand — the production Postgres host publishes AAAA records only and this workstation
+has no IPv6 route, while the project's REST API answers 402 under the egress quota. The
+upgrade ran, which is itself the proof no collision existed; confirmed afterwards from
+inside the container (`uq_profiles_display_name_lower` present, the old constraint gone,
+collision count 0).
+
+**Group B is next — Batches 86, 88, 87, web only, and it owes no `/ship-prod`.** 86 and 88
+touch the same two files (`LoginPage.tsx`, `RegisterPage.tsx`) so run them adjacent, and 88
+unblocks Group H. Nothing in it reaches members
 on a close-out push, which is why the group can run without the deploy asymmetry that broke
 the Coupon tab on 2026-08-06.
 
@@ -1135,13 +1146,15 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**A `/ship-prod` is owed** — Batches 82, 83, 84 and 85 are all backend changes sitting on
-`main` and unshipped. The
-SSRF Batch 82 closes stays open in production until then, and **that ship applies migration
-017**, which is the group's one irreversible-ish step: it refuses to run if two profiles
-already differ only by case, which would leave the API refusing to boot until one is
-renamed. Nothing here could verify prod's profile names in advance, so read the error if
-the deploy stalls — it names them.
+**No `/ship-prod` is owed.** Batches 82-85 went to production on 2026-08-27 as Railway
+deployment `caeb17c2-732c-4195-9322-e7b84e7db3d8`, message `ship production 3cb8b4f`.
+**There is no usable API rollback baseline** — `a8ab5234-06c2-41d3-8358-405d95910d15` is
+recorded as the previous healthy deployment but a pre-`017` image cannot boot against a
+database stamped `017`, so recovery is forward-only until the next shipment that applies no
+migration. Vercel rollback is unaffected.
+
+The authenticated SSRF at `POST /push/subscribe` — the review's only HIGH — is closed in
+production as of this shipment. It had been open since Batch 63 opened self-registration.
 
 Batches 79-81 went to production on 2026-08-26 as Railway
 deployment `a8ab5234-06c2-41d3-8358-405d95910d15`, message `ship production f41a383`,

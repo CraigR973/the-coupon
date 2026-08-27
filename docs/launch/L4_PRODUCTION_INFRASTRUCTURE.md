@@ -628,6 +628,9 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-08-25 | Railway `api` | `691128d6-619f-4b8c-949c-af3667c6e50b` (`REMOVED`) | `18dfb9f` (redeploy, no new commit) | `016` |
 | 2026-08-26 | Vercel web | `dpl_6co4m3VtCnLMz1JPJY5GYdXUiezH` | `a7573e32` (Batches 61, 73–76) | — |
 | 2026-08-26 | Railway `api` | `53a76dcd-ece2-4813-80a4-3f81739467d9` | `a7573e32` (Batches 61, 73–76) | `016` |
+| 2026-08-26 | Railway `api` | `a8ab5234-06c2-41d3-8358-405d95910d15` | `f41a383a` (Batches 79–81) | `016` |
+| 2026-08-27 | Vercel web | `dpl_AA5mjrASLwSikRYYxuYHtC1Xajcm` | `3cb8b4f1` (Batches 82–85) | — |
+| 2026-08-27 | Railway `api` | `caeb17c2-732c-4195-9322-e7b84e7db3d8` | `3cb8b4f1` (Batches 82–85) | **`017`** |
 
 The 2026-08-19 shipment carries Batch 35 and is the **first API deployment since
 `013` that applies no migration**, which is what restores the rollback target the
@@ -1561,3 +1564,51 @@ widens that window from once a day to once an hour — though it also narrows th
 radius, since the job now only matches rounds locking in about three hours. This shipment
 was unaffected: it reached `SUCCESS` in ~90 seconds and no league had a round in the
 reminder window.
+
+### 2026-08-27 — `3cb8b4f1`, Group A of the 2026-08-26 review (Batches 82–85)
+
+Source commit `3cb8b4f1`, gate green (11 checks) and a GitHub `Quality` run confirmed to
+**exist** for the commit rather than merely not to have failed. Head moves `016` → **`017`**,
+so `a8ab5234-06c2-41d3-8358-405d95910d15` — the recorded rollback baseline — **is now
+unusable**: a pre-`017` image ships revisions `001`–`016` only and its Alembic cannot
+resolve `017`, so it would fail before uvicorn. Recovery is forward-only, per the plan
+above. Vercel rollback is unaffected.
+
+Railway `caeb17c2-732c-4195-9322-e7b84e7db3d8`, `SUCCESS`. Section 4 was skipped by design
+again: `dpl_AA5mjrASLwSikRYYxuYHtC1Xajcm` already held the stable alias and its
+`githubCommitSha` reads `3cb8b4f1c562211118ce1c1a5a18e43104611e45`, read from the Vercel
+API rather than inferred from timing.
+
+Content is the API half of the 2026-08-26 review's Group A: an authenticated SSRF closed
+at `POST /push/subscribe` (the review's only HIGH), the display-name uniqueness backstop
+made case-insensitive, a league window refused when it would land on the clock-change hour,
+and the fourth notification trigger brought under the per-league mute.
+
+**`017` was shipped without its precondition verified, deliberately and with a stated
+fallback.** Whether two production profiles already collided case-insensitively could not
+be checked beforehand — `db.pugujiiojitstkilphrz.supabase.co` publishes AAAA records only
+and the workstation has no IPv6 route, and the project's REST API answers `402` under the
+egress quota. The migration's own pre-flight check was the mitigation. **It passed: the
+upgrade ran, so no collision existed.** Confirmed afterwards from inside the container —
+`uq_profiles_display_name_lower` present, `uq_profiles_display_name` gone, and the
+collision query returns 0.
+
+Post-deploy verification: `/health` reports sha `3cb8b4f1` and migration `017`,
+`/health/ready` agrees at `017` with `db: ok`; RLS is on all 18 public tables with **zero**
+grants to `anon`/`authenticated`/`PUBLIC`; the web root and a deep link serve one identical
+SPA asset (matching SHA-256) carrying all three committed headers; a preflight from the
+stable origin returns 200 with the exact origin and credentials enabled while a foreign
+origin is refused with 400; `/api/docs` 404s; and two bounded log snapshots showed a clean
+`Running upgrade 016 -> 017`, uvicorn and the scheduler up, zero failure-shaped lines and
+zero matches across six secret-leakage patterns.
+
+**The 0.25 vCPU / 500 MB limits were again not verified** — the same dead end recorded on
+2026-08-26. `railway.toml` does not declare them and the GraphQL schema reachable from the
+CLI rejects `cpuLimit`/`memoryLimit` on `serviceInstance`. Everything `railway.toml` *does*
+declare verified against the deployment manifest: one replica in `europe-west4-drams3a`,
+`sleepApplication: false`, `ipv6EgressEnabled: true`, healthcheck `/api/v1/health/ready`
+with a 300s timeout.
+
+**Batch 82's validation was not probed in production.** Exercising `/push/subscribe` needs
+an authenticated account and writes a row, which is outside what may be run against
+production here; it is covered by 17 gate tests instead.

@@ -2547,3 +2547,36 @@ attempt**, see below
   applies **migration 017**.
 
 **Next:** `/ship-prod` for Group A, then Group B (Batches 86, 88, 87 — web only, no ship).
+
+## Shipment 2026-08-27 — Group A (Batches 82-85) to production
+**Commits:** `3cb8b4f1` · Railway `caeb17c2-732c-4195-9322-e7b84e7db3d8` · migration `016` → **`017`**
+
+### Key facts for future sessions
+- **There is no usable API rollback baseline until the next migration-free shipment.**
+  `a8ab5234` is recorded as the previous healthy deployment but bundles revisions `001`-`016`
+  only, so against a database stamped `017` its Alembic fails before uvicorn. Forward-only,
+  as after `012`, `013` and `014`/`015`.
+- **017's precondition was unverifiable beforehand and resolved clean.** The upgrade running
+  at all is the proof no case-variant collision existed; confirmed afterwards inside the
+  container. The migration's own pre-flight check was what made shipping it defensible
+  without that check — an abort would have left production untouched on `a8ab5234`.
+- **`railway ssh` + `psql` is the only path from this workstation to the production
+  database.** Direct `asyncpg` no longer works: the host publishes AAAA records only and
+  this Mac has no IPv6 route (`getaddrinfo` raises). The REST API is not an alternative —
+  it answers **402** under the egress quota. Strip `+asyncpg` from the scheme *and* the
+  `?ssl=` query before handing the URL to psql, and never let it reach stdout.
+- **Section 4 (Vercel) was skipped by design again.** The GitHub integration had already
+  built `3cb8b4f1` and held the stable alias; confirmed by reading `githubCommitSha` off the
+  Vercel API, never from timing.
+- **The committed header set is exactly three** — `X-Content-Type-Options`,
+  `Referrer-Policy`, `Permissions-Policy` (`apps/web/vercel.json`). HSTS is Vercel's own.
+  No CSP and no `X-Frame-Options` is committed, so their absence is not a regression.
+- **The 0.25 vCPU / 500 MB limits are still unverifiable** — the same dead end as
+  2026-08-26. `railway.toml` does not declare them and the CLI-reachable GraphQL schema
+  rejects `cpuLimit`/`memoryLimit` on `serviceInstance`. Everything it *does* declare
+  verified against the deployment manifest.
+- **Batch 82's fix was not probed in production** — that needs an authenticated account and
+  writes a row. It rests on the gate's 17 tests.
+
+**Next:** Group B — Batches 86, 88, 87 (web only, no `/ship-prod` owed). 86 and 88 touch the
+same two files, so run them adjacent; 88 unblocks Group H.
