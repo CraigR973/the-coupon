@@ -2431,3 +2431,30 @@ before its 13:30 lock) and left `status = 'open'`.
   table should not pay for a run.
 
 **Next:** `/ship-prod` for Batches 79-81, then Launch phase L5.
+
+## Batch 82 — Push subscriptions trust the endpoint an anonymous caller hands them
+**Commits:** 82b4b14 · verified: `scripts/ci-local.sh` PASS (11 checks), green first attempt
+
+### Key facts for future sessions
+- **The allowlist is the control; the private-range check is not.** No RFC1918 literal can
+  also be `fcm.googleapis.com`, so the IP check can never be the thing that saves us. It
+  stays because it makes the refusal reason honest, and because if anyone ever widens the
+  host rules the loopback guard is already there.
+- **`urlsplit(...).hostname` is what makes the bypasses fail**, not the allowlist itself.
+  It resolves userinfo (`https://fcm.googleapis.com@evil.example/`), lowercases, and drops
+  the IPv6 brackets. Comparing against the raw string would pass all three of those.
+- **`*.notify.windows.com` is a suffix match and must keep its leading dot.** WNS shards
+  the host per-datacentre (`par02p.notify.windows.com`), so it cannot be an exact match —
+  but `endswith("notify.windows.com")` would also accept
+  `notify.windows.com.evil.example`. There is a test for exactly that string.
+- **`/push/unsubscribe` is deliberately unvalidated.** It only ever deactivates a row the
+  caller already owns, and tightening it would reject the removal of a subscription stored
+  before this batch. The SSRF sink is subscribe, because subscribe is what delivery reads.
+- **The existing happy-path test used `https://fcm.example/push/abc`** — a placeholder, not
+  a push service — so this batch had to move that fixture to a real FCM endpoint. Delivery
+  tests still use the placeholder (`_sub()`), which is fine: they never re-enter validation.
+- **This is API-only and Group A owes one `/ship-prod` at its end** (Batches 82-85). Nothing
+  here reaches members on the close-out push; the endpoint stays open in production until
+  that ship runs.
+
+**Next:** Batch 83 — the case-variant registration race (needs a migration).

@@ -2680,7 +2680,7 @@ answered until it lands, because until then there is no data to look at.
   run is computed — `recent_form_by_league` and its window are Batch 80's and are already
   proven. No new strip on the card.
 
-- [ ] **Batch 82 — Push subscriptions trust the endpoint an anonymous caller hands them**
+- [x] **Batch 82 — Push subscriptions trust the endpoint an anonymous caller hands them** ✅ 2026-08-27
   — specified from `docs/review/2026-08-26/01-security.md`, SEC-12 (HIGH). `POST
   /api/v1/push/subscribe` (`routers/notifications.py:31-113`) accepts any string as
   `endpoint` and stores it verbatim. Delivery hands it straight to `pywebpush.webpush()`,

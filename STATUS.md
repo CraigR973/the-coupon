@@ -416,7 +416,18 @@ is never rendered — which is the right way round. The run sits inside Batch 79
 panel rather than on the standings link, because `PickFormLine` is a `role="img"` whose
 label would otherwise be appended to that link's accessible name.
 
-Batches 1-81 are closed. The Coupon is a
+**Batch 82** opens the 2026-08-26 review's work and is the only HIGH finding in it.
+`POST /push/subscribe` stored whatever string it was handed as `endpoint`, and delivery
+passes that straight to `pywebpush`, which POSTs to it from the server — so since Batch 63
+opened self-registration, anyone could register, subscribe a destination of their choosing
+and then trigger the send themselves via `/push/test`. Subscribe now requires `https`, an
+allowlisted push-service host (FCM, Mozilla, Apple, or a `*.notify.windows.com` shard) and
+no internal IP literal. The bypasses that matter are handled by reading
+`urlsplit(...).hostname` rather than the raw string, which is what defeats
+`https://fcm.googleapis.com@evil.example/`. **API-only, so it is not live until Group A's
+`/ship-prod`.**
+
+Batches 1-82 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1066,16 +1077,22 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` has **no unchecked batches**. Batches 78, 79 and 80 — the owner's
-three points of 2026-08-26 — closed that day, with Batch 81 following immediately on the
-owner's call, so every batch specified to date is on `main`.
+`docs/BUILD_PLAN.md` carries **Batches 83-102 unchecked** — the twenty-one the 2026-08-26
+full-application review specified, less Batch 82, which is closed. They run as the eight
+groups of `docs/review/2026-08-26/07-sequencing.md`, each group being individual
+start → close-out cycles with **one `/ship-prod` at the group boundary**.
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday watch**,
 with L0-L4 ticked since 2026-08-04.
 
-**Everything specified is shipped.** Production serves `f41a383a` after the 2026-08-26
-`/ship-prod` of Batches 79-81; `/api/v1/health` and `/health/ready` agree at migration
-`016`, and `check-deploy-drift.sh` reports **in sync**. Batch 74 was applied the same day,
-so 2-1 Hibs' rounds read Gameweek 1-4 and the three renamed members carry their new names.
+**Group A (Batches 82, 83, 84, 85) is in progress and is API-only.** Batch 82 is on `main`;
+83, 84 and 85 follow, then one `/ship-prod` closes the group. Nothing in it reaches members
+on a close-out push, which is why the group can run without the deploy asymmetry that broke
+the Coupon tab on 2026-08-06.
+
+Production serves `f41a383a` after the 2026-08-26 `/ship-prod` of Batches 79-81;
+`/api/v1/health` and `/health/ready` agree at migration `016`. Batch 74 was applied the
+same day, so 2-1 Hibs' rounds read Gameweek 1-4 and the three renamed members carry their
+new names.
 
 What is outstanding now:
 
@@ -1085,7 +1102,11 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**No `/ship-prod` is owed.** Batches 79-81 went to production on 2026-08-26 as Railway
+**A `/ship-prod` is owed** — Batch 82 is a backend change sitting on `main` and unshipped,
+and Group A's remaining batches join it before the group's single ship. The SSRF the batch
+closes stays open in production until then.
+
+Batches 79-81 went to production on 2026-08-26 as Railway
 deployment `a8ab5234-06c2-41d3-8358-405d95910d15`, message `ship production f41a383`,
 behind which `134822f6-91f1-4cc1-9d8f-4619a0a84270` (commit `41f4d7df`) is the rollback
 baseline — **available**, because this shipment applied no migration, so both images bundle
