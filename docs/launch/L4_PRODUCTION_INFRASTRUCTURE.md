@@ -1231,6 +1231,76 @@ probed unauthenticated: every `/api/v1/admin/*` route answers `403` rather than
 output named the project, and redone with `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID`
 set. Nothing was acted on from the wrong reading.
 
+### Forward recovery plan — migration `017`, Batch 83
+
+**Status: approved by the owner, 2026-08-27. Cleared to ship.**
+
+Required by `/ship-prod` step 1.7 before `017` may be deployed. Production is at
+head `016` (deployment `a8ab5234`, serving `f41a383a`); this shipment moves it to `017`.
+
+**No pre-migration snapshot is needed. `017` rewrites no data at all.** It drops
+`uq_profiles_display_name` and creates `uq_profiles_display_name_lower`, a unique
+index on `lower(display_name)`. Every row is left byte-for-byte as it was, no
+column is added or removed, and no value is recomputed.
+
+**This is the first migration here that can refuse to run, and that refusal is the
+designed behaviour rather than a fault.** `017` begins by querying for profiles whose
+names collide case-insensitively and raises a `RuntimeError` naming them if any exist,
+because it cannot decide which of two real members is the survivor.
+
+**Whether production holds such a pair was NOT verified before shipping.** It could
+not be from the workstation: `db.pugujiiojitstkilphrz.supabase.co` publishes AAAA
+records only and this Mac has no IPv6 route, and the project's REST API answers `402`
+under the egress quota noted on 2026-08-25. The runtime check is what stands in for
+that verification, which is why it names the rows rather than letting Postgres emit a
+bare duplicate-key line into a container log.
+
+**If the check fires, production is unaffected.** `nixpacks.toml` boots with
+`alembic upgrade head && uvicorn ...`, so the abort stops the chain, uvicorn never
+starts, the healthcheck never passes, and Railway keeps serving `a8ab5234` at head
+`016`. The database is untouched — the check runs before any DDL. Recovery:
+
+1. Read the deployment logs. The error names each colliding lowered name, how many
+   profiles hold it, and their ids in `created_at` order.
+2. Reach the database through `railway ssh` into the **running** (pre-`017`) container
+   — the only path from here that can resolve the host — and rename all but one of
+   each group. `profiles.display_name` has exactly three writers in the whole
+   application (`routers/auth.py`'s registration, `src/seeds.py`, and Batch 74's
+   `backfill_names_and_numbers.py`), so a hand-written `UPDATE` conflicts with nothing.
+3. Redeploy. Nothing needs rebuilding; the same image now migrates cleanly.
+
+**API rollback is unavailable the moment `017` applies**, on the same terms as `012`,
+`013` and `014`/`015`: every pre-`017` image ships revisions `001`–`016` only, so
+started against a database stamped `017` its Alembic fails with `Can't locate revision
+identified by '017'` before uvicorn is reached. **Do not attempt a Railway rollback to
+a pre-`017` deployment after this ships.** Vercel rollback is unaffected.
+
+Recovery once `017` *has* applied is forward-only:
+
+1. **There is no "disable the feature" step, because there is no feature to disable.**
+   `017` only refuses a write the application already refuses in `/auth/register`'s
+   case-insensitive pre-check. Nothing a member can do today succeeds before this
+   migration and fails after it; the index changes what happens when two requests race,
+   which is the defect it exists to close.
+2. **Deploy a corrected image at head `018` or higher.** The normal path. If `018` ever
+   needs to remove this index, it must use `op.drop_index("uq_profiles_display_name_lower")`
+   — **not** `op.drop_constraint`, which will not find it. Postgres cannot express
+   `UNIQUE (lower(col))` as a table constraint, so it is an index and only an index.
+3. **Never run `alembic downgrade` against production.** `017`'s downgrade restores the
+   case-sensitive constraint and drops the functional one, which is correct but
+   reopens the race; it is written for local and staging use.
+
+**Data compatibility, for completeness.** `017` is fully backward-compatible with the
+`016` application were the boot-migration problem solved by other means: that
+application writes `display_name` in three places, all of which already avoid
+case-variant duplicates by their own logic, so the stricter index rejects nothing they
+would legitimately attempt.
+
+**One post-deploy check specific to `017`.** Confirm the index is actually present and
+the old constraint is gone — an aborted migration and a successful one both leave a
+database that answers queries, so `/health/ready` reporting `017` is the load-bearing
+signal, not that the service is up.
+
 ### 2026-08-24 — `18dfb9f`, the Batch 68 backfill module (no migration)
 
 Source commit `18dfb9f`, gate green (11 checks, 846 backend tests). Head stays
