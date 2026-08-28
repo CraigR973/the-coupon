@@ -283,21 +283,122 @@ def test_the_pick_limit_still_covers_the_journey_it_exists_for() -> None:
     assert _pick_submit_limits()["hour"] >= 5
 
 
-def test_the_pick_path_is_not_bounded_in_total_and_this_is_known() -> None:
-    """Recorded as a gap rather than left to be rediscovered.
+# ── The aggregate bound the per-member limit cannot give (Batch 89) ──────────
+#
+# What used to sit here was `test_the_pick_path_is_not_bounded_in_total_and_this_is_known`
+# — a test asserting the *gap*, so it stayed visible until someone decided what a member
+# should see when the budget is gone. The owner decided that on 2026-08-27 (refuse, with
+# a specific reason), so these assert the real bound instead.
+#
+# The bound is denominated in submissions, not upstream requests: one submission prices
+# one event, and one event is one request, so bounding submissions bounds the spend
+# without needing to know whether this particular fetch was served from the 60-second
+# cache. It over-counts a same-fixture re-pick inside a minute and never under-counts.
 
-    A per-member limit cannot bound aggregate spend: a full league of fifteen at ten each
-    is 150 requests against a 100/hour plan. Closing it needs a *shared* budget on the
-    pick path — ``consume_shared_limit`` is the mechanism, already used by the populate
-    path — plus a product decision about what a member sees when it is empty, because a
-    pick cannot fall back to a stale price the way browsing can (``picks.py`` says why).
-    That decision is the owner's; this test states the arithmetic so it stays visible.
+#: `leagues.max_members`'s real ceiling — `Field(default=15, ge=2, le=50)` in
+#: `routers/leagues.py`, unchanged since Batch 1. The default of 15 is illustrative; this
+#: is what a league may actually reach, and it is the number the aggregate has to survive.
+LEAGUE_MAX_MEMBERS = 50
+
+
+def _pick_shared_limits() -> dict[str, int]:
+    """The shipped per-league pick budget, parsed the way slowapi parses it."""
+    from limits import parse_many
+
+    from src.routers.picks import PICK_SUBMIT_SHARED_LIMIT
+
+    return {item.GRANULARITY.name: item.amount for item in parse_many(PICK_SUBMIT_SHARED_LIMIT)}
+
+
+def test_the_pick_path_is_bounded_in_total_and_not_only_per_member() -> None:
+    """The gap this module used to state as open.
+
+    A per-member limit cannot bound aggregate spend — a full league at ten each is
+    ``10 x 50 = 500`` requests against a 100/hour plan, a 5x overshoot. The pick path now
+    charges a *shared* per-league bucket as well, so the total is bounded by something
+    that does not multiply by membership.
     """
-    league_max_members = 15  # `leagues.max_members` default
-    worst_case = _pick_submit_limits()["hour"] * league_max_members
-    assert worst_case > HOURLY_LIMIT, (
-        "a per-member limit now bounds the aggregate — if this fails the gap has been "
-        "closed and this test should be replaced by one asserting the real bound"
+    unbounded_worst_case = _pick_submit_limits()["hour"] * LEAGUE_MAX_MEMBERS
+    assert unbounded_worst_case > HOURLY_LIMIT, "the finding's premise, restated"
+    assert _pick_shared_limits()["hour"] < unbounded_worst_case, (
+        "the shared bucket must actually bind — a bound at or above what the per-member "
+        "limits already permit is not a bound"
+    )
+
+
+def test_the_aggregate_pick_bound_is_capped_by_the_day_as_well_as_the_hour() -> None:
+    """An hourly cap alone permits 24x its own number a day, and the day is the tighter plan.
+
+    The same lesson ``PROVIDER_SLATE_FETCH_LIMIT`` learned, applied to the path that
+    spends the budget in bursts around each lock.
+    """
+    assert set(_pick_shared_limits()) == {"hour", "day"}
+    assert _pick_shared_limits()["day"] < _pick_shared_limits()["hour"] * 24
+
+
+async def test_a_leagues_whole_pick_allowance_fits_what_the_hour_leaves_spare() -> None:
+    """Peak browsing plus a league picking flat out must still fit the hour.
+
+    Browsing is the fixed cost and does not grow with membership — the slate cache
+    collapses every reader into one sweep — so what it leaves is what the pick path may
+    spend. The ad-hoc round allowance is deliberately *not* reserved against this one, and
+    that is a departure from ``test_one_member_cannot_exhaust_the_plan_by_changing_their_mind``
+    above: there the question is whether one actor can break the budget alone, which has
+    to hold under the worst stacking. Here it is how much of the plan the product's core
+    action gets, and reserving an admin button's whole untaken allowance against members
+    submitting picks would refuse real claims to protect a press that is not happening —
+    rounds are built days ahead, the pick peak is the hour before lock.
+    """
+    spare = HOURLY_LIMIT - await _tightest_browsing_hour()
+    spend = _pick_shared_limits()["hour"]
+    assert spend <= spare, f"{spend} pick requests an hour against {spare} spare"
+
+
+async def test_a_leagues_whole_pick_allowance_fits_what_the_day_leaves_spare() -> None:
+    """And beside a fully saturated day of browsing plus the scheduled discovery run.
+
+    The margin here is the thinnest in this module, and that is honest rather than
+    alarming: ``_saturated_day_of_browsing`` is someone refreshing for twenty-four hours
+    without pause, which the module already calls the case the design has to survive
+    rather than the one it expects.
+    """
+    spare = DAILY_LIMIT - await _saturated_day_of_browsing() - _daily_discovery()
+    spend = _pick_shared_limits()["day"]
+    assert spend <= spare, f"{spend} pick requests a day against {spare} spare"
+
+
+def test_the_aggregate_bound_still_lets_a_full_league_take_its_picks() -> None:
+    """Tightening it must not price out the thing the endpoint exists for.
+
+    Every member of a league at its real ceiling has to be able to submit their one pick
+    inside the hour before lock. A bound below that would turn a silent budget overrun
+    into a visible refusal of legitimate claims, which is a worse bug than the one it
+    fixes — the same property ``test_the_pick_limit_still_covers_the_journey_it_exists_for``
+    asserts for the per-member half.
+    """
+    assert _pick_shared_limits()["hour"] >= LEAGUE_MAX_MEMBERS
+
+
+def test_the_aggregate_bound_is_per_league_rather_than_per_installation() -> None:
+    """The residual, stated rather than left to be rediscovered.
+
+    The bucket is keyed on the league (``picks._league_budget_key``), so it bounds a
+    league and not the installation: K leagues picking flat out in the same hour is K
+    times the hourly allowance, and past two concurrent full-tilt leagues the global plan
+    binds again. That is deliberate — a global bucket would refuse members of a league
+    that had spent nothing, to pay for one that had — and the answer at that scale is the
+    provider plan, not a tighter bucket.
+
+    This test is the tripwire: it says how many leagues the current numbers cover, so a
+    change to either the limit or the plan has to come back through here.
+    """
+    concurrent_leagues_covered = (HOURLY_LIMIT - 28) // _pick_shared_limits()["hour"]
+    assert (
+        concurrent_leagues_covered >= 1
+    ), "one league picking flat out must fit the hour beside peak browsing"
+    assert concurrent_leagues_covered < 3, (
+        "if this passes, the plan or the limit changed — re-derive how many leagues the "
+        "per-league key actually covers before relying on this bound"
     )
 
 

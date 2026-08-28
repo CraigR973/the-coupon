@@ -15,6 +15,11 @@ The refusal is ``SELECTION_TAKEN`` or ``FIXTURE_TAKEN`` accordingly.
 
 The unique constraints on ``picks`` are the race backstop — a concurrent grab that slips
 past the pre-check trips ``IntegrityError`` and is reported as a conflict.
+
+Submitting also spends the odds provider's rate-limited quota, once per submission, so
+the endpoint carries two limits rather than one: ``PICK_SUBMIT_LIMIT`` per member and
+``PICK_SUBMIT_SHARED_LIMIT`` per league. A league that has spent its share is refused
+with ``PICKS_BUSY`` (429) rather than served a price it could not confirm.
 """
 
 import uuid
@@ -38,7 +43,7 @@ from src.models.league import League, PickScope
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome
 from src.models.profile import Profile
-from src.rate_limit import limiter, per_user_key
+from src.rate_limit import consume_shared_limit, limiter, per_user_key
 from src.services.gameweek import PICKABLE_STATES, pick_refusal
 from src.services.notification_triggers import notify_pick_made
 from src.services.odds_provider import OddsProviderError, Selection
@@ -67,13 +72,51 @@ Db = Annotated[AsyncSession, Depends(get_db)]
 #: of times. `test_request_budget.py` asserts it against the measured spare rather than
 #: against this comment.
 #:
-#: What it does **not** do is bound the total: fifteen members at ten each is still over
-#: the plan. Bounding that needs a shared budget on the pick path (the mechanism exists —
-#: `consume_shared_limit`) and a product decision about what a member sees when it is
-#: empty, because a pick cannot fall back to a stale price the way browsing can. That is
-#: recorded in `docs/review/2026-08-22/02-correctness.md` and deliberately not decided
-#: here.
+#: What it cannot do on its own is bound the *total*, because a per-actor limit never
+#: does: fifteen members at ten each is over the plan, and at `max_members`'s real
+#: ceiling of fifty it is `500/hour` against a hundred. `PICK_SUBMIT_SHARED_LIMIT` below
+#: is the other half — this one keeps a single member from taking the league's whole
+#: share, that one keeps the league inside the provider's.
 PICK_SUBMIT_LIMIT = "10/hour"
+
+#: How much of the provider's hour and day one league's pick submissions may spend.
+#:
+#: The aggregate bound the per-member limit above cannot provide (Batch 89, closing
+#: OPS-10 / CORR-03). Denominated in **submissions, not upstream requests**: freezing a
+#: price costs at most one provider request — one event is one request — so bounding
+#: submissions bounds the spend without having to know, at the moment of charging,
+#: whether this particular fetch will be served from the 60-second cache. That direction
+#: is the safe one; it can over-count a re-pick of the same fixture inside a minute, never
+#: under-count what actually goes upstream.
+#:
+#: `50/hour` is what the hour leaves once the measured peak browsing hour is subtracted
+#: (`test_request_budget.py`: 28 requests, and it does not grow with membership because
+#: the slate cache collapses every reader into one sweep). It is also the number that
+#: makes the finding's worst case survivable: a full fifty-member league gets one pick
+#: each per hour instead of the `500/hour` the unbounded path allowed.
+#:
+#: `100/day` because an hourly cap alone permits twenty-four times its own number a day,
+#: and the day is the tighter plan — the same lesson `PROVIDER_SLATE_FETCH_LIMIT` learned.
+#: Two hours of full-tilt picking is more rounds than a league locks in a day.
+#:
+#: **Keyed per league**, which bounds a league and not the installation: with several
+#: leagues picking in the same hour the global plan is the binding constraint again, and
+#: the answer to that is the plan rather than a tighter bucket that would refuse members
+#: of a league spending nothing. `test_request_budget.py` states that residual rather than
+#: leaving it to be rediscovered.
+PICK_SUBMIT_SHARED_LIMIT = "50/hour;100/day"
+
+#: The bucket every pick submission in one league is charged to, whichever member asked.
+PICK_SUBMIT_SHARED_SCOPE = "pick-submit-provider-budget"
+
+#: What a member is told when the league's share of the provider budget is gone.
+#:
+#: A refusal, deliberately — not a queue and not a cached price. `_snapshot_selection`
+#: says why a pick can never freeze a price it could not confirm: the frozen number is
+#: what a winner is scored on, so a stale one is not a degraded pick but a wrong score.
+#: And in a first-come land-grab the member has to be left in no doubt their claim did
+#: not land, which a silent queue would not do (owner decision, 2026-08-27).
+PICKS_BUSY = "PICKS_BUSY"
 
 
 def _now() -> datetime:
@@ -152,6 +195,23 @@ async def submit_pick(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="MARKET_NOT_OFFERED"
         )
+
+    # Charged here and not earlier: everything above is free, and a submission refused
+    # for being locked or for a market the league does not offer has spent nothing, so
+    # charging it would price the budget against members who never reached the provider.
+    # Everything below *has* spent it — the claim pre-check and the commit come after the
+    # fetch, so a submission that goes on to lose the race still cost its request. Batch
+    # 57's lock-then-fetch ordering is untouched.
+    if not consume_shared_limit(
+        _league_budget_key(league), PICK_SUBMIT_SHARED_LIMIT, PICK_SUBMIT_SHARED_SCOPE
+    ):
+        log.warning(
+            "pick refused: the league's share of the provider budget is spent",
+            league_id=str(league.id),
+            gameweek_id=str(gameweek.id),
+            player_id=str(player.id),
+        )
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=PICKS_BUSY)
 
     selection = await _snapshot_selection(provider, fixture, body.market, body.outcome)
 
@@ -304,6 +364,17 @@ async def my_pick(
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def _league_budget_key(league: League) -> str:
+    """The bucket identity: the league, not the member and not the caller's address.
+
+    The league is what the limit is *about* — fifty members submitting one pick each is
+    the shape the provider plan cannot absorb, and every one of those requests carries a
+    different user id and may carry a different IP. Keying on either of those is the gap
+    this closes rather than the fix for it.
+    """
+    return f"league:{league.id}"
 
 
 async def _resolve_fixture(fixture_id: str, db: AsyncSession) -> Fixture:

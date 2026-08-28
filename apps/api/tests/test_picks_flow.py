@@ -193,6 +193,20 @@ async def _fixture_ids(session: AsyncSession, gameweek_id: uuid.UUID) -> dict[st
     return {f.provider_event_id: str(f.id) for f in await fixtures_for(session, gameweek_id)}
 
 
+def _limit_amount(limit_value: str, granularity: str) -> int:
+    """One window out of a shipped limit string, parsed the way slowapi parses it.
+
+    Read from the constant rather than hard-coded so these tests move with the budget
+    instead of quietly asserting a number that changed — the arithmetic behind it lives
+    in ``test_request_budget.py``.
+    """
+    from limits import parse_many
+
+    return next(
+        item.amount for item in parse_many(limit_value) if item.GRANULARITY.name == granularity
+    )
+
+
 async def _submit(
     client: AsyncClient, slug: str, player: Profile, fixture_id: str, market: str, outcome: str
 ) -> Response:
@@ -2439,3 +2453,119 @@ async def test_a_lock_that_passes_during_the_odds_fetch_refuses_the_pick(
             select(func.count()).select_from(Pick).where(Pick.gameweek_id == gameweek.id)
         )
     assert count == 0
+
+
+# ── Batch 89: the league's share of the provider budget ──────────────────────
+
+
+async def test_the_51st_pick_in_an_hour_is_refused_with_a_reason_not_a_stale_price(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The aggregate bound the per-member limit could not give.
+
+    `PICK_SUBMIT_LIMIT` bounds one member at ten an hour; a league at `max_members`'s real
+    ceiling of fifty could therefore aim `500/hour` at a `100/hour` provider plan, and
+    exhausting it is silent — everybody's prices simply stop refreshing. The shared
+    per-league bucket is what closes that, and this is the behaviour it has to have.
+
+    Six members are enough to reach the bound without any of them tripping their own
+    ten-an-hour limit, which would refuse for the wrong reason and prove nothing. Each
+    re-picks a selection of their own, so nothing here turns on the claim race: a re-pick
+    to the same claim updates in place, and the budget is spent per submission either way.
+
+    The refusal is a 429 carrying `PICKS_BUSY` rather than a queued write or a cached
+    price. A pick freezes the number a winner is scored on, so serving one the provider
+    did not confirm is a wrong score rather than a degraded read — and in a land-grab a
+    member has to know their claim did not land.
+    """
+    from src.routers.picks import PICK_SUBMIT_LIMIT, PICK_SUBMIT_SHARED_LIMIT, PICKS_BUSY
+
+    per_member = _limit_amount(PICK_SUBMIT_LIMIT, "hour")
+    league_hourly = _limit_amount(PICK_SUBMIT_SHARED_LIMIT, "hour")
+    members_needed = -(-(league_hourly + 1) // per_member)  # ceil, so the bound is reachable
+
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        players, league = await _seed_league(session, [f"m{i}" for i in range(members_needed)])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    epl, sl2 = fixtures[SAMPLE_EPL_EVENT_ID], fixtures[SAMPLE_SL2_EVENT_ID]
+
+    # One priced selection each, so every submission is a clean 201 until the budget runs
+    # out. `SL2` BTTS "No" is deliberately unpriced in the sample data and is not used.
+    selections = [
+        (epl, "MATCH_ODDS", "HOME"),
+        (epl, "MATCH_ODDS", "AWAY"),
+        (epl, "MATCH_ODDS", "DRAW"),
+        (epl, "BOTH_TEAMS_TO_SCORE", "YES"),
+        (sl2, "MATCH_ODDS", "HOME"),
+        (sl2, "MATCH_ODDS", "AWAY"),
+        (sl2, "MATCH_ODDS", "DRAW"),
+        (sl2, "BOTH_TEAMS_TO_SCORE", "YES"),
+    ]
+    assert members_needed <= len(selections), "not enough priced selections for this bound"
+
+    responses: list[Response] = []
+    for player, (fixture_id, market, outcome) in zip(players, selections, strict=False):
+        for _ in range(per_member):
+            responses.append(
+                await _submit(client, league.slug, player, fixture_id, market, outcome)
+            )
+
+    allowed = responses[:league_hourly]
+    assert all(r.status_code == 201 for r in allowed), (
+        "the allowance must be spendable in full: "
+        f"{[r.status_code for r in allowed if r.status_code != 201]}"
+    )
+
+    refused = responses[league_hourly:]
+    assert refused, "the loop must run past the bound or it proves nothing"
+    for response in refused:
+        assert response.status_code == 429, response.text
+        assert response.json()["detail"] == PICKS_BUSY, (
+            "the refusal has to be the budget one, not slowapi's per-member limit — the "
+            "member is being told the league is busy, not that they are"
+        )
+
+
+async def test_a_second_league_keeps_its_own_pick_budget(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The bucket is keyed on the league, so one league cannot starve another.
+
+    The reason the key is the league and not the installation: a global bucket would
+    refuse members of a league that had spent nothing in order to pay for one that had.
+    What that trades away — the plan binds again once several leagues pick flat out in
+    the same hour — is stated in `test_request_budget.py`.
+    """
+    from src.routers.picks import PICK_SUBMIT_LIMIT, PICK_SUBMIT_SHARED_LIMIT, PICKS_BUSY
+
+    per_member = _limit_amount(PICK_SUBMIT_LIMIT, "hour")
+    league_hourly = _limit_amount(PICK_SUBMIT_SHARED_LIMIT, "hour")
+    members_needed = -(-(league_hourly + 1) // per_member)
+
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        spenders, busy = await _seed_league(session, [f"s{i}" for i in range(members_needed)])
+        busy_round = await _open_sample_gameweek(session, fake, busy)
+        busy_fixtures = await _fixture_ids(session, busy_round.id)
+
+        (quiet_member,), quiet = await _seed_league(session, ["quiet"])
+        quiet_round = await _open_sample_gameweek(session, fake, quiet)
+        quiet_fixtures = await _fixture_ids(session, quiet_round.id)
+
+    outcomes = ["HOME", "AWAY", "DRAW"]
+    events = [busy_fixtures[SAMPLE_EPL_EVENT_ID], busy_fixtures[SAMPLE_SL2_EVENT_ID]]
+    last = None
+    for index, player in enumerate(spenders):
+        event = events[index // len(outcomes)]
+        outcome = outcomes[index % len(outcomes)]
+        for _ in range(per_member):
+            last = await _submit(client, busy.slug, player, event, "MATCH_ODDS", outcome)
+    assert last is not None and last.status_code == 429, "the busy league must be spent out"
+    assert last.json()["detail"] == PICKS_BUSY
+
+    quiet_pick = await _submit(
+        client, quiet.slug, quiet_member, quiet_fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME"
+    )
+    assert quiet_pick.status_code == 201, quiet_pick.text
