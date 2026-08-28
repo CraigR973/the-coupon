@@ -3016,7 +3016,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the avatar component's colour treatment. No change to `tintFor()`'s
   hashing, so a given member keeps their existing slot.
 
-- [ ] **Batch 99 — Every rate limit resets on redeploy**
+- [x] **Batch 99 — Every rate limit resets on redeploy** ✅ 2026-08-28
   — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-A03 (MED); owner
   decision 2026-08-27: **make the security-critical limits durable, leave the rest**.
   Counters live in process memory, so a Railway restart hands every IP-keyed limiter a

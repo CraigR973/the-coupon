@@ -527,7 +527,20 @@ under whoever holds the phone next. Web-only, live from its own push; the
 `PICKS_BUSY` copy it carries was unreachable until Batch 89 shipped a few minutes later,
 which is why Group C was cut to ship at its boundary.
 
-Batches 1-90 are closed. The Coupon is a
+**Batch 99** stopped a redeploy handing every rate limiter a fresh bucket. Every counter
+in the app lived in process memory, so a Railway restart — several a week here — reset
+`/auth/login`'s `5/15 minutes` and `/auth/pin/reset-request`'s `3/hour` along with
+everything else; five guesses, wait for a deploy, five more. Those two now charge a
+Postgres table (`rate_limit_counters`, migration **018**), one row per live bucket rolled
+forward in place. The provider budgets — `PICK_SUBMIT_SHARED_LIMIT`,
+`PROVIDER_SLATE_FETCH_LIMIT`, `PICK_SUBMIT_LIMIT` — deliberately stay in memory, where a
+reset costs provider requests rather than protection, and tests fail if either half of
+that split moves. The counter runs on its own session, so a login for a name that does not
+exist is still charged even though the handler commits nothing; the 429 body is byte-for-
+byte what it was, because `AuthContext.tsx` branches on `{"error": ...}`. API-only, so it
+is **not live until `/ship-prod`**.
+
+Batches 1-90 and 99 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1203,10 +1216,20 @@ reached members on its own close-out push, because Vercel releases the web app f
 — what the group avoided is the *asymmetry*, since none of it called an API route Railway
 was not already serving. That is the difference from the Coupon tab on 2026-08-06.
 
-**Group C is next — Batches 89, 90, API + web, and it owes a `/ship-prod` at the
-boundary.** It carries FEAT-B01, the review's highest-value product finding. 90's web half
-reaches members on its close-out push while 89's refusal state does not exist until the
-ship, so the two must not be left straddling that gap for long.
+**Group C is complete and shipped** — Batches 89 and 90 went to production on 2026-08-28.
+
+**Group D is underway — Batches 99, 100, 101 then 95, API/infra only, and it owes a
+`/ship-prod` at the boundary.** Nothing in it reaches members on a close-out push, so the
+asymmetry pressure Group C carried is off; what is owed instead is the ship itself, since
+the API stays behind `main` until it runs. **Batch 99 is closed**; 100 and 101 follow, and
+95 is soft-blocked on establishing Supabase egress headroom for FEAT-A09 and on an owner
+choice of off-platform storage destination.
+
+**Batch 99 applied migration 018, so the previous deployment is not a rollback target.**
+A pre-`018` image cannot boot against a database stamped `018`. Forward recovery is
+cheap here and is written into the migration: nothing reads `rate_limit_counters` except
+the limiter, and an empty table is exactly the state every process had after every restart
+before the batch, so `alembic downgrade 017` costs at most one window of counts.
 
 Batch 74 was applied on 2026-08-26, so 2-1 Hibs' rounds read Gameweek 1-4 and the three
 renamed members carry their new names.

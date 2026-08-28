@@ -2760,3 +2760,44 @@ alongside offline and lost-the-race. Then `/ship-prod` at the Group C boundary.
 **Next:** `/ship-prod` — Group C's boundary. Batch 90's client is live in front of members
 on this push while Batch 89's `PICKS_BUSY` does not exist in production until the API
 ships. Then Group D (Batches 99, 100, 101, 95).
+
+## Batch 99 — Every rate limit resets on redeploy
+**Commits:** 093e64f · verified: `scripts/ci-local.sh` PASS (11 checks), green first run
+
+### Key facts for future sessions
+- **The split is now asserted in both directions, and that is most of the batch.**
+  `/auth/login` and `/auth/pin/reset-request` charge Postgres; `PICK_SUBMIT_SHARED_LIMIT`,
+  `PROVIDER_SLATE_FETCH_LIMIT` and `PICK_SUBMIT_LIMIT` deliberately do not, and
+  `test_durable_rate_limit.py` fails if either half moves. Anyone migrating a provider
+  budget to the table is reversing a decision, not filling a gap.
+- **The durable counter runs on its own session (`get_limiter_db`), not the request's.**
+  Login for an unknown display name returns 401 having committed nothing at all — counted
+  on the handler's session the attempt would vanish with the transaction and name
+  enumeration would be free. That is why the two routes swapped `@limiter.limit` for a
+  dependency rather than keeping the decorator: the charge is `await`ed, and `slowapi`'s
+  `Limiter.hit` is synchronous.
+- **The 429 body is unchanged and had to be.** `enforce_durable_limit` raises slowapi's own
+  `RateLimitExceeded` and sets `request.state.view_rate_limit` by hand, because
+  `_rate_limit_exceeded_handler` reads that attribute unconditionally and `AuthContext.tsx`
+  branches on `{"error": ...}`; a 429 carrying `detail` would read as "your details are
+  wrong" and invite the retry the limit just refused.
+- **`login_key` reads `display_name` from the raw body, before pydantic.** In memory that
+  was merely wasteful; against a `String(200)` column a ten-kilobyte name is a `DataError`
+  and a 500 on the endpoint an attacker is already probing. `durable_bucket_key` keeps a
+  readable prefix and appends a SHA-256 of the whole key, so folding cannot merge two
+  callers into one bucket.
+- **`conftest.py` now has a second autouse reset.** `limiter._storage.reset()` empties the
+  in-process store only, so `reset_durable_rate_limits` truncates the table before and
+  after every test when `DATABASE_URL` is set. Without it a DB-backed limit leaks across
+  tests and surfaces as an unrelated module failing on somebody else's sixth login.
+- **`test_auth.py`'s `_override_db` now stubs the limiter dependency too.** Every test in
+  that module runs with no Postgres at all; leaving the durable limiter live would make
+  ~30 hermetic tests open a real connection. The real behaviour is covered end-to-end in
+  `test_durable_rate_limit.py`, which is Postgres-backed.
+- **Migration 018 needs no forward recovery plan beyond "drop it".** Nothing reads
+  `rate_limit_counters` except the limiter, and an empty table is exactly the state every
+  process had after every restart before this batch — a rollback costs at most one window
+  of counts, which is the behaviour being replaced rather than a regression against it.
+
+**Next:** Batch 100 — the single-replica guard on migration-on-boot. Then 101, then 95
+(soft-blocked on FEAT-A09 egress headroom). `/ship-prod` at the Group D boundary.
