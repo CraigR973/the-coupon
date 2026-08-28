@@ -553,7 +553,21 @@ because two regions at one replica each is two processes while `numReplicas` sti
 at the release-step alternative set aside on 2026-08-27. API/infra only, **not live until
 `/ship-prod`**.
 
-Batches 1-90, 99 and 100 are closed. The Coupon is a
+**Batch 101** gave the FotMob dependency a definition of "this has bitten". Its terms
+prohibit automated access; the owner took that knowingly and it stays revisitable, but
+three shipped features rest on it — Football Stats, the void-fixture cross-check before
+lock, live in-play scores — and TheSportsDB was named as the fallback with nothing
+tracking when to reach for it. Now: `401`/`403`/`451` alert on the first one, because the
+terms being applied do not un-apply; any other failure needs five in a row with no success
+between, so an ordinary timeout says nothing; and a slate where *nothing* could be
+cross-checked alerts immediately and loudest, because that is the one FotMob dependency
+that decides whether a member's pick is valid. Alerts write an `audit_log` row
+(`football_provider_degraded`, migration **019**) and push site admins, with a cooldown
+read from those rows so a ten-minute job cannot push every ten minutes and a redeploy
+cannot restart the noise. No TheSportsDB adapter — set aside as a separate call. API-only,
+**not live until `/ship-prod`**.
+
+Batches 1-90 and 99-101 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1237,13 +1251,16 @@ asymmetry pressure Group C carried is off; what is owed instead is the ship itse
 the API stays behind `main` until it runs. 95 is soft-blocked on establishing Supabase
 egress headroom for FEAT-A09 and on an owner choice of off-platform storage destination.
 
-**Batches 99 and 100 are closed.** 101 follows, then 95.
+**Batches 99, 100 and 101 are closed.** 95 is the only one left in Group D, and it is soft-blocked — see below.
 
-**Batch 99 applied migration 018, so the previous deployment is not a rollback target.**
-A pre-`018` image cannot boot against a database stamped `018`. Forward recovery is
-cheap here and is written into the migration: nothing reads `rate_limit_counters` except
-the limiter, and an empty table is exactly the state every process had after every restart
-before the batch, so `alembic downgrade 017` costs at most one window of counts.
+**Group D applies migrations 018 and 019, so the previous deployment is not a rollback
+target.** A pre-`018` image cannot boot against a database stamped `019`. Forward recovery
+is cheap for both and is written into each migration: nothing reads `rate_limit_counters`
+except the limiter, and an empty table is exactly the state every process had after every
+restart before Batch 99, so `alembic downgrade 017` costs at most one window of counts;
+019 is an enum value whose downgrade rebuilds the type, mapping any
+`football_provider_degraded` row to `backup_failed`, on rows that exist only if the alert
+has already fired.
 
 Batch 74 was applied on 2026-08-26, so 2-1 Hibs' rounds read Gameweek 1-4 and the three
 renamed members carry their new names.

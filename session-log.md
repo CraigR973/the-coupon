@@ -2833,3 +2833,43 @@ ships. Then Group D (Batches 99, 100, 101, 95).
 **Next:** Batch 101 — a defined failure trigger and alert for FotMob. Then Batch 95, which
 is soft-blocked on FEAT-A09 egress headroom and an owner choice of storage destination.
 `/ship-prod` at the Group D boundary.
+
+## Batch 101 — Three shipped features rest on a provider whose terms forbid us, with no trigger
+**Commits:** 477c1e5 · verified: `scripts/ci-local.sh` PASS (11 checks), green first run
+
+### Key facts for future sessions
+- **The trigger is three rules, and one of them is not a request-level signal at all.**
+  401/403/451 fire on the first occurrence (the terms being applied, and they do not
+  un-apply); everything else needs five consecutive failures with no success between; and
+  a slate where *nothing* could be cross-checked fires immediately. The third exists
+  because a source that answers `200` and carries none of our competitions fails no
+  requests while verifying nothing — request health would never see it.
+- **`verify_slate` fails open, which is correct and also silent.** A card nothing could be
+  checked against is indistinguishable from a card that was fine. That is why the
+  cross-check reports itself rather than being inferred, and why it is the loud one: it is
+  the only FotMob dependency that decides whether a member's pick is valid.
+- **Instrumented at `FotMobProvider._get`.** The one funnel every FotMob request goes
+  through. A signal taken inside Football Stats or live scores would miss the outage
+  whenever that feature happened not to be the one running — and only live scores runs
+  every ten minutes.
+- **The audit row is what the cooldown reads, not decoration.** An in-process timer would
+  restart the noise on the first redeploy of a bad Saturday. Loud alerts get a one-hour
+  window, quiet ones six. Same argument Batch 99 made for the login limiter.
+- **Reported from `finally` in all three jobs.** A sweep that raised is exactly when the
+  source is in trouble; the success path would lose the alert in the case it exists for.
+  `test_a_job_that_threw_still_reports_what_the_source_did` is what holds that.
+- **Roughly half the tests assert silence** — one timeout, four failures, a lone `429`, a
+  success clearing the run, a slate with one checkable fixture. Eight of one real
+  Saturday's fixtures were unverifiable by any available source, so alerting on partial
+  coverage would fire every week and mean nothing.
+- **The tracker is a module singleton and `conftest.py` resets it.** Same shape as
+  `football_session`'s single client; without the reset a test that drives five failed
+  requests leaves the next one starting from an alert already raised.
+- **Migration 019 is an enum value** (`action_type` gains `football_provider_degraded`),
+  added with `ALTER TYPE … ADD VALUE IF NOT EXISTS` as 012 did. The downgrade has to
+  rebuild the type — PostgreSQL has no `DROP VALUE` — mapping any row holding it to
+  `backup_failed`.
+
+**Next:** Batch 95 — durable off-box logical backups, which is **soft-blocked**: it needs
+Supabase egress headroom established for FEAT-A09 first, and an owner decision on the
+storage destination (S3 / R2 / Backblaze). Then `/ship-prod` for Group D.

@@ -3051,7 +3051,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the boot-time guard. Migrations stay in the web process — moving them
   to a separate release step was considered and set aside on 2026-08-27.
 
-- [ ] **Batch 101 — Three shipped features rest on a provider whose terms forbid us, with no trigger**
+- [x] **Batch 101 — Three shipped features rest on a provider whose terms forbid us, with no trigger** ✅ 2026-08-28
   — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-A07 (LOW); owner
   decision 2026-08-27: **define a trigger and alert on it**. FotMob's terms prohibit
   automated access; the owner took that knowingly and it stays revisitable. What is
