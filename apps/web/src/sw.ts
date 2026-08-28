@@ -5,6 +5,7 @@ import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { NetworkFirst } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
+import { respectNoStore } from '@/lib/apiCachePolicy';
 
 // vite-plugin-pwa replaces self.__WB_MANIFEST with the precache manifest at build time
 declare const self: ServiceWorkerGlobalScope & {
@@ -35,14 +36,17 @@ registerRoute(
 );
 
 // API reads are user-specific and change throughout the Saturday flow, so use
-// network-first with a short offline fallback. Only successful GET responses
-// are cached; logout clears this cache.
+// network-first with a short timeout. What may be *stored* is the API's call, not this
+// file's: `respectNoStore` drops any response marked `Cache-Control: no-store`, which
+// today is all of them (SEC-13). The status and expiry guards stay because they are what
+// would bound the cache if a response ever became storable again.
 registerRoute(
   ({ url, request }) => request.method === 'GET' && url.pathname.startsWith('/api/v1/'),
   new NetworkFirst({
     cacheName: 'api-coupon',
     networkTimeoutSeconds: 3,
     plugins: [
+      respectNoStore,
       new ExpirationPlugin({ maxEntries: 80, maxAgeSeconds: 60 * 60 }),
       new CacheableResponsePlugin({ statuses: [200] }),
     ],
