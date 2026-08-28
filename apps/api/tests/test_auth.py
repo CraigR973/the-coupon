@@ -27,6 +27,7 @@ from src.database import get_db
 from src.main import app
 from src.models.profile import OddsFormat, Profile, UserRole
 from src.models.refresh_token import RefreshToken
+from src.rate_limit import enforce_login_limit, enforce_pin_reset_request_limit
 from src.routers.auth import REGISTER_LIMIT
 
 # ---------------------------------------------------------------------------
@@ -91,16 +92,31 @@ def _scalar(value: object) -> MagicMock:
 
 @asynccontextmanager
 async def _override_db(mock_db: AsyncMock) -> AsyncGenerator[None, None]:
-    """Temporarily override the get_db dependency."""
+    """Temporarily override the get_db dependency, and the durable limiter with it.
+
+    Batch 99 moved ``/auth/login`` and ``/auth/pin/reset-request`` onto Postgres-backed
+    counters, reached through their own session rather than this one — deliberately, so a
+    handler that rolls back still charges the attempt. Every test in this module stubs the
+    database out entirely and runs with no Postgres at all, so the limiter dependency is
+    stubbed alongside it; what it does with a real database is asserted end-to-end in
+    ``test_durable_rate_limit.py``.
+    """
 
     async def _fake_db() -> AsyncGenerator[AsyncSession, None]:
         yield mock_db
 
+    async def _no_limit() -> None:
+        return None
+
     app.dependency_overrides[get_db] = _fake_db
+    app.dependency_overrides[enforce_login_limit] = _no_limit
+    app.dependency_overrides[enforce_pin_reset_request_limit] = _no_limit
     try:
         yield
     finally:
         app.dependency_overrides.pop(get_db, None)
+        app.dependency_overrides.pop(enforce_login_limit, None)
+        app.dependency_overrides.pop(enforce_pin_reset_request_limit, None)
 
 
 @pytest.fixture

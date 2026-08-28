@@ -27,6 +27,7 @@ from sqlalchemy import and_, delete, or_, text
 from src.config import settings
 from src.database import AsyncSessionLocal
 from src.models.notification import ActionType, ActorType, AuditLog
+from src.models.rate_limit import RateLimitCounter
 from src.models.refresh_token import RefreshToken
 from src.services.backup import create_backup
 from src.services.football_data import backfill_season, season_or_default, sync_football_data
@@ -162,6 +163,36 @@ async def run_prune_refresh_tokens() -> bool:
         return True
     except Exception:
         log.exception("refresh token prune failed")
+        return False
+
+
+async def run_prune_rate_limit_counters() -> bool:
+    """Delete rate-limit buckets whose window has closed. Housekeeping, not security.
+
+    Batch 99 moved the login and PIN-reset counters into Postgres so a redeploy stops
+    handing out fresh buckets. The cost of that is a table that grows with *distinct
+    keys*: ``login:<name>:<ip>`` takes the display name straight from the request body,
+    before pydantic has seen it, so a caller varying the name writes a row per attempt.
+
+    That is the same property ``MemoryStorage`` always had — it is now on disk instead of
+    in RAM, on a Supabase project with 500 MB to spend. What bounds it in the moment is
+    that each such attempt pays a bcrypt hash against the login timing guard before it
+    returns; what bounds it over a season is this.
+
+    Deleting a live bucket would hand back the fresh counter the batch exists to prevent,
+    so the predicate is ``expires_at``, not an age: a row goes only once its window has
+    closed and its count no longer refuses anything.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                delete(RateLimitCounter).where(RateLimitCounter.expires_at < _utc_now())
+            )
+            await session.commit()
+        log.info("pruned rate limit counters", removed=result.rowcount or 0)
+        return True
+    except Exception:
+        log.exception("rate limit counter prune failed")
         return False
 
 
@@ -521,6 +552,19 @@ def create_scheduler() -> AsyncIOScheduler:
         # to any second before it, which the dump could not do.
         minute=30,
         id="prune_refresh_tokens",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+    )
+    scheduler.add_job(
+        run_prune_rate_limit_counters,
+        trigger="cron",
+        hour=4,
+        # Batch 99. Beside the refresh-token prune for the same reason it is at 04:30 —
+        # a quiet hour, before the 06:00 London jobs — and five minutes later so the two
+        # deletes do not contend for the same quiet window.
+        minute=35,
+        id="prune_rate_limit_counters",
         replace_existing=True,
         coalesce=True,
         max_instances=1,

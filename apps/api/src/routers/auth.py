@@ -32,7 +32,14 @@ from src.config import settings
 from src.database import get_db
 from src.models.profile import OddsFormat, Profile, UserRole
 from src.models.refresh_token import RefreshToken
-from src.rate_limit import limiter, login_key, per_user_key, refresh_token_key
+from src.rate_limit import (
+    DurableLoginLimit,
+    DurablePinResetRequestLimit,
+    limiter,
+    login_key,
+    per_user_key,
+    refresh_token_key,
+)
 from src.services.avatar_storage import (
     ALLOWED_IMAGE_TYPES,
     AvatarRejected,
@@ -217,11 +224,15 @@ async def _issue_token_pair(
 
 
 @router.post("/login", response_model=TokenResponse)
-@limiter.limit("5/15 minutes", key_func=login_key)
 async def login(
     request: Request,
     body: LoginRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
+    # Batch 99. Was `@limiter.limit("5/15 minutes", key_func=login_key)`, whose counter
+    # lived in process memory and started again at zero on every redeploy — five guesses,
+    # wait for a deploy, five more. Same limit, same key, same 429; the count now sits in
+    # Postgres and outlives the process. See `src.rate_limit.LOGIN_LIMIT`.
+    _limit: DurableLoginLimit = None,
 ) -> TokenResponse:
     result = await db.execute(
         select(Profile).where(
@@ -687,11 +698,14 @@ async def change_pin(
 
 
 @router.post("/pin/reset-request")
-@limiter.limit("3/hour")
 async def pin_reset_request(
     request: Request,
     body: PinResetRequestBody,
     db: Annotated[AsyncSession, Depends(get_db)],
+    # Batch 99, as above: `@limiter.limit("3/hour")` moved to Postgres. This one pages
+    # every site admin, so a reset of its counter is a reset of the only thing standing
+    # between one caller and an unbounded stream of push notifications.
+    _limit: DurablePinResetRequestLimit = None,
 ) -> dict[str, str]:
     result = await db.execute(
         select(Profile).where(

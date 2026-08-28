@@ -29,3 +29,18 @@ AsyncSessionLocal = async_sessionmaker(
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session
+
+
+async def get_limiter_db() -> AsyncGenerator[AsyncSession, None]:
+    """A session for the durable rate-limit counters, separate from the request's own.
+
+    Batch 99. A counter that shares the handler's transaction is not a counter: login
+    rolls back on a bad PIN and commits on a good one, and an attempt has to be charged
+    either way. Its own session also keeps the charge off the request's identity map, so
+    an attempt is recorded even when the work behind it never reaches a commit.
+
+    Same engine and pool as :func:`get_db` — this is a second transaction, not a second
+    connection pool.
+    """
+    async with AsyncSessionLocal() as session:
+        yield session

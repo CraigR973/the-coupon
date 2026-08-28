@@ -99,6 +99,7 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
             "sync_football_data",
             "live_scores",
             "prune_refresh_tokens",
+            "prune_rate_limit_counters",
         }
 
         # Batch 72. Ten minutes, and almost always free: the job reads the database first
@@ -118,6 +119,15 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
         assert str(prune.trigger) == "cron[hour='4', minute='30']"
         assert prune.coalesce is True
         assert prune.max_instances == 1
+
+        # Batch 99. The durable rate-limit table grows with distinct keys, so it needs a
+        # sweep of its own; five minutes after the refresh-token prune so the two deletes
+        # do not contend for the same quiet window.
+        counters = scheduler.get_job("prune_rate_limit_counters")
+        assert counters is not None
+        assert str(counters.trigger) == "cron[hour='4', minute='35']"
+        assert counters.coalesce is True
+        assert counters.max_instances == 1
 
         # Batch 75. Asserted absent rather than merely left out of the set above: a job
         # nobody asserts is a job that can come back in a merge without anyone noticing,

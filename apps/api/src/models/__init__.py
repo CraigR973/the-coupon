@@ -15,6 +15,7 @@ from src.models.notification import (
 )
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile, SiteRole, UserRole
+from src.models.rate_limit import RateLimitCounter
 from src.models.refresh_token import RefreshToken
 from src.models.standing import Standing
 from src.models.team import Team, TeamAlias
@@ -42,6 +43,7 @@ __all__ = [
     "PickStatus",
     "Profile",
     "PushSubscription",
+    "RateLimitCounter",
     "RefreshToken",
     "SiteRole",
     "Standing",

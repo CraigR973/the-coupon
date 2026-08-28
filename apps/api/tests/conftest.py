@@ -13,7 +13,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import text
+from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
 
@@ -33,6 +33,38 @@ def reset_rate_limits() -> None:
 
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def reset_durable_rate_limits() -> AsyncIterator[None]:
+    """The other half of the reset above, for the counters Batch 99 moved to Postgres.
+
+    ``limiter._storage.reset()`` empties the in-process store and nothing else, so the
+    login and PIN-reset buckets — which now live in a table on purpose — would carry
+    across tests and surface as an unrelated test failing on the sixth login somebody
+    else made. Emptied before *and* after, so a test that commits counters leaves the
+    table as it found it whichever order the suite runs in.
+
+    A no-op without ``DATABASE_URL``: in that mode nothing writes the table because
+    nothing can reach it.
+    """
+    if not DATABASE_URL:
+        yield
+        return
+
+    from src.database import AsyncSessionLocal
+    from src.models.rate_limit import RateLimitCounter
+
+    async def _empty() -> None:
+        async with AsyncSessionLocal() as session:
+            await session.execute(delete(RateLimitCounter))
+            await session.commit()
+
+    await _empty()
+    try:
+        yield
+    finally:
+        await _empty()
 
 
 @pytest_asyncio.fixture(loop_scope="session", scope="session")
