@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, CloudOff, HelpCircle, Loader2 } from 'lucide-react';
+import type { OutstandingPick, OutstandingState } from '@/hooks/usePickEditor';
 import type {
   FixtureSlate,
   OddsFormat,
@@ -111,6 +112,14 @@ export interface PickCardProps {
   locked: boolean;
   /** `${fixtureId}:${market}:${outcome}` currently being submitted. */
   pendingKey: string | null;
+  /**
+   * The claim this device is holding that the server has not confirmed (Batch 90).
+   *
+   * The banner above the slate carries the explanation and the action; this marks *which*
+   * selection it is about, so a member scrolling the card can see the one they are waiting
+   * on without scrolling back up.
+   */
+  outstanding: OutstandingPick | null;
   /** A grab is in flight somewhere — disable every button to avoid double-grabs. */
   busy: boolean;
   /** The member's odds notation. Display only. */
@@ -129,6 +138,7 @@ export function PickCard({
   timezone,
   locked,
   pendingKey,
+  outstanding,
   busy,
   oddsFormat,
   onGrab,
@@ -261,6 +271,12 @@ export function PickCard({
                       pending={
                         pendingKey === `${fixture.fixture_id}:${selectionKey(sel.market, sel.outcome)}`
                       }
+                      unresolved={
+                        outstanding?.key ===
+                        `${fixture.fixture_id}:${selectionKey(sel.market, sel.outcome)}`
+                          ? outstanding.state
+                          : null
+                      }
                       oddsFormat={oddsFormat}
                       timezone={timezone}
                       onGrab={onGrab}
@@ -282,6 +298,7 @@ function SelectionButton({
   locked,
   busy,
   pending,
+  unresolved,
   oddsFormat,
   timezone,
   onGrab,
@@ -291,6 +308,8 @@ function SelectionButton({
   locked: boolean;
   busy: boolean;
   pending: boolean;
+  /** This is the selection the device is still holding, and in which state. */
+  unresolved: OutstandingState | null;
   oddsFormat: OddsFormat;
   timezone: string;
   onGrab: (fixtureId: string, market: PickMarket, outcome: PickOutcome) => void;
@@ -326,6 +345,8 @@ function SelectionButton({
         </span>
         {pending ? (
           <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+        ) : unresolved !== null ? (
+          <UnresolvedIcon state={unresolved} />
         ) : (
           <span className="shrink-0 font-mono text-xs tabular-nums">
             {formatOdds(sel.odds, oddsFormat)}
@@ -333,7 +354,11 @@ function SelectionButton({
         )}
       </span>
       <span className="text-[10px] font-mono uppercase tracking-wide text-text-muted">
-        {takenByOther ? (
+        {unresolved !== null ? (
+          <span className="text-amber-300">
+            {unresolved === 'queued' ? 'waiting to send' : 'unconfirmed'}
+          </span>
+        ) : takenByOther ? (
           <>
             taken by {firstName(sel.taken_by_name ?? 'someone')}
             {takenAtLabel ? <span className="normal-case"> · {takenAtLabel}</span> : null}
@@ -347,5 +372,25 @@ function SelectionButton({
         )}
       </span>
     </button>
+  );
+}
+
+/**
+ * The marker on the one selection whose fate this device does not yet know.
+ *
+ * Sits where the odds normally are — the same slot the spinner uses — because those three
+ * are the same fact at different moments: what this button is doing right now. The label
+ * is not `aria-hidden`: the icon is the only thing distinguishing two states a member has
+ * to act on differently, so it has to reach a screen reader as words.
+ */
+function UnresolvedIcon({ state }: { state: OutstandingState }) {
+  const Icon = state === 'queued' ? CloudOff : HelpCircle;
+  return (
+    <span className="shrink-0 text-amber-300">
+      <Icon className="h-3.5 w-3.5" aria-hidden />
+      <span className="sr-only">
+        {state === 'queued' ? 'Waiting to send' : 'Unconfirmed — may not have saved'}
+      </span>
+    </span>
   );
 }

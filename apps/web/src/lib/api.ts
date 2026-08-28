@@ -32,6 +32,64 @@ export const DEFAULT_LEAGUE_SLUG = 'the-coupon';
  */
 export const PIN_NOT_SET = 'PIN_NOT_SET';
 
+/**
+ * An answer from the API that was not a success — the request reached the server and
+ * came back refused.
+ *
+ * `message` is still the `detail` string, so every caller that reads `err.message`
+ * predates this class and keeps working. What it adds is `status`, which is the only
+ * thing that separates "the server refused you" from "we never heard back" — and on the
+ * pick path those two are different enough that Batch 90 exists to tell them apart.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail: string;
+
+  constructor(status: number, detail: string) {
+    super(detail);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+/**
+ * The request did not produce an answer at all — offline, DNS, a dropped connection, or
+ * a timeout we imposed ourselves.
+ *
+ * `mayHaveLanded` is the field that matters and the reason this class exists. A write
+ * that never left the device can be retried freely; a write that left and went unanswered
+ * **cannot**, because the server may have applied it. On the pick path a blind retry of
+ * the second kind can overwrite a claim the member has since changed their mind about, so
+ * this flag is what lets `usePickEditor` queue one and merely *check* the other.
+ *
+ * It is set from what we can actually know: a `fetch` we refused to start because the
+ * browser reported itself offline definitely never landed. Anything else — including a
+ * connection that dropped a millisecond later — might have.
+ */
+export class NetworkError extends Error {
+  readonly mayHaveLanded: boolean;
+
+  constructor(message: string, mayHaveLanded: boolean, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'NetworkError';
+    this.mayHaveLanded = mayHaveLanded;
+  }
+}
+
+/** Extra, non-`RequestInit` options `apiFetch` understands. */
+export interface ApiFetchOptions extends RequestInit {
+  /**
+   * Abort the request after this many milliseconds and raise a `NetworkError` whose
+   * `mayHaveLanded` is `true`.
+   *
+   * Opt-in, and deliberately not a default: a read that hangs is a spinner, while a
+   * *write* that hangs leaves the member staring at a claim they cannot tell the state
+   * of. Only the pick submission sets it today.
+   */
+  timeoutMs?: number;
+}
+
 let refreshPromise: Promise<void> | null = null;
 
 async function silentRefresh(): Promise<void> {
@@ -66,18 +124,19 @@ async function ensureFreshToken(): Promise<void> {
 
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit = {},
+  options: ApiFetchOptions = {},
 ): Promise<T> {
   await ensureFreshToken();
 
   const accessToken = getAccessToken();
+  const { timeoutMs, ...init } = options;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
-  const resp = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const resp = await sendRequest(`${API_BASE}${path}`, { ...init, headers }, timeoutMs);
 
   // 401 only, deliberately — do not add 403 here (Batch 61).
   //
@@ -103,7 +162,7 @@ export async function apiFetch<T>(
       await silentRefresh();
       const retryToken = getAccessToken();
       if (retryToken) headers['Authorization'] = `Bearer ${retryToken}`;
-      const retry = await fetch(`${API_BASE}${path}`, { ...options, headers });
+      const retry = await fetch(`${API_BASE}${path}`, { ...init, headers });
       if (!retry.ok) throw new Error(`${retry.status}`);
       return retry.json() as Promise<T>;
     } catch {
@@ -115,15 +174,58 @@ export async function apiFetch<T>(
 
   if (!resp.ok) {
     // Try to surface the FastAPI `detail` field for a more useful error message.
+    const fallback = `API error ${resp.status}`;
+    let detail: string | undefined;
     try {
       const body = await resp.json();
-      const detail = typeof body?.detail === 'string' ? body.detail : undefined;
-      throw new Error(detail ?? `API error ${resp.status}`);
-    } catch (e) {
-      if (e instanceof Error && e.message !== `API error ${resp.status}`) throw e;
-      throw new Error(`API error ${resp.status}`);
+      detail = typeof body?.detail === 'string' ? body.detail : undefined;
+    } catch {
+      detail = undefined;
     }
+    throw new ApiError(resp.status, detail ?? fallback);
   }
   if (resp.status === 204) return undefined as T;
   return resp.json() as Promise<T>;
+}
+
+/**
+ * One `fetch`, with the two failure modes separated before they reach a caller.
+ *
+ * The browser gives every transport failure the same shape — a `TypeError` — whether the
+ * request never left or left and went unanswered, and that distinction is exactly what a
+ * write has to have. Two things narrow it: refusing to start while `navigator.onLine` is
+ * false (which means it definitely did not land), and imposing our own deadline (which
+ * means it did leave, so it might have).
+ *
+ * `navigator.onLine` is only ever trusted in the *negative*. `true` means "there is a
+ * network interface", not "the server is reachable" — a captive portal or a pub's dead
+ * wifi reports online — so it is used to prove a request never left and never to promise
+ * one will arrive.
+ */
+async function sendRequest(
+  url: string,
+  init: RequestInit,
+  timeoutMs?: number,
+): Promise<Response> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    throw new NetworkError('You are offline', false);
+  }
+
+  if (timeoutMs === undefined) {
+    try {
+      return await fetch(url, init);
+    } catch (cause) {
+      throw new NetworkError('The network request failed', true, { cause });
+    }
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (cause) {
+    throw new NetworkError('The network request failed', true, { cause });
+  } finally {
+    clearTimeout(timer);
+  }
 }

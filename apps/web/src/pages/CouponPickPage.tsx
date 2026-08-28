@@ -9,7 +9,7 @@ import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
 import { useGameweekHistory, useSelectedGameweekId } from '../hooks/useGameweekHistory';
 import { useOddsFormat } from '../hooks/useOddsFormat';
 import { useRouteLeague } from '../hooks/useRouteLeague';
-import { usePickEditor, gameweekKey } from '../hooks/usePickEditor';
+import { usePickEditor, gameweekKey, type OutstandingPick } from '../hooks/usePickEditor';
 import type {
   FixtureSlate,
   GameweekSlate,
@@ -28,6 +28,7 @@ import { LeagueSwitchStrip } from '../components/LeagueSwitchStrip';
 import { OddsGuide } from '../components/OddsGuide';
 import { PickCard } from '../components/PickCard';
 import { MemberRoster } from '../components/MemberRoster';
+import { OutstandingPickNotice } from '../components/OutstandingPickNotice';
 import { GameweekNav } from '../components/GameweekNav';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/ui/skeleton';
@@ -126,7 +127,8 @@ export function CouponPickPage() {
 
   const countdown = useCountdown(slate?.locks_at_utc ?? FAR_PAST);
   const openCountdown = useCountdown(slate?.picks_open_at_utc ?? FAR_PAST);
-  const { submit, pendingKey, isSubmitting } = usePickEditor(slug, slate?.gameweek_id);
+  const { submit, pendingKey, isSubmitting, outstanding, resolveOutstanding, discardOutstanding } =
+    usePickEditor(slug, slate?.gameweek_id);
 
   // Mirrors the API's own rule (`pick_refusal`): the stored instants decide both ends of
   // the claim period and `status` only rules out a round settlement has finished with.
@@ -282,7 +284,18 @@ export function CouponPickPage() {
 
       {slate && slate.fixtures.length > 0 && (
         <div className="flex flex-col gap-4">
-          {!myPick && !locked && (
+          {/* Ahead of the "you haven't grabbed one yet" prompt, deliberately: a member
+              holding an unsent or unconfirmed claim has already picked, and telling them
+              to pick is the wrong next instruction. */}
+          {outstanding && (
+            <OutstandingPickNotice
+              outstanding={outstanding}
+              onResolve={resolveOutstanding}
+              onDiscard={discardOutstanding}
+              disabled={locked}
+            />
+          )}
+          {!myPick && !locked && !outstanding && (
             <Badge variant="warning" className="w-fit">
               You haven't grabbed a selection yet
             </Badge>
@@ -294,6 +307,7 @@ export function CouponPickPage() {
               timezone={timezone}
               locked={locked}
               pendingKey={pendingKey}
+              outstanding={outstanding}
               busy={isSubmitting}
               oddsFormat={oddsFormat}
               onGrab={submit}
@@ -316,6 +330,7 @@ function CompetitionSection({
   timezone,
   locked,
   pendingKey,
+  outstanding,
   busy,
   oddsFormat,
   onGrab,
@@ -324,6 +339,7 @@ function CompetitionSection({
   timezone: string;
   locked: boolean;
   pendingKey: string | null;
+  outstanding: OutstandingPick | null;
   busy: boolean;
   oddsFormat: OddsFormat;
   onGrab: (fixtureId: string, market: PickMarket, outcome: PickOutcome) => void;
@@ -362,6 +378,7 @@ function CompetitionSection({
               timezone={timezone}
               locked={locked}
               pendingKey={pendingKey}
+              outstanding={outstanding}
               busy={busy}
               oddsFormat={oddsFormat}
               onGrab={onGrab}

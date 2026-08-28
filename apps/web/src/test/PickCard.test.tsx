@@ -29,6 +29,7 @@ function renderCard(overrides: Partial<React.ComponentProps<typeof PickCard>> = 
       timezone="UTC"
       locked={false}
       pendingKey={null}
+      outstanding={null}
       busy={false}
       oddsFormat="decimal"
       onGrab={onGrab}
