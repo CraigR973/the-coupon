@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PinInput } from '@/components/PinInput';
@@ -54,7 +54,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg flex flex-col items-center justify-center p-4 pt-safe pb-safe">
+    <main className="min-h-screen bg-bg flex flex-col items-center justify-center p-4 pt-safe pb-safe">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
           <Brand variant="splash" />
@@ -64,7 +64,16 @@ export function LoginPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-center text-text-primary">Sign in</CardTitle>
+            {/*
+              Deliberately not `CardTitle`, which is hard-coded to `<h2>`. These two pages
+              render outside `Layout`/`ProtectedRoute`, so nothing on them supplies the
+              `<h1>` that `PageHeader` gives every authenticated screen — axe reported
+              `page-has-heading-one` on both. The classes are `CardTitle`'s own plus this
+              card's, so it is the same heading to look at; only the level changes.
+            */}
+            <h1 className="text-lg font-semibold leading-tight tracking-tight text-center text-text-primary">
+              Sign in
+            </h1>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -107,6 +116,6 @@ export function LoginPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </main>
   );
 }

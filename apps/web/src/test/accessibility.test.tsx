@@ -3,9 +3,11 @@ import { render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { axe } from 'jest-axe';
+import axeCore from 'axe-core';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LeagueProvider } from '@/contexts/LeagueContext';
 import { LoginPage } from '@/pages/LoginPage';
+import { RegisterPage } from '@/pages/RegisterPage';
 import { TopBar } from '@/components/TopBar';
 import { SettingsPage } from '@/pages/SettingsPage';
 
@@ -209,3 +211,69 @@ describe('Accessibility — SettingsPage', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Page-level landmark and heading rules — UX-07
+// ---------------------------------------------------------------------------
+//
+// Of the three rules UX-07 reported, only `region` can be asserted here, and the
+// other two are checked in a real browser by `e2e/prod-bundle-a11y.spec.ts`.
+// That split is forced, not stylistic:
+//
+//   * `landmark-one-main` and `page-has-heading-one` resolve through axe's
+//     visibility check, which needs layout. jsdom reports zero dimensions for
+//     everything, so axe returns both as `incomplete` — "needs review" — for any
+//     markup at all. Measured against this suite: no <main> and no <h1> gives the
+//     same `incomplete` as a correct page and as a page with three <main>s. An
+//     assertion on them here would be green whatever these pages contained.
+//   * `region` does produce a real verdict under jsdom, and it is the rule that
+//     covers the bulk of UX-07 — 22 of the 26 reported nodes.
+//
+// It also has to be `axe-core` directly rather than the `axe()` wrapper the tests
+// above use. Handed anything not already inside `<body>`, jest-axe 10.0.0 falls
+// back to `document.body.innerHTML = element.outerHTML` (`mount()`), which
+// re-roots the context at `<body>` and replaces React's live container with a
+// string clone — leaving Testing Library's auto-cleanup holding a detached node
+// it cannot remove, so each case leaks its page into the next.
+const PAGE_LEVEL_RULES = ['landmark-one-main', 'page-has-heading-one', 'region'];
+
+describe.each(['light', 'dark'])(
+  'Accessibility — unauthenticated pages, page-level rules (%s theme)',
+  (theme) => {
+    beforeEach(() => {
+      // What ThemeContext.applyTheme() puts on <html>. These rules are structural
+      // and never read colour, but UX-07 was reported against both themes and
+      // reproducing the sweep faithfully costs one class swap.
+      document.documentElement.classList.remove('light', 'dark');
+      document.documentElement.classList.add(theme);
+    });
+
+    it.each([
+      ['LoginPage', LoginPage],
+      ['RegisterPage', RegisterPage],
+    ])('%s puts all content in a landmark, under one <h1>', async (_name, Page) => {
+      render(
+        <QueryClientProvider client={makeQueryClient()}>
+          <MemoryRouter>
+            <AuthProvider>
+              <Page />
+            </AuthProvider>
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+      await waitFor(() => expect(document.querySelector('form')).toBeTruthy());
+
+      const results = await axeCore.run(document.documentElement, {
+        runOnly: { type: 'rule', values: PAGE_LEVEL_RULES },
+      });
+      expect(results.violations.map((v) => v.id)).toEqual([]);
+
+      // The structural half of what the two layout-dependent rules would assert,
+      // and stricter than they are: axe passes `landmark-one-main` on a page with
+      // three <main>s and `page-has-heading-one` on one with three <h1>s, since
+      // both ask only whether at least one exists.
+      expect(document.querySelectorAll('main')).toHaveLength(1);
+      expect(document.querySelectorAll('h1')).toHaveLength(1);
+    });
+  },
+);

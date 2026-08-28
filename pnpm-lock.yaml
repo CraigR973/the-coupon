@@ -147,6 +147,9 @@ importers:
       autoprefixer:
         specifier: ^10.4.19
         version: 10.5.0(postcss@8.5.14)
+      axe-core:
+        specifier: 4.10.2
+        version: 4.10.2
       eslint:
         specifier: ^8.57.0
         version: 8.57.1
