@@ -567,7 +567,16 @@ read from those rows so a ten-minute job cannot push every ten minutes and a red
 cannot restart the noise. No TheSportsDB adapter — set aside as a separate call. API-only,
 **not live until `/ship-prod`**.
 
-Batches 1-90 and 99-101 are closed. The Coupon is a
+**Batch 102** moved the router off the advisory-stranded 6.x line. Both
+`react-router-dom` and `react-router` now resolve to **7.18.3**, removing
+`@remix-run/router` and clearing the two React Router findings that otherwise required a
+fresh reachability analysis on every dependency scan. The app is declarative routing
+only — no loaders, actions, fetchers or data router — so v7 required no source rewrite;
+the existing `react-router-dom` imports remain supported and Batch 88's app-owned
+`?next=` guard stays in place. Its hostile redirect suites pass 56/56 and the production
+bundle deep-link smoke passes. Web-only, so it creates no `/ship-prod` obligation.
+
+Batches 1-90 and 99-102 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1158,12 +1167,13 @@ columns exist to prevent.
 ## Verified
 
 - Backend: the complete PostgreSQL-backed pytest suite, Ruff check/format, and
-  strict mypy; Batch 77 close-out passed `scripts/ci-local.sh` end-to-end
-  (11 checks), as every close-out since Batch 26 has. That script's pinned venv **is**
+  strict mypy; Batch 102 close-out passed `scripts/ci-local.sh` end-to-end
+  (11 checks) after an environment-only locale rerun, as every close-out since Batch 26
+  has. That script's pinned venv **is**
   the gate: app-starter's venv can no longer even collect the suite (no Pillow, so
   `avatar_storage.py` takes ten test files down with it) and `AGENTS.md` plus
   `docs/agent-commands/batch-verify.md` still document that stale path
-- Database: clean `pgserver` migration through revision `016`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
+- Database: clean `pgserver` migration through revision `019`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 18 public tables under a Supabase-like role setup. The count was 13 at
   revision `004`; `009`-`013` added the rest, and every one of the 18 was
   confirmed RLS-enabled *and* forced against production on 2026-08-19, with
@@ -1217,10 +1227,10 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 83-102 unchecked** — the twenty-one the 2026-08-26
-full-application review specified, less Batch 82, which is closed. They run as the eight
-groups of `docs/review/2026-08-26/07-sequencing.md`, each group being individual
-start → close-out cycles with **one `/ship-prod` at the group boundary**.
+`docs/BUILD_PLAN.md` carries **Batches 91-98 unchecked** — eight remaining batches from
+the 2026-08-26 full-application review. They run in the remaining groups of
+`docs/review/2026-08-26/07-sequencing.md`, each batch being an individual
+start → close-out cycle with **one `/ship-prod` at the group boundary**.
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday watch**,
 with L0-L4 ticked since 2026-08-04.
 
@@ -1244,6 +1254,9 @@ reached members on its own close-out push, because Vercel releases the web app f
 was not already serving. That is the difference from the Coupon tab on 2026-08-06.
 
 **Group C is complete and shipped** — Batches 89 and 90 went to production on 2026-08-28.
+
+**Group H is complete.** Batch 102's React Router 7 migration is closed; it is web-only,
+so no API shipment is attached to it.
 
 **Group D is underway — Batches 99, 100, 101 then 95, API/infra only, and it owes a
 `/ship-prod` at the boundary.** Nothing in it reaches members on a close-out push, so the

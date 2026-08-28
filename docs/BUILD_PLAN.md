@@ -3072,7 +3072,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: detection and alerting. This batch does not build the TheSportsDB
   adapter — that was considered and set aside as a separate future call.
 
-- [ ] **Batch 102 — react-router 6 has no patch for its open-redirect advisory**
+- [x] **Batch 102 — react-router 6 has no patch for its open-redirect advisory** ✅ 2026-08-28
   — specified from `docs/review/2026-08-26/01-security.md`, SEC-10; owner decision
   2026-08-27: **migrate to react-router 7**. The advisory (GHSA-jjmj-jmhj-qwj2 /
   GHSA-wrjc-x8rr-h8h6) is genuinely unreachable in this tree — re-derived against the

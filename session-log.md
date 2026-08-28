@@ -2873,3 +2873,32 @@ is soft-blocked on FEAT-A09 egress headroom and an owner choice of storage desti
 **Next:** Batch 95 — durable off-box logical backups, which is **soft-blocked**: it needs
 Supabase egress headroom established for FEAT-A09 first, and an owner decision on the
 storage destination (S3 / R2 / Backblaze). Then `/ship-prod` for Group D.
+
+## Batch 102 — react-router 6 has no patch for its open-redirect advisory
+**Commits:** 80e07a4 · verified: `scripts/ci-local.sh` PASS (11 checks) after one environment rerun
+
+### Key facts for future sessions
+- **The complete migration is the dependency and lockfile bump.** `react-router-dom` and
+  `react-router` both resolve to 7.18.3, clearing the 6.x-only advisories and removing
+  `@remix-run/router`; the repository already satisfies v7's Node 20 / React 18 floors.
+- **There is no data-router migration hidden here.** The app uses declarative
+  `BrowserRouter`/`Routes` only — no loaders, actions, fetchers or `RouterProvider` — and
+  all lazy route declarations are module-scoped, so v7 forced no source compatibility
+  changes.
+- **Keep the `react-router-dom` imports.** V7 still supports that package; moving 61
+  production/test imports to `react-router` would also churn Vite's manual chunk and is
+  optional v8 preparation, outside this batch's no-redesign boundary.
+- **Batch 88 remains defense in depth.** Its login/register redirect suites passed 56/56
+  on v7, including both backslash forms; the app-owned URL-parser guard still normalizes
+  attacker-controlled `?next=` before navigation.
+- **The supplemental production audit is clean for React Router, not globally green.**
+  It still reports pre-existing Nano ID/PostCSS findings through Tailwind; those are
+  unrelated to this migration and were not folded into it.
+- **The first full gate run failed before pytest on the host locale.** macOS has no
+  `C.UTF-8`, so `pgserver initdb` refused it; rerunning the whole gate with
+  `LC_ALL=LANG=en_US.UTF-8` passed all 11 checks, including the prod-bundle deep-link
+  smoke. This was an environment reset, not a code fix.
+
+**Next:** Batch 91 — make new leagues invite-only by default and explain every privacy
+option at the point of creation. Batch 102 is web-only, so it creates no `/ship-prod`
+obligation.
