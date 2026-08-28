@@ -2770,7 +2770,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: these two pages' shell only. No visual redesign.
 
-- [ ] **Batch 87 — The service worker caches authenticated JSON the server marked `no-store`**
+- [x] **Batch 87 — The service worker caches authenticated JSON the server marked `no-store`** ✅ 2026-08-28
   — specified from `docs/review/2026-08-26/01-security.md`, SEC-13 (LOW). `sw.ts:40-50`'s
   Workbox `NetworkFirst` route caches every `/api/v1/*` 200 response for up to an hour,
   independent of `Cache-Control: no-store` (SEC-11's fix). Mitigated on logout/login-switch

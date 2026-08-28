@@ -484,6 +484,19 @@ returns the parsed path so react-router cannot land somewhere other than what wa
 to `/join/:token` as before. react-router 7 (Batch 102) is the complete upstream fix and is
 now unblocked, but this guard stands independently of it.
 
+**Batch 87** stopped the service worker keeping data the API told it not to keep. The
+`/api/v1/*` route cached on HTTP status alone, so every authenticated read sat in Cache
+Storage for up to an hour even though every API response is marked `Cache-Control:
+no-store`. Logout cleared it, but a merely *locked* device — access token expired, refresh
+token still there — held the previous reader's league data where any page-context script
+could read it without a bearer token, Cache Storage being same-origin-scoped rather than
+permission-scoped. The route now drops any response carrying the directive. **Web-only,
+live from this push.** The visible consequence is that API reads no longer survive going
+offline: a flaky connection reaches the offline banner instead of a stale league table,
+which is the trade the review asked for. Note the review's alternative suggestion — drop
+`CacheableResponsePlugin` and rely on the in-flight fallback — would have cached *more*,
+not less: `NetworkFirst` persists by default and that plugin only narrowed it.
+
 Batches 1-88 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
@@ -1153,17 +1166,20 @@ upgrade ran, which is itself the proof no collision existed; confirmed afterward
 inside the container (`uq_profiles_display_name_lower` present, the old constraint gone,
 collision count 0).
 
-**Group B is in progress — Batches 86, 88, 87, web only, and it owes no `/ship-prod`.**
-**86 and 88 are closed and live**; 87 is the last of the group. 86 and 88 touch the same two files
-(`LoginPage.tsx`, `RegisterPage.tsx`) so they run adjacent, and 88 unblocks Group H. Every
-batch here reaches members on its own close-out push, because Vercel releases the web app
-from `main` — what the group avoids is the *asymmetry*, since none of it calls an API route
-Railway is not already serving. That is the difference from the Coupon tab on 2026-08-06.
+**Group B is complete — Batches 86, 88 and 87 are all closed and live, and no
+`/ship-prod` is owed.** 86 and 88 were run adjacent because they reshaped the same two
+files (`LoginPage.tsx`, `RegisterPage.tsx`), and 88 has now unblocked Group H. Each batch
+reached members on its own close-out push, because Vercel releases the web app from `main`
+— what the group avoided is the *asymmetry*, since none of it called an API route Railway
+was not already serving. That is the difference from the Coupon tab on 2026-08-06.
 
-Production serves `f41a383a` after the 2026-08-26 `/ship-prod` of Batches 79-81;
-`/api/v1/health` and `/health/ready` agree at migration `016`. Batch 74 was applied the
-same day, so 2-1 Hibs' rounds read Gameweek 1-4 and the three renamed members carry their
-new names.
+**Group C is next — Batches 89, 90, API + web, and it owes a `/ship-prod` at the
+boundary.** It carries FEAT-B01, the review's highest-value product finding. 90's web half
+reaches members on its close-out push while 89's refusal state does not exist until the
+ship, so the two must not be left straddling that gap for long.
+
+Batch 74 was applied on 2026-08-26, so 2-1 Hibs' rounds read Gameweek 1-4 and the three
+renamed members carry their new names.
 
 What is outstanding now:
 

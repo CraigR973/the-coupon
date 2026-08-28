@@ -2654,3 +2654,38 @@ end-to-end drive of the production bundle in Chromium
 
 **Next:** Batch 87 — stop the service worker caching authenticated `/api/v1/*` JSON the
 server marked `no-store`. Last of Group B; still no `/ship-prod` owed.
+
+## Batch 87 — The service worker caches authenticated JSON the server marked `no-store`
+**Commits:** `80022d2` · verified: `scripts/ci-local.sh` PASS (11 checks); guard confirmed
+present in the built `dist/sw.js`
+
+### Key facts for future sessions
+- **SEC-13's second suggested fix would not have worked.** The review offered "drop
+  `CacheableResponsePlugin` for `/api/v1/*` and rely on `NetworkFirst`'s in-flight fallback
+  without persisting to Cache Storage". `NetworkFirst` persists by *default*;
+  `CacheableResponsePlugin` only ever narrows what it persists, so removing it caches
+  strictly more. Preventing the write needs `cacheWillUpdate` returning `null` — nothing
+  else in the plugin list can stop it.
+- **API reads no longer survive going offline.** Every API response carries `no-store`
+  (`middleware.py:64`, unconditional), so the `api-coupon` cache now holds nothing and the
+  route is network-with-a-3s-timeout. A flaky connection mid-Saturday reaches the app's
+  offline state rather than an up-to-hour-old league table. That is the review's intended
+  trade and `OfflineBanner` covers it, but it is a real behaviour change and the first
+  place to look if someone reports "the standings used to work on the train".
+- **The guard reads the header rather than deleting the route**, so if any endpoint is ever
+  served without `no-store` it starts being cached again automatically. That is deliberate:
+  the alternative silently strands a future cacheable response with nothing pointing at why.
+- **Workbox strategies cannot run under jsdom without two stub globals.**
+  `Strategy.handleAll` does `options instanceof FetchEvent` and `StrategyHandler` asserts
+  `options.event instanceof ExtendableEvent`. Bare classes satisfy both, and the event must
+  be a real instance of the stubbed `ExtendableEvent`, not a cast object literal.
+- **`ExpirationPlugin` cannot be in a jsdom test harness.** It writes timestamps to
+  IndexedDB from `cacheDidUpdate`; jsdom has none, and the unhandled rejection exits the
+  run non-zero *while every test still reports as passing* — 8 passed, exit 1. Worth
+  remembering as a shape: a green test list is not a green run.
+- **The cache write lands in a `waitUntil` promise**, so an assertion made straight after
+  `strategy.handle()` sees an empty cache whether or not the guard works. The harness
+  collects and awaits them, which is what makes the negative result mean anything.
+
+**Next:** Group B is complete. Group C — Batches 89, 90 (API + web, `/ship-prod` owed at
+the boundary, and the review's highest-value product finding).
