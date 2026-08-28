@@ -46,8 +46,12 @@ as long as a third party takes to answer on the one deadline the product turns
 on. And the per-member submit limit, which permitted one member to spend sixty
 provider requests an hour against roughly twelve spare, is now a named
 `PICK_SUBMIT_LIMIT` of `10/hour` asserted against the measured budget. The
-aggregate is still unbounded — fifteen members at ten each exceeds the plan —
-and that gap is stated in a test rather than left to be rediscovered.
+aggregate gap it left open — fifteen members at ten each exceeds the plan, and
+fifty at ten is five times it — was closed by **Batch 89**: the submit path now
+also charges a shared `50/hour;100/day` bucket keyed on the league, and a league
+that has spent its share is refused with `PICKS_BUSY` rather than served a price
+the provider did not confirm. The bucket bounds a league and not the
+installation; what that leaves open is stated in a test.
 
 Batch 58 made the rate limits real. `X-Forwarded-For` was read from the left —
 the half a caller writes — so every IP-keyed limit in the app was bypassable by

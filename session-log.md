@@ -2689,3 +2689,37 @@ present in the built `dist/sw.js`
 
 **Next:** Group B is complete. Group C — Batches 89, 90 (API + web, `/ship-prod` owed at
 the boundary, and the review's highest-value product finding).
+
+## Batch 89 — Pick submission has a per-member limit but no aggregate one
+**Commits:** 88458ef · verified: `scripts/ci-local.sh` PASS (11 checks), green first run
+
+### Key facts for future sessions
+- **The bound is `50/hour;100/day` per league, and 50 was not a free choice.** It is
+  simultaneously what the hour leaves after the measured peak browsing hour
+  (`100 − 28 = 72`) and `max_members`'s ceiling, so a full league can still take one pick
+  each. Any tightening below 50 refuses legitimate claims from a full league; any
+  loosening past 72 outspends the plan.
+- **This bound deliberately does *not* reserve the ad-hoc round allowance, and the
+  per-member one does.** `test_one_member_cannot_exhaust_the_plan_by_changing_their_mind`
+  measures against `100 − 28 − 60 = 12` because it asks whether one actor can break the
+  budget alone. The aggregate test measures against 72 because reserving an admin
+  button's untaken 60 against members submitting picks would refuse real claims to
+  protect a press that is not happening. Both framings are stated in the tests; do not
+  "fix" the inconsistency without reading them.
+- **The bucket counts submissions, not upstream requests.** A submission prices one
+  event and one event is one request, so bounding submissions bounds spend without
+  needing to know whether this fetch hit the 60s cache. It over-counts a same-fixture
+  re-pick inside a minute and never under-counts — the safe direction.
+- **Keyed per league, so it bounds a league and not the installation.** Two concurrent
+  full-tilt leagues put the global plan back in charge.
+  `test_the_aggregate_bound_is_per_league_rather_than_per_installation` is the tripwire
+  and will fail loudly if the limit or the plan moves.
+- **The charge sits after the free refusals and before `_snapshot_selection`.** A pick
+  refused for lock or an unoffered market has spent nothing; everything below the fetch —
+  including a lost claim race — has. Batch 57's lock-then-fetch ordering is untouched.
+- **`PICKS_BUSY` has no client-side copy yet.** `pickErrorMessage` falls through to the
+  raw code. Batch 90 owns it, and no member can see it before then because the API does
+  not ship until `/ship-prod`.
+
+**Next:** Batch 90 — pick submission's offline resilience, which must render `PICKS_BUSY`
+alongside offline and lost-the-race. Then `/ship-prod` at the Group C boundary.

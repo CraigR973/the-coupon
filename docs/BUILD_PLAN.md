@@ -2804,7 +2804,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the two redirect guards only. Not the react-router major-version
   migration — track that separately if it's ever taken on.
 
-- [ ] **Batch 89 — Pick submission has a per-member limit but no aggregate one**
+- [x] **Batch 89 — Pick submission has a per-member limit but no aggregate one** ✅ 2026-08-28
   — specified from `docs/review/2026-08-26/04-operations.md`, OPS-10, continuing CORR-03
   from the 2026-08-22 review. `PICK_SUBMIT_LIMIT = 10/hour` bounds one member; a league at
   its actual ceiling (`max_members = 50`) can generate `500/hour` against a `100/hour`
