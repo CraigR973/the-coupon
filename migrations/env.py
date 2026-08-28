@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "apps" / "api"))
 
 from src.models.base import Base  # noqa: E402
 import src.models  # noqa: E402,F401 — registers all models on Base.metadata
+from src.migration_guard import assert_single_replica  # noqa: E402
 
 config = context.config
 
@@ -29,6 +30,7 @@ def _url() -> str:
 
 
 def run_migrations_offline() -> None:
+    assert_single_replica()
     context.configure(
         url=_url(),
         target_metadata=target_metadata,
@@ -52,6 +54,11 @@ def _do_run_migrations(connection):  # type: ignore[no-untyped-def]
 
 
 async def _run_async_migrations() -> None:
+    # Batch 100. Before the engine, not after: `nixpacks.toml` runs this inside the web
+    # process on every boot, which is safe only while `railway.toml` pins the service to
+    # one replica. Raise that and two containers race the same upgrade. Checked here
+    # rather than in the start command so it holds for every way this is invoked.
+    assert_single_replica()
     engine = create_async_engine(
         _url(),
         connect_args={"prepared_statement_cache_size": 0},

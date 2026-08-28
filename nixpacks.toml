@@ -4,6 +4,13 @@ providers = ["python"]
 PYTHONUNBUFFERED = "1"
 PYTHONDONTWRITEBYTECODE = "1"
 PYTHONPATH = "/app/apps/api"
+# Batch 100. What `railway.toml` asks Railway for, carried into the image so the boot can
+# check it. `alembic upgrade head` runs inside this process (see `[start]` below), which
+# is safe only at one replica; `src.migration_guard` refuses to migrate above that, and
+# `tests/test_migration_guard.py` keeps this number honest against `railway.toml` —
+# including the multi-region case, where two regions at one replica each is two
+# processes while `numReplicas` still reads 1.
+DEPLOY_REPLICA_COUNT = "1"
 
 [phases.setup]
 nixPkgs = ["...", "postgresql_17"]
