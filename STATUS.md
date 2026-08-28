@@ -501,7 +501,32 @@ which is the trade the review asked for. Note the review's alternative suggestio
 `CacheableResponsePlugin` and rely on the in-flight fallback — would have cached *more*,
 not less: `NetworkFirst` persists by default and that plugin only narrowed it.
 
-Batches 1-88 are closed. The Coupon is a
+**Batch 89** bounded pick submission in aggregate, not only per member.
+`PICK_SUBMIT_LIMIT = 10/hour` caps one member; at `max_members`'s real ceiling of fifty
+that is `500/hour` against a `100/hour` provider plan, and exhausting it is silent —
+everybody's prices simply stop refreshing. `POST .../picks` now also charges a shared
+`50/hour;100/day` bucket keyed on the league, and a league that has spent its share is
+refused with `429 PICKS_BUSY` rather than served a price the provider did not confirm.
+Fifty is deliberately both what the hour leaves after peak browsing and `max_members`
+itself, so a full league can still take one pick each. **API-only, so a `/ship-prod` is
+owed** — the refusal does not exist in production until then. The bucket bounds a league
+and not the installation; two concurrent full-tilt leagues put the plan back in charge,
+and that residual is stated in `test_request_budget.py`.
+
+**Batch 90** gave that write real resilience. `usePickEditor` was a bare mutation with no
+retry, no offline detection and no deadline, so "the wifi dropped" and "someone beat you
+to Arsenal" arrived as the same sentence and a member could not tell whether their claim
+had landed. `apiFetch` now separates a request that was never started (`navigator.onLine`
+false — it definitely did not land) from one that left and went unanswered. A pick of the
+first kind is **queued** and sent on reconnect; one of the second is **unconfirmed** and
+is never re-sent on its own — reconnecting reads the round's pick back instead, because
+re-sending would silently take the claim of a member who has since changed their mind
+backwards. `OutstandingPickNotice` keeps that state on screen with the matching action,
+and the queue is in memory only: an unsent intent that outlived a sign-out would fire
+under whoever holds the phone next. **Web-only, live from this push** — which means
+`PICKS_BUSY` copy is shipped for a refusal the deployed API cannot yet send.
+
+Batches 1-90 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,

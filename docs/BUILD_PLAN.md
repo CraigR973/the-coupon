@@ -2828,7 +2828,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: the pick-submit path only. No change to `PICK_SUBMIT_LIMIT` itself.
 
-- [ ] **Batch 90 — Pick submission — the app's core action — has no offline resilience**
+- [x] **Batch 90 — Pick submission — the app's core action — has no offline resilience** ✅ 2026-08-28
   — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-B01 (HIGH).
   `usePickEditor.ts:67-86` is a bare `useMutation` around `POST .../picks`: no retry, no
   offline detection, no queued/background-sync submission. A failed request under a weak

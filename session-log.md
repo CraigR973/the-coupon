@@ -2723,3 +2723,40 @@ the boundary, and the review's highest-value product finding).
 
 **Next:** Batch 90 — pick submission's offline resilience, which must render `PICKS_BUSY`
 alongside offline and lost-the-race. Then `/ship-prod` at the Group C boundary.
+
+## Batch 90 — Pick submission has no offline resilience
+**Commits:** cea2353 · verified: `scripts/ci-local.sh` PASS (11 checks) after one fix
+
+### Key facts for future sessions
+- **The whole design rests on one distinction: was the request *started*?**
+  `NetworkError.mayHaveLanded` is `false` only when `apiFetch` refused to call `fetch`
+  because `navigator.onLine` was false. Everything else — a dropped connection, our own
+  12s timeout — is `true`. `navigator.onLine` is trusted only in the negative; `true`
+  means "there is an interface", not "the server is reachable", so it proves a request
+  never left and never promises one will arrive.
+- **`unconfirmed` is never re-sent automatically, and that is the batch.** The server
+  updates a pick in place, so re-sending is safe *for that submission* — the harm is a
+  member who has since picked something else having their claim silently taken backwards.
+  Recovery is a `GET .../pick`, which changes nothing.
+- **The queue is a single slot, not a log.** One pick per member per round means only the
+  newest intent can be right, so `submit` drops whatever was held before sending. This is
+  what makes the reconnect flush safe; a FIFO here would be a bug.
+- **In memory only — no IndexedDB, no Background Sync.** Deliberate, given SEC-13/Batch 87.
+  An unsent pick is the member's own intent and holds nobody else's league data, but a
+  persisted one firing after a sign-out on a shared phone is worse than the case it
+  covers. Also sidesteps the `ExpirationPlugin`/jsdom hazard Batch 87 hit.
+- **`vi.mocked(toast)` does not type its members as mocks.** `mockToast.error.mock.calls`
+  typechecks nowhere — reach the log through `vi.mocked(toast.error).mock.calls`. This is
+  what turned the gate red; `pnpm test` was green while `typecheck` and `build` failed, so
+  a green test list again did not mean a green run.
+- **`apiFetch`'s offline short-circuit applies to every call, not just picks.** An offline
+  read now raises `NetworkError('You are offline')` instead of attempting a doomed fetch.
+  Nothing in the suite depended on the old shape, but it is a global behaviour change.
+- **Batch 90's own BUILD_PLAN row carries a premise Batch 87 falsified** — "Reads already
+  get a resilient Workbox `NetworkFirst` cache with an offline fallback". They do not; the
+  `api-coupon` cache holds nothing since `no-store` is honoured. The finding still stood
+  (the write path had no resilience) but the row's contrast no longer describes the app.
+
+**Next:** `/ship-prod` — Group C's boundary. Batch 90's client is live in front of members
+on this push while Batch 89's `PICKS_BUSY` does not exist in production until the API
+ships. Then Group D (Batches 99, 100, 101, 95).
