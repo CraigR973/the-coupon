@@ -2801,3 +2801,35 @@ ships. Then Group D (Batches 99, 100, 101, 95).
 
 **Next:** Batch 100 — the single-replica guard on migration-on-boot. Then 101, then 95
 (soft-blocked on FEAT-A09 egress headroom). `/ship-prod` at the Group D boundary.
+
+## Batch 100 — Migration-on-boot is safe only while nobody raises the replica count
+**Commits:** 5cd3af9 · verified: `scripts/ci-local.sh` PASS (11 checks), green first run
+
+### Key facts for future sessions
+- **The guard lives in `migrations/env.py`, not the start command.** `nixpacks.toml`'s
+  chain was the obvious place and is the wrong one — it guards one invocation. In `env.py`
+  it covers `railway run alembic`, a hand-typed upgrade and `/ship-prod` alike, and it
+  cannot be dropped by someone editing the start command.
+- **Railway exposes no replica *count* at runtime** — `RAILWAY_REPLICA_ID` is a UUID, not
+  an ordinal — so the number is baked into the image by `nixpacks.toml`'s
+  `DEPLOY_REPLICA_COUNT`, and `test_migration_guard.py` is what keeps that declaration
+  equal to what `railway.toml` asks for. Raising replicas therefore takes two mistakes:
+  change the declaration and ignore a red gate, and the boot still refuses.
+- **`numReplicas` alone is the wrong field to read.** It is per-region; two regions at one
+  replica each is two processes racing while `numReplicas` still reads 1. The effective
+  count sums `multiRegionConfig`, and there is a test for that shape specifically.
+- **The alembic tests are hermetic and prove *ordering*, not just refusal.** They point at
+  `postgresql+asyncpg://...@127.0.0.1:1/nothing` — refused instantly rather than timed out
+  — so at two replicas the run must fail with the guard's message and at one it must fail
+  on the *connection*. A migration refused after connecting has already had its chance to
+  race the one it was refusing.
+- **Failing the boot is the decided behaviour, not a shortcut.** "Skip and let a designated
+  instance own it" needs an instance ordinal Railway does not give. The refusal message
+  names the release-step alternative and dates the decision, so whoever trips it finds the
+  reasoning rather than re-deriving it.
+- **No migration, so this batch does not strand the previous deployment.** Unlike Batch 99,
+  the pre-`018` rollback question is unchanged by this one.
+
+**Next:** Batch 101 — a defined failure trigger and alert for FotMob. Then Batch 95, which
+is soft-blocked on FEAT-A09 egress headroom and an owner choice of storage destination.
+`/ship-prod` at the Group D boundary.

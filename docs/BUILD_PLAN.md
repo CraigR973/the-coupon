@@ -3035,7 +3035,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the login and PIN-reset limiters. No new infrastructure — Postgres, not
   Redis.
 
-- [ ] **Batch 100 — Migration-on-boot is safe only while nobody raises the replica count**
+- [x] **Batch 100 — Migration-on-boot is safe only while nobody raises the replica count** ✅ 2026-08-28
   — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-A04 (LOW); owner
   decision 2026-08-27: **guard the precondition in code**. `alembic upgrade head` runs
   inside the web process on boot, which is correct only because `railway.toml` pins

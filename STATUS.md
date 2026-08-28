@@ -540,7 +540,20 @@ exist is still charged even though the handler commits nothing; the 429 body is 
 byte what it was, because `AuthContext.tsx` branches on `{"error": ...}`. API-only, so it
 is **not live until `/ship-prod`**.
 
-Batches 1-90 and 99 are closed. The Coupon is a
+**Batch 100** turned the single-replica precondition from a note into a check that runs.
+`nixpacks.toml` starts the service with `alembic upgrade head && uvicorn ...`, which is
+correct only because `railway.toml` pins one replica; raise it and two containers apply
+the same DDL to the same database seconds apart, with Alembic holding no lock of its own.
+`src.migration_guard.assert_single_replica` now runs from `migrations/env.py` before the
+engine is built, so it covers every way an upgrade is invoked and not just the start
+command. The count is baked into the image as `DEPLOY_REPLICA_COUNT` and a test holds it
+equal to what `railway.toml` actually asks for — summed across `multiRegionConfig`,
+because two regions at one replica each is two processes while `numReplicas` still reads
+`1`. Above one it refuses, names the count, says the database was not touched and points
+at the release-step alternative set aside on 2026-08-27. API/infra only, **not live until
+`/ship-prod`**.
+
+Batches 1-90, 99 and 100 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1221,9 +1234,10 @@ was not already serving. That is the difference from the Coupon tab on 2026-08-0
 **Group D is underway — Batches 99, 100, 101 then 95, API/infra only, and it owes a
 `/ship-prod` at the boundary.** Nothing in it reaches members on a close-out push, so the
 asymmetry pressure Group C carried is off; what is owed instead is the ship itself, since
-the API stays behind `main` until it runs. **Batch 99 is closed**; 100 and 101 follow, and
-95 is soft-blocked on establishing Supabase egress headroom for FEAT-A09 and on an owner
-choice of off-platform storage destination.
+the API stays behind `main` until it runs. 95 is soft-blocked on establishing Supabase
+egress headroom for FEAT-A09 and on an owner choice of off-platform storage destination.
+
+**Batches 99 and 100 are closed.** 101 follows, then 95.
 
 **Batch 99 applied migration 018, so the previous deployment is not a rollback target.**
 A pre-`018` image cannot boot against a database stamped `018`. Forward recovery is
