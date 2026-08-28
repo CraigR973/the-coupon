@@ -19,6 +19,10 @@ class ActorType(StrEnum):
 class ActionType(StrEnum):
     backup_failed = "backup_failed"
     backup_downloaded = "backup_downloaded"
+    # Batch 101. The durable half of the FotMob trigger — see `services/fotmob_health.py`.
+    # Also what the alert cooldown reads, so a ten-minute job cannot push every ten
+    # minutes and a redeploy cannot restart the noise.
+    football_provider_degraded = "football_provider_degraded"
     player_pin_reset = "player_pin_reset"
     # League lifecycle (audit-logged by the leagues routers).
     league_created = "league_created"

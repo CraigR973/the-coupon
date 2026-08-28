@@ -32,6 +32,19 @@ def reset_rate_limits() -> None:
     limiter._storage.reset()
 
 
+@pytest.fixture(autouse=True)
+def reset_fotmob_health() -> None:
+    """Clear Batch 101's consecutive-failure tracker between tests.
+
+    It is a module singleton for the same reason ``football_session`` is — one client, one
+    process — so a test that drives five failed requests would otherwise leave the next
+    one starting from an alert already raised.
+    """
+    from src.services.fotmob_health import fotmob_health
+
+    fotmob_health.reset()
+
+
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 

@@ -55,6 +55,7 @@ from src.services.football_provider import (
     FootballDataProvider,
     season_for,
 )
+from src.services.fotmob_health import fotmob_health
 from src.services.odds_provider import UK_TZ, Slate, SlateFixture
 from src.services.team_matching import PAIR_THRESHOLD, pair_score
 
@@ -169,6 +170,16 @@ async def verify_slate(slate: Slate, football: FootballDataProvider | None) -> t
             starts_on=str(slate.starts_on),
             checked=len(slate.fixtures),
             unverifiable=unverifiable,
+        )
+
+    # Batch 101. Failing open is the safety property above, and it is also silent: a card
+    # nothing could be checked against looks exactly like a card that was fine. This is
+    # the FotMob dependency that decides whether a member's pick is valid, so a wholly
+    # blind pass says so — separately from request health, because a source that answers
+    # 200 and carries none of our competitions fails nothing while verifying nothing.
+    if unverifiable == len(slate.fixtures):
+        fotmob_health.cross_check_saw_nothing(
+            starts_on=slate.starts_on, fixtures=len(slate.fixtures)
         )
 
     if not voided:

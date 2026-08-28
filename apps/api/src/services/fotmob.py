@@ -52,6 +52,7 @@ from src.services.football_provider import (
     TableRow,
     TeamRef,
 )
+from src.services.fotmob_health import fotmob_health
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -579,20 +580,36 @@ class FotMobProvider(FootballDataProvider):
         change into twenty-one competitions quietly carrying nothing. Batch 45 makes a
         run that carries nothing fail; this keeps that signal truthful.
         """
+        # Batch 101 records every outcome here because this is the one funnel every
+        # FotMob request goes through — a signal taken anywhere else would miss whichever
+        # of the three features happened not to be running.
         try:
             response = await self._client.get(path, params=params)
         except httpx.HTTPError as exc:
+            fotmob_health.request_failed(status=None, reason=f"{path} unreachable: {exc}")
             raise FootballDataAPIError(f"fotmob {path} unreachable: {exc}") from exc
         if response.status_code >= 400:
+            fotmob_health.request_failed(
+                status=response.status_code,
+                reason=f"{path} returned {response.status_code}.",
+            )
             raise FootballDataAPIError(f"fotmob {path} returned {response.status_code}")
         try:
             body = response.json()
         except ValueError as exc:
+            # A 200 that is not JSON is the shape changing under us — the interface is
+            # undocumented and has moved before. Counted as a failure, not shrugged off.
+            fotmob_health.request_failed(status=None, reason=f"{path} returned non-JSON.")
             raise FootballDataAPIError(f"fotmob {path} returned non-JSON") from exc
         if not isinstance(body, dict):
+            fotmob_health.request_failed(
+                status=None,
+                reason=f"{path} returned {type(body).__name__}, not an object.",
+            )
             raise FootballDataAPIError(
                 f"fotmob {path} returned {type(body).__name__}, not an object"
             )
+        fotmob_health.request_succeeded()
         return body
 
 

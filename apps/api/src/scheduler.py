@@ -32,6 +32,7 @@ from src.models.refresh_token import RefreshToken
 from src.services.backup import create_backup
 from src.services.football_data import backfill_season, season_or_default, sync_football_data
 from src.services.football_session import football_session
+from src.services.fotmob_health import fotmob_health
 from src.services.gameweek import (
     active_leagues,
     discover_fixtures,
@@ -43,7 +44,11 @@ from src.services.gameweek import (
     window_for,
 )
 from src.services.live_scores import poll_live_scores
-from src.services.notification_triggers import notify_picks_open, send_pick_reminders
+from src.services.notification_triggers import (
+    notify_football_provider_trouble,
+    notify_picks_open,
+    send_pick_reminders,
+)
 from src.services.odds_session import odds_session
 from src.services.scoring import (
     settle_gameweeks_via_provider,
@@ -196,6 +201,42 @@ async def run_prune_rate_limit_counters() -> bool:
         return False
 
 
+async def report_football_provider_health() -> bool:
+    """Raise whatever :mod:`src.services.fotmob_health` decided, if anything. Batch 101.
+
+    Called at the end of every job that touches the football data source, because the
+    tracker holds the verdict and only a job holds a session. Collecting it clears it, so
+    whichever job finishes first reports and the rest find nothing — one alert per
+    episode rather than one per job.
+
+    Swallows its own errors, like every other job here. An alert that fails to send must
+    not turn a sweep that worked into a failed run; the ``log.warning`` in
+    :meth:`FotMobHealth._raise_alert` has already recorded what happened either way.
+    """
+    alert = fotmob_health.take_alert()
+    if alert is None:
+        return False
+    try:
+        async with AsyncSessionLocal() as session:
+            raised = await notify_football_provider_trouble(session, alert)
+            await session.commit()
+        if raised:
+            log.error(
+                "football provider degraded — admins alerted",
+                trouble=str(alert.trouble),
+                detail=alert.detail,
+            )
+        else:
+            log.warning(
+                "football provider still degraded — inside the alert cooldown",
+                trouble=str(alert.trouble),
+            )
+        return raised
+    except Exception:
+        log.exception("football provider alert failed")
+        return False
+
+
 # ── Coupon domain jobs (Batch 4) ────────────────────────────────────────────────
 # Each draws the odds provider from the shared ``odds_session`` and owns its DB
 # transaction (the domain functions flush; the job commits), and logs+swallows its own
@@ -237,6 +278,11 @@ async def run_discover_fixtures() -> bool:
     except Exception:
         log.exception("fixture discovery failed")
         return False
+    finally:
+        # Batch 101. In `finally` on the one job that runs the void cross-check: a sweep
+        # that threw is exactly when the source is in trouble, and reporting only on the
+        # happy path would lose the alert precisely when it matters.
+        await report_football_provider_health()
 
 
 async def run_refresh_slate() -> bool:
@@ -419,6 +465,8 @@ async def run_sync_football_data() -> bool:
     except Exception:
         log.exception("football data sync failed")
         return False
+    finally:
+        await report_football_provider_health()
 
 
 async def run_live_scores() -> bool:
@@ -461,6 +509,8 @@ async def run_live_scores() -> bool:
     except Exception:
         log.exception("live score poll failed")
         return False
+    finally:
+        await report_football_provider_health()
 
 
 async def run_backfill_football_season() -> bool:

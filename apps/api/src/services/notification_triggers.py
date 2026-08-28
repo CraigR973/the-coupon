@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -18,7 +18,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.gameweek import Gameweek
+from src.models.notification import ActionType, ActorType, AuditLog
 from src.models.profile import Profile, UserRole
+from src.services.fotmob_health import FotMobAlert
 from src.services.gameweek import members_missing_picks, notification_targets
 from src.services.push_notification_service import send_notification
 
@@ -61,6 +63,61 @@ async def notify_member_joined(
             timezone_name=admin.timezone,
             league_id=league_id,
         )
+
+
+#: How long one football-provider alert silences the next. A blocked source answers every
+#: request the same way and the live-scores job runs every ten minutes, so without this the
+#: first bad Saturday is a hundred identical pushes. The loud cases get the shorter window
+#: because they are the ones where being told again an hour later is still useful.
+FOOTBALL_PROVIDER_ALERT_COOLDOWN = timedelta(hours=1)
+FOOTBALL_PROVIDER_QUIET_COOLDOWN = timedelta(hours=6)
+
+
+async def notify_football_provider_trouble(session: AsyncSession, alert: FotMobAlert) -> bool:
+    """Record that the football data source has bitten, and tell the admins. Batch 101.
+
+    Returns whether anything was written — ``False`` means an identical-enough alert is
+    still inside its cooldown, which is the normal answer during an outage rather than a
+    failure. The caller logs either way; this decides only whether to make a noise.
+
+    The row goes down *with* the push and not instead of it. The push is what reaches a
+    person on the day; the row is what is still there on Monday when somebody asks how
+    long this has been happening, and it is what the cooldown above reads — so the
+    silence survives a redeploy, which an in-process timer would not.
+    """
+    cooldown = FOOTBALL_PROVIDER_ALERT_COOLDOWN if alert.loud else FOOTBALL_PROVIDER_QUIET_COOLDOWN
+    since = datetime.now(UTC).replace(tzinfo=None) - cooldown
+    recent = await session.execute(
+        select(AuditLog.id)
+        .where(
+            AuditLog.action_type == ActionType.football_provider_degraded,
+            AuditLog.timestamp >= since,
+        )
+        .limit(1)
+    )
+    if recent.scalar_one_or_none() is not None:
+        return False
+
+    session.add(
+        AuditLog(
+            actor_id=None,
+            actor_type=ActorType.system,
+            action_type=ActionType.football_provider_degraded,
+            target_table="",
+            target_id=None,
+            changes={"trouble": str(alert.trouble), "detail": alert.detail},
+        )
+    )
+    if alert.loud:
+        for admin in await _admin_players(session):
+            await send_notification(
+                session,
+                admin.id,
+                alert.title,
+                alert.detail,
+                timezone_name=admin.timezone,
+            )
+    return True
 
 
 def _lock_label(locks_at_utc: datetime, timezone_name: str) -> str:
