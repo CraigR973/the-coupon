@@ -260,7 +260,20 @@ describe('RegisterPage', () => {
     // protocol-relative `//host` is a *path* to the router and an absolute origin to the
     // browser, so without this guard a shared link could hand a member who has just
     // authenticated — tokens already in localStorage — to another host.
-    it.each(['//evil.example', 'https://evil.example', 'javascript:alert(1)'])(
+    //
+    // The backslash forms are OPS-08 / GHSA-wrjc-x8rr-h8h6 (Batch 88). They start with a
+    // single `/` and so passed the `!startsWith('//')` guard that used to sit here, but
+    // browsers read `\` as `/` inside a special scheme, making `/\evil.example` resolve
+    // to `https://evil.example/`. react-router has no fix for this on 6.x — the guard in
+    // `lib/redirect.ts` is what closes it, by resolving through the URL parser instead of
+    // trying to name the hostile shapes.
+    it.each([
+      '//evil.example',
+      'https://evil.example',
+      'javascript:alert(1)',
+      '/\\evil.example',
+      '/\\/evil.example',
+    ])(
       'refuses to leave the app for %s',
       async (hostile) => {
         vi.stubGlobal('fetch', makeFetchMock());

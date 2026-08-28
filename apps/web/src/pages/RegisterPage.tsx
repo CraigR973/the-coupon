@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { PinInput } from '@/components/PinInput';
 import { Brand } from '@/components/Brand';
 import { brand } from '@/theme/tokens';
+import { resolveNextDestination } from '@/lib/redirect';
 
 /** Mirrors the API's own bounds so the obvious mistakes are caught before a round trip. */
 const MIN_NAME = 2;
@@ -56,11 +57,9 @@ export function RegisterPage() {
     setIsLoading(true);
     try {
       await register(name, pin);
-      const requested = new URLSearchParams(location.search).get('next');
-      const destination = requested?.startsWith('/') && !requested.startsWith('//')
-        ? requested
-        : '/';
-      navigate(destination, { replace: true });
+      navigate(resolveNextDestination(location.search, window.location.origin), {
+        replace: true,
+      });
     } catch (err) {
       // The API's message is shown as written: "that name is taken", "that PIN is too
       // common" and "sign-ups are closed" are each the only thing that tells a member

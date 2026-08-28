@@ -9,6 +9,7 @@ import { PinInput } from '@/components/PinInput';
 import { Brand } from '@/components/Brand';
 import { brand } from '@/theme/tokens';
 import { PIN_NOT_SET } from '@/lib/api';
+import { resolveNextDestination } from '@/lib/redirect';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -34,11 +35,9 @@ export function LoginPage() {
     setIsLoading(true);
     try {
       await login(displayName.trim(), pin);
-      const requested = new URLSearchParams(location.search).get('next');
-      const destination = requested?.startsWith('/') && !requested.startsWith('//')
-        ? requested
-        : '/';
-      navigate(destination, { replace: true });
+      navigate(resolveNextDestination(location.search, window.location.origin), {
+        replace: true,
+      });
     } catch (err) {
       // An admin cleared this member's PIN and they have not chosen a new one yet. It
       // is not a wrong PIN — there is no PIN — and telling them it was would send them
