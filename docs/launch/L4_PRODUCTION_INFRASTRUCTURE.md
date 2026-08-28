@@ -1612,3 +1612,71 @@ with a 300s timeout.
 **Batch 82's validation was not probed in production.** Exercising `/push/subscribe` needs
 an authenticated account and writes a row, which is outside what may be run against
 production here; it is covered by 17 gate tests instead.
+
+### 2026-08-28 — `359c08f1`, Group C of the 2026-08-26 review (Batches 89–90), plus Group B
+
+Source commit `359c08f1`, on `origin/main`, gate green (`scripts/ci-local.sh`, 11 checks)
+re-run on the shipping commit itself, with a GitHub `Quality` run confirmed to **exist** for
+the commit and to have concluded `success`. **No Alembic revision** — head stays `017`, so
+no forward recovery plan was required and, unlike the previous shipment, the recorded
+rollback baseline is genuinely bootable: `caeb17c2-732c-4195-9322-e7b84e7db3d8` bundles the
+same head.
+
+Railway `9cc1ef2a-a108-4066-84c1-a1626a1b0c71`, `SUCCESS`. Its predecessor — this
+shipment's rollback baseline — is `caeb17c2-732c-4195-9322-e7b84e7db3d8`, which was serving
+`3cb8b4f1` at head `017`.
+
+Section 4 was skipped by design. Vercel's GitHub integration had already built `359c08f1`
+as `dpl_9sYVZMb9X945VjpLgsHtSKXpKSGs`, which already held the stable alias; confirmed by
+filtering production deployments on `githubCommitSha` through the CLI rather than inferring
+it from timing. Its predecessor is the Vercel rollback baseline.
+
+**This shipment carried more than its own group.** Batches 86, 87 and 88 (Group B, web-only)
+had reached members through Vercel days earlier but had never been part of a Railway
+shipment, because none of them touched the API. Only Batch 89 moves the deployed image.
+
+Content: **Batch 89** closes OPS-10/CORR-03 — `POST /leagues/{slug}/picks` now charges a
+shared `50/hour;100/day` bucket keyed on the league, alongside the existing per-member
+`10/hour`, and answers `429 PICKS_BUSY` when a league's share is gone. Fifty is both what
+the hour leaves after the measured peak browsing hour and `max_members`'s own ceiling, so a
+full league can still take one pick each. The bucket bounds a league and not the
+installation; that residual is asserted in `test_request_budget.py`. **Batch 90** is the
+client half and is web-only: pick submission now distinguishes a request that never left
+the device (queued, flushed on reconnect) from one that left unanswered (unconfirmed, never
+re-sent — reconciled by reading the round's pick back).
+
+**The API/web gap this group was cut to avoid was real but never member-visible.** Batch
+90's `PICKS_BUSY` copy went live on its close-out push while the deployed API could not yet
+send that code, so the mapping was unreachable rather than wrong. The reverse ordering —
+89 shipping first — would have shown members a raw error code.
+
+Post-deploy verification: `/health` reports sha `359c08f1` and migration `017`,
+`/health/ready` agrees at `017` with `db: ok`; the deployment manifest confirms one replica
+in `europe-west4-drams3a`, `sleepApplication: false`, `ipv6EgressEnabled: true`, healthcheck
+`/api/v1/health/ready` at 300s (`limitOverride: null` again — the 0.25 vCPU / 500 MB dead
+end recorded on 2026-08-26 and 2026-08-27 is unchanged); RLS is on all 18 public tables with
+**zero** grants to `anon`/`authenticated`/`PUBLIC` and the database reports head `017`; the
+web root and a SPA deep link both return 200 with an identical asset (matching SHA-256) and
+all three committed headers; a preflight from the stable origin returns 200 with that exact
+origin and credentials enabled while a foreign origin is refused with 400; `/api/docs`
+404s; and two bounded log snapshots (38 then 48 records, whole-record scans) show uvicorn
+and the scheduler up, zero failure-shaped lines and zero matches across five
+secret-leakage patterns.
+
+> **`railway ssh` cannot run the app's own SQLAlchemy engine**, so the RLS recheck could not
+> reuse it: greenlet fails to load in that shell (`libstdc++.so.6: cannot open shared object
+> file`) even though the running process is fine. Raw `asyncpg` then failed three times with
+> `CantChangeRuntimeParamError: parameter "ssl" cannot be changed now` — Railway's
+> `DATABASE_URL` carries `?ssl=require`, and raw asyncpg forwards unknown query parameters as
+> *server settings* while SQLAlchemy's dialect translates them. Strip the query string and
+> pass `ssl=` as a real argument. The DSN was never rendered at any point.
+
+> **`railway api` has no `deployment(id:)` field.** Polling with one silently returned an
+> empty status for ten minutes while the deployment was in fact progressing normally to
+> `SUCCESS`. Poll with `deployment list --limit N --json` and read the row, as section 3
+> already says; a query that returns nothing looks exactly like a stalled deploy.
+
+**The 2026-08-22 owner action is still owed** — rotate the production database password for
+`pugujiiojitstkilphrz` and update Railway's `DATABASE_URL`. This shipment's RLS recheck ran
+inside the container through a client that never renders the DSN, so it did not repeat the
+exposure.
