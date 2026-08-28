@@ -2580,3 +2580,45 @@ attempt**, see below
 
 **Next:** Group B — Batches 86, 88, 87 (web only, no `/ship-prod` owed). 86 and 88 touch the
 same two files, so run them adjacent; 88 unblocks Group H.
+
+## Batch 86 — Login and registration are the only screens with no landmark or heading
+**Commits:** `3e33c17` · verified: `scripts/ci-local.sh` PASS (11 checks) — ruff, ruff format,
+mypy, alembic + pytest, deployment-config, pnpm install --frozen-lockfile, lint, typecheck,
+test, build, playwright prod-bundle
+
+### Key facts for future sessions
+- **jsdom cannot verify `landmark-one-main` or `page-has-heading-one` — at all.** Both
+  resolve through axe's visibility check, which needs layout, and jsdom reports zero
+  dimensions for everything. Measured on this suite: no `<main>` and no `<h1>` returns the
+  same `incomplete` verdict as a correct page *and* as a page with three `<main>`s. Any
+  jsdom assertion on these two rules is green regardless of markup. They are now checked in
+  a real browser by `apps/web/e2e/prod-bundle-a11y.spec.ts`, which runs inside ci-local's
+  existing prod-bundle step. `region` is the one UX-07 rule jsdom does decide, and it covers
+  22 of the finding's 26 nodes.
+- **`jest-axe` silently corrupts the DOM for any context outside `<body>`.** Its `mount()`
+  (10.0.0) falls back to `document.body.innerHTML = element.outerHTML`, which re-roots the
+  axe context at `<body>` — so page-level rules are skipped — and replaces React's live
+  container with a string clone, leaving Testing Library's auto-cleanup holding a detached
+  node. Each such test then leaks its rendered page into the next; four cases accumulated
+  four `<main>`s. Call `axe-core` directly for anything page-level. `axe-core` is now a
+  direct devDependency (4.10.2, the review's version, already resolved transitively).
+- **axe's landmark rules only ask whether *at least one* exists.** `landmark-one-main` passes
+  a page with three `<main>`s and `page-has-heading-one` passes three `<h1>`s, despite the
+  names. The explicit count assertions in both suites are what actually pin "exactly one",
+  and they are what caught the cleanup leak above.
+- **`CardTitle` is hard-coded to `<h2>` and was deliberately left alone.** The two pages
+  render an `<h1>` carrying `CardTitle`'s own classes plus the card's, so the rendered type
+  is unchanged — 18px / 600 / 22.5px / -0.45px, confirmed in the browser. Changing the
+  shared component would have reached every card in the app.
+- **`/register` shows the install gate, not the form, at mobile widths.** `BrowserOnboarding`
+  intercepts it, so a mobile-viewport check of that route sees "Once the app is installed…".
+  The e2e spec runs at Desktop Chrome's viewport, where the form renders. Not a Batch 86
+  concern, but it will mislead any future mobile screenshot of that route.
+- **Four more pages share the same unfixed shell** — `JoinPage`, `ForgotPinPage`,
+  `SetPinPage`, `WelcomePage` all use the identical `min-h-screen … justify-center` `<div>`
+  with no `<main>` and no `<h1>`. The 2026-08-26 sweep only covered `/login` and `/register`,
+  and Batch 86's scope boundary is those two, so the other four are untouched and still
+  carry the defect.
+
+**Next:** Batch 88 — harden the `?next=` redirect guard against the `/\evil.com` backslash
+bypass, in the same two files this batch just reshaped.

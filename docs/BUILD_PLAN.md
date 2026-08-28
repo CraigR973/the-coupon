@@ -2754,7 +2754,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: this one trigger only.
 
-- [ ] **Batch 86 — Login and registration are the only screens with no landmark or heading**
+- [x] **Batch 86 — Login and registration are the only screens with no landmark or heading** ✅ 2026-08-28
   — specified from `docs/review/2026-08-26/03-ux-accessibility.md`, UX-07 (moderate, axe:
   `landmark-one-main`, `page-has-heading-one`, `region`). `LoginPage`/`RegisterPage`
   render outside `Layout`/`ProtectedRoute`, so they get neither the `<main>` landmark nor

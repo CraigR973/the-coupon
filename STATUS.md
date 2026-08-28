@@ -458,7 +458,19 @@ per-league mute had nothing to check and a site admin who had muted a league sti
 parameter is required rather than defaulted, so a fourth call site cannot reintroduce the
 omission silently.
 
-Batches 1-85 are closed. The Coupon is a
+**Batch 86** gave `/login` and `/register` the landmark and heading every other screen
+already had. They are the only two rendered outside `Layout`/`ProtectedRoute`, so they
+inherited neither the `<main>` `Layout` provides nor the `<h1>` `PageHeader` gives each
+authenticated page — 26 axe nodes across three rules, in both themes. The page shell is now
+the `<main>` and the card title is the `<h1>`, carrying `CardTitle`'s own classes so the
+rendered type is identical; `CardTitle` itself is shared and untouched. **Web-only, so it is
+live on Vercel from this push.** Nothing on either screen looks different — the change is
+what a screen reader and keyboard landmark navigation get. Two of the three rules cannot be
+verified under jsdom at all (axe needs layout to decide them, and returns "incomplete" for
+correct and broken markup alike), so they are checked in a real browser by the new
+`e2e/prod-bundle-a11y.spec.ts` inside ci-local's existing prod-bundle step.
+
+Batches 1-86 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1127,11 +1139,12 @@ upgrade ran, which is itself the proof no collision existed; confirmed afterward
 inside the container (`uq_profiles_display_name_lower` present, the old constraint gone,
 collision count 0).
 
-**Group B is next — Batches 86, 88, 87, web only, and it owes no `/ship-prod`.** 86 and 88
-touch the same two files (`LoginPage.tsx`, `RegisterPage.tsx`) so run them adjacent, and 88
-unblocks Group H. Nothing in it reaches members
-on a close-out push, which is why the group can run without the deploy asymmetry that broke
-the Coupon tab on 2026-08-06.
+**Group B is in progress — Batches 86, 88, 87, web only, and it owes no `/ship-prod`.**
+**86 is closed and live**; 88 is next, then 87. 86 and 88 touch the same two files
+(`LoginPage.tsx`, `RegisterPage.tsx`) so they run adjacent, and 88 unblocks Group H. Every
+batch here reaches members on its own close-out push, because Vercel releases the web app
+from `main` — what the group avoids is the *asymmetry*, since none of it calls an API route
+Railway is not already serving. That is the difference from the Coupon tab on 2026-08-06.
 
 Production serves `f41a383a` after the 2026-08-26 `/ship-prod` of Batches 79-81;
 `/api/v1/health` and `/health/ready` agree at migration `016`. Batch 74 was applied the
