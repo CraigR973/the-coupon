@@ -2787,7 +2787,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: the service worker's caching strategy only.
 
-- [ ] **Batch 88 — The login/register redirect guard misses the backslash open-redirect bypass**
+- [x] **Batch 88 — The login/register redirect guard misses the backslash open-redirect bypass** ✅ 2026-08-28
   — specified from `docs/review/2026-08-26/04-operations.md`, OPS-08 (MED). `LoginPage.tsx:37-40`
   and `RegisterPage.tsx:57-60` guard `?next=` against `//evil.com` but not `/\evil.com`,
   which browsers resolve identically for `http(s)` schemes (GHSA-wrjc-x8rr-h8h6). No fix

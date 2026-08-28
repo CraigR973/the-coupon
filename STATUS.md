@@ -470,7 +470,21 @@ verified under jsdom at all (axe needs layout to decide them, and returns "incom
 correct and broken markup alike), so they are checked in a real browser by the new
 `e2e/prod-bundle-a11y.spec.ts` inside ci-local's existing prod-bundle step.
 
-Batches 1-86 are closed. The Coupon is a
+**Batch 88** closed an open redirect on the two public screens. `?next=` is read straight
+off a URL anyone can send, and the guard on both pages tested `startsWith('/') &&
+!startsWith('//')` — which stops `//evil.com` but not `/\evil.com`, since that starts with
+a single slash and browsers read `\` as `/` inside a special scheme. The review rated the
+mechanism plausible-but-unconfirmed; it is confirmed now, in Chromium, against the built
+bundle: the old predicate accepted all three backslash forms and every one resolved to
+`http://evil.com/`. A member signing in from such a link would have arrived on another host
+with tokens already in localStorage. The guard now lives once in `lib/redirect.ts`, resolves
+the value through the browser's own URL parser and keeps it only if the origin held, and
+returns the parsed path so react-router cannot land somewhere other than what was checked.
+**Web-only, live from this push.** Nothing looks different; invite links still carry members
+to `/join/:token` as before. react-router 7 (Batch 102) is the complete upstream fix and is
+now unblocked, but this guard stands independently of it.
+
+Batches 1-88 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1140,7 +1154,7 @@ inside the container (`uq_profiles_display_name_lower` present, the old constrai
 collision count 0).
 
 **Group B is in progress — Batches 86, 88, 87, web only, and it owes no `/ship-prod`.**
-**86 is closed and live**; 88 is next, then 87. 86 and 88 touch the same two files
+**86 and 88 are closed and live**; 87 is the last of the group. 86 and 88 touch the same two files
 (`LoginPage.tsx`, `RegisterPage.tsx`) so they run adjacent, and 88 unblocks Group H. Every
 batch here reaches members on its own close-out push, because Vercel releases the web app
 from `main` — what the group avoids is the *asymmetry*, since none of it calls an API route

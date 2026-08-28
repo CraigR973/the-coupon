@@ -2622,3 +2622,35 @@ test, build, playwright prod-bundle
 
 **Next:** Batch 88 — harden the `?next=` redirect guard against the `/\evil.com` backslash
 bypass, in the same two files this batch just reshaped.
+
+## Batch 88 — The login/register redirect guard misses the backslash open-redirect bypass
+**Commits:** `ba2c58a` · verified: `scripts/ci-local.sh` PASS (11 checks), plus an
+end-to-end drive of the production bundle in Chromium
+
+### Key facts for future sessions
+- **OPS-08's mechanism is no longer "plausible" — it is confirmed.** The review could not
+  test it live. Chromium resolves `/\evil.com`, `/\/evil.com` *and* `/\\evil.com` all to
+  `http://evil.com/`, and the old `startsWith('/') && !startsWith('//')` predicate accepted
+  every one. Driven end-to-end against the built bundle with the login call stubbed, a
+  sign-in from `/login?next=/\evil.com` lands on `/` and stays on origin, and
+  `?next=/join/ABC123` still delivers the invite.
+- **The guard resolves rather than pattern-matches.** `lib/redirect.ts` hands the value to
+  `new URL(requested, origin)` and keeps it only if `.origin` held, so the decision belongs
+  to the same parser the browser will use — no list of hostile shapes to keep ahead of. It
+  returns the *parsed* path, not the caller's string, so react-router cannot resolve
+  something different from what was validated.
+- **The leading `/` check is load-bearing and must stay.** Without it a bare `evil.com`
+  resolves to the same-origin path `/evil.com` and passes the origin comparison. Every
+  `?next=` this app issues is an absolute path.
+- **Reverting the helper to the old predicate fails exactly 11 tests** — 7 in
+  `redirect.test.ts`, 4 across the two page suites — and nothing else. That asymmetry is
+  the evidence the rewrite closed the gap without loosening what already held; re-run it
+  that way if the guard is ever touched again.
+- **`RegisterPage.test.tsx` mocks `useNavigate` globally; `LoginPage.test.tsx` does not.**
+  So Register asserts on the `navigate` spy and Login asserts on a `LocationProbe` reading
+  the real router location. A location probe in the Register suite would never update.
+- **Batch 102 (react-router 7) is now unblocked.** It remains the complete upstream fix;
+  this guard is independent of it and should survive the migration unchanged.
+
+**Next:** Batch 87 — stop the service worker caching authenticated `/api/v1/*` JSON the
+server marked `no-store`. Last of Group B; still no `/ship-prod` owed.
