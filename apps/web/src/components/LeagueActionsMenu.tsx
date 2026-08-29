@@ -1,7 +1,16 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { LogOut, Mail, MoreHorizontal, Settings, Trash2, UserCheck, Users } from 'lucide-react';
+import {
+  ClipboardList,
+  LogOut,
+  Mail,
+  MoreHorizontal,
+  Settings,
+  Trash2,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -96,7 +105,7 @@ export function LeagueActionsMenu({
     <>
       {/*
         A member has exactly one action, and one button beside a title has never been the
-        problem — collapsing it would cost a tap and save no width. An admin has six, which
+        problem — collapsing it would cost a tap and save no width. An admin had six, which
         is what overflowed: Batch 22 made the row wrap, but six chips folding into a narrow
         column next to a `flex-1 min-w-0` title is the same complaint in a new shape. One
         trigger is width-stable at every breakpoint, which is the property that matters.
@@ -133,6 +142,12 @@ export function LeagueActionsMenu({
                 <Link to={`/leagues/${slug}/admin/settings`}>
                   <Settings className="mr-2 h-3.5 w-3.5" aria-hidden />
                   Settings
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to={`/leagues/${slug}/admin/audit-log`}>
+                  <ClipboardList className="mr-2 h-3.5 w-3.5" aria-hidden />
+                  Activity
                 </Link>
               </DropdownMenuItem>
               {/* Both destructive actions sit below the separator, away from navigation

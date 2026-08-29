@@ -72,6 +72,11 @@ describe('LeagueActionsMenu', () => {
     expect(screen.getByRole('menuitem', { name: /settings/i }).getAttribute('href')).toBe(
       '/leagues/the-coupon/admin/settings',
     );
+    // Batch 94 — the league's own audit trail, reachable from the same menu as the
+    // actions that write to it.
+    expect(screen.getByRole('menuitem', { name: /activity/i }).getAttribute('href')).toBe(
+      '/leagues/the-coupon/admin/audit-log',
+    );
     expect(screen.getByRole('menuitem', { name: /leave/i })).toBeTruthy();
     expect(screen.getByRole('menuitem', { name: /delete/i })).toBeTruthy();
   });

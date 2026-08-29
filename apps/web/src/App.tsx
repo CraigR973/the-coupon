@@ -56,6 +56,9 @@ const LeagueJoinRequestsPage = lazyRoute(() =>
 const LeagueAdminInvitesPage = lazyRoute(() =>
   import('./pages/LeagueAdminInvitesPage').then((m) => ({ default: m.LeagueAdminInvitesPage })),
 );
+const LeagueAuditLogPage = lazyRoute(() =>
+  import('./pages/LeagueAuditLogPage').then((m) => ({ default: m.LeagueAuditLogPage })),
+);
 
 // Auth / onboarding
 const ForgotPinPage = lazyRoute(() => import('./pages/ForgotPinPage').then((m) => ({ default: m.ForgotPinPage })));
@@ -240,6 +243,10 @@ export function App() {
                         <Route path="/leagues/:slug/admin/settings" element={<LeagueSettingsPage />} />
                         <Route path="/leagues/:slug/admin/requests" element={<LeagueJoinRequestsPage />} />
                         <Route path="/leagues/:slug/admin/invites" element={<LeagueAdminInvitesPage />} />
+                        <Route
+                          path="/leagues/:slug/admin/audit-log"
+                          element={<LeagueAuditLogPage />}
+                        />
 
                         {/* Site admin — people and access (Batch 66). A second gate
                             inside the authenticated one: `requireAdmin` bounces a

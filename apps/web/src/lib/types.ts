@@ -697,6 +697,25 @@ export interface JoinRequest {
   note: string | null;
 }
 
+/** One row of a league's admin trail. Batch 94. */
+export interface LeagueAuditEntry {
+  id: string;
+  actor_name: string | null;
+  action_type: string;
+  target_table: string;
+  target_id: string | null;
+  /** The writer's payload — who was removed, what a setting became. May be absent. */
+  changes: Record<string, unknown> | null;
+  timestamp: string;
+}
+
+export interface LeagueAuditLogResponse {
+  entries: LeagueAuditEntry[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export interface LeagueInvite {
   id: string;
   token: string;

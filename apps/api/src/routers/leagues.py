@@ -10,7 +10,7 @@ from typing import Annotated, Any
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser, generate_join_code
@@ -1258,6 +1258,127 @@ async def update_league(
         created_by=str(league.created_by),
         created_at=league.created_at,
         join_code=league.join_code,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/leagues/{slug}/audit-log  — what has been done to this league
+# ---------------------------------------------------------------------------
+
+
+class LeagueAuditEntry(BaseModel):
+    """One recorded action, as a league admin needs to read it.
+
+    Carries ``changes`` where the site-admin dashboard's ``AuditEntry`` does not. That
+    payload is the difference between "a member was removed" and "*who* removed *whom*",
+    and answering the second is the point of the screen. Everything in it is already about
+    this league or its members.
+    """
+
+    id: str
+    actor_name: str | None
+    action_type: str
+    target_table: str
+    target_id: str | None
+    changes: dict[str, Any] | None
+    timestamp: UtcDatetime
+
+
+class LeagueAuditLogResponse(BaseModel):
+    entries: list[LeagueAuditEntry]
+    total: int
+    page: int
+    page_size: int
+
+
+AUDIT_PAGE_SIZE = 25
+MAX_AUDIT_PAGE_SIZE = 100
+
+
+def _league_audit_scope(league: League) -> Any:
+    """Which ``audit_log`` rows belong to one league.
+
+    There is no ``league_id`` column, so this reconstructs the association from what the
+    writers happen to record — and Batch 94 may not change what they record. Two arms,
+    because the writers are not consistent:
+
+    * ``target_id == league.id`` is the convention nearly every league-scoped call site
+      follows, including the ones whose ``target_table`` names a different table
+      (``league_memberships``, ``league_join_requests``, ``invites``). UUIDs do not
+      collide across tables, so this cannot pull in another table's row.
+    * ``changes->>'league_slug'`` catches the ones that do not. ``league_invite_revoked``
+      records the *invite* id, and a league-scoped PIN reset records the *player* id; both
+      name the league in ``changes`` instead. Without this arm a revoked invite and an
+      admin-performed PIN reset would be silently missing from the one screen that claims
+      to show what happened to the league.
+
+    Site-scoped rows carrying ``{"scope": "site"}`` are deliberately included when they
+    name this league — a site admin rotating the join code is an event in this league's
+    history, and the row says who did it.
+    """
+    return or_(
+        AuditLog.target_id == league.id,
+        AuditLog.changes["league_slug"].astext == league.slug,
+    )
+
+
+@router.get("/{slug}/audit-log", response_model=LeagueAuditLogResponse)
+@limiter.limit("60/minute", key_func=per_user_key)
+async def league_audit_log(
+    request: Request,
+    admin_ctx: LeagueAdminDep,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    page: int = 1,
+    page_size: int = AUDIT_PAGE_SIZE,
+) -> LeagueAuditLogResponse:
+    """The admin trail for one league, newest first. Batch 94.
+
+    Until now the only reader of ``audit_log`` anywhere in the API was the site-admin
+    dashboard: 25 rows, global across every league in the deployment. In this product a
+    league admin is usually the friend who set the league up, not the site operator, so
+    the person who most needs to know who changed the fixture window or who removed a
+    member had no way to find out.
+
+    Paginated rather than capped: the dashboard's flat 25 is a glance at the whole
+    installation, whereas this is one league's history and the answer may not be recent.
+    """
+    _, league = admin_ctx
+    if page < 1:
+        page = 1
+    if page_size < 1 or page_size > MAX_AUDIT_PAGE_SIZE:
+        page_size = AUDIT_PAGE_SIZE
+
+    scope = _league_audit_scope(league)
+    total = (await db.execute(select(func.count()).select_from(AuditLog).where(scope))).scalar_one()
+
+    actor = select(Profile.id, Profile.display_name).subquery()
+    rows = (
+        await db.execute(
+            select(AuditLog, actor.c.display_name)
+            .outerjoin(actor, actor.c.id == AuditLog.actor_id)
+            .where(scope)
+            .order_by(AuditLog.timestamp.desc(), AuditLog.id.desc())
+            .limit(page_size)
+            .offset((page - 1) * page_size)
+        )
+    ).all()
+
+    return LeagueAuditLogResponse(
+        entries=[
+            LeagueAuditEntry(
+                id=str(row.id),
+                actor_name=actor_name,
+                action_type=row.action_type.value,
+                target_table=row.target_table,
+                target_id=str(row.target_id) if row.target_id else None,
+                changes=row.changes,
+                timestamp=row.timestamp,
+            )
+            for row, actor_name in rows
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
     )
 
 
