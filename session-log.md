@@ -2971,3 +2971,36 @@ the authority.
 `GET /leagues/{slug}/audit-log` plus a page that calls it, where the page reaches members
 on the close-out push and the route does not exist until the ship. Batch 93 is API-only and
 adds **migration 020**, so it is not live until that ship either.
+
+## Batch 94 — League admins have no audit-trail visibility into their own league
+**Commits:** ee05026 · verified: `scripts/ci-local.sh` PASS (11 checks), green first run
+
+### Key facts for future sessions
+- **`audit_log` has no `league_id` column, and the writers disagree about `target_id`.**
+  Nearly every league-scoped call site passes `target_id = league.id` *even when
+  `target_table` names another table* (`league_memberships`, `league_join_requests`,
+  `invites`). Two do not: `league_invite_revoked` records the **invite** id
+  (`league_memberships.py:443`) and a league-scoped PIN reset records the **player** id
+  (`credentials.py::pin_reset_audit`); both name the league in `changes.league_slug`.
+- **So `_league_audit_scope` has two arms, and dropping either is a silent failure.**
+  `target_id == league.id` alone omits every revoked invite and every admin-performed PIN
+  reset — gaps in the one screen that claims to show what happened to the league. The
+  `changes->>'league_slug'` arm alone would leak, which is what the cross-league test
+  plants a foreign-slug row to catch. Anything that changes what the writers record should
+  revisit this function.
+- **Site-scoped rows (`{"scope": "site"}`) that name the league are included on purpose.**
+  A site admin rotating a league's join code is an event in that league's history, and the
+  row says who did it.
+- **The response carries `changes`; the site dashboard's `AuditEntry` does not.** "A member
+  was removed" is not what a league admin needs — "who removed whom" is. Everything in the
+  payload is already about that league or its members.
+- **`LeagueProvider` breaks a page test that does not stub `/api/v1/leagues/mine`.** It
+  dereferences `leagues[0].slug` and throws before the page under test mounts, with a
+  stack that points at the context rather than the test. Cost one red run.
+- **Both halves ship together and must not sit apart.** The page reaches members on this
+  close-out push; the route does not exist until `/ship-prod`, which is exactly the Batch
+  51 / 2026-08-06 failure. Ship immediately.
+
+**Next:** `/ship-prod` — the Group E boundary. It carries Batches 93 and 94 and applies
+**migration 020**. After that, Group F (Batch 96, alone) or Group G (98, 97, 92); Batch 92
+is the only earlier unchecked number and belongs to Group G.

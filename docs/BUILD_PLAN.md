@@ -2906,7 +2906,7 @@ answered until it lands, because until then there is no data to look at.
   general "display name changed" notification system unless a future batch renames
   someone again.
 
-- [ ] **Batch 94 — League admins have no audit-trail visibility into their own league**
+- [x] **Batch 94 — League admins have no audit-trail visibility into their own league** ✅ 2026-08-29
   — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-B04 (MED). `AuditLog`
   rows are written for league-level admin actions (promote/demote/remove a member,
   settings changes), but the only reader anywhere in the API is the site-admin-only
