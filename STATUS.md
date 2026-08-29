@@ -607,7 +607,25 @@ tries again rather than marking them done. Migration **020** adds the
 the task, because Batch 100's single-replica guard covers migrations and a lifespan hook is
 not one. API-only, **not live until `/ship-prod`**.
 
-Batches 1-91, 93 and 99-102 are closed. The Coupon is a
+**Batch 94** gave a league admin the trail of their own league. `audit_log` rows have been
+written for league-level actions since Batch 1 and the only reader in the API was the
+site-admin dashboard — 25 rows, flat, global across the whole deployment — so the person
+who most needs to know who changed the fixture window or removed a member, usually the
+friend who set the league up rather than the site operator, had no way to find out.
+`GET /api/v1/leagues/{slug}/audit-log` behind `LeagueAdminDep`, paginated at 25 a page, with
+a page at `/leagues/:slug/admin/audit-log` reachable from the Manage menu as **Activity**.
+The scoping is the substance: **`audit_log` has no `league_id` column**, and the batch was
+not allowed to change what the writers record, so the association is reconstructed — and
+the writers disagree. Nearly all of them pass `target_id = league.id` even when
+`target_table` names another table, but `league_invite_revoked` records the invite id and a
+league-scoped PIN reset records the player id, naming the league in `changes.league_slug`
+instead. A `target_id`-only filter would have looked right and silently dropped every
+revoked invite and admin-performed PIN reset, which is worse than no screen; the second arm
+catches them, and a cross-league test plants a foreign league's slug to prove the arm does
+not leak. The response carries `changes`, which the site dashboard drops, because "a member
+was removed" is not the answer — "who removed whom" is.
+
+Batches 1-91, 93, 94 and 99-102 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1258,7 +1276,7 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 92 and 94-98 unchecked** — six remaining batches from
+`docs/BUILD_PLAN.md` carries **Batches 92 and 95-98 unchecked** — five remaining batches from
 the 2026-08-26 full-application review. They run in the remaining groups of
 `docs/review/2026-08-26/07-sequencing.md`, each batch being an individual
 start → close-out cycle with **one `/ship-prod` at the group boundary**.
@@ -1289,15 +1307,13 @@ was not already serving. That is the difference from the Coupon tab on 2026-08-0
 **Group H is complete.** Batch 102's React Router 7 migration is closed; it is web-only,
 so no API shipment is attached to it.
 
-**Group E is underway — Batches 91, 93, 94, API + web, one `/ship-prod` at the boundary.**
-91 is closed and, being web-only, is already live. 93 is closed too — API-only, carrying
-migration 020, so it stays dark until the ship; 94 (league-scoped audit log) is the
-asymmetry risk
-in the whole plan — a new `GET /leagues/{slug}/audit-log` plus a page that calls it — so it
-runs last and the ship follows it immediately, or the page 404s the way Football Stats did
-after Batch 51. That boundary ship carries 93 and 94 only — Group D's API work is already
-live. The sequencing doc lists the group as 91, 94, 93 but annotates the same
-line "94 last"; the annotation wins, because its reason is concrete.
+**Group E is complete in the repository and owes its ship.** Batches 91, 93 and 94 are all
+closed. 91 was web-only and is already live. 93 and 94 are not: 93 is API-only, 94 is the
+API + web pair, and **94's page is live in front of members while its route is not** — the
+exact Batch 51 / 2026-08-06 shape. `/ship-prod` is due now, not later, and carries 93 and 94
+together with **migration 020**. Group D's API work is already live, so the ship carries
+nothing else. The sequencing doc lists the group as 91, 94, 93 but annotates the same line
+"94 last"; the annotation won, because its reason is concrete — the batches ran 91, 93, 94.
 
 **Group D is all but complete — Batches 99, 100 and 101 are closed *and shipped*
 (live API `bc8c8191`, migration 019); only Batch 95 remains, and it is soft-blocked.**
@@ -1328,8 +1344,11 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**A `/ship-prod` is owed — Batch 93 is API-side and adds migration 020.** It is due at
-the Group E boundary, immediately after Batch 94, and will carry 93 and 94 together.
+**A `/ship-prod` is owed now, and it is the urgent kind.** Batches 93 and 94 are both
+API-side and add **migration 020**. Batch 94's page shipped to members on its close-out push
+and calls `GET /api/v1/leagues/{slug}/audit-log`, which the deployed image does not serve —
+so the Activity screen 404s for every league admin until the ship runs. This is the
+asymmetry the sequencing doc cut Group E to avoid spanning, and it is open right now.
 
 Everything before it is already live: `check-deploy-drift.sh` at Batch 91 close-out
 reported the API serving `bc8c8191` at migration **019** — Batch 101's close-out commit —
