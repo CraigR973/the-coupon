@@ -8,6 +8,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from src.config import docs_urls, settings
+from src.database import AsyncSessionLocal
 from src.logging_config import configure_logging
 from src.middleware import CorrelationIdMiddleware, SecurityHeadersMiddleware
 from src.rate_limit import limiter
@@ -30,6 +31,7 @@ from src.routers.config import router as config_router
 from src.scheduler import create_scheduler
 from src.services.football_session import football_session
 from src.services.odds_session import odds_session
+from src.services.rename_notice import send_rename_notices
 
 configure_logging(settings.log_level, settings.secret_values())
 
@@ -37,9 +39,27 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 assert settings.environment is not None
 
 
+async def _send_pending_rename_notices() -> None:
+    """Batch 93's one-off notice, on the one event that means "this batch deployed".
+
+    Never fatal. This is a courtesy message to three people; an unreachable database or a
+    push provider having a bad day must not stop the API booting, and the task is
+    idempotent, so the next boot simply tries again. See ``services/rename_notice``.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            sent = await send_rename_notices(session)
+            await session.commit()
+        if sent:
+            log.info("rename notices processed", sent=sent)
+    except Exception:
+        log.exception("rename notice task failed; continuing startup")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     log.info("api starting", environment=settings.environment)
+    await _send_pending_rename_notices()
     scheduler = create_scheduler()
     app.state.scheduler = scheduler
     if settings.scheduler_enabled:

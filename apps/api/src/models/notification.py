@@ -24,6 +24,9 @@ class ActionType(StrEnum):
     # minutes and a redeploy cannot restart the noise.
     football_provider_degraded = "football_provider_degraded"
     player_pin_reset = "player_pin_reset"
+    # Batch 93. Written once per member actually reached by the Batch 74 rename notice —
+    # it is the marker that stops `services/rename_notice.py` telling them twice.
+    display_name_changed = "display_name_changed"
     # League lifecycle (audit-logged by the leagues routers).
     league_created = "league_created"
     league_updated = "league_updated"
