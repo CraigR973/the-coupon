@@ -51,13 +51,22 @@ beforeEach(() => {
 });
 
 describe('CreateLeaguePage — privacy payload maps to backend enum', () => {
-  it('sends "public_open" by default (not the legacy "open" that 422s)', async () => {
+  // Batch 91: the default is invite-only. Since Batch 63 opened self-registration,
+  // "public" means anyone who has signed up, so the least-private option must not be
+  // what a creator gets by not touching the dropdown. This also matches the API's own
+  // default (`CreateLeagueRequest.privacy = LeaguePrivacy.private`).
+  it('sends "private" when the creator never touches the dropdown', async () => {
     const req = stubCreate();
     renderPage();
     fireEvent.change(screen.getByLabelText(/league name/i), { target: { value: 'My League' } });
     fireEvent.click(screen.getByRole('button', { name: /create league/i }));
     await waitFor(() => expect(req.get()).not.toBeNull());
-    expect(req.get()?.privacy).toBe('public_open');
+    expect(req.get()?.privacy).toBe('private');
+  });
+
+  it('preselects the invite-only option rather than leaving the field blank', () => {
+    renderPage();
+    expect((screen.getByLabelText(/privacy/i) as HTMLSelectElement).value).toBe('private');
   });
 
   it('maps the Request option to "public_request"', async () => {
@@ -68,6 +77,58 @@ describe('CreateLeaguePage — privacy payload maps to backend enum', () => {
     fireEvent.click(screen.getByRole('button', { name: /create league/i }));
     await waitFor(() => expect(req.get()).not.toBeNull());
     expect(req.get()?.privacy).toBe('public_request');
+  });
+
+  it('maps the open option to "public_open", not the legacy "open" that 422s', async () => {
+    const req = stubCreate();
+    renderPage();
+    fireEvent.change(screen.getByLabelText(/league name/i), { target: { value: 'My League' } });
+    fireEvent.change(screen.getByLabelText(/privacy/i), { target: { value: 'public_open' } });
+    fireEvent.click(screen.getByRole('button', { name: /create league/i }));
+    await waitFor(() => expect(req.get()).not.toBeNull());
+    expect(req.get()?.privacy).toBe('public_open');
+  });
+});
+
+describe('CreateLeaguePage — privacy copy states the real consequence (Batch 91)', () => {
+  it('describes invite-only as hidden from Discover and join-code-only', () => {
+    renderPage();
+    const help = screen.getByLabelText(/privacy/i).getAttribute('aria-describedby');
+    expect(help).toBe('privacy-help');
+    const text = document.getElementById('privacy-help')!.textContent!;
+    expect(text).toMatch(/hidden from discover/i);
+    expect(text).toMatch(/join code/i);
+  });
+
+  it('warns that the open option lets strangers in without asking', () => {
+    renderPage();
+    fireEvent.change(screen.getByLabelText(/privacy/i), { target: { value: 'public_open' } });
+    const text = document.getElementById('privacy-help')!.textContent!;
+    // The consequence Batch 63 created: "anyone" is now anyone with an account,
+    // not only people the creator already knows.
+    expect(text).toMatch(/anyone with an account/i);
+    expect(text).toMatch(/without asking you/i);
+    expect(text).toMatch(/never met/i);
+  });
+
+  it('distinguishes request-to-join by the approval step', () => {
+    renderPage();
+    fireEvent.change(screen.getByLabelText(/privacy/i), { target: { value: 'public_request' } });
+    const text = document.getElementById('privacy-help')!.textContent!;
+    expect(text).toMatch(/approve or decline/i);
+  });
+
+  it('gives each option a label naming its consequence', () => {
+    renderPage();
+    const labels = Array.from(
+      (screen.getByLabelText(/privacy/i) as HTMLSelectElement).options,
+      (o) => o.textContent,
+    );
+    expect(labels).toEqual([
+      'Private — invite only',
+      'Public — anyone can ask to join',
+      'Public — anyone can join instantly',
+    ]);
   });
 });
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
-import { dropStaleMemberships } from '@/lib/leagues';
+import { dropStaleMemberships, type LeaguePrivacy } from '@/lib/leagues';
 import type { LeagueSummary, PickMarket, SlateWindow } from '@/lib/types';
 import { ALL_MARKETS, hhmmToMinutes, minutesToHHMM, SATURDAY_3PM_WINDOW, WEEKDAYS } from '@/lib/leagueConfig';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,36 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/PageHeader';
+
+/**
+ * What each privacy value actually does, as the API implements it today.
+ *
+ * `private` is the default: since Batch 63 opened self-registration, "public" no longer
+ * means "people the creator already knows" — it means anyone who has signed up. The
+ * least-private option should not be what someone gets by not touching this dropdown.
+ *
+ * Sources: `routers/leagues.py` — discover filters to the two public values; joining a
+ * private league by slug is refused `PRIVATE_LEAGUE`; `public_open` joins instantly and
+ * `public_request` creates a request the admin approves. The join code admits anyone who
+ * holds it regardless of privacy (`routers/league_memberships.py::join_league_by_code`).
+ */
+const PRIVACY_OPTIONS: readonly { value: LeaguePrivacy; label: string; help: string }[] = [
+  {
+    value: 'private',
+    label: 'Private — invite only',
+    help: 'Hidden from Discover. Only people you send the join code to can get in.',
+  },
+  {
+    value: 'public_request',
+    label: 'Public — anyone can ask to join',
+    help: 'Listed in Discover. Anyone with an account can request to join, and you approve or decline each request.',
+  },
+  {
+    value: 'public_open',
+    label: 'Public — anyone can join instantly',
+    help: 'Listed in Discover. Anyone with an account can join without asking you, including people you have never met.',
+  },
+];
 
 const SELECT_CLASS =
   'flex h-10 w-full items-center rounded-md border border-border bg-surface px-3 py-2 ' +
@@ -21,7 +51,7 @@ export function CreateLeaguePage() {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [privacy, setPrivacy] = useState<'public_open' | 'public_request' | 'private'>('public_open');
+  const [privacy, setPrivacy] = useState<LeaguePrivacy>('private');
   const [maxMembers, setMaxMembers] = useState('');
   const [window, setWindow] = useState<SlateWindow>(SATURDAY_3PM_WINDOW);
   const [markets, setMarkets] = useState<Set<PickMarket>>(new Set(ALL_MARKETS.map((m) => m.value)));
@@ -114,13 +144,19 @@ export function CreateLeaguePage() {
                 <select
                   id="privacy"
                   value={privacy}
-                  onChange={(e) => setPrivacy(e.target.value as typeof privacy)}
+                  onChange={(e) => setPrivacy(e.target.value as LeaguePrivacy)}
                   className={SELECT_CLASS}
+                  aria-describedby="privacy-help"
                 >
-                  <option value="public_open">Open — anyone can join instantly</option>
-                  <option value="public_request">Request — anyone can request to join</option>
-                  <option value="private">Private — invite only</option>
+                  {PRIVACY_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
+                <p id="privacy-help" className="text-xs font-sans text-text-muted">
+                  {PRIVACY_OPTIONS.find((o) => o.value === privacy)?.help}
+                </p>
               </div>
 
               <div className="space-y-1">
