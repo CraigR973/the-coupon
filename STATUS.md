@@ -1279,13 +1279,15 @@ so no API shipment is attached to it.
 API-only and stays dark until the ship; 94 (league-scoped audit log) is the asymmetry risk
 in the whole plan — a new `GET /leagues/{slug}/audit-log` plus a page that calls it — so it
 runs last and the ship follows it immediately, or the page 404s the way Football Stats did
-after Batch 51. The sequencing doc lists the group as 91, 94, 93 but annotates the same
+after Batch 51. That boundary ship carries 93 and 94 only — Group D's API work is already
+live. The sequencing doc lists the group as 91, 94, 93 but annotates the same
 line "94 last"; the annotation wins, because its reason is concrete.
 
-**Group D is underway — Batches 99, 100, 101 then 95, API/infra only, and it owes a
-`/ship-prod` at the boundary.** Nothing in it reaches members on a close-out push, so the
-asymmetry pressure Group C carried is off; what is owed instead is the ship itself, since
-the API stays behind `main` until it runs. 95 is soft-blocked on establishing Supabase
+**Group D is all but complete — Batches 99, 100 and 101 are closed *and shipped*
+(live API `bc8c8191`, migration 019); only Batch 95 remains, and it is soft-blocked.**
+Nothing in the group reached members on a close-out push, so the asymmetry pressure Group C
+carried was off; the ship it owed has been paid, though no `docs: record the shipment`
+commit was written for it. 95 is soft-blocked on establishing Supabase
 egress headroom for FEAT-A09 and on an owner choice of off-platform storage destination.
 
 **Batches 99, 100 and 101 are closed.** 95 is the only one left in Group D, and it is soft-blocked — see below.
@@ -1310,15 +1312,19 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**A `/ship-prod` is owed — Batches 99, 100 and 101 are merged to `main` and have not
-shipped.** The last shipment record in the log is Batches 89-90 (`b6ca8c1`, 2026-08-28);
-Group D's own ship was deferred because Batch 95 is soft-blocked, so the three closed
-API/infra batches have been sitting behind `main` since. They will go out with Group E's
-ship at the Batch 94 boundary, applying migrations **018 and 019** together. (This
-paragraph previously read "No `/ship-prod` is owed", which was true of the 82-85 shipment
-and stopped being true when Batch 99 closed.) The most recent completed shipment before
-that gap: Batches 82-85 on 2026-08-27 as Railway deployment
-`caeb17c2-732c-4195-9322-e7b84e7db3d8`, message `ship production 3cb8b4f`.
+**No `/ship-prod` is owed.** `check-deploy-drift.sh` at Batch 91 close-out reports the
+live API serving `bc8c8191` at migration **019** — that is Batch 101's close-out commit, so
+**Batches 99, 100 and 101 are in production**, migrations 018 and 019 applied. `main` is
+four commits ahead, all web or docs, none of which reach the API image.
+
+**That shipment was never recorded in the log, and it cost a session an hour of wrong
+conclusions.** Every previous ship left a `docs: record the ... shipment of Batches N-M`
+commit; this one did not, so reading the git log alone says the API is three batches
+behind, which is false. `/api/v1/health` reports `sha` and `migration` and is the
+authority — run `scripts/check-deploy-drift.sh` before asserting a ship is owed, never
+`git log` on its own. The earlier shipment record still standing: Batches 82-85 on
+2026-08-27 as Railway deployment `caeb17c2-732c-4195-9322-e7b84e7db3d8`, message
+`ship production 3cb8b4f`.
 **There is no usable API rollback baseline** — `a8ab5234-06c2-41d3-8358-405d95910d15` is
 recorded as the previous healthy deployment but a pre-`017` image cannot boot against a
 database stamped `017`, so recovery is forward-only until the next shipment that applies no

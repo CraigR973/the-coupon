@@ -2930,5 +2930,8 @@ obligation.
 **Next:** Batch 93 — the one-time rename notification, per Group E in
 `docs/review/2026-08-26/07-sequencing.md` (91 → 93 → 94, then one `/ship-prod`). Batch 92
 is numerically next but belongs to Group G. Batch 91 is web-only, so it reaches members on
-this push and adds no `/ship-prod` obligation of its own — though Batches 99, 100 and 101
-remain unshipped from Group D.
+this push and adds no `/ship-prod` obligation. **Nor does anything else: the live API is
+`bc8c8191` at migration 019, which is Batch 101's close-out — Group D shipped, it just
+never got a `docs: record the shipment` commit.** Reading the git log alone suggests
+otherwise and is wrong; `scripts/check-deploy-drift.sh` (which reads `/api/v1/health`) is
+the authority.
