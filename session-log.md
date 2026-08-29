@@ -2935,3 +2935,39 @@ this push and adds no `/ship-prod` obligation. **Nor does anything else: the liv
 never got a `docs: record the shipment` commit.** Reading the git log alone suggests
 otherwise and is wrong; `scripts/check-deploy-drift.sh` (which reads `/api/v1/health`) is
 the authority.
+
+## Batch 93 — Three renamed members were never told
+**Commits:** cb30011 · verified: `scripts/ci-local.sh` PASS (11 checks), green first run
+
+### Key facts for future sessions
+- **This product has no in-app notification inbox.** No `Notification` model, no
+  notifications screen, no route — `send_notification` is web push and nothing else. So
+  "notify a member" means "push to their active subscriptions", and a member without one
+  cannot be reached at all. Anything specified as an in-app message needs that surface
+  built first.
+- **The trigger is `lifespan`, because a migration cannot send a push.** Delivery is an
+  HTTP call per subscription; Alembic runs synchronous SQL. "On this batch's deploy"
+  therefore means application startup, and the once-only guarantee Alembic's version table
+  would have given for free is rebuilt from an `audit_log` row — Batch 101's pattern.
+- **The marker is written only on delivery.** `send_notification` returns 0 for no
+  subscription, a global mute, or quiet hours. None of those means the member was told, so
+  no row is written and the next boot retries. The consequence is deliberate: this task
+  keeps running until all three are reached, and it is cheap enough to (three indexed
+  lookups).
+- **A `pg_advisory_xact_lock` serialises it.** Batch 100's single-replica guard runs from
+  `migrations/env.py` and covers migrations only — a lifespan hook is not migration code,
+  and two containers booting together would both read "no marker" and both push.
+- **Tests that patch `_send_push_sync` must patch the VAPID settings too.**
+  `send_notification` returns 0 before it reaches the delivery call when
+  `vapid_private_key`/`vapid_public_key` are unset, so a suppressed send is
+  indistinguishable from a delivered one and the marker assertions pass for the wrong
+  reason. `push_enabled()` in `tests/test_rename_notice.py` does both; this cost a red run.
+- **Expected lifetime.** Once production holds three `display_name_changed` rows, the
+  lifespan call and `services/rename_notice.py` can go. It is not a rename-notification
+  feature — renaming a fourth member needs its own decision.
+
+**Next:** Batch 94 — the league-scoped audit log, last in Group E, followed immediately by
+`/ship-prod`. 94 is the asymmetry risk in the whole plan: a new
+`GET /leagues/{slug}/audit-log` plus a page that calls it, where the page reaches members
+on the close-out push and the route does not exist until the ship. Batch 93 is API-only and
+adds **migration 020**, so it is not live until that ship either.

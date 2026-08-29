@@ -592,7 +592,22 @@ stays `public_open`. `LeagueSettingsPage` keeps the unexplained dropdown, where 
 are higher — switching to `public_open` auto-approves every pending join request and
 switching to `private` cancels them, silently — and that is left for its own batch.
 
-Batches 1-91 and 99-102 are closed. The Coupon is a
+**Batch 93** told the three members Batch 74 renamed. Their sign-in name changed on
+2026-08-26 and nobody was signed out — the JWT subject is the player id — so the surprise
+was waiting for the next session expiry or forgotten-PIN request, days later and looking
+unrelated. The batch turned up a fact worth keeping: **this product has no in-app
+notification inbox at all** — no model, no screen, no route — so "notify a member" means
+web push and nothing else, and a member without an active subscription cannot be reached.
+That is why the notice runs from `lifespan` rather than a migration (a migration cannot
+make an HTTP call per subscription), why its once-only guarantee is an `audit_log` row
+rather than Alembic's version table, and why the marker is written **only when a push
+actually landed** — a muted or unsubscribed member has not been told, so the next boot
+tries again rather than marking them done. Migration **020** adds the
+`display_name_changed` action type that marker needs. A `pg_advisory_xact_lock` serialises
+the task, because Batch 100's single-replica guard covers migrations and a lifespan hook is
+not one. API-only, **not live until `/ship-prod`**.
+
+Batches 1-91, 93 and 99-102 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1183,13 +1198,13 @@ columns exist to prevent.
 ## Verified
 
 - Backend: the complete PostgreSQL-backed pytest suite, Ruff check/format, and
-  strict mypy; Batch 102 close-out passed `scripts/ci-local.sh` end-to-end
-  (11 checks) after an environment-only locale rerun, as every close-out since Batch 26
+  strict mypy; Batches 91 and 93 each passed `scripts/ci-local.sh` end-to-end
+  (11 checks) green on the first run, as every close-out since Batch 26
   has. That script's pinned venv **is**
   the gate: app-starter's venv can no longer even collect the suite (no Pillow, so
   `avatar_storage.py` takes ten test files down with it) and `AGENTS.md` plus
   `docs/agent-commands/batch-verify.md` still document that stale path
-- Database: clean `pgserver` migration through revision `019`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
+- Database: clean `pgserver` migration through revision `020`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 18 public tables under a Supabase-like role setup. The count was 13 at
   revision `004`; `009`-`013` added the rest, and every one of the 18 was
   confirmed RLS-enabled *and* forced against production on 2026-08-19, with
@@ -1243,7 +1258,7 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 92-98 unchecked** — seven remaining batches from
+`docs/BUILD_PLAN.md` carries **Batches 92 and 94-98 unchecked** — six remaining batches from
 the 2026-08-26 full-application review. They run in the remaining groups of
 `docs/review/2026-08-26/07-sequencing.md`, each batch being an individual
 start → close-out cycle with **one `/ship-prod` at the group boundary**.
@@ -1275,8 +1290,9 @@ was not already serving. That is the difference from the Coupon tab on 2026-08-0
 so no API shipment is attached to it.
 
 **Group E is underway — Batches 91, 93, 94, API + web, one `/ship-prod` at the boundary.**
-91 is closed and, being web-only, is already live. 93 (one-time rename notification) is
-API-only and stays dark until the ship; 94 (league-scoped audit log) is the asymmetry risk
+91 is closed and, being web-only, is already live. 93 is closed too — API-only, carrying
+migration 020, so it stays dark until the ship; 94 (league-scoped audit log) is the
+asymmetry risk
 in the whole plan — a new `GET /leagues/{slug}/audit-log` plus a page that calls it — so it
 runs last and the ship follows it immediately, or the page 404s the way Football Stats did
 after Batch 51. That boundary ship carries 93 and 94 only — Group D's API work is already
@@ -1312,10 +1328,13 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**No `/ship-prod` is owed.** `check-deploy-drift.sh` at Batch 91 close-out reports the
-live API serving `bc8c8191` at migration **019** — that is Batch 101's close-out commit, so
-**Batches 99, 100 and 101 are in production**, migrations 018 and 019 applied. `main` is
-four commits ahead, all web or docs, none of which reach the API image.
+**A `/ship-prod` is owed — Batch 93 is API-side and adds migration 020.** It is due at
+the Group E boundary, immediately after Batch 94, and will carry 93 and 94 together.
+
+Everything before it is already live: `check-deploy-drift.sh` at Batch 91 close-out
+reported the API serving `bc8c8191` at migration **019** — Batch 101's close-out commit —
+so **Batches 99, 100 and 101 are in production**, migrations 018 and 019 applied, and the
+commits between were web or docs only.
 
 **That shipment was never recorded in the log, and it cost a session an hour of wrong
 conclusions.** Every previous ship left a `docs: record the ... shipment of Batches N-M`

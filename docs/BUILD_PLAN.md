@@ -2889,8 +2889,8 @@ answered until it lands, because until then there is no data to look at.
   clipboard mechanism. No new share targets (e.g. native share sheet) beyond what
   Batch 24 already established.
 
-- [ ] **Batch 93 — Three renamed members were never told, and their old names are now
-  registrable by strangers** — specified from `docs/review/2026-08-26/05-feature-gaps.md`,
+- [x] **Batch 93 — Three renamed members were never told, and their old names are now
+  registrable by strangers** ✅ 2026-08-29 — specified from `docs/review/2026-08-26/05-feature-gaps.md`,
   FEAT-A08 (LOW). Batch 74 renamed three members for sign-in purposes; nobody was signed
   out (the JWT subject is the player id, so their session kept working), so the surprise
   lands at next PIN reset/session expiry, days later and looking unrelated. The freed
