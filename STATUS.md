@@ -576,7 +576,23 @@ the existing `react-router-dom` imports remain supported and Batch 88's app-owne
 `?next=` guard stays in place. Its hostile redirect suites pass 56/56 and the production
 bundle deep-link smoke passes. Web-only, so it creates no `/ship-prod` obligation.
 
-Batches 1-90 and 99-102 are closed. The Coupon is a
+**Batch 91** opened Group E by making a new league invite-only unless its creator says
+otherwise. `CreateLeaguePage` had initialised `privacy` to `public_open`, and since Batch
+63 opened self-registration that no longer means "people the creator already knows" — it
+means anyone who has signed up. The API had defaulted to `private` all along
+(`CreateLeagueRequest.privacy`), so the form was overriding a server default that was
+already right; this closes the divergence rather than setting a new policy, and needed no
+API change. Each option now names its consequence and carries a help line, tied to the
+field with `aria-describedby`, that changes with the selection — and the copy is taken
+from the router rather than the option names: `private` is absent from `/discover` and
+refuses slug joins with `PRIVATE_LEAGUE`, but the **join code still admits anyone holding
+it**, which is why the text promises "only people you send the join code to" and not
+invite-only as a security claim. No existing league moved; production's `test` league
+stays `public_open`. `LeagueSettingsPage` keeps the unexplained dropdown, where the stakes
+are higher — switching to `public_open` auto-approves every pending join request and
+switching to `private` cancels them, silently — and that is left for its own batch.
+
+Batches 1-91 and 99-102 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1227,7 +1243,7 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 91-98 unchecked** — eight remaining batches from
+`docs/BUILD_PLAN.md` carries **Batches 92-98 unchecked** — seven remaining batches from
 the 2026-08-26 full-application review. They run in the remaining groups of
 `docs/review/2026-08-26/07-sequencing.md`, each batch being an individual
 start → close-out cycle with **one `/ship-prod` at the group boundary**.
@@ -1258,6 +1274,14 @@ was not already serving. That is the difference from the Coupon tab on 2026-08-0
 **Group H is complete.** Batch 102's React Router 7 migration is closed; it is web-only,
 so no API shipment is attached to it.
 
+**Group E is underway — Batches 91, 93, 94, API + web, one `/ship-prod` at the boundary.**
+91 is closed and, being web-only, is already live. 93 (one-time rename notification) is
+API-only and stays dark until the ship; 94 (league-scoped audit log) is the asymmetry risk
+in the whole plan — a new `GET /leagues/{slug}/audit-log` plus a page that calls it — so it
+runs last and the ship follows it immediately, or the page 404s the way Football Stats did
+after Batch 51. The sequencing doc lists the group as 91, 94, 93 but annotates the same
+line "94 last"; the annotation wins, because its reason is concrete.
+
 **Group D is underway — Batches 99, 100, 101 then 95, API/infra only, and it owes a
 `/ship-prod` at the boundary.** Nothing in it reaches members on a close-out push, so the
 asymmetry pressure Group C carried is off; what is owed instead is the ship itself, since
@@ -1286,8 +1310,15 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**No `/ship-prod` is owed.** Batches 82-85 went to production on 2026-08-27 as Railway
-deployment `caeb17c2-732c-4195-9322-e7b84e7db3d8`, message `ship production 3cb8b4f`.
+**A `/ship-prod` is owed — Batches 99, 100 and 101 are merged to `main` and have not
+shipped.** The last shipment record in the log is Batches 89-90 (`b6ca8c1`, 2026-08-28);
+Group D's own ship was deferred because Batch 95 is soft-blocked, so the three closed
+API/infra batches have been sitting behind `main` since. They will go out with Group E's
+ship at the Batch 94 boundary, applying migrations **018 and 019** together. (This
+paragraph previously read "No `/ship-prod` is owed", which was true of the 82-85 shipment
+and stopped being true when Batch 99 closed.) The most recent completed shipment before
+that gap: Batches 82-85 on 2026-08-27 as Railway deployment
+`caeb17c2-732c-4195-9322-e7b84e7db3d8`, message `ship production 3cb8b4f`.
 **There is no usable API rollback baseline** — `a8ab5234-06c2-41d3-8358-405d95910d15` is
 recorded as the previous healthy deployment but a pre-`017` image cannot boot against a
 database stamped `017`, so recovery is forward-only until the next shipment that applies no

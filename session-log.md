@@ -2902,3 +2902,33 @@ storage destination (S3 / R2 / Backblaze). Then `/ship-prod` for Group D.
 **Next:** Batch 91 — make new leagues invite-only by default and explain every privacy
 option at the point of creation. Batch 102 is web-only, so it creates no `/ship-prod`
 obligation.
+
+## Batch 91 — New leagues default to fully open with no explanation
+**Commits:** ebdf774 · verified: `scripts/ci-local.sh` PASS (11 checks), green first run
+
+### Key facts for future sessions
+- **The API already defaulted to invite-only.** `CreateLeagueRequest.privacy =
+  LeaguePrivacy.private` (`routers/leagues.py:326`) has been the server default all along;
+  only `CreateLeaguePage` overrode it with `public_open`. This batch removes a divergence
+  rather than setting a new policy, so no API change was needed and none was made.
+- **The copy is grounded in the router, not in the option names.** `private` is excluded
+  from `/discover` (the filter lists only the two public values) and refuses slug joins
+  with `PRIVATE_LEAGUE`; `public_open` joins instantly; `public_request` creates a request
+  the admin approves. Re-verify against `routers/leagues.py` before editing this copy.
+- **A private league is not sealed — the join code still admits anyone holding it.**
+  `join_league_by_code` (`routers/league_memberships.py:120`) never reads `privacy`, which
+  is why the help text says "only people you send the join code to" rather than "invite
+  only" as a security claim.
+- **Selector copy lives in `CreateLeaguePage`, deliberately.** `PRIVACY_LABELS` in
+  `lib/leagues.ts` is shared with `MyLeaguesPage` and `DiscoverLeaguesPage`, so changing it
+  would have moved copy on screens outside this batch's scope boundary.
+- **`LeagueSettingsPage` still has the unexplained dropdown**, and its stakes are higher:
+  switching a league to `public_open` auto-approves every pending join request, and
+  switching to `private` cancels them, with no warning in the UI. Out of scope here; left
+  for its own batch.
+
+**Next:** Batch 93 — the one-time rename notification, per Group E in
+`docs/review/2026-08-26/07-sequencing.md` (91 → 93 → 94, then one `/ship-prod`). Batch 92
+is numerically next but belongs to Group G. Batch 91 is web-only, so it reaches members on
+this push and adds no `/ship-prod` obligation of its own — though Batches 99, 100 and 101
+remain unshipped from Group D.

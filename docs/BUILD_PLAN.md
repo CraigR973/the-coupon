@@ -2852,7 +2852,7 @@ answered until it lands, because until then there is no data to look at.
   the server-side lock-then-fetch-odds ordering (Batch 57), which already handles the
   server half of this correctly.
 
-- [ ] **Batch 91 — New leagues default to fully open with no explanation**
+- [x] **Batch 91 — New leagues default to fully open with no explanation** ✅ 2026-08-29
   — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-B02/FEAT-A05 (MED).
   `CreateLeaguePage.tsx:24` initialises `privacy = 'public_open'` with no copy explaining
   what that now means: since Batch 63 opened self-registration, "open" means any stranger
