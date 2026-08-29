@@ -1680,3 +1680,68 @@ secret-leakage patterns.
 `pugujiiojitstkilphrz` and update Railway's `DATABASE_URL`. This shipment's RLS recheck ran
 inside the container through a client that never renders the DSN, so it did not repeat the
 exposure.
+
+### Forward recovery plan — migration `020`, Batch 93
+
+**Status: AWAITING OWNER APPROVAL. Not cleared to ship.**
+
+Required by `/ship-prod` step 1.7 before `020` may be deployed. Production is at head `019`
+(deployment `7ed1dc1e-7a44-46ab-9325-d58a25679133`, `SUCCESS`, serving `bc8c8191`); this
+shipment moves it to `020` and carries Batches 93 and 94.
+
+**No pre-migration snapshot is needed. `020` rewrites no data at all.** It is one statement
+— `ALTER TYPE action_type ADD VALUE IF NOT EXISTS 'display_name_changed'` — which defines a
+value and nothing more. No table is touched, no column added or removed, no row rewritten,
+no value recomputed. It is the same shape as `019` (Batch 101) and as `012`'s `'scheduled'`.
+
+**It cannot refuse to run.** Unlike `017` there is no precondition it checks and no state of
+the data that makes it fail. `ADD VALUE IF NOT EXISTS` is also idempotent, so a retried boot
+is harmless.
+
+**API rollback is unavailable the moment `020` applies**, on the same terms as `012`, `013`,
+`014`/`015`, `017` and `019`: every pre-`020` image ships revisions `001`–`019` only, so
+started against a database stamped `020` its Alembic fails with `Can't locate revision
+identified by '020'` before uvicorn is reached. **Do not attempt a Railway rollback to a
+pre-`020` deployment after this ships.** Vercel rollback is unaffected. The recorded
+baseline `7ed1dc1e` is therefore a record, not a usable target.
+
+Recovery once `020` *has* applied is forward-only:
+
+1. **Deploy a corrected image at head `020` or higher.** The normal path.
+2. **Disabling Batch 93's behaviour needs no migration.** The notice is sent by a
+   `lifespan` hook (`src/main.py::_send_pending_rename_notices`) calling
+   `services/rename_notice.send_rename_notices`. Removing that one `await` stops it
+   entirely; the enum value and any rows already written stay valid and inert.
+3. **Never run `alembic downgrade` against production**, and this migration's downgrade is
+   more costly than `019`'s. It rebuilds the type without the value and maps any
+   `display_name_changed` row to `player_pin_reset`. Two consequences, both specific:
+   those rows are Batch 93's **idempotency markers**, so rewriting them lets the next boot
+   notify those members a second time; and Batch 94's new league Activity screen would then
+   show them a "PIN reset" that never happened, for a member whose PIN was never reset.
+   The downgrade is written for local and staging use.
+
+**Forward-compatibility hazard, stated because it is the one real trap here.** The `019`
+application's Python `ActionType` has no `display_name_changed` member, and `AuditLog`
+maps the column through `Enum(ActionType, ...)`. If a `019` image were ever run against a
+`020` database *after* the first marker row is written, the site-admin dashboard — which
+reads `audit_log` globally and unfiltered — would fail to coerce that row. This only
+matters on a rollback that is already ruled out above, but it means the rollback is not
+merely blocked by Alembic: it would also be wrong.
+
+**Data compatibility otherwise.** `020` is fully backward-compatible with the `019`
+application until a row using the new value exists. Nothing in the `019` image writes one.
+
+**Post-deploy checks specific to this shipment**, beyond the standard `/health` and
+`/health/ready` agreement at `020`:
+
+1. **Batch 93's boot task is the first thing this deployment does that is new and
+   observable.** Read the bounded log snapshot for `rename notice delivered` (with a
+   `pushes` count) or `rename notice undelivered, will retry next boot`, one line per member
+   found. Three "undelivered" lines is a **correct** result if those members have no active
+   push subscription — it means the marker was deliberately not written and the next boot
+   will try again. No lines at all means the three profiles were not found by name, which
+   would be a genuine defect and should be investigated before the next deploy.
+2. **Batch 94's route must answer.** Its page reached members on the close-out push and has
+   been calling `GET /api/v1/leagues/{slug}/audit-log` against an image that does not serve
+   it. Confirm the route exists after the ship (a `401`/`403` from an unauthenticated probe
+   is the correct answer; a `404` means it did not ship).
