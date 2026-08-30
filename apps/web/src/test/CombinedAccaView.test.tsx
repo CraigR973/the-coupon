@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { buildCouponShareText, CombinedAccaView } from '@/components/CombinedAccaView';
+import { CombinedAccaView } from '@/components/CombinedAccaView';
+import { buildCouponShareText, buildSettledResultShareText } from '@/lib/share';
 import type { Coupon, CouponLeg } from '@/lib/types';
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -131,6 +132,35 @@ describe('a settled round', () => {
     expect(screen.getByText(/Forfar 2–1 Brechin/)).toBeTruthy();
   });
 
+  it('builds settled-result text with the scoreline in the coupon format', () => {
+    expect(buildSettledResultShareText(settledCoupon())).toBe(
+      [
+        'The Coupon: Result — 1 of 2 picks landed',
+        'Frozen combined odds: 3.50 (historical, from pick time)',
+        '',
+        '1. Forfar @ 2.00 - Forfar 2–1 Brechin (Scottish League 2, 1X2) - Alice - Won, 20 pts',
+        '2. Both teams score @ 1.75 - Celtic v Rangers (Scottish Premiership, BTTS) - Bob - Lost, 0 pts',
+        '',
+        'Prices were frozen when each member picked. Check your book for current odds before placing anything.',
+      ].join('\n'),
+    );
+  });
+
+  it('copies a settled result rather than the pre-lock coupon text', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    const result = settledCoupon();
+    render(<CombinedAccaView coupon={result} />);
+    await userEvent.click(screen.getByRole('button', { name: /copy result/i }));
+
+    expect(writeText).toHaveBeenCalledWith(buildSettledResultShareText(result));
+    expect(writeText).not.toHaveBeenCalledWith(buildCouponShareText(result));
+  });
+
   it('shows the outcome and no score for a leg that could not be resolved', () => {
     render(<CombinedAccaView coupon={settledCoupon()} />);
     // Bob's leg still reports that it lost…
@@ -247,4 +277,3 @@ describe('a round being played', () => {
     expect(screen.queryByText('Live')).toBeNull();
   });
 });
-

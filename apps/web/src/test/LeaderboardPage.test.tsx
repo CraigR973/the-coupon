@@ -6,7 +6,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LeagueProvider } from '@/contexts/LeagueContext';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
+import { buildStandingsShareText } from '@/lib/share';
 import type { SeasonSummary, Standing } from '@/lib/types';
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 /**
  * Batch 96 — the standings archive on the leaderboard.
@@ -136,6 +139,34 @@ describe('LeaderboardPage — the season archive', () => {
     expect(standingsCalls[0]).not.toContain('season=');
   });
 
+  it('copies the current table in the existing plain-text convention', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    stubFetch();
+    renderPage();
+
+    await screen.findByText('Alice');
+    await userEvent.click(screen.getByRole('button', { name: 'Copy standings' }));
+
+    const expected = buildStandingsShareText(
+      'The Coupon',
+      '2026/27 standings',
+      THIS_SEASON,
+    );
+    expect(expected).toBe(
+      [
+        'The Coupon: The Coupon — 2026/27 standings',
+        '',
+        '#1 Alice - 34 pts - 2/4 picks won',
+        '#2 Bob - 12 pts - 2/4 picks won',
+      ].join('\n'),
+    );
+    expect(writeText).toHaveBeenCalledWith(expected);
+  });
+
   it('opens a past season, and says the table is finished', async () => {
     stubFetch();
     const user = userEvent.setup();
@@ -163,10 +194,33 @@ describe('LeaderboardPage — the season archive', () => {
     expect(requested.some((url) => url.includes('/standings?season=2025'))).toBe(true);
   });
 
+  it('copies only the archived table and label when that is the screen being viewed', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    stubFetch();
+    renderPage('/leagues/the-coupon/leaderboard?season=2025');
+
+    await screen.findByText('Carol');
+    await userEvent.click(screen.getByRole('button', { name: 'Copy standings' }));
+
+    expect(writeText).toHaveBeenCalledWith(
+      buildStandingsShareText('The Coupon', '2025/26 standings', LAST_SEASON),
+    );
+    expect(writeText.mock.calls[0][0]).not.toContain('Bob');
+  });
+
   it('draws the table as before when the API has no seasons endpoint yet', async () => {
     // The deploy gap: Vercel releases this app on merge, the API waits for `/ship-prod`.
     // A 404 on `/seasons` must cost the member nothing — no strip, no error, no blank
     // screen, and the standings request still goes out.
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
     stubFetch({ seasonsStatus: 404 });
     renderPage();
 
@@ -175,6 +229,10 @@ describe('LeaderboardPage — the season archive', () => {
     expect(screen.queryByTestId('season-strip')).not.toBeInTheDocument();
     expect(screen.queryByText(/Couldn’t load standings/)).not.toBeInTheDocument();
     expect(screen.getByText('Season standings')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Copy standings' }));
+    expect(writeText).toHaveBeenCalledWith(
+      buildStandingsShareText('The Coupon', 'Season standings', THIS_SEASON),
+    );
   });
 
   it('hides the strip for a league that has only ever played one season', async () => {

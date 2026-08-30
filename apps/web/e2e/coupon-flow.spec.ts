@@ -146,9 +146,14 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   for (const theme of ['dark', 'light'] as const) {
     await setTheme(alice, theme);
     await expect(alice.getByTestId('standings')).toContainText('Bob');
+    await expect(alice.getByRole('button', { name: 'Copy standings' })).toBeVisible();
     await expectNoColourContrastViolations(alice);
     await alice.screenshot({
       path: join(ARTIFACT_DIR, `batch-98-standings-${theme}-390x844.png`),
+    });
+    await expectNoAxeViolations(alice);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-92-standings-${theme}-390x844.png`),
     });
   }
 
@@ -158,10 +163,19 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   await expect(alice.getByText('All legs won 🎉')).toBeVisible();
   await expect(alice.getByTestId('acca-leg-0')).toContainText('Won');
   await expect(alice.getByTestId('acca-leg-1')).toContainText('Won');
+  await expect(alice.getByRole('button', { name: 'Copy result' })).toBeVisible();
   await alice.screenshot({
     path: join(ARTIFACT_DIR, 'combined-coupon-settled.png'),
     fullPage: true,
   });
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(alice, theme);
+    await expect(alice.getByRole('button', { name: 'Copy result' })).toBeVisible();
+    await expectNoAxeViolations(alice);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-92-result-${theme}-390x844.png`),
+    });
+  }
 
   // Batch 26: home and My profile answer for every league the member plays, not
   // for whichever one happens to be bound.

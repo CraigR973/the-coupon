@@ -5,23 +5,9 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { EmptyState } from './EmptyState';
 import { entriesFromLegs, isLive, PickRow } from './PickRow';
-import { formatOdds, marketTag, outcomeLabel } from '../lib/coupon';
+import { formatOdds } from '../lib/coupon';
+import { buildCouponShareText, buildSettledResultShareText } from '../lib/share';
 import { useOddsFormat } from '../hooks/useOddsFormat';
-
-export function buildCouponShareText(coupon: Coupon): string {
-  const lines = [
-    `The Coupon: ${coupon.leg_count}-fold accumulator`,
-    `Frozen combined odds: ${formatOdds(coupon.combined_odds)} (historical, from pick time)`,
-    '',
-    ...coupon.legs.map((leg, i) => {
-      const selection = outcomeLabel(leg.market, leg.outcome, leg.home, leg.away);
-      return `${i + 1}. ${selection} @ ${formatOdds(leg.odds)} - ${leg.home} v ${leg.away} (${leg.competition}, ${marketTag(leg.market)}) - ${leg.player_name}`;
-    }),
-    '',
-    'Prices were frozen when each member picked. Check your book for current odds before placing anything.',
-  ];
-  return lines.join('\n');
-}
 
 /**
  * The combined per-leaderboard accumulator for a gameweek: every member's one
@@ -57,12 +43,14 @@ export function CombinedAccaView({ coupon, myPlayerId }: { coupon: Coupon; myPla
   // so this reads the legs rather than second-guessing the status.
   const live = !settled && entries.some(isLive);
 
-  async function copyCouponText() {
+  async function copyShareText() {
     try {
-      await navigator.clipboard.writeText(buildCouponShareText(coupon));
-      toast.success('Coupon copied');
+      await navigator.clipboard.writeText(
+        settled ? buildSettledResultShareText(coupon) : buildCouponShareText(coupon),
+      );
+      toast.success(settled ? 'Result copied' : 'Coupon copied');
     } catch {
-      toast.error('Could not copy coupon');
+      toast.error(settled ? 'Could not copy result' : 'Could not copy coupon');
     }
   }
 
@@ -95,9 +83,9 @@ export function CombinedAccaView({ coupon, myPlayerId }: { coupon: Coupon; myPla
                 {coupon.all_won ? 'All legs won 🎉' : 'Not all legs landed'}
               </Badge>
             )}
-            <Button type="button" variant="outline" size="sm" onClick={copyCouponText}>
+            <Button type="button" variant="outline" size="sm" onClick={copyShareText}>
               <Copy className="h-3.5 w-3.5" aria-hidden />
-              Copy text
+              {settled ? 'Copy result' : 'Copy text'}
             </Button>
           </div>
         </div>
