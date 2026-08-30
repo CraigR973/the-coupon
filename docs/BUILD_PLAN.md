@@ -3094,6 +3094,80 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: the react-router upgrade and whatever it forces. No routing redesign.
 
+- [ ] **Batch 103 — The settings screen still asks for a privacy choice without saying what
+  it does, and hides two consequences that fire on save** — specified 2026-08-30 from the
+  Batch 91 close-out, which was scoped to `CreateLeaguePage` and deliberately left this.
+  `LeagueSettingsPage.tsx:335-345` renders the same bare dropdown Batch 91 replaced, and the
+  stakes are higher here because this screen changes a league that already has members and
+  pending requests.
+
+  Two consequences fire on save and the UI never mentions either. Switching **to**
+  `public_open` auto-approves every pending join request
+  (`routers/leagues.py:1232` → `_auto_approve_pending_requests`, defined at `:672`), so an
+  admin tidying a setting can admit people they have not looked at. Switching **to**
+  `private` cancels every pending request (`:1224`), so an admin can discard a queue without
+  being told it existed. Both are the right behaviours; neither is announced.
+
+  Give the selector the same consequence copy Batch 91 gave the create screen, and warn
+  before a save that will auto-approve or cancel pending requests, naming how many. Batch
+  91's `PRIVACY_OPTIONS` table is module-scoped in `CreateLeaguePage.tsx` and should be
+  lifted to `lib/leagues.ts` beside `LeaguePrivacy` rather than copied — but note
+  `PRIVACY_LABELS` in that file is already shared with `MyLeaguesPage` and
+  `DiscoverLeaguesPage`, so changing *it* moves copy on screens outside this batch.
+
+  Also check `LeagueSettingsPage.tsx:71`, which initialises `privacy` to `'public_open'`
+  before the fetched league overwrites it at `:92`. It is probably unreachable as a
+  submitted value; assert that in a test rather than leaving the least-private option as the
+  fallback on a screen that saves.
+
+  Verification: a test that each option's copy states its real consequence; a test that
+  switching to `public_open` with pending requests warns and names the count before saving,
+  and that switching to `private` warns that pending requests will be cancelled; a test that
+  the initial state cannot be submitted as `public_open` for a league that is not.
+
+  Scope boundary: `LeagueSettingsPage`'s privacy control, its copy and its confirmation,
+  plus lifting Batch 91's options table into `lib/leagues.ts`. **No change to what the API
+  does on a privacy transition** — the auto-approve and cancel behaviours are correct and
+  stay exactly as they are. No change to `PRIVACY_LABELS` or the screens that read it.
+
+- [ ] **Batch 104 — Railway is retiring the config file three of our invariants are written
+  in** — specified 2026-08-30 from the Group E shipment, where the CLI began warning on
+  every command that Config as Code (`railway.json` / `railway.toml`) is deprecated in
+  favour of Infrastructure as Code (`.railway/railway.ts`), with existing files working
+  **until 2026-12-01**. `railway config migrate` is offered as the conversion.
+
+  This is not a file swap, because `railway.toml` is load-bearing in three places that all
+  assume TOML on disk. `scripts/ci-local.sh:134-139` parses it with `tomllib` and asserts
+  six deploy values — healthcheck path, `numReplicas`, `sleepApplication`,
+  `ipv6EgressEnabled`, the `multiRegionConfig` map and the nixpacks config path — so the
+  gate stops checking anything the moment the file stops being TOML. `nixpacks.toml:13`
+  carries the same replica count into the image as `DEPLOY_REPLICA_COUNT`, which
+  `src/migration_guard.py` reads to refuse a migration above one replica (Batch 100), and
+  `tests/test_migration_guard.py` fails if the two disagree. And `/ship-prod` verifies the
+  deployed manifest against those same values after every deployment.
+
+  Migrate the config and **carry all three couplings across**: the gate must parse and
+  assert the new format, the replica count must still reach the image, and the guard's test
+  must still fail when they diverge. A migration that leaves the gate asserting a file
+  Railway no longer reads is worse than not migrating, because it would report PASS while
+  the real deployment config drifted.
+
+  **Do this before 2026-12-01 and not on the day.** The deadline is Railway's, the config
+  is what production boots from, and the failure mode if it lapses is a deploy that ignores
+  `numReplicas = 1` — the exact precondition Batch 100 exists to protect.
+
+  Verification: `scripts/ci-local.sh` PASS with the deployment-config step asserting the new
+  format rather than the old; `tests/test_migration_guard.py` still failing when the
+  declared replica count and `DEPLOY_REPLICA_COUNT` disagree; and a deployment whose Railway
+  manifest still reports one replica in `europe-west4-drams3a`, sleep disabled, IPv6 egress
+  enabled and healthcheck `/api/v1/health/ready` at 300s.
+
+  Scope boundary: the configuration format and the checks that read it. No change to what
+  the configuration *says* — same replica count, region, healthcheck, restart policy — and
+  no change to `nixpacks.toml`'s build or start command beyond whatever carrying
+  `DEPLOY_REPLICA_COUNT` requires. **API + infra, so it owes a `/ship-prod`**, and it should
+  ship alone: it changes how production is built.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

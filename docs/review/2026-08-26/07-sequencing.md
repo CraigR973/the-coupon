@@ -180,3 +180,49 @@ H  102           web      → (no ship)
 Two independent things sit outside the batch flow entirely and can happen at any
 point: closing launch gate **L5** retroactively via `/launch-closeout L5`, and
 the **FEAT-A09 egress investigation**, which should precede Batch 95.
+
+---
+
+## Addendum, 2026-08-30 — batches added after this document was written
+
+The groups above cover Batches 82-102, which is what the 2026-08-26 review produced. Two
+later batches came out of doing the work rather than out of the review, so they have no
+group here. Their placement:
+
+### Group I — The other privacy dropdown · Batch 103 · **web only** → no ship needed
+
+Batch 91 was scoped to `CreateLeaguePage` and left `LeagueSettingsPage` carrying the same
+unexplained control, over a league that already has members and a pending-request queue that
+a save can silently auto-approve or discard. Web-only, so it reaches members on its own
+close-out push and owes nothing.
+
+**Run it near Group G.** It lifts Batch 91's options table into `lib/leagues.ts`, and Group
+G's Batch 97 reworks home layout; doing them in the same stretch keeps the shared-copy
+module settling once. It does not depend on Group G and can go earlier if the pending-request
+surprise matters more than the visual pass.
+
+### Group J — The Railway config migration · Batch 104 · **API + infra** → `/ship-prod`, alone
+
+Railway is retiring `railway.toml` in favour of `.railway/railway.ts`, with existing files
+working **until 2026-12-01**. Alone, and for the same reason Group F is alone: it changes
+what production is built from, and three separate checks — the gate's `tomllib` assertions,
+`nixpacks.toml`'s `DEPLOY_REPLICA_COUNT`, and `test_migration_guard.py` — all read the file
+it replaces. Nothing else should be moving underneath it, and the ship follows immediately
+so the deployed manifest can be verified against the new config.
+
+**This one has an external deadline, which nothing else in this plan does.** Everything above
+can slip by a week at the owner's discretion; this cannot slip past 2026-12-01 without the
+deploy config becoming whatever Railway defaults to — including the `numReplicas = 1` that
+Batch 100's migration guard exists to protect.
+
+### Updated order
+
+```
+F  96            API+web  → /ship-prod         alone
+G  98 97 92      web      → ship if 97 needs a route
+I  103           web      → (no ship)          near G; shares lib/leagues.ts
+J  104           API+infra→ /ship-prod         alone; hard deadline 2026-12-01
+```
+
+Groups A-E and H are complete. D is complete but for Batch 95, which remains soft-blocked on
+the FEAT-A09 egress investigation.

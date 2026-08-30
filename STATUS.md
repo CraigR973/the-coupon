@@ -1276,10 +1276,19 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 92 and 95-98 unchecked** — five remaining batches from
-the 2026-08-26 full-application review. They run in the remaining groups of
-`docs/review/2026-08-26/07-sequencing.md`, each batch being an individual
-start → close-out cycle with **one `/ship-prod` at the group boundary**.
+`docs/BUILD_PLAN.md` carries **Batches 92, 95-98, 103 and 104 unchecked** — seven remaining.
+Five come from the 2026-08-26 full-application review and run in the remaining groups of
+`docs/review/2026-08-26/07-sequencing.md`; **103 and 104 were specified on 2026-08-30 out of
+doing the work rather than out of the review**, and that document's addendum places them as
+Groups I and J. Each batch is an individual start → close-out cycle with **one `/ship-prod`
+at the group boundary**.
+
+**Batch 104 is the only item in this plan with an external deadline.** Railway is retiring
+`railway.toml` in favour of `.railway/railway.ts` and the CLI states existing files work only
+**until 2026-12-01**. Three separate checks read that file — the gate's `tomllib` assertions,
+`nixpacks.toml`'s `DEPLOY_REPLICA_COUNT`, and `test_migration_guard.py` — so letting it lapse
+risks losing the `numReplicas = 1` pin that Batch 100's migration guard exists to protect.
+
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday watch**,
 with L0-L4 ticked since 2026-08-04.
 
