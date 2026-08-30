@@ -2974,7 +2974,7 @@ answered until it lands, because until then there is no data to look at.
   No change to how points are computed, and no cross-league or league-vs-league
   comparison — that was a separate idea and is not being taken.
 
-- [ ] **Batch 97 — Home stops a third of the way down the screen**
+- [x] **Batch 97 — Home stops a third of the way down the screen** ✅ 2026-08-30
   — specified from `docs/review/2026-08-26/06-ux-design.md`, UX-09; owner decision
   2026-08-27: **both more content and a scale pass**. At 390×844 the home card and Batch
   79's result panel end within the top third and leave ~400px of empty background, which

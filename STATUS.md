@@ -657,7 +657,22 @@ order did not move, so every member keeps the same colour slot. The real-browser
 now runs axe's `color-contrast` rule on settled standings at 390×844 in both themes and saves
 both screenshots; both sweeps report zero violations. Web-only, so no `/ship-prod` is owed.
 
-Batches 1-91, 93, 94, 96, 98 and 99-102 are closed. The Coupon is a
+**Batch 97** gave home the altitude it was missing. Its row predated Batches 79 and 81, so
+the example content — every league, each opening/lock countdown, and recent activity — was
+already on the page by the time the visual pass began. The one response also carried
+aggregate season figures that home discarded. A new 218px cross-league hero now answers
+which independent league needs the member next, sorting actionable leagues by their own
+lock rather than the API's alphabetical order, and links straight to that coupon. With no
+pick outstanding it says whether all open picks are in and names the earliest announced
+opening. Points, picks won/played and win rate form the season pulse; average rank stays out
+because it is not meaningful across leagues without its coverage caveat. The scale half is
+real rather than a spacer: 32px greeting, larger action line, roomier league cards and result
+panels, an explicit leagues section and wider vertical rhythm. In the sparse one-league
+settled case content now lands immediately above the tab bar at 390×844 in both themes;
+axe reports zero violations. Web-only, using the existing summary route, so no
+`/ship-prod` is owed.
+
+Batches 1-91, 93, 94 and 96-102 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1308,8 +1323,8 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 92, 95, 97, 103 and 104 unchecked** — five remaining.
-Three come from the 2026-08-26 full-application review and run in the remaining groups of
+`docs/BUILD_PLAN.md` carries **Batches 92, 95, 103 and 104 unchecked** — four remaining.
+Two come from the 2026-08-26 full-application review and run in the remaining groups of
 `docs/review/2026-08-26/07-sequencing.md`; **103 and 104 were specified on 2026-08-30 out of
 doing the work rather than out of the review**, and that document's addendum places them as
 Groups I and J. Each batch is an individual start → close-out cycle with **one `/ship-prod`
@@ -1360,12 +1375,11 @@ season-bounded screen against an unbounded API, and nothing broke: `/seasons` 40
 season strip hides itself on an empty list, and the standings request carried no `season`
 parameter, which the old image ignored. Members saw the screen they saw before.
 
-**Group G is in progress.** Batch 98's solid-fill avatar pass is closed and web-only, so it
-reached members on its close-out push and adds no API shipment. Batch 97's home content and
-scale pass is next, followed by Batch 92's settled-result and standings sharing. The
-existing cross-league summary appears to carry the countdown and multi-league data Batch 97
-needs; confirm that before adding any route, because an API half would move 97 to the group
-boundary and create a `/ship-prod` obligation.
+**Group G is in progress.** Batches 98 and 97 are closed and web-only, so both reached
+members on their close-out pushes and add no API shipment. The existing cross-league
+summary carried every datum the home pass needed; no route was added and the conditional
+reorder never fired. Batch 92's settled-result and standings sharing is the group’s final
+batch.
 
 **Group E is complete and shipped** — Batches 91, 93 and 94 went to production on
 2026-08-30. The sequencing doc lists the group as 91, 94, 93 but annotates the same line

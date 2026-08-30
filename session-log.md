@@ -3059,3 +3059,34 @@ migration. After that, Group G (Batches 98, 97, 92).
 **Next:** Batch 97 — the home content and scale pass. Confirm the existing
 `PerLeagueSummary` supplies what it needs before adding a route; if it remains web-only,
 Batch 92 follows and Group G owes no `/ship-prod`.
+
+## Batch 97 — Home stops a third of the way down the screen
+**Commits:** 2744035 · verified: `scripts/ci-local.sh` PASS (11 checks, green first run)
+
+### Key facts for future sessions
+- **The row's example content was stale, not the page.** Batches 79 and 81 had already put
+  every league, per-league opening/lock countdowns and recent results on home. Adding any of
+  those again would have duplicated the cards. The existing cross-league response also
+  carried aggregate season figures that home did not use, so no API route was needed.
+- **The hero answers the cross-league question instead.** It finds every currently
+  claimable league without the member's pick, sorts by that league's own lock and links to
+  the earliest one. When nothing needs a pick it distinguishes all open picks being in from
+  an upcoming opening or a genuinely quiet week.
+- **Time still comes from stored UTC instants, not status or a shared Saturday.** The action
+  applies the same `scheduled`/`open` plus opening/lock rule as each card and uses
+  `parseInstant`; a test proves alphabetical API order cannot outrank the sooner deadline.
+- **Only honest aggregate figures moved up.** Points, picks won/played and win rate span
+  leagues on the same scale. Average rank stays on the career page because first of three
+  and first of fifteen are not one comparable number without its coverage explanation.
+- **The fill is content and scale, not min-height theatre.** A 218px hero, 32px greeting,
+  larger action line, roomier cards/result panels and explicit leagues section put the
+  sparse one-league settled view immediately above the tab bar at 390×844. Dark and light
+  screenshots both passed a full axe sweep with zero violations.
+- **One targeted test failed before the gate.** It read the always-mounted hero while the
+  query was still loading; waiting for `home-season-summary` made it assert the loaded state
+  it was written for. The production-preview flow and the full 11-check gate both passed on
+  their first runs.
+
+**Next:** Batch 92 — extend the existing clipboard-share pattern to settled results and
+season-aware standings. It is Group G's final batch; with no API half added by 97, the group
+still expects no `/ship-prod`.
