@@ -2995,7 +2995,7 @@ answered until it lands, because until then there is no data to look at.
   but that was a three-member test seed — a real 15-50 member league fills it, so
   standings is explicitly not in scope.
 
-- [ ] **Batch 98 — Avatar initials use fill colours as text colours**
+- [x] **Batch 98 — Avatar initials use fill colours as text colours** ✅ 2026-08-30
   — specified from `docs/review/2026-08-26/03-ux-accessibility.md`, UX-08 (serious,
   axe `color-contrast`); owner decision 2026-08-27: **solid fill with high-contrast
   text**. `avatar.tsx`'s `PALETTE` renders initials in raw medal/brand fill tokens over a

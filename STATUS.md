@@ -646,7 +646,18 @@ addressable as `?season=`, hidden below two seasons. **No migration** — the bo
 query-level filter and production stays at revision **020**. API and web both, **not fully
 live until `/ship-prod`**; until then the strip is hidden, because `/seasons` 404s.
 
-Batches 1-91, 93, 94, 96 and 99-102 are closed. The Coupon is a
+**Batch 98** replaced avatar tints with solid colour. The old component painted raw fill
+tokens as text over 15%-mixed versions of the same colours; bronze measured 4.05:1 and only
+two of the six name-hash slots had ever appeared in the review seed. The palette now pairs
+each solid fill with near-black or white initials, switching the foreground by theme only
+for metal and bronze where the arithmetic requires it. The shipped token pairs are data in
+the component and the contrast suite measures all twelve slot/theme combinations against
+the same metadata, with light bronze the floor at **4.93:1**. `tintFor()`'s hash and palette
+order did not move, so every member keeps the same colour slot. The real-browser coupon flow
+now runs axe's `color-contrast` rule on settled standings at 390×844 in both themes and saves
+both screenshots; both sweeps report zero violations. Web-only, so no `/ship-prod` is owed.
+
+Batches 1-91, 93, 94, 96, 98 and 99-102 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1297,8 +1308,8 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 92, 95, 97, 98, 103 and 104 unchecked** — six remaining.
-Five come from the 2026-08-26 full-application review and run in the remaining groups of
+`docs/BUILD_PLAN.md` carries **Batches 92, 95, 97, 103 and 104 unchecked** — five remaining.
+Three come from the 2026-08-26 full-application review and run in the remaining groups of
 `docs/review/2026-08-26/07-sequencing.md`; **103 and 104 were specified on 2026-08-30 out of
 doing the work rather than out of the review**, and that document's addendum places them as
 Groups I and J. Each batch is an individual start → close-out cycle with **one `/ship-prod`
@@ -1348,6 +1359,13 @@ the close-out push at 11:20 and the ship at 11:29 the leaderboard was drawing a
 season-bounded screen against an unbounded API, and nothing broke: `/seasons` 404'd, the
 season strip hides itself on an empty list, and the standings request carried no `season`
 parameter, which the old image ignored. Members saw the screen they saw before.
+
+**Group G is in progress.** Batch 98's solid-fill avatar pass is closed and web-only, so it
+reached members on its close-out push and adds no API shipment. Batch 97's home content and
+scale pass is next, followed by Batch 92's settled-result and standings sharing. The
+existing cross-league summary appears to carry the countdown and multi-league data Batch 97
+needs; confirm that before adding any route, because an API half would move 97 to the group
+boundary and create a `/ship-prod` obligation.
 
 **Group E is complete and shipped** — Batches 91, 93 and 94 went to production on
 2026-08-30. The sequencing doc lists the group as 91, 94, 93 but annotates the same line

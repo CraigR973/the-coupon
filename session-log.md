@@ -3034,3 +3034,28 @@ is the only earlier unchecked number and belongs to Group G.
 
 **Next:** `/ship-prod` — the Group F boundary, carrying the API half of Batch 96 with no
 migration. After that, Group G (Batches 98, 97, 92).
+
+## Batch 98 — Avatar initials use fill colours as text colours
+**Commits:** f19249a · verified: `scripts/ci-local.sh` PASS (11 checks, green first run)
+
+### Key facts for future sessions
+- **Every avatar is a solid fill now.** The old 15%-tint treatment used the fill token as
+  text too; the six entries in `AVATAR_PALETTE` now name the rendered background,
+  foreground and Tailwind classes together so the test contract and component cannot drift.
+- **Metal and bronze are the two theme-dependent foregrounds.** Both take near-black in
+  dark mode and white in light mode; primary, accent, metal-dark and gold take the existing
+  near-black on-fill ink in both. The weakest of all twelve pairs is light bronze at
+  **4.93:1**, above the 4.5:1 normal-text floor.
+- **The hash did not move.** `tintFor()` still uses the same name hash, modulo the same
+  six-entry order, so a member keeps their established colour slot.
+- **The browser flow now holds the visual acceptance.** After settling the seeded round it
+  opens standings at 390×844, injects axe-core's `color-contrast` rule in dark and light,
+  requires zero violations and saves a screenshot for each theme.
+- **The one full Playwright flow passed first run.** The harness itself first hit the known
+  macOS `initdb` locale failure and then two orchestration mistakes before the test ran;
+  `LANG=LC_ALL=en_US.UTF-8` is the stable scratch-Postgres invocation. The code gate was
+  green on its first and only run.
+
+**Next:** Batch 97 — the home content and scale pass. Confirm the existing
+`PerLeagueSummary` supplies what it needs before adding a route; if it remains web-only,
+Batch 92 follows and Group G owes no `/ship-prod`.
