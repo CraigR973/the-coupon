@@ -1818,3 +1818,76 @@ five secret-leakage patterns.
 > are superseded by `.railway/railway.ts`, and the CLI states existing files keep working
 > until **2026-12-01**. `railway.toml` is asserted by the deployment-config gate, so
 > migrating it is a batch of its own and was deliberately not folded into this shipment.
+
+### 2026-08-30 — `56348276`, Group F of the 2026-08-26 review (Batch 96)
+
+Source commit `56348276`, on `origin/main`, gate green (`scripts/ci-local.sh`, 11 checks)
+re-run on the shipping commit itself, with a GitHub `Quality` run confirmed to **exist** for
+that commit and to have concluded `success`
+(`https://github.com/CraigR973/the-coupon/actions/runs/33306219944`).
+
+**No Alembic revision.** The repository's sole head is `020`, production was already at
+`020`, and `git diff f2d3efd9..HEAD -- migrations/` is empty — so preflight step 1.7's
+forward-recovery-plan requirement did not apply and no owner approval was sought. The boot
+log confirms it: `alembic upgrade head` printed its context lines and **no `Running upgrade`
+line at all**, which is what a no-op migration pass looks like.
+
+**This is the shipment that restores a usable API rollback baseline.** Since Group C every
+shipment has applied a migration, leaving the recorded baseline unbootable — a pre-`N` image
+cannot locate revision `N` before uvicorn is reached. This one applies none, so its baseline
+`f28224cd-ef2e-47d1-8112-33c14974fb53` (serving `f2d3efd9` at head `020`) runs against the
+same `020` database the new image does and **is a genuine rollback target**.
+
+Railway `7ec86030-9877-434f-beab-f4e942d7c14e`, `SUCCESS`, message `ship production 5634827`.
+Rollback baseline `f28224cd-ef2e-47d1-8112-33c14974fb53`, as above.
+
+Section 4 was skipped by design. Vercel's GitHub integration had already built `56348276` as
+`dpl_CgBotjod5ae1Cdy8A2y9GsucqHvc`, which already held the stable alias; confirmed by
+filtering production deployments on `githubCommitSha` through the CLI
+(`vercel list --prod --meta githubCommitSha=<sha>`) rather than inferring it from timing.
+Its predecessor `dpl_FMgyZzio1yiHCcyBnc3tDtyeuZkd` (carrying `14b7785c`, confirmed the same
+way) is the Vercel rollback baseline.
+
+Content: **Batch 96** gives standings a season boundary and an archive. `standings_by_league`
+aggregated every settled pick a league had ever played while calling the result a "Season
+table"; it is now bounded by `season_bounds` over `season_for` — the definition round
+numbering already uses — with `season` defaulting to the one being played and any other
+season read through the same ranking rule. `GET /leagues/{slug}/seasons` is the archive index
+and `?season=` on the standings route reads a past table. The web half shipped on the
+close-out push at 11:20 and the API followed at 11:29.
+
+**The asymmetry window was benign, and that was by design rather than by luck.** For nine
+minutes the leaderboard was drawing a season-bounded screen against an unbounded API. Nothing
+broke: `/seasons` 404'd, the season strip hides itself on an empty seasons list, and the
+standings request carried no `season` parameter, which the old image ignored. Members saw
+exactly the screen they saw before. That is the opposite of Batch 94's gap, where the page
+called a route the image did not serve and 404'd in front of every league admin.
+
+Post-deploy verification: `/health` reports sha `56348276` and migration `020`,
+`/health/ready` agrees at `020` with `db: ok`; the deployment manifest confirms one replica
+in `europe-west4-drams3a`, `sleepApplication: false`, `ipv6EgressEnabled: true`, healthcheck
+`/api/v1/health/ready` at 300s, restart `ON_FAILURE` ×3; RLS is enabled **and forced** on all
+**19** public tables with **zero** grants to `anon`/`authenticated`/`PUBLIC`, and the database
+reports head `020`; the web root and the `/leagues/:slug/leaderboard?season=2025` deep link
+both return 200 with an identical asset (matching SHA-256 `10b8896b…`) and the committed
+security/cache headers; a preflight from the stable origin returns 200 with that exact origin
+and credentials enabled while a foreign origin is refused with 400; and two bounded log
+snapshots (49 then 53 records, whole-record scans) show uvicorn and the scheduler up, zero
+tracebacks, zero 5xx served, and zero matches across six secret-leakage patterns.
+
+**One check specific to this shipment, passed.** An unauthenticated
+`GET /api/v1/leagues/test/seasons` returns `401` where it would have returned `404` before
+the ship, while a genuinely absent route on the same prefix (`/leagues/test/not-a-route`)
+still returns `404` — so the `401` is the new route existing, not a blanket auth wall.
+
+> **Railway's log stream tags stderr as `level: "error"`.** Six lines in this deployment's
+> snapshot matched an error-level filter and every one of them was an `INFO` message —
+> alembic's `Context impl PostgresqlImpl`, uvicorn's `Application startup complete`, and so
+> on — because uvicorn and alembic both log to stderr. Read the message body before treating
+> an error-level count as a finding; a raw count is not a signal here.
+
+> **The service's CPU and memory caps are not queryable through the `ServiceInstance` GraphQL
+> type.** `cpuLimit`, `memoryLimitGb` and `multiRegionConfig` are all rejected as unknown
+> fields on that type, so the 0.25 vCPU / 500 MB caps were **not** independently re-confirmed
+> this shipment. The replica count, region, sleep, IPv6 egress and healthcheck all *are* in
+> the deployment manifest and were checked there.

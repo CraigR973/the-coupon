@@ -1337,12 +1337,17 @@ was not already serving. That is the difference from the Coupon tab on 2026-08-0
 **Group H is complete.** Batch 102's React Router 7 migration is closed; it is web-only,
 so no API shipment is attached to it.
 
-**Group F — Batch 96 — is closed and its ship is owed.** A group of one, deliberately: it
-changes what every standings figure means. The web half is live on the close-out push and
-the API half is not, which for this batch is a **benign** gap rather than the Batch 94 kind
-— `/seasons` 404s, so the season strip hides itself and the leaderboard draws exactly what
-it drew before, against an unbounded table. Nothing is broken in the window; what is wrong
-is only that the tables are still all-time. Ship to close it.
+**Group F is complete and shipped** — Batch 96 went to production on 2026-08-30 as Railway
+deployment `7ec86030-9877-434f-beab-f4e942d7c14e`, message `ship production 5634827`,
+applying **no migration**. A group of one, deliberately: it changes what every standings
+figure means. `check-deploy-drift.sh` reports **in sync**: `/health` serves `56348276` at
+`020` and `/health/ready` agrees with `db: ok`.
+
+**Its asymmetry window was nine minutes and benign** — the opposite of Batch 94's. Between
+the close-out push at 11:20 and the ship at 11:29 the leaderboard was drawing a
+season-bounded screen against an unbounded API, and nothing broke: `/seasons` 404'd, the
+season strip hides itself on an empty list, and the standings request carried no `season`
+parameter, which the old image ignored. Members saw the screen they saw before.
 
 **Group E is complete and shipped** — Batches 91, 93 and 94 went to production on
 2026-08-30. The sequencing doc lists the group as 91, 94, 93 but annotates the same line
@@ -1379,9 +1384,9 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**A `/ship-prod` is owed — Batch 96's API half.** It applies **no migration**, so it is also
-the shipment that restores a bootable API rollback baseline (see below). Group E's own ship
-is paid: it went to production on 2026-08-30 as Railway deployment
+**No `/ship-prod` is owed.** Batch 96 shipped on 2026-08-30 (see Group F above) and
+`check-deploy-drift.sh` reports **in sync**. Group E's own ship is paid: it went to
+production earlier the same day as Railway deployment
 `f28224cd-ef2e-47d1-8112-33c14974fb53`, message `ship production f2d3efd`, carrying Batches
 93 and 94 and applying **migration 020**. `check-deploy-drift.sh` reports **in sync**:
 `/health` serves `f2d3efd9` at `020` and `/health/ready` agrees with `db: ok`.
@@ -1396,12 +1401,13 @@ located all three, delivered to two, and wrote exactly two `display_name_changed
 The third has no active push subscription, so no marker was written and each boot retries —
 they have not been told yet. **Watch for that third marker appearing**, not for its absence.
 
-**There is no usable API rollback baseline — and Batch 96's ship is the one that fixes it.**
-`7ed1dc1e-7a44-46ab-9325-d58a25679133` is recorded as the previous healthy deployment but a
-pre-`020` image cannot boot against a database stamped `020`, so recovery is forward-only
-until the next shipment that applies no migration. **Batch 96 applies none**, so once it is
-live the deployment it replaces is a genuinely bootable target — the first time that has
-been true since Group C. Vercel rollback is unaffected (`dpl_Hy1TwvdAgtcbvE46xkoAvHTUjvdR`).
+**There is a usable API rollback baseline again — the first since Group C.** Every shipment
+from Group C onwards applied a migration, which left each recorded baseline unbootable: a
+pre-`N` image cannot locate revision `N` before uvicorn is reached. Batch 96 applied none, so
+its baseline **`f28224cd-ef2e-47d1-8112-33c14974fb53`** — serving `f2d3efd9` at head `020` —
+runs against the same `020` database the live image does and is a genuine rollback target.
+The Vercel baseline is `dpl_FMgyZzio1yiHCcyBnc3tDtyeuZkd` (`14b7785c`). **The next shipment
+that migrates removes this again**, so a batch adding a revision should say so loudly.
 
 Everything before it is already live: `check-deploy-drift.sh` at Batch 91 close-out
 reported the API serving `bc8c8191` at migration **019** — Batch 101's close-out commit —
