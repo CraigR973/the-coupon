@@ -35,6 +35,18 @@ async function expectNoColourContrastViolations(page: Page): Promise<void> {
   expect(violations).toEqual([]);
 }
 
+async function expectNoAxeViolations(page: Page): Promise<void> {
+  await page.addScriptTag({ path: AXE_PATH });
+  const violations = await page.evaluate(async () => {
+    const results = await window.axe.run(document.documentElement);
+    return results.violations.map((violation) => ({
+      id: violation.id,
+      targets: violation.nodes.flatMap((node) => node.target),
+    }));
+  });
+  expect(violations).toEqual([]);
+}
+
 async function login(browser: Browser, displayName: string): Promise<Page> {
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -159,6 +171,15 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   await expect(seededCard).toContainText('#2'); // Bob's 24 beat Alice's 19
   await expect(seededCard).toContainText('of 3');
   await expect(seededCard).toContainText('19 pts');
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(alice, theme);
+    await expect(alice.getByTestId('home-hero')).toContainText('Hi Alice');
+    await expect(alice.getByTestId('home-season-summary')).toContainText('19');
+    await expectNoAxeViolations(alice);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-97-home-${theme}-390x844.png`),
+    });
+  }
 
   const created = await alice.evaluate(async (api) => {
     const token = localStorage.getItem('coupon_access');

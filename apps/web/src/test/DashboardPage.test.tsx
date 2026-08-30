@@ -177,6 +177,66 @@ beforeEach(() => {
 });
 
 describe('DashboardPage', () => {
+  it('turns the cross-league season into a home summary', async () => {
+    renderPage();
+    const summary = await screen.findByTestId('home-season-summary');
+    const hero = screen.getByTestId('home-hero');
+    expect(hero.textContent).toContain('Hi Alice');
+    expect(hero.textContent).toContain('2 leagues, one clear view of the week');
+
+    expect(summary.textContent).toContain('Points57');
+    expect(summary.textContent).toContain('Picks won3/5');
+    expect(summary.textContent).toContain('Win rate60%');
+  });
+
+  it('puts the soonest independent league deadline in the hero', async () => {
+    stubFetch({
+      ...SUMMARY,
+      per_league: [
+        {
+          ...SUMMARY.per_league[0],
+          current_round: {
+            ...SUMMARY.per_league[0].current_round!,
+            my_pick: null,
+            locks_at_utc: new Date(Date.now() + 2 * 86_400_000).toISOString(),
+          },
+        },
+        {
+          ...SUMMARY.per_league[1],
+          current_round: {
+            ...SUMMARY.per_league[1].current_round!,
+            locks_at_utc: new Date(Date.now() + 86_400_000).toISOString(),
+          },
+        },
+      ],
+    });
+    renderPage();
+    const action = await screen.findByTestId('home-next-action');
+    expect(action.textContent).toContain('2 leagues need a pick');
+    expect(action.textContent).toContain('Work League locks in');
+    expect(within(action).getByRole('link').getAttribute('href')).toBe(
+      '/leagues/work-league/predictions',
+    );
+  });
+
+  it('says when every open coupon already has the member’s pick', async () => {
+    const ownPick = SUMMARY.per_league[0].current_round!.my_pick!;
+    stubFetch({
+      ...SUMMARY,
+      per_league: [
+        SUMMARY.per_league[0],
+        {
+          ...SUMMARY.per_league[1],
+          current_round: { ...SUMMARY.per_league[1].current_round!, my_pick: ownPick },
+        },
+      ],
+    });
+    renderPage();
+    expect((await screen.findByTestId('home-next-action')).textContent).toContain(
+      'All open picks are in',
+    );
+  });
+
   it('renders one card per league, not just the active one', async () => {
     renderPage();
     const cards = await screen.findByTestId('home-league-cards');
@@ -280,6 +340,7 @@ describe('DashboardPage', () => {
     });
     renderPage();
     expect(await screen.findByText("You're not in a league yet")).toBeTruthy();
+    expect(screen.queryByTestId('home-season-summary')).toBeNull();
     expect(screen.getByRole('link', { name: /find a league/i }).getAttribute('href')).toBe(
       '/leagues/discover',
     );
