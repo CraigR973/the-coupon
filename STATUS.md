@@ -1222,7 +1222,7 @@ columns exist to prevent.
   the gate: app-starter's venv can no longer even collect the suite (no Pillow, so
   `avatar_storage.py` takes ten test files down with it) and `AGENTS.md` plus
   `docs/agent-commands/batch-verify.md` still document that stale path
-- Database: clean `pgserver` migration through revision `020`, including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
+- Database: clean `pgserver` migration through revision `020` (production is at `020`), including a pre-009 backfill, a 009 downgrade round-trip, and a 010 up/down round-trip, with forced RLS
   on all 18 public tables under a Supabase-like role setup. The count was 13 at
   revision `004`; `009`-`013` added the rest, and every one of the 18 was
   confirmed RLS-enabled *and* forced against production on 2026-08-19, with
@@ -1307,13 +1307,11 @@ was not already serving. That is the difference from the Coupon tab on 2026-08-0
 **Group H is complete.** Batch 102's React Router 7 migration is closed; it is web-only,
 so no API shipment is attached to it.
 
-**Group E is complete in the repository and owes its ship.** Batches 91, 93 and 94 are all
-closed. 91 was web-only and is already live. 93 and 94 are not: 93 is API-only, 94 is the
-API + web pair, and **94's page is live in front of members while its route is not** — the
-exact Batch 51 / 2026-08-06 shape. `/ship-prod` is due now, not later, and carries 93 and 94
-together with **migration 020**. Group D's API work is already live, so the ship carries
-nothing else. The sequencing doc lists the group as 91, 94, 93 but annotates the same line
-"94 last"; the annotation won, because its reason is concrete — the batches ran 91, 93, 94.
+**Group E is complete and shipped** — Batches 91, 93 and 94 went to production on
+2026-08-30. The sequencing doc lists the group as 91, 94, 93 but annotates the same line
+"94 last"; the annotation won, because its reason is concrete, and the batches ran 91, 93,
+94 with the ship following 94 immediately. That kept Batch 94's API/web gap to minutes
+rather than leaving a 404 in front of league admins overnight.
 
 **Group D is all but complete — Batches 99, 100 and 101 are closed *and shipped*
 (live API `bc8c8191`, migration 019); only Batch 95 remains, and it is soft-blocked.**
@@ -1344,11 +1342,25 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**A `/ship-prod` is owed now, and it is the urgent kind.** Batches 93 and 94 are both
-API-side and add **migration 020**. Batch 94's page shipped to members on its close-out push
-and calls `GET /api/v1/leagues/{slug}/audit-log`, which the deployed image does not serve —
-so the Activity screen 404s for every league admin until the ship runs. This is the
-asymmetry the sequencing doc cut Group E to avoid spanning, and it is open right now.
+**No `/ship-prod` is owed.** Group E went to production on 2026-08-30 as Railway deployment
+`f28224cd-ef2e-47d1-8112-33c14974fb53`, message `ship production f2d3efd`, carrying Batches
+93 and 94 and applying **migration 020**. `check-deploy-drift.sh` reports **in sync**:
+`/health` serves `f2d3efd9` at `020` and `/health/ready` agrees with `db: ok`.
+
+**Batch 94's asymmetry window is closed.** Its Activity page 404'd for league admins between
+its close-out push and the ship; an unauthenticated probe of
+`GET /api/v1/leagues/{slug}/audit-log` now returns `401` where it returned `404`, while an
+absent route on the same prefix still returns `404`.
+
+**Batch 93 reached two of three members, and that is the correct result.** The boot task
+located all three, delivered to two, and wrote exactly two `display_name_changed` markers.
+The third has no active push subscription, so no marker was written and each boot retries —
+they have not been told yet. **Watch for that third marker appearing**, not for its absence.
+
+**There is no usable API rollback baseline.** `7ed1dc1e-7a44-46ab-9325-d58a25679133` is
+recorded as the previous healthy deployment but a pre-`020` image cannot boot against a
+database stamped `020`, so recovery is forward-only until the next shipment that applies no
+migration. Vercel rollback is unaffected (`dpl_Hy1TwvdAgtcbvE46xkoAvHTUjvdR`).
 
 Everything before it is already live: `check-deploy-drift.sh` at Batch 91 close-out
 reported the API serving `bc8c8191` at migration **019** — Batch 101's close-out commit —
