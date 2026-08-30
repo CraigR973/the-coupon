@@ -2852,7 +2852,7 @@ answered until it lands, because until then there is no data to look at.
   the server-side lock-then-fetch-odds ordering (Batch 57), which already handles the
   server half of this correctly.
 
-- [x] **Batch 91 — New leagues default to fully open with no explanation** ✅ 2026-08-29
+- [x] **Batch 91 — New leagues default to fully open with no explanation** ✅ 2026-08-30
   — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-B02/FEAT-A05 (MED).
   `CreateLeaguePage.tsx:24` initialises `privacy = 'public_open'` with no copy explaining
   what that now means: since Batch 63 opened self-registration, "open" means any stranger
@@ -2890,7 +2890,7 @@ answered until it lands, because until then there is no data to look at.
   Batch 24 already established.
 
 - [x] **Batch 93 — Three renamed members were never told, and their old names are now
-  registrable by strangers** ✅ 2026-08-29 — specified from `docs/review/2026-08-26/05-feature-gaps.md`,
+  registrable by strangers** ✅ 2026-08-30 — specified from `docs/review/2026-08-26/05-feature-gaps.md`,
   FEAT-A08 (LOW). Batch 74 renamed three members for sign-in purposes; nobody was signed
   out (the JWT subject is the player id, so their session kept working), so the surprise
   lands at next PIN reset/session expiry, days later and looking unrelated. The freed
@@ -2906,7 +2906,7 @@ answered until it lands, because until then there is no data to look at.
   general "display name changed" notification system unless a future batch renames
   someone again.
 
-- [x] **Batch 94 — League admins have no audit-trail visibility into their own league** ✅ 2026-08-29
+- [x] **Batch 94 — League admins have no audit-trail visibility into their own league** ✅ 2026-08-30
   — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-B04 (MED). `AuditLog`
   rows are written for league-level admin actions (promote/demote/remove a member,
   settings changes), but the only reader anywhere in the API is the site-admin-only
