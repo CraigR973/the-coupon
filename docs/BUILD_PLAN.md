@@ -2952,7 +2952,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: logical backup and restore rehearsal. Not managed PITR — that was
   considered and set aside on 2026-08-27.
 
-- [ ] **Batch 96 — "Season tables" that never start a new season**
+- [x] **Batch 96 — "Season tables" that never start a new season** ✅ 2026-08-30
   — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-B03 (MED); owner
   decision 2026-08-27: **add a real season boundary**. `standings_by_league`
   (`services/scoring.py:418-460`) aggregates every settled pick a league has ever played,

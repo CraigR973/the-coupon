@@ -3004,3 +3004,33 @@ adds **migration 020**, so it is not live until that ship either.
 **Next:** `/ship-prod` — the Group E boundary. It carries Batches 93 and 94 and applies
 **migration 020**. After that, Group F (Batch 96, alone) or Group G (98, 97, 92); Batch 92
 is the only earlier unchecked number and belongs to Group G.
+
+## Batch 96 — "Season tables" that never start a new season
+**Commits:** 0891762 · verified: `scripts/ci-local.sh` PASS (11 checks, green first run)
+
+### Key facts for future sessions
+- **The season definition spans two modules and neither is where the row said to look.**
+  `season_for` / `current_season` are in `services/football_provider.py`; `season_bounds`
+  is in `services/gameweek.py`. `scoring.py` now imports from both, which is safe:
+  `gameweek.py` imports neither `scoring` nor `coupon`, so there is no cycle to create.
+- **The boundary is in the `outerjoin` to `picks`, beside `exclude_gameweek_ids`, and that
+  is load-bearing.** As a `WHERE` it would drop a member who did not play this season out
+  of the table instead of showing them on nought. `recent_form_by_league` uses a plain
+  `WHERE` for the same boundary and that asymmetry is correct — it returns runs keyed by
+  member, not rows, so an absent member gets the empty run everyone gets.
+- **No migration. Production stays at revision `020`,** so the recorded Railway rollback
+  baseline is bootable for this shipment — the first time that has been true since Group C.
+- **The boundary turned six existing test files date-fragile, and they are now anchored.**
+  `tests/season_dates.py` holds the three helpers: `season_anchor` for rounds seeded
+  relative to now, `season_week` for fixed offsets, `same_weekday_in_current_season` for
+  the canned `SAMPLE_SATURDAY` slate. Anything that seeds a *settled* round and then reads
+  a table must use one of them, or it will pass in August and fail in July.
+- **`test_picks_flow` reads canned 2026 data, so it names its season.** `SAMPLE_SLATE_SEASON`
+  is used at the two service-level standings reads; the four-surface agreement test instead
+  seeds into the current season, because `/me/cross-league-summary` has no season parameter
+  to name and making the other two name one would have made the agreement vacuous.
+- **`rank_movement` is now `None` across a boundary rather than a confident zero.** The last
+  result a league played can be June's while the table is already August's.
+
+**Next:** `/ship-prod` — the Group F boundary, carrying the API half of Batch 96 with no
+migration. After that, Group G (Batches 98, 97, 92).

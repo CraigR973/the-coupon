@@ -625,7 +625,28 @@ catches them, and a cross-league test plants a foreign league's slug to prove th
 not leak. The response carries `changes`, which the site dashboard drops, because "a member
 was removed" is not the answer — "who removed whom" is.
 
-Batches 1-91, 93, 94 and 99-102 are closed. The Coupon is a
+**Batch 96** gave standings a season. `standings_by_league` aggregated every settled pick a
+league had ever played while its own docstring called the result "Season tables", so a
+league in its third year read as one table three years long and no season could ever be
+won. The boundary is `season_bounds` over `season_for` — the definition round numbering
+already uses — rather than a second one, so a round cannot belong to one season for its
+number and another for the leaderboard. `season` defaults to the one being played, and any
+other season is the archive read through the *same* ranking rule, which is why it is a
+parameter rather than a stored snapshot: there is still exactly one way to rank a league.
+The substance is where the filter sits. It is in the **join** to `picks`, beside
+`exclude_gameweek_ids`, because as a `WHERE` it would drop a member who has not played this
+season out of the table rather than showing them on nought — a leaderboard quietly missing
+a player reads as a membership bug, not as a season having started. `recent_form` stops at
+the boundary too, or a member two rounds into a season would get five pips with three of
+them describing a season their total no longer counts. `routers/me.py` passes the same
+season to both of the tables it differences for "you moved up two", and now leaves
+`rank_movement` unset when the round being reported is not in the season the table covers.
+`GET /leagues/{slug}/seasons` is the archive index and the leaderboard grew a season strip
+addressable as `?season=`, hidden below two seasons. **No migration** — the boundary is a
+query-level filter and production stays at revision **020**. API and web both, **not fully
+live until `/ship-prod`**; until then the strip is hidden, because `/seasons` 404s.
+
+Batches 1-91, 93, 94, 96 and 99-102 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1276,7 +1297,7 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 92, 95-98, 103 and 104 unchecked** — seven remaining.
+`docs/BUILD_PLAN.md` carries **Batches 92, 95, 97, 98, 103 and 104 unchecked** — six remaining.
 Five come from the 2026-08-26 full-application review and run in the remaining groups of
 `docs/review/2026-08-26/07-sequencing.md`; **103 and 104 were specified on 2026-08-30 out of
 doing the work rather than out of the review**, and that document's addendum places them as
@@ -1316,6 +1337,13 @@ was not already serving. That is the difference from the Coupon tab on 2026-08-0
 **Group H is complete.** Batch 102's React Router 7 migration is closed; it is web-only,
 so no API shipment is attached to it.
 
+**Group F — Batch 96 — is closed and its ship is owed.** A group of one, deliberately: it
+changes what every standings figure means. The web half is live on the close-out push and
+the API half is not, which for this batch is a **benign** gap rather than the Batch 94 kind
+— `/seasons` 404s, so the season strip hides itself and the leaderboard draws exactly what
+it drew before, against an unbounded table. Nothing is broken in the window; what is wrong
+is only that the tables are still all-time. Ship to close it.
+
 **Group E is complete and shipped** — Batches 91, 93 and 94 went to production on
 2026-08-30. The sequencing doc lists the group as 91, 94, 93 but annotates the same line
 "94 last"; the annotation won, because its reason is concrete, and the batches ran 91, 93,
@@ -1351,7 +1379,9 @@ only at the next session expiry or PIN reset, which means the failure arrives da
 looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
 a rename releases a name outright where a deletion would have kept it reserved.
 
-**No `/ship-prod` is owed.** Group E went to production on 2026-08-30 as Railway deployment
+**A `/ship-prod` is owed — Batch 96's API half.** It applies **no migration**, so it is also
+the shipment that restores a bootable API rollback baseline (see below). Group E's own ship
+is paid: it went to production on 2026-08-30 as Railway deployment
 `f28224cd-ef2e-47d1-8112-33c14974fb53`, message `ship production f2d3efd`, carrying Batches
 93 and 94 and applying **migration 020**. `check-deploy-drift.sh` reports **in sync**:
 `/health` serves `f2d3efd9` at `020` and `/health/ready` agrees with `db: ok`.
@@ -1366,10 +1396,12 @@ located all three, delivered to two, and wrote exactly two `display_name_changed
 The third has no active push subscription, so no marker was written and each boot retries —
 they have not been told yet. **Watch for that third marker appearing**, not for its absence.
 
-**There is no usable API rollback baseline.** `7ed1dc1e-7a44-46ab-9325-d58a25679133` is
-recorded as the previous healthy deployment but a pre-`020` image cannot boot against a
-database stamped `020`, so recovery is forward-only until the next shipment that applies no
-migration. Vercel rollback is unaffected (`dpl_Hy1TwvdAgtcbvE46xkoAvHTUjvdR`).
+**There is no usable API rollback baseline — and Batch 96's ship is the one that fixes it.**
+`7ed1dc1e-7a44-46ab-9325-d58a25679133` is recorded as the previous healthy deployment but a
+pre-`020` image cannot boot against a database stamped `020`, so recovery is forward-only
+until the next shipment that applies no migration. **Batch 96 applies none**, so once it is
+live the deployment it replaces is a genuinely bootable target — the first time that has
+been true since Group C. Vercel rollback is unaffected (`dpl_Hy1TwvdAgtcbvE46xkoAvHTUjvdR`).
 
 Everything before it is already live: `check-deploy-drift.sh` at Batch 91 close-out
 reported the API serving `bc8c8191` at migration **019** — Batch 101's close-out commit —
