@@ -672,7 +672,17 @@ settled case content now lands immediately above the tab bar at 390×844 in both
 axe reports zero violations. Web-only, using the existing summary route, so no
 `/ship-prod` is owed.
 
-Batches 1-91, 93, 94 and 96-102 are closed. The Coupon is a
+**Batch 92** made the two post-play moments pasteable. A settled combined coupon no longer
+copies the pre-lock betting payload: its plain text says how many picks landed, preserves
+the frozen-price context and numbered leg format, and adds each available final score,
+status and points without inventing nil-nil when the result join has no score. The same
+clipboard mechanism now copies the standings table on screen, naming its league and exact
+selected season and serialising only those displayed rows; an archived table therefore
+cannot silently turn into an all-time or current-season share. The pre-lock builder remains
+byte-for-byte covered. Both controls passed a full axe sweep and visual inspection at
+390×844 in dark and light. Web-only, so no `/ship-prod` is owed.
+
+Batches 1-94 and 96-102 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1323,12 +1333,11 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 92, 95, 103 and 104 unchecked** — four remaining.
-Two come from the 2026-08-26 full-application review and run in the remaining groups of
-`docs/review/2026-08-26/07-sequencing.md`; **103 and 104 were specified on 2026-08-30 out of
-doing the work rather than out of the review**, and that document's addendum places them as
-Groups I and J. Each batch is an individual start → close-out cycle with **one `/ship-prod`
-at the group boundary**.
+`docs/BUILD_PLAN.md` carries **Batches 95, 103 and 104 unchecked** — three remaining.
+Batch 95 comes from the 2026-08-26 full-application review; **103 and 104 were specified on
+2026-08-30 out of doing the work rather than out of the review**, and that document's
+addendum places them as Groups I and J. Each batch is an individual start → close-out cycle
+with **one `/ship-prod` at the group boundary** when it changes the API image.
 
 **Batch 104 is the only item in this plan with an external deadline.** Railway is retiring
 `railway.toml` in favour of `.railway/railway.ts` and the CLI states existing files work only
@@ -1375,11 +1384,10 @@ season-bounded screen against an unbounded API, and nothing broke: `/seasons` 40
 season strip hides itself on an empty list, and the standings request carried no `season`
 parameter, which the old image ignored. Members saw the screen they saw before.
 
-**Group G is in progress.** Batches 98 and 97 are closed and web-only, so both reached
-members on their close-out pushes and add no API shipment. The existing cross-league
-summary carried every datum the home pass needed; no route was added and the conditional
-reorder never fired. Batch 92's settled-result and standings sharing is the group’s final
-batch.
+**Group G is complete.** Batches 98, 97 and 92 are all closed and web-only, so each reached
+members on its own close-out push and the group adds no API shipment. The existing
+cross-league summary carried every datum the home pass needed; no route was added and the
+conditional reorder never fired. The group finished in its normal 98 → 97 → 92 order.
 
 **Group E is complete and shipped** — Batches 91, 93 and 94 went to production on
 2026-08-30. The sequencing doc lists the group as 91, 94, 93 but annotates the same line

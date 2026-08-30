@@ -3090,3 +3090,27 @@ Batch 92 follows and Group G owes no `/ship-prod`.
 **Next:** Batch 92 — extend the existing clipboard-share pattern to settled results and
 season-aware standings. It is Group G's final batch; with no API half added by 97, the group
 still expects no `/ship-prod`.
+
+## Batch 92 — A settled result can't be shared, only the pre-lock coupon can
+**Commits:** d36edf3 · verified: `scripts/ci-local.sh` PASS (11 checks, green first run)
+
+### Key facts for future sessions
+- **Settlement has its own serializer now.** Open and locked coupons retain Batch 24's
+  byte-for-byte text; settled rounds lead with the landed count and add final score,
+  won/lost/void status and points to the same numbered, frozen-price format.
+- **An unresolved score stays `home v away`.** Both goal values must exist before the share
+  text prints `home X–Y away`; the name-based result join failing open must never become an
+  invented nil-nil.
+- **Standings sharing is bounded by the screen.** It copies the displayed response and the
+  displayed season label. A `?season=2025` table therefore shares 2025/26 rows, never a
+  merged all-time table or the current standings.
+- **The clipboard path did not grow a second target.** Both new controls call
+  `navigator.clipboard.writeText`; there is no native share sheet, URL payload or API half.
+- **The visual flow passed in both themes.** Settled standings and result controls were
+  checked at 390×844 with zero axe violations and four retained screenshots.
+- **One harness launch used invalid `ENVIRONMENT=test`.** Pydantic correctly refused it;
+  restarting the test-only API with the supported `development` value fixed the
+  orchestration. The Playwright flow and full gate then passed first run.
+
+**Next:** Batch 95 is the first unchecked batch and remains soft-blocked. The sequencing
+addendum's next actionable group is Group I, Batch 103; it remains a separate batch.

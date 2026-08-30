@@ -2872,7 +2872,7 @@ answered until it lands, because until then there is no data to look at.
   and **no change to existing leagues** — production's `test` league stays `public_open`
   as it was deliberately left on 2026-08-20.
 
-- [ ] **Batch 92 — A settled result can't be shared, only the pre-lock coupon can**
+- [x] **Batch 92 — A settled result can't be shared, only the pre-lock coupon can** ✅ 2026-08-30
   — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-B06 (LOW).
   `CombinedAccaView.tsx` has copy-to-clipboard for the pre-lock coupon (Batch 24); nothing
   equivalent exists for "we hit 5/6 this week" or a season rank — the two moments members
