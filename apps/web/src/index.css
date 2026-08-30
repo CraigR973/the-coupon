@@ -99,6 +99,11 @@
        (#C8943C / #A77C2A) all ≥ 4.9:1. */
     --on-primary: #0B0E13;
     --on-accent: #0B0E13;
+    /* Avatar fills are solid. Metal and bronze are the two slots whose
+       foreground has to switch with the palette to keep normal-sized initials
+       above WCAG AA; the other four use the existing near-black on-fill ink. */
+    --avatar-on-metal: #0B0E13;
+    --avatar-on-bronze: #0B0E13;
 
     /* Brand */
     --primary: #10B981;
@@ -187,6 +192,8 @@
        greens and brasses are still dark enough that dark text clears AA. */
     --on-primary: #0B0E13;
     --on-accent: #0B0E13;
+    --avatar-on-metal: #FFFFFF;
+    --avatar-on-bronze: #FFFFFF;
 
     /* Brand — slightly darker variants for AA contrast on white */
     --primary: #059669;

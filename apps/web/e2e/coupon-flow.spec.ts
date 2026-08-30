@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Browser, type Page } from '@playwright/test';
@@ -6,6 +7,33 @@ const API = process.env.COUPON_E2E_API_URL ?? 'http://127.0.0.1:8000';
 const ARTIFACT_DIR =
   process.env.COUPON_E2E_ARTIFACT_DIR ??
   '/Users/craigrobinson/the-coupon/artifacts/batch-6';
+const AXE_PATH = createRequire(import.meta.url).resolve('axe-core');
+
+declare global {
+  interface Window {
+    axe: typeof import('axe-core');
+  }
+}
+
+async function setTheme(page: Page, theme: 'light' | 'dark'): Promise<void> {
+  await page.evaluate((value) => localStorage.setItem('coupon_theme', value), theme);
+  await page.reload();
+  await expect(page.locator(`html.${theme}`)).toHaveCount(1);
+}
+
+async function expectNoColourContrastViolations(page: Page): Promise<void> {
+  await page.addScriptTag({ path: AXE_PATH });
+  const violations = await page.evaluate(async () => {
+    const results = await window.axe.run(document.documentElement, {
+      runOnly: { type: 'rule', values: ['color-contrast'] },
+    });
+    return results.violations.map((violation) => ({
+      id: violation.id,
+      targets: violation.nodes.flatMap((node) => node.target),
+    }));
+  });
+  expect(violations).toEqual([]);
+}
 
 async function login(browser: Browser, displayName: string): Promise<Page> {
   const context = await browser.newContext();
@@ -102,10 +130,15 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   await expect(alice.getByTestId('standings')).toContainText('24');
   await expect(alice.getByTestId('standings')).toContainText('Alice');
   await expect(alice.getByTestId('standings')).toContainText('19');
-  await alice.screenshot({
-    path: join(ARTIFACT_DIR, 'standings-settled.png'),
-    fullPage: true,
-  });
+  await alice.setViewportSize({ width: 390, height: 844 });
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(alice, theme);
+    await expect(alice.getByTestId('standings')).toContainText('Bob');
+    await expectNoColourContrastViolations(alice);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-98-standings-${theme}-390x844.png`),
+    });
+  }
 
   await alice.goto('/leagues/the-coupon/predictions/coupon');
   await expect(alice.getByText('2-fold accumulator')).toBeVisible();

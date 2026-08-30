@@ -23,30 +23,50 @@ export function initials(name: string): string {
 }
 
 /**
- * Deterministic surface tint per name so avatars stay visually distinct.
- * Uses a small hash on the name to pick from a curated palette of muted
- * dark-mode-safe backgrounds.
+ * Solid avatar fills and the foreground token paired with each one.
  *
- * Tints are built with `color-mix` rather than Tailwind's `/opacity` modifier:
- * the brand colours are defined as raw `var(--x)` hex tokens, so `bg-metal/15`
- * et al. emit invalid CSS and fall back to transparent (the badge had no
- * background at all). `color-mix` works on the hex vars directly and stays
- * theme-aware; text uses `text-[var(--x)]` to avoid the `.text-metal` gradient
- * utility hijacking the background.
+ * The token names are data as well as documentation: `contrast.test.ts` reads
+ * this table and measures every pair in both themes. Keeping the class beside
+ * the pair means the tested colours cannot drift from the colours rendered by
+ * the component.
  */
-const PALETTE = [
-  'bg-[color-mix(in_srgb,var(--primary)_15%,transparent)] text-[var(--primary)]',
-  'bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] text-[var(--accent)]',
-  'bg-[color-mix(in_srgb,var(--metal-dark)_35%,transparent)] text-[var(--metal)]',
-  'bg-[color-mix(in_srgb,var(--gold)_15%,transparent)] text-[var(--gold)]',
-  'bg-[color-mix(in_srgb,var(--metal)_15%,transparent)] text-[var(--metal)]',
-  'bg-[color-mix(in_srgb,var(--bronze)_15%,transparent)] text-[var(--bronze)]',
-];
+export const AVATAR_PALETTE = [
+  {
+    background: 'primary',
+    foreground: 'on-primary',
+    className: 'bg-[var(--primary)] text-[var(--on-primary)]',
+  },
+  {
+    background: 'accent',
+    foreground: 'on-accent',
+    className: 'bg-[var(--accent)] text-[var(--on-accent)]',
+  },
+  {
+    background: 'metal-dark',
+    foreground: 'on-primary',
+    className: 'bg-[var(--metal-dark)] text-[var(--on-primary)]',
+  },
+  {
+    background: 'gold',
+    foreground: 'on-primary',
+    className: 'bg-[var(--gold)] text-[var(--on-primary)]',
+  },
+  {
+    background: 'metal',
+    foreground: 'avatar-on-metal',
+    className: 'bg-[var(--metal)] text-[var(--avatar-on-metal)]',
+  },
+  {
+    background: 'bronze',
+    foreground: 'avatar-on-bronze',
+    className: 'bg-[var(--bronze)] text-[var(--avatar-on-bronze)]',
+  },
+] as const;
 
 function tintFor(name: string): string {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
-  return PALETTE[Math.abs(h) % PALETTE.length]!;
+  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length]!.className;
 }
 
 export function Avatar({ name, size = 'md', src, className, ...props }: AvatarProps) {

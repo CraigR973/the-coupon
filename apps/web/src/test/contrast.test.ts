@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { AVATAR_PALETTE } from '@/components/ui/avatar';
 
 // Read from disk rather than imported: Vitest stubs CSS imports, so both a
 // plain import and `?raw` hand back an empty string here. This is the same
@@ -230,4 +231,24 @@ describe('the regression this file exists for', () => {
       contrast(LIGHT['text-muted'], LIGHT['bg']),
     );
   });
+});
+
+describe.each([
+  ['dark', DARK],
+  ['light', LIGHT],
+])('%s avatar palette', (theme, palette) => {
+  it.each(AVATAR_PALETTE)(
+    'renders $background with AA initials from $foreground',
+    ({ background, foreground, className }) => {
+      expect(className).toContain(`bg-[var(--${background})]`);
+      expect(className).toContain(`text-[var(--${foreground})]`);
+      expect(palette[background], `--${background}`).toBeDefined();
+      expect(palette[foreground], `--${foreground}`).toBeDefined();
+      const ratio = contrast(palette[foreground], palette[background]);
+      expect(
+        ratio,
+        `${theme}: ${palette[foreground]} on ${palette[background]} is ${ratio.toFixed(2)}:1, needs ${AA_NORMAL}:1`,
+      ).toBeGreaterThanOrEqual(AA_NORMAL);
+    },
+  );
 });
