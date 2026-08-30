@@ -1683,7 +1683,7 @@ exposure.
 
 ### Forward recovery plan — migration `020`, Batch 93
 
-**Status: AWAITING OWNER APPROVAL. Not cleared to ship.**
+**Status: approved by the owner, 2026-08-29. Cleared to ship.**
 
 Required by `/ship-prod` step 1.7 before `020` may be deployed. Production is at head `019`
 (deployment `7ed1dc1e-7a44-46ab-9325-d58a25679133`, `SUCCESS`, serving `bc8c8191`); this
