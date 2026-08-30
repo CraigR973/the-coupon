@@ -86,6 +86,7 @@ from src.services.scoring import (
     settle_gameweeks_via_provider,
     standings,
 )
+from tests.season_dates import same_weekday_in_current_season
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -1366,7 +1367,12 @@ async def test_restamping_an_unchanged_window_moves_nothing(session: AsyncSessio
 
 async def test_lock_then_settle_updates_leaderboard(session: AsyncSession) -> None:
     players, league = await _seed_league(session, ["alice", "bob", "carol"])
-    gameweek, epl, sl2 = await _open_gameweek(session, league, date(2027, 3, 6))
+    # A Saturday, and one in the season being played: this test reads the leaderboard at
+    # the end, and Batch 96 bounded that by season. The weekday is what the round needs;
+    # the year was only ever incidental.
+    gameweek, epl, sl2 = await _open_gameweek(
+        session, league, same_weekday_in_current_season(date(2027, 3, 6))
+    )
 
     # alice → Arsenal (home), bob → Chelsea (away), carol → Forfar (home).
     session.add_all(

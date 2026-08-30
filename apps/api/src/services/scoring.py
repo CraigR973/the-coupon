@@ -22,7 +22,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from pydantic import BaseModel
-from sqlalchemy import case, func, select, true
+from sqlalchemy import Select, case, func, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.fixture import Fixture
@@ -31,6 +31,8 @@ from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile
 from src.services.coupon import combined_odds
+from src.services.football_provider import current_season
+from src.services.gameweek import season_bounds
 from src.services.odds_provider import (
     EventSettlement,
     Market,
@@ -239,6 +241,38 @@ LONGSHOT_ODDS = Decimal("3.00")
 RECENT_FORM_ROUNDS = 5
 
 
+def resolve_season(season: int | None) -> int:
+    """The season a standings read covers: the one asked for, or the one being played.
+
+    ``None`` means "now" rather than "all time", and that is the whole of Batch 96: every
+    caller that had no opinion about seasons — the leaderboard, the profile, the
+    cross-league summary, the scheduler's log line — was reading a table unbounded by
+    date, which is what made a league that has run for three years read as one
+    never-ending season.
+    """
+    return current_season() if season is None else season
+
+
+def _season_round_ids(season: int) -> Select[tuple[uuid.UUID]]:
+    """The rounds belonging to ``season``, as a subquery to filter picks against.
+
+    A subquery rather than a join to ``gameweeks``, because the boundary has to sit in
+    the **join** to ``picks`` beside ``exclude_gameweek_ids`` and not in a ``WHERE``. The
+    reason is the same one written out under that parameter: a member whose only pick is
+    outside this season is still a member of this season's league, on nought. Expressed as
+    a ``WHERE`` the boundary would not zero them, it would delete them from the table.
+
+    The range comes from :func:`~src.services.gameweek.season_bounds` — the definition
+    round numbering already uses — so a round cannot be in one season for its number and
+    another for the leaderboard.
+    """
+    first_day, last_day = season_bounds(season)
+    return select(Gameweek.id).where(
+        Gameweek.starts_on >= first_day,
+        Gameweek.starts_on <= last_day,
+    )
+
+
 class FormRound(BaseModel):
     """One settled round in a member's recent run (Batch 80).
 
@@ -360,8 +394,10 @@ async def recent_form_by_league(
     db: AsyncSession,
     league_ids: Sequence[uuid.UUID],
     limit: int = RECENT_FORM_ROUNDS,
+    *,
+    season: int | None = None,
 ) -> dict[tuple[uuid.UUID, uuid.UUID], list[FormRound]]:
-    """Each member's last ``limit`` settled rounds, keyed by ``(league, player)``.
+    """Each member's last ``limit`` settled rounds in ``season``, keyed by ``(league, player)``.
 
     One query for every league and every member in them. The slice is a window function
     rather than a Python truncation of the whole season: a leaderboard's cost must not
@@ -371,9 +407,19 @@ async def recent_form_by_league(
     Ordered most recent first, which is how every form payload in this product is sent
     and the opposite of how a form line is drawn — the screen reverses it, so that the
     nth pip is the nth row of any panel opened underneath.
+
+    **The run stops at the season boundary** (Batch 96). Form sits on a row of a season
+    table, so a run that reached back past the boundary would be describing rounds the
+    total beside it does not count — and on the second weekend of a season it would fill
+    four of its five pips from last year, which is the opposite of what a form line is
+    for. Unlike the aggregate, the boundary is a plain ``WHERE`` here and that asymmetry
+    is deliberate: this returns runs, not rows, so a member with nothing inside the season
+    is simply absent and :func:`_rank_rows` gives them the empty run it gives anyone.
     """
     if not league_ids:
         return {}
+
+    first_day, last_day = season_bounds(resolve_season(season))
 
     ranked = (
         select(
@@ -394,6 +440,8 @@ async def recent_form_by_league(
         .where(
             Pick.league_id.in_(league_ids),
             Gameweek.status == GameweekStatus.settled,
+            Gameweek.starts_on >= first_day,
+            Gameweek.starts_on <= last_day,
             Pick.status.in_((PickStatus.won, PickStatus.lost, PickStatus.void)),
         )
         .subquery()
@@ -421,6 +469,7 @@ async def standings_by_league(
     exclude_gameweek_ids: Sequence[uuid.UUID] | None = None,
     *,
     with_form: bool = True,
+    season: int | None = None,
 ) -> dict[uuid.UUID, list[Standing]]:
     """Season tables for several leagues at once, keyed by league id.
 
@@ -450,9 +499,24 @@ async def standings_by_league(
     two ranks, and that rewound table is never rendered — it passes ``with_form=False``.
     Batch 80 had the default the other way round, which made every screen the exception
     and the one throwaway call the norm.
+
+    ``season`` is the boundary that makes the name on this function true (Batch 96).
+    ``None`` is the season being played now, not every season there has ever been, so a
+    caller with no opinion gets the live table and a league in its fourth year no longer
+    reads as one table four years long. Any other season is the archive: the same ranking
+    rule, over the rounds that season contained, which is why a past table is a parameter
+    here rather than a stored snapshot or a second query somewhere else.
+
+    Like the exclusion, the boundary belongs to the **join** — see :func:`_season_round_ids`
+    for what a ``WHERE`` would have done to a member who did not play this season. The two
+    compose: ``routers/me.py`` rewinds the table by passing both, and it must, because a
+    movement differenced from a table filtered differently to the one it is drawn beside
+    is the exact disagreement this parameter is shaped to prevent.
     """
     if not league_ids:
         return {}
+
+    season = resolve_season(season)
 
     settled = Pick.status.in_((PickStatus.won, PickStatus.lost, PickStatus.void))
     # The odds figures count only what actually ran. A void pick is a round the member
@@ -492,6 +556,7 @@ async def standings_by_league(
             (Pick.player_id == LeagueMembership.player_id)
             & (Pick.league_id == LeagueMembership.league_id)
             & settled
+            & Pick.gameweek_id.in_(_season_round_ids(season))
             & (Pick.gameweek_id.notin_(exclude_gameweek_ids) if exclude_gameweek_ids else true()),
         )
         .where(
@@ -505,7 +570,7 @@ async def standings_by_league(
     for row in rows.all():
         grouped.setdefault(row.league_id, []).append(row)
 
-    form = await recent_form_by_league(db, league_ids) if with_form else {}
+    form = await recent_form_by_league(db, league_ids, season=season) if with_form else {}
     return {
         league_id: _rank_rows(
             league_rows,
@@ -515,18 +580,21 @@ async def standings_by_league(
     }
 
 
-async def standings(db: AsyncSession, league_id: uuid.UUID) -> list[Standing]:
+async def standings(
+    db: AsyncSession, league_id: uuid.UUID, *, season: int | None = None
+) -> list[Standing]:
     """Season leaderboard for a league: cumulative points per active member, ranked.
 
     Every current member gets a row (0 until they score). Members tied on total share a
-    rank; display order breaks ties by wins then name.
+    rank; display order breaks ties by wins then name. ``season`` defaults to the one
+    being played; pass a past one to read it out of the archive.
 
     Carries ``recent_form`` (Batch 80). This is the single-league read, and both of its
     callers — the leaderboard and the player profile — are screens where a season total
     alone cannot separate a member who has won the last four rounds from one who has
     scored nothing since July.
     """
-    return (await standings_by_league(db, [league_id])).get(league_id, [])
+    return (await standings_by_league(db, [league_id], season=season)).get(league_id, [])
 
 
 class GameweekResult(BaseModel):

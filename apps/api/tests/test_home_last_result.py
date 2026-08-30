@@ -34,10 +34,23 @@ from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile, UserRole
+from tests.season_dates import season_anchor
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
 )
+
+
+def _settled_day(days_ago: int) -> date:
+    """A settled round's date, ``days_ago`` days back but never over the season boundary.
+
+    Batch 96 bounded the standings table and the form run by season. These rounds are
+    seeded relative to now, so for the first week of July "eight days ago" is last season
+    and every figure read back through ``/me/cross-league-summary`` would be zero — a
+    failure that appears for a week each summer and cannot be reproduced in August.
+    Only the settled rounds need this; the open ones ahead of today are not aggregated.
+    """
+    return season_anchor(days_of_room=9) - timedelta(days=days_ago)
 
 
 def _now() -> datetime:
@@ -178,7 +191,7 @@ async def test_settled_week_survives_a_league_that_announces_no_opening(
     settled = await _round(
         session,
         league,
-        starts_on=date.today() - timedelta(days=1),
+        starts_on=_settled_day(1),
         status=GameweekStatus.settled,
         locks_at=_now() - timedelta(days=1, hours=2),
         number=4,
@@ -219,7 +232,7 @@ async def test_a_winning_pick_reports_its_points_and_the_rounds_won_count(
     settled = await _round(
         session,
         league,
-        starts_on=date.today() - timedelta(days=1),
+        starts_on=_settled_day(1),
         status=GameweekStatus.settled,
         locks_at=_now() - timedelta(days=2),
     )
@@ -246,7 +259,7 @@ async def test_a_void_pick_reports_neither_a_loss_nor_a_zero(
     settled = await _round(
         session,
         league,
-        starts_on=date.today() - timedelta(days=1),
+        starts_on=_settled_day(1),
         status=GameweekStatus.settled,
         locks_at=_now() - timedelta(days=2),
     )
@@ -275,7 +288,7 @@ async def test_rank_movement_measures_the_round_being_reported(
     earlier = await _round(
         session,
         league,
-        starts_on=date.today() - timedelta(days=8),
+        starts_on=_settled_day(8),
         status=GameweekStatus.settled,
         locks_at=_now() - timedelta(days=9),
     )
@@ -284,7 +297,7 @@ async def test_rank_movement_measures_the_round_being_reported(
     latest = await _round(
         session,
         league,
-        starts_on=date.today() - timedelta(days=1),
+        starts_on=_settled_day(1),
         status=GameweekStatus.settled,
         locks_at=_now() - timedelta(days=2),
     )
@@ -308,7 +321,7 @@ async def test_the_next_opening_is_carried_while_the_current_round_is_settled(
     settled = await _round(
         session,
         league,
-        starts_on=date.today() - timedelta(days=1),
+        starts_on=_settled_day(1),
         status=GameweekStatus.settled,
         locks_at=_now() - timedelta(days=2),
     )
@@ -382,7 +395,7 @@ async def test_a_settled_round_nobody_picked_has_no_coupon_outcome(
     await _round(
         session,
         league,
-        starts_on=date.today() - timedelta(days=1),
+        starts_on=_settled_day(1),
         status=GameweekStatus.settled,
         locks_at=_now() - timedelta(days=2),
     )
@@ -418,7 +431,7 @@ async def test_the_summary_carries_each_leagues_own_form_run(
         settled = await _round(
             session,
             league,
-            starts_on=date.today() - timedelta(days=1),
+            starts_on=_settled_day(1),
             status=GameweekStatus.settled,
             locks_at=_now() - timedelta(days=2),
         )
@@ -448,7 +461,7 @@ async def test_rank_movement_is_unaffected_by_the_run_now_being_default(
     earlier = await _round(
         session,
         league,
-        starts_on=date.today() - timedelta(days=8),
+        starts_on=_settled_day(8),
         status=GameweekStatus.settled,
         locks_at=_now() - timedelta(days=9),
     )
@@ -457,7 +470,7 @@ async def test_rank_movement_is_unaffected_by_the_run_now_being_default(
     latest = await _round(
         session,
         league,
-        starts_on=date.today() - timedelta(days=1),
+        starts_on=_settled_day(1),
         status=GameweekStatus.settled,
         locks_at=_now() - timedelta(days=2),
     )

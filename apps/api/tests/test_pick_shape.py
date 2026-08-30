@@ -25,7 +25,7 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import AsyncIterator, Sequence
-from datetime import date, datetime, timedelta
+from datetime import datetime, time
 from decimal import Decimal
 
 import pytest
@@ -41,6 +41,7 @@ from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile, UserRole
 from src.services.scoring import LONGSHOT_ODDS, Standing, points_for, standings
+from tests.season_dates import season_week
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -82,7 +83,7 @@ async def _settled_pick(
     tag = uuid.uuid4().hex[:8]
     gameweek = Gameweek(
         league_id=league.id,
-        starts_on=date(2027, 1, 2) + timedelta(weeks=week),
+        starts_on=season_week(week + 26),
         status=GameweekStatus.settled,
         locks_at_utc=_lock(week),
     )
@@ -116,8 +117,14 @@ async def _settled_pick(
 
 
 def _lock(week: int) -> datetime:
-    """This round's lock, a week apart from its neighbours. Naive-UTC, as stored."""
-    return datetime(2027, 1, 2, 14, 30) + timedelta(weeks=week)
+    """This round's lock, a week apart from its neighbours. Naive-UTC, as stored.
+
+    Follows the round's own date rather than a written-down year. These rounds used to sit
+    in January 2027 because any settled week would do; since Batch 96 the table is bounded
+    by season, so "any week" has to be a week of the season being played or every figure
+    here reads zero.
+    """
+    return datetime.combine(season_week(week + 26), time(14, 30))
 
 
 def _expected(picks: Sequence[Pick]) -> dict[str, object]:

@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import AsyncIterator
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -33,6 +33,7 @@ from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile, UserRole
 from src.services.scoring import RECENT_FORM_ROUNDS, standings
+from tests.season_dates import season_anchor
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -77,10 +78,17 @@ async def _league(db: AsyncSession, members: list[Profile]) -> League:
     return league
 
 
+#: The longest run any test here seeds is eight weeks, and Batch 96 bounded the table by
+#: season — so the anchor those weeks are measured back from needs that much season
+#: behind it, or in early July the run would straddle the boundary and lose its first
+#: rounds to last season.
+_RUN_DAYS = 70
+
+
 async def _settled_round(db: AsyncSession, league: League, *, days_ago: int) -> Gameweek:
     gameweek = Gameweek(
         league_id=league.id,
-        starts_on=date.today() - timedelta(days=days_ago),
+        starts_on=season_anchor(days_of_room=_RUN_DAYS) - timedelta(days=days_ago),
         status=GameweekStatus.settled,
         locks_at_utc=_now() - timedelta(days=days_ago + 1),
     )
@@ -202,7 +210,7 @@ async def test_an_unsettled_round_is_not_form_yet(session: AsyncSession) -> None
     await _pick(session, league, settled, alice, status=PickStatus.won, points=20)
     running = Gameweek(
         league_id=league.id,
-        starts_on=date.today(),
+        starts_on=season_anchor(days_of_room=_RUN_DAYS),
         status=GameweekStatus.locked,
         locks_at_utc=_now() - timedelta(hours=1),
     )

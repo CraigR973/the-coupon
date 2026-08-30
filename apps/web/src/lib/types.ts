@@ -302,6 +302,28 @@ export interface GameweekResult {
   picks_won?: number;
 }
 
+// ── Seasons — GET /leagues/{slug}/seasons ─────────────────────────────────
+
+/**
+ * One season a league has a table for (Batch 96).
+ *
+ * `standings` used to aggregate every settled pick a league had ever played, so a league
+ * running for three years read as one never-ending season. It is now bounded, and this is
+ * the index the seasons on the far side of the boundary are reached through.
+ *
+ * `label` is the API's, not this app's: the heading over a table and the entry in the
+ * archive selector then cannot drift into naming the same season two ways.
+ */
+export interface SeasonSummary {
+  /** The season's starting year — August 2026 and February 2027 are both `2026`. */
+  season: number;
+  /** How it is written on screen: `2026/27`. */
+  label: string;
+  is_current: boolean;
+  /** How many rounds it has settled. Zero for a current season nobody has played yet. */
+  rounds_settled: number;
+}
+
 // ── Standings — GET /leagues/{slug}/standings ──────────────────────────────
 
 /**

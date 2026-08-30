@@ -32,7 +32,7 @@ from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
-from src.services.football_provider import FootballDataProvider, season_for
+from src.services.football_provider import FootballDataProvider, current_season, season_for
 from src.services.odds_provider import (
     UK_TZ,
     OddsProvider,
@@ -73,6 +73,17 @@ def season_bounds(season: int) -> tuple[date, date]:
     return date(season, 7, 1), date(season + 1, 6, 30)
 
 
+def season_label(season: int) -> str:
+    """How a season is written on a screen: season ``2026`` is ``2026/27``.
+
+    Here rather than on each surface that draws one, for the same reason
+    :func:`season_bounds` is here: the heading over a table, the entry in the archive
+    selector and the filter that produced the table are then all derived from the one
+    integer, and cannot drift into naming different things the same way.
+    """
+    return f"{season}/{(season + 1) % 100:02d}"
+
+
 async def next_gameweek_number(db: AsyncSession, league_id: Any, starts_on: date) -> int:
     """The number a new round takes: one past this league's highest for that season.
 
@@ -101,6 +112,57 @@ async def next_gameweek_number(db: AsyncSession, league_id: Any, starts_on: date
     )
     highest = result.scalar_one_or_none()
     return (highest or 0) + 1
+
+
+class SeasonSummary(BaseModel):
+    """One season a league has a table for — the index the standings archive is read from.
+
+    ``rounds_settled`` is what earns a past season its entry: a season the league settled
+    nothing in has no table to archive. The **current** season is always listed, at zero
+    if it has to be, because it is where the leaderboard opens and a selector that hid its
+    own default until the first settlement would be missing the entry it starts on.
+    """
+
+    season: int
+    label: str
+    is_current: bool
+    rounds_settled: int
+
+
+async def seasons_played(db: AsyncSession, league_id: Any) -> list[SeasonSummary]:
+    """Every season this league has a settled round in, newest first.
+
+    The dates are mapped through :func:`~src.services.football_provider.season_for` in
+    Python rather than by a ``CASE`` on the month in SQL. That is the point rather than a
+    shortcut: a second expression of where a season starts is exactly the disagreement
+    between a leaderboard and a round number that the boundary exists to prevent, so the
+    rollover is read from the one definition wherever it is needed and written down once.
+
+    Only settled rounds count. A season whose rounds are all still to be played is the
+    current one, which is listed anyway; a *past* season in that state cannot happen.
+    """
+    rows = await db.execute(
+        select(Gameweek.starts_on).where(
+            Gameweek.league_id == league_id,
+            Gameweek.status == GameweekStatus.settled,
+        )
+    )
+    settled_per_season: dict[int, int] = {}
+    for (starts_on,) in rows.all():
+        season = season_for(starts_on)
+        settled_per_season[season] = settled_per_season.get(season, 0) + 1
+
+    this_season = current_season()
+    settled_per_season.setdefault(this_season, 0)
+    return [
+        SeasonSummary(
+            season=season,
+            label=season_label(season),
+            is_current=season == this_season,
+            rounds_settled=count,
+        )
+        for season, count in sorted(settled_per_season.items(), reverse=True)
+    ]
 
 
 def uk_today() -> date:

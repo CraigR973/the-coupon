@@ -26,6 +26,7 @@ from src.services.gameweek import (
     pick_refusal,
     picks_open_at,
     season_bounds,
+    season_label,
     slate_odds_max_age,
     upcoming_slate_dates,
     window_for,
@@ -391,3 +392,11 @@ def test_season_bounds_are_the_inverse_of_season_for() -> None:
     # A day either side belongs to the neighbouring season.
     assert season_for(first - timedelta(days=1)) == 2025
     assert season_for(last + timedelta(days=1)) == 2027
+
+
+def test_a_season_is_labelled_by_the_two_years_it_runs_across() -> None:
+    """Batch 96: the archive selector names a season, and names it once, here."""
+    assert season_label(2026) == "2026/27"
+    # The turn of a century still has two digits after the slash, not one.
+    assert season_label(2099) == "2099/00"
+    assert season_label(2009) == "2009/10"

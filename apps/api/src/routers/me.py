@@ -30,8 +30,9 @@ from src.models.pick import Pick, PickStatus
 from src.rate_limit import limiter, per_user_key
 from src.schemas import UtcDatetime
 from src.services.coupon import combined_odds
+from src.services.football_provider import season_for
 from src.services.gameweek import PICKABLE_STATES, current_round_order
-from src.services.scoring import LONGSHOT_ODDS, FormRound, standings_by_league
+from src.services.scoring import LONGSHOT_ODDS, FormRound, resolve_season, standings_by_league
 
 router = APIRouter(prefix="/api/v1/me", tags=["me"])
 
@@ -129,6 +130,11 @@ class LastResult(BaseModel):
     #: caller had no row in the table before it. Differenced against the same ranking
     #: rule that produced ``rank``, with this one round excluded; see
     #: :func:`~src.services.scoring.standings_by_league`.
+    #:
+    #: Also ``None`` when the round being reported is not in the season the table covers
+    #: (Batch 96). The last result a league played can be June's while the table is
+    #: already August's, and "you moved up two" over a round the table does not count is
+    #: not a smaller number — it is a statement about nothing.
     rank_movement: int | None = None
 
 
@@ -270,7 +276,15 @@ async def cross_league_summary(
     # Movement is the table as it stood *before* the round being reported, differenced
     # against the table now. Both come from `standings_by_league`, so the number attached
     # to a rank can never have been produced by different arithmetic to the rank itself.
-    settled_ids = [uuid.UUID(result.gameweek_id) for result in results.values()]
+    # Only rounds inside the season the table covers can move a rank in it. Excluding one
+    # from a season it was never joined into would rewind nothing and report a confident
+    # zero, which is worse than the `None` the boundary check below leaves in its place.
+    this_season = resolve_season(None)
+    settled_ids = [
+        uuid.UUID(result.gameweek_id)
+        for result in results.values()
+        if season_for(result.starts_on) == this_season
+    ]
     # `with_form=False` is the one place it belongs (Batch 81): this table exists to be
     # subtracted from the one above, never to be drawn, so a run of recent results on it
     # would be a query paid for and thrown away.
@@ -286,7 +300,11 @@ async def cross_league_summary(
         member_count = member_counts.get(row.id, 0)
         standing = mine.get(row.id)
         result = results.get(row.id)
-        if result is not None and standing is not None:
+        if (
+            result is not None
+            and standing is not None
+            and season_for(result.starts_on) == this_season
+        ):
             was = next((s for s in before.get(row.id, []) if s.player_id == str(user.id)), None)
             # Positive is upward, so a rank that fell from 5 to 3 reads as +2.
             result.rank_movement = was.rank - standing.rank if was is not None else None

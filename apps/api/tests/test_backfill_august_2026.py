@@ -52,6 +52,7 @@ from src.models.match import Match
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile, UserRole
 from src.models.team import Team
+from src.services.football_provider import season_for
 from src.services.scoring import points_for, standings
 from src.services.team_matching import normalise_name
 
@@ -341,7 +342,9 @@ async def test_the_backfill_settles_from_stored_scores_rather_than_asserting_out
     stated = [p for p, f in rows if (f.home, f.away) in KNOWN_SCORES]
     assert stated and all(p.status is PickStatus.lost for p in stated)
 
-    table = await standings(session, league.id)
+    # These rounds are August 2026 by definition — that is what the backfill is — so the
+    # table is read for that season rather than for today's (Batch 96).
+    table = await standings(session, league.id, season=season_for(date(2026, 8, 1)))
     by_name = {s.display_name: s for s in table}
     # Everyone played both backfilled rounds; only the two 22 August additions have a
     # third. That asymmetry is the check that the correction landed on the right people.

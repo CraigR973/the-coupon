@@ -51,10 +51,12 @@ from src.services.betfair import (
     SAMPLE_SL2_MATCH_ODDS_MKT,
     FakeBetfair,
 )
+from src.services.football_provider import season_for
 from src.services.gameweek import fixtures_for, members_missing_picks, sync_slate, window_for
 from src.services.odds_cache import CachingOddsProvider
 from src.services.odds_provider import Competition, FixtureOdds, OddsProviderAPIError
 from src.services.team_matching import normalise_name
+from tests.season_dates import same_weekday_in_current_season
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -111,8 +113,19 @@ async def _seed_league(session: AsyncSession, names: list[str]) -> tuple[list[Pr
     return players, league
 
 
+#: The season the canned slate plays in. ``SAMPLE_SATURDAY`` is fixed at 2026-08-01
+#: because the canned catalogues quote that kick-off, and Batch 96 bounded the standings
+#: table by season — so a service-level read here names this rather than taking today's.
+SAMPLE_SLATE_SEASON = season_for(SAMPLE_SATURDAY)
+
+
 async def _open_sample_gameweek(
-    session: AsyncSession, fake: FakeBetfair, league: League, *, weeks_later: int = 0
+    session: AsyncSession,
+    fake: FakeBetfair,
+    league: League,
+    *,
+    weeks_later: int = 0,
+    starts_on: date | None = None,
 ) -> Gameweek:
     """Give ``league`` the canned card as an open round (lock in the future).
 
@@ -126,13 +139,18 @@ async def _open_sample_gameweek(
     That used to be flat, which no test could see while "the current round" meant the
     newest ``starts_on``; since Batch 35 it means the open round locking soonest, and a
     league whose rounds all lock at the same instant is not a league.
+
+    ``starts_on`` places the round on a given day instead, for the tests that read figures
+    back off a *season-bounded* surface and so need the round inside the season being
+    played rather than the one the canned data was written in. The lock does not follow
+    it: those tests want the ordinary "locks in two hours" round.
     """
     slate = await fake.fetch_slate(window_for(league), SAMPLE_SATURDAY)
-    if weeks_later:
+    if weeks_later or starts_on is not None:
         # Shift the *slate* rather than the synced round: moving the round afterwards
         # would find and rename the one already there instead of making a second.
         slate = slate.model_copy(
-            update={"starts_on": SAMPLE_SATURDAY + timedelta(weeks=weeks_later)}
+            update={"starts_on": starts_on or SAMPLE_SATURDAY + timedelta(weeks=weeks_later)}
         )
     gameweek = await sync_slate(session, league, slate)
     gameweek.status = GameweekStatus.open
@@ -282,7 +300,10 @@ async def test_full_pick_flow(client_and_fake: tuple[AsyncClient, FakeBetfair]) 
 
         await _assert_scores(session, league.id, alice.id, bob.id, carol.id)
 
-        standings = await scoring.standings(session, league.id)
+        # The canned slate is on a fixed 2026 date, so this names the season it belongs
+        # to rather than taking today's (Batch 96) — otherwise these figures read zero
+        # from 1 July 2027, when SAMPLE_SATURDAY becomes a past season.
+        standings = await scoring.standings(session, league.id, season=SAMPLE_SLATE_SEASON)
         by_name = {s.display_name.split("-")[0]: s for s in standings}
         assert by_name["alice"].total_points == 24 and by_name["alice"].rank == 1
         assert by_name["carol"].total_points == 19 and by_name["carol"].rank == 2
@@ -1917,13 +1938,18 @@ async def test_standings_by_league_keeps_leagues_apart(
         # Batch 80 added the form run; Batch 81 made it the default, so the batched call
         # and the per-league one agree without either being asked for anything special.
         # There is one ranking rule in the codebase and these two must never disagree.
-        tables = await scoring.standings_by_league(session, [first.id, second.id])
-        assert tables[first.id] == await scoring.standings(session, first.id)
-        assert tables[second.id] == await scoring.standings(session, second.id)
+        ids = [first.id, second.id]
+        tables = await scoring.standings_by_league(session, ids, season=SAMPLE_SLATE_SEASON)
+        for league_id in ids:
+            assert tables[league_id] == await scoring.standings(
+                session, league_id, season=SAMPLE_SLATE_SEASON
+            )
 
         # `with_form=False` survives for exactly one caller: the table `routers/me.py`
         # rewinds to difference two ranks, which is never drawn.
-        lean = await scoring.standings_by_league(session, [first.id, second.id], with_form=False)
+        lean = await scoring.standings_by_league(
+            session, ids, with_form=False, season=SAMPLE_SLATE_SEASON
+        )
         assert all(row.recent_form == [] for row in lean[first.id])
         assert any(row.recent_form for row in tables[first.id]), "the default really is on"
 
@@ -2152,7 +2178,13 @@ async def test_the_leaderboard_the_profile_and_the_home_summary_agree(
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice, bob), league = await _seed_league(session, ["alice", "bob"])
-        gameweek = await _open_sample_gameweek(session, fake, league)
+        # Three surfaces, and the cross-league summary is always "this season" with no
+        # parameter to name — so the round is seeded into the season being played rather
+        # than left on the canned 2026 Saturday. Naming a season on the two that accept
+        # one would make the agreement this test exists to prove vacuous.
+        gameweek = await _open_sample_gameweek(
+            session, fake, league, starts_on=same_weekday_in_current_season(SAMPLE_SATURDAY)
+        )
         fixtures = await _fixture_ids(session, gameweek.id)
     slug = league.slug
 

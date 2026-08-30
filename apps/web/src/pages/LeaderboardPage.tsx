@@ -1,9 +1,9 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouteLeague } from '../hooks/useRouteLeague';
-import type { LeagueDetail, Standing } from '../lib/types';
+import type { LeagueDetail, SeasonSummary, Standing } from '../lib/types';
 import { PickShapeLine, VoidDenominatorNote, hasPickShape } from '../components/PickShapeLine';
 import { PickFormLine } from '../components/PickFormLine';
 import { PageHeader } from '../components/PageHeader';
@@ -12,11 +12,19 @@ import { Skeleton } from '../components/ui/skeleton';
 import { Avatar } from '../components/ui/avatar';
 import { LeagueSwitchStrip } from '../components/LeagueSwitchStrip';
 import { LeagueActionsMenu } from '../components/LeagueActionsMenu';
+import { SeasonStrip } from '../components/SeasonStrip';
 import { cn } from '../lib/utils';
 
 export function LeaderboardPage() {
   const { slug } = useRouteLeague();
   const { player } = useAuth();
+  const [params, setParams] = useSearchParams();
+
+  // Batch 96. `null` is the season being played, and it is deliberately the *absence* of
+  // a parameter rather than its own value: the ordinary leaderboard link stays clean, and
+  // an archived table is addressable, shareable and survives a refresh.
+  const seasonParam = params.get('season');
+  const season = seasonParam !== null && /^\d+$/.test(seasonParam) ? Number(seasonParam) : null;
 
   const { data: league } = useQuery<LeagueDetail>({
     queryKey: ['league', slug],
@@ -24,23 +32,47 @@ export function LeaderboardPage() {
     staleTime: 60_000,
   });
 
+  // No error branch on purpose: until the API half of this batch ships, this route 404s
+  // and an empty list hides the strip, leaving the page as it was. The season is still
+  // sent below — an API that does not know the parameter ignores it.
+  const { data: seasons = [] } = useQuery<SeasonSummary[]>({
+    queryKey: ['seasons', slug],
+    queryFn: () => apiFetch<SeasonSummary[]>(`/api/v1/leagues/${slug}/seasons`),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
   const {
     data: standings = [],
     isLoading,
     isError,
   } = useQuery<Standing[]>({
-    queryKey: ['standings', slug],
-    queryFn: () => apiFetch<Standing[]>(`/api/v1/leagues/${slug}/standings`),
+    queryKey: ['standings', slug, season],
+    queryFn: () =>
+      apiFetch<Standing[]>(
+        `/api/v1/leagues/${slug}/standings${season !== null ? `?season=${season}` : ''}`,
+      ),
     staleTime: 30_000,
   });
 
   const isAdmin = league?.members?.find((m) => m.id === player?.id)?.role === 'admin';
+  const shown = seasons.find((entry) => (season === null ? entry.is_current : entry.season === season));
+
+  const selectSeason = (next: number | null) => {
+    const updated = new URLSearchParams(params);
+    if (next === null) updated.delete('season');
+    else updated.set('season', String(next));
+    setParams(updated, { replace: true });
+  };
 
   return (
     <div>
       <PageHeader
         title={league?.name ?? 'Standings'}
-        eyebrow="Season standings"
+        /* The season is named up here as well as in the strip: a member who has followed
+           an archived link needs to know which table they are reading without having to
+           work it out from the standings themselves. */
+        eyebrow={shown ? `${shown.label} standings` : 'Season standings'}
         action={
           league ? (
             <LeagueActionsMenu slug={slug} leagueName={league.name} isAdmin={!!isAdmin} />
@@ -49,6 +81,13 @@ export function LeaderboardPage() {
       />
 
       <LeagueSwitchStrip currentSlug={slug} />
+
+      <SeasonStrip
+        seasons={seasons}
+        selected={season}
+        onSelect={selectSeason}
+        className="mt-3"
+      />
 
       {isLoading && (
         <div className="space-y-2" aria-label="Loading standings">
@@ -65,7 +104,11 @@ export function LeaderboardPage() {
       {!isLoading && !isError && standings.length === 0 && (
         <EmptyState
           title="No points on the board yet"
-          description="Standings fill in once picks are settled each week."
+          description={
+            season !== null
+              ? 'Nobody scored in this season.'
+              : 'Standings fill in once picks are settled each week.'
+          }
         />
       )}
 
