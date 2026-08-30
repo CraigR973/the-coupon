@@ -1745,3 +1745,76 @@ application until a row using the new value exists. Nothing in the `019` image w
    been calling `GET /api/v1/leagues/{slug}/audit-log` against an image that does not serve
    it. Confirm the route exists after the ship (a `401`/`403` from an unauthenticated probe
    is the correct answer; a `404` means it did not ship).
+
+### 2026-08-30 — `f2d3efd9`, Group E of the 2026-08-26 review (Batches 91, 93, 94)
+
+Source commit `f2d3efd9`, on `origin/main`, gate green (`scripts/ci-local.sh`, 11 checks)
+re-run on the shipping commit itself, with a GitHub `Quality` run confirmed to **exist** for
+that commit and to have concluded `success`. **Alembic revision `020`**, so the forward
+recovery plan above was required and was approved before deploying.
+
+Railway `f28224cd-ef2e-47d1-8112-33c14974fb53`, `SUCCESS`. Its predecessor —
+`7ed1dc1e-7a44-46ab-9325-d58a25679133`, which was serving `bc8c8191` at head `019` — is
+recorded as this shipment's baseline but **is not a usable rollback target**: a pre-`020`
+image cannot boot against a database stamped `020`. Recovery is forward-only, per the plan.
+
+Section 4 was skipped by design. Vercel's GitHub integration had already built `f2d3efd9`
+as `dpl_FFbkoGNsPfiWDGnhjCLfgkKszznG`, which already held the stable alias; confirmed by
+filtering production deployments on `githubCommitSha` through the CLI
+(`vercel list --prod --meta githubCommitSha=<sha>`) rather than inferring it from timing.
+Its predecessor `dpl_Hy1TwvdAgtcbvE46xkoAvHTUjvdR` is the Vercel rollback baseline, which is
+unaffected by the migration.
+
+Content: **Batch 91** makes a new league invite-only unless its creator says otherwise, and
+explains each option at the point of choice — web-only, and live since 2026-08-30 on its own
+close-out push. **Batch 93** tells the three members Batch 74 renamed that their sign-in name
+changed, once, from a `lifespan` hook whose idempotency marker is an `audit_log` row
+(`display_name_changed`, migration `020`). **Batch 94** gives a league admin the audit trail
+of their own league — `GET /api/v1/leagues/{slug}/audit-log` behind `LeagueAdminDep`, plus
+the Activity page.
+
+**Batch 94's asymmetry was real and member-visible, which is why this shipment was not
+deferred.** Its page reached members on the close-out push and called a route the deployed
+image did not serve, so the Activity item 404'd for every league admin between close-out and
+this ship. The sequencing document cut Group E specifically so that gap would not span a
+boundary; running 94 last and shipping immediately is what kept it to minutes.
+
+Post-deploy verification: `/health` reports sha `f2d3efd9` and migration `020`,
+`/health/ready` agrees at `020` with `db: ok`; the deployment manifest confirms one replica
+in `europe-west4-drams3a`, `sleepApplication: false`, `ipv6EgressEnabled: true`, healthcheck
+`/api/v1/health/ready` at 300s; RLS is enabled **and forced** on all **19** public tables
+(18 until migration `018` added `rate_limit_counters`) with **zero** grants to
+`anon`/`authenticated`/`PUBLIC`, and the database reports head `020`; the web root and the
+new `/leagues/:slug/admin/audit-log` deep link both return 200 with an identical asset
+(matching SHA-256 `957b699e…`) and all four committed headers; a preflight from the stable
+origin returns 200 with that exact origin and credentials enabled while a foreign origin is
+refused with 400; `/api/docs` 404s; and a bounded log snapshot (45 records, whole-record
+scans) shows uvicorn and the scheduler up, zero failure-shaped lines and zero matches across
+five secret-leakage patterns.
+
+**Two checks specific to this shipment, both passed.**
+
+1. **Batch 94's route answers.** An unauthenticated `GET /api/v1/leagues/test/audit-log`
+   returns `401` where it returned `404` before the ship, while a genuinely absent route on
+   the same prefix still returns `404` — so the `401` is the route existing, not a blanket
+   auth wall.
+2. **Batch 93's boot task ran, and its partial result is the correct one.** The log shows
+   **three** members located, **two delivered**, **one undelivered**; the database holds
+   exactly **two** `display_name_changed` markers. The unreached member has no marker on
+   purpose — they have no active push subscription, have therefore not been told, and the
+   next boot will try again. Three located rules out the "no lines at all" defect the plan
+   named. **Do not treat the missing third marker as a fault**; treat a marker count that
+   stops changing while that member acquires a subscription as one.
+
+> **`railway ssh`'s default `python` is the nix interpreter, not the app's.** `python3`
+> resolves to `/nix/var/nix/profiles/default/bin/python3`, which has no `asyncpg`, so the
+> RLS recheck fails with `ModuleNotFoundError` that looks like a missing dependency in the
+> image. The application's environment is **`/opt/venv/bin/python`** (`/app` is the working
+> directory, `/opt/venv` the venv). Use it, and keep stripping the `DATABASE_URL` query
+> string and passing `ssl="require"` as a real argument, per the 2026-08-28 note. The DSN
+> was never rendered at any point.
+
+> **Railway now warns that Config as Code is deprecated.** `railway.json` / `railway.toml`
+> are superseded by `.railway/railway.ts`, and the CLI states existing files keep working
+> until **2026-12-01**. `railway.toml` is asserted by the deployment-config gate, so
+> migrating it is a batch of its own and was deliberately not folded into this shipment.
