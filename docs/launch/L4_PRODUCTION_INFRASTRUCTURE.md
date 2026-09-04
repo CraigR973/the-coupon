@@ -2297,3 +2297,97 @@ one 402):
    club, and a 404 for a random UUID. It is the only new surface, and nothing web-facing
    consumes it yet — Batch 111 is the consumer and has not been built, which is the whole
    point of stopping the group here.
+
+## Shipment — 2026-09-04, `2a1f74da` (Batch 110, migration `022`)
+
+The Group M checkpoint. Source commit `2a1f74da32cf02b3db518cb373092e1582d74098`, carrying
+Batch 110 (`3887a5a`) plus its close-out and the approved `022` recovery plan. `ci-local.sh`
+PASS (11 checks) from the clean checkout; a GitHub Actions run exists for the commit and its
+identical-code predecessor `ca5c8869` is green; `git diff --check` clean; repository at a
+sole Alembic head of `022`.
+
+Preflight confirmed by read-only inspection, never from cached CLI state: project
+`the-coupon-production`, environment `production` and service `api` are each the sole entry
+under the recorded IDs; `railwayConfigFile` **null**, so nothing competes with
+`.railway/railway.ts`; all 13 required Railway variables present by name only; Vercel
+production carries `VITE_API_URL` and `VITE_VAPID_PUBLIC_KEY` encrypted and production-scoped.
+Pre-deploy baseline `/health` `3366b38f` / `021`, `/health/ready` `db: ok` / `021`.
+
+**IaC applied before the upload, and it minted nothing.** `config plan` reported
+`0 to add, 2 to change, 0 to destroy`, touching only the existing `api` service:
+`build.nixpacksConfigPath` null → `nixpacks.toml`, and `deploy.numReplicas` null → 1,
+`deploy.restartPolicyType` null → `ON_FAILURE`, `deploy.sleepApplication` null → false —
+Railway normalising stored nulls to the values already declared. Applied from the pinned
+plan with `--yes`, without `--confirm-destructive` or any value-revealing flag, and the plan
+file removed afterwards. Unlike the `021` shipment **no redeploy was minted**, so there was
+nothing to poll: `1e33a63b` stayed live at `3366b38f` / `021` throughout.
+
+`RAILWAY_GIT_COMMIT_SHA` was then stamped to `2a1f74da…` with `--skip-deploys`, the worktree
+re-checked clean immediately before the upload, and `railway up` ran with every selector
+explicit: deployment **`2f866d18-0726-493d-8516-b24076451364`**, `SUCCESS`, message
+`ship production 2a1f74d`, `imageDigest
+sha256:d410525af19e5f5122b6408571fb145554e305ac94c48893b4238b0528e52210`. Build to healthy in
+about three minutes, no stall.
+
+**Railway rollback baseline: `1e33a63b-ebb4-463d-9134-7e5e00866339`** — serving `3366b38f`
+at head `021`. Recorded, and **not a usable target**: this shipment migrates, so a pre-`022`
+image cannot resolve revision `022` and fails before uvicorn. Recovery is forward-only per
+the approved plan, whose cheapest levers need no migration at all.
+
+Section 4 was skipped by design. Vercel's GitHub integration had already built `2a1f74da` as
+`dpl_DTatDKgcSanJzqFoqPCiDuDgzVtY` (immutable
+`the-coupon-production-hblcm5pks-craigr973s-projects.vercel.app`), and it already held the
+stable alias `https://the-coupon-production.vercel.app` — confirmed by reading
+`githubCommitSha` from the Vercel API and by `vercel inspect` on the alias, not inferred from
+timing. Its predecessor `dpl_3jSd44Kx6mm2xeJo6Yd4cqcwYE6H` (`ca5c8869`) is the **Vercel
+rollback baseline**. Worth noting for future shipments: a bare `vercel list` in this
+repository read **staging**, exactly as this document warns.
+
+Post-deploy verification: `/health` reports sha `2a1f74da…` and migration `022`,
+`/health/ready` agrees at `022` with `db: ok`. The deployment manifest confirms
+`numReplicas: 1`, `multiRegionConfig: { "europe-west4-drams3a": { numReplicas: 1 } }`,
+`sleepApplication: false`, `ipv6EgressEnabled: true`, `healthcheckPath /api/v1/health/ready`
+at `300`, `restartPolicyType ON_FAILURE` ×3, `limitOverride.containers` `cpu 0.25` /
+`memoryBytes 500000000`, `builder NIXPACKS` with `nixpacksConfigPath /nixpacks.toml`.
+
+**Every check the `022` plan asked for passed**, run in-container over the app's own session:
+
+* `Running upgrade 021 -> 022` appears **exactly once** in the boot log.
+* `matches.state` is `character varying(16)`, `NOT NULL`, default `'scheduled'`; index
+  `ix_matches_competition_season_state` present; **zero** rows with a null or empty state.
+* The backfill agrees with the old column exactly: **755 of 755** rows read `finished`, and
+  **zero** rows are `finished` while `state <> 'finished'`. The measured table was unchanged
+  in size by the migration, as predicted — `ADD COLUMN` with a constant default rewrites
+  nothing.
+* `matches` remains RLS **enabled and forced** with **zero** `anon`/`authenticated`/`PUBLIC`
+  grants. The public table count stays at **20**: `022` creates no table, so an unchanged
+  count is the expected result here rather than a warning sign.
+* The new route answers: 200 with a complete, chronological season for a stored club
+  (Banks O'Dee, `scotland-highland-league`, 2026), 404 for an unknown club id, 422 without a
+  competition, and 401 unauthenticated from the public origin — while a neighbouring
+  nonexistent path returns 404, which is what distinguishes "deployed and gated" from
+  "missing". Every row currently reads `finished`; the season's unplayed fixtures arrive with
+  the first 06:30 sweep after this deploy.
+
+Combined smoke: the stable web root and the non-mutating deep link `/football?date=2026-05-02`
+both return 200 and serve a byte-identical SPA shell (entry `/assets/index-DPLMGYVa.js`),
+retaining `strict-transport-security`, `x-content-type-options: nosniff`, `referrer-policy`,
+`permissions-policy` and `cache-control: public, max-age=0, must-revalidate`. A CORS preflight
+from the exact recorded origin returns 200 with
+`access-control-allow-origin: https://the-coupon-production.vercel.app`,
+`access-control-allow-credentials: true` and `vary: Origin`, on both an existing route and the
+new one. API readiness and migration head were rechecked afterwards and still agree at `022`.
+
+Bounded log snapshot after the smoke: 51 lines, **zero** genuine errors, zero warnings, zero
+5xx, and zero hits across all five leakage patterns (DSN, JWT, private key, api key, PIN).
+Seven entries carry Railway's `level: error` tag and every one of them is an `INFO` line from
+alembic or uvicorn — Railway tags stderr as error, which is worth knowing before it is read as
+a fault. The scheduler started with all eleven jobs registered, and `run_connection_warmup`
+and `run_live_scores` both executed successfully with the FotMob session established.
+
+Backup/restore-point identity: **none** — production has no managed backup, no PITR and no
+durable dump, under the owner's 2026-07-30 deferral. Rollback reverts application deployments
+only, and for this shipment the API half of that is unavailable.
+
+`scripts/check-deploy-drift.sh` reports **in sync**: `origin/main` and the deployed API both
+at `2a1f74da`, migration `022`.
