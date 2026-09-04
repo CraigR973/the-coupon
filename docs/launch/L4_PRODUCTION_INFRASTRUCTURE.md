@@ -2062,3 +2062,120 @@ Recovery once `021` *has* applied is forward-only:
 3. **`alembic upgrade head` must print exactly one `Running upgrade 020 -> 021` line** in the
    bounded boot-log snapshot. More than one, or none, means the database was not where this
    plan assumes.
+
+### 2026-09-04 — `3366b38`, Batch 107 (pick progress + the all-picked event, **migration `021`**)
+
+Source commit `3366b38` (`3366b38f8d9efa046fdb1a4ab1c4964d1a85dacf`), on `origin/main`. The
+Group L checkpoint: Batch 107 is API/data only, and Batch 108 must not reach Vercel until
+this shipment serves the fields it consumes.
+
+**Gate coverage, stated precisely because two docs commits sit between the two runs.**
+`scripts/ci-local.sh` passed 11/11 against the tree at `e998541` **plus** the appended
+forward-recovery-plan text — that is, a tree identical to the shipping commit except for the
+one status line `3366b38` flips in this document. The GitHub `Quality` run then ran the full
+CI on `3366b38` itself and concluded `success`
+(`https://github.com/CraigR973/the-coupon/actions/runs/33878500523`), confirmed to **exist**
+for that exact commit rather than merely not to have failed.
+
+**Alembic revision `021`**, so preflight step 1.7 applied. The forward recovery plan above
+was written first (`fbed2e5`) and approved by the owner in its own commit (`3366b38`) before
+anything was deployed, matching the `017` and `020` pattern.
+
+`railway config plan` under Node 22 returned **`0 to add, 2 to change, 0 to destroy`**,
+`"destructive": false`, both changes `"kind": "resource.update"` / `"severity": "safe"`,
+`declared: ["service.api"]`, `diagnostics: []` — and the change set contains no occurrence of
+`variable`, `delete`, `destroy` or `remove`, so nothing was dropped. The two changes
+re-assert what the running deployment already used: `build.nixpacksConfigPath`
+`null → "nixpacks.toml"`, and `deploy.numReplicas` `null → 1`, `deploy.restartPolicyType`
+`null → "ON_FAILURE"`, `deploy.sleepApplication` `null → false`. **Those fields read back as
+`null` at the service-instance layer between applies** — a direct `serviceInstance` query
+before the plan showed `numReplicas: null`, `region: null` — which is why the same safe
+diff reappears each shipment; it is the dormant override layer, not what the container ran.
+`railwayConfigFile` was `null` before and after.
+
+Applied with `railway config apply --plan <pinned> --yes`, no `--confirm-destructive`, plan
+file removed afterwards. The apply minted redeploy
+`ea78e1e4-1c82-4988-a7d8-c9fa14cc41a9` (rebuilding the prior source `9e91b604`), polled to
+`SUCCESS` **before** the source upload; `/health` stayed green at `9e91b604` / `020`
+throughout, so the config layer moved without moving what was running.
+
+`RAILWAY_GIT_COMMIT_SHA` was then stamped to `3366b38f…` with `--skip-deploys`, the worktree
+re-checked clean immediately before the upload, and `railway up` ran with every selector
+explicit: deployment `1e33a63b-ebb4-463d-9134-7e5e00866339`, `SUCCESS`, message
+`ship production 3366b38`, `imageDigest
+sha256:61d0f4dd2bfcd2c87c289978e169ca0c14de00faccace84088f4398c9ea9e888`. The
+`deploymentEvents` breakdown shows `SNAPSHOT_CODE`, `BUILD_IMAGE`, `CREATE_CONTAINER`,
+`HEALTHCHECK`, `CONFIGURE_NETWORK` and `DRAIN_INSTANCES` all with a real `completedAt` — a
+clean promotion in about four minutes, no stall.
+
+**Railway rollback baseline: `e95ff966-f7ee-4587-999f-5470063ef108`** — the deployment live
+immediately before this shipment, serving `9e91b604` at head `020`. It is recorded as the
+baseline and **is not a usable target**: this shipment migrates, so a pre-`021` image cannot
+resolve revision `021` and fails before uvicorn. Recovery is forward-only per the plan above,
+which is unusually cheap here — the table has no dependants and disabling Batch 107 needs no
+migration.
+
+Section 4 was skipped by design. Vercel's GitHub integration had already built `3366b38f` as
+`dpl_BupSmeQJQK8jvg5dqTcsx6mDoumL` (immutable
+`the-coupon-production-315uaf5db-craigr973s-projects.vercel.app`), and it already held the
+stable alias `https://the-coupon-production.vercel.app` — confirmed by reading
+`githubCommitSha` from the Vercel API and by `vercel inspect` on the alias, not inferred from
+timing. Its predecessor `dpl_9jAgm3TsMHo8QAKBxoWZ3PShjZVg` (`fbed2e52`) is the **Vercel
+rollback baseline**.
+
+Post-deploy verification: `/health` reports sha `3366b38f…` and migration `021`,
+`/health/ready` agrees at `021` with `db: ok` — the two agreeing is what says the boot-time
+`alembic upgrade head` completed. The deployment manifest confirms `numReplicas: 1`,
+`multiRegionConfig: { "europe-west4-drams3a": { numReplicas: 1 } }`, `sleepApplication:
+false`, `ipv6EgressEnabled: true`, `healthcheckPath: /api/v1/health/ready` at `300`,
+`restartPolicyType: ON_FAILURE` ×3, `limitOverride.containers` `cpu 0.25` /
+`memoryBytes 500000000`, `builder: NIXPACKS` with `nixpacksConfigPath: /nixpacks.toml`.
+
+An in-container recheck over an asyncpg session (`/opt/venv/bin/python` via `railway ssh`,
+`DATABASE_URL` query string stripped, `ssl="require"` passed as an argument, DSN never
+rendered): PostgreSQL 17.6, `alembic_version` `021`, RLS enabled **and forced** on **20/20**
+public tables — **19/19 last shipment; the new table is the twentieth and it arrived
+locked**, which is the migration's `DO $$` Supabase block having seen the `auth` schema.
+`gameweek_completions` present with `uq_gameweek_completions_gameweek` and **0 rows**;
+**zero** table grants to `anon`/`authenticated`/`PUBLIC`, no schema `USAGE`/`CREATE` for
+either role, zero sequence usage grants. `/api/docs` 404, `/openapi.json` 404,
+`/api/v1/config` 401.
+
+The web root and the `/leagues/the-coupon/leaderboard` and `/settings` deep links all return
+200 with a byte-identical SPA asset (SHA-256 `462d65b0…`), bundle
+`/assets/index-Bc_jdQY6.js` served `public, max-age=31536000, immutable`, and all three
+committed global headers present (`x-content-type-options`, `referrer-policy`,
+`permissions-policy`) alongside HSTS; `/sw.js` retains `public, max-age=0, must-revalidate`
+and `nosniff`. A CORS preflight from `https://the-coupon-production.vercel.app` returns 200
+with that exact `access-control-allow-origin` and `access-control-allow-credentials: true`;
+a foreign origin is refused with 400.
+
+Bounded Railway log snapshots (40 then 47 records, whole-record scans, structured events read
+from the record rather than the rendered message) show **exactly one**
+`Running upgrade 020 -> 021` line, `api starting`, `Scheduler started`,
+`Application startup complete`, `Uvicorn running`, zero 5xx served, zero error-classified
+lines, and **zero** matches across the DSN, Supabase-ref, JWT, PEM, `api_key=`, bearer and
+labelled-PIN patterns. Batch 93's boot task still logs `rename notice undelivered, will retry
+next boot` followed by `rename notices processed`, which remains the **correct** result for
+members with no active push subscription. The Vercel build log for the promoted deployment is
+a clean `vite build` with a 79-entry PWA precache and `Deployment completed`.
+
+**What could not be probed from outside, stated rather than glossed.** The new pick-response
+fields (`picked_count`, `member_count`, `all_picked`) and the reworded push copy sit behind an
+authenticated mutation that spends the odds provider's rate-limited quota, and production
+serves no OpenAPI document, so neither was exercised against production. They are attested by
+the gate and by `/health` reporting the shipped image head, not by a live probe — and
+deliberately so: submitting a pick against production is a destructive probe this workflow
+forbids.
+
+**Member-visible effect.** The reworded pick alert reaches phones on the first pick made in
+any league after this deploy; the all-picked event fires the first time a league's round
+fills. Batch 108 is not built, so nothing in the deployed bundle reads the new response
+fields yet — TypeScript interfaces are structural, so the extra keys are simply ignored.
+
+Backup/restore-point identity: **none** — production has no managed backup, no PITR and no
+durable dump, under the owner's 2026-07-30 deferral. Rollback reverts application deployments
+only, and for this shipment the API half of that is unavailable.
+
+`scripts/check-deploy-drift.sh` reports **in sync**: `origin/main` and the deployed API both
+at `3366b38f`, migration `021`.

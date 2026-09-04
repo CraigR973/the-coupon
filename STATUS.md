@@ -1366,10 +1366,10 @@ state-aware Current round surface and Batch 106 separated future action from his
 on home and contained the hero glows. Both are web-only and reached members on their own
 close-out pushes; `check-deploy-drift.sh` reports nothing to ship.
 Purposeful state colour is folded into those hierarchy changes rather than becoming a
-standalone restyle. **Group L is half done and paused at its checkpoint**: Batch 107's
-`X/Y picked` notifications and durable all-picked transition are closed on `main` and owe a
-`/ship-prod`; Batch 108's final-picker hand-off and truthful notification copy must not
-start until that ship leaves `check-deploy-drift.sh` in sync. Group M adds result-day
+standalone restyle. **Group L is half done and past its checkpoint**: Batch 107's
+`X/Y picked` notifications and durable all-picked transition shipped on 2026-09-04, so
+Batch 108's final-picker hand-off and truthful notification copy is now unblocked. Group M
+adds result-day
 carousel navigation, persists the full selected league season including future/non-final
 fixtures, then makes league-table teams open that addressable season view.
 
@@ -1461,8 +1461,10 @@ needs `safaridriver --enable`), so the corners were verified in Chromium in both
 390×844 and by cropping the screenshots; an owner glance in real Safari is still worth a
 minute.
 
-**Batch 107 is closed and is the first half of Group L — it is not live until the next
-`/ship-prod`.** Pick pushes now read as one line: `2-1 Hibs` over
+**Batch 107 is closed and shipped** — it went to production on 2026-09-04 as Railway
+deployment `1e33a63b`, applying **migration `021`**, and
+`scripts/check-deploy-drift.sh` reports **in sync** at `3366b38f`. Pick pushes now read as
+one line: `2-1 Hibs` over
 `Dave picked Arsenal @ 1.80 · 3/12 picked`. They previously named the league in both the
 title and the body of a tray entry that is already league-scoped, and said nothing about the
 round; the recovered room went to the one thing a member could not otherwise learn from a
@@ -1489,9 +1491,13 @@ null until a fan-out finishes, and the next submission on that round claims and 
 
 The successful pick response now carries `picked_count`, `member_count` and `all_picked`,
 read once and shared with the push so the screen and the tray cannot disagree. **Batch 108
-consumes exactly those fields, so the checkpoint is mandatory**: it must not reach Vercel
-while production Railway still serves a pick response without them. That is the 2026-08-06
-shape, and the reason Group L has a `/ship-prod` in the middle of it rather than at the end.
+consumes exactly those fields, which is why Group L had a `/ship-prod` in the middle of it
+rather than at the end** — that checkpoint has now been met, so 108 is unblocked.
+
+**API rollback is unavailable until the next non-migrating shipment**, on the standing terms:
+a pre-`021` image cannot resolve revision `021` and fails before uvicorn. Recovery is
+forward-only and, unusually, cheap — `gameweek_completions` has no dependants, and disabling
+Batch 107 needs no migration. Vercel rollback is unaffected.
 
 **Group F is complete and shipped** — Batch 96 went to production on 2026-08-30 as Railway
 deployment `7ec86030-9877-434f-beab-f4e942d7c14e`, message `ship production 5634827`,
