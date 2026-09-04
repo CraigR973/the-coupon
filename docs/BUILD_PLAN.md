@@ -3270,8 +3270,8 @@ answered until it lands, because until then there is no data to look at.
   and the durable all-picked transition. No notification inbox, result alert, leaderboard
   alert or general queue rewrite. **API/data only; stop for `/ship-prod` before Batch 108.**
 
-- [ ] **Batch 108 — Notification UI promises events the product does not send and leaves
-  the final picker without a completion hand-off** — specified 2026-09-03 and dependent
+- [x] **Batch 108 — Notification UI promises events the product does not send and leaves
+  the final picker without a completion hand-off** ✅ 2026-09-04 — specified 2026-09-03 and dependent
   on Batch 107 being live in production. Consume the progress fields returned by pick
   submission. Only when that submission completes the round, show the final picker an
   immediate in-app action: **All picks are in — open and copy coupon**. It opens the exact

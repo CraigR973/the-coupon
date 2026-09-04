@@ -1366,10 +1366,10 @@ state-aware Current round surface and Batch 106 separated future action from his
 on home and contained the hero glows. Both are web-only and reached members on their own
 close-out pushes; `check-deploy-drift.sh` reports nothing to ship.
 Purposeful state colour is folded into those hierarchy changes rather than becoming a
-standalone restyle. **Group L is half done and past its checkpoint**: Batch 107's
-`X/Y picked` notifications and durable all-picked transition shipped on 2026-09-04, so
-Batch 108's final-picker hand-off and truthful notification copy is now unblocked. Group M
-adds result-day
+standalone restyle. **Group L is complete.** Batch 107's `X/Y picked` notifications and
+durable all-picked transition shipped on 2026-09-04, and Batch 108's final-picker hand-off
+and truthful notification copy reached members on its own close-out push afterwards, in that
+order and for that reason. Group M adds result-day
 carousel navigation, persists the full selected league season including future/non-final
 fixtures, then makes league-table teams open that addressable season view.
 
@@ -1493,6 +1493,24 @@ The successful pick response now carries `picked_count`, `member_count` and `all
 read once and shared with the push so the screen and the tray cannot disagree. **Batch 108
 consumes exactly those fields, which is why Group L had a `/ship-prod` in the middle of it
 rather than at the end** — that checkpoint has now been met, so 108 is unblocked.
+
+**Batch 108 closed Group L from the web side.** The member who fills the coupon now gets a
+hand-off — **All picks are in — open and copy coupon** — that opens that exact gameweek's
+copy section and deliberately writes nothing to the clipboard; the copy control lives where
+it lands them and they press it themselves. Who sees it is the part worth knowing: the API
+returns `all_picked` to *anyone* submitting into a full coupon, so the client settles the
+real question without a new field, on the rule that **a change of pick cannot fill a
+coupon**. It moves no count, so "this submission completed the round" is exactly
+`all_picked` on a submission by someone who did not already hold a pick.
+
+**The opt-in screen had been promising three notifications the product has never sent** — a
+reminder 30 minutes before kickoff, an alert when results landed, and a nudge when the
+leaderboard shifted. It now lists the five that exist, including the postponement alert that
+hands a member their claim back, and describes the real reminder truthfully: keyed to the
+*lock* rather than to kick-off, and only to members who have not picked. In Settings the
+per-league switch is **notifications** rather than "reminders" — it gates every league-scoped
+push, so a member muting a league to stop being nagged was also switching off the alert that
+their pick had been returned.
 
 **API rollback is unavailable until the next non-migrating shipment**, on the standing terms:
 a pre-`021` image cannot resolve revision `021` and fails before uvicorn. Recovery is

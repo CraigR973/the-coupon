@@ -3277,3 +3277,43 @@ before Batch 108. Batch 95 remains soft-blocked.
 — Batch 108 consumes `picked_count` / `member_count` / `all_picked` from the pick response and
 must not reach Vercel before Railway serves them. Run `/ship-prod`, then rerun `/group-start L`
 so it can verify drift and continue with Batch 108. Batch 95 remains soft-blocked.
+
+## Batch 108 — Notification UI promises events the product does not send
+**Commits:** 79b354b · verified: `scripts/ci-local.sh` PASS (11 checks, green first run)
+
+### Key facts for future sessions
+- **`all_picked` alone is not "you completed the round", and that is the batch's one real
+  trap.** The API returns it true to *anyone* submitting into a full coupon, including a
+  member changing their mind afterwards — Batch 107 arbitrates the real transition with an
+  insert, but does not return the answer. The client settles it without a new API field
+  because **a change of pick cannot fill a coupon**: it moves no count. So the rule is
+  `all_picked && !heldPickBeforeSubmitting`, and adding a field would have cost another
+  `/ship-prod`.
+- **`holdsPick` is captured in `send()`, not read in `onSuccess`.** By then the hook's own
+  `invalidate()` may have refetched the slate, and the answer would be the post-submission
+  one — always "yes", which would switch the hand-off off permanently. Same ref-at-call-time
+  shape as `mutateRef`/`reconcileRef` above it.
+- **The completion replaces the "Grabbed …" toast** rather than stacking on it, mirroring
+  the rule Batch 107 gave the push. One event reaches the member, and it is the one saying
+  something they could not otherwise know.
+- **A notice, not a toast, and it is not a style call.** Every other submission outcome is
+  news; this one is a job. `OutstandingPickNotice` is the same argument about a different
+  state, and the two now bracket the pick path.
+- **`focusCouponSection()` is shared by the hash effect and the hand-off**, because a member
+  who arrived from a notification is *already* at `#coupon` — an unchanged hash fires no
+  effect, so the button focuses directly as well as navigating.
+- **The opt-in list has five entries, not the row's four.** `fixture_postponed` is a real,
+  member-facing, league-scoped push that hands somebody their claim back, and it predates
+  the notification review the row was written from. A list whose entire purpose is
+  truthfulness could not omit it. Flagged to the owner rather than slipped in.
+- **The Settings rename is a safety fix, not wording.** "Per-league reminders" named one of
+  the five things that switch silences; a member muting a league to stop being nagged was
+  also switching off the alert that their pick had been returned.
+- **Competitions start collapsed**, so every test that claims a selection is two clicks —
+  open the competition section, then hit `selection-{fixture}-{market}-{outcome}`.
+
+**Next:** **Group L is complete.** Batch 108 is web-only and reached members on this
+close-out push; Batch 107's API has been live since the 2026-09-04 `/ship-prod`, so the
+fields it consumes are served and no shipment is owed. The next executable group is **M**:
+Batch 109 (web), Batch 110 (API/data), a mandatory `/ship-prod`, then Batch 111. Batch 95
+remains soft-blocked.
