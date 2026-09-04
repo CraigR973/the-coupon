@@ -3337,8 +3337,8 @@ answered until it lands, because until then there is no data to look at.
   contract. No team-page UI or request-path provider fetch. **API/data only; stop for
   `/ship-prod` before Batch 111.**
 
-- [ ] **Batch 111 — League-table teams are labels when they should open the season story**
-  — specified 2026-09-03 and dependent on Batch 110 being live in production. Make the
+- [x] **Batch 111 — League-table teams are labels when they should open the season story**
+  ✅ 2026-09-04 — specified 2026-09-03 and dependent on Batch 110 being live in production. Make the
   team name or row in a league table an accessible link to the addressable route
   `/football/teams/:teamId?competition=<id>&season=<season>`. Replace the hidden
   form-pip-only disclosure with one consistent interaction rather than leaving two

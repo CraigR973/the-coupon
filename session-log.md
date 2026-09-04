@@ -3399,3 +3399,42 @@ respecified with their original claims kept for the paging path.
 `/football/teams/:teamId?competition=…&season=…`, and that route 404s against the deployed
 image until Railway moves. Run `/ship-prod`, then rerun `/group-start M` so it can verify
 drift and continue with Batch 111. Batch 95 remains soft-blocked.
+
+## Batch 111 — League-table teams are labels when they should open the season story
+**Commits:** 0c1fd59 · verified: `scripts/ci-local.sh` PASS (11 checks; one failure, an unused
+import of this batch's own, fixed and rerun green), plus a browser pass at 390×844 in both
+themes against a stubbed 30-match season
+
+### Key facts for future sessions
+- **Putting the expanded division in the URL is what restores scroll, and that is the whole
+  mechanism.** React Router v6/v7 without a data router manages no scroll at all, and the
+  browser's native restoration only lands correctly if the page comes back the same height —
+  which it cannot when every table defaults to collapsed. `?competition=` reopens the
+  division, the height matches, and the browser does the rest. Measured: back returned to
+  `scrollY: 465` of a 1309px page with the same 20 rows on screen.
+- **The two query parameters are `replace`d while the results carousel `push`es.** Expanding
+  a table is a filter on the screen; moving between matchdays *is* the screen. Getting that
+  backwards would make the back button close an accordion instead of leaving Football Stats.
+- **"Next" skips a postponed match.** A postponed fixture keeps its original kick-off, so it
+  sorts into the fixture list on a night nothing is happening; highlighting it would point a
+  member at that night. A cancelled one is never next. The rule is "earliest match that is
+  `live` or `scheduled`", and a live one wins because it is happening now.
+- **The club link needed `min-h-6`, which the browser found and jsdom could not.** A bare
+  line of text renders a 164×20 box — four pixels under WCAG 2.2 SC 2.5.8, the identical
+  shortfall Batch 55 fixed on the form disclosure. A standalone control in a table cell does
+  not get the standard's inline-link exception. A test now pins the class.
+- **The competition is named once in the header, not on every row.** The row asks for it on
+  each, but the response is scoped to one competition by construction, so repeating it down
+  the list is exactly the repetition Batch 105 was written to remove. Flagged rather than
+  slipped in.
+- **Batch 53's form disclosure is gone from the table, deliberately.** Its five matches were
+  a hidden subset of the season the club's name now opens, and two ways into one thing — one
+  of them invisible — is what the row exists to end. `FormLine` keeps its `onToggle` for the
+  pick screen, which is a different surface and out of this batch's scope.
+
+**Next:** **Group M is complete, and with it the 2026-09-03 review wave.** Batch 111 is
+web-only and reached members on this close-out push; Batch 110's API has been live since the
+2026-09-04 `/ship-prod`, so the route it consumes is served and no shipment is owed.
+`docs/BUILD_PLAN.md` now carries **only Batch 95** unchecked, in the soft-blocked tail of
+Group D — still waiting on the FEAT-A09 egress attribution and the off-platform-storage
+decision.

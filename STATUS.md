@@ -1342,24 +1342,23 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 95 and 111 unchecked** — two remaining. Batch 95
-comes from the 2026-08-26 full-application review, and 111 was specified from the owner's
-2026-09-03 Coupon, home, notification and Football Stats review. Batch 95 remains in the
-soft-blocked tail of Group D. Groups J, K and L are closed and Group M is two batches in,
-**stopped at its mandatory shipment**:
+`docs/BUILD_PLAN.md` carries **only Batch 95 unchecked** — one remaining, and it is not part
+of this wave. **Groups I through M are complete**, which closes out both the 2026-08-26
+full-application review and the owner's 2026-09-03 Coupon, home, notification and Football
+Stats review. Batch 95 remains in the soft-blocked tail of Group D:
 
 ```text
+I  103 done      web       → no ship owed
 J  104 shipped   API+infra → shipped 2026-09-04
 K  105 106 done  web       → no ship owed
 L  107 108 done  API+web   → shipped 2026-09-04
-M  109 done      web       → no ship owed
-   110 done      API/data  → /ship-prod OWED → then 111 web
+M  109 110 111   web+API   → shipped 2026-09-04, complete
 ```
 
 `/group-start <I-M>` now orchestrates those groups. It still gives every batch its own
 branch, full gate and automatic close-out; it stops at each API checkpoint for an explicit
-`/ship-prod`, then verifies deployment drift before a rerun can continue. The full intended
-remaining order is `ship → 111`.
+`/ship-prod`, then verifies deployment drift before a rerun can continue. There is no batch order left to run: the
+wave is finished and only Batch 95's blockers remain.
 
 **Group K is complete.** Batch 105 unified Your pick and Combined coupon into one
 state-aware Current round surface and Batch 106 separated future action from historical odds
@@ -1386,7 +1385,17 @@ including future and non-final fixtures, and Batch 111 then makes league-table t
 that addressable season view — with a **mandatory `/ship-prod` between them**, because
 111's route cannot work against the deployed API.
 
-**Batch 110 is built and is the shipment Group M is waiting on.** The football store held
+**Group M is complete.** Batch 111 closed it: a club in a league table is a link now, to
+`/football/teams/:teamId?competition=&season=`, showing its whole season — results newest
+first, fixtures chronologically, the next playable match marked, and postponed and cancelled
+games still visible and named as such. It replaced Batch 53's form-pip disclosure rather than
+sitting beside it, because two ways into one thing with one of them invisible was the defect.
+The expanded division moved into the URL as part of it, which is what makes the back button
+restore both the open table and the member's scroll position. The browser pass caught one
+thing the unit tests structurally could not: the club link rendered a 164×20 target, four
+pixels under WCAG 2.2 SC 2.5.8 — the same shortfall Batch 55 fixed on the form disclosure.
+
+**Batch 110 shipped on 2026-09-04 and is what Batch 111 reads.** The football store held
 finished matches and nothing else — the FotMob adapter discarded every other kind on the
 way in — so it could say what a club had done and never what it was playing next. Ingestion
 now takes the whole season, which costs no upstream request it was not already paying:
