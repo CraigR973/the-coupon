@@ -1342,25 +1342,24 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 95, 110 and 111 unchecked** — three remaining.
-Batch 95 comes from the 2026-08-26 full-application review, and 110-111 were specified
-from the owner's 2026-09-03 Coupon, home, notification and Football Stats review. Batch 95
-remains in the soft-blocked tail of Group D. Groups J, K and L are closed and Batch 109 is
-done, so the wave resumes at Batch 110 — the next batch with an API half, and therefore the
-next one carrying a shipment:
+`docs/BUILD_PLAN.md` carries **Batches 95 and 111 unchecked** — two remaining. Batch 95
+comes from the 2026-08-26 full-application review, and 111 was specified from the owner's
+2026-09-03 Coupon, home, notification and Football Stats review. Batch 95 remains in the
+soft-blocked tail of Group D. Groups J, K and L are closed and Group M is two batches in,
+**stopped at its mandatory shipment**:
 
 ```text
 J  104 shipped   API+infra → shipped 2026-09-04
 K  105 106 done  web       → no ship owed
 L  107 108 done  API+web   → shipped 2026-09-04
 M  109 done      web       → no ship owed
-   110           API/data  → /ship-prod → 111 web
+   110 done      API/data  → /ship-prod OWED → then 111 web
 ```
 
 `/group-start <I-M>` now orchestrates those groups. It still gives every batch its own
 branch, full gate and automatic close-out; it stops at each API checkpoint for an explicit
 `/ship-prod`, then verifies deployment drift before a rerun can continue. The full intended
-remaining order is `110 → ship → 111`.
+remaining order is `ship → 111`.
 
 **Group K is complete.** Batch 105 unified Your pick and Combined coupon into one
 state-aware Current round surface and Batch 106 separated future action from historical odds
@@ -1386,6 +1385,20 @@ its own heading was on display. Batch 110 next persists the full selected league
 including future and non-final fixtures, and Batch 111 then makes league-table teams open
 that addressable season view — with a **mandatory `/ship-prod` between them**, because
 111's route cannot work against the deployed API.
+
+**Batch 110 is built and is the shipment Group M is waiting on.** The football store held
+finished matches and nothing else — the FotMob adapter discarded every other kind on the
+way in — so it could say what a club had done and never what it was playing next. Ingestion
+now takes the whole season, which costs no upstream request it was not already paying:
+FotMob publishes the season in the payload the league table came from, so the daily job's
+date window was only ever deciding how much of what had already arrived got written down. A
+provider that pages its results keeps that window. Matches gained a `state` — scheduled,
+live, finished, postponed, cancelled — because three `finished = false` rows are three
+different things to a reader, and `GET /api/v1/football/teams/{team_id}/season` returns one
+club's complete season in one competition, addressed by the club's own id and served from
+the database alone. **Migration 022 adds `matches.state`, so the ship carries a migration.**
+None of it is live until `/ship-prod`, and Batch 111's team route 404s against the deployed
+image until it is.
 
 **Batch 104 was the only item in this plan with an external deadline and is now closed and
 live.** `.railway/railway.ts` replaces the deprecated `railway.toml` before Railway's

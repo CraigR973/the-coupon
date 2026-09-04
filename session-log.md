@@ -3352,3 +3352,50 @@ browser pass at 390×844 in both themes against a stubbed season of 79 result da
 **Next:** Batch 109 is web-only and reached members on this close-out push. Group M continues
 with **Batch 110** (API/data — provider-neutral match retention and the team-season read
 contract), then a **mandatory `/ship-prod`** before Batch 111. Batch 95 remains soft-blocked.
+
+## Batch 110 — The football store cannot answer a team's complete selected season
+**Commits:** 3887a5a · verified: `scripts/ci-local.sh` PASS (11 checks; three failures on the
+first run, all this batch's own, fixed and rerun green — see below)
+
+### Key facts for future sessions
+- **The date window on the daily sweep never saved a single upstream request, and that is
+  why it could be dropped.** FotMob returns the whole season in the payload the league
+  table already paid for, so `since`/`until` were client-side filters deciding how much of
+  what had *already arrived* got written down. `fetch_season_matches` takes all of it. A
+  provider that pages results — api-football — answers that method with `[]` and keeps the
+  window it was tuned for, which is the pattern `fetch_fixture_states` and
+  `fetch_live_scores` already established in this port.
+- **`finished` is now derived from `state` where it is persisted, not trusted from the
+  caller.** `MatchResult` reconciles the two in a validator, but `model_copy(update=...)`
+  does not re-run validators — a test caught exactly that, writing `state='finished'` with
+  `finished=false`. `sync_results` reads `state` and nothing else.
+- **The two fields still part company in one real case, on purpose.** A match the provider
+  calls finished but publishes no readable score for stays `state='finished',
+  finished=false`: visible on a season, absent from the results screen and the form line,
+  both of which mean "there is a scoreline here" by `finished`.
+- **FotMob's `cancelled` flag is raised for postponements far more often than for
+  cancellations**, and only `reason.longKey` separates them. Collapsing them would tell a
+  member "that is the season" about a game being replayed on a Tuesday.
+- **Three reads walked `allMatches` with the same twenty lines of division attribution**
+  before this batch; a fourth copy is where one of them quietly stops agreeing with the
+  others about which division a club is in. They now share `_parsed_matches`, and a test
+  pins that a composite id (`8944` = National League North *and* South) still hands each
+  division only its own season.
+- **The daily sweep is now the backfill, for FotMob.** `backfill_season` still matters for
+  a paging provider and the respecified
+  `test_the_backfill_reaches_matches_the_daily_window_cannot` asserts both halves rather
+  than dropping the old claim. What did change is write volume: every sweep upserts a full
+  season per competition instead of a few days.
+
+**Gate failures on the first run, all three this batch's own:** the `finished`/`state`
+disagreement above; `test_the_window_counts_days_with_results_not_calendar_days` comparing
+`recent_results` against *every* stored match, which now includes unplayed ones; and
+`test_the_backfill_reaches_matches_the_daily_window_cannot` asserting a window that no
+longer bounds a season-capable provider. The first was a code fix, the other two were
+respecified with their original claims kept for the paging path.
+
+**Next:** **Group M stops here.** Batch 110 is API/data only and **is not live until
+`/ship-prod`** — Batch 111 makes league-table teams open
+`/football/teams/:teamId?competition=…&season=…`, and that route 404s against the deployed
+image until Railway moves. Run `/ship-prod`, then rerun `/group-start M` so it can verify
+drift and continue with Batch 111. Batch 95 remains soft-blocked.

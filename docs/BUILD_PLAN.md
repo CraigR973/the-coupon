@@ -3313,8 +3313,8 @@ answered until it lands, because until then there is no data to look at.
   team page in this batch. Restrained competition/date accents are welcome; no global
   palette redesign.
 
-- [ ] **Batch 110 — The football store cannot answer a team's complete selected season**
-  — specified 2026-09-03 from the owner request to open a table team and see all of its
+- [x] **Batch 110 — The football store cannot answer a team's complete selected season**
+  ✅ 2026-09-04 — specified 2026-09-03 from the owner request to open a table team and see all of its
   past results and fixtures for the season. Extend the provider-neutral football port and
   scheduled ingestion so the database retains the complete fixture list for an explicit
   competition and season: finished matches plus scheduled, live, postponed and cancelled
