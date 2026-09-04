@@ -1,37 +1,46 @@
-# 07 — Sequencing: how Batches 82-102 group
+# 07 — Sequencing: how Batches 82-111 group
 
-The twenty-one batches this review produced, arranged into eight groups that
-each run as a unit. Written 2026-08-27, after the owner's decisions in
-`README.md`.
+The batches from this review and its later owner-review addenda, arranged into
+deployment-safe groups. First written 2026-08-27, after the owner's decisions in
+`README.md`; extended on 2026-08-30 and 2026-09-03.
 
 ## What a "group" is in this repo
 
-`/batch-start N` takes **one** batch number and makes one `feat/batch-N-slug`
-branch. `/phase-closeout N` takes **one** batch, merges it to `main`, and pushes.
-Neither command batches. So a group is not a command — it is a run of individual
-start → closeout cycles with **one `/ship-prod` at the end**.
+`/batch-start N` still takes **one** batch number and makes one
+`feat/batch-N-slug` branch. `/phase-closeout N` still takes **one** verified
+batch, merges it to `main`, ticks it, logs it and pushes. A group never changes
+that isolation.
+
+For current Groups I-M, `/group-start X` is the orchestration command around
+those one-batch workflows. It runs the group's unchecked batches in order, each
+on its own branch and through its own full gate and automatic close-out. It
+stops at every documented API checkpoint and asks for the separately explicit
+`/ship-prod`; rerunning the same group after shipping verifies deployment drift
+before it resumes. It never deploys production itself.
 
 That is already the established pattern: `docs: specify Batches 78-80 from the
 owner's three points` grouped the *specification*, then Batches 79, 80 and 81
 each got their own `docs: close out Batch N` commit, and a single
 `docs: record the 2026-08-26 shipment of Batches 79-81` closed the group.
 
-Per group, the loop is:
+The underlying loop remains:
 
 ```
-/batch-start N      → implement on feat/batch-N-slug, verify
-/batch-verify N     → the real gate (scripts/ci-local.sh)
-/phase-closeout N   → commit, ff-merge main, strike, push
-   ... repeat for each batch in the group ...
-/ship-prod          → once, at the group boundary, if the group has an API half
+/group-start X      → /batch-start N on its own branch and full gate
+                    → automatic /phase-closeout N and push
+                    → repeat only until the next deployment checkpoint
+/ship-prod          → explicit owner command at that checkpoint
+/group-start X      → verify drift is in sync, then resume the group
 ```
 
 **The group boundary matters because of the deploy asymmetry.** Every
 `/phase-closeout` pushes `main`, and Vercel releases the web app from `main`
 immediately. Railway does not move until `/ship-prod`. So a group whose web half
 calls an API route the deployed image does not serve is broken in production for
-the length of the group — that is the 2026-08-06 incident, and Batch 51 repeated
-it. Groups below are cut so that never spans a boundary.
+the length of that gap — that is the 2026-08-06 incident, and Batch 51 repeated
+it. Groups below therefore use internal checkpoints where a later web batch
+depends on a new API contract; a group no longer implies only one ship at its
+end.
 
 ## The groups
 
@@ -186,8 +195,8 @@ the **FEAT-A09 egress investigation**, which should precede Batch 95.
 ## Addendum, 2026-08-30 — batches added after this document was written
 
 The groups above cover Batches 82-102, which is what the 2026-08-26 review produced. Two
-later batches came out of doing the work rather than out of the review, so they have no
-group here. Their placement:
+later batches came out of doing the work rather than out of the review, so this addendum
+places them as Groups I and J:
 
 ### Group I — The other privacy dropdown · Batch 103 · **web only** → no ship needed
 
@@ -215,7 +224,7 @@ can slip by a week at the owner's discretion; this cannot slip past 2026-12-01 w
 deploy config becoming whatever Railway defaults to — including the `numReplicas = 1` that
 Batch 100's migration guard exists to protect.
 
-### Updated order
+### 2026-08-30 order at the time
 
 ```
 F  96            API+web  → /ship-prod         alone
@@ -226,3 +235,88 @@ J  104           API+infra→ /ship-prod         alone; hard deadline 2026-12-01
 
 Groups A-E and H are complete. D is complete but for Batch 95, which remains soft-blocked on
 the FEAT-A09 egress investigation.
+
+---
+
+## Addendum, 2026-09-03 — Coupon, home, notifications and Football Stats review
+
+The owner reviewed the product as a software-engineering, football-analysis and
+UI/UX exercise, then chose the larger Coupon consolidation, notification
+completion only for the final-pick special case, concise fixes on both the
+combined screen and copied text, and the full selected season for team results
+and fixtures. Those decisions produce Batches 105-111.
+
+The concern that the application feels a little bland does not become a generic
+colour batch. Groups K and M first fix hierarchy and repetition, then introduce
+restrained, meaning-bearing accents for action state, active dates,
+competitions and outcomes without recolouring large surfaces.
+
+### Group K — One weekly Coupon and a truthful home · Batches 105, 106 · **web only** → no ship needed
+
+Batch 105 consolidates `Your pick` and `Combined coupon` into one state-aware
+**Current round** surface, keeps **Season** as the historical destination, fixes
+clipped/repetitive rows and copy, and preserves old deep links. Batch 106 then
+applies the same temporal discipline to home: the primary card owns the current
+or next action, while old picks and odds live only under `Last result`. It also
+contains the hero corner glows.
+
+Run 105 before 106 because home's Coupon destination and state language should
+point at the settled navigation model. Both are web-only and use existing API
+data, so each close-out push is complete in itself and no `/ship-prod` is owed.
+
+### Group L — Pick progress and all-picks completion · Batches 107, 108 · **API then web**
+
+```
+107  API/data  → /ship-prod checkpoint → 108  web
+```
+
+Batch 107 makes pick pushes concise, adds `X/Y picked`, creates a durable,
+concurrency-safe all-picked event, includes the final picker, deep-links the
+completion event to the exact gameweek's copy section, and exposes completion
+progress in the pick response. Batch 108 consumes that contract for the final
+picker's in-app hand-off and makes opt-in and Settings copy describe the events
+that actually exist. Batch 105 is a prerequisite because it establishes that
+canonical copy-section destination.
+
+The checkpoint is mandatory. Batch 108 must not reach Vercel while production
+Railway still serves a pick response without the progress fields it consumes.
+`/group-start L` therefore closes 107 and stops; after the owner runs
+`/ship-prod`, rerun `/group-start L` to verify drift and continue with 108.
+
+### Group M — Matchday navigation and complete team seasons · Batches 109, 110, 111 · **web, API, web**
+
+```
+109  web → 110  API/data → /ship-prod checkpoint → 111  web
+```
+
+Batch 109 is independent and turns Football Results into an addressable,
+one-result-day-at-a-time carousel. Batch 110 expands provider-neutral ingestion
+and the database read contract to retain and return every match in a team's
+selected league season, including future and non-final statuses. Batch 111 then
+makes table teams clickable and presents that full season.
+
+The order keeps the small, existing-data interaction separate from the larger
+data contract. The checkpoint after 110 is mandatory because 111's route cannot
+work against the currently deployed API. `/group-start M` pauses there and
+resumes only after an explicit `/ship-prod` leaves deployment drift in sync.
+
+### Current order
+
+```
+I  103           web       → (no ship)
+J  104           API+infra → /ship-prod         alone; hard deadline 2026-12-01
+K  105 106       web       → (no ship)
+L  107           API/data  → /ship-prod → 108 web
+M  109 110       web+API   → /ship-prod → 111 web
+```
+
+Expanded batch order:
+
+```
+103 → 104 → /ship-prod → 105 → 106 → 107 → /ship-prod → 108
+    → 109 → 110 → /ship-prod → 111
+```
+
+Batch 95 remains outside this wave in the unfinished tail of Group D. Its
+FEAT-A09 egress and off-platform-storage decisions remain soft blockers; neither
+`/group-start I-M` nor the newer UX work bypasses them.

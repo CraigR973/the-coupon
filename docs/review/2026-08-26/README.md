@@ -140,8 +140,8 @@ rather than being re-derived by the next review.
 | [06-ux-design.md](06-ux-design.md) | the subjective "does this look premium" pass, from the same screenshots |
 | [04-operations.md](04-operations.md) | the gate, dependencies, deploy hygiene, the aggregate rate-limit gap |
 | [05-feature-gaps.md](05-feature-gaps.md) | spec-vs-built (Part A) and independent product judgement (Part B) |
-| [07-sequencing.md](07-sequencing.md) | how Batches 82-102 group into eight runs, and where each `/ship-prod` falls |
-| [08-prompts.md](08-prompts.md) | copy-paste prompts to kick off each group from a cold session |
+| [07-sequencing.md](07-sequencing.md) | how Batches 82-111 group into deployment-safe runs, including the 2026-08-30 and 2026-09-03 addenda |
+| [08-prompts.md](08-prompts.md) | `/group-start` invocations for current Groups I-M and the historical A-H kickoff prompts |
 
 ## Two things this review did not do
 

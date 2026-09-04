@@ -31,6 +31,7 @@ When the user invokes a slash command, read and follow its matching canonical
 file:
 
 - `/next-batch-prompt <mode>` → `docs/agent-commands/next-batch-prompt.md`
+- `/group-start <I-M>` → `docs/agent-commands/group-start.md`
 - `/batch-start <id>` → `docs/agent-commands/batch-start.md`
 - `/batch-verify <id>` → `docs/agent-commands/batch-verify.md`
 - `/phase-closeout <id>` → `docs/agent-commands/phase-closeout.md`
@@ -40,6 +41,11 @@ file:
 - `/launch-closeout <L0-L5>` → `docs/agent-commands/launch-closeout.md`
 - `/ship-staging [message]` → `docs/agent-commands/ship-staging.md`
 - `/ship-prod` → `docs/agent-commands/ship-prod.md`
+
+`/group-start` orchestrates the documented batches in one group, but does not
+combine them: every batch retains its own branch, gate and automatic close-out.
+It stops at each documented API checkpoint and waits for an explicit
+`/ship-prod`; it never deploys production itself.
 
 **Build-batch close-out is automatic** (owner decision, 2026-08-27, overriding the
 global rule that close-out waits for a slash command). When `/batch-start <N>`

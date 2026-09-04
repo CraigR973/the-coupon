@@ -44,8 +44,9 @@ is retained as an alternate, and `FakeFootballData` is canned for tests.
 
 ## Build batches
 
-This checklist is the batch source of record. Close-out ticks a batch only
-after the user invokes `/phase-closeout <N>`.
+This checklist is the batch source of record. A green `/batch-start <N>` runs
+close-out automatically and ticks that batch; `/phase-closeout <N>` remains
+available as a direct command for an already verified batch.
 
 - [x] **Batch 1 — Application spine** ✅ 2026-07-25 — PIN auth, profiles,
   notifications, leagues, memberships, join requests, invites, scheduler
@@ -3166,7 +3167,197 @@ answered until it lands, because until then there is no data to look at.
   the configuration *says* — same replica count, region, healthcheck, restart policy — and
   no change to `nixpacks.toml`'s build or start command beyond whatever carrying
   `DEPLOY_REPLICA_COUNT` requires. **API + infra, so it owes a `/ship-prod`**, and it should
-  ship alone: it changes how production is built.
+  ship alone: it changes how production is built. Carry the path migration into
+  `scripts/check-deploy-drift.sh` too, replacing `railway.toml` with
+  `.railway/railway.ts` in its API-path set so future IaC-only drift remains visible.
+
+- [ ] **Batch 105 — Coupon is one current-round job presented as two competing screens**
+  — specified 2026-09-03 from the owner review of Coupon, Your pick, Combined coupon and
+  Season. Keep `Coupon` as the application-level destination, but replace the inner
+  `Your pick / Combined coupon / Season` model with one compact Coupon shell whose two
+  destinations are **Current round** and **Season**. The canonical current-round route is
+  `/leagues/:slug/predictions`; `/leagues/:slug/predictions/coupon` becomes a redirect to
+  it that preserves `gw` and any copy-section focus, so saved links and notification taps
+  do not strand people.
+
+  Current round owns the whole weekly task rather than making the member choose between
+  their selection and everybody's selections. While picks are open it shows round
+  progress, the member's pick state, league picks the rules permit them to see, and the
+  fixture selector in one hierarchy. If the round locks before everybody picks, label the
+  incomplete coupon honestly rather than implying completion. Once every member has
+  picked, the completed coupon and its copy action become prominent. Once settled, the
+  outcome is primary and the member's own selection remains identifiable. Remove repeated
+  active-tab page titles, repeated fold/combined-odds summaries, and repeated frozen-price
+  prose.
+
+  Rebuild the combined rows around the information people scan and share: **person,
+  selection and frozen odds must always remain visible**. Fixture context may wrap onto a
+  controlled second line; competition and market labels are secondary and must not repeat
+  information already expressed by the selection or fixture. Long team and player names
+  must not be clipped. Apply the same editing discipline to copied text: one entry per
+  person with selection, odds and only the context needed to disambiguate it, followed by
+  one frozen-odds disclaimer for the whole coupon.
+
+  Verification: route and navigation tests for `Current round / Season`; open,
+  submitted, locked-incomplete, all-picked and settled state tests; a legacy
+  combined-coupon deep link that preserves `gw` and copy focus; long
+  team/player/competition fixtures at mobile width without clipping; clipboard assertions
+  for concise non-repeating text; 390×844 visual checks in both themes; keyboard and axe
+  checks for the merged surface.
+
+  Scope boundary: Coupon information architecture, current-round presentation, pick-row
+  layout and share text. No API or schema change, no change to pick eligibility, odds,
+  locking, settlement or Season scoring. Purposeful state colour may be added here, but
+  this is not a general restyle.
+
+- [ ] **Batch 106 — Home mixes the next round's clock with the previous round's odds**
+  — specified 2026-09-03 from the owner review of league-card content and layout. Give
+  every league card one explicit current state: **Pick required**, **Pick submitted**,
+  **Round in progress**, or **Between rounds**. The primary part of the card owns only the
+  current or next action.
+  When a settled round is followed by a future opening, show the future opening there and
+  move all prior pick, fold and odds data into the clearly labelled `Last result` area;
+  never place `Next opens` beside unlabeled historical odds. While a round is open,
+  prioritise the action, deadline and picked/member progress over volatile combined odds.
+
+  Keep each league independent: its window, round and progress must come from that
+  league's summary rather than from a global Saturday assumption. Tighten the card's
+  reading order and use restrained, semantic accents for action and status so home feels
+  less flat without turning large surfaces decorative. Contain or soften the hero's
+  top-right and bottom-left colour glows so no coloured layer appears to protrude beyond
+  the rounded section in supported browsers.
+
+  Verification: a settled-round-plus-future-opening regression proving old odds do not
+  remain in the primary card; all four card states; two leagues with different windows
+  and progress; single- and multi-league 390×844 screenshots in both themes; visual checks
+  of both hero corners, including WebKit/Safari behaviour; existing contrast and axe gates.
+
+  Scope boundary: home hero and league-card content, hierarchy and restrained semantic
+  colour. No change to the summary API, Coupon screens, league rules or a broader palette
+  rewrite.
+
+- [ ] **Batch 107 — Pick notifications do not say how close the league is to a complete
+  coupon** — specified 2026-09-03 from the owner notification review, after Batch 105 has
+  established the canonical current-round and copy-section destination. For an ordinary
+  new or changed pick, send one concise league-scoped event in the form
+  `Dave picked Arsenal @ 1.80 · 3/12 picked`: who picked, what they picked, their frozen
+  odds and active-member progress, with no repeated league/coupon prose. Deliver this
+  ordinary event to other eligible members as today; the picker does not need a push about
+  their own action. Its tap continues to the normal current-round position.
+
+  The transition to `Y/Y` (for example `12/12`) is a distinct completion event that
+  **replaces**, rather than accompanies, the ordinary pick alert:
+  `Dave picked Arsenal @ 1.80 · 12/12 picked — all picks are in`. Deliver it to every
+  eligible active member, including the final picker, and deep-link to that exact league
+  and gameweek with the Coupon copy section focused.
+  Count all active league members in the denominator independently of subscription or
+  per-league mute state; apply those preferences only when deciding delivery recipients.
+
+  Make completion concurrency-safe and retryable. Persist a single durable completion
+  event keyed to the gameweek as part of the final transition, then claim/deliver it
+  through the existing notification path so simultaneous last picks cannot fan out the
+  all-picked event twice and a failed delivery attempt is not silently forgotten. Extend
+  the successful pick response with `picked_count`, `member_count` and `all_picked` so the
+  client can render the same completion state immediately without racing a refetch.
+
+  Verification: API/service tests for ordinary `3/12`, final `12/12`, changed picks,
+  active versus inactive membership, league mute and absent subscription, inclusion of
+  the final picker, the exact ordinary and completion URLs, simultaneous final-pick
+  attempts, retry after a delivery failure, and no second completion event after the
+  gameweek is already complete. The full PostgreSQL-backed gate is mandatory.
+
+  Scope boundary: pick-created/changed push events, progress fields on the pick response,
+  and the durable all-picked transition. No notification inbox, result alert, leaderboard
+  alert or general queue rewrite. **API/data only; stop for `/ship-prod` before Batch 108.**
+
+- [ ] **Batch 108 — Notification UI promises events the product does not send and leaves
+  the final picker without a completion hand-off** — specified 2026-09-03 and dependent
+  on Batch 107 being live in production. Consume the progress fields returned by pick
+  submission. Only when that submission completes the round, show the final picker an
+  immediate in-app action: **All picks are in — open and copy coupon**. It opens the exact
+  gameweek and focuses the copy section; it must not copy to the clipboard without a
+  separate user gesture. The final picker also receives the completion push established
+  by Batch 107, subject to their real push subscription and league notification setting.
+
+  Rewrite the push opt-in explanation to name only notifications the application actually
+  sends: picks opening, the real scheduled pre-lock reminder, other members' picks and
+  all-picks completion. Remove the promises of a 30-minute-before-kickoff reminder, result
+  alerts and leaderboard changes unless those events exist by the time this batch starts.
+  In Settings, rename the per-league `reminders` control to **notifications**, because it
+  suppresses all league-scoped pushes rather than reminders alone. Keep the on-screen and
+  push wording aligned with the concise content contract in Batch 107.
+
+  Verification: final versus non-final submission tests; exact gameweek/focus navigation;
+  no automatic clipboard write; completion push/CTA wording parity; opt-in and Settings
+  copy assertions against implemented events; mobile, keyboard and axe checks.
+
+  Scope boundary: frontend handling and truthful notification copy. No new notification
+  event, service worker redesign or inbox. Do not begin until Batch 107's API has shipped
+  and `scripts/check-deploy-drift.sh` reports in sync.
+
+- [ ] **Batch 109 — Football results are a long archive when the task is moving through
+  matchdays** — specified 2026-09-03 from the owner request for carousel-style date
+  navigation. Show one result-bearing date at a time. Provide labelled previous/next
+  controls and a horizontally scrollable, snap-aligned date strip that works by keyboard
+  and touch/swipe. Persist the selected day as `?date=YYYY-MM-DD`, restore it on back/forward
+  navigation, and default to the latest available result-bearing day rather than inserting
+  empty calendar dates. Keep competitions grouped beneath the selected date.
+
+  Verification: latest-day default, valid date deep link, invalid/unavailable date
+  fallback, browser back/forward, first/last boundaries, multiple competitions on one day,
+  selected-state semantics, keyboard operation, touch-sized controls and a long mobile
+  strip at 390×844 in both themes.
+
+  Scope boundary: frontend Football Results navigation and presentation using data the
+  existing endpoint already returns. No football API, ingestion or provider change, and no
+  team page in this batch. Restrained competition/date accents are welcome; no global
+  palette redesign.
+
+- [ ] **Batch 110 — The football store cannot answer a team's complete selected season**
+  — specified 2026-09-03 from the owner request to open a table team and see all of its
+  past results and fixtures for the season. Extend the provider-neutral football port and
+  scheduled ingestion so the database retains the complete fixture list for an explicit
+  competition and season: finished matches plus scheduled, live, postponed and cancelled
+  fixtures. FotMob ingestion must stop discarding every non-finished match, and repeated
+  syncs must update status, kickoff and score idempotently rather than duplicate rows.
+
+  Add a DB-only team-season endpoint under `/api/v1/football/` addressed by stable team id,
+  competition and season. Return all matches for that team in that selected league season,
+  with stable identity, opponent, home/away, kickoff, status and nullable score. The read
+  path must never call FotMob or any provider. Do not leak similarly named teams, another
+  competition, another season or another league's data into the response.
+
+  Verification: recorded provider payloads covering scheduled, live, postponed,
+  cancelled and finished states; repeat-sync and status-transition tests; team,
+  competition and season isolation; complete chronological endpoint output; nullable-score
+  handling; and a never-call-provider router test. Run migrations and the full
+  PostgreSQL-backed gate.
+
+  Scope boundary: provider-neutral match retention, ingestion and the team-season read
+  contract. No team-page UI or request-path provider fetch. **API/data only; stop for
+  `/ship-prod` before Batch 111.**
+
+- [ ] **Batch 111 — League-table teams are labels when they should open the season story**
+  — specified 2026-09-03 and dependent on Batch 110 being live in production. Make the
+  team name or row in a league table an accessible link to the addressable route
+  `/football/teams/:teamId?competition=<id>&season=<season>`. Replace the hidden
+  form-pip-only disclosure with one consistent interaction rather than leaving two
+  competing ways to inspect results.
+
+  The team view shows the complete selected league season: all completed results newest
+  first and all remaining fixtures chronologically, with the next fixture highlighted.
+  Every row makes opponent, home/away, competition, kickoff or score, status and W/D/L
+  outcome clear; postponed and cancelled fixtures remain visible. Direct links work, and
+  returning to the table restores competition, season and scroll context.
+
+  Verification: direct deep link and back restoration; complete-season rendering;
+  result-only, fixture-only, live and postponed/cancelled states; next-fixture emphasis;
+  long team and competition names at 390×844 in both themes; keyboard focus and axe checks.
+
+  Scope boundary: team links, route and season presentation over Batch 110's contract. No
+  provider access from the browser, no additional football ingestion and no unrelated
+  table redesign. Do not begin until Batch 110's API has shipped and
+  `scripts/check-deploy-drift.sh` reports in sync.
 
 ## Verification
 

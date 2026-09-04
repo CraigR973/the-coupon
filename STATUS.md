@@ -1333,17 +1333,40 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 95, 103 and 104 unchecked** — three remaining.
-Batch 95 comes from the 2026-08-26 full-application review; **103 and 104 were specified on
-2026-08-30 out of doing the work rather than out of the review**, and that document's
-addendum places them as Groups I and J. Each batch is an individual start → close-out cycle
-with **one `/ship-prod` at the group boundary** when it changes the API image.
+`docs/BUILD_PLAN.md` carries **Batches 95 and 103-111 unchecked** — ten remaining.
+Batch 95 comes from the 2026-08-26 full-application review; 103 and 104 were specified on
+2026-08-30; and 105-111 were specified from the owner's 2026-09-03 Coupon, home,
+notification and Football Stats review. Batch 95 remains in the soft-blocked tail of Group
+D. The current executable wave is Groups I-M:
+
+```text
+I  103           web       → (no ship)
+J  104           API+infra → /ship-prod
+K  105 106       web       → (no ship)
+L  107           API/data  → /ship-prod → 108 web
+M  109 110       web+API   → /ship-prod → 111 web
+```
+
+`/group-start <I-M>` now orchestrates those groups. It still gives every batch its own
+branch, full gate and automatic close-out; it stops at each API checkpoint for an explicit
+`/ship-prod`, then verifies deployment drift before a rerun can continue. The full intended
+order is `103 → 104 → ship → 105 → 106 → 107 → ship → 108 → 109 → 110 → ship → 111`.
+
+Group K unifies Your pick and Combined coupon into one state-aware Current round surface,
+then separates future action from historical odds on home and contains the hero glows.
+Purposeful state colour is folded into those hierarchy changes rather than becoming a
+standalone restyle. Group L adds concise `X/Y picked` notifications, a durable all-picked
+transition and the final picker's truthful in-app hand-off. Group M adds result-day carousel
+navigation, persists the full selected league season including future/non-final fixtures,
+then makes league-table teams open that addressable season view.
 
 **Batch 104 is the only item in this plan with an external deadline.** Railway is retiring
 `railway.toml` in favour of `.railway/railway.ts` and the CLI states existing files work only
 **until 2026-12-01**. Three separate checks read that file — the gate's `tomllib` assertions,
 `nixpacks.toml`'s `DEPLOY_REPLICA_COUNT`, and `test_migration_guard.py` — so letting it lapse
 risks losing the `numReplicas = 1` pin that Batch 100's migration guard exists to protect.
+Its scope also moves the deployment-drift path watch from `railway.toml` to
+`.railway/railway.ts`, so the checkpoint remains capable of seeing future IaC-only changes.
 
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday watch**,
 with L0-L4 ticked since 2026-08-04.

@@ -1,22 +1,32 @@
-# 08 — Prompts for running the groups
+# 08 — Commands and prompts for running the groups
 
-Copy-paste prompts for the eight groups in `07-sequencing.md`. Written so each
-one works from a **cold session** — every prompt names the sequencing doc, so a
-fresh agent picks up the group's constraints without you re-explaining them.
+The original copy-paste prompts for Groups A-H are retained below as the record
+of how those completed groups were started. Current Groups I-M use the canonical
+slash command, which reads `07-sequencing.md` and every batch row from a cold
+session without the owner having to restate their constraints:
+
+```text
+/group-start I
+/group-start J
+/group-start K
+/group-start L
+/group-start M
+```
 
 ## The rhythm inside a group
 
 Build-batch close-out is **automatic** as of the owner's decision on 2026-08-27
 (`AGENTS.md`). A green `scripts/ci-local.sh` gate flows straight into
 `/phase-closeout` — commit, ff-merge `main`, strike the batch, session log,
-`STATUS.md`, **and the push**. So one prompt now carries a batch from unwritten
-to merged and deployed:
+`STATUS.md`, **and the push**. So the group command carries each batch from
+unwritten to merged and deployed on the web, while preserving one branch and
+one close-out per batch:
 
 ```
-<group kickoff prompt>   → implements, verifies, closes out, pushes batch 1
-/batch-start 83          → same again for batch 2
-   ... until the group's batches are all closed ...
-/ship-prod               → once, at the group boundary
+/group-start X           → batch 1 branch, gate, close-out and push
+                         → repeat for each batch before the next checkpoint
+/ship-prod               → explicit command at an API checkpoint
+/group-start X           → verify drift, then resume after the checkpoint
 ```
 
 **The push deploys.** Vercel releases the web app from `main` on every close-out,
@@ -34,7 +44,7 @@ worktree holding more than the batch. And green is never reached by weakening a
 check — no deleting, skipping, loosening or `xfail`-ing. See `AGENTS.md`, "A red
 gate: fix it, but only in one direction."
 
-**Next batch in a group**, once the group is in context:
+For the historical A-H prompts below, the next-batch instruction was:
 
 ```
 /batch-start <N>
@@ -46,6 +56,11 @@ If the session went cold mid-group, use this so the constraints come back:
 Continuing <Group X> from docs/review/2026-08-26/07-sequencing.md.
 Batches <done> are closed. Read that group's section, then /batch-start <N>.
 ```
+
+For Groups I-M, rerun `/group-start <letter>` instead. Checked rows are treated
+as resumable progress. The command never infers that a checked API batch has
+shipped: it runs `scripts/check-deploy-drift.sh` at the checkpoint and stops for
+`/ship-prod` again unless production is in sync.
 
 ---
 
@@ -183,22 +198,75 @@ report rather than closing out.
 
 ---
 
+## Current groups I-M
+
+### Group I — Settings privacy consequences · 103 · web only
+
+```text
+/group-start I
+```
+
+Implements and closes Batch 103, then checks deployment drift and reports the
+web-only group complete without deploying the API.
+
+### Group J — Railway configuration migration · 104 · API + infra
+
+```text
+/group-start J
+/ship-prod
+/group-start J
+```
+
+The first invocation closes Batch 104 and stops. The owner explicitly ships it;
+the second invocation verifies production is in sync and completes the group.
+
+### Group K — Coupon and home hierarchy · 105, 106 · web only
+
+```text
+/group-start K
+```
+
+Runs 105 then 106 as separate batch branches and close-outs. No API shipment is
+part of this group.
+
+### Group L — Notification progress and completion · 107, 108 · API then web
+
+```text
+/group-start L
+/ship-prod
+/group-start L
+```
+
+The first invocation closes Batch 107 and stops at its API checkpoint. After the
+explicit ship, the second verifies drift before it starts Batch 108.
+
+### Group M — Football matchdays and team seasons · 109, 110, 111 · web, API, web
+
+```text
+/group-start M
+/ship-prod
+/group-start M
+```
+
+The first invocation closes web Batch 109 and API Batch 110 separately, then
+stops. After the explicit ship, the second verifies drift before it starts the
+dependent team-season UI in Batch 111.
+
+---
+
 ## Closing a group
 
-Once every batch in a group is closed out on `main`:
+At each API checkpoint shown in `07-sequencing.md`, use the explicit command:
 
 ```
 /ship-prod
 ```
 
-For the web-only groups (B and H, and G unless 97 needed a route) there is
-nothing to ship — Vercel already released each batch on its close-out push. Use
-this instead to confirm that's actually true:
-
-```
-Group <X> is fully closed out. Confirm no /ship-prod is owed —
-run scripts/check-deploy-drift.sh and report.
-```
+Then rerun the matching `/group-start` command. It confirms deployment drift is
+in sync before it crosses the checkpoint. For web-only groups there is nothing
+to ship — Vercel already released each batch on its close-out push — and
+`/group-start` runs the drift check only to report whether some unrelated API
+shipment remains owed.
 
 ## The two items outside the batch flow
 
