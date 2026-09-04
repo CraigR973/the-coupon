@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { CompetitionTable, ResultEntry } from '../lib/types';
 import { compareCompetitions } from '../lib/competitions';
-import { formatInstant } from '../lib/time';
+import { groupResultDays, resolveResultDay } from '../lib/footballResults';
 import { PageHeader } from '../components/PageHeader';
 import { LeagueTableCard } from '../components/LeagueTableCard';
+import { ResultDayCarousel } from '../components/ResultDayCarousel';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/ui/skeleton';
 import { Tabs } from '../components/ui/tabs';
@@ -40,7 +42,32 @@ const VIEWS = [
 export function FootballPage() {
   const { player } = useAuth();
   const timezone = player?.timezone ?? 'UTC';
-  const [view, setView] = useState<View>('tables');
+  const [params, setParams] = useSearchParams();
+  const requestedDate = params.get('date') ?? undefined;
+  // A `?date=` link is a link to a result day, so it opens on the tab that has one.
+  // Read once, at mount: after that the tabs are the member's to move between, and a
+  // later selection must not throw them back across the page.
+  const [view, setView] = useState<View>(() => (params.has('date') ? 'results' : 'tables'));
+
+  /**
+   * Put the chosen day in the URL — pushed, not replaced.
+   *
+   * `useGameweekHistory` replaces because its parameter is a filter on one screen.
+   * This one is the screen: moving through matchdays is the navigation, so back has
+   * to be the way out of it, and Batch 109 asks for exactly that. The newest day is
+   * named explicitly rather than left as a bare `/football`, because "latest" is a
+   * different Saturday next week and a shared link should not drift.
+   */
+  const selectDay = useCallback(
+    (date: string) => {
+      setParams((previous) => {
+        const next = new URLSearchParams(previous);
+        next.set('date', date);
+        return next;
+      });
+    },
+    [setParams],
+  );
 
   const tables = useQuery<CompetitionTable[]>({
     queryKey: ['football', 'tables'],
@@ -85,7 +112,12 @@ export function FootballPage() {
       )}
 
       {view === 'results' && !results.isLoading && !results.isError && (
-        <ResultsView results={resultList} timezone={timezone} />
+        <ResultsView
+          results={resultList}
+          timezone={timezone}
+          requestedDate={requestedDate}
+          onSelectDay={selectDay}
+        />
       )}
     </div>
   );
@@ -124,51 +156,32 @@ function TablesView({ tables, timezone }: { tables: CompetitionTable[]; timezone
   );
 }
 
-interface CompetitionGroup {
-  competition_id: string;
-  competition: string;
+interface ResultsViewProps {
   results: ResultEntry[];
-}
-
-interface ResultDay {
-  day: string;
-  competitions: CompetitionGroup[];
+  timezone: string;
+  /** The `?date=` value, or `undefined` for the latest day we hold. */
+  requestedDate: string | undefined;
+  onSelectDay: (date: string) => void;
 }
 
 /**
- * Results newest first, grouped by the day they were played and then by competition.
+ * One matchday at a time, its competitions grouped beneath it (Batch 109).
  *
- * Day stays the outer key: it is what a member scans for first. But a Saturday can
- * hold eighty matches across four competitions, and a flat list under one heading
- * reads as an undifferentiated column — the same failure this grouping was built to
- * fix, one level up. So each day's matches are grouped by competition too.
+ * This was the whole archive in one column, newest day first, and the job it is
+ * actually used for — moving between matchdays — meant scrolling past every match of
+ * the days in between. Day is still the outer key, because it is what a member scans
+ * for first; what changed is that only one of them is on screen, with the strip above
+ * naming the others.
+ *
+ * Competition grouping stays underneath it. A Saturday can hold eighty matches across
+ * four competitions, and a flat list under one heading reads as an undifferentiated
+ * column — the same failure the day grouping was built to fix, one level down.
  */
-function groupByDay(results: ResultEntry[], timezone: string): ResultDay[] {
-  const days = new Map<string, Map<string, CompetitionGroup>>();
-  for (const result of results) {
-    const day = formatInstant(result.kickoff_utc, timezone, 'EEEE d MMMM') ?? result.kickoff_utc;
-    const competitions = days.get(day) ?? new Map<string, CompetitionGroup>();
-    days.set(day, competitions);
-    const group = competitions.get(result.competition_id) ?? {
-      competition_id: result.competition_id,
-      competition: result.competition,
-      results: [],
-    };
-    group.results.push(result);
-    competitions.set(result.competition_id, group);
-  }
-  return [...days.entries()].map(([day, competitions]) => ({
-    day,
-    // Within a day, the same order the coupon lists competitions in — insertion order
-    // here is the order results happened to arrive in, which is no order at all.
-    competitions: [...competitions.values()].sort(compareCompetitions),
-  }));
-}
+function ResultsView({ results, timezone, requestedDate, onSelectDay }: ResultsViewProps) {
+  const days = useMemo(() => groupResultDays(results, timezone), [results, timezone]);
+  const day = resolveResultDay(days, requestedDate);
 
-function ResultsView({ results, timezone }: { results: ResultEntry[]; timezone: string }) {
-  const days = useMemo(() => groupByDay(results, timezone), [results, timezone]);
-
-  if (results.length === 0) {
+  if (!day) {
     return (
       <EmptyState
         title="No results yet"
@@ -177,56 +190,65 @@ function ResultsView({ results, timezone }: { results: ResultEntry[]; timezone: 
     );
   }
 
+  const { competitions } = day;
+
   return (
-    <div className="flex flex-col gap-4" data-testid="football-results">
-      {days.map(({ day, competitions }) => (
-        <section key={day}>
-          <h2 className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
-            {day}
-          </h2>
-          <div className="flex flex-col gap-3">
-            {competitions.map((group) => (
-              <div key={group.competition_id}>
-                {competitions.length > 1 && (
-                  <h3 className="mb-1 truncate font-mono text-[10px] uppercase tracking-[0.15em] text-text-muted">
-                    {group.competition}
-                  </h3>
-                )}
-                <ul className="overflow-hidden rounded-lg border border-border bg-surface">
-                  {group.results.map((result) => (
-                    <li
-                      key={result.match_id}
-                      className="flex items-center gap-3 border-b border-border/50 px-3 py-2.5 last:border-0"
-                      data-testid={`result-${result.match_id}`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-sans text-text-primary">
-                          <span className="font-medium">{result.home}</span>
-                          <span className="mx-1.5 text-text-muted">v</span>
-                          <span className="font-medium">{result.away}</span>
+    <div data-testid="football-results">
+      {/* Below two days there is nothing to move between, and a carousel offering one
+          stop is a control that changes nothing — the same rule `GameweekNav` and
+          `SeasonStrip` hide themselves under. */}
+      {days.length > 1 && (
+        <ResultDayCarousel days={days} selected={day.date} onSelect={onSelectDay} />
+      )}
+
+      <section>
+        {/* The full day, year included. The strip's chips are abbreviated to fit a row
+            of them, so this is the only place that says which season is on screen. */}
+        <h2 className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+          {day.label}
+        </h2>
+        <div className="flex flex-col gap-3">
+          {competitions.map((group) => (
+            <div key={group.competition_id}>
+              {competitions.length > 1 && (
+                <h3 className="mb-1 truncate font-mono text-[10px] uppercase tracking-[0.15em] text-text-muted">
+                  {group.competition}
+                </h3>
+              )}
+              <ul className="overflow-hidden rounded-lg border border-border bg-surface">
+                {group.results.map((result) => (
+                  <li
+                    key={result.match_id}
+                    className="flex items-center gap-3 border-b border-border/50 px-3 py-2.5 last:border-0"
+                    data-testid={`result-${result.match_id}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-sans text-text-primary">
+                        <span className="font-medium">{result.home}</span>
+                        <span className="mx-1.5 text-text-muted">v</span>
+                        <span className="font-medium">{result.away}</span>
+                      </p>
+                      {competitions.length === 1 && (
+                        <p className="truncate font-mono text-[10px] uppercase tracking-[0.15em] text-text-muted">
+                          {result.competition}
                         </p>
-                        {competitions.length === 1 && (
-                          <p className="truncate font-mono text-[10px] uppercase tracking-[0.15em] text-text-muted">
-                            {result.competition}
-                          </p>
-                        )}
-                      </div>
-                      <span className="shrink-0 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-xs font-semibold tabular-nums text-text-primary">
-                        <span className="sr-only">
-                          {result.home} {result.home_goals}, {result.away} {result.away_goals}
-                        </span>
-                        <span aria-hidden>
-                          {result.home_goals}–{result.away_goals}
-                        </span>
+                      )}
+                    </div>
+                    <span className="shrink-0 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-xs font-semibold tabular-nums text-text-primary">
+                      <span className="sr-only">
+                        {result.home} {result.home_goals}, {result.away} {result.away_goals}
                       </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
+                      <span aria-hidden>
+                        {result.home_goals}–{result.away_goals}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
