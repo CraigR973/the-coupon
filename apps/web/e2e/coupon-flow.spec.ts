@@ -230,13 +230,59 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   await expect(seededCard).toContainText('#2'); // Bob's 24 beat Alice's 19
   await expect(seededCard).toContainText('of 3');
   await expect(seededCard).toContainText('19 pts');
+
+  // Batch 106. The round has settled, so this card is between rounds and its primary
+  // part may not carry last round's pick or price — those belong under `Last result`.
+  await expect(seededCard.getByText('Between rounds')).toBeVisible();
+  const seededPrimary = seededCard.locator('button').first();
+  await expect(seededPrimary).not.toContainText('Arsenal');
+  await expect(seededPrimary).not.toContainText('1.90');
+  await expect(seededCard.getByTestId('last-result')).toContainText('Arsenal');
+  await expect(seededCard.getByTestId('last-result')).toContainText('Last result');
+
+  // The hero's blurred corner layers are clipped to the hero's own radius, so nothing
+  // coloured protrudes past its top-right or bottom-left corner.
+  const glowClip = await alice.getByTestId('home-hero-glows').evaluate((node) => {
+    const style = getComputedStyle(node);
+    const hero = node.parentElement!.getBoundingClientRect();
+    const box = node.getBoundingClientRect();
+    return {
+      clipPath: style.clipPath,
+      overflow: style.overflow,
+      backgroundImage: style.backgroundImage,
+      filter: style.filter,
+      children: node.childElementCount,
+      radius: style.borderTopRightRadius,
+      withinHero:
+        box.left >= hero.left - 0.5 &&
+        box.right <= hero.right + 0.5 &&
+        box.top >= hero.top - 0.5 &&
+        box.bottom <= hero.bottom + 0.5,
+    };
+  });
+  expect(glowClip.overflow).toBe('hidden');
+  // The `var()` resolves rather than falling back to `none`, and it carries the hero's
+  // own radius — this is the assertion that the corner clip is real and not inherited.
+  expect(glowClip.clipPath).toContain('inset');
+  expect(glowClip.radius).toBe('28px');
+  expect(glowClip.withinHero).toBe(true);
+  // Backgrounds, not filtered children: nothing here has a rendering context that could
+  // paint past the rounded corners on WebKit.
+  expect(glowClip.children).toBe(0);
+  expect(glowClip.filter).toBe('none');
+  expect(glowClip.backgroundImage).toContain('radial-gradient');
+
   for (const theme of ['dark', 'light'] as const) {
     await setTheme(alice, theme);
     await expect(alice.getByTestId('home-hero')).toContainText('Hi Alice');
     await expect(alice.getByTestId('home-season-summary')).toContainText('19');
     await expectNoAxeViolations(alice);
+    await expectNoColourContrastViolations(alice);
     await alice.screenshot({
       path: join(ARTIFACT_DIR, `batch-97-home-${theme}-390x844.png`),
+    });
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-106-home-single-${theme}-390x844.png`),
     });
   }
 
@@ -256,7 +302,18 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   const newCard = alice.getByTestId('home-card-work-league');
   await expect(newCard).toContainText('No coupon published yet');
   await expect(newCard).toContainText('of 1');
+  // Two leagues, two states, from each league's own summary rather than a shared week.
+  await expect(newCard.getByText('Between rounds')).toBeVisible();
+  await expect(alice.getByTestId('home-card-the-coupon').getByText('Between rounds')).toBeVisible();
   await alice.screenshot({ path: join(ARTIFACT_DIR, 'home-multi-league.png'), fullPage: true });
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(alice, theme);
+    await expect(alice.getByTestId('home-league-cards').locator('> li')).toHaveCount(2);
+    await expectNoAxeViolations(alice);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-106-home-multi-${theme}-390x844.png`),
+    });
+  }
 
   // One tap opens that league's coupon at that league's own address (Batch 30):
   // the new league has no round, so the pick screen shows its empty state rather

@@ -8,14 +8,17 @@ import type {
   CrossLeagueSummary,
   FormRound,
   GameweekStatus,
-  LastResult,
+  MyPick,
+  OddsFormat,
   PerLeagueSummary,
 } from '../lib/types';
-import { formatOdds, outcomeLabel, roundName } from '../lib/coupon';
+import { fixtureContext, formatOdds, outcomeLabel, roundName } from '../lib/coupon';
+import { HOME_CARD_STATE, homeCardState, showsCouponFigures } from '../lib/home';
 import { predictionsPath } from '../lib/leagues';
-import { formatCalendarDate, parseInstant } from '../lib/time';
+import { formatCalendarDate, formatInstant, parseInstant } from '../lib/time';
 import { PickFormLine } from '../components/PickFormLine';
 import { EmptyState } from '../components/EmptyState';
+import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '../lib/utils';
 
@@ -217,13 +220,29 @@ function HomeHero({
       data-testid="home-hero"
       aria-labelledby="home-heading"
     >
+      {/*
+        Batch 106. These were two `blur-3xl` circles hung outside the hero's edges and left
+        to `overflow-hidden` to contain them, which is not something every engine does: a
+        `filter` gives a child its own rendering context, and WebKit lets such a child paint
+        past the parent's *rounded* corners even while the straight edges clip. The result
+        on Safari was a coloured bloom sitting outside the hero's top-right and bottom-left
+        corners.
+
+        The fix removes the disagreement rather than patching around it. The glows are now
+        radial gradients painted as this layer's own background, and a background is clipped
+        by `border-radius` in every engine because there is no separate rendering context to
+        escape from — no filter, nothing hanging outside the box. `overflow-hidden` and the
+        matching `clip-path` stay as a second and third line, so a future change that
+        reintroduces a filtered child is still contained.
+      */}
       <div
-        className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-[var(--primary-glow)] blur-3xl"
+        className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl [clip-path:inset(0_round_var(--radius-2xl))]"
+        style={{
+          backgroundImage:
+            'radial-gradient(220px 190px at 108% -12%, var(--primary-glow), transparent 68%), radial-gradient(240px 210px at -12% 112%, var(--accent-glow), transparent 68%)',
+        }}
         aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute -bottom-24 -left-20 h-44 w-44 rounded-full bg-[var(--accent-glow)] blur-3xl"
-        aria-hidden
+        data-testid="home-hero-glows"
       />
 
       <div className="relative">
@@ -242,9 +261,11 @@ function HomeHero({
           </p>
         ) : (
           <div className="mt-2">
+            {/* Not "the week": a league sets its own window, and several of them do not
+                land on the same one. */}
             <p className="font-sans text-sm text-text-secondary">
-              {leagueCount} {leagueCount === 1 ? 'league' : 'leagues'}, one clear view of the
-              week.
+              {leagueCount} {leagueCount === 1 ? 'league' : 'leagues'}, one clear view of
+              every round.
             </p>
             <div className="mt-2" data-testid="home-next-action">
               <p className="font-sans text-lg font-semibold leading-snug text-text-primary">
@@ -311,6 +332,20 @@ function HeroStat({ label, value }: { label: string; value: string | number }) {
   );
 }
 
+/**
+ * One league's card: its state, its next action, and — separately and under its own
+ * heading — how its last round went.
+ *
+ * Batch 106. The card used to be a stack of whatever fields were present, in the order
+ * they happened to be written, and on the commonest Sunday shape that produced a lie: a
+ * settled round's pick, fold and combined odds printed as the body, with `Next opens in
+ * 2d` beside them. Two rounds, one paragraph, and only the clock said which was which.
+ *
+ * The state now decides. `homeCardState` names it, the primary part of the card carries
+ * only what that state's next action needs, and everything about the round just gone lives
+ * below under `Last result`. Every input is this league's own — its window, its round, its
+ * members — because a member in three leagues is playing three different weeks.
+ */
 function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
   const oddsFormat = useOddsFormat();
   const navigate = useNavigate();
@@ -326,7 +361,31 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
   // rules out a round settlement has finished with.
   const notOpenYet =
     !!round?.picks_open_at_utc && !openCountdown.expired && PICKABLE.has(round.status);
-  const locked = !round || !PICKABLE.has(round.status) || notOpenYet || countdown.expired;
+  const claimingShut = !round || !PICKABLE.has(round.status) || countdown.expired;
+
+  const state = homeCardState({
+    hasRound: !!round,
+    settled: round?.status === 'settled',
+    notOpenYet,
+    claimingShut,
+    mine: !!round?.my_pick,
+  });
+  const { label: stateLabel, variant: stateVariant } = HOME_CARD_STATE[state];
+  const showFigures = showsCouponFigures(state) && !!round && round.leg_count > 0;
+  const lastRound = lastRoundView(entry);
+
+  // The clock belongs to whichever round the state is about — this one while it is live,
+  // the next one once this one is done with. They are never both on screen.
+  const clock =
+    state === 'between_rounds'
+      ? notOpenYet
+        ? `Opens in ${formatCountdown(openCountdown)}`
+        : nextOpens
+          ? `Next opens in ${formatCountdown(nextOpenCountdown)}`
+          : null
+      : state === 'round_in_progress'
+        ? 'Locked'
+        : `Locks in ${formatCountdown(countdown)}`;
 
   // The coupon has its own address per league now, so opening another league's
   // week is just going there: the destination binds the context, rather than this
@@ -350,61 +409,51 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
           <ArrowRight className="h-5 w-5 shrink-0 text-text-muted" aria-hidden />
         </div>
 
-        {!round ? (
-          <p className="font-sans text-sm leading-relaxed text-text-muted">
-            {nextOpens
-              ? `Picks open in ${formatCountdown(nextOpenCountdown)}.`
-              : 'No coupon published yet.'}
-          </p>
-        ) : round.my_pick ? (
-          <>
-            <p className="font-sans text-base font-medium text-text-primary">
-              {outcomeLabel(
-                round.my_pick.market,
-                round.my_pick.outcome,
-                round.my_pick.home,
-                round.my_pick.away,
-              )}
-              <span className="mx-1.5 text-text-muted">·</span>
-              <span className="font-mono tabular-nums">
-                {formatOdds(round.my_pick.odds, oddsFormat)}
-              </span>
-            </p>
-            <p className="mt-1 truncate font-sans text-sm text-text-muted">
-              {round.my_pick.home} v {round.my_pick.away}
-            </p>
-          </>
-        ) : (
-          <p className="font-sans text-base font-medium text-warning">
-            {notOpenYet
-              ? 'Picks haven’t opened yet'
-              : locked
-                ? 'No pick made this week'
-                : 'You haven’t grabbed a selection yet'}
-          </p>
-        )}
-
-        {round && (
-          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-text-muted">
-            <span className="flex items-center gap-1.5">
-              {locked && !notOpenYet ? (
+        <div
+          className="mb-3 flex flex-wrap items-center justify-between gap-2"
+          data-testid={`home-state-${entry.slug}`}
+        >
+          <Badge variant={stateVariant}>{stateLabel}</Badge>
+          {clock && (
+            <span className="flex items-center gap-1.5 font-mono text-xs tabular-nums text-text-secondary">
+              {state === 'round_in_progress' ? (
                 <Lock className="h-3.5 w-3.5" aria-hidden />
               ) : (
                 <Clock className="h-3.5 w-3.5" aria-hidden />
               )}
-              <span className="tabular-nums">
-                {round.status === 'settled'
-                  ? nextOpens
-                    ? `Next opens in ${formatCountdown(nextOpenCountdown)}`
-                    : 'Settled'
-                  : notOpenYet
-                    ? `Opens in ${formatCountdown(openCountdown)}`
-                    : locked
-                      ? 'Locked'
-                      : `Locks in ${formatCountdown(countdown)}`}
-              </span>
+              {clock}
             </span>
-            {round.leg_count > 0 && (
+          )}
+        </div>
+
+        {state === 'between_rounds' ? (
+          <p className="font-sans text-sm leading-relaxed text-text-muted">
+            {notOpenYet
+              ? 'Picks haven’t opened yet'
+              : entry.next_opens_at_utc
+                ? `Next round opens ${formatInstant(entry.next_opens_at_utc, 'UTC', 'EEE d MMM') ?? 'soon'}`
+                : round
+                  ? 'Nothing to pick right now'
+                  : 'No coupon published yet'}
+          </p>
+        ) : round?.my_pick ? (
+          <MyPickLine pick={round.my_pick} oddsFormat={oddsFormat} />
+        ) : (
+          <p className="font-sans text-base font-medium text-warning">
+            {state === 'round_in_progress'
+              ? 'No pick made this round'
+              : 'You haven’t grabbed a selection yet'}
+          </p>
+        )}
+
+        {round && state !== 'between_rounds' && (
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-text-muted">
+            {/* This league's progress, from this league's own member count — the number a
+                member actually asks for while a deadline is running. */}
+            <span className="tabular-nums" data-testid={`home-progress-${entry.slug}`}>
+              {round.leg_count} of {entry.member_count} picked
+            </span>
+            {showFigures && (
               <span className="tabular-nums">
                 {round.leg_count}-fold · {formatOdds(round.combined_odds, oddsFormat)}
               </span>
@@ -413,9 +462,7 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
         )}
       </button>
 
-      {entry.last_result && (
-        <LastResultPanel result={entry.last_result} form={entry.recent_form} />
-      )}
+      {lastRound && <LastResultPanel round={lastRound} form={entry.recent_form} />}
 
       <Link
         to={`/leagues/${entry.slug}/leaderboard`}
@@ -438,14 +485,79 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
   );
 }
 
+/** The member's own claim, as the card's primary line. */
+function MyPickLine({ pick, oddsFormat }: { pick: MyPick; oddsFormat: OddsFormat }) {
+  return (
+    <>
+      <p className="font-sans text-base font-medium text-text-primary">
+        {outcomeLabel(pick.market, pick.outcome, pick.home, pick.away)}
+        <span className="mx-1.5 text-text-muted">·</span>
+        <span className="font-mono tabular-nums">{formatOdds(pick.odds, oddsFormat)}</span>
+      </p>
+      <p className="mt-1 truncate font-sans text-sm text-text-muted">
+        {fixtureContext(pick.market, pick.outcome, pick.home, pick.away)}
+      </p>
+    </>
+  );
+}
+
+/** The round just gone, in the shape the panel below draws. */
+interface LastRoundView {
+  label: string;
+  movement: number | null;
+  mine: MyPick | null;
+  legCount: number;
+  /** `null` when the source could not say how many landed. */
+  picksWon: number | null;
+  combinedOdds: number;
+}
+
 /**
- * How the week just gone actually went (Batch 79).
+ * Which round the `Last result` panel is reporting, and where its figures come from.
+ *
+ * `last_result` is the answer whenever the API sends one. The fallback matters because
+ * Batch 106 takes the settled round's pick, fold and odds *out* of the primary card: on an
+ * API that predates Batch 79 there would otherwise be nowhere left for them, and a settled
+ * round would show a member nothing at all. `current_round` cannot say how many legs
+ * landed, so that line is simply absent rather than guessed.
+ */
+function lastRoundView(entry: PerLeagueSummary): LastRoundView | null {
+  const result = entry.last_result;
+  if (result) {
+    return {
+      label: roundName(result.number, formatCalendarDate(result.starts_on, 'EEE d MMM')),
+      movement: result.rank_movement ?? null,
+      mine: result.my_pick,
+      legCount: result.leg_count,
+      picksWon: result.picks_won,
+      combinedOdds: result.combined_odds,
+    };
+  }
+  const round = entry.current_round;
+  if (!round || round.status !== 'settled') return null;
+  return {
+    label: formatCalendarDate(round.starts_on, 'EEE d MMM'),
+    movement: null,
+    mine: round.my_pick,
+    legCount: round.leg_count,
+    picksWon: null,
+    combinedOdds: round.combined_odds,
+  };
+}
+
+/**
+ * How the round just gone actually went (Batch 79).
  *
  * Four facts the card printed the word `Settled` in place of: whether the member's pick
  * came in, what it scored, how many of the league's picks landed, and whether they moved
  * in the table. It is a sibling of the coupon button rather than part of it because the
  * two answer different rounds — on most leagues the round above this panel is next
  * week's, not the one being reported.
+ *
+ * Batch 106 made that separation load-bearing rather than tidy. The primary card no longer
+ * carries a settled round's pick or price at all, so this panel is the *only* place they
+ * appear, and it is labelled `Last result` so nothing here can be mistaken for the round
+ * the clock above is counting down to.
  *
  * Movement never rides on colour alone: the arrow is decorative and the direction is a
  * word underneath it, the same rule the live scoreline follows.
@@ -454,20 +566,17 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
  * Two reasons, and the second is the binding one: a run belongs with "how it is going"
  * rather than beside a tap target, and `PickFormLine` carries a `role="img"` label that
  * spells the run out in words — nested in a link, that whole sentence is appended to the
- * link's accessible name. A member with any form necessarily has a `last_result`, since
- * both come from a settled round holding that member's pick, so this panel can never be
- * the thing that hides a run.
+ * link's accessible name.
  */
-function LastResultPanel({ result, form }: { result: LastResult; form?: FormRound[] }) {
-  const movement = result.rank_movement;
-  const mine = result.my_pick;
-  const label = roundName(result.number, formatCalendarDate(result.starts_on, 'EEE d MMM'));
+function LastResultPanel({ round, form }: { round: LastRoundView; form?: FormRound[] }) {
+  const oddsFormat = useOddsFormat();
+  const { movement, mine } = round;
 
   return (
     <div className="border-t border-border px-5 py-4" data-testid="last-result">
       <div className="flex items-center justify-between gap-3">
         <p className="truncate font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
-          Result · {label}
+          Last result · {round.label}
         </p>
         {movement != null && movement !== 0 && (
           <span
@@ -512,11 +621,23 @@ function LastResultPanel({ result, form }: { result: LastResult; form?: FormRoun
         )}
       </p>
 
+      {mine && (
+        <p className="mt-0.5 truncate font-sans text-sm text-text-muted">
+          {outcomeLabel(mine.market, mine.outcome, mine.home, mine.away)}
+          <span className="mx-1.5">·</span>
+          <span className="font-mono tabular-nums">{formatOdds(mine.odds, oddsFormat)}</span>
+          <span className="mx-1.5">·</span>
+          {fixtureContext(mine.market, mine.outcome, mine.home, mine.away)}
+        </p>
+      )}
+
       <div className="mt-1 flex items-end justify-between gap-3">
         <p className="font-sans text-sm text-text-muted">
-          {result.leg_count === 0
-            ? 'Nobody picked this round'
-            : `${result.picks_won} of ${result.leg_count} ${result.leg_count === 1 ? 'pick' : 'picks'} landed`}
+          {round.picksWon === null
+            ? `${round.legCount}-fold · ${formatOdds(round.combinedOdds, oddsFormat)}`
+            : round.legCount === 0
+              ? 'Nobody picked this round'
+              : `${round.picksWon} of ${round.legCount} ${round.legCount === 1 ? 'pick' : 'picks'} landed · ${round.legCount}-fold · ${formatOdds(round.combinedOdds, oddsFormat)}`}
         </p>
         <PickFormLine form={form} className="shrink-0" />
       </div>

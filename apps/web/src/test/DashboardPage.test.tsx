@@ -182,7 +182,7 @@ describe('DashboardPage', () => {
     const summary = await screen.findByTestId('home-season-summary');
     const hero = screen.getByTestId('home-hero');
     expect(hero.textContent).toContain('Hi Alice');
-    expect(hero.textContent).toContain('2 leagues, one clear view of the week');
+    expect(hero.textContent).toContain('2 leagues, one clear view of every round');
 
     expect(summary.textContent).toContain('Points57');
     expect(summary.textContent).toContain('Picks won3/5');
@@ -250,7 +250,10 @@ describe('DashboardPage', () => {
     const mine = await screen.findByTestId('home-card-the-coupon');
     expect(mine.textContent).toContain('Arsenal');
     expect(mine.textContent).toContain('1.90');
-    expect(mine.textContent).toContain('3-fold');
+    // Batch 106: while picks are open the card carries this league's progress rather
+    // than a fold that changes every time anybody in it claims anything.
+    expect(mine.textContent).toContain('3 of 4 picked');
+    expect(mine.textContent).not.toContain('3-fold');
     expect(mine.textContent).toContain('#1');
     expect(mine.textContent).toContain('of 4');
     expect(mine.textContent).toContain('38 pts');
@@ -524,5 +527,178 @@ describe('the week just gone', () => {
     const card = await screen.findByTestId('home-card-the-coupon');
     expect(card.textContent).toContain('Next opens in');
     expect(card.textContent).not.toContain('Settled');
+  });
+});
+
+/**
+ * Batch 106 — one explicit state per card, and one round per part of it.
+ *
+ * The defect these pin down was on the commonest Sunday shape in the product: a settled
+ * round with a future opening printed last week's pick, fold and combined odds as the
+ * card's body with `Next opens in 2d` beside them. Nothing said the two belonged to
+ * different rounds, so the odds read as the price of the round being counted down to.
+ */
+describe('a league card’s state', () => {
+  /** `SUMMARY`'s first league only, patched. */
+  function onlyFirst(entry: Partial<CrossLeagueSummary['per_league'][number]>) {
+    return {
+      ...SUMMARY,
+      leagues_count: 1,
+      per_league: [{ ...SUMMARY.per_league[0], ...entry }],
+    };
+  }
+
+  it('says a pick is required when the member holds none and the round is open', async () => {
+    stubFetch();
+    renderPage();
+    const card = await screen.findByTestId('home-card-work-league');
+    expect(within(card).getByText('Pick required')).toBeTruthy();
+    expect(card.textContent).toContain('Locks in');
+    expect(card.textContent).toContain('2 of 8 picked');
+  });
+
+  it('says the pick is submitted once the member is in', async () => {
+    stubFetch();
+    renderPage();
+    const card = await screen.findByTestId('home-card-the-coupon');
+    expect(within(card).getByText('Pick submitted')).toBeTruthy();
+    expect(card.textContent).toContain('Locks in');
+  });
+
+  it('says a round is in progress once claiming has stopped', async () => {
+    stubFetch(
+      onlyFirst({
+        current_round: {
+          ...SUMMARY.per_league[0].current_round!,
+          status: 'locked',
+        },
+      }),
+    );
+    renderPage();
+    const card = await screen.findByTestId('home-card-the-coupon');
+    expect(within(card).getByText('Round in progress')).toBeTruthy();
+    // The fold is frozen now, so this is the one state where it is a fact about today.
+    expect(card.textContent).toContain('3-fold');
+    expect(card.textContent).toContain('12.50');
+  });
+
+  it('says a league is between rounds when its round has settled', async () => {
+    stubFetch(
+      onlyFirst({
+        current_round: { ...SUMMARY.per_league[0].current_round!, status: 'settled' },
+        next_opens_at_utc: FAR_FUTURE,
+      }),
+    );
+    renderPage();
+    const card = await screen.findByTestId('home-card-the-coupon');
+    expect(within(card).getByText('Between rounds')).toBeTruthy();
+  });
+
+  /** The regression. A settled round, a future opening, and the two must not blur. */
+  it('keeps a settled round’s pick and odds out of the primary card', async () => {
+    stubFetch(
+      onlyFirst({
+        current_round: { ...SUMMARY.per_league[0].current_round!, status: 'settled' },
+        next_opens_at_utc: FAR_FUTURE,
+      }),
+    );
+    renderPage();
+
+    const card = await screen.findByTestId('home-card-the-coupon');
+    const primary = card.querySelector('button')!;
+    expect(primary.textContent).toContain('Next opens in');
+    // None of last round's figures may sit beside that clock.
+    expect(primary.textContent).not.toContain('Arsenal');
+    expect(primary.textContent).not.toContain('1.90');
+    expect(primary.textContent).not.toContain('3-fold');
+    expect(primary.textContent).not.toContain('12.50');
+    expect(primary.textContent).not.toContain('picked');
+  });
+
+  it('moves that round’s pick, fold and odds under Last result instead', async () => {
+    // No `last_result` in this response, which is the deploy-gap shape: an API that
+    // predates Batch 79 sends none. The figures still have to land somewhere labelled.
+    stubFetch(
+      onlyFirst({
+        current_round: { ...SUMMARY.per_league[0].current_round!, status: 'settled' },
+        next_opens_at_utc: FAR_FUTURE,
+      }),
+    );
+    renderPage();
+
+    const panel = await screen.findByTestId('last-result');
+    expect(panel.textContent).toContain('Last result');
+    expect(panel.textContent).toContain('Arsenal');
+    expect(panel.textContent).toContain('1.90');
+    expect(panel.textContent).toContain('3-fold');
+    expect(panel.textContent).toContain('12.50');
+    // `current_round` cannot say how many legs landed, so that line is absent rather
+    // than guessed at.
+    expect(panel.textContent).not.toContain('landed');
+  });
+
+  it('names the last result’s own round, never the one being counted down to', async () => {
+    stubFetch(withResult());
+    renderPage();
+    const panel = await screen.findByTestId('last-result');
+    expect(panel.textContent).toContain('Last result · Gameweek 4');
+  });
+
+  it('reads each league’s window and progress from that league alone', async () => {
+    // Two leagues, two different states, two different denominators. Nothing here may
+    // come from a shared Saturday: one is open and short of picks, the other settled.
+    stubFetch({
+      ...SUMMARY,
+      per_league: [
+        {
+          ...SUMMARY.per_league[0],
+          current_round: { ...SUMMARY.per_league[0].current_round!, status: 'settled' },
+          next_opens_at_utc: FAR_FUTURE,
+        },
+        SUMMARY.per_league[1],
+      ],
+    });
+    renderPage();
+
+    const settled = await screen.findByTestId('home-card-the-coupon');
+    const open = screen.getByTestId('home-card-work-league');
+    expect(within(settled).getByText('Between rounds')).toBeTruthy();
+    expect(within(open).getByText('Pick required')).toBeTruthy();
+    expect(settled.querySelector('button')!.textContent).toContain('Next opens in');
+    expect(open.textContent).toContain('2 of 8 picked');
+    expect(open.textContent).not.toContain('Next opens in');
+  });
+});
+
+/**
+ * Batch 106 — the hero's corner glows.
+ *
+ * They used to be blurred circles hung outside the hero's edges, and `overflow-hidden`
+ * alone does not hold those: a filtered child gets its own rendering context and WebKit
+ * lets it paint past the parent's rounded corners. They are backgrounds now, which every
+ * engine clips to `border-radius` because there is no context to escape from. jsdom paints
+ * nothing, so what is asserted is that arrangement rather than the pixels.
+ */
+describe('the hero’s corner glows', () => {
+  it('paints both glows as one clipped layer’s background, not as filtered children', async () => {
+    renderPage();
+    const glows = await screen.findByTestId('home-hero-glows');
+    expect(glows.className).toContain('rounded-2xl');
+    expect(glows.className).toContain('overflow-hidden');
+    expect(glows.className).toContain('clip-path');
+    // No child element to escape the corners, and no blur filter to make one.
+    expect(glows.children).toHaveLength(0);
+    expect(glows.className).not.toContain('blur');
+
+    const background = glows.style.backgroundImage;
+    expect(background).toContain('--primary-glow');
+    expect(background).toContain('--accent-glow');
+    // Anchored past the two corners the review named, so the visible part of each glow
+    // is its falloff rather than its hottest point.
+    expect(background).toContain('at 108% -12%');
+    expect(background).toContain('at -12% 112%');
+
+    // And the layer is the hero's own child, so it can only ever clip to the hero.
+    expect(screen.getByTestId('home-hero').contains(glows)).toBe(true);
   });
 });
