@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown } from 'lucide-react';
 import { apiFetch } from '../lib/api';
@@ -27,7 +27,7 @@ import type {
 } from '../lib/types';
 import { competitionRank } from '../lib/competitions';
 import { couponLeads, fixtureContext, outcomeLabel, roundName, roundPhase } from '../lib/coupon';
-import { COUPON_SECTION_HASH, COUPON_SECTION_ID } from '../lib/leagues';
+import { COUPON_SECTION_HASH, COUPON_SECTION_ID, couponSectionPath } from '../lib/leagues';
 import { formatCalendarDate } from '../lib/time';
 import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
@@ -37,6 +37,7 @@ import { PickCard } from '../components/PickCard';
 import { CouponSection } from '../components/CouponSection';
 import { RoundStatus, type MyClaim } from '../components/RoundStatus';
 import { OutstandingPickNotice } from '../components/OutstandingPickNotice';
+import { CouponCompleteNotice } from '../components/CouponCompleteNotice';
 import { GameweekNav } from '../components/GameweekNav';
 import { EmptyState } from '../components/EmptyState';
 import { entriesForRound } from '../components/PickRow';
@@ -44,6 +45,21 @@ import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '../lib/utils';
 
 const FAR_PAST = new Date(0).toISOString();
+
+/**
+ * Put the reader in the round's copy section — the fold, the frozen price and the control
+ * that copies them.
+ *
+ * Focus and not scroll alone: the section is what they asked for, so it should also be
+ * where the keyboard is. `COUPON_SECTION_ID` is the one address it answers at, exported
+ * from `lib/leagues` so the anchor, the redirect and every link into it agree.
+ */
+function focusCouponSection(): void {
+  const target = document.getElementById(COUPON_SECTION_ID);
+  if (!target) return;
+  target.focus({ preventScroll: true });
+  target.scrollIntoView?.({ block: 'start' });
+}
 
 /** The two states a round can still be claimed in — settlement has finished with the rest. */
 const PICKABLE: ReadonlySet<GameweekStatus> = new Set(['scheduled', 'open']);
@@ -165,11 +181,23 @@ export function CurrentRoundPage() {
   // Anchored on the round the slate actually came back with, which on the default view
   // is the API's choice rather than the newest date (see `useGameweekHistory`).
   const history = useGameweekHistory(slug, hasLeagues, slate?.gameweek_id);
+  const navigate = useNavigate();
 
   const countdown = useCountdown(slate?.locks_at_utc ?? FAR_PAST);
   const openCountdown = useCountdown(slate?.picks_open_at_utc ?? FAR_PAST);
-  const { submit, pendingKey, isSubmitting, outstanding, resolveOutstanding, discardOutstanding } =
-    usePickEditor(slug, slate?.gameweek_id);
+  // Read before the editor because the editor needs it: only a member who did *not*
+  // already hold a pick can have been the one who filled the coupon (Batch 108).
+  const myPick = findMyPick(slate);
+  const {
+    submit,
+    pendingKey,
+    isSubmitting,
+    outstanding,
+    resolveOutstanding,
+    discardOutstanding,
+    completion,
+    dismissCompletion,
+  } = usePickEditor(slug, slate?.gameweek_id, { holdsPick: !!myPick });
 
   // Mirrors the API's own rule (`pick_refusal`): the stored instants decide both ends of
   // the claim period and `status` only rules out a round settlement has finished with.
@@ -186,7 +214,6 @@ export function CurrentRoundPage() {
   // needs to tell "too early" from "too late" and the selections do not.
   const claimingShut = !slate || !PICKABLE.has(slate.status) || countdown.expired;
   const locked = claimingShut || notOpenYet;
-  const myPick = findMyPick(slate);
   const groups = useMemo(() => groupByCompetition(slate?.fixtures ?? []), [slate?.fixtures]);
 
   const memberCount = slate?.members.length ?? 0;
@@ -233,11 +260,23 @@ export function CurrentRoundPage() {
   // it should also be where the keyboard is.
   useEffect(() => {
     if (hash !== COUPON_SECTION_HASH) return;
-    const target = document.getElementById(COUPON_SECTION_ID);
-    if (!target) return;
-    target.focus({ preventScroll: true });
-    target.scrollIntoView?.({ block: 'start' });
+    focusCouponSection();
   }, [hash, coupon?.gameweek_id, slate?.gameweek_id]);
+
+  // The completion hand-off (Batch 108). It navigates as well as focusing, so the address
+  // bar names the round that was completed and the link is shareable — and it focuses
+  // directly rather than leaving it to the effect above, because a member who arrived
+  // from a notification is *already* at `#coupon`, and an unchanged hash fires nothing.
+  //
+  // It does not write to the clipboard. The copy control lives in the section this opens
+  // and the member presses it themselves; a submission that silently replaced whatever
+  // they had copied would be a worse surprise than the extra tap.
+  const openCompletedCoupon = () => {
+    if (!completion) return;
+    dismissCompletion();
+    navigate(couponSectionPath(slug, completion.gameweekId));
+    focusCouponSection();
+  };
 
   if (!leaguesLoading && !hasLeagues) {
     return (
@@ -367,6 +406,20 @@ export function CurrentRoundPage() {
           oddsFormat={oddsFormat}
           canSwitch={!locked}
         />
+      )}
+
+      {/* Above both blocks rather than inside either, because which of them leads flips
+          at exactly this moment: a complete coupon outranks the deadline (Batch 105), so
+          the surface reorders underneath the member on the same paint that offers them
+          this. A hand-off anchored inside the slate would move with it. */}
+      {completion && (
+        <div className="mb-4">
+          <CouponCompleteNotice
+            memberCount={completion.memberCount}
+            onOpen={openCompletedCoupon}
+            onDismiss={dismissCompletion}
+          />
+        </div>
       )}
 
       {isLoading && (

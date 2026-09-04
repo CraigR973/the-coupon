@@ -261,6 +261,22 @@ describe('SettingsPage', () => {
       expect(decimal.getAttribute('aria-checked')).toBe('false');
     });
   });
+
+  // ── Batch 108: the per-league switch is named for what it does ──────────────
+
+  it('calls the per-league switch notifications, and says it silences all of them', async () => {
+    renderPage(makeFetch(PREFS_WITH_LEAGUES));
+
+    // It gates every league-scoped push — the round opening, other members' picks, the
+    // all-picks completion and a returned pick, as well as the pre-lock reminder. Calling
+    // it "reminders" named one of the five, so a member muting a league to stop being
+    // nagged was also switching off the alert that their claim had been handed back.
+    expect(await screen.findByText(/per-league notifications/i)).toBeTruthy();
+    expect(
+      screen.getByText(/silences all of its notifications, not just reminders/i),
+    ).toBeTruthy();
+    expect(screen.queryByText(/per-league reminders/i)).toBeNull();
+  });
 });
 
 // ── Profile picture (Batch 44) ────────────────────────────────────────────────

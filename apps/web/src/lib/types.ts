@@ -236,6 +236,28 @@ export interface PickResponse {
   points_awarded: number | null;
 }
 
+/**
+ * What `POST .../picks` answers with — the pick, plus how full the coupon now is.
+ *
+ * Only the submit path carries these three (Batch 107). `GET .../gameweeks/{id}/pick`
+ * answers "what did I pick", which is a question about one member and returns the plain
+ * `PickResponse`, so the reconcile read in `usePickEditor` is deliberately typed without
+ * them.
+ *
+ * They exist so the member who fills the coupon can be shown the completion state on the
+ * same paint as their pick, rather than through a refetch racing the write that caused
+ * it — and they are the same numbers the league's push quotes, read once server-side, so
+ * the screen and the tray cannot disagree.
+ */
+export interface SubmitPickResponse extends PickResponse {
+  /** Active members of the league holding a pick for this round, this one included. */
+  picked_count: number;
+  /** Active members of the league, whatever they have done with their notifications. */
+  member_count: number;
+  /** Whether the round's coupon is now full. False for an empty league. */
+  all_picked: boolean;
+}
+
 // ── Combined coupon — GET /leagues/{slug}/coupon ───────────────────────────
 
 export interface CouponLeg {

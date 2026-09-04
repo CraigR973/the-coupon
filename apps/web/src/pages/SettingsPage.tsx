@@ -284,7 +284,15 @@ function PreferencesSection() {
 
       {prefs.leagues.length > 0 && (
         <div className="pt-3 border-t border-border">
-          <p className="text-sm font-sans text-text-secondary mb-2">Per-league reminders</p>
+          {/* Batch 108: "reminders" named one of the five things this switch silences.
+              It gates every league-scoped push — the round opening, other members' picks,
+              the all-picks completion and a returned pick as well as the pre-lock
+              reminder — so a member muting a league to stop being nagged was also
+              switching off the alert that their claim had been handed back. */}
+          <p className="text-sm font-sans text-text-secondary mb-1">Per-league notifications</p>
+          <p className="text-xs font-sans text-text-muted mb-2">
+            Turning a league off silences all of its notifications, not just reminders.
+          </p>
           <div className="space-y-0.5">
             {prefs.leagues.map((league) => (
               <Toggle

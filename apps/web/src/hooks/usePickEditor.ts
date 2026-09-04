@@ -4,7 +4,13 @@ import { toast } from 'sonner';
 import { ApiError, NetworkError, apiFetch } from '../lib/api';
 import { useOddsFormat } from './useOddsFormat';
 import { formatOdds, selectionKey } from '../lib/coupon';
-import type { PickMarket, PickOutcome, PickResponse, SubmitPickBody } from '../lib/types';
+import type {
+  PickMarket,
+  PickOutcome,
+  PickResponse,
+  SubmitPickBody,
+  SubmitPickResponse,
+} from '../lib/types';
 
 // Query keys the pick screen + combined view read; a successful grab invalidates
 // all three so the slate re-fetches taken-flags, the coupon rebuilds, and "my
@@ -97,6 +103,40 @@ export interface PickEditor {
   resolveOutstanding: () => void;
   /** Drop the held intent without sending it — the member decided against it. */
   discardOutstanding: () => void;
+  /**
+   * Set when the submission just made was the one that filled the coupon. Batch 108.
+   *
+   * `null` at every other moment, including on a round that was already complete when
+   * this member picked into it — see `RoundCompletion`.
+   */
+  completion: RoundCompletion | null;
+  /** Clear the completion hand-off once the member has taken it, or dismissed it. */
+  dismissCompletion: () => void;
+}
+
+/**
+ * The moment this member filled their league's coupon, held long enough to offer them
+ * something to do about it.
+ *
+ * **Why the client decides this rather than the API saying so.** `all_picked` is true for
+ * *anyone* who submits into a full coupon, including somebody changing their pick
+ * afterwards — the API distinguishes the real transition internally (Batch 107's insert
+ * against `uq_gameweek_completions_gameweek` arbitrates it) but does not return that
+ * distinction. It does not need to: **a change of pick cannot fill a coupon**, because it
+ * moves no count. So "this submission completed the round" is exactly `all_picked` on a
+ * submission by a member who did not already hold a pick, and that is a fact the screen
+ * already has.
+ *
+ * Held in memory only, like the outstanding-intent queue above and for the same reason:
+ * it is a thing that just happened to this person on this device, not a fact about the
+ * round, and a reload finding the coupon already complete should show them the coupon
+ * rather than re-congratulate them.
+ */
+export interface RoundCompletion {
+  /** The round they completed — the hand-off must open *that* one, not the current one. */
+  gameweekId: string;
+  /** Members in the league, both halves of the `12/12` the league's push quotes. */
+  memberCount: number;
 }
 
 /**
@@ -141,11 +181,24 @@ export interface PickEditor {
  * the tab while offline and comes back later — is one where re-picking is what they would
  * expect anyway.
  */
-export function usePickEditor(slug: string, gameweekId: string | undefined): PickEditor {
+export function usePickEditor(
+  slug: string,
+  gameweekId: string | undefined,
+  { holdsPick = false }: { holdsPick?: boolean } = {},
+): PickEditor {
   const queryClient = useQueryClient();
   const oddsFormat = useOddsFormat();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [outstanding, setOutstanding] = useState<OutstandingPick | null>(null);
+  const [completion, setCompletion] = useState<RoundCompletion | null>(null);
+
+  // Whether this member already held a pick, captured at the instant `submit` is called
+  // rather than read in `onSuccess`. By then the invalidation this hook fires may have
+  // refetched the slate, and the answer would be the post-submission one — which is
+  // always "yes", and would turn the completion hand-off off permanently.
+  const holdsPickRef = useRef(holdsPick);
+  holdsPickRef.current = holdsPick;
+  const heldAtSubmitRef = useRef(false);
 
   // The reconnect handler reads this, and it is registered once — a state value captured
   // in that closure would be whatever it was when the listener was attached.
@@ -213,7 +266,7 @@ export function usePickEditor(slug: string, gameweekId: string | undefined): Pic
 
   const mutation = useMutation({
     mutationFn: (body: SubmitPickBody) =>
-      apiFetch<PickResponse>(`/api/v1/leagues/${slug}/picks`, {
+      apiFetch<SubmitPickResponse>(`/api/v1/leagues/${slug}/picks`, {
         method: 'POST',
         body: JSON.stringify(body),
         timeoutMs: PICK_SUBMIT_TIMEOUT_MS,
@@ -221,6 +274,15 @@ export function usePickEditor(slug: string, gameweekId: string | undefined): Pic
     onSuccess: (pick) => {
       hold(null);
       invalidate();
+
+      // The completion **replaces** the grab toast rather than stacking on top of it,
+      // which is the same rule Batch 107 gave the push: one event reached the member, not
+      // two, and of the pair this is the one that says something they could not otherwise
+      // know. The price is still in the copy, so nothing is lost by dropping the other.
+      if (pick.all_picked && !heldAtSubmitRef.current) {
+        setCompletion({ gameweekId: pick.gameweek_id, memberCount: pick.member_count });
+        return;
+      }
       toast.success(`Grabbed ${pick.runner_name} @ ${formatOdds(pick.odds, oddsFormat)}`);
     },
     onError: (err, body) => {
@@ -253,6 +315,7 @@ export function usePickEditor(slug: string, gameweekId: string | undefined): Pic
 
 
   const send = useCallback((body: SubmitPickBody) => {
+    heldAtSubmitRef.current = holdsPickRef.current;
     setPendingKey(keyFor(body));
     mutateRef.current(body);
   }, []);
@@ -284,6 +347,8 @@ export function usePickEditor(slug: string, gameweekId: string | undefined): Pic
 
   const discardOutstanding = useCallback(() => hold(null), [hold]);
 
+  const dismissCompletion = useCallback(() => setCompletion(null), []);
+
   // Reconnecting is the moment both held states can be settled, and each gets the
   // treatment its certainty earns: a queued intent is sent, an unconfirmed one is only
   // read back. Nothing here can re-send a claim whose fate is unknown.
@@ -305,6 +370,8 @@ export function usePickEditor(slug: string, gameweekId: string | undefined): Pic
     outstanding,
     resolveOutstanding,
     discardOutstanding,
+    completion,
+    dismissCompletion,
   };
 }
 

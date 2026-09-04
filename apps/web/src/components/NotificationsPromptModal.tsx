@@ -50,7 +50,7 @@ export function NotificationsPromptModal({ onClose, playerId }: Props) {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Match alerts"
+      aria-label="Notifications"
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-4"
     >
       <div className="w-full max-w-sm rounded-2xl bg-surface border border-border shadow-2xl p-6 space-y-5 animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
@@ -59,13 +59,54 @@ export function NotificationsPromptModal({ onClose, playerId }: Props) {
             <Bell className="h-7 w-7 text-primary" aria-hidden />
           </div>
           <h2 className="text-lg font-semibold text-text-primary font-sans">
-            🔔 Match alerts — strongly recommended
+            Turn on notifications
           </h2>
           <p className="text-sm font-sans text-text-secondary leading-relaxed">
-            Get notified 30 minutes before kickoff so you never miss a prediction window. We'll also
-            alert you when results land and the leaderboard shifts.
+            Your leagues will send you:
           </p>
         </div>
+
+        {/* Batch 108: this list is the whole point of the screen, and every line on it is
+            an event the application actually sends. It used to promise a reminder 30
+            minutes before kickoff, alerts when results landed, and a nudge when the
+            leaderboard shifted — none of which exist. The real reminder is keyed to the
+            *lock*, not to kick-off, which is a different instant in every league. If an
+            event is ever added or removed, this list moves with it. */}
+        <ul className="space-y-2 text-sm font-sans text-text-secondary leading-relaxed">
+          <li className="flex gap-2">
+            <span aria-hidden className="text-text-muted">
+              •
+            </span>
+            <span>when a round opens for picks</span>
+          </li>
+          <li className="flex gap-2">
+            <span aria-hidden className="text-text-muted">
+              •
+            </span>
+            <span>one reminder about three hours before picks lock, if you haven't picked</span>
+          </li>
+          <li className="flex gap-2">
+            <span aria-hidden className="text-text-muted">
+              •
+            </span>
+            <span>when someone else in the league picks, and how close the coupon is</span>
+          </li>
+          <li className="flex gap-2">
+            <span aria-hidden className="text-text-muted">
+              •
+            </span>
+            <span>when all picks are in and the coupon is ready to place</span>
+          </li>
+          <li className="flex gap-2">
+            <span aria-hidden className="text-text-muted">
+              •
+            </span>
+            <span>if a fixture is postponed and your pick is returned</span>
+          </li>
+        </ul>
+        <p className="text-xs font-sans text-text-muted leading-relaxed">
+          You can mute a single league, or all of them, in Settings.
+        </p>
 
         {standalone ? (
           <div className="space-y-3">
@@ -74,7 +115,7 @@ export function NotificationsPromptModal({ onClose, playerId }: Props) {
               onClick={handleEnable}
               disabled={isLoading}
             >
-              {isLoading ? 'Enabling…' : 'Enable match alerts'}
+              {isLoading ? 'Enabling…' : 'Enable notifications'}
             </Button>
             <button
               onClick={handleLater}
@@ -92,7 +133,7 @@ export function NotificationsPromptModal({ onClose, playerId }: Props) {
                   Add to Home Screen first
                 </p>
                 <p className="text-xs font-sans text-text-secondary leading-relaxed">
-                  Push alerts only work when the app is installed. Tap the share icon in your browser
+                  Notifications only work when the app is installed. Tap the share icon in your browser
                   and choose <strong className="text-text-primary">"Add to Home Screen"</strong>, then
                   open from there.
                 </p>
