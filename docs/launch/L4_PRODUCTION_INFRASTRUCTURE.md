@@ -2391,3 +2391,84 @@ only, and for this shipment the API half of that is unavailable.
 
 `scripts/check-deploy-drift.sh` reports **in sync**: `origin/main` and the deployed API both
 at `2a1f74da`, migration `022`.
+
+## Shipment — 2026-09-04, `daa4bd5c` (Batch 111; no API change, no migration)
+
+**The first deliberately empty shipment, and it is recorded because the emptiness is the
+point.** Preflight found nothing API-facing outstanding: the three commits between the
+deployed image and `origin/main` touch only `apps/web/**`, `docs/**`, `STATUS.md` and
+`session-log.md` — verified by `git diff --name-only 2a1f74da..HEAD` filtered against
+`apps/api/`, `migrations/`, `nixpacks.toml` and `.railway/`, which matched nothing, not
+merely by trusting `check-deploy-drift.sh`'s own verdict of *"Nothing to ship — redeploying
+would rebuild the same service."* Batch 111 is web-only and had already reached members
+through Vercel's auto-deploy. The owner was told the deploy would rebuild an identical
+service and chose to ship anyway; this section records what that costs and what it does not.
+
+**No migration, and therefore — for the first time since Batch 107 — a usable rollback.**
+The repository's sole Alembic head is `022` and production was already at `022`, so step
+1.7's forward-recovery-plan gate does not apply. More usefully, the new image ships exactly
+the revisions `001`–`022` the database is at, so the previous deployment can boot against it.
+**Railway rollback baseline `2f866d18-0726-493d-8516-b24076451364` is a real target here**,
+not the record-only baseline the `021` and `022` shipments had to write down.
+
+Preflight otherwise as before and all read-only: project `the-coupon-production`,
+environment `production`, service `api` each the sole entry under the recorded IDs;
+`railwayConfigFile` **null**; 13 of 13 required Railway variables present by name alone;
+Vercel production carrying `VITE_API_URL` and `VITE_VAPID_PUBLIC_KEY` encrypted and
+production-scoped. `ci-local.sh` PASS (11 checks), a green GitHub Actions run exists for
+`daa4bd5c` itself, and `git diff --check` is clean.
+
+IaC: `config plan` again reported `0 to add, 2 to change, 0 to destroy` against the `api`
+service only — the same four fields (`build.nixpacksConfigPath`, `deploy.numReplicas`,
+`deploy.restartPolicyType`, `deploy.sleepApplication`) that the `022` shipment also applied.
+**Railway does not persist these back to `serviceInstance`**, which reads `null` for
+`numReplicas` and `region` before and after; the values are real on the *deployment*
+manifest. So this plan is idempotent but never converges, and an identical plan on the next
+shipment is expected rather than a sign that the last apply failed. Applied from the pinned
+plan with `--yes`, no `--confirm-destructive`, plan file removed. No redeploy was minted, so
+there was nothing to poll and `2f866d18` stayed live and healthy throughout.
+
+`RAILWAY_GIT_COMMIT_SHA` stamped to `daa4bd5c…` with `--skip-deploys`, worktree re-checked
+clean immediately before the upload, `railway up` with every selector explicit: deployment
+**`0e271014-5dd6-4af6-9bd4-e7e04dc4d333`**, `SUCCESS` in about ninety seconds, message
+`ship production daa4bd5`, `imageDigest
+sha256:21e94cc5dc8fd3a8af8de061f601e1e04adc172a99017d1725e14115bf46bc77`. **The digest
+differs from the `022` shipment's even though the API is byte-identical**, because
+`railway up` uploads the whole working directory and Batch 111 changed `apps/web`. A
+different digest here does not mean different API behaviour.
+
+Section 4 skipped by design: Vercel's GitHub integration had already built `daa4bd5c` as
+`dpl_256t84JoKjbBMAcXqSKhrY3pNxnS`, holding the stable alias — confirmed by reading
+`meta.githubCommitSha` from the Vercel API and by `vercel inspect` on the alias, not inferred
+from timing. Predecessor `dpl_CnpDDNWTDoUEctVEZR3mauNBmz9L` (`a0dc8a22`) is the **Vercel
+rollback baseline**.
+
+Post-deploy: `/health` reports sha `daa4bd5c…` and migration `022`; `/health/ready` agrees at
+`022` with `db: ok`. The deployment manifest confirms `numReplicas: 1`,
+`multiRegionConfig: { "europe-west4-drams3a": { numReplicas: 1 } }`, `sleepApplication:
+false`, `ipv6EgressEnabled: true`, `healthcheckPath /api/v1/health/ready` at `300`,
+`restartPolicyType ON_FAILURE` ×3, `limitOverride.containers` `cpu 0.25` /
+`memoryBytes 500000000`, `builder NIXPACKS` with `nixpacksConfigPath /nixpacks.toml`.
+
+**The boot log contains no `Running upgrade` line at all**, which is the specific thing worth
+checking on a non-migrating shipment: one would have meant the database was not where
+preflight thought. The scheduler started with all eleven jobs registered and
+`run_connection_warmup` executed successfully against the database. Across 44 log lines:
+zero genuine errors, zero warnings, zero 5xx, zero hits on all five leakage patterns. Six
+entries carry Railway's `level: error` tag and every one is an `INFO` line from uvicorn —
+Railway tags stderr as error.
+
+Combined smoke: the stable web root, `/football?date=2026-05-02` (Batch 109) and
+`/football/teams/t-arsenal?competition=…&season=…` (Batch 111) all return 200 and serve a
+byte-identical SPA shell, retaining `strict-transport-security`, `nosniff`,
+`referrer-policy`, `permissions-policy` and `cache-control`. CORS preflight from the exact
+recorded origin returns 200 with the matching `access-control-allow-origin` and
+`access-control-allow-credentials: true` on both an existing route and Batch 110's team-season
+route, which still answers 401 unauthenticated. Readiness and migration head rechecked
+afterwards and still agree at `022`.
+
+Backup/restore-point identity: **none** — production has no managed backup, no PITR and no
+durable dump, under the owner's 2026-07-30 deferral.
+
+`scripts/check-deploy-drift.sh` reports **in sync**: `origin/main` and the deployed API both
+at `daa4bd5c`, migration `022`.
