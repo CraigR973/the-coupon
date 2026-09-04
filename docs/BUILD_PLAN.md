@@ -3171,7 +3171,7 @@ answered until it lands, because until then there is no data to look at.
   `scripts/check-deploy-drift.sh` too, replacing `railway.toml` with
   `.railway/railway.ts` in its API-path set so future IaC-only drift remains visible.
 
-- [ ] **Batch 105 — Coupon is one current-round job presented as two competing screens**
+- [x] **Batch 105 — Coupon is one current-round job presented as two competing screens** ✅ 2026-09-04
   — specified 2026-09-03 from the owner review of Coupon, Your pick, Combined coupon and
   Season. Keep `Coupon` as the application-level destination, but replace the inner
   `Your pick / Combined coupon / Season` model with one compact Coupon shell whose two

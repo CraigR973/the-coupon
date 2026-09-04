@@ -1342,15 +1342,15 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 95 and 105-111 unchecked** — eight remaining.
-Batch 95 comes from the 2026-08-26 full-application review, and 105-111 were specified
+`docs/BUILD_PLAN.md` carries **Batches 95 and 106-111 unchecked** — seven remaining.
+Batch 95 comes from the 2026-08-26 full-application review, and 106-111 were specified
 from the owner's 2026-09-03 Coupon, home, notification and Football Stats review. Batch 95
-remains in the soft-blocked tail of Group D. Group J's Batch 104 implementation is closed;
-its production checkpoint is now owed before the executable wave continues with Groups K-M:
+remains in the soft-blocked tail of Group D. Group J is closed and shipped, and Group K is
+half done, so the executable wave resumes at Batch 106:
 
 ```text
-J  104 complete  API+infra → /ship-prod owed
-K  105 106       web       → (no ship)
+J  104 shipped   API+infra → shipped 2026-09-04
+K  105 done  106 web       → (no ship)
 L  107           API/data  → /ship-prod → 108 web
 M  109 110       web+API   → /ship-prod → 111 web
 ```
@@ -1358,23 +1358,24 @@ M  109 110       web+API   → /ship-prod → 111 web
 `/group-start <I-M>` now orchestrates those groups. It still gives every batch its own
 branch, full gate and automatic close-out; it stops at each API checkpoint for an explicit
 `/ship-prod`, then verifies deployment drift before a rerun can continue. The full intended
-remaining order is `ship 104 → 105 → 106 → 107 → ship → 108 → 109 → 110 → ship → 111`.
+remaining order is `106 → 107 → ship → 108 → 109 → 110 → ship → 111`.
 
-Group K unifies Your pick and Combined coupon into one state-aware Current round surface,
-then separates future action from historical odds on home and contains the hero glows.
+Group K unified Your pick and Combined coupon into one state-aware Current round surface in
+Batch 105; Batch 106 remains, separating future action from historical odds on home and
+containing the hero glows.
 Purposeful state colour is folded into those hierarchy changes rather than becoming a
 standalone restyle. Group L adds concise `X/Y picked` notifications, a durable all-picked
 transition and the final picker's truthful in-app hand-off. Group M adds result-day carousel
 navigation, persists the full selected league season including future/non-final fixtures,
 then makes league-table teams open that addressable season view.
 
-**Batch 104 was the only item in this plan with an external deadline and is now closed on
-`main`.** `.railway/railway.ts` replaces the deprecated `railway.toml` before Railway's
+**Batch 104 was the only item in this plan with an external deadline and is now closed and
+live.** `.railway/railway.ts` replaces the deprecated `railway.toml` before Railway's
 2026-12-01 cutoff, preserves the one-replica invariant in the image and migration guard,
 and is evaluated by both local and GitHub deployment-config gates. The drift watch follows
-the new path. Production still serves the pre-104 image/config until the explicit Group J
-`/ship-prod`; that workflow now plans and applies the exact fail-closed IaC graph before
-uploading source, then verifies the deployed manifest.
+the new path. Production has served it since the Group J `/ship-prod` on
+2026-09-04; that workflow plans and applies the exact fail-closed IaC graph before uploading
+source, then verifies the deployed manifest.
 
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday watch**,
 with L0-L4 ticked since 2026-08-04.
@@ -1405,6 +1406,31 @@ so no API shipment is attached to it.
 
 **Group I is complete.** Batch 103 is closed and web-only, so its settings privacy copy and
 pending-request confirmations reached members on the close-out push with no API shipment.
+
+**Group J is complete and shipped** — Batch 104 went to production on 2026-09-04 as Railway
+deployment `e95ff966`, the first IaC apply of `.railway/railway.ts`, applying **no migration**
+(head stays `020`). The record is in `docs/launch/L4_PRODUCTION_INFRASTRUCTURE.md`.
+
+**Batch 105 merged the Coupon's two inner screens into one.** `Your pick` and `Combined
+coupon` were two tabs over a single weekly job, so the product asked the member which half
+they wanted and neither screen could lead with what mattered at the moment they opened it;
+each then repeated the other's headings, fold summaries and frozen-price prose to cover the
+gap. The shell now has two destinations, **Current round** and **Season**, and Current round
+reads the slate and the coupon together and orders itself by a written-down `roundPhase`:
+the fixture list leads while a pick can still be made, and the coupon leads once it is worth
+having. The honesty case is the point of the phase — a round the deadline caught is labelled
+`Incomplete coupon` and names how many members never picked, instead of presenting a
+two-fold as a whole coupon to a three-member league.
+
+Its rows were rebuilt around what people actually scan. Person, selection and frozen odds
+all wrap rather than truncating; fixture context clamps at two lines and carries only what
+the selection does not already say (`Arsenal · v Chelsea`, never `Arsenal · Arsenal v
+Chelsea`); the market tag is gone because the selection always expressed it. The same
+editing rule shapes the clipboard — one entry per person, and one frozen-odds disclaimer for
+the whole coupon rather than the two it used to print. Old links keep working:
+`/leagues/:slug/predictions/coupon` redirects into `#coupon` carrying `?gw=` and honouring a
+fragment it already had, and `couponSectionPath` is the one helper that mints that address —
+**Batch 107's all-picked notification should deep-link with it rather than by hand.**
 
 **Group F is complete and shipped** — Batch 96 went to production on 2026-08-30 as Railway
 deployment `7ec86030-9877-434f-beab-f4e942d7c14e`, message `ship production 5634827`,

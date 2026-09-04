@@ -3164,3 +3164,39 @@ executable group is Group J, Batch 104, followed by its explicit `/ship-prod` ch
 
 **Next:** Run `/ship-prod` for Batch 104, then rerun `/group-start J` so it can verify drift
 is clear and mark the group complete. Batch 95 remains soft-blocked; Group K follows.
+
+## Batch 105 — Coupon is one current-round job presented as two competing screens
+**Commits:** f833776 · verified: `scripts/ci-local.sh` PASS (11 checks, green first run; rerun
+green after the header change) · production-preview `coupon-flow` e2e PASS, screenshots in
+`artifacts/batch-105/`
+
+### Key facts for future sessions
+- **`roundPhase` is the surface's spine, and its order is the product rule.** Settlement
+  outranks everything; a *complete* coupon outranks the deadline, because everybody being in
+  is what makes it worth copying and that routinely happens before the lock; only then can a
+  round be `locked_incomplete`. `couponLeads` turns that into the page order.
+- **`#coupon` is the canonical copy-section address** — `COUPON_SECTION_ID` /
+  `couponSectionPath` in `lib/leagues.ts`. `/predictions/coupon` redirects into it carrying
+  `?gw=`, and an incoming fragment beats the default. Batch 107's notification should mint
+  its link with that helper, not by hand.
+- **`leagueSwitchPath` deliberately still maps `/coupon` to `/coupon`.** Normalising it to
+  the canonical path looked tidier and was worse: the legacy path redirects onward *with the
+  section*, so switching league from it keeps the reader on the coupon rather than dropping
+  them at the top of the round. Two existing tests state this.
+- **The merged page reads two endpoints and guards the second.** `entriesForRound` merges
+  coupon legs with the slate's absentees, and the coupon is the authority on anyone in both —
+  a lagging slate must never demote a leg to "yet to pick". A response without an array
+  `legs` is treated as no coupon, which is what made a stubbed `{}` render instead of throw.
+- **A row with no selection now leads with the person.** The first cut kept the coupon
+  hierarchy for every row, so a member who had picked nothing was drawn anonymously — the
+  list named them nowhere. Caught by the incomplete-coupon test, not by types.
+- **Two phase words were printed twice** — the status chip and the section heading both said
+  "Coupon complete". The chip owns the round's state; the heading only names the section
+  (`The coupon` / `Result`). `RoundStatus` also uses `Pick required` where `GameweekNav`'s
+  badge says `Open`, so the two controls never repeat one word.
+- **The e2e needs `FRONTEND_ORIGIN=http://127.0.0.1:4173`.** CORS is a single exact origin,
+  so without it every sign-in fails at the `OPTIONS` preflight with a 400 and the flow looks
+  like a login bug. Unrelated to this batch; it will bite the next browser run too.
+
+**Next:** Batch 106 — home mixes the next round's clock with the previous round's odds. It is
+the second half of Group K, web-only, and no `/ship-prod` is owed by either.
