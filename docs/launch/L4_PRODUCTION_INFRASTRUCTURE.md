@@ -1981,3 +1981,84 @@ is a clean `vite build` with an 81-entry PWA precache and `Deployment completed`
 Backup/restore-point identity: **none** — production has no managed backup, no PITR and no
 durable dump, under the owner's 2026-07-30 deferral. Rollback reverts application
 deployments only.
+
+### Forward recovery plan — migration `021`, Batch 107
+
+**Status: written 2026-09-04, awaiting owner approval. Not cleared to ship.**
+
+Required by `/ship-prod` step 1.7 before `021` may be deployed. Production is at head `020`
+(deployment `e95ff966-f7ee-4587-999f-5470063ef108`, `SUCCESS`, serving `9e91b604`); this
+shipment moves it to `021` and carries Batch 107 — the Group L checkpoint.
+
+**No pre-migration snapshot is needed. `021` rewrites nothing.** It is one `CREATE TABLE`
+for a table that does not exist (`gameweek_completions`), plus the standard Supabase RLS
+lockdown block that `003`/`004`/`009`/`011`/`018` apply to every new table. No existing table
+is touched, no column is added or dropped, no row is rewritten, no value recomputed, no enum
+altered. It is the same shape as `018` (Batch 99's `rate_limit_counters`) and strictly
+smaller than it — one table rather than one table plus an index.
+
+**It cannot refuse to run.** Unlike `017` there is no precondition it checks and no state of
+the data that can make it fail. The only failure modes available to a bare `CREATE TABLE`
+are a name collision and a missing function in a `server_default`, and neither exists here:
+no migration in `001`–`020` creates a `gameweek_completions`, and `gen_random_uuid()` has
+been the `_UUID_PK` default since `011` shipped on 2026-08-06 against this same PostgreSQL
+17.6 instance, where it is a built-in rather than a `pgcrypto` extension.
+
+**The rollout window is safe in both directions, which is not true of every migration here.**
+The new container runs `alembic upgrade head` while the old one is still serving. The old
+image never reads, writes or joins `gameweek_completions` — it does not know the table
+exists — so creating it underneath a running `020` container changes nothing that container
+does.
+
+**API rollback is unavailable the moment `021` applies**, on the same terms as `012`, `013`,
+`014`/`015`, `017`, `019` and `020`: every pre-`021` image ships revisions `001`–`020` only,
+so started against a database stamped `021` its Alembic fails with `Can't locate revision
+identified by '021'` before uvicorn is reached, the `&&` chain in `nixpacks.toml` stops, and
+the healthcheck fails. **Do not attempt a Railway rollback to `e95ff966`, `7ec86030`, or
+anything older after this ships.** The recorded baseline is a record, not a usable target.
+Vercel rollback is unaffected.
+
+**The block is Alembic's revision resolution and nothing else — there is no data hazard
+behind it.** This is the one place `021` differs from `020`, and the difference is worth
+stating because `020`'s plan had to warn the opposite way. A `020` image running against a
+`021` database would find every table and column it expects, with no unknown enum value in
+any row it reads; `gameweek_completions` is simply invisible to it. If a future release ever
+makes pre-`021` images bootable again, running one is *correct*, not merely permitted.
+
+Recovery once `021` *has* applied is forward-only:
+
+1. **Deploy a corrected image at head `021` or higher.** The normal path.
+2. **Disabling Batch 107's behaviour needs no migration.** The event is recorded and
+   delivered entirely from the post-commit block of `routers/picks.py::submit_pick`; removing
+   its `record_completion` and `announce_all_picked` calls stops both the durable write and
+   the push, and leaves the table inert. The reworded pick alert
+   (`services/notification_triggers.py`) and the three progress fields on the submit response
+   are likewise pure application code with no schema dependency.
+3. **Emptying the table is safe, and is the only data-level lever there is.**
+   `DELETE FROM gameweek_completions` — globally or for one `gameweek_id` — makes those
+   rounds eligible to be announced again, and that is its *entire* effect. Nothing else in
+   the schema references the table: no pick, score, standing, membership or audit row points
+   at it, and no query joins it. Deleting from it cannot damage game state.
+   The inverse lever is equally cheap: inserting a row with `delivered_at` set suppresses an
+   announcement for a round without changing anything else.
+4. **Never run `alembic downgrade` against production.** This downgrade is clean in schema
+   terms — it drops one table with no dependants — but it re-arms every round the product has
+   already announced: with the record gone, the next pick changed on a completed round would
+   send "all picks are in" a second time. The downgrade exists for local and staging.
+
+**Post-deploy checks specific to this shipment**, beyond the standard `/health` and
+`/health/ready` agreement at `021`:
+
+1. **Confirm the table landed with its guard rails**, in the same in-container RLS session the
+   shipment already runs: `gameweek_completions` present, `uq_gameweek_completions_gameweek`
+   present, RLS **enabled and forced**, and zero `anon`/`authenticated`/`PUBLIC` grants. The
+   table count in that check moves from 19 to 20, and a table that appears *without* forced
+   RLS would mean the migration's `DO $$` lockdown block did not see the `auth` schema.
+2. **Nothing web-facing consumes this yet, and that is the point of the checkpoint.**
+   Batch 108 is the consumer and has not been built. The deployed bundle ignores the three
+   new response fields because TypeScript interfaces are structural, so the only
+   member-visible change from this shipment is the reworded pick push — which reaches phones
+   on the first pick made in any league after the deploy.
+3. **`alembic upgrade head` must print exactly one `Running upgrade 020 -> 021` line** in the
+   bounded boot-log snapshot. More than one, or none, means the database was not where this
+   plan assumes.
