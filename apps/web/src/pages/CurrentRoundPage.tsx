@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, Clock, Lock } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
@@ -9,8 +9,14 @@ import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
 import { useGameweekHistory, useSelectedGameweekId } from '../hooks/useGameweekHistory';
 import { useOddsFormat } from '../hooks/useOddsFormat';
 import { useRouteLeague } from '../hooks/useRouteLeague';
-import { usePickEditor, gameweekKey, type OutstandingPick } from '../hooks/usePickEditor';
+import {
+  couponKey,
+  gameweekKey,
+  usePickEditor,
+  type OutstandingPick,
+} from '../hooks/usePickEditor';
 import type {
+  Coupon,
   FixtureSlate,
   GameweekSlate,
   GameweekStatus,
@@ -20,19 +26,21 @@ import type {
   SelectionOption,
 } from '../lib/types';
 import { competitionRank } from '../lib/competitions';
-import { formatOdds, outcomeLabel, roundName } from '../lib/coupon';
+import { couponLeads, fixtureContext, outcomeLabel, roundName, roundPhase } from '../lib/coupon';
+import { COUPON_SECTION_HASH, COUPON_SECTION_ID } from '../lib/leagues';
 import { formatCalendarDate } from '../lib/time';
 import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
 import { LeagueSwitchStrip } from '../components/LeagueSwitchStrip';
 import { OddsGuide } from '../components/OddsGuide';
 import { PickCard } from '../components/PickCard';
-import { MemberRoster } from '../components/MemberRoster';
+import { CouponSection } from '../components/CouponSection';
+import { RoundStatus, type MyClaim } from '../components/RoundStatus';
 import { OutstandingPickNotice } from '../components/OutstandingPickNotice';
 import { GameweekNav } from '../components/GameweekNav';
 import { EmptyState } from '../components/EmptyState';
+import { entriesForRound } from '../components/PickRow';
 import { Skeleton } from '../components/ui/skeleton';
-import { Badge } from '../components/ui/badge';
 import { cn } from '../lib/utils';
 
 const FAR_PAST = new Date(0).toISOString();
@@ -98,13 +106,28 @@ function groupByCompetition(fixtures: FixtureSlate[]): CompetitionGroup[] {
     });
 }
 
-export function CouponPickPage() {
+/**
+ * The whole of this week's job, on one screen.
+ *
+ * Batch 105. `Your pick` and `Combined coupon` were two tabs over one round, and the split
+ * was the product asking the member a question it should have answered itself: before the
+ * deadline what matters is the slate, after it what matters is the coupon, and on a settled
+ * round what matters is the result. Nobody wants to choose. So this surface reads the
+ * round's phase (`roundPhase`) and orders itself by it — the fixture list leads while a
+ * pick can still be made, and the coupon leads from the moment the coupon is worth having.
+ *
+ * The old address still resolves: `/leagues/:slug/predictions/coupon` redirects here
+ * carrying `?gw=` and landing on `#coupon`, which is where the fold, the frozen combined
+ * price and the copy control now live.
+ */
+export function CurrentRoundPage() {
   const { player } = useAuth();
   const timezone = player?.timezone ?? 'UTC';
   const oddsFormat = useOddsFormat();
   const { slug, name: leagueName } = useRouteLeague();
   const { hasLeagues, isLoading: leaguesLoading } = useLeague();
   const gameweekId = useSelectedGameweekId();
+  const { hash } = useLocation();
 
   const {
     data: slate,
@@ -120,6 +143,24 @@ export function CouponPickPage() {
     staleTime: 30_000,
     enabled: hasLeagues,
   });
+
+  // The combined coupon, read alongside the slate rather than on its own screen. A round
+  // with no coupon yet answers 404 and simply leaves this undefined — the section below
+  // then shows who is still to pick, which is the only news there is.
+  const { data: couponResponse } = useQuery<Coupon>({
+    queryKey: couponKey(slug, gameweekId),
+    queryFn: () =>
+      apiFetch<Coupon>(
+        `/api/v1/leagues/${slug}/coupon${gameweekId ? `?gameweek_id=${gameweekId}` : ''}`,
+      ),
+    staleTime: 30_000,
+    enabled: hasLeagues,
+  });
+  // The boundary where the API's shape becomes this screen's assumption, and therefore
+  // where the shape is checked — the same guard `useGameweekHistory` puts on the season
+  // list. Everything below indexes into `legs`, and a response without one is a round
+  // with no coupon rather than a page that throws.
+  const coupon = Array.isArray(couponResponse?.legs) ? couponResponse : undefined;
 
   // Anchored on the round the slate actually came back with, which on the default view
   // is the API's choice rather than the newest date (see `useGameweekHistory`).
@@ -141,13 +182,62 @@ export function CouponPickPage() {
   // pick can be submitted rather than what a badge says. Keep the two in step.
   const notOpenYet =
     !!slate?.picks_open_at_utc && !openCountdown.expired && PICKABLE.has(slate.status);
-  const locked = !slate || !PICKABLE.has(slate.status) || notOpenYet || countdown.expired;
+  // The deadline half of the same rule, kept apart from `notOpenYet` because the phase
+  // needs to tell "too early" from "too late" and the selections do not.
+  const claimingShut = !slate || !PICKABLE.has(slate.status) || countdown.expired;
+  const locked = claimingShut || notOpenYet;
   const myPick = findMyPick(slate);
   const groups = useMemo(() => groupByCompetition(slate?.fixtures ?? []), [slate?.fixtures]);
+
+  const memberCount = slate?.members.length ?? 0;
+  const missingCount = slate?.members_missing_picks ?? 0;
+  const phase = roundPhase({
+    settled: slate?.status === 'settled',
+    claimingShut,
+    notOpenYet,
+    memberCount,
+    missingCount,
+    mine: !!myPick,
+  });
 
   const roundLabel = slate
     ? roundName(slate.number, formatCalendarDate(slate.starts_on, 'EEE d MMM yyyy'))
     : 'This round';
+
+  const entries = useMemo(
+    () => entriesForRound(coupon, slate?.members ?? [], player?.id),
+    [coupon, slate?.members, player?.id],
+  );
+
+  const mine: MyClaim | null = myPick
+    ? {
+        selection: outcomeLabel(
+          myPick.sel.market,
+          myPick.sel.outcome,
+          myPick.fixture.home,
+          myPick.fixture.away,
+        ),
+        context: fixtureContext(
+          myPick.sel.market,
+          myPick.sel.outcome,
+          myPick.fixture.home,
+          myPick.fixture.away,
+        ),
+        competition: myPick.fixture.competition,
+        odds: myPick.sel.odds,
+      }
+    : null;
+
+  // A notification tap or a legacy combined-coupon link arrives pointed at the copy
+  // section. Focus rather than scroll alone: the section is what the reader asked for, so
+  // it should also be where the keyboard is.
+  useEffect(() => {
+    if (hash !== COUPON_SECTION_HASH) return;
+    const target = document.getElementById(COUPON_SECTION_ID);
+    if (!target) return;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView?.({ block: 'start' });
+  }, [hash, coupon?.gameweek_id, slate?.gameweek_id]);
 
   if (!leaguesLoading && !hasLeagues) {
     return (
@@ -168,8 +258,80 @@ export function CouponPickPage() {
     );
   }
 
+  const clock = !slate
+    ? ''
+    : slate.status === 'settled'
+      ? ''
+      : notOpenYet
+        ? `Picks open in ${formatCountdown(openCountdown)}`
+        : claimingShut
+          ? 'Picks are locked'
+          : `Picks lock in ${formatCountdown(countdown)}`;
+
+  const couponFirst = couponLeads(phase);
+
+  const couponBlock = slate ? (
+    <CouponSection
+      coupon={coupon}
+      entries={entries}
+      phase={phase}
+      memberCount={memberCount}
+      roundLabel={roundLabel}
+      oddsFormat={oddsFormat}
+    />
+  ) : null;
+
+  const slateBlock = slate ? (
+    <section aria-labelledby="slate-heading" data-testid="slate-section">
+      <h2
+        id="slate-heading"
+        className="mb-2 font-mono text-[11px] uppercase tracking-[0.2em] text-text-primary"
+      >
+        {locked ? 'Slate and prices' : 'Pick your selection'}
+      </h2>
+      <OddsGuide />
+
+      {slate.fixtures.length === 0 ? (
+        <EmptyState
+          title="No fixtures on the slate"
+          description="There are no priced fixtures for this gameweek yet."
+        />
+      ) : (
+        <div className="flex flex-col gap-4">
+          {/* Ahead of everything else, deliberately: a member holding an unsent or
+              unconfirmed claim has already picked, and telling them to pick is the wrong
+              next instruction. */}
+          {outstanding && (
+            <OutstandingPickNotice
+              outstanding={outstanding}
+              onResolve={resolveOutstanding}
+              onDiscard={discardOutstanding}
+              disabled={locked}
+            />
+          )}
+          {groups.map((group) => (
+            <CompetitionSection
+              key={group.competition_id}
+              group={group}
+              timezone={timezone}
+              locked={locked}
+              pendingKey={pendingKey}
+              outstanding={outstanding}
+              busy={isSubmitting}
+              oddsFormat={oddsFormat}
+              onGrab={submit}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  ) : null;
+
   return (
     <div>
+      {/* The round's name stays in the eyebrow rather than moving to the heading: it is
+          the one place that survives a league with a single round, where `GameweekNav`
+          hides itself and would otherwise take the date with it. */}
       <PageHeader
         title={history.isLatest ? "This week's coupon" : 'Past coupon'}
         eyebrow={leagueName ? `${leagueName} · ${roundLabel}` : roundLabel}
@@ -177,34 +339,6 @@ export function CouponPickPage() {
       <LeagueSwitchStrip currentSlug={slug} className="mb-5" />
       <CouponSubNav slug={slug} />
       <GameweekNav history={history} />
-
-      {/* Lock / countdown banner */}
-      {slate && (
-        <div
-          className={cn(
-            'mb-4 flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 font-mono text-sm',
-            locked
-              ? 'border-border bg-surface text-text-muted'
-              : 'border-success/30 bg-success/10 text-success',
-          )}
-          data-testid="lock-banner"
-        >
-          {locked && !notOpenYet ? (
-            <Lock className="h-4 w-4" aria-hidden />
-          ) : (
-            <Clock className="h-4 w-4" aria-hidden />
-          )}
-          <span className="tabular-nums">
-            {slate.status === 'settled'
-              ? 'This gameweek is settled'
-              : notOpenYet
-                ? `Picks open in ${formatCountdown(openCountdown)}`
-                : locked
-                  ? 'Picks are locked'
-                  : `Picks lock in ${formatCountdown(countdown)}`}
-          </span>
-        </div>
-      )}
 
       {/*
         Batch 48: the API served this card from a *failed* price refresh — last known
@@ -223,29 +357,16 @@ export function CouponPickPage() {
         </div>
       )}
 
-      <OddsGuide />
-
-      {/* Your current pick */}
-      {myPick && (
-        <div
-          className="mb-5 rounded-lg border-2 border-success/60 bg-success/10 p-4"
-          data-testid="my-pick-summary"
-        >
-          <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-success">Your pick</p>
-          <p className="mt-1 text-sm font-sans font-medium text-text-primary">
-            {outcomeLabel(myPick.sel.market, myPick.sel.outcome, myPick.fixture.home, myPick.fixture.away)}
-            <span className="mx-1.5 text-text-muted">·</span>
-            <span className="font-mono tabular-nums">
-              {formatOdds(myPick.sel.odds, oddsFormat)}
-            </span>
-          </p>
-          <p className="mt-0.5 text-xs font-sans text-text-muted">
-            {myPick.fixture.competition} · {myPick.fixture.home} v {myPick.fixture.away}
-          </p>
-          {!locked && (
-            <p className="mt-2 text-xs font-sans text-text-muted">Tap another selection below to switch.</p>
-          )}
-        </div>
+      {slate && (
+        <RoundStatus
+          phase={phase}
+          clock={clock}
+          pickedCount={memberCount - missingCount}
+          memberCount={memberCount}
+          mine={mine}
+          oddsFormat={oddsFormat}
+          canSwitch={!locked}
+        />
       )}
 
       {isLoading && (
@@ -266,55 +387,10 @@ export function CouponPickPage() {
         />
       )}
 
-      {slate && (
-        <MemberRoster
-          members={slate.members}
-          missingCount={slate.members_missing_picks}
-          oddsFormat={oddsFormat}
-          myPlayerId={player?.id}
-        />
-      )}
-
-      {slate && slate.fixtures.length === 0 && (
-        <EmptyState
-          title="No fixtures on the slate"
-          description="There are no priced fixtures for this gameweek yet."
-        />
-      )}
-
-      {slate && slate.fixtures.length > 0 && (
-        <div className="flex flex-col gap-4">
-          {/* Ahead of the "you haven't grabbed one yet" prompt, deliberately: a member
-              holding an unsent or unconfirmed claim has already picked, and telling them
-              to pick is the wrong next instruction. */}
-          {outstanding && (
-            <OutstandingPickNotice
-              outstanding={outstanding}
-              onResolve={resolveOutstanding}
-              onDiscard={discardOutstanding}
-              disabled={locked}
-            />
-          )}
-          {!myPick && !locked && !outstanding && (
-            <Badge variant="warning" className="w-fit">
-              You haven't grabbed a selection yet
-            </Badge>
-          )}
-          {groups.map((group) => (
-            <CompetitionSection
-              key={group.competition_id}
-              group={group}
-              timezone={timezone}
-              locked={locked}
-              pendingKey={pendingKey}
-              outstanding={outstanding}
-              busy={isSubmitting}
-              oddsFormat={oddsFormat}
-              onGrab={submit}
-            />
-          ))}
-        </div>
-      )}
+      <div className="flex flex-col gap-6">
+        {couponFirst ? couponBlock : slateBlock}
+        {couponFirst ? slateBlock : couponBlock}
+      </div>
     </div>
   );
 }

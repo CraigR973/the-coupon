@@ -73,10 +73,10 @@ function stubFetch({ results = RESULTS }: { results?: GameweekResult[] } = {}) {
   });
 }
 
-/** Reports the address a row tap landed on. */
+/** Reports the address a row tap landed on, fragment included. */
 function CouponProbe() {
-  const { pathname, search } = useLocation();
-  return <span data-testid="landed">{`${pathname}${search}`}</span>;
+  const { pathname, search, hash } = useLocation();
+  return <span data-testid="landed">{`${pathname}${search}${hash}`}</span>;
 }
 
 function renderPage() {
@@ -88,10 +88,7 @@ function renderPage() {
           <LeagueProvider>
             <Routes>
               <Route path="/leagues/:slug/predictions/results" element={<ResultsPage />} />
-              <Route
-                path="/leagues/:slug/predictions/coupon"
-                element={<CouponProbe />}
-              />
+              <Route path="/leagues/:slug/predictions" element={<CouponProbe />} />
             </Routes>
           </LeagueProvider>
         </AuthProvider>
@@ -130,8 +127,9 @@ describe('ResultsPage', () => {
     fireEvent.click(row);
     // A gameweek id is league-scoped, so the link has to carry the league too —
     // otherwise it resolves against whichever league the reader happens to be on.
+    // Batch 105 moved the destination into the round itself, at its copy section.
     expect((await screen.findByTestId('landed')).textContent).toBe(
-      '/leagues/the-coupon/predictions/coupon?gw=gw-1',
+      '/leagues/the-coupon/predictions?gw=gw-1#coupon',
     );
   });
 

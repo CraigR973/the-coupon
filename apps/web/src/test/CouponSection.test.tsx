@@ -1,9 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CombinedAccaView } from '@/components/CombinedAccaView';
+import { CouponSection } from '@/components/CouponSection';
+import { entriesForRound } from '@/components/PickRow';
 import { buildCouponShareText, buildSettledResultShareText } from '@/lib/share';
-import type { Coupon, CouponLeg } from '@/lib/types';
+import type { RoundPhase } from '@/lib/coupon';
+import type { Coupon, CouponLeg, GameweekMember } from '@/lib/types';
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -46,18 +48,55 @@ function coupon(overrides: Partial<Coupon> = {}): Coupon {
   };
 }
 
-describe('CombinedAccaView', () => {
+/** A member of the league who never claimed anything — the roster half of the merge. */
+function absentee(player_id: string, display_name: string): GameweekMember {
+  return {
+    player_id,
+    display_name,
+    has_picked: false,
+    fixture_id: null,
+    home: null,
+    away: null,
+    competition: null,
+    market: null,
+    outcome: null,
+    runner_name: null,
+    odds: null,
+  };
+}
+
+interface Options {
+  phase?: RoundPhase;
+  memberCount?: number;
+  members?: GameweekMember[];
+  myPlayerId?: string;
+}
+
+function renderSection(value: Coupon, options: Options = {}) {
+  const members = options.members ?? [];
+  return render(
+    <CouponSection
+      coupon={value}
+      entries={entriesForRound(value, members, options.myPlayerId)}
+      phase={options.phase ?? 'open'}
+      memberCount={options.memberCount ?? value.leg_count}
+      roundLabel="Gameweek 4"
+      oddsFormat="decimal"
+    />,
+  );
+}
+
+describe('CouponSection', () => {
   it('renders an empty state when nobody has picked', () => {
-    render(<CombinedAccaView coupon={coupon({ leg_count: 0, legs: [], combined_odds: 1 })} />);
+    renderSection(coupon({ leg_count: 0, legs: [], combined_odds: 1 }), { memberCount: 0 });
     expect(screen.getByText(/no picks in yet/i)).toBeTruthy();
   });
 
   it('shows the fold count, combined odds and each leg', () => {
-    render(<CombinedAccaView coupon={coupon()} />);
+    renderSection(coupon());
     expect(screen.getByText(/2-fold accumulator/i)).toBeTruthy();
     expect(screen.getByText('3.50')).toBeTruthy(); // combined odds
-    expect(screen.getByText(/frozen combined odds from pick time/i)).toBeTruthy();
-    // "Forfar" is both leg A's selection label and part of its "Forfar v Brechin" subline.
+    expect(screen.getByText(/frozen at pick time/i)).toBeTruthy();
     expect(screen.getAllByText('Forfar').length).toBeGreaterThan(0);
     expect(screen.getByText(/Scottish League 2/)).toBeTruthy();
     expect(screen.getByText('Both teams score')).toBeTruthy(); // leg B selection label
@@ -65,16 +104,27 @@ describe('CombinedAccaView', () => {
     expect(screen.getByRole('button', { name: /copy text/i })).toBeTruthy();
   });
 
+  /**
+   * Batch 105. The fold, the combined price and the frozen-price sentence were printed
+   * on both coupon screens and inside the pasted text, so a member reading one round saw
+   * the same three facts four times. There is one of each now, and this is the assertion
+   * that keeps it that way on the surface itself.
+   */
+  it('states the frozen-price fact exactly once', () => {
+    renderSection(coupon());
+    expect(screen.getAllByText(/frozen/i)).toHaveLength(1);
+  });
+
   it('builds plain text with frozen prices and no outbound bet link', () => {
-    expect(buildCouponShareText(coupon())).toBe(
+    expect(buildCouponShareText(coupon(), { roundLabel: 'Gameweek 4', memberCount: 2 })).toBe(
       [
-        'The Coupon: 2-fold accumulator',
-        'Frozen combined odds: 3.50 (historical, from pick time)',
+        'The Coupon — Gameweek 4',
+        '2-fold accumulator @ 3.50',
         '',
-        '1. Forfar @ 2.00 - Forfar v Brechin (Scottish League 2, 1X2) - Alice',
-        '2. Both teams score @ 1.75 - Celtic v Rangers (Scottish Premiership, BTTS) - Bob',
+        '1. Alice — Forfar (v Brechin) @ 2.00',
+        '2. Bob — Both teams score (Celtic v Rangers) @ 1.75',
         '',
-        'Prices were frozen when each member picked. Check your book for current odds before placing anything.',
+        'Odds were frozen when each member picked — check your book for current prices before placing anything.',
       ].join('\n'),
     );
   });
@@ -86,33 +136,87 @@ describe('CombinedAccaView', () => {
       value: { writeText },
     });
 
-    render(<CombinedAccaView coupon={coupon()} />);
+    renderSection(coupon());
     await userEvent.click(screen.getByRole('button', { name: /copy text/i }));
 
-    expect(writeText).toHaveBeenCalledWith(buildCouponShareText(coupon()));
+    expect(writeText).toHaveBeenCalledWith(
+      buildCouponShareText(coupon(), { roundLabel: 'Gameweek 4', memberCount: 2 }),
+    );
   });
 
   it('flags a fully-won settled coupon', () => {
-    render(
-      <CombinedAccaView
-        coupon={coupon({ status: 'settled', all_won: true, legs: [{ ...LEG_A, status: 'won' }, { ...LEG_B, status: 'won' }] })}
-      />,
+    renderSection(
+      coupon({
+        status: 'settled',
+        all_won: true,
+        legs: [
+          { ...LEG_A, status: 'won' },
+          { ...LEG_B, status: 'won' },
+        ],
+      }),
+      { phase: 'settled' },
     );
     expect(screen.getByText(/all legs won/i)).toBeTruthy();
     expect(screen.getAllByText('Won').length).toBeGreaterThan(0);
   });
 
   it('marks a settled coupon that did not fully land', () => {
-    render(
-      <CombinedAccaView
-        coupon={coupon({ status: 'settled', all_won: false, legs: [{ ...LEG_A, status: 'won' }, { ...LEG_B, status: 'lost' }] })}
-      />,
+    renderSection(
+      coupon({
+        status: 'settled',
+        all_won: false,
+        legs: [
+          { ...LEG_A, status: 'won' },
+          { ...LEG_B, status: 'lost' },
+        ],
+      }),
+      { phase: 'settled' },
     );
     expect(screen.getByText(/not all legs landed/i)).toBeTruthy();
   });
 });
 
-// Batch 67. Between one round ending and the next opening, this screen is the *result*
+/**
+ * Batch 105 — a coupon the deadline caught is not a complete one.
+ *
+ * `leg_count` alone cannot tell a two-member league that took two picks from a
+ * three-member league that took two, and reading "2-fold accumulator" next to three
+ * member names is exactly the implication the owner review objected to.
+ */
+describe('a round that locked before everybody picked', () => {
+  const locked = () => coupon({ status: 'locked' });
+  const options: Options = {
+    phase: 'locked_incomplete',
+    memberCount: 3,
+    members: [absentee('p3', 'Cara')],
+  };
+
+  it('says how many members it is short of, rather than presenting a whole coupon', () => {
+    renderSection(locked(), options);
+    expect(screen.getByText(/1 of 3 never picked/i)).toBeTruthy();
+  });
+
+  it('keeps the member who never picked in the list', () => {
+    renderSection(locked(), options);
+    expect(screen.getByText('Cara')).toBeTruthy();
+    expect(screen.getByText('Yet to pick')).toBeTruthy();
+    expect(screen.getAllByTestId(/^acca-leg-/)).toHaveLength(3);
+  });
+
+  it('says so in the pasted text too', () => {
+    expect(buildCouponShareText(locked(), { roundLabel: 'Gameweek 4', memberCount: 3 })).toContain(
+      '2-fold accumulator @ 3.50 — incomplete, 1 of 3 never picked',
+    );
+  });
+
+  it('says nothing about absentees when the coupon is whole', () => {
+    renderSection(coupon(), { phase: 'complete', memberCount: 2 });
+    expect(screen.queryByText(/never picked/i)).toBeNull();
+    expect(screen.getByText(/combined odds, frozen at pick time/i)).toBeTruthy();
+  });
+});
+
+// Batch 67. Between one round ending and the next opening, this section is the *result*
 // rather than the coupon: a won/lost badge says what happened to the pick, not what the
 // game finished. The join that reaches the score fails open, so "no score" is a state the
 // view has to render properly rather than an error case.
@@ -127,21 +231,30 @@ describe('a settled round', () => {
       ],
     });
 
+  it('leads with the result rather than the fold', () => {
+    renderSection(settledCoupon(), { phase: 'settled' });
+    expect(screen.getByText('Result')).toBeTruthy();
+    expect(screen.getByText(/1 of 2 landed/i)).toBeTruthy();
+    expect(screen.queryByText(/2-fold accumulator/i)).toBeNull();
+  });
+
   it('shows the scoreline for a leg whose match resolved', () => {
-    render(<CombinedAccaView coupon={settledCoupon()} />);
+    renderSection(settledCoupon(), { phase: 'settled' });
     expect(screen.getByText(/Forfar 2–1 Brechin/)).toBeTruthy();
   });
 
   it('builds settled-result text with the scoreline in the coupon format', () => {
-    expect(buildSettledResultShareText(settledCoupon())).toBe(
+    expect(
+      buildSettledResultShareText(settledCoupon(), { roundLabel: 'Gameweek 4', memberCount: 2 }),
+    ).toBe(
       [
-        'The Coupon: Result — 1 of 2 picks landed',
-        'Frozen combined odds: 3.50 (historical, from pick time)',
+        'The Coupon: Result — Gameweek 4 — 1 of 2 picks landed',
+        '2-fold accumulator @ 3.50',
         '',
-        '1. Forfar @ 2.00 - Forfar 2–1 Brechin (Scottish League 2, 1X2) - Alice - Won, 20 pts',
-        '2. Both teams score @ 1.75 - Celtic v Rangers (Scottish Premiership, BTTS) - Bob - Lost, 0 pts',
+        '1. Alice — Forfar (v Brechin) @ 2.00 — Forfar 2–1 Brechin — Won, 20 pts',
+        '2. Bob — Both teams score (Celtic v Rangers) @ 1.75 — Lost, 0 pts',
         '',
-        'Prices were frozen when each member picked. Check your book for current odds before placing anything.',
+        'Odds were frozen when each member picked — check your book for current prices before placing anything.',
       ].join('\n'),
     );
   });
@@ -154,15 +267,16 @@ describe('a settled round', () => {
     });
 
     const result = settledCoupon();
-    render(<CombinedAccaView coupon={result} />);
+    renderSection(result, { phase: 'settled' });
     await userEvent.click(screen.getByRole('button', { name: /copy result/i }));
 
-    expect(writeText).toHaveBeenCalledWith(buildSettledResultShareText(result));
-    expect(writeText).not.toHaveBeenCalledWith(buildCouponShareText(result));
+    const context = { roundLabel: 'Gameweek 4', memberCount: 2 };
+    expect(writeText).toHaveBeenCalledWith(buildSettledResultShareText(result, context));
+    expect(writeText).not.toHaveBeenCalledWith(buildCouponShareText(result, context));
   });
 
   it('shows the outcome and no score for a leg that could not be resolved', () => {
-    render(<CombinedAccaView coupon={settledCoupon()} />);
+    renderSection(settledCoupon(), { phase: 'settled' });
     // Bob's leg still reports that it lost…
     expect(screen.getAllByText(/lost/i).length).toBeGreaterThan(0);
     // …and prints no scoreline at all, rather than a nil-nil that would be a lie.
@@ -170,42 +284,36 @@ describe('a settled round', () => {
   });
 
   it('shows what each leg scored', () => {
-    render(<CombinedAccaView coupon={settledCoupon()} />);
+    renderSection(settledCoupon(), { phase: 'settled' });
     expect(screen.getByText('20 pts')).toBeTruthy();
     expect(screen.getByText('0 pts')).toBeTruthy();
   });
 
   it("marks the reader's own leg and nobody else's", () => {
-    render(<CombinedAccaView coupon={settledCoupon()} myPlayerId="p1" />);
+    renderSection(settledCoupon(), { phase: 'settled', myPlayerId: 'p1' });
     expect(screen.getAllByText('You')).toHaveLength(1);
     expect(screen.getByTestId('acca-leg-0').className).toContain('border-primary');
     expect(screen.getByTestId('acca-leg-1').className).not.toContain('border-primary');
   });
 
   it('marks nothing when the reader is not in this league', () => {
-    render(<CombinedAccaView coupon={settledCoupon()} />);
+    renderSection(settledCoupon(), { phase: 'settled' });
     expect(screen.queryByText('You')).toBeNull();
   });
 
   it('prints no scoreline on a round that has not settled', () => {
     // The API withholds them, but a client reading a cached settled response into an
     // open round must not print a final score against a pick still running.
-    render(
-      <CombinedAccaView
-        coupon={coupon({ legs: [{ ...LEG_A, home_goals: 2, away_goals: 1 }] })}
-      />,
-    );
+    renderSection(coupon({ legs: [{ ...LEG_A, home_goals: 2, away_goals: 1 }], leg_count: 1 }));
     expect(screen.queryByText(/Forfar 2–1 Brechin/)).toBeNull();
   });
 
   it('reads the same when the deployed API predates the fields', () => {
     // Vercel ships the web app on merge while the API waits for /ship-prod, so for that
     // window every leg arrives without any of the three. It must degrade, not break.
-    render(
-      <CombinedAccaView
-        coupon={coupon({ status: 'settled', all_won: false, legs: [{ ...LEG_A, status: 'won' }] })}
-        myPlayerId="p1"
-      />,
+    renderSection(
+      coupon({ status: 'settled', all_won: false, legs: [{ ...LEG_A, status: 'won' }] }),
+      { phase: 'settled', myPlayerId: 'p1' },
     );
     expect(screen.getAllByText(/won/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/pts$/)).toBeNull();
@@ -228,19 +336,19 @@ describe('a round being played', () => {
     });
 
   it('shows the score so far and marks it live', () => {
-    render(<CombinedAccaView coupon={livePlaying()} />);
+    renderSection(livePlaying(), { phase: 'complete' });
     expect(screen.getByText(/Forfar 2–1 Brechin/)).toBeTruthy();
     expect(screen.getByText('Live')).toBeTruthy();
   });
 
   it('says in words that these are not results', () => {
-    render(<CombinedAccaView coupon={livePlaying()} />);
+    renderSection(livePlaying(), { phase: 'complete' });
     expect(screen.getByText(/not results/i)).toBeTruthy();
     expect(screen.getByText(/Points are awarded when the round settles/i)).toBeTruthy();
   });
 
   it('leaves every pick pending — a live score decides nothing', () => {
-    render(<CombinedAccaView coupon={livePlaying()} />);
+    renderSection(livePlaying(), { phase: 'complete' });
     // No won/lost badge on a round that has not settled: FotMob may say what the score
     // is, only settlement says what a pick did.
     expect(screen.queryByText(/^won$/i)).toBeNull();
@@ -248,14 +356,14 @@ describe('a round being played', () => {
   });
 
   it('does not mark a settled round live', () => {
-    render(
-      <CombinedAccaView
-        coupon={coupon({
-          status: 'settled',
-          all_won: false,
-          legs: [{ ...LEG_A, status: 'won', home_goals: 2, away_goals: 1 }],
-        })}
-      />,
+    renderSection(
+      coupon({
+        status: 'settled',
+        all_won: false,
+        legs: [{ ...LEG_A, status: 'won', home_goals: 2, away_goals: 1 }],
+        leg_count: 1,
+      }),
+      { phase: 'settled' },
     );
     expect(screen.getByText(/Forfar 2–1 Brechin/)).toBeTruthy();
     expect(screen.queryByText('Live')).toBeNull();
@@ -265,14 +373,14 @@ describe('a round being played', () => {
   it('treats a score with no flag as final, the way the old API meant it', () => {
     // Vercel ships this app on merge while the API waits for /ship-prod, so for that
     // window `score_is_final` is simply absent — and absent has always meant final.
-    render(
-      <CombinedAccaView
-        coupon={coupon({
-          status: 'settled',
-          all_won: false,
-          legs: [{ ...LEG_A, status: 'won', home_goals: 2, away_goals: 1 }],
-        })}
-      />,
+    renderSection(
+      coupon({
+        status: 'settled',
+        all_won: false,
+        legs: [{ ...LEG_A, status: 'won', home_goals: 2, away_goals: 1 }],
+        leg_count: 1,
+      }),
+      { phase: 'settled' },
     );
     expect(screen.queryByText('Live')).toBeNull();
   });

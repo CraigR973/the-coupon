@@ -4,7 +4,11 @@ import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LeagueProvider } from '@/contexts/LeagueContext';
-import { PredictionsRedirect } from '@/components/PredictionsRedirect';
+import {
+  CombinedCouponRedirect,
+  PredictionsRedirect,
+} from '@/components/PredictionsRedirect';
+import { COUPON_SECTION_HASH } from '@/lib/leagues';
 import { LAST_VIEWED_LEAGUE_KEY } from '@/lib/leagueRecency';
 
 const FAKE_JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwMSIsImV4cCI6OTk5OTk5OTk5OX0.fake';
@@ -64,10 +68,10 @@ function stubFetch(leagues: unknown[] = LEAGUES) {
   );
 }
 
-/** Reports the address the redirect settled on. */
+/** Reports the address the redirect settled on, fragment included. */
 function Landing() {
-  const { pathname, search } = useLocation();
-  return <span data-testid="landed">{`${pathname}${search}`}</span>;
+  const { pathname, search, hash } = useLocation();
+  return <span data-testid="landed">{`${pathname}${search}${hash}`}</span>;
 }
 
 function renderAt(entry: string) {
@@ -89,13 +93,16 @@ function renderAt(entry: string) {
               <Route
                 path="/predictions/coupon"
                 element={
-                  <PredictionsRedirect section="/coupon">
-                    <span data-testid="rendered-in-place">Combined coupon</span>
+                  <PredictionsRedirect section="" hash={COUPON_SECTION_HASH}>
+                    <span data-testid="rendered-in-place">Current round</span>
                   </PredictionsRedirect>
                 }
               />
               <Route path="/leagues/:slug/predictions" element={<Landing />} />
-              <Route path="/leagues/:slug/predictions/coupon" element={<Landing />} />
+              <Route
+                path="/leagues/:slug/predictions/coupon"
+                element={<CombinedCouponRedirect />}
+              />
             </Routes>
           </LeagueProvider>
         </AuthProvider>
@@ -128,8 +135,10 @@ describe('PredictionsRedirect', () => {
     });
     renderAt('/predictions/coupon?gw=gw-7');
 
+    // Batch 105: the slug-less combined-coupon path now lands on the current round's copy
+    // section, which is where its content moved to, still showing the week it named.
     expect((await screen.findByTestId('landed')).textContent).toBe(
-      '/leagues/work-league/predictions/coupon?gw=gw-7',
+      '/leagues/work-league/predictions?gw=gw-7#coupon',
     );
   });
 
@@ -148,5 +157,48 @@ describe('PredictionsRedirect', () => {
 
     expect(await screen.findByTestId('rendered-in-place')).toBeTruthy();
     expect(screen.queryByTestId('landed')).toBeNull();
+  });
+});
+
+/**
+ * Batch 105 — the combined coupon's own address, which every notification tap, saved link
+ * and shared URL minted before the merge still points at. It has to land on the section
+ * that replaced it, at the week it named, or those links strand the reader on a round
+ * they did not ask for.
+ */
+describe('CombinedCouponRedirect', () => {
+  it('lands a legacy combined-coupon link on the round’s copy section', async () => {
+    renderAt('/leagues/work-league/predictions/coupon');
+
+    expect((await screen.findByTestId('landed')).textContent).toBe(
+      '/leagues/work-league/predictions#coupon',
+    );
+  });
+
+  it('keeps the gameweek the link named', async () => {
+    renderAt('/leagues/work-league/predictions/coupon?gw=gw-7');
+
+    expect((await screen.findByTestId('landed')).textContent).toBe(
+      '/leagues/work-league/predictions?gw=gw-7#coupon',
+    );
+  });
+
+  it('honours a fragment the link already carried', async () => {
+    renderAt('/leagues/work-league/predictions/coupon?gw=gw-7#slate-heading');
+
+    expect((await screen.findByTestId('landed')).textContent).toBe(
+      '/leagues/work-league/predictions?gw=gw-7#slate-heading',
+    );
+  });
+
+  it('redirects at the league in the URL, not the one last viewed', async () => {
+    stubAuth({
+      [LAST_VIEWED_LEAGUE_KEY]: JSON.stringify({ slug: 'the-coupon', name: 'The Coupon' }),
+    });
+    renderAt('/leagues/work-league/predictions/coupon');
+
+    expect((await screen.findByTestId('landed')).textContent).toBe(
+      '/leagues/work-league/predictions#coupon',
+    );
   });
 });

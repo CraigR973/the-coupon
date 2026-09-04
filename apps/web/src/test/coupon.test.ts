@@ -6,6 +6,10 @@ import {
   marketLabel,
   marketTag,
   outcomeLabel,
+  fixtureContext,
+  selectionSummary,
+  roundPhase,
+  couponLeads,
   selectionKey,
   pickStatusLabel,
   roundName,
@@ -204,5 +208,110 @@ describe('roundStateLabel', () => {
     // never, the other says the points are in.
     const settled = { ...round, status: 'settled' };
     expect(roundStateLabel(settled, at('2026-08-30T12:00:00Z')).label).toBe('Settled');
+  });
+});
+
+/**
+ * Batch 105 — the disambiguation rule the screen and the clipboard both apply.
+ *
+ * One helper because a coupon row and a pasted line have to agree about what a selection
+ * means; two implementations of "what context does this need" is how the row ended up
+ * printing the fixture beside a selection that already was one of its two teams.
+ */
+describe('fixtureContext', () => {
+  it('gives the opponent for a home pick, because the pick is the home team', () => {
+    expect(fixtureContext('MATCH_ODDS', 'HOME', 'Forfar', 'Brechin')).toBe('v Brechin');
+  });
+
+  it('gives the ground for an away pick, which is the other half of the same rule', () => {
+    expect(fixtureContext('MATCH_ODDS', 'AWAY', 'Forfar', 'Brechin')).toBe('at Forfar');
+  });
+
+  it('gives the whole pairing for a draw, which names neither side', () => {
+    expect(fixtureContext('MATCH_ODDS', 'DRAW', 'Forfar', 'Brechin')).toBe('Forfar v Brechin');
+  });
+
+  it('gives the whole pairing for both-teams-to-score, for the same reason', () => {
+    expect(fixtureContext('BOTH_TEAMS_TO_SCORE', 'YES', 'Celtic', 'Rangers')).toBe(
+      'Celtic v Rangers',
+    );
+    expect(fixtureContext('BOTH_TEAMS_TO_SCORE', 'NO', 'Celtic', 'Rangers')).toBe(
+      'Celtic v Rangers',
+    );
+  });
+});
+
+describe('selectionSummary', () => {
+  it('reads as one phrase with no repeated team name', () => {
+    expect(selectionSummary('MATCH_ODDS', 'HOME', 'Forfar', 'Brechin')).toBe('Forfar (v Brechin)');
+    expect(selectionSummary('MATCH_ODDS', 'AWAY', 'Forfar', 'Brechin')).toBe(
+      'Brechin (at Forfar)',
+    );
+    expect(selectionSummary('MATCH_ODDS', 'DRAW', 'Forfar', 'Brechin')).toBe(
+      'Draw (Forfar v Brechin)',
+    );
+    expect(selectionSummary('BOTH_TEAMS_TO_SCORE', 'YES', 'Celtic', 'Rangers')).toBe(
+      'Both teams score (Celtic v Rangers)',
+    );
+  });
+});
+
+/**
+ * The order of these checks is the product rule the merged surface is built on, so each
+ * precedence is asserted rather than only each phase.
+ */
+describe('roundPhase', () => {
+  const base = {
+    settled: false,
+    claimingShut: false,
+    notOpenYet: false,
+    memberCount: 3,
+    missingCount: 1,
+    mine: false,
+  };
+
+  it('asks for a pick when the reader holds none', () => {
+    expect(roundPhase(base)).toBe('open');
+  });
+
+  it('says the pick is submitted once the reader holds one', () => {
+    expect(roundPhase({ ...base, mine: true })).toBe('submitted');
+  });
+
+  it('is not open before the window opens', () => {
+    expect(roundPhase({ ...base, notOpenYet: true })).toBe('not_open');
+  });
+
+  it('calls the coupon complete as soon as everybody is in, deadline or not', () => {
+    // Complete outranks the deadline deliberately: everybody having picked is what makes
+    // the coupon worth copying, and that routinely happens before the lock.
+    expect(roundPhase({ ...base, missingCount: 0 })).toBe('complete');
+    expect(roundPhase({ ...base, missingCount: 0, claimingShut: true })).toBe('complete');
+  });
+
+  it('calls a shut round with somebody missing incomplete', () => {
+    expect(roundPhase({ ...base, claimingShut: true })).toBe('locked_incomplete');
+  });
+
+  it('lets settlement outrank everything, including a complete coupon', () => {
+    expect(roundPhase({ ...base, settled: true, missingCount: 0 })).toBe('settled');
+    expect(roundPhase({ ...base, settled: true, claimingShut: true })).toBe('settled');
+  });
+
+  it('does not call an empty league complete', () => {
+    // `missingCount === 0` is true of a league with no members at all, and a nil-fold
+    // accumulator is not a coupon anybody completed.
+    expect(roundPhase({ ...base, memberCount: 0, missingCount: 0 })).toBe('open');
+  });
+});
+
+describe('couponLeads', () => {
+  it('puts the coupon first exactly when it is worth having', () => {
+    expect(couponLeads('complete')).toBe(true);
+    expect(couponLeads('locked_incomplete')).toBe(true);
+    expect(couponLeads('settled')).toBe(true);
+    expect(couponLeads('open')).toBe(false);
+    expect(couponLeads('submitted')).toBe(false);
+    expect(couponLeads('not_open')).toBe(false);
   });
 });

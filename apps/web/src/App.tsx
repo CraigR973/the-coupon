@@ -9,7 +9,11 @@ import { LeagueProvider } from './contexts/LeagueContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { PredictionsRedirect } from './components/PredictionsRedirect';
+import {
+  CombinedCouponRedirect,
+  PredictionsRedirect,
+} from './components/PredictionsRedirect';
+import { COUPON_SECTION_HASH } from './lib/leagues';
 import { RouteFallback } from './components/RouteFallback';
 import { UpdateBanner } from './components/UpdateBanner';
 import { InstallPromptController } from './components/InstallPromptController';
@@ -26,10 +30,7 @@ const Layout = lazyRoute(() => import('./components/Layout').then((m) => ({ defa
 // Lazy-loaded routes: only login, register and join ship eagerly so the unauth entry
 // is fast. Register is in that set because it is now half of what a shared link leads to.
 const DashboardPage = lazyRoute(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
-const CouponPickPage = lazyRoute(() => import('./pages/CouponPickPage').then((m) => ({ default: m.CouponPickPage })));
-const CouponCombinedPage = lazyRoute(() =>
-  import('./pages/CouponCombinedPage').then((m) => ({ default: m.CouponCombinedPage })),
-);
+const CurrentRoundPage = lazyRoute(() => import('./pages/CurrentRoundPage').then((m) => ({ default: m.CurrentRoundPage })));
 const FootballPage = lazyRoute(() => import('./pages/FootballPage').then((m) => ({ default: m.FootballPage })));
 const ResultsPage = lazyRoute(() => import('./pages/ResultsPage').then((m) => ({ default: m.ResultsPage })));
 const LeaderboardPage = lazyRoute(() => import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
@@ -161,10 +162,12 @@ export function App() {
 
                         {/* The weekly coupon, addressed at a league so a week can be
                             linked, shared and reopened at the league it came from. */}
-                        <Route path="/leagues/:slug/predictions" element={<CouponPickPage />} />
+                        <Route path="/leagues/:slug/predictions" element={<CurrentRoundPage />} />
+                        {/* The combined coupon is a section of the round now (Batch 105),
+                            so its old address redirects into it rather than answering. */}
                         <Route
                           path="/leagues/:slug/predictions/coupon"
-                          element={<CouponCombinedPage />}
+                          element={<CombinedCouponRedirect />}
                         />
                         <Route path="/leagues/:slug/predictions/results" element={<ResultsPage />} />
 
@@ -179,15 +182,15 @@ export function App() {
                           path="/predictions"
                           element={
                             <PredictionsRedirect section="">
-                              <CouponPickPage />
+                              <CurrentRoundPage />
                             </PredictionsRedirect>
                           }
                         />
                         <Route
                           path="/predictions/coupon"
                           element={
-                            <PredictionsRedirect section="/coupon">
-                              <CouponCombinedPage />
+                            <PredictionsRedirect section="" hash={COUPON_SECTION_HASH}>
+                              <CurrentRoundPage />
                             </PredictionsRedirect>
                           }
                         />

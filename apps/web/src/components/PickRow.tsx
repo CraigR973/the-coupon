@@ -1,4 +1,5 @@
 import type {
+  Coupon,
   CouponLeg,
   GameweekMember,
   OddsFormat,
@@ -6,7 +7,7 @@ import type {
   PickOutcome,
   PickStatus,
 } from '../lib/types';
-import { formatOdds, marketTag, outcomeLabel, pickStatusLabel } from '../lib/coupon';
+import { fixtureContext, formatOdds, outcomeLabel, pickStatusLabel } from '../lib/coupon';
 import { Badge } from './ui/badge';
 import { cn } from '../lib/utils';
 
@@ -102,6 +103,34 @@ export function entriesFromLegs(legs: CouponLeg[], myPlayerId?: string): PickEnt
   }));
 }
 
+/**
+ * Everybody in the round: the coupon's legs, then the members who never claimed one.
+ *
+ * Batch 105 merged two screens that each held half of this list. The combined coupon knew
+ * what had been claimed and carried the results; the roster knew who was still missing and
+ * carried nobody's score. A member reading "3-fold accumulator" next to a four-member
+ * league had to hold both in their head to notice that somebody had been caught by the
+ * deadline — which is precisely the thing the merged surface has to be able to say.
+ *
+ * The coupon is the authority on a member who appears in both, because it is the response
+ * that carries settlement; a slate whose cache is a beat behind cannot demote a leg back
+ * to "yet to pick".
+ */
+export function entriesForRound(
+  coupon: Coupon | undefined,
+  members: GameweekMember[],
+  myPlayerId?: string,
+): PickEntry[] {
+  if (!coupon) return entriesFromMembers(members, myPlayerId);
+  const claimed = entriesFromLegs(coupon.legs, myPlayerId);
+  const held = new Set(claimed.map((entry) => entry.player_id));
+  const missing = entriesFromMembers(
+    members.filter((member) => !member.has_picked && !held.has(member.player_id)),
+    myPlayerId,
+  ).map((entry) => ({ ...entry, selection: null }));
+  return [...claimed, ...missing];
+}
+
 const STATUS_VARIANT: Record<PickStatus, 'success' | 'error' | 'muted' | 'default'> = {
   won: 'success',
   lost: 'error',
@@ -154,6 +183,16 @@ export interface PickRowProps {
  * and a lost leg dims *in addition to* saying so. That is the rule Batch 72 set when the
  * same row started showing half-time scores, and it is why the `Live` badge exists at all
  * — 2-1 at half time and 2-1 at full time are opposite news to whoever holds that pick.
+ *
+ * ## What may be clipped, and what may not (Batch 105)
+ *
+ * A row exists to answer three questions — **who took it, what they took, at what price**
+ * — and every one of those three now wraps rather than truncating. The row used to put
+ * the holder's name third in a single `truncate`d line behind the competition and the
+ * fixture, so on a 390px screen a long team name ended the line before the name it
+ * belonged to: the coupon named nobody. Fixture context is allowed two lines and then
+ * clamps, and the competition sits at the end of that line because it is the one fact
+ * here that identifies nothing on its own.
  */
 export function PickRow({
   entry,
@@ -173,11 +212,21 @@ export function PickRow({
   const running = isLive(entry);
   const lost = settled && entry.status === 'lost';
 
-  const primary = lead === 'player' ? entry.player_name : label;
-  const detail =
-    lead === 'player'
-      ? [label, selection ? marketTag(selection.market) : null, selection?.competition]
-      : [selection?.competition, `${selection?.home} v ${selection?.away}`, entry.player_name];
+  // The person leads a row with nothing claimed on it whichever hierarchy is asked for:
+  // a coupon row's heading is normally the bet, and a member who has taken none has no
+  // bet to head it with. Without this the merged list drew their row anonymously.
+  const primary = lead === 'player' || !selection ? entry.player_name : label;
+  const secondary = lead === 'player' ? label : entry.player_name;
+  // A scoreline names both teams and the goals between them, so repeating the pairing
+  // above it would be the same clutter this row was rebuilt to remove.
+  const context = [
+    selection && !score
+      ? fixtureContext(selection.market, selection.outcome, selection.home, selection.away)
+      : null,
+    selection?.competition,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <li
@@ -185,7 +234,7 @@ export function PickRow({
         'flex gap-3',
         lead === 'player'
           ? 'items-start border-b border-border/50 px-4 py-2.5 last:border-b-0'
-          : 'items-center rounded-lg border border-border bg-surface p-3',
+          : 'items-start rounded-lg border border-border bg-surface p-3',
         lost && 'opacity-60',
         lead === 'selection' && entry.is_mine && 'border-primary',
         className,
@@ -193,31 +242,32 @@ export function PickRow({
       data-testid={testId}
     >
       {index != null && (
-        <span className="w-5 shrink-0 text-center font-mono text-xs tabular-nums text-text-muted">
+        <span className="w-5 shrink-0 pt-0.5 text-center font-mono text-xs tabular-nums text-text-muted">
           {index + 1}
         </span>
       )}
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <p
             className={cn(
-              'truncate font-sans text-sm',
+              'min-w-0 break-words font-sans text-sm',
               lead === 'player' ? 'text-text-primary' : 'font-medium text-text-primary',
             )}
           >
             {primary}
           </p>
-          {lead === 'selection' && selection && <Badge variant="muted">{marketTag(selection.market)}</Badge>}
           {entry.is_mine && <Badge variant="accent">You</Badge>}
         </div>
 
         {selection ? (
-          <p className="truncate font-sans text-xs text-text-muted">
-            {detail.filter(Boolean).join(' · ')}
-          </p>
+          <p className="break-words font-sans text-xs text-text-secondary">{secondary}</p>
         ) : (
           <p className="font-sans text-xs text-warning">Yet to pick</p>
+        )}
+
+        {context && (
+          <p className="line-clamp-2 font-sans text-xs text-text-muted">{context}</p>
         )}
 
         {/* The result, not the outcome. Absent when the leg's fixture could not be
@@ -226,7 +276,7 @@ export function PickRow({
         {score && selection && (
           // A div rather than a paragraph: `Badge` renders a block, and a block inside a
           // <p> is invalid markup the browser silently rewrites.
-          <div className="mt-0.5 flex items-center gap-2">
+          <div className="mt-0.5 flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs tabular-nums text-text-secondary">
               <span className="sr-only">{running ? 'Score so far: ' : 'Final score: '}</span>
               {selection.home} {score} {selection.away}

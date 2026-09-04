@@ -90,18 +90,27 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   await expect(takenArsenal).toBeDisabled();
 
   // Batch 9 presentation: the slate is grouped by competition, each fixture Alice
-  // or Bob has taken carries a fixture-level marker, and the roster counts Carol
-  // as the one member still to pick.
+  // or Bob has taken carries a fixture-level marker, and the round's progress counts
+  // Carol as the one member still to pick. Batch 105 moved those counts out of the
+  // roster disclosure and into the status card, and the list they headed is now the
+  // coupon section — no disclosure, because with a pick still to make it sits below
+  // the fixtures rather than pushing them down.
   await expect(carol.getByTestId('competition-10932509')).toBeVisible();
   await expect(carol.getByTestId('competition-10932510')).toBeVisible();
-  await expect(carol.getByTestId('member-roster')).toContainText('2 of 3 picked');
-  await expect(carol.getByTestId('member-roster')).toContainText('1 to go');
-  await carol.getByTestId('member-roster').getByRole('button').click();
-  await expect(carol.getByTestId('member-roster')).toContainText('Yet to pick');
+  await expect(carol.getByTestId('round-progress')).toContainText('2 of 3 picked');
+  await expect(carol.getByTestId('round-progress')).toContainText('1 to go');
+  await expect(carol.getByTestId('round-status')).toContainText('Pick required');
+  await expect(carol.getByTestId('coupon-section')).toContainText('Yet to pick');
   await carol.screenshot({
-    path: join(ARTIFACT_DIR, 'coupon-grouped-with-roster.png'),
+    path: join(ARTIFACT_DIR, 'batch-105-current-round-open.png'),
     fullPage: true,
   });
+
+  // The two destinations, and only two: the combined coupon is a section of this one.
+  const sections = carol.getByLabel('Coupon sections');
+  await expect(sections.getByRole('link', { name: 'Current round' })).toBeVisible();
+  await expect(sections.getByRole('link', { name: 'Season' })).toBeVisible();
+  await expect(sections.getByRole('link', { name: /combined coupon/i })).toHaveCount(0);
 
   const blocked = await carol.evaluate(async (api) => {
     const token = localStorage.getItem('coupon_access');
@@ -131,7 +140,10 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   const locked = await request.post(`${API}/__e2e/lock`);
   expect(locked.ok(), await locked.text()).toBeTruthy();
   await carol.reload();
-  await expect(carol.getByTestId('lock-banner')).toContainText('Picks are locked');
+  await expect(carol.getByTestId('round-clock')).toContainText('Picks are locked');
+  // Carol never picked, so this round is not a complete coupon and must not read as one.
+  await expect(carol.getByTestId('round-status')).toContainText('Incomplete coupon');
+  await expect(carol.getByTestId('coupon-section')).toContainText('1 of 3 never picked');
 
   const settled = await request.post(`${API}/__e2e/settle`);
   expect(settled.ok(), await settled.text()).toBeTruthy();
@@ -157,23 +169,56 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
     });
   }
 
+  // Batch 105: the combined coupon's own address is a redirect into the round that
+  // carries it. A link minted before the merge has to land on the copy section, at the
+  // week it named — this is the assertion that saved links and notification taps still
+  // reach what they were pointing at.
   await alice.goto('/leagues/the-coupon/predictions/coupon');
-  await expect(alice.getByText('2-fold accumulator')).toBeVisible();
+  await expect(alice).toHaveURL('/leagues/the-coupon/predictions#coupon');
+  await expect(alice.getByTestId('coupon-section')).toBeVisible();
+  await expect(alice.getByText('2 of 2 landed')).toBeVisible();
   await expect(alice.getByText('4.56')).toBeVisible();
   await expect(alice.getByText('All legs won 🎉')).toBeVisible();
   await expect(alice.getByTestId('acca-leg-0')).toContainText('Won');
   await expect(alice.getByTestId('acca-leg-1')).toContainText('Won');
+  // Carol never picked, so she is in the list and not in the fold.
+  await expect(alice.getByTestId('acca-leg-2')).toContainText('Yet to pick');
   await expect(alice.getByRole('button', { name: 'Copy result' })).toBeVisible();
+  // The section the fragment names is what the keyboard is on, so the first Tab from
+  // here moves inside the coupon rather than back at the top of the page.
+  await expect(alice.locator('#coupon')).toBeFocused();
   await alice.screenshot({
-    path: join(ARTIFACT_DIR, 'combined-coupon-settled.png'),
+    path: join(ARTIFACT_DIR, 'batch-105-coupon-section-settled.png'),
     fullPage: true,
   });
+
+  // The same deep link with a week on it, which is the shape Season's rows and Batch
+  // 107's notification both mint.
+  const settledWeek = await alice.evaluate(async (api) => {
+    const token = localStorage.getItem('coupon_access');
+    const response = await fetch(`${api}/api/v1/leagues/the-coupon/coupon`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return ((await response.json()) as { gameweek_id: string }).gameweek_id;
+  }, API);
+  await alice.goto(`/leagues/the-coupon/predictions/coupon?gw=${settledWeek}`);
+  await expect(alice).toHaveURL(
+    `/leagues/the-coupon/predictions?gw=${settledWeek}#coupon`,
+  );
+  await expect(alice.getByTestId('coupon-section')).toContainText('Result');
+
   for (const theme of ['dark', 'light'] as const) {
     await setTheme(alice, theme);
     await expect(alice.getByRole('button', { name: 'Copy result' })).toBeVisible();
     await expectNoAxeViolations(alice);
+    // Nothing on the merged surface may push the page sideways at 390px — the row
+    // rebuild is the reason long team and player names no longer can.
+    const overflow = await alice.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
     await alice.screenshot({
-      path: join(ARTIFACT_DIR, `batch-92-result-${theme}-390x844.png`),
+      path: join(ARTIFACT_DIR, `batch-105-round-settled-${theme}-390x844.png`),
     });
   }
 

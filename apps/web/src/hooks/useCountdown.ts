@@ -13,7 +13,7 @@ const EXPIRED: CountdownParts = { days: 0, hours: 0, minutes: 0, seconds: 0, exp
 
 function compute(targetIso: string): CountdownParts {
   // `parseInstant`, not `new Date`: an offset-less target was read as local time, so
-  // this reached zero an hour before the API stopped taking picks and `CouponPickPage`
+  // this reached zero an hour before the API stopped taking picks and `CurrentRoundPage`
   // shut the screen on a round still open (Batch 43).
   const diff = parseInstant(targetIso).getTime() - Date.now();
   if (!Number.isFinite(diff) || diff <= 0) return EXPIRED;

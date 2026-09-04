@@ -4,6 +4,9 @@ import {
   isCouponPath,
   isFootballPath,
   isLeagueHubPath,
+  COUPON_SECTION_HASH,
+  COUPON_SECTION_ID,
+  couponSectionPath,
   leagueSwitchPath,
   predictionsPath,
   privacyLabel,
@@ -145,5 +148,30 @@ describe('navigation path predicates', () => {
     expect(isCouponPath('/leagues/a/b/predictions')).toBe(false);
     expect(isCouponPath('/predictions/coupon/extra')).toBe(false);
     expect(isCouponPath('/settings')).toBe(false);
+  });
+});
+
+/**
+ * Batch 105 — the combined coupon became a section of the current round, and Batch 107's
+ * all-picked notification deep-links to it. One helper mints that address so the anchor,
+ * the redirect and the links cannot drift apart.
+ */
+describe('couponSectionPath', () => {
+  it('addresses the current round at its copy section', () => {
+    expect(couponSectionPath('work-league')).toBe('/leagues/work-league/predictions#coupon');
+  });
+
+  it('names the week as well as the league, because a gameweek id is league-scoped', () => {
+    expect(couponSectionPath('work-league', 'gw-7')).toBe(
+      '/leagues/work-league/predictions?gw=gw-7#coupon',
+    );
+  });
+
+  it('falls back to the slug-less path, which redirects through the bound league', () => {
+    expect(couponSectionPath(null, 'gw-7')).toBe('/predictions?gw=gw-7#coupon');
+  });
+
+  it('keeps the fragment and the id in step', () => {
+    expect(COUPON_SECTION_HASH).toBe(`#${COUPON_SECTION_ID}`);
   });
 });

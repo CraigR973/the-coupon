@@ -15,6 +15,12 @@ test('production bundle serves deep links through the SPA shell', async ({ page 
   await expect(page).toHaveURL('/login');
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
+  // Batch 105 gave that link a fragment as well as a query, because the combined coupon
+  // is a section of the round now. The rewrite has to carry both to the SPA shell.
+  await page.goto('/leagues/the-coupon/predictions?gw=abc#coupon');
+  await expect(page).toHaveURL('/login');
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+
   // Batch 66. The far end of a PIN reset is a *public* route — the member arrives with
   // no credential, which is the whole state — so it has to render for a signed-out
   // browser rather than bouncing to /login like everything else here.

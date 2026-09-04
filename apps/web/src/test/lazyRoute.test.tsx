@@ -19,7 +19,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // Chrome's wording, the one the owner's report reproduces as.
 const CHUNK_MESSAGE =
-  'Failed to fetch dynamically imported module: https://example.test/assets/CouponPickPage-CGRBdxPc.js';
+  'Failed to fetch dynamically imported module: https://example.test/assets/CurrentRoundPage-CGRBdxPc.js';
 
 const reload = vi.fn();
 

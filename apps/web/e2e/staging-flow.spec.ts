@@ -177,8 +177,11 @@ test('@settled settlement retry updates standings and combined coupon', async ({
     fullPage: true,
   });
 
+  // Batch 105: this address redirects into the round's copy section, so the assertion
+  // covers the redirect as well as what it lands on.
   await alice.goto('/leagues/the-coupon/predictions/coupon');
-  await expect(alice.getByText('2-fold accumulator')).toBeVisible();
+  await expect(alice).toHaveURL('/leagues/the-coupon/predictions#coupon');
+  await expect(alice.getByText('2 of 2 landed')).toBeVisible();
   await expect(alice.getByText('4.56')).toBeVisible();
   await expect(alice.getByText('All legs won 🎉')).toBeVisible();
   await expect(alice.getByTestId('acca-leg-0')).toContainText('Won');

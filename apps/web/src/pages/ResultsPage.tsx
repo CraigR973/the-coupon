@@ -5,7 +5,7 @@ import { useLeague } from '../contexts/LeagueContext';
 import { useOddsFormat } from '../hooks/useOddsFormat';
 import { useRouteLeague } from '../hooks/useRouteLeague';
 import { formatOdds } from '../lib/coupon';
-import { predictionsPath } from '../lib/leagues';
+import { couponSectionPath } from '../lib/leagues';
 import { formatCalendarDate } from '../lib/time';
 import type { GameweekResult } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
@@ -22,8 +22,12 @@ import { Skeleton } from '../components/ui/skeleton';
  *
  * Titled **Season** since Batch 78, and that is what it has always been. It was called
  * Results while showing none: the scorelines, the points and the won/lost badges live in
- * `CombinedAccaView`, where Batch 67 put them, and every row here navigates there. The
- * route keeps its `/results` path because members have it in their history.
+ * the round's own coupon section, where Batch 67 put them, and every row here navigates
+ * there. The route keeps its `/results` path because members have it in their history.
+ *
+ * Batch 105 moved that destination without changing it: the combined coupon became the
+ * `#coupon` section of the current-round surface, so a row now opens that week's round
+ * scrolled to its coupon rather than a screen of its own.
  */
 export function ResultsPage() {
   const { slug, name: leagueName } = useRouteLeague();
@@ -102,9 +106,7 @@ export function ResultsPage() {
                 type="button"
                 // Both halves of the address matter: the gameweek id is league-scoped,
                 // so it only resolves against the league it came from.
-                onClick={() =>
-                  navigate(`${predictionsPath(slug, '/coupon')}?gw=${result.gameweek_id}`)
-                }
+                onClick={() => navigate(couponSectionPath(slug, result.gameweek_id))}
                 className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface p-3 text-left transition-colors press-down hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow"
                 data-testid={`result-${result.gameweek_id}`}
               >

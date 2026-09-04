@@ -4,9 +4,9 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LeagueProvider } from '@/contexts/LeagueContext';
-import { CouponPickPage } from '@/pages/CouponPickPage';
+import { CurrentRoundPage } from '@/pages/CurrentRoundPage';
 import { LAST_VIEWED_LEAGUE_KEY } from '@/lib/leagueRecency';
-import type { GameweekSlate } from '@/lib/types';
+import type { Coupon, GameweekSlate } from '@/lib/types';
 
 const MOCK_LEAGUE = {
   slug: 'the-coupon',
@@ -91,6 +91,35 @@ const SLATE: GameweekSlate = {
   pick_scope: 'selection',
 };
 
+/**
+ * The same round, read from the other endpoint the merged surface now calls.
+ *
+ * Alice's draw is one leg; Bob appears nowhere in it, which is the whole reason the
+ * screen also reads the slate's members — a coupon cannot name who is missing.
+ */
+const COUPON: Coupon = {
+  gameweek_id: 'gw1',
+  status: 'open',
+  leg_count: 1,
+  combined_odds: 3.5,
+  legs: [
+    {
+      player_id: 'p1',
+      player_name: 'Alice',
+      fixture_id: 'fx1',
+      home: 'Forfar',
+      away: 'Brechin',
+      competition: 'Scottish League 2',
+      market: 'MATCH_ODDS',
+      outcome: 'DRAW',
+      runner_name: 'The Draw',
+      odds: 3.5,
+      status: 'pending',
+    },
+  ],
+  all_won: null,
+};
+
 const GAMEWEEKS = [
   {
     gameweek_id: 'gw1',
@@ -138,6 +167,9 @@ function stubFetchWithSlate() {
     if (String(url).includes('/gameweek/current')) {
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(SLATE) });
     }
+    if (String(url).includes('/coupon')) {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(COUPON) });
+    }
     if (String(url).includes('/gameweeks')) {
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(GAMEWEEKS) });
     }
@@ -149,11 +181,15 @@ function stubFetchWithSlate() {
 }
 
 /** The same routes, with the slate patched — for the states the default one isn't in. */
-function stubSlate(overrides: Partial<GameweekSlate>) {
+function stubSlate(overrides: Partial<GameweekSlate>, couponOverrides: Partial<Coupon> = {}) {
   vi.stubGlobal('fetch', (url: string) => {
     if (String(url).includes('/gameweek/current')) {
       const slate = { ...SLATE, ...overrides };
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(slate) });
+    }
+    if (String(url).includes('/coupon')) {
+      const value = { ...COUPON, ...couponOverrides };
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(value) });
     }
     if (String(url).includes('/gameweeks')) {
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(GAMEWEEKS) });
@@ -183,7 +219,7 @@ function renderPage(entries: string[] = ['/leagues/the-coupon/predictions']) {
         <AuthProvider>
           <LeagueProvider>
             <Routes>
-              <Route path="/leagues/:slug/predictions" element={<CouponPickPage />} />
+              <Route path="/leagues/:slug/predictions" element={<CurrentRoundPage />} />
             </Routes>
           </LeagueProvider>
         </AuthProvider>
@@ -198,7 +234,7 @@ beforeEach(() => {
   stubFetchWithSlate();
 });
 
-describe('CouponPickPage', () => {
+describe('CurrentRoundPage', () => {
   it('renders this Saturday’s fixtures from the slate', async () => {
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: /scottish league 2/i }));
@@ -215,17 +251,17 @@ describe('CouponPickPage', () => {
   });
 
   it('names the competition on the caller’s current pick', async () => {
-    // Batch 50. CombinedAccaView already prints the competition on every leg —
+    // Batch 50. The combined coupon already printed the competition on every leg —
     // this summary was the one surface out of step with its neighbour.
     renderPage();
     const summary = await screen.findByTestId('my-pick-summary');
     expect(within(summary).getByText(/Scottish League 2/)).toBeTruthy();
   });
 
-  it('shows the countdown-to-lock banner while the gameweek is open', async () => {
+  it('shows the countdown-to-lock clock while the gameweek is open', async () => {
     renderPage();
-    const banner = await screen.findByTestId('lock-banner');
-    expect(banner.textContent).toMatch(/picks lock in/i);
+    const clock = await screen.findByTestId('round-clock');
+    expect(clock.textContent).toMatch(/picks lock in/i);
   });
 
   // ── Batch 43: the lock is an instant, not a wall-clock number ────────────
@@ -240,17 +276,17 @@ describe('CouponPickPage', () => {
     stubSlate({ locks_at_utc: naiveUtc(-60) });
     renderPage();
 
-    const banner = await screen.findByTestId('lock-banner');
-    expect(banner.textContent).toMatch(/picks are locked/i);
+    const clock = await screen.findByTestId('round-clock');
+    expect(clock.textContent).toMatch(/picks are locked/i);
   });
 
   it('counts down to the real lock instant, not to the same numbers read locally', async () => {
     stubSlate({ locks_at_utc: naiveUtc(120) });
     renderPage();
 
-    const banner = await screen.findByTestId('lock-banner');
+    const clock = await screen.findByTestId('round-clock');
     // Two hours away: "1h 59m 5?s". Parsed as local time it would read about 5h 59m.
-    expect(banner.textContent).toMatch(/picks lock in 1h 5\dm/i);
+    expect(clock.textContent).toMatch(/picks lock in 1h 5\dm/i);
   });
 
   // ── Batch 48: prices the API could not refresh ───────────────────────────
@@ -268,7 +304,7 @@ describe('CouponPickPage', () => {
 
   it('says nothing about staleness on a healthy slate', async () => {
     renderPage();
-    await screen.findByTestId('lock-banner');
+    await screen.findByTestId('round-status');
     expect(screen.queryByTestId('odds-degraded-banner')).toBeNull();
   });
 
@@ -278,11 +314,11 @@ describe('CouponPickPage', () => {
     stubSlate({ status: 'scheduled', picks_open_at_utc: '2999-01-01T14:00:00' });
     renderPage();
 
-    const banner = await screen.findByTestId('lock-banner');
-    expect(banner.textContent).toMatch(/picks open in/i);
-    expect(banner.textContent).not.toMatch(/locked/i);
-    // Nothing to grab yet, so the "you haven't picked" nudge stays out of the way.
-    expect(screen.queryByText(/haven't grabbed a selection/i)).toBeNull();
+    const clock = await screen.findByTestId('round-clock');
+    expect(clock.textContent).toMatch(/picks open in/i);
+    expect(clock.textContent).not.toMatch(/locked/i);
+    // Nothing to grab yet, so the nudge to go and grab one stays out of the way.
+    expect(screen.queryByText(/grab a selection below/i)).toBeNull();
   });
 
   it('treats a scheduled round whose opening has passed as open', async () => {
@@ -291,16 +327,18 @@ describe('CouponPickPage', () => {
     stubSlate({ status: 'scheduled', picks_open_at_utc: '2020-01-01T14:00:00' });
     renderPage();
 
-    const banner = await screen.findByTestId('lock-banner');
-    expect(banner.textContent).toMatch(/picks lock in/i);
+    const clock = await screen.findByTestId('round-clock');
+    expect(clock.textContent).toMatch(/picks lock in/i);
   });
 
   it('reads a settled round as settled even with an opening still ahead', async () => {
     stubSlate({ status: 'settled', picks_open_at_utc: '2999-01-01T14:00:00' });
     renderPage();
 
-    const banner = await screen.findByTestId('lock-banner');
-    expect(banner.textContent).toMatch(/settled/i);
+    const status = await screen.findByTestId('round-status');
+    expect(status.textContent).toMatch(/settled/i);
+    // Settlement is not a countdown, so the round stops carrying a clock at all.
+    expect(screen.queryByTestId('round-clock')).toBeNull();
   });
 
   it('groups the slate by competition slug, pyramid order first', async () => {
@@ -396,9 +434,9 @@ describe('CouponPickPage', () => {
 
   it('reports how many members are still to pick', async () => {
     renderPage();
-    const roster = await screen.findByTestId('member-roster');
-    expect(roster.textContent).toContain('1 of 2 picked');
-    expect(roster.textContent).toContain('1 to go');
+    const progress = await screen.findByTestId('round-progress');
+    expect(progress.textContent).toContain('1 of 2 picked');
+    expect(progress.textContent).toContain('1 to go');
   });
 
   it('offers navigation back through the season', async () => {
@@ -488,39 +526,38 @@ describe('CouponPickPage', () => {
   });
 
   it('lists every member and flags the ones yet to pick', async () => {
+    // Batch 105: the coupon's legs and the roster's absentees are one list now, so a
+    // member reading it can see both what was taken and who the deadline would catch.
     renderPage();
-    const roster = await screen.findByTestId('member-roster');
-    fireEvent.click(within(roster).getByRole('button'));
-    expect(screen.getByTestId('roster-p1').textContent).toContain('Draw');
-    expect(screen.getByTestId('roster-p1').textContent).toContain('Scottish League 2');
-    expect(within(screen.getByTestId('roster-p2')).getByText('Yet to pick')).toBeTruthy();
+    const claimed = await screen.findByTestId('acca-leg-0');
+    expect(claimed.textContent).toContain('Draw');
+    expect(claimed.textContent).toContain('Scottish League 2');
+    expect(within(screen.getByTestId('acca-leg-1')).getByText('Bob')).toBeTruthy();
+    expect(within(screen.getByTestId('acca-leg-1')).getByText('Yet to pick')).toBeTruthy();
   });
 
   // ── Batch 78: one round, one list ─────────────────────────────────────────
 
-  it('shows the caller’s own selection once, with the rest behind a disclosure', async () => {
+  it('draws the caller’s own selection in one summary and one list, not three', async () => {
     renderPage();
-    // The pick screen opens with every competition and the roster closed, so the summary
-    // card is the only place the member's own bet is drawn. It used to be one of three.
+    // Batch 78 kept the member's own bet off two of three drawings; Batch 105 left one
+    // summary and one list, and the fixtures stay collapsed behind their competitions.
     const summary = await screen.findByTestId('my-pick-summary');
     expect(within(summary).getByText('Draw')).toBeTruthy();
-    expect(screen.queryByTestId('roster-p1')).toBeNull();
     expect(screen.queryByTestId('pick-card-fx1')).toBeNull();
   });
 
-  it('marks the caller’s own roster row the way the combined coupon marks their leg', async () => {
+  it('marks the caller’s own leg and nobody else’s', async () => {
     renderPage();
-    const roster = await screen.findByTestId('member-roster');
-    fireEvent.click(within(roster).getByRole('button'));
-    expect(within(screen.getByTestId('roster-p1')).getByText('You')).toBeTruthy();
-    expect(within(screen.getByTestId('roster-p2')).queryByText('You')).toBeNull();
+    expect(within(await screen.findByTestId('acca-leg-0')).getByText('You')).toBeTruthy();
+    expect(within(screen.getByTestId('acca-leg-1')).queryByText('You')).toBeNull();
   });
 
   // ── Batch 29: league identity ─────────────────────────────────────────────
 
   it('names the bound league in the header', async () => {
     renderPage();
-    await screen.findByTestId('lock-banner');
+    await screen.findByTestId('round-status');
     expect(screen.getByText(/the coupon/i, { selector: 'p' })).toBeTruthy();
   });
 
@@ -641,7 +678,7 @@ describe('CouponPickPage', () => {
 
     const store = stubAuth();
     renderPage(['/leagues/friends-league/predictions']);
-    await screen.findByTestId('lock-banner');
+    await screen.findByTestId('round-status');
 
     await waitFor(() => {
       expect(JSON.parse(store[LAST_VIEWED_LEAGUE_KEY]!).slug).toBe('friends-league');
@@ -650,22 +687,138 @@ describe('CouponPickPage', () => {
 
   it('links the sub-nav inside the league it is showing', async () => {
     renderPage();
-    await screen.findByTestId('lock-banner');
+    await screen.findByTestId('round-status');
 
     const subNav = screen.getByLabelText('Coupon sections');
-    expect(within(subNav).getByRole('link', { name: 'Combined coupon' }).getAttribute('href')).toBe(
-      '/leagues/the-coupon/predictions/coupon',
-    );
+    expect(
+      within(subNav).getByRole('link', { name: 'Current round' }).getAttribute('href'),
+    ).toBe('/leagues/the-coupon/predictions');
     expect(within(subNav).getByRole('link', { name: 'Season' }).getAttribute('href')).toBe(
       '/leagues/the-coupon/predictions/results',
     );
+    // Batch 105: the combined coupon is a section of the current round, not a third tab.
+    expect(within(subNav).queryByRole('link', { name: /combined coupon/i })).toBeNull();
   });
 
   it('no longer offers Football Stats here — Batch 51 made it a top-level tab', async () => {
     renderPage();
-    await screen.findByTestId('lock-banner');
+    await screen.findByTestId('round-status');
 
     const subNav = screen.getByLabelText('Coupon sections');
     expect(within(subNav).queryByRole('link', { name: /football/i })).toBeNull();
+  });
+});
+
+/**
+ * Batch 105 — one surface that orders itself by what the round is doing.
+ *
+ * The two screens this replaced could not do this: `Your pick` led with the fixture list
+ * whether or not a pick was still possible, and `Combined coupon` led with a fold whether
+ * or not the coupon was worth having. The states below are the whole argument for merging
+ * them, so each one is pinned here.
+ */
+describe('the round’s phase decides what leads', () => {
+  /** The same slate with nobody's claim on it — the state a member opens the app in. */
+  function unclaimed(): Partial<GameweekSlate> {
+    return {
+      fixtures: SLATE.fixtures.map((fixture) => ({
+        ...fixture,
+        mine: false,
+        taken_by_names: [],
+        selections: fixture.selections.map((selection) => ({
+          ...selection,
+          mine: false,
+          taken_by_player_id: null,
+          taken_by_name: null,
+        })),
+      })),
+      members: SLATE.members.map((member) => ({ ...member, has_picked: false })),
+      members_missing_picks: 2,
+    };
+  }
+
+  /** Every member in, which is what makes the coupon worth copying. */
+  function everyoneIn(): Partial<GameweekSlate> {
+    return {
+      members: SLATE.members.map((member) => ({ ...member, has_picked: true })),
+      members_missing_picks: 0,
+    };
+  }
+
+  function order() {
+    const coupon = screen.getByTestId('coupon-section');
+    const slate = screen.getByTestId('slate-section');
+    return coupon.compareDocumentPosition(slate) & Node.DOCUMENT_POSITION_FOLLOWING
+      ? 'coupon-first'
+      : 'slate-first';
+  }
+
+  it('asks for a pick, and leads with the slate, while the member holds none', async () => {
+    stubSlate(unclaimed(), { leg_count: 0, legs: [] });
+    renderPage();
+
+    expect(await screen.findByText('Pick required')).toBeTruthy();
+    expect(screen.getByTestId('my-pick-summary').textContent).toMatch(/grab a selection below/i);
+    expect(order()).toBe('slate-first');
+  });
+
+  it('says the pick is in, and still leads with the slate, while others are missing', async () => {
+    renderPage();
+    expect(await screen.findByText('Pick submitted')).toBeTruthy();
+    expect(order()).toBe('slate-first');
+  });
+
+  it('leads with the completed coupon once every member has picked', async () => {
+    stubSlate(everyoneIn());
+    renderPage();
+
+    expect(await screen.findByText('Coupon complete')).toBeTruthy();
+    expect(order()).toBe('coupon-first');
+    expect(screen.getByRole('button', { name: /copy text/i })).toBeTruthy();
+    expect(screen.getByTestId('round-progress').textContent).toContain('2 of 2 picked');
+  });
+
+  it('labels a round the deadline caught incomplete rather than complete', async () => {
+    // The honesty case. One member never picked, claiming has stopped, and the coupon on
+    // screen is a one-fold that a two-member league will never add to.
+    stubSlate({ locks_at_utc: naiveUtc(-60) });
+    renderPage();
+
+    expect(await screen.findByText('Incomplete coupon')).toBeTruthy();
+    expect(screen.getByTestId('round-progress').textContent).toContain('1 never picked');
+    expect(screen.getByTestId('coupon-section').textContent).toMatch(/1 of 2 never picked/i);
+    expect(order()).toBe('coupon-first');
+  });
+
+  it('leads with the outcome once the round has settled', async () => {
+    stubSlate({ status: 'settled' }, { status: 'settled', all_won: false });
+    renderPage();
+
+    expect(await screen.findByText('Round settled')).toBeTruthy();
+    expect(order()).toBe('coupon-first');
+    expect(screen.getByRole('button', { name: /copy result/i })).toBeTruthy();
+    // The member's own leg stays identifiable in the result.
+    expect(within(screen.getByTestId('acca-leg-0')).getByText('You')).toBeTruthy();
+  });
+});
+
+/**
+ * The copy section's address. Batch 107's all-picked notification deep-links to it, and
+ * every combined-coupon link minted before this batch redirects into it, so it has to be
+ * a real destination on the page rather than a place the reader has to go looking for.
+ */
+describe('the copy section', () => {
+  it('answers at #coupon and takes focus when the URL names it', async () => {
+    renderPage(['/leagues/the-coupon/predictions#coupon']);
+
+    const section = await screen.findByTestId('coupon-section');
+    expect(section.id).toBe('coupon');
+    await waitFor(() => expect(document.activeElement).toBe(section));
+  });
+
+  it('is not focused when the URL does not name it', async () => {
+    renderPage();
+    const section = await screen.findByTestId('coupon-section');
+    expect(document.activeElement).not.toBe(section);
   });
 });

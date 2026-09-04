@@ -116,6 +116,41 @@ export function outcomeLabel(
   return outcome === 'YES' ? 'Both teams score' : 'No — not both score';
 }
 
+/**
+ * The fixture context a selection does not already carry.
+ *
+ * Batch 105. Every coupon row and every pasted line used to print the selection and then
+ * the whole fixture — "Arsenal · Arsenal v Chelsea" — so the one word a reader is
+ * actually scanning for appeared twice and pushed the price off the row. A selection on
+ * Match Odds *is* one of the two teams, so what disambiguates it is the other one; a draw
+ * or a Both-Teams-to-Score call names neither, so it takes the pairing.
+ *
+ * This is the whole of the "context needed to disambiguate it" rule, in one place,
+ * because the screen and the clipboard have to apply it identically.
+ */
+export function fixtureContext(
+  market: PickMarket,
+  outcome: PickOutcome,
+  home: string,
+  away: string,
+): string {
+  if (market === 'MATCH_ODDS') {
+    if (outcome === 'HOME') return `v ${away}`;
+    if (outcome === 'AWAY') return `at ${home}`;
+  }
+  return `${home} v ${away}`;
+}
+
+/** A selection and its disambiguating context as one phrase — "Draw (Forfar v Brechin)". */
+export function selectionSummary(
+  market: PickMarket,
+  outcome: PickOutcome,
+  home: string,
+  away: string,
+): string {
+  return `${outcomeLabel(market, outcome, home, away)} (${fixtureContext(market, outcome, home, away)})`;
+}
+
 /** Stable identity for a selection within a fixture (React keys, comparisons). */
 export function selectionKey(market: PickMarket, outcome: PickOutcome): string {
   return `${market}:${outcome}`;
@@ -162,7 +197,7 @@ export interface ClaimPeriod {
  * (Batch 65) *without* re-deriving `status`, so a round keeps `status = 'open'` while the
  * API answers `PICKS_NOT_OPEN` — the badge said **Open** while every pick was refused.
  *
- * **`CouponPickPage` states this same rule a second time**, through `useCountdown` rather
+ * **`CurrentRoundPage` states this same rule a second time**, through `useCountdown` rather
  * than through a `now` argument, because it needs the claim period to flip live while a
  * member is sitting on the screen and it is already rendering those countdowns. That copy
  * gates whether a pick can be submitted at all, so Batch 73 left it alone rather than
@@ -198,4 +233,57 @@ export function roundStateLabel(round: ClaimPeriod, now: number = Date.now()): R
   if (refusal === 'PICKS_NOT_OPEN') return { label: 'Not open', open: false };
   if (refusal === 'PICKS_LOCKED') return { label: 'Locked', open: false };
   return { label: 'Open', open: true };
+}
+
+/**
+ * What the current round is *doing*, which is the one thing the merged Coupon surface
+ * orders itself by (Batch 105).
+ *
+ * `Your pick` and `Combined coupon` were two screens asking the member which half of one
+ * weekly job they wanted, and neither could lead with the thing that mattered at the
+ * moment they opened it. One surface can, but only if it knows which moment that is.
+ *
+ * The order of the checks is the product rule and not an implementation detail:
+ *
+ * - Settlement outranks everything, because a settled round is a result and not a coupon.
+ * - **A complete coupon outranks the deadline.** Everybody having picked is what makes the
+ *   coupon worth copying, and that can happen well before the lock; it is also why
+ *   `locked_incomplete` can only be reached with somebody still missing.
+ * - `locked_incomplete` is the honest name for a round the deadline caught. Calling it
+ *   complete because claiming has stopped is exactly the implication the review objected
+ *   to.
+ */
+export type RoundPhase =
+  | 'not_open'
+  | 'open'
+  | 'submitted'
+  | 'complete'
+  | 'locked_incomplete'
+  | 'settled';
+
+export interface RoundProgress {
+  /** Settlement has finished with this round. */
+  settled: boolean;
+  /** Claiming has stopped — the deadline passed, or the round left the pickable states. */
+  claimingShut: boolean;
+  /** The claim window has not opened yet. */
+  notOpenYet: boolean;
+  memberCount: number;
+  /** Members of this league with no selection on this round. */
+  missingCount: number;
+  /** Whether the reader holds a selection on this round. */
+  mine: boolean;
+}
+
+export function roundPhase(progress: RoundProgress): RoundPhase {
+  if (progress.settled) return 'settled';
+  if (progress.memberCount > 0 && progress.missingCount === 0) return 'complete';
+  if (progress.claimingShut) return 'locked_incomplete';
+  if (progress.notOpenYet) return 'not_open';
+  return progress.mine ? 'submitted' : 'open';
+}
+
+/** True while the coupon is the round's headline rather than the fixture list. */
+export function couponLeads(phase: RoundPhase): boolean {
+  return phase === 'complete' || phase === 'locked_incomplete' || phase === 'settled';
 }

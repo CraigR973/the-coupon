@@ -58,10 +58,43 @@ export function privacyLabel(privacy: string): string {
   return PRIVACY_LABELS[privacy as LeaguePrivacy] ?? '';
 }
 
-/** The three coupon surfaces, as the suffix each adds to a league's predictions path. */
+/**
+ * The coupon's destinations, as the suffix each adds to a league's predictions path.
+ *
+ * Two of them are destinations since Batch 105 — the current round and the season behind
+ * it. `/coupon` is the third address this surface used to answer at, kept in the union
+ * because it is still *reachable*: every notification tap, bookmark and shared link
+ * minted before that batch points at it, and it now redirects to the current round's
+ * copy section rather than 404ing.
+ */
 export type PredictionsSection = '' | '/coupon' | '/results';
 
 const PREDICTIONS_SECTIONS: readonly string[] = ['', '/coupon', '/results'];
+
+/**
+ * Where the current round's coupon — the fold, the frozen combined price and the control
+ * that copies it — answers on the page.
+ *
+ * An id rather than a route because Batch 105 merged the combined coupon into the current
+ * round, and a section of a page is addressed by a fragment. Exported as one constant so
+ * the anchor, the redirect that targets it, and the links that deep-link into it cannot
+ * drift apart; Batch 107's all-picked notification is the next caller.
+ */
+export const COUPON_SECTION_ID = 'coupon';
+
+/** The fragment form of :data:`COUPON_SECTION_ID`. */
+export const COUPON_SECTION_HASH = `#${COUPON_SECTION_ID}`;
+
+/**
+ * A link straight to one round's copy section.
+ *
+ * The gameweek id is league-scoped, so both halves of the address matter: it only
+ * resolves against the league it came from.
+ */
+export function couponSectionPath(slug: string | null, gameweekId?: string | null): string {
+  const query = gameweekId ? `?gw=${encodeURIComponent(gameweekId)}` : '';
+  return `${predictionsPath(slug)}${query}${COUPON_SECTION_HASH}`;
+}
 
 /**
  * Football Stats, which is not one of them.
