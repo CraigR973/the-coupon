@@ -1262,6 +1262,65 @@ async def current_open_gameweeks(db: AsyncSession, now: datetime) -> list[Gamewe
     return list(result.scalars().all())
 
 
+class RoundProgress(BaseModel):
+    """How much of a round's coupon is filled — the ``3/12`` a pick alert prints. Batch 107.
+
+    **The denominator counts members, not recipients.** Everyone active in the league is in
+    it whatever they have done with their notifications: mute is a statement about a phone,
+    not about whether that person still owes a pick, and a league of twelve where four have
+    muted is not a league of eight. ``notification_targets`` applies those preferences when
+    it decides who to *send* to, and this deliberately does not — the two questions are
+    separate and were conflated in the obvious first cut, which quietly announced
+    ``3/8 picked`` and would have called a round complete with four members yet to play.
+
+    ``picked_count`` is the same population narrowed to those holding a pick, so it can
+    never exceed ``member_count``: a pick left behind by somebody who has since left the
+    league or been deactivated is not counted, because they are not in the denominator
+    either.
+    """
+
+    picked_count: int
+    member_count: int
+    #: Whether the coupon is full. False for an empty league — a round with no members is
+    #: not a complete one, and there is nothing to announce.
+    all_picked: bool
+
+
+async def round_progress(db: AsyncSession, gameweek: Gameweek) -> RoundProgress:
+    """Count this round's active members and how many of them have picked."""
+    row = (
+        await db.execute(
+            select(
+                func.count().label("member_count"),
+                func.count(Pick.id).label("picked_count"),
+            )
+            .select_from(LeagueMembership)
+            .join(League, League.id == LeagueMembership.league_id)
+            .join(Profile, Profile.id == LeagueMembership.player_id)
+            .outerjoin(
+                Pick,
+                (Pick.league_id == LeagueMembership.league_id)
+                & (Pick.player_id == LeagueMembership.player_id)
+                & (Pick.gameweek_id == gameweek.id),
+            )
+            .where(
+                LeagueMembership.league_id == gameweek.league_id,
+                LeagueMembership.deleted_at.is_(None),
+                League.deleted_at.is_(None),
+                Profile.deleted_at.is_(None),
+                Profile.is_active.is_(True),
+            )
+        )
+    ).one()
+    member_count = int(row.member_count)
+    picked_count = int(row.picked_count)
+    return RoundProgress(
+        picked_count=picked_count,
+        member_count=member_count,
+        all_picked=member_count > 0 and picked_count >= member_count,
+    )
+
+
 class NotificationTarget(BaseModel):
     """One member of a round's league, resolved to everything a notification needs.
 

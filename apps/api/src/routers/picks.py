@@ -23,8 +23,9 @@ with ``PICKS_BUSY`` (429) rather than served a price it could not confirm.
 """
 
 import uuid
+from collections.abc import Coroutine
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any, TypeVar
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -44,9 +45,10 @@ from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome
 from src.models.profile import Profile
 from src.rate_limit import consume_shared_limit, limiter, per_user_key
-from src.services.gameweek import PICKABLE_STATES, pick_refusal
-from src.services.notification_triggers import notify_pick_made
+from src.services.gameweek import PICKABLE_STATES, pick_refusal, round_progress
+from src.services.notification_triggers import announce_all_picked, notify_pick_made
 from src.services.odds_provider import OddsProviderError, Selection
+from src.services.round_completion import record_completion
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -148,6 +150,33 @@ class PickResponse(BaseModel):
     points_awarded: int | None
 
 
+class SubmitPickResponse(PickResponse):
+    """A submitted pick, and how full the league's coupon is now. Batch 107.
+
+    Only the submit path returns these three. ``GET .../pick`` answers "what did I pick",
+    which is a question about one member and needs no count; adding them there would put
+    an aggregate over the whole league on a read that runs on every screen that shows a
+    member their own selection.
+
+    The point of returning them at all is that the client can draw the completion state on
+    the same paint as the pick, instead of firing a refetch it would have to race against
+    the write it just made. The member who fills the coupon is the one person for whom
+    something has changed, and they are the one person the push cannot be relied on to
+    reach in time — they are holding the phone.
+
+    They are the same numbers the league's push quotes, read once (see ``submit_pick``),
+    so the screen and the tray cannot disagree.
+    """
+
+    #: Active members of the league holding a pick for this round, this one included.
+    picked_count: int
+    #: Active members of the league, whatever they have done with their notifications.
+    member_count: int
+    #: Whether this round's coupon is now full. Not simply ``picked == member``: an empty
+    #: league is not a complete one (see ``RoundProgress``).
+    all_picked: bool
+
+
 def _to_response(pick: Pick, fixture: Fixture) -> PickResponse:
     return PickResponse(
         id=str(pick.id),
@@ -169,7 +198,9 @@ def _to_response(pick: Pick, fixture: Fixture) -> PickResponse:
 # ── Submit / change a pick ────────────────────────────────────────────────────
 
 
-@router.post("/{slug}/picks", response_model=PickResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{slug}/picks", response_model=SubmitPickResponse, status_code=status.HTTP_201_CREATED
+)
 @limiter.limit(PICK_SUBMIT_LIMIT, key_func=per_user_key)
 async def submit_pick(
     request: Request,
@@ -179,7 +210,7 @@ async def submit_pick(
     league: LeagueMemberDep,
     provider: OddsProviderDep,
     db: Db,
-) -> PickResponse:
+) -> SubmitPickResponse:
     fixture = await _resolve_fixture(body.fixture_id, db)
     gameweek = await _round_playing(db, league, fixture)
     # Both ends of the claim period: ``PICKS_NOT_OPEN`` before the league's announced
@@ -273,12 +304,23 @@ async def submit_pick(
         selection=f"{body.market.value}:{body.outcome.value}",
     )
 
-    # Serialised before the alert, not after. The block below rolls back on failure, and a
+    # Read once, after the commit so this pick is counted in it, and shared by the response
+    # and every alert below. Two reads would be free to disagree, and the member watching
+    # the screen and the league watching their phones would be told different things about
+    # the same instant.
+    progress = await round_progress(db, gameweek)
+
+    # Serialised before the alert, not after. The blocks below roll back on failure, and a
     # rollback expires every object in the session — so building the response afterwards
     # would re-read a committed row through an implicit lazy load, outside the transaction
     # that was just discarded. The response is the endpoint's contract; nothing about
     # announcing the pick may put it at risk.
-    response = _to_response(pick, fixture)
+    response = SubmitPickResponse(
+        **_to_response(pick, fixture).model_dump(),
+        picked_count=progress.picked_count,
+        member_count=progress.member_count,
+        all_picked=progress.all_picked,
+    )
 
     # Batch 76 — announce the grab. After the commit, deliberately: the pick is the thing
     # that must land, and a push that fails must not roll one back. Failures are swallowed
@@ -289,27 +331,99 @@ async def submit_pick(
     # submit path is a real latency cost and it is accepted rather than unnoticed —
     # moving delivery off the request is the delivery-layer change this batch is scoped
     # out of, and reach is 5 active subscriptions across 13 profiles today.
-    try:
-        await notify_pick_made(
+    #
+    # Batch 107 splits that into three steps with a transaction each, and the split is the
+    # design rather than tidiness. Recording the completion has to survive a delivery that
+    # fails, so it commits before delivery is attempted; delivery has to be able to fail
+    # and be retried, so it commits alone; and the ordinary alert must not be able to undo
+    # either. One `try` around all three would tie the durable record to the outcome of a
+    # webpush call, which is the exact coupling the row exists to break.
+    picker_name = await _league_display_name(db, league.id, player)
+
+    # Whether *this* submission completed the round. The database decides it, not the
+    # count above: two members claiming the last two selections seconds apart both read a
+    # full coupon, and only the insert that lands is the transition.
+    completed_now = False
+    if progress.all_picked:
+        completed_now = (
+            await _announce(
+                db,
+                "completion event could not be recorded",
+                league,
+                gameweek,
+                record_completion(
+                    db,
+                    gameweek,
+                    picker_id=player.id,
+                    picker_name=picker_name,
+                    selection=pick.runner_name,
+                    odds=pick.odds_at_pick,
+                    member_count=progress.member_count,
+                ),
+            )
+            is True
+        )
+
+        # Attempted on every submission into a full coupon, not only the completing one.
+        # That is the retry: a fan-out that failed earlier leaves `delivered_at` null, and
+        # the next pick on the round is what picks it back up.
+        await _announce(
             db,
+            "all-picked alert failed",
+            league,
             gameweek,
-            picker_id=player.id,
-            picker_name=await _league_display_name(db, league.id, player),
-            league_name=league.name,
-            selection=pick.runner_name,
-            odds=pick.odds_at_pick,
-            moved=moved,
+            announce_all_picked(db, gameweek),
         )
-        await db.commit()
-    except Exception:
-        log.exception(
+
+    # The completion **replaces** the ordinary alert rather than accompanying it — one
+    # event reached the tray, not two. A submission that merely arrived into an
+    # already-full coupon is an ordinary pick and still announces itself, at `12/12`.
+    if not completed_now:
+        await _announce(
+            db,
             "pick alert failed",
-            league_id=str(league.id),
-            gameweek_id=str(gameweek.id),
+            league,
+            gameweek,
+            notify_pick_made(
+                db,
+                gameweek,
+                picker_id=player.id,
+                picker_name=picker_name,
+                selection=pick.runner_name,
+                odds=pick.odds_at_pick,
+                moved=moved,
+                progress=progress,
+            ),
         )
-        await db.rollback()
 
     return response
+
+
+T = TypeVar("T")
+
+
+async def _announce(
+    db: AsyncSession,
+    what: str,
+    league: League,
+    gameweek: Gameweek,
+    work: Coroutine[Any, Any, T],
+) -> T | None:
+    """Run one post-commit announcement, committing or discarding it on its own.
+
+    ``None`` means it failed and was swallowed. Nothing above this line may be put at
+    risk by a notification: the pick has already committed and the response has already
+    been built, and a dead push subscription must not turn a landed claim into a 500 the
+    member reads as "it did not save".
+    """
+    try:
+        result = await work
+        await db.commit()
+    except Exception:
+        log.exception(what, league_id=str(league.id), gameweek_id=str(gameweek.id))
+        await db.rollback()
+        return None
+    return result
 
 
 async def _league_display_name(db: AsyncSession, league_id: uuid.UUID, player: Profile) -> str:

@@ -1,6 +1,7 @@
 from src.models.base import Base
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus
+from src.models.gameweek_completion import GameweekCompletion
 from src.models.invite import Invite
 from src.models.league import League, LeaguePrivacy
 from src.models.league_join_request import JoinRequestStatus, LeagueJoinRequest
@@ -27,6 +28,7 @@ __all__ = [
     "Base",
     "Fixture",
     "Gameweek",
+    "GameweekCompletion",
     "GameweekStatus",
     "Invite",
     "JoinRequestStatus",

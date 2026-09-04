@@ -31,7 +31,11 @@ from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.notification import PushSubscription
 from src.models.profile import Profile, UserRole
-from src.services.gameweek import gameweeks_due_a_reminder, notification_targets
+from src.services.gameweek import (
+    RoundProgress,
+    gameweeks_due_a_reminder,
+    notification_targets,
+)
 from src.services.notification_triggers import (
     notify_member_joined,
     notify_pick_made,
@@ -55,6 +59,18 @@ async def session() -> AsyncIterator[AsyncSession]:
 
 def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _progress(picked: int, members: int) -> RoundProgress:
+    """A round's fill state, for the tests here that only care about the copy around it.
+
+    Batch 107 made progress an argument to the pick alert rather than something it counts,
+    so the tests below state the numbers they expect to see printed. What the numbers mean
+    and how they are derived is ``test_pick_progress_batch_107``.
+    """
+    return RoundProgress(
+        picked_count=picked, member_count=members, all_picked=members > 0 and picked >= members
+    )
 
 
 async def _profile(db: AsyncSession, name: str, *, role: UserRole = UserRole.player) -> Profile:
@@ -285,10 +301,10 @@ async def test_a_pick_notifies_the_others_and_never_the_picker(session: AsyncSes
             gameweek,
             picker_id=picker.id,
             picker_name="Dave",
-            league_name=league.name,
             selection="Arsenal to win",
             odds=Decimal("1.80"),
             moved=False,
+            progress=_progress(1, 3),
         )
 
     assert told == 1
@@ -324,10 +340,10 @@ async def test_a_claim_and_a_move_read_differently(session: AsyncSession) -> Non
                 gameweek,
                 picker_id=picker.id,
                 picker_name="Dave",
-                league_name=league.name,
                 selection="Celtic",
                 odds=Decimal("2.10"),
                 moved=moved,
+                progress=_progress(1, 3),
             )
         call = send.await_args_list[0]
         return call.args[2], call.args[3]
@@ -335,9 +351,12 @@ async def test_a_claim_and_a_move_read_differently(session: AsyncSession) -> Non
     claim_title, claim_body = await _copy(moved=False)
     move_title, move_body = await _copy(moved=True)
 
-    assert "took" in claim_body and "moved to" not in claim_body
-    assert "moved to" in move_body and "took" not in move_body
-    assert claim_title != move_title
+    assert "picked Celtic" in claim_body and "moved to" not in claim_body
+    assert "moved to Celtic" in move_body and "picked" not in move_body.split("·")[0]
+    # Batch 107 moved the league out of the body and into the title, where the tray puts
+    # it anyway, and spent the room on progress. The two events are still told apart by
+    # the verb — and now by nothing else, which is why the titles match.
+    assert claim_title == move_title == league.name
 
 
 @pytest.mark.asyncio
@@ -364,14 +383,19 @@ async def test_the_alert_quotes_the_frozen_price(session: AsyncSession) -> None:
             gameweek,
             picker_id=picker.id,
             picker_name="Dave",
-            league_name="2-1 Hibs",
             selection="Arsenal to win",
             odds=Decimal("1.80"),
             moved=False,
+            progress=_progress(3, 12),
         )
 
+    title = send.await_args_list[0].args[2]
     body = send.await_args_list[0].args[3]
-    assert "Dave took Arsenal to win at 1.80 in 2-1 Hibs." == body
+    # The exact line Batch 107 specified. It named the league twice and said nothing about
+    # the round; it now names it once, in the title, and spends the rest on the only thing
+    # a member could not otherwise learn from a phone.
+    assert title == "2-1 Hibs"
+    assert body == "Dave picked Arsenal to win @ 1.80 · 3/12 picked"
 
 
 @pytest.mark.asyncio
@@ -397,10 +421,10 @@ async def test_the_pick_alert_collapses_per_league_and_round(session: AsyncSessi
             gameweek,
             picker_id=picker.id,
             picker_name="Dave",
-            league_name=league.name,
             selection="Arsenal to win",
             odds=Decimal("1.80"),
             moved=False,
+            progress=_progress(3, 12),
         )
 
     assert send.await_args_list[0].kwargs["tag"] == f"pick-made-{league.id}-{gameweek.id}"
