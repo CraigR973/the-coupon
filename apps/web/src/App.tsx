@@ -32,6 +32,7 @@ const Layout = lazyRoute(() => import('./components/Layout').then((m) => ({ defa
 const DashboardPage = lazyRoute(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const CurrentRoundPage = lazyRoute(() => import('./pages/CurrentRoundPage').then((m) => ({ default: m.CurrentRoundPage })));
 const FootballPage = lazyRoute(() => import('./pages/FootballPage').then((m) => ({ default: m.FootballPage })));
+const TeamSeasonPage = lazyRoute(() => import('./pages/TeamSeasonPage').then((m) => ({ default: m.TeamSeasonPage })));
 const ResultsPage = lazyRoute(() => import('./pages/ResultsPage').then((m) => ({ default: m.ResultsPage })));
 const LeaderboardPage = lazyRoute(() => import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
 const PlayerProfilePage = lazyRoute(() => import('./pages/PlayerProfilePage').then((m) => ({ default: m.PlayerProfilePage })));
@@ -175,6 +176,13 @@ export function App() {
                             league — Batch 51 took it off the coupon's sub-nav and out
                             of `/leagues/`. */}
                         <Route path="/football" element={<FootballPage />} />
+
+                        {/* Batch 111. A club in a table is a link now, and this is where
+                            it goes: that club's whole season in that competition. The
+                            competition and season ride in the query because neither is
+                            inferable from the club — it plays a league and a cup in the
+                            same year and has a season for each. */}
+                        <Route path="/football/teams/:teamId" element={<TeamSeasonPage />} />
 
                         {/* The slug-less paths they replaced — every link, bookmark and
                             reminder minted before this batch still lands correctly. */}

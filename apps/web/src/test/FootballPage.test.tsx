@@ -290,12 +290,16 @@ describe('FootballPage — tables', () => {
   });
 });
 
-// ── Opening a table row's form (Batch 53) ─────────────────────────────────────
+// ── One way into a club, not two (Batch 111) ─────────────────────────────────
 //
-// `recent` is optional on `TableEntry` and the shared fixture above omits it, which is
-// also the deploy-gap case: Vercel ships this app from `main` while the API waits for
-// `/ship-prod`, so for that window every row arrives without it and every run of pips
-// stays the graphic it was.
+// Batch 53 put the five matches behind a form line into a disclosure on the pips, and
+// those three tests lived here. Batch 111 removes that control: the club's name is a
+// link to its whole season, and the five-match panel was a hidden subset of the same
+// thing reached by a different gesture. Keeping both would be the "two competing ways
+// to inspect results" the row exists to end — so the pips go back to being the graphic
+// they were before, and these tests assert that instead.
+//
+// `recent` is still optional on `TableEntry`, and nothing here reads it any more.
 
 const ARSENAL_RECENT: FormMatch[] = [
   {
@@ -327,48 +331,112 @@ const TABLES_WITH_FORM: CompetitionTable[] = [
   },
 ];
 
-describe('FootballPage — opening a table row’s form', () => {
-  it('opens the matches behind the pips in a row of their own', async () => {
+describe('FootballPage — one way into a club', () => {
+  it('makes the club’s name a link to its season in this competition', async () => {
+    renderPage();
+    const table = await openTable();
+
+    const link = within(table).getByTestId('team-link-t-arsenal');
+    expect(link.tagName).toBe('A');
+    expect(link.textContent).toBe('Arsenal FC');
+    expect(link.getAttribute('href')).toBe(
+      '/football/teams/t-arsenal?competition=england-premier-league&season=2025',
+    );
+  });
+
+  it('leaves the form pips a graphic, even for a club that has stored matches', async () => {
+    // The regression this replaces: a second, invisible way in, on a control whose only
+    // affordance was that the cursor changed.
+    stubFetch({ tables: TABLES_WITH_FORM });
+    renderPage();
+    const table = await openTable();
+
+    const arsenal = within(table).getByLabelText(/Arsenal FC form, oldest first/);
+    expect(arsenal.tagName).not.toBe('BUTTON');
+    expect(arsenal.getAttribute('role')).toBe('img');
+    expect(arsenal.getAttribute('aria-expanded')).toBeNull();
+  });
+
+  it('opens no panel when the pips are clicked, because there is nothing behind them', async () => {
     stubFetch({ tables: TABLES_WITH_FORM });
     renderPage();
     const table = await openTable();
 
     fireEvent.click(within(table).getByLabelText(/Arsenal FC form, oldest first/));
 
-    const panel = screen.getByRole('list', { name: /Arsenal FC recent results/ });
-    expect(within(panel).getAllByRole('listitem').length).toBe(2);
-    expect(panel.textContent).toContain('Tottenham Hotspur FC');
-
-    // Across the whole table rather than inside the Form cell, which is five pips wide
-    // on a phone and would push the table into sideways scrolling.
-    const panelRow = within(table).getByTestId('form-matches-row-t-arsenal');
-    expect(panelRow.contains(panel)).toBe(true);
-    expect(panelRow.querySelector('td')?.getAttribute('colspan')).toBe('9');
-    expect(within(table).getByTestId('table-row-t-arsenal').contains(panel)).toBe(false);
-  });
-
-  it('closes it again, and opens only one club at a time', async () => {
-    stubFetch({ tables: TABLES_WITH_FORM });
-    renderPage();
-    const table = await openTable();
-    const pips = within(table).getByLabelText(/Arsenal FC form, oldest first/);
-
-    fireEvent.click(pips);
-    expect(pips.getAttribute('aria-expanded')).toBe('true');
-
-    fireEvent.click(pips);
-    expect(pips.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByRole('list', { name: /recent results/ })).toBeNull();
+    expect(screen.queryByTestId('form-matches-row-t-arsenal')).toBeNull();
   });
 
-  it('leaves a row with a form string but no stored matches inert', async () => {
-    stubFetch({ tables: TABLES_WITH_FORM });
+  /**
+   * Measured in the browser at 390px: the club name alone renders a 164×20 box, which is
+   * four pixels short of WCAG 2.2 SC 2.5.8 — the same shortfall Batch 55 found on the
+   * form disclosure, for the same reason. A standalone control in a table cell does not
+   * get the standard's inline-link exception.
+   */
+  it('gives the club link the 24px target floor a bare line of text misses', async () => {
     renderPage();
     const table = await openTable();
+    const link = within(table).getByTestId('team-link-t-arsenal');
+    expect(link.className).toMatch(/\bmin-h-6\b/);
+  });
 
-    const chelsea = within(table).getByLabelText(/Chelsea FC form, oldest first/);
-    expect(chelsea.tagName).not.toBe('BUTTON');
-    expect(chelsea.getAttribute('role')).toBe('img');
+  it('gives every club in the table the same way in', async () => {
+    renderPage();
+    const table = await openTable();
+    const links = within(table).getAllByTestId(/^team-link-/);
+    expect(links.map((l) => l.textContent)).toEqual(['Arsenal FC', 'Chelsea FC']);
+  });
+});
+
+// ── Coming back to the table (Batch 111) ─────────────────────────────────────
+
+describe('FootballPage — the open division is in the address', () => {
+  it('opens the division a ?competition= link names', async () => {
+    renderPage('/football?competition=england-premier-league');
+    const table = await screen.findByTestId('league-table-england-premier-league');
+    const header = within(table).getAllByRole('button')[0];
+
+    expect(header.getAttribute('aria-expanded')).toBe('true');
+    expect(within(table).getByTestId('table-row-t-arsenal')).toBeTruthy();
+    // Only that one — the point is restoring a state, not opening everything.
+    const other = await screen.findByTestId('league-table-scotland-league-two');
+    expect(within(other).getAllByRole('button')[0].getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('names the division in the URL when one is expanded, and clears it when closed', async () => {
+    renderPage();
+    const table = await screen.findByTestId('league-table-england-premier-league');
+    const header = within(table).getAllByRole('button')[0];
+
+    fireEvent.click(header);
+    expect(window.location.search).toBe('');
+    // MemoryRouter keeps its own history, so read the state through the component.
+    expect(header.getAttribute('aria-expanded')).toBe('true');
+
+    fireEvent.click(header);
+    expect(header.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('asks for the season a ?season= link names', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (String(url).includes('/football/tables')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(TABLES) });
+      }
+      if (String(url).includes('/football/results')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(RESULTS) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage('/football?competition=england-premier-league&season=2024');
+    await screen.findByTestId('league-table-england-premier-league');
+
+    const tableCalls = fetchMock.mock.calls
+      .map(([url]) => String(url))
+      .filter((url) => url.includes('/football/tables'));
+    expect(tableCalls.some((url) => url.endsWith('season=2024'))).toBe(true);
   });
 });
 

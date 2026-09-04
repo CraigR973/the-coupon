@@ -27,6 +27,12 @@ test('production bundle serves deep links through the SPA shell', async ({ page 
   await expect(page).toHaveURL('/login');
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
+  // Batch 111 gave a club's season an address of its own, two segments deep with a
+  // query — the shape the 2026-08-06 incident was about the rewrite not carrying.
+  await page.goto('/football/teams/t-arsenal?competition=england-premier-league&season=2026');
+  await expect(page).toHaveURL('/login');
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+
   // Batch 66. The far end of a PIN reset is a *public* route — the member arrives with
   // no credential, which is the whole state — so it has to render for a signed-out
   // browser rather than bouncing to /login like everything else here.

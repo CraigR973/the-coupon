@@ -44,10 +44,39 @@ export function FootballPage() {
   const timezone = player?.timezone ?? 'UTC';
   const [params, setParams] = useSearchParams();
   const requestedDate = params.get('date') ?? undefined;
+  // Batch 111. Which division is expanded, and which season's table it shows, are both
+  // in the address so that coming back from a club's season lands on the table the
+  // member left — same division open, same season, and therefore the same page height
+  // for the browser to restore their scroll against.
+  const openCompetition = params.get('competition') ?? undefined;
+  const seasonParam = Number(params.get('season'));
+  const season = Number.isFinite(seasonParam) && seasonParam > 0 ? seasonParam : undefined;
   // A `?date=` link is a link to a result day, so it opens on the tab that has one.
   // Read once, at mount: after that the tabs are the member's to move between, and a
   // later selection must not throw them back across the page.
   const [view, setView] = useState<View>(() => (params.has('date') ? 'results' : 'tables'));
+
+  /**
+   * Expand one division, or collapse the open one.
+   *
+   * Replaced rather than pushed: opening a table is a filter on this screen, not a
+   * journey through it, so the back button should leave Football Stats rather than
+   * close an accordion. The result day above is pushed for exactly the opposite reason.
+   */
+  const toggleCompetition = useCallback(
+    (competitionId: string) => {
+      setParams(
+        (previous) => {
+          const next = new URLSearchParams(previous);
+          if (next.get('competition') === competitionId) next.delete('competition');
+          else next.set('competition', competitionId);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setParams],
+  );
 
   /**
    * Put the chosen day in the URL — pushed, not replaced.
@@ -70,8 +99,11 @@ export function FootballPage() {
   );
 
   const tables = useQuery<CompetitionTable[]>({
-    queryKey: ['football', 'tables'],
-    queryFn: () => apiFetch<CompetitionTable[]>('/api/v1/football/tables'),
+    queryKey: ['football', 'tables', season ?? 'default'],
+    queryFn: () =>
+      apiFetch<CompetitionTable[]>(
+        season === undefined ? '/api/v1/football/tables' : `/api/v1/football/tables?season=${season}`,
+      ),
     staleTime: 5 * 60_000,
   });
   const results = useQuery<ResultEntry[]>({
@@ -108,7 +140,12 @@ export function FootballPage() {
       )}
 
       {view === 'tables' && !tables.isLoading && !tables.isError && (
-        <TablesView tables={tableList} timezone={timezone} />
+        <TablesView
+          tables={tableList}
+          timezone={timezone}
+          openCompetition={openCompetition}
+          onToggleCompetition={toggleCompetition}
+        />
       )}
 
       {view === 'results' && !results.isLoading && !results.isError && (
@@ -123,7 +160,20 @@ export function FootballPage() {
   );
 }
 
-function TablesView({ tables, timezone }: { tables: CompetitionTable[]; timezone: string }) {
+interface TablesViewProps {
+  tables: CompetitionTable[];
+  timezone: string;
+  /** The one division showing its rows, or `undefined` for all collapsed. */
+  openCompetition: string | undefined;
+  onToggleCompetition: (competitionId: string) => void;
+}
+
+function TablesView({
+  tables,
+  timezone,
+  openCompetition,
+  onToggleCompetition,
+}: TablesViewProps) {
   // The pick screen's order, not the ingestion job's. These are the same divisions a
   // member has just been reading down the coupon, so arriving at them shuffled costs a
   // search every time — `lib/competitions` is the one order both screens read in.
@@ -148,8 +198,10 @@ function TablesView({ tables, timezone }: { tables: CompetitionTable[]; timezone
           // instinct — thirty expanded tables is several hundred rows — with the wrong
           // answer: the reader has not asked for *any* of them yet, and opening the one
           // that happens to sort first makes it look chosen. The owner asked for the
-          // screen collapsed on open.
-          defaultOpen={false}
+          // screen collapsed on open. Since Batch 111 the open one is named in the URL,
+          // so arriving back from a club's season reopens it rather than resetting.
+          open={table.competition_id === openCompetition}
+          onToggle={() => onToggleCompetition(table.competition_id)}
         />
       ))}
     </div>

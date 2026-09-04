@@ -87,6 +87,43 @@ export interface FormMatch {
   result: FormResult;
 }
 
+/**
+ * Where a match stands, in The Coupon's vocabulary rather than a provider's (Batch 110).
+ *
+ * `postponed` and `cancelled` are separate because they mean different things to a
+ * reader: one will be played on some other night and one will not.
+ */
+export type MatchState = 'scheduled' | 'live' | 'finished' | 'postponed' | 'cancelled';
+
+/** One match on a club's season, from that club's point of view (Batch 110). */
+export interface TeamSeasonMatch {
+  match_id: string;
+  kickoff_utc: string;
+  opponent: string;
+  opponent_team_id: string;
+  /** True when this club is at home — the one thing a scoreline cannot be read without. */
+  home: boolean;
+  state: MatchState;
+  /** The provider's own words: "FT", "PP", a live minute. Display text, not a filter. */
+  status: string;
+  /** Null until there is a score. An unplayed fixture is not a nil-nil. */
+  goals_for: number | null;
+  goals_against: number | null;
+  /** Null until the match has a final score to derive it from. */
+  result: FormResult | null;
+}
+
+/** A club's complete season in one competition (Batch 110). */
+export interface TeamSeason {
+  team_id: string;
+  team: string;
+  competition_id: string;
+  competition: string;
+  season: number;
+  /** Chronological, oldest first — the order the season is played. */
+  matches: TeamSeasonMatch[];
+}
+
 /** A club's table line and recent form, as shown beside a fixture. */
 export interface TeamContext {
   team_id: string;
