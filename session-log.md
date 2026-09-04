@@ -3141,3 +3141,26 @@ addendum's next actionable group is Group I, Batch 103; it remains a separate ba
 
 **Next:** Batch 95 is still the first unchecked batch and remains soft-blocked. The next
 executable group is Group J, Batch 104, followed by its explicit `/ship-prod` checkpoint.
+
+## Batch 104 — Railway is retiring the config file three of our invariants are written in
+**Commits:** 9bd62a6 · verified: `scripts/ci-local.sh` PASS (11 checks, green first run)
+
+### Key facts for future sessions
+- **The generated migration was not safe to accept.** Railway's dry-run converter emitted
+  duplicate replica keys and omitted build, health, sleep, egress and restart settings, so
+  the replacement was hand-authored from the old contract and checked as an evaluated graph.
+- **The graph is deliberately narrow and fail-closed.** It owns only the existing `api`
+  service, accepts only the recorded staging/production project-environment pairs and
+  preserves every documented sealed variable name without exposing a value.
+- **All three load-bearing couplings moved together.** The deployment-config gate evaluates
+  `.railway/railway.ts`; `DEPLOY_REPLICA_COUNT=1` still enters the image; and the migration
+  guard test proves a divergent declaration fails, including multi-region totals.
+- **Ship owns the external apply.** Both exact targets produced read-only plans with zero
+  additions or destroys. The ship workflows now require Node 22 for IaC, review/apply a
+  pinned non-destructive plan, serialize any config deployment, then upload source.
+- **Nothing was deployed in the batch run.** Group J stops here with production drift
+  expected until an explicit `/ship-prod`, after which the deployed replica, region, sleep,
+  IPv6 and readiness manifest must be checked before Group J can complete.
+
+**Next:** Run `/ship-prod` for Batch 104, then rerun `/group-start J` so it can verify drift
+is clear and mark the group complete. Batch 95 remains soft-blocked; Group K follows.

@@ -3131,8 +3131,8 @@ answered until it lands, because until then there is no data to look at.
   does on a privacy transition** — the auto-approve and cancel behaviours are correct and
   stay exactly as they are. No change to `PRIVACY_LABELS` or the screens that read it.
 
-- [ ] **Batch 104 — Railway is retiring the config file three of our invariants are written
-  in** — specified 2026-08-30 from the Group E shipment, where the CLI began warning on
+- [x] **Batch 104 — Railway is retiring the config file three of our invariants are written
+  in** ✅ 2026-09-04 — specified 2026-08-30 from the Group E shipment, where the CLI began warning on
   every command that Config as Code (`railway.json` / `railway.toml`) is deprecated in
   favour of Infrastructure as Code (`.railway/railway.ts`), with existing files working
   **until 2026-12-01**. `railway config migrate` is offered as the conversion.

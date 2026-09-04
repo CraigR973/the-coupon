@@ -542,12 +542,12 @@ is **not live until `/ship-prod`**.
 
 **Batch 100** turned the single-replica precondition from a note into a check that runs.
 `nixpacks.toml` starts the service with `alembic upgrade head && uvicorn ...`, which is
-correct only because `railway.toml` pins one replica; raise it and two containers apply
+correct only because `.railway/railway.ts` pins one replica; raise it and two containers apply
 the same DDL to the same database seconds apart, with Alembic holding no lock of its own.
 `src.migration_guard.assert_single_replica` now runs from `migrations/env.py` before the
 engine is built, so it covers every way an upgrade is invoked and not just the start
 command. The count is baked into the image as `DEPLOY_REPLICA_COUNT` and a test holds it
-equal to what `railway.toml` actually asks for — summed across `multiRegionConfig`,
+equal to what `.railway/railway.ts` actually asks for — summed across `multiRegionConfig`,
 because two regions at one replica each is two processes while `numReplicas` still reads
 `1`. Above one it refuses, names the count, says the database was not touched and points
 at the release-step alternative set aside on 2026-08-27. API/infra only, **not live until
@@ -1342,14 +1342,14 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 95 and 104-111 unchecked** — nine remaining.
-Batch 95 comes from the 2026-08-26 full-application review; 104 was specified on 2026-08-30;
-and 105-111 were specified from the owner's 2026-09-03 Coupon, home, notification and
-Football Stats review. Batch 95 remains in the soft-blocked tail of Group D. The current
-executable wave is Groups J-M:
+`docs/BUILD_PLAN.md` carries **Batches 95 and 105-111 unchecked** — eight remaining.
+Batch 95 comes from the 2026-08-26 full-application review, and 105-111 were specified
+from the owner's 2026-09-03 Coupon, home, notification and Football Stats review. Batch 95
+remains in the soft-blocked tail of Group D. Group J's Batch 104 implementation is closed;
+its production checkpoint is now owed before the executable wave continues with Groups K-M:
 
 ```text
-J  104           API+infra → /ship-prod
+J  104 complete  API+infra → /ship-prod owed
 K  105 106       web       → (no ship)
 L  107           API/data  → /ship-prod → 108 web
 M  109 110       web+API   → /ship-prod → 111 web
@@ -1358,7 +1358,7 @@ M  109 110       web+API   → /ship-prod → 111 web
 `/group-start <I-M>` now orchestrates those groups. It still gives every batch its own
 branch, full gate and automatic close-out; it stops at each API checkpoint for an explicit
 `/ship-prod`, then verifies deployment drift before a rerun can continue. The full intended
-remaining order is `104 → ship → 105 → 106 → 107 → ship → 108 → 109 → 110 → ship → 111`.
+remaining order is `ship 104 → 105 → 106 → 107 → ship → 108 → 109 → 110 → ship → 111`.
 
 Group K unifies Your pick and Combined coupon into one state-aware Current round surface,
 then separates future action from historical odds on home and contains the hero glows.
@@ -1368,13 +1368,13 @@ transition and the final picker's truthful in-app hand-off. Group M adds result-
 navigation, persists the full selected league season including future/non-final fixtures,
 then makes league-table teams open that addressable season view.
 
-**Batch 104 is the only item in this plan with an external deadline.** Railway is retiring
-`railway.toml` in favour of `.railway/railway.ts` and the CLI states existing files work only
-**until 2026-12-01**. Three separate checks read that file — the gate's `tomllib` assertions,
-`nixpacks.toml`'s `DEPLOY_REPLICA_COUNT`, and `test_migration_guard.py` — so letting it lapse
-risks losing the `numReplicas = 1` pin that Batch 100's migration guard exists to protect.
-Its scope also moves the deployment-drift path watch from `railway.toml` to
-`.railway/railway.ts`, so the checkpoint remains capable of seeing future IaC-only changes.
+**Batch 104 was the only item in this plan with an external deadline and is now closed on
+`main`.** `.railway/railway.ts` replaces the deprecated `railway.toml` before Railway's
+2026-12-01 cutoff, preserves the one-replica invariant in the image and migration guard,
+and is evaluated by both local and GitHub deployment-config gates. The drift watch follows
+the new path. Production still serves the pre-104 image/config until the explicit Group J
+`/ship-prod`; that workflow now plans and applies the exact fail-closed IaC graph before
+uploading source, then verifies the deployed manifest.
 
 `docs/LAUNCH_PLAN.md` has a single open phase, **L5 — Launch and first-Saturday watch**,
 with L0-L4 ticked since 2026-08-04.
