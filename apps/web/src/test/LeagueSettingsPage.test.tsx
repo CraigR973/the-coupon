@@ -71,12 +71,15 @@ function stubApi(
   window: Record<string, unknown> = {},
   gameweeks: unknown[] = [],
   refresh: { body: unknown; status?: number } = { body: REFRESH_OK },
+  leagueOverrides: Record<string, unknown> = {},
+  joinRequests: unknown[] = [],
 ) {
   const captured: {
     patch: Record<string, unknown> | null;
     post: Record<string, unknown> | null;
     refreshed: number;
-  } = { patch: null, post: null, refreshed: 0 };
+    joinRequestsFetched: number;
+  } = { patch: null, post: null, refreshed: 0, joinRequestsFetched: 0 };
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
     const method = init.method ?? 'GET';
     // Before the `/gameweeks` matchers: the refresh route is a suffix of neither.
@@ -111,12 +114,16 @@ function stubApi(
         201,
       );
     }
+    if (url.endsWith('/join-requests') && method === 'GET') {
+      captured.joinRequestsFetched += 1;
+      return json(joinRequests);
+    }
     if (method === 'PATCH') {
       captured.patch = JSON.parse(init.body as string) as Record<string, unknown>;
-      return json(leagueDetail({}, window));
+      return json(leagueDetail(leagueOverrides, window));
     }
     if (/\/api\/v1\/leagues\/[^/]+$/.test(url)) {
-      return json(leagueDetail({}, window));
+      return json(leagueDetail(leagueOverrides, window));
     }
     return json({});
   });
@@ -219,6 +226,106 @@ describe('LeagueSettingsPage — admin configuration (Batch 15)', () => {
 
     await waitFor(() => expect(api.post).not.toBeNull());
     expect(api.post?.starts_on).toBe('2027-12-26');
+  });
+});
+
+describe('LeagueSettingsPage — privacy consequences (Batch 103)', () => {
+  const pendingRequests = [
+    {
+      id: 'r1',
+      player_id: 'p2',
+      display_name: 'Bob',
+      requested_at: '2026-08-30T10:00:00Z',
+      status: 'pending',
+      note: null,
+    },
+    {
+      id: 'r2',
+      player_id: 'p3',
+      display_name: 'Carol',
+      requested_at: '2026-08-30T11:00:00Z',
+      status: 'pending',
+      note: null,
+    },
+  ];
+
+  it('states the real consequence of every privacy option', async () => {
+    stubApi(undefined, {}, [], undefined, { privacy: 'private' });
+    renderPage();
+    await screen.findByDisplayValue('The Coupon');
+
+    const privacy = screen.getByLabelText(/privacy/i) as HTMLSelectElement;
+    expect(privacy.getAttribute('aria-describedby')).toBe('settings-privacy-help');
+    const help = () => document.getElementById('settings-privacy-help')!.textContent!;
+
+    expect(help()).toMatch(/hidden from discover/i);
+    expect(help()).toMatch(/join code/i);
+
+    fireEvent.change(privacy, { target: { value: 'public_request' } });
+    expect(help()).toMatch(/approve or decline/i);
+
+    fireEvent.change(privacy, { target: { value: 'public_open' } });
+    expect(help()).toMatch(/anyone with an account/i);
+    expect(help()).toMatch(/without asking you/i);
+  });
+
+  it('names how many requests will be auto-approved before saving an open transition', async () => {
+    const api = stubApi(
+      undefined,
+      {},
+      [],
+      undefined,
+      { privacy: 'public_request' },
+      pendingRequests,
+    );
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderPage();
+    await screen.findByDisplayValue('The Coupon');
+    await waitFor(() => expect(api.joinRequestsFetched).toBe(1));
+
+    fireEvent.change(screen.getByLabelText(/privacy/i), { target: { value: 'public_open' } });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(String(confirm.mock.calls[0][0])).toMatch(/automatically approve 2 pending join requests/i);
+    expect(api.patch).toBeNull();
+  });
+
+  it('names how many requests will be cancelled before saving a private transition', async () => {
+    const api = stubApi(
+      undefined,
+      {},
+      [],
+      undefined,
+      { privacy: 'public_request' },
+      pendingRequests.slice(0, 1),
+    );
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderPage();
+    await screen.findByDisplayValue('The Coupon');
+    await waitFor(() => expect(api.joinRequestsFetched).toBe(1));
+
+    fireEvent.change(screen.getByLabelText(/privacy/i), { target: { value: 'private' } });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(String(confirm.mock.calls[0][0])).toMatch(/cancel 1 pending join request/i);
+    expect(api.patch).toBeNull();
+  });
+
+  it('cannot submit the open fallback before a non-open league has populated the form', async () => {
+    const api = stubApi(undefined, {}, [], undefined, { privacy: 'private' });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderPage();
+
+    expect(screen.queryByRole('button', { name: /save changes/i })).toBeNull();
+    await screen.findByDisplayValue('The Coupon');
+    expect((screen.getByLabelText(/privacy/i) as HTMLSelectElement).value).toBe('private');
+
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    await waitFor(() => expect(api.patch).not.toBeNull());
+    expect(api.patch?.privacy).toBe('private');
+    expect(confirm).not.toHaveBeenCalled();
   });
 });
 

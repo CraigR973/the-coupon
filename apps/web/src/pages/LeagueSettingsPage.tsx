@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
+import { PRIVACY_OPTIONS, type LeaguePrivacy } from '@/lib/leagues';
 import { useRouteLeague } from '@/hooks/useRouteLeague';
 import type {
   AdHocGameweekResult,
   CompetitionCatalogue,
   CompetitionRef,
   GameweekSummary,
+  JoinRequest,
   LeagueSummary,
   PickMarket,
   PickScope,
@@ -66,9 +68,14 @@ export function LeagueSettingsPage() {
     staleTime: 60_000,
   });
 
+  const { data: joinRequests, isSuccess: joinRequestsLoaded } = useQuery<JoinRequest[]>({
+    queryKey: ['league-join-requests', slug],
+    queryFn: () => apiFetch<JoinRequest[]>(`/api/v1/leagues/${slug}/join-requests`),
+  });
+
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [privacy, setPrivacy] = useState<'public_open' | 'public_request' | 'private'>('public_open');
+  const [privacy, setPrivacy] = useState<LeaguePrivacy | null>(null);
   const [maxMembers, setMaxMembers] = useState('');
   const [pickScope, setPickScope] = useState<PickScope>('selection');
   const [window, setWindow] = useState<SlateWindow>(SATURDAY_3PM_WINDOW);
@@ -164,6 +171,36 @@ export function LeagueSettingsPage() {
       toast.error('Picks must open before they lock — give them a longer lead time.');
       return;
     }
+    if (privacy === null) return;
+
+    const pendingRequestCount =
+      joinRequests?.filter((request) => request.status === 'pending').length ?? 0;
+    const willAutoApprove = league?.privacy === 'public_request' && privacy === 'public_open';
+    const willCancel = league?.privacy !== privacy && privacy === 'private';
+    if ((willAutoApprove || willCancel) && !joinRequestsLoaded) {
+      toast.error('Wait for pending join requests to load before changing privacy.');
+      return;
+    }
+    if (pendingRequestCount > 0 && willAutoApprove) {
+      const requestLabel = pendingRequestCount === 1 ? 'request' : 'requests';
+      if (
+        !globalThis.window.confirm(
+          `Changing to Public — anyone can join instantly will automatically approve ${pendingRequestCount} pending join ${requestLabel}. Continue?`,
+        )
+      ) {
+        return;
+      }
+    }
+    if (pendingRequestCount > 0 && willCancel) {
+      const requestLabel = pendingRequestCount === 1 ? 'request' : 'requests';
+      if (
+        !globalThis.window.confirm(
+          `Changing to Private will cancel ${pendingRequestCount} pending join ${requestLabel}. Continue?`,
+        )
+      ) {
+        return;
+      }
+    }
 
     setIsSaving(true);
     try {
@@ -188,6 +225,7 @@ export function LeagueSettingsPage() {
       toast.success('League settings saved');
       queryClient.invalidateQueries({ queryKey: ['league', slug] });
       queryClient.invalidateQueries({ queryKey: ['leagues', 'mine'] });
+      queryClient.invalidateQueries({ queryKey: ['league-join-requests', slug] });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save';
       toast.error(
@@ -291,7 +329,7 @@ export function LeagueSettingsPage() {
 
   // Wait for the league before rendering the form: its data seeds every field, and
   // letting the admin edit an unseeded form would let a late load overwrite their input.
-  if (!league) {
+  if (!league || privacy === null) {
     return (
       <div className="max-w-lg mx-auto space-y-6">
         <PageHeader title="League Settings" back={{ to: `/leagues/${slug}`, label: 'Back' }} />
@@ -336,13 +374,19 @@ export function LeagueSettingsPage() {
                 <select
                   id="privacy"
                   value={privacy}
-                  onChange={(e) => setPrivacy(e.target.value as typeof privacy)}
+                  onChange={(e) => setPrivacy(e.target.value as LeaguePrivacy)}
                   className={SELECT_CLASS}
+                  aria-describedby="settings-privacy-help"
                 >
-                  <option value="public_open">Public — anyone can join instantly</option>
-                  <option value="public_request">Public · request — anyone can request to join</option>
-                  <option value="private">Private — invite only</option>
+                  {PRIVACY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
+                <p id="settings-privacy-help" className="text-xs font-sans text-text-muted">
+                  {PRIVACY_OPTIONS.find((option) => option.value === privacy)?.help}
+                </p>
               </div>
 
               <div className="space-y-1">

@@ -9,6 +9,40 @@ import type { QueryClient } from '@tanstack/react-query';
 export type LeaguePrivacy = 'public_open' | 'public_request' | 'private';
 
 /**
+ * What each privacy value actually does, as the API implements it today.
+ *
+ * `private` is the default: since Batch 63 opened self-registration, "public" no longer
+ * means "people the creator already knows" — it means anyone who has signed up. The
+ * least-private option should not be what someone gets by not touching this dropdown.
+ *
+ * Sources: `routers/leagues.py` — discover filters to the two public values; joining a
+ * private league by slug is refused `PRIVATE_LEAGUE`; `public_open` joins instantly and
+ * `public_request` creates a request the admin approves. The join code admits anyone who
+ * holds it regardless of privacy (`routers/league_memberships.py::join_league_by_code`).
+ */
+export const PRIVACY_OPTIONS: readonly {
+  value: LeaguePrivacy;
+  label: string;
+  help: string;
+}[] = [
+  {
+    value: 'private',
+    label: 'Private — invite only',
+    help: 'Hidden from Discover. Only people you send the join code to can get in.',
+  },
+  {
+    value: 'public_request',
+    label: 'Public — anyone can ask to join',
+    help: 'Listed in Discover. Anyone with an account can request to join, and you approve or decline each request.',
+  },
+  {
+    value: 'public_open',
+    label: 'Public — anyone can join instantly',
+    help: 'Listed in Discover. Anyone with an account can join without asking you, including people you have never met.',
+  },
+];
+
+/**
  * Human-readable label for a league privacy value.
  * Returns an empty string for any unrecognised value so callers can
  * detect a missing label rather than showing "undefined".
