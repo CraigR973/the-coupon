@@ -1891,3 +1891,93 @@ still returns `404` — so the `401` is the new route existing, not a blanket au
 > fields on that type, so the 0.25 vCPU / 500 MB caps were **not** independently re-confirmed
 > this shipment. The replica count, region, sleep, IPv6 egress and healthcheck all *are* in
 > the deployment manifest and were checked there.
+
+### 2026-09-04 — `9e91b60`, Batch 104 (Railway config → IaC) + web Batches 92/97/98/103
+
+Source commit `9e91b60` (`9e91b604e2041b3f2a46cddf9af1003442cba716`), on `origin/main`,
+gate green — `scripts/ci-local.sh` re-run on the shipping commit, 11/11 checks including the
+deployment-config assertions in their **new** `.railway/railway.ts` form — with a GitHub
+`Quality` run confirmed to **exist** for the commit and to have concluded `success`
+(`https://github.com/CraigR973/the-coupon/actions/runs/33860528054`).
+
+**No Alembic revision.** The repository's sole head is `020`, production was already at
+`020`, and `git diff 5634827..HEAD -- migrations/versions` is empty — so preflight step 1.7's
+forward-recovery-plan requirement did not apply. The boot log confirms it: `alembic upgrade
+head` printed only its context lines and **no `Running upgrade` line**. Of the five batches
+carried, only **Batch 104** owes a `/ship-prod`; 92, 97, 98 and 103 are web-only and were
+already live from their close-out pushes.
+
+**This is the first Railway IaC apply against production.** `railway config plan` under
+Node 22 (`.railway/railway.ts`, exact IDs supplied as `RAILWAY_PROJECT_ID` /
+`RAILWAY_ENVIRONMENT_ID` / `RAILWAY_SERVICE_ID`) returned **`0 to add, 2 to change, 0 to
+destroy`**, `"destructive": false`, both changes `"severity": "safe"`, `"kind":
+"resource.update"`, touching only `service.api`:
+
+- `build.builder` `RAILPACK` → `NIXPACKS`, `build.nixpacksConfigPath` `null` → `nixpacks.toml`;
+- `deploy`: `healthcheckPath` → `/api/v1/health/ready`, `healthcheckTimeout` → `300`,
+  `ipv6EgressEnabled` `false` → `true`, `limitOverride.containers` `null` → `cpu 0.25` /
+  `memoryBytes 500_000_000`, `numReplicas` → `1`, `restartPolicyType` → `ON_FAILURE`,
+  `restartPolicyMaxRetries` → `3`, `sleepApplication` → `false`, `multiRegionConfig`
+  `{ ams: { numReplicas: 1 } }` → `{ "europe-west4-drams3a": { numReplicas: 1 } }`.
+
+Every one of those aligns the persistent service-settings layer with the invariants the
+running deployment already used through `railway.toml` at deploy time — the `before` values
+(`ams`, `ipv6EgressEnabled: false`) were the dormant service-override layer, never what the
+container ran. **No variable change appeared in the plan**: every `preserve()` entry —
+including the eight `BF_*` names that are not set in production — produced no diff, so
+nothing was deleted. Applied with `railway config apply --plan <pinned> --yes`, no
+`--confirm-destructive`, and the plan file removed afterward. `railwayConfigFile` was `null`
+before and after — no legacy Config File setting competes with the IaC graph.
+
+The apply minted redeploy `85495b74-1190-4669-a902-3201731a72f4` (rebuilding the prior
+source `56348276`); polled to `SUCCESS` before the source upload, and `/health` stayed green
+at `56348276` / `020` throughout. It is now `REMOVED`.
+
+`RAILWAY_GIT_COMMIT_SHA` was then stamped to `9e91b604…` with `--skip-deploys`, the worktree
+re-checked clean, and `railway up` ran with every selector explicit: deployment
+`e95ff966-f7ee-4587-999f-5470063ef108`, `SUCCESS`, message `ship production 9e91b60`,
+`imageDigest sha256:62212ba6f492cd68a5d4ac362f112aa31dc1cdd92dc906955a4b6b5bd0bd18ce`. The
+`deploymentEvents` breakdown shows `SNAPSHOT_CODE`, `BUILD_IMAGE`, `CREATE_CONTAINER`,
+`HEALTHCHECK` (completed, not null), `CONFIGURE_NETWORK` and `DRAIN_INSTANCES` all with a
+real `completedAt` — a clean promotion, no stall.
+
+**Railway rollback baseline: `7ec86030-9877-434f-beab-f4e942d7c14e`** — the deployment live
+immediately before this shipment, serving `56348276` at head `020`. This shipment applies no
+migration, so that image boots against the same `020` database and **is a genuine target**.
+
+Section 4 was skipped by design. Vercel's GitHub integration had already built `9e91b60` as
+`dpl_HT3cQUVrofBAZB8Q1RG7q2XcYPAc` (immutable
+`the-coupon-production-5t8ihoowf-craigr973s-projects.vercel.app`), which already held the
+stable alias `https://the-coupon-production.vercel.app` — confirmed with
+`vercel list --prod --meta githubCommitSha=<sha>` rather than inferred from timing. Its
+predecessor `dpl_B5WD8nwNzAjhKeMyV92doWgoiVFq` is the **Vercel rollback baseline**.
+
+Post-deploy verification: `/health` reports sha `9e91b604…` and migration `020`,
+`/health/ready` agrees at `020` with `db: ok`. The deployment manifest
+(`deployment.meta.serviceManifest`) confirms `numReplicas: 1`, `multiRegionConfig:
+{ "europe-west4-drams3a": { numReplicas: 1 } }`, `sleepApplication: false`,
+`ipv6EgressEnabled: true`, `healthcheckPath: /api/v1/health/ready` at `300`,
+`restartPolicyType: ON_FAILURE` ×3, **and `limitOverride.containers` `cpu 0.25` /
+`memoryBytes 500000000` — the 0.25 vCPU / 500 MB caps are independently confirmed from the
+manifest this shipment, because the IaC `limitOverride` now bakes them in** (previous
+shipments could only attest them via `railway.toml`). An in-container RLS recheck over an
+asyncpg session (`/opt/venv/bin/python`, `DATABASE_URL` query string stripped, `ssl="require"`
+passed as an argument, DSN never rendered): PostgreSQL 17.6, `alembic_version` `020`, RLS
+enabled **and forced** on **19/19** public tables, **zero** table grants to
+`anon`/`authenticated`/`PUBLIC`, no schema `USAGE`/`CREATE` for `anon`/`authenticated`, zero
+sequence usage grants. `/api/docs` 404, `/api/v1/config` 401. The web root and the
+`/leagues/the-coupon/leaderboard` and `/settings` deep links all return 200 with a
+byte-identical SPA asset (SHA-256 `df14b4e9…`, `/assets/index-0b3QNWzJ.js`) and the committed
+security/cache headers; `/sw.js` retains `cache-control: public, max-age=0, must-revalidate`
+and `x-content-type-options: nosniff`. A CORS preflight from
+`https://the-coupon-production.vercel.app` returns 200 with that exact
+`access-control-allow-origin` and `access-control-allow-credentials: true`; a foreign origin
+is refused with 400. Bounded Railway log snapshots (39 then 48 records, whole-record scans)
+show the alembic no-op, `Application startup complete`, `Uvicorn running`, zero
+content-classified errors or 5xx served, and zero matches across the DSN / JWT / `apiKey=` /
+PEM / bearer / labelled-PIN leak patterns. The Vercel build log for the promoted deployment
+is a clean `vite build` with an 81-entry PWA precache and `Deployment completed`.
+
+Backup/restore-point identity: **none** — production has no managed backup, no PITR and no
+durable dump, under the owner's 2026-07-30 deferral. Rollback reverts application
+deployments only.
