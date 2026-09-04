@@ -1,7 +1,9 @@
 """The football-data endpoints (Batch 16, untied from a league in Batch 51).
 
 ``GET /football/tables`` and ``/football/results`` — the "own section" half of Batch 16,
-the inline half being ``GameweekSlateResponse.fixtures[].context``.
+the inline half being ``GameweekSlateResponse.fixtures[].context``. Batch 110 adds
+``GET /football/teams/{team_id}/season``, the club's-whole-season read behind Batch 111's
+team page.
 
 Three things are worth an HTTP-level test rather than a service one. First, the **scope**:
 these read the whole shared fixture pool, not the competitions the caller's own league
@@ -30,7 +32,7 @@ from datetime import datetime
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import create_access_token, hash_pin
@@ -56,6 +58,10 @@ SL2_NAME = f"Scotland - {SAMPLE_SL2}"
 
 TABLES_URL = "/api/v1/football/tables"
 RESULTS_URL = "/api/v1/football/results"
+
+
+def season_url(team_id: object, competition: str, season: int = SAMPLE_SEASON) -> str:
+    return f"/api/v1/football/teams/{team_id}/season?competition={competition}&season={season}"
 
 
 @pytest_asyncio.fixture
@@ -369,6 +375,133 @@ async def test_neither_endpoint_can_reach_a_provider(
 
     tables = await client.get(TABLES_URL, headers=seed.auth(seed.member))
     results = await client.get(RESULTS_URL, headers=seed.auth(seed.member))
+    season = await client.get(
+        season_url(await _arsenal_id(seed), seed.played.slug), headers=seed.auth(seed.member)
+    )
 
     assert tables.status_code == 200
     assert results.status_code == 200
+    assert season.status_code == 200
+
+
+# ── One club's whole season (Batch 110) ────────────────────────────────────────
+
+
+async def _arsenal_id(seed: Seed) -> uuid.UUID:
+    """The stored club, by the id the route is addressed with rather than by name."""
+    async with AsyncSessionLocal() as session:
+        found = await session.execute(
+            select(Team.id).where(
+                Team.competition_id == seed.played.slug, Team.name == "Arsenal FC"
+            )
+        )
+        return found.scalar_one()
+
+
+@pytest.mark.asyncio
+async def test_a_teams_season_comes_back_whole_and_in_order(
+    client: AsyncClient, seed: Seed
+) -> None:
+    response = await client.get(
+        season_url(await _arsenal_id(seed), seed.played.slug), headers=seed.auth(seed.member)
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["team"] == "Arsenal FC"
+    assert body["competition_id"] == seed.played.slug
+    assert body["season"] == SAMPLE_SEASON
+    kickoffs = [match["kickoff_utc"] for match in body["matches"]]
+    assert kickoffs == sorted(kickoffs)
+    # The results and the fixtures after them — the whole reason this route exists.
+    assert {match["state"] for match in body["matches"]} == {
+        "finished",
+        "scheduled",
+        "postponed",
+    }
+
+
+@pytest.mark.asyncio
+async def test_an_unplayed_fixture_is_served_with_a_null_score(
+    client: AsyncClient, seed: Seed
+) -> None:
+    """A `null` score and a `0` are different answers, and only one of them is honest."""
+    response = await client.get(
+        season_url(await _arsenal_id(seed), seed.played.slug), headers=seed.auth(seed.member)
+    )
+
+    upcoming = [m for m in response.json()["matches"] if m["state"] != "finished"]
+    assert upcoming
+    for match in upcoming:
+        assert match["goals_for"] is None
+        assert match["goals_against"] is None
+        assert match["result"] is None
+
+
+@pytest.mark.asyncio
+async def test_a_season_is_scoped_to_the_competition_it_names(
+    client: AsyncClient, seed: Seed
+) -> None:
+    """The club is in one of the two pooled competitions; the other must answer empty."""
+    arsenal = await _arsenal_id(seed)
+
+    own = await client.get(season_url(arsenal, seed.played.slug), headers=seed.auth(seed.member))
+    other = await client.get(
+        season_url(arsenal, seed.unplayed.slug), headers=seed.auth(seed.member)
+    )
+
+    assert own.json()["matches"]
+    assert other.status_code == 200
+    assert other.json()["matches"] == []
+
+
+@pytest.mark.asyncio
+async def test_a_season_we_have_not_ingested_is_empty_rather_than_an_error(
+    client: AsyncClient, seed: Seed
+) -> None:
+    response = await client.get(
+        season_url(await _arsenal_id(seed), seed.played.slug, season=SAMPLE_SEASON + 5),
+        headers=seed.auth(seed.member),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["matches"] == []
+
+
+@pytest.mark.asyncio
+async def test_a_club_we_do_not_hold_is_a_404(client: AsyncClient, seed: Seed) -> None:
+    response = await client.get(
+        season_url(uuid.uuid4(), seed.played.slug), headers=seed.auth(seed.member)
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_a_team_id_that_is_not_an_id_is_refused_rather_than_guessed_at(
+    client: AsyncClient, seed: Seed
+) -> None:
+    """Addressed by id precisely so a name can never be resolved fuzzily here."""
+    response = await client.get(
+        "/api/v1/football/teams/Arsenal/season?competition=x", headers=seed.auth(seed.member)
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_a_season_needs_a_competition(client: AsyncClient, seed: Seed) -> None:
+    """A club plays a league and a cup in one year; neither is inferable from the club."""
+    response = await client.get(
+        f"/api/v1/football/teams/{await _arsenal_id(seed)}/season",
+        headers=seed.auth(seed.member),
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_an_anonymous_caller_gets_no_season(client: AsyncClient, seed: Seed) -> None:
+    response = await client.get(season_url(await _arsenal_id(seed), seed.played.slug))
+
+    assert response.status_code in (401, 403)

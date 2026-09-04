@@ -28,7 +28,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import structlog
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, Date, cast, func, select
+from sqlalchemy import ColumnElement, Date, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.fixture import Fixture
@@ -42,6 +42,7 @@ from src.services.football_provider import (
     FormResult,
     LeagueTable,
     MatchResult,
+    MatchState,
     TeamRef,
     current_season,
     form_result,
@@ -147,6 +148,45 @@ class ResultEntry(BaseModel):
     away: str
     home_goals: int
     away_goals: int
+
+
+class TeamSeasonMatch(BaseModel):
+    """One match on a club's season, from that club's point of view.
+
+    The same shape as :class:`FormMatch` where the two overlap, and wider where a season
+    needs it to be: a form line is five finished matches and this is everything, so the
+    score is nullable, the state is explicit, and there is no ``result`` for a match that
+    has not been played.
+    """
+
+    match_id: str
+    kickoff_utc: UtcDatetime
+    opponent: str
+    opponent_team_id: str
+    #: True when this club is at home. The one thing a scoreline cannot be read without.
+    home: bool
+    state: MatchState
+    #: The provider's own words — "FT", "PP", a live minute. Display text, not a filter.
+    status: str = ""
+    goals_for: int | None = None
+    goals_against: int | None = None
+    #: ``None`` until there is a final score to derive it from. An in-play match has a
+    #: running score and no result, which is the same rule the form line follows.
+    result: FormResult | None = None
+
+
+class TeamSeason(BaseModel):
+    """A club's complete season in one competition (Batch 110)."""
+
+    team_id: str
+    team: str
+    competition_id: str
+    competition: str
+    season: int
+    #: Chronological — the order a season is played, and the order the client reverses
+    #: for the results half. Postponed and cancelled matches keep their original
+    #: kick-off, which is where the provider leaves them and the only place they sort.
+    matches: list[TeamSeasonMatch]
 
 
 class CompetitionSync(BaseModel):
@@ -366,7 +406,15 @@ async def sync_table(db: AsyncSession, table: LeagueTable) -> int:
 
 
 async def sync_results(db: AsyncSession, results: Sequence[MatchResult]) -> int:
-    """Upsert matches by ``provider_match_id``. Idempotent; flushes, does not commit."""
+    """Upsert matches by ``provider_match_id``. Idempotent; flushes, does not commit.
+
+    Since Batch 110 this also carries unplayed matches, so a repeat sync is where a
+    fixture becomes a result: the same ``provider_match_id`` arrives again with a new
+    ``state``, a kick-off that may have moved, and a score where there was none. Every
+    field is written on every pass for that reason — a match that is postponed and then
+    rescheduled has to be able to go back to ``scheduled``, which an update that only
+    filled in blanks could never do.
+    """
     if not results:
         return 0
     competition = results[0].competition
@@ -399,7 +447,16 @@ async def sync_results(db: AsyncSession, results: Sequence[MatchResult]) -> int:
         match.away_team_id = away.id
         match.home_goals = result.home_goals
         match.away_goals = result.away_goals
-        match.finished = result.finished and result.home_goals is not None
+        # `finished` keeps its older, stricter meaning — terminal *and* scored — because
+        # every read written before Batch 110 uses it to mean "there is a scoreline
+        # here". `state` is the provider's answer unedited, so a finished match with an
+        # unreadable score is visible on a season and absent from the results screen.
+        #
+        # Derived from `state` rather than from `result.finished`: the two are reconciled
+        # when a `MatchResult` is *constructed*, and `model_copy(update=...)` does not
+        # re-run that. One field is the source of truth at the boundary that writes.
+        match.finished = result.state is MatchState.FINISHED and result.home_goals is not None
+        match.state = result.state.value
         match.status = result.status[:24]
         written += 1
     await db.flush()
@@ -458,11 +515,18 @@ async def sync_competition(
     if table is not None:
         report.table_rows = await sync_table(db, table)
 
-    results = await provider.fetch_results(competition, season, since=since, until=until)
-    if results:
-        report.matches = await sync_results(db, results)
+    # The whole season when the source can hand it over in one request, the dated
+    # window when it cannot (Batch 110). FotMob publishes the season in the payload the
+    # table already came from, so taking all of it costs nothing upstream and is the
+    # only way the store learns about a match before it is played. api-football pages
+    # its results and answers this with nothing, so it keeps the window it was tuned for.
+    matches = await provider.fetch_season_matches(competition, season)
+    if not matches:
+        matches = await provider.fetch_results(competition, season, since=since, until=until)
+    if matches:
+        report.matches = await sync_results(db, matches)
 
-    report.carried = table is not None or bool(results)
+    report.carried = table is not None or bool(matches)
     report.fixtures_reconciled = await reconcile_fixture_names(db, competition)
     return report
 
@@ -704,6 +768,100 @@ async def recent_results(
         )
         for match, home, away in rows.all()
     ]
+
+
+async def team_season_matches(
+    db: AsyncSession, team_id: uuid.UUID, competition_id: str, season: int
+) -> TeamSeason | None:
+    """One club's complete season in one competition, chronologically (Batch 110).
+
+    ``None`` when there is no such club, which the router turns into a 404. A club that
+    exists but has no stored matches for that competition and season is a different
+    answer — an empty season, not a missing one — because a division ingested for the
+    first time genuinely has one.
+
+    **Three filters, and each of them is load-bearing.** The team is matched on its own
+    primary key, so two clubs that merely spell alike cannot merge (Bangor plays in both
+    Wales and Northern Ireland, which is why :class:`~src.models.team.TeamAlias` is keyed
+    the way it is). ``competition_id`` keeps a club's cup run out of its league season,
+    and ``season`` keeps last year's out of this one. Nothing here is league-scoped
+    because nothing in this table ever was — one shared pool, ingested once.
+
+    Never calls a provider, like every other read in this module.
+    """
+    team = await db.get(Team, team_id)
+    if team is None:
+        return None
+
+    home_team = Team.__table__.alias("home_team")
+    away_team = Team.__table__.alias("away_team")
+    rows = await db.execute(
+        select(Match, home_team.c.name, away_team.c.name)
+        .join(home_team, home_team.c.id == Match.home_team_id)
+        .join(away_team, away_team.c.id == Match.away_team_id)
+        .where(
+            Match.competition_id == competition_id,
+            Match.season == season,
+            or_(Match.home_team_id == team_id, Match.away_team_id == team_id),
+        )
+        # `provider_match_id` breaks the tie so a 15:00 Saturday card comes back in the
+        # same order twice — an unordered tail would reshuffle under the reader.
+        .order_by(Match.kickoff_utc, Match.provider_match_id)
+    )
+
+    matches: list[TeamSeasonMatch] = []
+    competition = ""
+    for match, home_name, away_name in rows.all():
+        competition = match.competition
+        at_home = match.home_team_id == team_id
+        goals_for = match.home_goals if at_home else match.away_goals
+        goals_against = match.away_goals if at_home else match.home_goals
+        matches.append(
+            TeamSeasonMatch(
+                match_id=str(match.id),
+                kickoff_utc=match.kickoff_utc,
+                opponent=away_name if at_home else home_name,
+                opponent_team_id=str(match.away_team_id if at_home else match.home_team_id),
+                home=at_home,
+                state=_match_state(match.state),
+                status=match.status,
+                goals_for=goals_for,
+                goals_against=goals_against,
+                # `finished` and not the state, because a result needs a scoreline and
+                # the two part company exactly when the provider does not publish one.
+                result=(
+                    form_result(goals_for, goals_against)
+                    if match.finished and goals_for is not None and goals_against is not None
+                    else None
+                ),
+            )
+        )
+
+    return TeamSeason(
+        team_id=str(team.id),
+        team=team.name,
+        competition_id=competition_id,
+        # The competition's display name lives on its matches, so an empty season has
+        # none to read. The slug is always right and the client already has it.
+        competition=competition,
+        season=season,
+        matches=matches,
+    )
+
+
+def _match_state(stored: str) -> MatchState:
+    """A stored ``matches.state`` as the enum, tolerating a value we do not know.
+
+    The column is a plain string precisely so a provider can start distinguishing
+    something new without a migration, which means a row can outlive the vocabulary that
+    wrote it — a rollback to an older image is the ordinary way that happens. Such a row
+    reads as ``scheduled`` rather than taking down the whole season with it.
+    """
+    try:
+        return MatchState(stored)
+    except ValueError:
+        log.warning("unknown match state", state=stored)
+        return MatchState.SCHEDULED
 
 
 async def team_form(

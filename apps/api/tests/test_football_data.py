@@ -58,6 +58,8 @@ from src.services.football_data import (
     season_or_default,
     sync_competition,
     sync_football_data,
+    sync_results,
+    team_season_matches,
 )
 from src.services.football_provider import (
     CompetitionKey,
@@ -66,6 +68,8 @@ from src.services.football_provider import (
     FormResult,
     LeagueTable,
     MatchResult,
+    MatchState,
+    TeamRef,
     current_season,
 )
 
@@ -164,6 +168,18 @@ class CountingFootballData(FakeFootballData):
         if competition.slug in self.unavailable:
             raise FootballDataAPIError(f"no route to {competition.slug}")
         return await super().fetch_results(competition, season, since=since, until=until)
+
+    async def fetch_season_matches(
+        self, competition: CompetitionKey, season: int
+    ) -> list[MatchResult]:
+        # Counted as the same one request `fetch_results` was: since Batch 110 the
+        # ingestion asks for the season instead of a window, and for FotMob both are
+        # the one payload the table already came from. The arithmetic below is unchanged
+        # because the *number of requests* is what it was measuring.
+        self.result_calls.append(competition.slug)
+        if competition.slug in self.unavailable:
+            raise FootballDataAPIError(f"no route to {competition.slug}")
+        return await super().fetch_season_matches(competition, season)
 
 
 @pytest_asyncio.fixture
@@ -336,7 +352,7 @@ FUTURE_KICKOFF = datetime(2030, 6, 12, 14, 0)
 @pytest_db
 @pytest.mark.asyncio
 async def test_a_competition_costs_two_upstream_requests(session: AsyncSession) -> None:
-    """One table and one results page — the unit the per-run cap counts.
+    """One table and one match list — the unit the per-run cap counts.
 
     Thirty competitions is therefore sixty requests, plus the adapter's one catalogue
     lookup, which is what makes a full daily sweep fit inside a hundred.
@@ -488,14 +504,22 @@ async def test_a_table_is_replaced_rather_than_merged(session: AsyncSession) -> 
 async def test_ingesting_the_same_results_twice_writes_no_duplicates(
     session: AsyncSession,
 ) -> None:
-    """The daily window overlaps itself by design, so every run re-sees recent matches."""
+    """Every run re-sees the whole season by design, so it had better be an upsert.
+
+    The count moved from 8 to 11 in Batch 110: the sweep now writes the canned season's
+    three unplayed fixtures as well as its eight results. ``recent_results`` still
+    answers 8, which is the point — retention widened and no read did.
+    """
     epl = _epl(uuid.uuid4().hex[:8])
     provider = CountingFootballData.with_sample_data()
 
     first = await sync_competition(session, provider, epl, SAMPLE_SEASON)
-    await sync_competition(session, provider, epl, SAMPLE_SEASON)
+    second = await sync_competition(session, provider, epl, SAMPLE_SEASON)
 
-    assert first.matches == 8
+    assert first.matches == 11
+    assert second.matches == 11
+    stored = await session.execute(select(Match).where(Match.competition_id == epl.slug))
+    assert len(stored.scalars().all()) == 11
     assert len(await recent_results(session, [epl], days=14, max_rows=100)) == 8
 
 
@@ -627,14 +651,30 @@ async def test_one_competitions_failure_does_not_take_the_run_down(session: Asyn
 async def test_the_backfill_reaches_matches_the_daily_window_cannot(
     session: AsyncSession,
 ) -> None:
-    """The window is what keeps the daily job cheap; the backfill is how history arrives."""
-    epl = _epl(uuid.uuid4().hex[:8])
+    """The window keeps a paging provider cheap; the backfill is how its history arrives.
+
+    Respecified by Batch 110 rather than dropped. A source that can hand over the whole
+    season in the request the table already cost — FotMob, which is production — is now
+    asked for exactly that, so the window bounds nothing for it and the daily sweep is
+    the backfill. A source that can only page results still gets the window it was tuned
+    for, and for that one the original claim is unchanged; both halves are asserted here.
+    """
+    tag = uuid.uuid4().hex[:8]
     day = date(2026, 5, 3)
 
+    class PagingProvider(CountingFootballData):
+        """api-football's shape: results a page at a time, and no season list at all."""
+
+        async def fetch_season_matches(
+            self, competition: CompetitionKey, season: int
+        ) -> list[MatchResult]:
+            return []
+
+    paging = _epl(f"{tag}-paging")
     windowed = await sync_competition(
         session,
-        CountingFootballData.with_sample_data(),
-        epl,
+        PagingProvider.with_sample_data(),
+        paging,
         SAMPLE_SEASON,
         since=day - timedelta(days=1),
         until=day + timedelta(days=1),
@@ -644,12 +684,25 @@ async def test_the_backfill_reaches_matches_the_daily_window_cannot(
     (backfilled,) = (
         await backfill_season(
             session,
-            CountingFootballData.with_sample_data(),
+            PagingProvider.with_sample_data(),
             season=SAMPLE_SEASON,
-            competitions=[epl],
+            competitions=[paging],
         )
     ).reports
-    assert backfilled.matches == 8  # the whole canned season
+    assert backfilled.matches == 8  # the whole canned season, results only
+
+    # And the source that can answer the season ignores the window, which is the point:
+    # every fixture still to be played is outside any window ending today.
+    whole = _epl(f"{tag}-whole")
+    unwindowed = await sync_competition(
+        session,
+        CountingFootballData.with_sample_data(),
+        whole,
+        SAMPLE_SEASON,
+        since=day - timedelta(days=1),
+        until=day + timedelta(days=1),
+    )
+    assert unwindowed.matches == 11  # eight results and the three fixtures after them
 
 
 # ── What the screens read back ─────────────────────────────────────────────────
@@ -992,10 +1045,13 @@ async def test_the_window_counts_days_with_results_not_calendar_days(
         match.kickoff_utc -= timedelta(days=30)
     await session.flush()
 
-    days_present = {m.kickoff_utc.date() for m in stored}
+    # Finished only: since Batch 110 the store also holds fixtures nobody has played, and
+    # `recent_results` has never claimed to return those.
+    played = [m for m in stored if m.finished]
+    days_present = {m.kickoff_utc.date() for m in played}
     results = await recent_results(session, [epl], days=len(days_present), max_rows=400)
 
-    assert len(results) == len(stored), "every day that has results is reachable"
+    assert len(results) == len(played), "every day that has results is reachable"
 
 
 @pytest_db
@@ -1006,3 +1062,328 @@ async def test_reading_a_slate_of_no_fixtures_asks_the_database_nothing(
     assert await fixture_context(session, [], season=SAMPLE_SEASON, form_matches=5) == {}
     assert await league_tables(session, [], SAMPLE_SEASON, form_matches=5) == []
     assert await recent_results(session, [], days=3, max_rows=10) == []
+
+
+# ── The whole season, not just the played part (Batch 110) ────────────────────
+#
+# The store held finished matches and nothing else, because the FotMob adapter dropped
+# every other kind on the way in. That is why it could not answer "what is this club
+# playing next", which is the question Batch 111's team page is built on.
+
+
+def _season_match(
+    match_id: str,
+    competition: CompetitionKey,
+    *,
+    day: str,
+    home: tuple[str, str],
+    away: tuple[str, str],
+    state: MatchState,
+    home_goals: int | None = None,
+    away_goals: int | None = None,
+    status: str = "",
+) -> MatchResult:
+    return MatchResult(
+        provider_match_id=match_id,
+        competition=competition,
+        season=SAMPLE_SEASON,
+        kickoff_utc=datetime.fromisoformat(f"{day}T14:00:00+00:00"),
+        home=TeamRef(provider_team_id=home[0], name=home[1]),
+        away=TeamRef(provider_team_id=away[0], name=away[1]),
+        home_goals=home_goals,
+        away_goals=away_goals,
+        state=state,
+        status=status,
+    )
+
+
+async def _team_id(session: AsyncSession, provider_team_id: str) -> uuid.UUID:
+    found = await session.execute(select(Team.id).where(Team.provider_team_id == provider_team_id))
+    return found.scalar_one()
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_sweep_keeps_the_fixtures_that_have_not_been_played(
+    session: AsyncSession,
+) -> None:
+    epl = _epl(uuid.uuid4().hex[:8])
+    provider = CountingFootballData.with_sample_data()
+
+    await sync_competition(session, provider, epl, SAMPLE_SEASON)
+
+    stored = await session.execute(select(Match).where(Match.competition_id == epl.slug))
+    by_state: dict[str, int] = {}
+    for match in stored.scalars().all():
+        by_state[match.state] = by_state.get(match.state, 0) + 1
+    assert by_state == {"finished": 8, "scheduled": 2, "postponed": 1}
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_fixture_becomes_a_result_in_place_rather_than_a_second_row(
+    session: AsyncSession,
+) -> None:
+    """The whole reason the sync is an upsert on ``provider_match_id``.
+
+    A match is seen many times before it is played, and the run that finds it finished
+    is the same run that found it scheduled the day before. Every field is rewritten,
+    which is what lets a postponement move a kick-off and then move it back.
+    """
+    epl = _epl(uuid.uuid4().hex[:8])
+    scheduled = _season_match(
+        "m-transition",
+        epl,
+        day="2026-05-09",
+        home=ARSENAL,
+        away=CHELSEA,
+        state=MatchState.SCHEDULED,
+    )
+    await sync_results(session, [scheduled])
+
+    live = scheduled.model_copy(
+        update={"state": MatchState.LIVE, "home_goals": 1, "away_goals": 0, "status": "63"}
+    )
+    await sync_results(session, [live])
+    mid = (
+        await session.execute(select(Match).where(Match.provider_match_id == "m-transition"))
+    ).scalar_one()
+    assert (mid.state, mid.home_goals, mid.finished) == ("live", 1, False)
+
+    full_time = scheduled.model_copy(
+        update={
+            "state": MatchState.FINISHED,
+            "home_goals": 2,
+            "away_goals": 1,
+            "status": "FT",
+        }
+    )
+    await sync_results(session, [full_time])
+
+    rows = (
+        (await session.execute(select(Match).where(Match.provider_match_id == "m-transition")))
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+    assert (rows[0].state, rows[0].home_goals, rows[0].away_goals, rows[0].finished) == (
+        "finished",
+        2,
+        1,
+        True,
+    )
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_postponement_can_be_rescheduled_back(session: AsyncSession) -> None:
+    """A state that could only ever move one way would strand every called-off match."""
+    epl = _epl(uuid.uuid4().hex[:8])
+    off = _season_match(
+        "m-off",
+        epl,
+        day="2026-05-09",
+        home=ARSENAL,
+        away=CHELSEA,
+        state=MatchState.POSTPONED,
+        status="PP",
+    )
+    await sync_results(session, [off])
+    back_on = _season_match(
+        "m-off",
+        epl,
+        day="2026-05-19",
+        home=ARSENAL,
+        away=CHELSEA,
+        state=MatchState.SCHEDULED,
+    )
+    await sync_results(session, [back_on])
+
+    row = (
+        await session.execute(select(Match).where(Match.provider_match_id == "m-off"))
+    ).scalar_one()
+    assert row.state == "scheduled"
+    assert row.kickoff_utc.date() == date(2026, 5, 19)
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_teams_season_reads_back_complete_and_in_order(session: AsyncSession) -> None:
+    epl = _epl(uuid.uuid4().hex[:8])
+    provider = CountingFootballData.with_sample_data()
+    await sync_competition(session, provider, epl, SAMPLE_SEASON)
+    arsenal = await _team_id(session, ARSENAL[0])
+
+    season = await team_season_matches(session, arsenal, epl.slug, SAMPLE_SEASON)
+
+    assert season is not None
+    assert season.team == "Arsenal FC"
+    assert season.competition_id == epl.slug
+    kickoffs = [match.kickoff_utc for match in season.matches]
+    assert kickoffs == sorted(kickoffs)
+    # Five results and the two fixtures the canned season ends on.
+    assert [match.state for match in season.matches] == [
+        MatchState.FINISHED,
+        MatchState.FINISHED,
+        MatchState.FINISHED,
+        MatchState.FINISHED,
+        MatchState.SCHEDULED,
+        MatchState.POSTPONED,
+    ]
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_season_says_home_or_away_and_scores_it_from_that_club(
+    session: AsyncSession,
+) -> None:
+    """``2-1`` means nothing until you know which side of it the club was on."""
+    epl = _epl(uuid.uuid4().hex[:8])
+    provider = CountingFootballData.with_sample_data()
+    await sync_competition(session, provider, epl, SAMPLE_SEASON)
+    arsenal = await _team_id(session, ARSENAL[0])
+
+    season = await team_season_matches(session, arsenal, epl.slug, SAMPLE_SEASON)
+    assert season is not None
+    away_day = next(m for m in season.matches if not m.home and m.opponent == "Chelsea FC")
+
+    # af-m-107: Chelsea 0 Arsenal 1 — a win, read from the away side.
+    assert (away_day.goals_for, away_day.goals_against) == (1, 0)
+    assert away_day.result is FormResult.WIN
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_an_unplayed_fixture_carries_no_score_and_no_result(
+    session: AsyncSession,
+) -> None:
+    epl = _epl(uuid.uuid4().hex[:8])
+    provider = CountingFootballData.with_sample_data()
+    await sync_competition(session, provider, epl, SAMPLE_SEASON)
+    arsenal = await _team_id(session, ARSENAL[0])
+
+    season = await team_season_matches(session, arsenal, epl.slug, SAMPLE_SEASON)
+    assert season is not None
+    upcoming = [m for m in season.matches if m.state is not MatchState.FINISHED]
+
+    assert upcoming
+    for match in upcoming:
+        assert match.goals_for is None
+        assert match.goals_against is None
+        assert match.result is None
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_season_does_not_leak_another_competition_season_or_club(
+    session: AsyncSession,
+) -> None:
+    """The three filters, each shown doing its job against data built to defeat it."""
+    tag = uuid.uuid4().hex[:8]
+    league, cup = _epl(tag), _cup(tag)
+    await sync_results(
+        session,
+        [
+            _season_match(
+                f"m-{tag}-league",
+                league,
+                day="2026-05-09",
+                home=ARSENAL,
+                away=CHELSEA,
+                state=MatchState.FINISHED,
+                home_goals=1,
+                away_goals=0,
+                status="FT",
+            ),
+            _season_match(
+                f"m-{tag}-other-club",
+                league,
+                day="2026-05-09",
+                home=SPURS,
+                away=EVERTON,
+                state=MatchState.FINISHED,
+                home_goals=2,
+                away_goals=2,
+                status="FT",
+            ),
+        ],
+    )
+    # Same club, same day, a different competition — and a different season of the same one.
+    await sync_results(
+        session,
+        [
+            _season_match(
+                f"m-{tag}-cup",
+                cup,
+                day="2026-05-09",
+                home=ARSENAL,
+                away=CHELSEA,
+                state=MatchState.FINISHED,
+                home_goals=3,
+                away_goals=0,
+                status="FT",
+            )
+        ],
+    )
+    last_year = _season_match(
+        f"m-{tag}-last-year",
+        league,
+        day="2025-05-09",
+        home=ARSENAL,
+        away=CHELSEA,
+        state=MatchState.FINISHED,
+        home_goals=4,
+        away_goals=0,
+        status="FT",
+    )
+    await sync_results(session, [last_year.model_copy(update={"season": SAMPLE_SEASON - 1})])
+    arsenal = await _team_id(session, ARSENAL[0])
+
+    season = await team_season_matches(session, arsenal, league.slug, SAMPLE_SEASON)
+
+    assert season is not None
+    assert [match.match_id for match in season.matches] == [
+        str(
+            (
+                await session.execute(
+                    select(Match.id).where(Match.provider_match_id == f"m-{tag}-league")
+                )
+            ).scalar_one()
+        )
+    ]
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_club_with_nothing_stored_is_an_empty_season_not_a_missing_one(
+    session: AsyncSession,
+) -> None:
+    """A division ingested for the first time genuinely has this shape."""
+    tag = uuid.uuid4().hex[:8]
+    epl = _epl(tag)
+    await sync_results(
+        session,
+        [
+            _season_match(
+                f"m-{tag}",
+                epl,
+                day="2026-05-09",
+                home=ARSENAL,
+                away=CHELSEA,
+                state=MatchState.SCHEDULED,
+            )
+        ],
+    )
+    arsenal = await _team_id(session, ARSENAL[0])
+
+    empty = await team_season_matches(session, arsenal, epl.slug, SAMPLE_SEASON + 5)
+
+    assert empty is not None
+    assert empty.matches == []
+    assert empty.team == "Arsenal FC"
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_a_club_we_do_not_hold_is_not_a_season_at_all(session: AsyncSession) -> None:
+    assert await team_season_matches(session, uuid.uuid4(), "england-premier-league", 2026) is None

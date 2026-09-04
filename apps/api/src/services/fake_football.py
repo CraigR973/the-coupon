@@ -27,6 +27,7 @@ from src.services.football_provider import (
     FootballDataProvider,
     LeagueTable,
     MatchResult,
+    MatchState,
     TableRow,
 )
 from src.services.team_matching import normalise_name
@@ -102,7 +103,34 @@ class FakeFootballData(FootballDataProvider):
             for row in raw
         ]
         return sorted(
-            (m for m in matches if _within(m.kickoff_utc.date(), since, until)),
+            (
+                m
+                for m in matches
+                # Finished only, the same narrowing every real adapter does — the canned
+                # season has carried unplayed fixtures since Batch 110.
+                if m.state is MatchState.FINISHED and _within(m.kickoff_utc.date(), since, until)
+            ),
+            key=lambda m: (m.kickoff_utc, m.provider_match_id),
+        )
+
+    async def fetch_season_matches(
+        self, competition: CompetitionKey, season: int
+    ) -> list[MatchResult]:
+        """The canned season entire — the finished matches and the fixtures after them.
+
+        Answered rather than left at the port's empty default, because the whole point of
+        this fake is that ingestion meets the same shapes it will meet in production. A
+        fake that returned results only would let a season-retention regression through
+        every test in the suite and find it on the real provider.
+        """
+        raw = self._results.get(normalise_name(competition.competition_name))
+        if not raw or season != self._season:
+            return []
+        return sorted(
+            (
+                MatchResult.model_validate({**row, "competition": competition, "season": season})
+                for row in raw
+            ),
             key=lambda m: (m.kickoff_utc, m.provider_match_id),
         )
 
@@ -163,7 +191,32 @@ def _match(
         "home_goals": home_goals,
         "away_goals": away_goals,
         "finished": True,
+        "state": MatchState.FINISHED,
         "status": "FT",
+    }
+
+
+def _fixture(
+    match_id: str,
+    day: str,
+    home: tuple[str, str],
+    away: tuple[str, str],
+    state: MatchState = MatchState.SCHEDULED,
+) -> dict[str, Any]:
+    """A match with no score yet — or one that is not going to get one (Batch 110).
+
+    The canned season deliberately ends with a run of these. A season that stopped at the
+    last result would exercise nothing the retention change added, and staging would show
+    a club's season as though nothing were left to play.
+    """
+    return {
+        "provider_match_id": match_id,
+        "kickoff_utc": datetime.fromisoformat(f"{day}T14:00:00").replace(tzinfo=UTC),
+        "home": {"provider_team_id": home[0], "name": home[1]},
+        "away": {"provider_team_id": away[0], "name": away[1]},
+        "finished": False,
+        "state": state,
+        "status": "PP" if state is MatchState.POSTPONED else "",
     }
 
 
@@ -185,6 +238,9 @@ _SAMPLE_TABLES: dict[str, list[dict[str, Any]]] = {
     ],
 }
 
+#: The canned season: results, then the fixtures that follow them. Named ``_RESULTS``
+#: still because that is the port method it primarily answers; it has carried unplayed
+#: matches since Batch 110, and :meth:`FakeFootballData.fetch_results` filters them out.
 _SAMPLE_RESULTS: dict[str, list[dict[str, Any]]] = {
     SAMPLE_EPL: [
         _match("af-m-101", "2026-04-11", ARSENAL, EVERTON, 3, 0),
@@ -195,6 +251,9 @@ _SAMPLE_RESULTS: dict[str, list[dict[str, Any]]] = {
         _match("af-m-106", "2026-04-25", EVERTON, CHELSEA, 1, 3),
         _match("af-m-107", "2026-05-02", CHELSEA, ARSENAL, 0, 1),
         _match("af-m-108", "2026-05-02", LIVERPOOL, EVERTON, 4, 0),
+        _fixture("af-m-109", "2026-05-09", ARSENAL, LIVERPOOL),
+        _fixture("af-m-110", "2026-05-09", EVERTON, SPURS),
+        _fixture("af-m-111", "2026-05-16", SPURS, ARSENAL, MatchState.POSTPONED),
     ],
     SAMPLE_SL2: [
         _match("af-m-201", "2026-04-11", FORFAR, ELGIN, 2, 0),
@@ -203,6 +262,7 @@ _SAMPLE_RESULTS: dict[str, list[dict[str, Any]]] = {
         _match("af-m-204", "2026-04-18", STRANRAER, FORFAR, 0, 2),
         _match("af-m-205", "2026-04-25", FORFAR, BRECHIN, 1, 2),
         _match("af-m-206", "2026-05-02", BRECHIN, ELGIN, 2, 2),
+        _fixture("af-m-207", "2026-05-09", FORFAR, STRANRAER),
     ],
 }
 

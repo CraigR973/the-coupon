@@ -31,12 +31,18 @@ class Match(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     ``competition_id`` / ``competition`` are the **odds** provider's slug and display
     name, so a match, a fixture, and a standings row all describe a competition the same
     way. Scores stay ``NULL`` until ``finished``.
+
+    **Since Batch 110 this table holds a competition's whole season**, not only the parts
+    of it that have been played: scheduled, live, postponed and cancelled matches are all
+    written, which is what lets the store answer "what is this club playing next". Every
+    read that predates that batch gates on ``finished`` and is unaffected.
     """
 
     __tablename__ = "matches"
     __table_args__ = (
         UniqueConstraint("provider_match_id", name="uq_matches_provider_match"),
         Index("ix_matches_competition_season_kickoff", "competition_id", "season", "kickoff_utc"),
+        Index("ix_matches_competition_season_state", "competition_id", "season", "state"),
         # Form is "this club's last five, either home or away", so both sides are
         # indexed with the kick-off that orders them.
         Index("ix_matches_home_team_kickoff", "home_team_id", "kickoff_utc"),
@@ -59,4 +65,11 @@ class Match(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     #: Terminal — the score is final. An in-play match carries a partial score, so this
     #: is the gate rather than the presence of goals.
     finished: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    #: :class:`~src.services.football_provider.MatchState` — where the match stands, in
+    #: The Coupon's own closed vocabulary (Batch 110). ``finished`` is the coarse view of
+    #: this and the two normally agree; the one case where they do not is a match the
+    #: provider calls finished but publishes no readable score for, which stays
+    #: ``state='finished', finished=false`` so it is visible on a season without being
+    #: counted as a result by anything that needs a scoreline.
+    state: Mapped[str] = mapped_column(String(16), nullable=False, server_default="scheduled")
     status: Mapped[str] = mapped_column(String(24), nullable=False, server_default="")

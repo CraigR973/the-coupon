@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -49,6 +50,7 @@ from src.services.football_provider import (
     FootballDataProvider,
     LeagueTable,
     MatchResult,
+    MatchState,
     TableRow,
     TeamRef,
 )
@@ -161,6 +163,74 @@ def _split_score(score: str | None) -> tuple[int | None, int | None]:
     if len(parts) != 2:
         return None, None
     return int(parts[0]), int(parts[1])
+
+
+#: FotMob's ``status.reason.longKey`` for a match that will never be replayed. Its
+#: ``cancelled`` flag is raised for postponements too — far more often, in fact — so the
+#: prose is the only thing that separates "moved to a Tuesday" from "not happening".
+_CALLED_OFF_FOR_GOOD = frozenset({"cancelled", "abandoned"})
+
+
+def _match_state(status: dict[str, Any]) -> MatchState:
+    """Read one FotMob status block as a :class:`MatchState`.
+
+    Order matters. ``cancelled`` is tested first because FotMob leaves ``finished`` and
+    ``started`` false on a called-off match, so every other branch would answer
+    "scheduled" for a game that is not going to be played — which is the failure mode
+    Batch 64 already found on the slate side, where a postponed fixture kept its
+    original kick-off and looked perfectly healthy.
+    """
+    if status.get("cancelled"):
+        reason = str((status.get("reason") or {}).get("longKey") or "").lower()
+        return MatchState.CANCELLED if reason in _CALLED_OFF_FOR_GOOD else MatchState.POSTPONED
+    if status.get("finished"):
+        return MatchState.FINISHED
+    if status.get("started"):
+        return MatchState.LIVE
+    return MatchState.SCHEDULED
+
+
+def _status_text(status: dict[str, Any], state: MatchState) -> str:
+    """The provider's own words for a state, for the one column that keeps them.
+
+    ``Match.status`` is display text and always has been ("FT", "PP", a live minute).
+    It is not what anything filters on — :class:`MatchState` is — so an unrecognised
+    reason is passed through rather than mapped, and a scheduled match simply has
+    nothing to say.
+    """
+    reason = str((status.get("reason") or {}).get("short") or "")
+    if reason:
+        return reason[:24]
+    if state is MatchState.LIVE:
+        return str((status.get("liveTime") or {}).get("short") or "LIVE")[:24]
+    if state is MatchState.FINISHED:
+        return "FT"
+    return ""
+
+
+@dataclass(frozen=True)
+class _ParsedMatch:
+    """One row of ``fixtures.allMatches`` after the parts every caller needs are read.
+
+    Extracted in Batch 110. Three methods walked this list with the same twenty lines of
+    attribution, team-ref and kick-off parsing and differed only in which matches they
+    kept; a fourth copy for the season list would have been the point at which one of
+    them quietly stopped agreeing with the others about which division a club is in.
+    """
+
+    provider_match_id: str
+    status: dict[str, Any]
+    home: TeamRef
+    away: TeamRef
+    kickoff: datetime
+
+    @property
+    def state(self) -> MatchState:
+        return _match_state(self.status)
+
+    @property
+    def scores(self) -> tuple[int | None, int | None]:
+        return _split_score(self.status.get("scoreStr"))
 
 
 def _scores_from(row: dict[str, Any]) -> tuple[int, int]:
@@ -386,6 +456,50 @@ class FotMobProvider(FootballDataProvider):
             return None
         return LeagueTable(competition=competition, season=season, rows=rows)
 
+    def _parsed_matches(
+        self, payload: dict[str, Any], competition: CompetitionKey
+    ) -> list[_ParsedMatch]:
+        """``fixtures.allMatches``, attributed to this competition and parsed.
+
+        Drops anything that cannot be used at all — a row that is not an object, a club
+        the payload does not identify, a kick-off that will not parse — and, for a
+        composite id serving several divisions, anything belonging to one of the others.
+        Filtering by *state* is the caller's job; this only says what is there.
+        """
+        matches = (payload.get("fixtures") or {}).get("allMatches")
+        if not isinstance(matches, list):
+            return []
+
+        # Only a composite payload needs attributing; a single-division id owns
+        # every match in its own list.
+        override = _COMPETITION_OVERRIDES.get(competition.slug)
+        wanted_group = override[1] if override else None
+        index = self._division_index(payload) if wanted_group is not None else {}
+
+        parsed: list[_ParsedMatch] = []
+        for match in matches:
+            if not isinstance(match, dict):
+                continue
+            status = match.get("status") or {}
+            home, away = _team_ref(match.get("home") or {}), _team_ref(match.get("away") or {})
+            if home is None or away is None:
+                continue
+            if wanted_group is not None and index.get(home.provider_team_id) != wanted_group:
+                continue
+            kickoff = _parse_utc(status.get("utcTime") or match.get("utcTime"))
+            if kickoff is None:
+                continue
+            parsed.append(
+                _ParsedMatch(
+                    provider_match_id=str(match.get("id")),
+                    status=status,
+                    home=home,
+                    away=away,
+                    kickoff=kickoff,
+                )
+            )
+        return parsed
+
     async def fetch_results(
         self,
         competition: CompetitionKey,
@@ -403,48 +517,28 @@ class FotMobProvider(FootballDataProvider):
         if league_id is None:
             return []
         payload = await self._league(league_id, season)
-        matches = (payload.get("fixtures") or {}).get("allMatches")
-        if not isinstance(matches, list):
-            return []
-
-        # Only a composite payload needs attributing; a single-division id owns
-        # every match in its own list.
-        override = _COMPETITION_OVERRIDES.get(competition.slug)
-        wanted_group = override[1] if override else None
-        index = self._division_index(payload) if wanted_group is not None else {}
 
         results: list[MatchResult] = []
-        for match in matches:
-            if not isinstance(match, dict):
+        for parsed in self._parsed_matches(payload, competition):
+            if parsed.state is not MatchState.FINISHED:
                 continue
-            status = match.get("status") or {}
-            if not status.get("finished") or status.get("cancelled"):
+            if since is not None and parsed.kickoff.date() < since:
                 continue
-            home, away = _team_ref(match.get("home") or {}), _team_ref(match.get("away") or {})
-            if home is None or away is None:
+            if until is not None and parsed.kickoff.date() > until:
                 continue
-            if wanted_group is not None and index.get(home.provider_team_id) != wanted_group:
-                continue
-            kickoff = _parse_utc(status.get("utcTime"))
-            if kickoff is None:
-                continue
-            if since is not None and kickoff.date() < since:
-                continue
-            if until is not None and kickoff.date() > until:
-                continue
-            home_goals, away_goals = _split_score(status.get("scoreStr"))
+            home_goals, away_goals = parsed.scores
             results.append(
                 MatchResult(
-                    provider_match_id=str(match.get("id")),
+                    provider_match_id=parsed.provider_match_id,
                     competition=competition,
                     season=season,
-                    kickoff_utc=kickoff,
-                    home=home,
-                    away=away,
+                    kickoff_utc=parsed.kickoff,
+                    home=parsed.home,
+                    away=parsed.away,
                     home_goals=home_goals,
                     away_goals=away_goals,
                     finished=True,
-                    status=str((status.get("reason") or {}).get("short") or "FT"),
+                    status=str((parsed.status.get("reason") or {}).get("short") or "FT"),
                 )
             )
         return results
@@ -473,49 +567,76 @@ class FotMobProvider(FootballDataProvider):
         if league_id is None:
             return []
         payload = await self._league(league_id, season, refresh=True)
-        matches = (payload.get("fixtures") or {}).get("allMatches")
-        if not isinstance(matches, list):
-            return []
-
-        override = _COMPETITION_OVERRIDES.get(competition.slug)
-        wanted_group = override[1] if override else None
-        index = self._division_index(payload) if wanted_group is not None else {}
 
         live: list[MatchResult] = []
-        for match in matches:
-            if not isinstance(match, dict):
+        for parsed in self._parsed_matches(payload, competition):
+            if parsed.state is not MatchState.LIVE:
                 continue
-            status = match.get("status") or {}
-            if not status.get("started") or status.get("finished") or status.get("cancelled"):
-                continue
-            home, away = _team_ref(match.get("home") or {}), _team_ref(match.get("away") or {})
-            if home is None or away is None:
-                continue
-            if wanted_group is not None and index.get(home.provider_team_id) != wanted_group:
-                continue
-            kickoff = _parse_utc(status.get("utcTime"))
-            if kickoff is None:
-                continue
-            home_goals, away_goals = _split_score(status.get("scoreStr"))
+            home_goals, away_goals = parsed.scores
             if home_goals is None or away_goals is None:
                 # Kicked off but no score published yet. Nil-nil is a real scoreline and
                 # "we do not know" is not, so this stays absent rather than becoming 0-0.
                 continue
             live.append(
                 MatchResult(
-                    provider_match_id=str(match.get("id")),
+                    provider_match_id=parsed.provider_match_id,
                     competition=competition,
                     season=season,
-                    kickoff_utc=kickoff,
-                    home=home,
-                    away=away,
+                    kickoff_utc=parsed.kickoff,
+                    home=parsed.home,
+                    away=parsed.away,
                     home_goals=home_goals,
                     away_goals=away_goals,
-                    finished=False,
-                    status=str(status.get("liveTime", {}).get("short") or "LIVE")[:24],
+                    state=MatchState.LIVE,
+                    status=str(parsed.status.get("liveTime", {}).get("short") or "LIVE")[:24],
                 )
             )
         return live
+
+    async def fetch_season_matches(
+        self, competition: CompetitionKey, season: int
+    ) -> list[MatchResult]:
+        """The competition's whole season — played, to be played, or called off.
+
+        The same ``allMatches`` list :meth:`fetch_results` reads, unfiltered. That is the
+        point: FotMob publishes the entire season in one payload, so a date window and a
+        finished-only filter save **nothing upstream** — they only decide how much of
+        what has already arrived gets written down. Until Batch 110 the answer was "the
+        finished ones inside the last few days", which is why the store could not answer
+        what a club is playing next.
+
+        Shares the memo with :meth:`fetch_table` and :meth:`fetch_results`, so a sweep
+        that asks for a table and a season pays for one request.
+
+        Scores are ``None`` for anything unplayed, and a postponed match keeps its
+        original kick-off because that is what the payload carries — the state is what
+        says it is not happening then, which is the whole reason
+        :class:`~src.services.football_provider.MatchState` exists.
+        """
+        league_id = await self.league_id_for(competition)
+        if league_id is None:
+            return []
+        payload = await self._league(league_id, season)
+
+        matches: list[MatchResult] = []
+        for parsed in self._parsed_matches(payload, competition):
+            home_goals, away_goals = parsed.scores
+            state = parsed.state
+            matches.append(
+                MatchResult(
+                    provider_match_id=parsed.provider_match_id,
+                    competition=competition,
+                    season=season,
+                    kickoff_utc=parsed.kickoff,
+                    home=parsed.home,
+                    away=parsed.away,
+                    home_goals=home_goals,
+                    away_goals=away_goals,
+                    state=state,
+                    status=_status_text(parsed.status, state),
+                )
+            )
+        return matches
 
     async def fetch_fixture_states(
         self, competition: CompetitionKey, season: int

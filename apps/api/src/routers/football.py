@@ -2,6 +2,7 @@
 
 ``GET /api/v1/football/tables``  — a table per competition we hold data for.
 ``GET /api/v1/football/results`` — the latest finished matches across them.
+``GET /api/v1/football/teams/{team_id}/season`` — one club's whole season (Batch 110).
 
 The other half of Batch 16 is inline rather than here: each fixture on the pick screen
 carries its two clubs' positions and form (``GameweekSlateResponse.fixtures[].context``).
@@ -23,9 +24,10 @@ information, and with the competition selection out of the picture there is no l
 configuration left to protect.
 """
 
+import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser
@@ -34,10 +36,12 @@ from src.database import get_db
 from src.services.football_data import (
     CompetitionTable,
     ResultEntry,
+    TeamSeason,
     league_tables,
     pooled_competitions,
     recent_results,
     season_or_default,
+    team_season_matches,
 )
 
 router = APIRouter(prefix="/api/v1/football", tags=["football"])
@@ -96,3 +100,41 @@ async def previous_results(
         days=days or settings.football_results_days,
         max_rows=settings.football_results_max_rows,
     )
+
+
+@router.get("/teams/{team_id}/season", response_model=TeamSeason)
+async def team_season(
+    player: CurrentUser,
+    db: Db,
+    team_id: Annotated[uuid.UUID, Path(description="The stored club, by its own id.")],
+    competition: Annotated[str, Query(min_length=1, max_length=120)],
+    season: int | None = None,
+) -> TeamSeason:
+    """One club's complete season in one competition, oldest match first (Batch 110).
+
+    Everything the store holds for that club in that competition and season: results,
+    the fixtures still to come, and the ones postponed or called off. Scores are ``null``
+    until there is a final one, and ``state`` says which of those a row is — a reader
+    cannot tell a fixture from an abandoned match by its empty score alone.
+
+    Addressed by the club's **own id** rather than its name. Names are the one thing that
+    cannot be trusted here — two providers spell the same club differently and two clubs
+    in different divisions spell alike — so a name-addressed route would be the one place
+    in this codebase where a similarly named team could be served by mistake.
+
+    ``competition`` is required and ``season`` defaults to the configured one. Neither is
+    inferable from the club: a club plays a league and a cup in the same year, and the
+    caller is looking at one table when it asks.
+
+    **Never reaches a provider**, like every other route in this module — the whole
+    season comes out of ``matches``, which the scheduled sweep fills.
+
+    404 when there is no such club. A club with nothing stored for that competition and
+    season answers 200 with an empty list, because that is a real and different state:
+    a division ingested for the first time has exactly that shape.
+    """
+    wanted = season_or_default(season or settings.football_season)
+    found = await team_season_matches(db, team_id, competition, wanted)
+    if found is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+    return found

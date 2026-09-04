@@ -5,12 +5,14 @@ nothing else: no league table, no historical result, no form. Everything Batch 1
 therefore comes from a different provider, and this module is the boundary between the
 two so neither one's vocabulary leaks into the app.
 
-The game needs two things here, and nothing else:
+What the game needs from this source:
 
 * ``fetch_table(competition, season)``   — the current league table → :class:`LeagueTable`.
 * ``fetch_results(competition, season)`` — finished matches with scores → :class:`MatchResult`.
+* ``fetch_season_matches(competition, season)`` — the season's complete fixture list,
+  played or not (Batch 110).
 
-Both take a :class:`CompetitionKey` rather than a provider league id, because a
+They all take a :class:`CompetitionKey` rather than a provider league id, because a
 competition is identified in this codebase by the **odds** provider's slug — that is what
 ``fixtures.competition_id`` holds. Resolving that to whatever the football-data provider
 calls the same competition is the adapter's problem, not the caller's, and an adapter that
@@ -40,7 +42,7 @@ from abc import ABC, abstractmethod
 from datetime import UTC, date, datetime
 from enum import StrEnum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 #: A season is named by the calendar year it starts in — 2026-27 is ``2026``.
 #: British football runs August to May, so July is a safe rollover point: no
@@ -66,6 +68,28 @@ class FormResult(StrEnum):
     WIN = "W"
     DRAW = "D"
     LOSS = "L"
+
+
+class MatchState(StrEnum):
+    """Where a match stands, in The Coupon's vocabulary rather than a provider's.
+
+    Added by Batch 110, which needed the store to answer "this team's whole season" —
+    a question that includes matches nobody has played yet. Until then a match was
+    either ``finished`` or not, and everything else was in :attr:`MatchResult.status`,
+    which is free provider text ("FT", "PP", a live minute) and cannot be filtered or
+    compared on.
+
+    ``POSTPONED`` and ``CANCELLED`` are kept apart because they mean different things to
+    a reader: a postponed match will be played on some other night, and a cancelled one
+    will not. FotMob raises one flag for both and names the difference only in prose, so
+    the adapter is where that reading happens.
+    """
+
+    SCHEDULED = "scheduled"
+    LIVE = "live"
+    FINISHED = "finished"
+    POSTPONED = "postponed"
+    CANCELLED = "cancelled"
 
 
 class CompetitionKey(BaseModel):
@@ -148,6 +172,11 @@ class MatchResult(BaseModel):
     the presence of a score, for the same reason it is on the odds side: an in-play
     match carries a partial score, and treating that as a result would record a match
     at whatever it happened to be at half time.
+
+    ``state`` (Batch 110) is the finer answer, and ``finished`` is now the coarse view of
+    it. Callers written before that batch pass only ``finished``, so the two are
+    reconciled below rather than allowed to drift: whichever one is set, both end up
+    saying the same thing.
     """
 
     provider_match_id: str
@@ -159,7 +188,23 @@ class MatchResult(BaseModel):
     home_goals: int | None = None
     away_goals: int | None = None
     finished: bool = False
+    state: MatchState = MatchState.SCHEDULED
     status: str = ""
+
+    @model_validator(mode="after")
+    def _agree_on_finished(self) -> MatchResult:
+        """Keep ``finished`` and ``state`` from contradicting each other.
+
+        Two fields describing one thing is a defect waiting to happen, and the only
+        reason there are two is that ``finished`` predates ``state`` by ninety-odd
+        batches. Setting either one is enough; setting both inconsistently is not
+        possible.
+        """
+        if self.finished and self.state is not MatchState.FINISHED:
+            self.state = MatchState.FINISHED
+        elif self.state is MatchState.FINISHED and not self.finished:
+            self.finished = True
+        return self
 
 
 class FixtureState(BaseModel):
@@ -247,6 +292,29 @@ class FootballDataProvider(ABC):
         leaves the card exactly as the odds provider gave it, so a provider that cannot
         answer this costs nothing beyond the cross-check it does not get. Only the FotMob
         adapter overrides it; api-football's free plan refuses the current season outright.
+
+        Returns an empty list — never raises — for a competition it does not carry.
+        """
+        return []
+
+    async def fetch_season_matches(
+        self, competition: CompetitionKey, season: int
+    ) -> list[MatchResult]:
+        """Every match this source lists for the competition's season, in any state.
+
+        The complete fixture list Batch 110 needs to answer "show me this team's whole
+        season": finished matches *and* the ones still to come, including postponed and
+        cancelled ones. :meth:`fetch_results` answers the narrower question — matches
+        with a final score, inside a date window — and stays the ingestion path for a
+        provider that cannot do better.
+
+        Non-abstract and defaulting to "I don't know", the same shape as
+        :meth:`fetch_fixture_states` and :meth:`fetch_live_scores` above, and for the
+        same reason: only the FotMob adapter can answer it in one request, and a
+        provider that cannot must cost nothing beyond the fixtures it does not supply.
+        api-football pages its results and charges per page, so answering this from
+        there would spend a daily allowance on data the caller did not ask for; the
+        caller falls back to :meth:`fetch_results` when this returns empty.
 
         Returns an empty list — never raises — for a competition it does not carry.
         """

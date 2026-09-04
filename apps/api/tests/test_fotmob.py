@@ -20,7 +20,7 @@ from typing import Any
 import httpx
 import pytest
 
-from src.services.football_provider import CompetitionKey, FootballDataAPIError
+from src.services.football_provider import CompetitionKey, FootballDataAPIError, MatchState
 from src.services.fotmob import FotMobProvider, season_param
 
 PAYLOADS: dict[str, Any] = json.loads(
@@ -278,4 +278,132 @@ async def test_a_non_json_answer_raises() -> None:
     provider = FotMobProvider(client=client)
     with pytest.raises(FootballDataAPIError):
         await provider.fetch_table(NATIONAL, 2026)
+    await provider.close()
+
+
+# ── The whole season, in every state it comes in (Batch 110) ──────────────────
+#
+# `117` carries all five: four finished, one scheduled, one in play, one cancelled, and
+# `8944`/`9545` carry the postponements. Until this batch `fetch_results` dropped every
+# one of the non-finished kinds on the way in, so the store could hold a club's past and
+# never its future.
+
+
+async def test_the_season_read_keeps_every_match_whatever_state_it_is_in() -> None:
+    provider = _provider()
+    matches = await provider.fetch_season_matches(NATIONAL, 2026)
+    await provider.close()
+
+    by_id = {match.provider_match_id: match.state for match in matches}
+    assert by_id == {
+        "5906357": MatchState.FINISHED,
+        "5906358": MatchState.FINISHED,
+        "5906359": MatchState.FINISHED,
+        "5906360": MatchState.FINISHED,
+        "5906381": MatchState.SCHEDULED,
+        "5906382": MatchState.LIVE,
+        "5906383": MatchState.CANCELLED,
+    }
+
+
+async def test_the_results_read_still_narrows_to_the_finished_ones() -> None:
+    """The two reads answer different questions and must keep doing so.
+
+    `fetch_results` feeds anything that needs a final score — the results screen, the
+    form line, Batch 67's settled scorelines. Widening it to match the season read would
+    put an in-play score on the results screen at whatever it stood at.
+    """
+    provider = _provider()
+    results = await provider.fetch_results(NATIONAL, 2026)
+    await provider.close()
+
+    assert {result.provider_match_id for result in results} == {
+        "5906357",
+        "5906358",
+        "5906359",
+        "5906360",
+    }
+    assert all(result.finished for result in results)
+
+
+async def test_a_postponement_and_a_cancellation_are_not_the_same_answer() -> None:
+    """FotMob raises one `cancelled` flag for both and names the difference in prose.
+
+    A postponed match is played on some other night and a cancelled one is not, which is
+    the difference between "check back" and "that is the season". Reading the flag alone
+    would collapse them.
+    """
+    provider = _provider()
+    national = await provider.fetch_season_matches(NATIONAL, 2026)
+    south = await provider.fetch_season_matches(NL_SOUTH, 2026)
+    north = await provider.fetch_season_matches(NL_NORTH, 2026)
+    await provider.close()
+
+    called_off = next(m for m in national if m.provider_match_id == "5906383")
+    assert called_off.state is MatchState.CANCELLED
+
+    # Slough Town v Ebbsfleet, called off with reason "Postponed" — and a South club, so
+    # the attribution keeps it out of North's season entirely.
+    postponed = [m for m in south if m.state is MatchState.POSTPONED]
+    assert [m.provider_match_id for m in postponed] == ["5907492"]
+    assert all(m.state is not MatchState.CANCELLED for m in south)
+    assert "5907492" not in {m.provider_match_id for m in north}
+
+
+async def test_an_unplayed_match_carries_no_score_and_a_live_one_carries_its_running_score() -> (
+    None
+):
+    provider = _provider()
+    matches = {m.provider_match_id: m for m in await provider.fetch_season_matches(NATIONAL, 2026)}
+    await provider.close()
+
+    scheduled = matches["5906381"]
+    assert (scheduled.home_goals, scheduled.away_goals) == (None, None)
+    assert scheduled.finished is False
+
+    live = matches["5906382"]
+    assert (live.home_goals, live.away_goals) == (1, 0)
+    # The combination `sync_results` is shaped around: a stored running score that stays
+    # out of every read gating on `finished`.
+    assert live.finished is False
+    assert live.status == "63"
+
+
+async def test_a_season_read_costs_no_request_the_table_has_already_paid_for() -> None:
+    """One memoised payload answers the table, the results and the season."""
+    calls: list[str] = []
+    provider = _provider(calls)
+
+    await provider.fetch_table(NATIONAL, 2026)
+    await provider.fetch_results(NATIONAL, 2026)
+    await provider.fetch_season_matches(NATIONAL, 2026)
+    await provider.close()
+
+    league_calls = [url for url in calls if "allLeagues" not in url]
+    assert len(league_calls) == 1, calls
+
+
+async def test_a_composite_id_still_only_hands_over_its_own_divisions_season() -> None:
+    """The attribution the shared walker must not have lost.
+
+    `8944` is National League North and South behind one id, and the only thing saying
+    which is which is the table's groups. A season read that skipped that would give
+    every North club a fixture list containing half of the South.
+    """
+    provider = _provider()
+    north = await provider.fetch_season_matches(NL_NORTH, 2026)
+    south = await provider.fetch_season_matches(NL_SOUTH, 2026)
+    await provider.close()
+
+    north_ids = {m.provider_match_id for m in north}
+    south_ids = {m.provider_match_id for m in south}
+    assert north_ids
+    assert south_ids
+    assert north_ids & south_ids == set()
+
+
+async def test_an_unresolvable_competition_has_no_season_rather_than_raising() -> None:
+    provider = _provider()
+    unknown = CompetitionKey(slug="wales-cymru-premier", name="Wales - Cymru Premier")
+    assert await provider.fetch_season_matches(unknown, 2026) == []
     await provider.close()
