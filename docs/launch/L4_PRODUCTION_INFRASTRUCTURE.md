@@ -1984,7 +1984,7 @@ deployments only.
 
 ### Forward recovery plan — migration `021`, Batch 107
 
-**Status: written 2026-09-04, awaiting owner approval. Not cleared to ship.**
+**Status: approved by the owner, 2026-09-04. Cleared to ship.**
 
 Required by `/ship-prod` step 1.7 before `021` may be deployed. Production is at head `020`
 (deployment `e95ff966-f7ee-4587-999f-5470063ef108`, `SUCCESS`, serving `9e91b604`); this
