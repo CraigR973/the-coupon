@@ -2179,3 +2179,121 @@ only, and for this shipment the API half of that is unavailable.
 
 `scripts/check-deploy-drift.sh` reports **in sync**: `origin/main` and the deployed API both
 at `3366b38f`, migration `021`.
+
+### Forward recovery plan — migration `022`, Batch 110
+
+**Status: written 2026-09-04, awaiting owner approval. Not cleared to ship.**
+
+Required by `/ship-prod` step 1.7 before `022` may be deployed. Production is measured at
+head `021` serving `3366b38f`; this shipment moves it to `022` and carries Batch 110 — the
+Group M checkpoint.
+
+**This one alters an existing table, which `021` did not.** `022` is three statements
+against `matches`: `ADD COLUMN state VARCHAR(16) NOT NULL DEFAULT 'scheduled'`, one
+`UPDATE ... SET state = 'finished' WHERE finished`, and one `CREATE INDEX`. That is a
+larger claim on a live table than any migration since `017`, so the size of it was measured
+rather than assumed, read-only from the running container on 2026-09-04:
+
+| measured | value |
+| --- | --- |
+| `alembic_version` | `021` |
+| PostgreSQL | 17.6 |
+| `matches` | **755 rows, all `finished`**, 464 kB including indexes |
+| `matches` where `NOT finished` | 0 |
+| pooled competitions (`fixtures`) | 23 |
+| whole database | 13 MB |
+
+**Nothing here can be slow, and nothing here can fail.** On PostgreSQL 11 and above an
+`ADD COLUMN` with a *constant* default is metadata-only — the row values are never
+rewritten, so table size is irrelevant to it and the `ACCESS EXCLUSIVE` lock is held for
+the length of a catalogue update. The `UPDATE` rewrites 755 rows and the `CREATE INDEX`
+builds over the same 755; both are milliseconds against a 464 kB table, inside a
+`healthcheckTimeout` of 300 seconds. There is no type change, no constraint that existing
+data could violate, and no `NOT NULL` added without a default — which is the only shape of
+`ADD COLUMN` that can refuse to run.
+
+**The rollout window is safe, and the server default is what makes it safe.** The new
+container runs `alembic upgrade head` while the `021` container is still serving. That
+older image has no `state` in its `Match` model: SQLAlchemy emits explicit column lists, so
+its `SELECT`s cannot see a column added underneath them, and its `INSERT`s omit `state`
+entirely — which succeeds only because the column carries `DEFAULT 'scheduled'`. A
+`NOT NULL` column without one would have made every write from the still-serving old image
+fail for the length of the rollout. The default is load-bearing, not decoration.
+
+**API rollback is unavailable the moment `022` applies**, on the same terms as `012`
+onwards: every pre-`022` image ships revisions `001`–`021` only, so against a database
+stamped `022` its Alembic fails with `Can't locate revision identified by '022'` before
+uvicorn is reached, the `&&` chain in `nixpacks.toml` stops, and the healthcheck fails.
+**Do not attempt a Railway rollback to `3366b38f` or anything older after this ships.** The
+recorded baseline is a record, not a usable target. Vercel rollback is unaffected.
+
+**Unlike `021`, there is a real data hazard behind that block, and it is worth naming.**
+`021` created a table the old image could not see, so an old image on a new database was
+merely permitted. Here it would be actively wrong: a `021` image writes `finished` and knows
+nothing of `state`, so every match it transitioned — a fixture kicking off, a match reaching
+full time — would keep whatever `state` it was last written with while `finished` moved
+underneath it. The column would drift silently and only a full re-sweep would repair it. If
+a future release ever makes pre-`022` images bootable against this database, running one is
+**not** safe, and this paragraph is the reason.
+
+**One backfill fidelity caveat, currently moot.** The `UPDATE` maps the only two states the
+old column could express: `finished` becomes `finished`, everything else becomes
+`scheduled`. A match *in play* at the instant the migration runs would therefore be recorded
+as `scheduled` rather than `live`. It self-corrects on the next live-scores sweep, and today
+the measured count of unfinished rows is 0 — but the shipment should still avoid a Saturday
+afternoon, which is the general rule here anyway.
+
+Recovery once `022` *has* applied is forward-only:
+
+1. **Deploy a corrected image at head `022` or higher.** The normal path.
+2. **Disabling Batch 110's behaviour needs no migration.** Two independent levers, either
+   safe alone: delete the `teams/{team_id}/season` route from `routers/football.py`, and/or
+   revert `sync_competition` to call `fetch_results` with its window instead of
+   `fetch_season_matches`. The column and index go inert; nothing else reads `state`.
+3. **`DELETE FROM matches WHERE NOT finished` returns the table to its pre-Batch-110
+   contents, and that is its entire effect.** Nothing in the schema references `matches` —
+   there is no foreign key pointing at it anywhere — and every read older than this batch
+   (`recent_results`, `team_form`, `fixture_context`, settled scorelines) already gates on
+   `finished`. It also removes any in-play row, which the next live-scores sweep rewrites
+   within the hour. It cannot damage a pick, a score or a standing.
+4. **Never run `alembic downgrade` against production.** This downgrade *is* schema-clean —
+   one index and one column, no dependants — and unlike most here it would even restore
+   pre-`022` bootability. It is still forbidden: the running image is at `022` and would
+   re-apply it on the next boot, and the information it discards (which unplayed matches
+   were postponed rather than cancelled) is recoverable only by a full provider sweep.
+
+**What this shipment does to the size of things**, since Supabase production is a Free plan
+whose egress quota has a standing unattributed consumer (FEAT-A09, which has already caused
+one 402):
+
+* The immediate step is small. The daily sweep's window was already
+  `football_results_lookback_days = 30`, and the 2026-27 season is about a month old, so
+  "the last 30 days" and "the whole season" are currently almost the same set of matches.
+* The growth is gradual and bounded by the season. At 23 pooled competitions the table
+  should reach roughly 10,000–14,000 rows by May — about 9 MB at the measured 615 bytes a
+  row, against a 13 MB database today. **Storage is not the concern.**
+* The recurring cost is the sweep's own read. `sync_results` selects existing rows for every
+  match id it is about to write, so that read grows with the season: a few hundred kilobytes
+  a day now, of the order of 3–4 MB a day by May. Worth watching against the quota rather
+  than worth blocking on, and lever 2 above reverses it without a migration.
+
+**Post-deploy checks specific to this shipment**, beyond the standard `/health` and
+`/health/ready` agreement at `022`:
+
+1. **`alembic upgrade head` must print exactly one `Running upgrade 021 -> 022` line** in
+   the bounded boot-log snapshot. More than one, or none, means the database was not where
+   this plan assumes.
+2. **Confirm the column and index landed, and that the table's guard rails did not move.**
+   In the same in-container session the shipment already runs: `matches.state` present as
+   `character varying(16)`, `NOT NULL`, default `'scheduled'`; index
+   `ix_matches_competition_season_state` present; **no row with a null or empty `state`**;
+   and `matches` still RLS **enabled and forced** with zero `anon`/`authenticated`/`PUBLIC`
+   grants. The table count does not change — `022` creates no table — so an unchanged count
+   is the expected result here, not a warning sign.
+3. **Confirm the backfill agrees with the old column**: zero rows where
+   `finished AND state <> 'finished'`. Against the measured 755-row table every row should
+   read `finished` immediately after the migration, before any sweep has run.
+4. **Exercise the new route once**, signed in: a 200 with a `matches` array for a stored
+   club, and a 404 for a random UUID. It is the only new surface, and nothing web-facing
+   consumes it yet — Batch 111 is the consumer and has not been built, which is the whole
+   point of stopping the group here.
