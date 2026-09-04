@@ -3095,8 +3095,8 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: the react-router upgrade and whatever it forces. No routing redesign.
 
-- [ ] **Batch 103 — The settings screen still asks for a privacy choice without saying what
-  it does, and hides two consequences that fire on save** — specified 2026-08-30 from the
+- [x] **Batch 103 — The settings screen still asks for a privacy choice without saying what
+  it does, and hides two consequences that fire on save** ✅ 2026-09-04 — specified 2026-08-30 from the
   Batch 91 close-out, which was scoped to `CreateLeaguePage` and deliberately left this.
   `LeagueSettingsPage.tsx:335-345` renders the same bare dropdown Batch 91 replaced, and the
   stakes are higher here because this screen changes a league that already has members and

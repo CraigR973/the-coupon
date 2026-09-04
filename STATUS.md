@@ -682,7 +682,16 @@ cannot silently turn into an all-time or current-season share. The pre-lock buil
 byte-for-byte covered. Both controls passed a full axe sweep and visual inspection at
 390×844 in dark and light. Web-only, so no `/ship-prod` is owed.
 
-Batches 1-94 and 96-102 are closed. The Coupon is a
+**Batch 103** gives the settings privacy control the consequence copy the create screen
+already had and makes both read one shared option table without changing the shorter
+`PRIVACY_LABELS` used elsewhere. The settings form now has no permissive fallback while its
+league is loading. Before a `public_request` league becomes open, it names how many pending
+requests will be auto-approved; before a changed league becomes private, it names how many
+will be cancelled. Declining either confirmation prevents the PATCH, and a consequential
+transition fails closed until the existing admin join-request query has loaded. Web-only,
+so no `/ship-prod` is owed.
+
+Batches 1-94 and 96-103 are closed. The Coupon is a
 verified weekly football accumulator PWA whose *leagues* are private — signup
 itself is public as of Batch 63 — and it is a **per-league** game: a member may
 play in several leagues at once and each owns its rounds, window, markets,
@@ -1333,14 +1342,13 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 95 and 103-111 unchecked** — ten remaining.
-Batch 95 comes from the 2026-08-26 full-application review; 103 and 104 were specified on
-2026-08-30; and 105-111 were specified from the owner's 2026-09-03 Coupon, home,
-notification and Football Stats review. Batch 95 remains in the soft-blocked tail of Group
-D. The current executable wave is Groups I-M:
+`docs/BUILD_PLAN.md` carries **Batches 95 and 104-111 unchecked** — nine remaining.
+Batch 95 comes from the 2026-08-26 full-application review; 104 was specified on 2026-08-30;
+and 105-111 were specified from the owner's 2026-09-03 Coupon, home, notification and
+Football Stats review. Batch 95 remains in the soft-blocked tail of Group D. The current
+executable wave is Groups J-M:
 
 ```text
-I  103           web       → (no ship)
 J  104           API+infra → /ship-prod
 K  105 106       web       → (no ship)
 L  107           API/data  → /ship-prod → 108 web
@@ -1350,7 +1358,7 @@ M  109 110       web+API   → /ship-prod → 111 web
 `/group-start <I-M>` now orchestrates those groups. It still gives every batch its own
 branch, full gate and automatic close-out; it stops at each API checkpoint for an explicit
 `/ship-prod`, then verifies deployment drift before a rerun can continue. The full intended
-order is `103 → 104 → ship → 105 → 106 → 107 → ship → 108 → 109 → 110 → ship → 111`.
+remaining order is `104 → ship → 105 → 106 → 107 → ship → 108 → 109 → 110 → ship → 111`.
 
 Group K unifies Your pick and Combined coupon into one state-aware Current round surface,
 then separates future action from historical odds on home and contains the hero glows.
@@ -1394,6 +1402,9 @@ was not already serving. That is the difference from the Coupon tab on 2026-08-0
 
 **Group H is complete.** Batch 102's React Router 7 migration is closed; it is web-only,
 so no API shipment is attached to it.
+
+**Group I is complete.** Batch 103 is closed and web-only, so its settings privacy copy and
+pending-request confirmations reached members on the close-out push with no API shipment.
 
 **Group F is complete and shipped** — Batch 96 went to production on 2026-08-30 as Railway
 deployment `7ec86030-9877-434f-beab-f4e942d7c14e`, message `ship production 5634827`,

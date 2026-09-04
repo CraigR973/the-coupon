@@ -3114,3 +3114,30 @@ still expects no `/ship-prod`.
 
 **Next:** Batch 95 is the first unchecked batch and remains soft-blocked. The sequencing
 addendum's next actionable group is Group I, Batch 103; it remains a separate batch.
+
+## Batch 103 — The settings screen still asks for a privacy choice without saying what it does
+**Commits:** 0132bfa · verified: `scripts/ci-local.sh` PASS (11 checks; locale-corrected rerun)
+
+### Key facts for future sessions
+- **The consequence copy has one source now.** `PRIVACY_OPTIONS` lives beside
+  `LeaguePrivacy` in `lib/leagues.ts` and drives both create and settings; the shorter
+  `PRIVACY_LABELS` used by league lists did not change.
+- **Settings has no privacy fallback.** Its state is null until the league response seeds
+  it, and the form stays unavailable until then, so a private or request league cannot
+  transiently submit `public_open`.
+- **The warning reuses the existing admin request read.** Settings queries the same
+  `/join-requests` endpoint and React Query key as the request-management page; a
+  consequential transition fails closed until that query succeeds.
+- **Only real side effects confirm.** `public_request` → `public_open` names the pending
+  count it will auto-approve; a changed value → `private` names the count it will cancel.
+  Declining either confirmation prevents the PATCH.
+- **The first targeted run exposed a browser-global shadow.** The page's slate-window state
+  is named `window`, so the new call reached that object instead of browser confirmation;
+  addressing `globalThis.window.confirm` fixed both failing tests, and 51 targeted tests,
+  lint and typecheck then passed.
+- **The first full gate run had one environment failure.** macOS `initdb` rejected the
+  inherited `C.UTF-8` locale while every other completed check passed. The unchanged full
+  gate reran with `LANG`/`LC_ALL=en_US.UTF-8` and all 11 checks passed.
+
+**Next:** Batch 95 is still the first unchecked batch and remains soft-blocked. The next
+executable group is Group J, Batch 104, followed by its explicit `/ship-prod` checkpoint.
