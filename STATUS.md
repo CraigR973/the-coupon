@@ -1342,24 +1342,25 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 95 and 107-111 unchecked** — six remaining.
-Batch 95 comes from the 2026-08-26 full-application review, and 107-111 were specified
+`docs/BUILD_PLAN.md` carries **Batches 95, 110 and 111 unchecked** — three remaining.
+Batch 95 comes from the 2026-08-26 full-application review, and 110-111 were specified
 from the owner's 2026-09-03 Coupon, home, notification and Football Stats review. Batch 95
-remains in the soft-blocked tail of Group D. Groups J and K are both closed, so the
-executable wave resumes at Batch 107 — the next batch with an API half, and therefore the
+remains in the soft-blocked tail of Group D. Groups J, K and L are closed and Batch 109 is
+done, so the wave resumes at Batch 110 — the next batch with an API half, and therefore the
 next one carrying a shipment:
 
 ```text
 J  104 shipped   API+infra → shipped 2026-09-04
 K  105 106 done  web       → no ship owed
-L  107           API/data  → /ship-prod → 108 web
-M  109 110       web+API   → /ship-prod → 111 web
+L  107 108 done  API+web   → shipped 2026-09-04
+M  109 done      web       → no ship owed
+   110           API/data  → /ship-prod → 111 web
 ```
 
 `/group-start <I-M>` now orchestrates those groups. It still gives every batch its own
 branch, full gate and automatic close-out; it stops at each API checkpoint for an explicit
 `/ship-prod`, then verifies deployment drift before a rerun can continue. The full intended
-remaining order is `107 → ship → 108 → 109 → 110 → ship → 111`.
+remaining order is `110 → ship → 111`.
 
 **Group K is complete.** Batch 105 unified Your pick and Combined coupon into one
 state-aware Current round surface and Batch 106 separated future action from historical odds
@@ -1369,9 +1370,22 @@ Purposeful state colour is folded into those hierarchy changes rather than becom
 standalone restyle. **Group L is complete.** Batch 107's `X/Y picked` notifications and
 durable all-picked transition shipped on 2026-09-04, and Batch 108's final-picker hand-off
 and truthful notification copy reached members on its own close-out push afterwards, in that
-order and for that reason. Group M adds result-day
-carousel navigation, persists the full selected league season including future/non-final
-fixtures, then makes league-table teams open that addressable season view.
+order and for that reason.
+
+**Group M is one batch in.** Batch 109 turned Football Results from a single column of the
+whole archive into a matchday carousel: one result-bearing day on screen, a snapped
+swipeable strip of the rest above it, labelled previous/next steps, and the selected day in
+the address as `?date=YYYY-MM-DD` — pushed rather than replaced, so the back button walks
+out of the archive the way it walked in. Only days that were played are in the strip, an
+unresolvable date falls back to the latest day, and competitions stay grouped beneath the
+selected date. It is web-only and reached members on its own close-out push, so nothing is
+owed. The browser pass at 390×844 caught the one defect the unit tests structurally could
+not: `scroll-behavior: smooth` and `scroll-snap-type: mandatory` together refuse a long
+programmatic scroll, so on a full season the newest day's chip sat 8,000px off-screen while
+its own heading was on display. Batch 110 next persists the full selected league season
+including future and non-final fixtures, and Batch 111 then makes league-table teams open
+that addressable season view — with a **mandatory `/ship-prod` between them**, because
+111's route cannot work against the deployed API.
 
 **Batch 104 was the only item in this plan with an external deadline and is now closed and
 live.** `.railway/railway.ts` replaces the deprecated `railway.toml` before Railway's

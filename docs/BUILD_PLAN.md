@@ -3295,8 +3295,8 @@ answered until it lands, because until then there is no data to look at.
   event, service worker redesign or inbox. Do not begin until Batch 107's API has shipped
   and `scripts/check-deploy-drift.sh` reports in sync.
 
-- [ ] **Batch 109 — Football results are a long archive when the task is moving through
-  matchdays** — specified 2026-09-03 from the owner request for carousel-style date
+- [x] **Batch 109 — Football results are a long archive when the task is moving through
+  matchdays** ✅ 2026-09-04 — specified 2026-09-03 from the owner request for carousel-style date
   navigation. Show one result-bearing date at a time. Provide labelled previous/next
   controls and a horizontally scrollable, snap-aligned date strip that works by keyboard
   and touch/swipe. Persist the selected day as `?date=YYYY-MM-DD`, restore it on back/forward

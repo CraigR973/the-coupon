@@ -3317,3 +3317,38 @@ close-out push; Batch 107's API has been live since the 2026-09-04 `/ship-prod`,
 fields it consumes are served and no shipment is owed. The next executable group is **M**:
 Batch 109 (web), Batch 110 (API/data), a mandatory `/ship-prod`, then Batch 111. Batch 95
 remains soft-blocked.
+
+## Batch 109 — Football results are a long archive when the task is moving through matchdays
+**Commits:** e1ea13b · verified: `scripts/ci-local.sh` PASS (11 checks, green first run), plus a
+browser pass at 390×844 in both themes against a stubbed season of 79 result days
+
+### Key facts for future sessions
+- **`scroll-behavior: smooth` and `scroll-snap-type: mandatory` together refuse a long
+  programmatic scroll, and that is the one thing here the unit tests could never have
+  caught.** Measured in Chrome on a full season: arriving on the newest day, with its chip
+  8,443px along an 8,486px strip, `scrollIntoView` left `scrollLeft` at 404 and never moved
+  — the heading read May while the strip showed the previous August. Short hops worked, so
+  it would have shipped clean and only appeared once the archive filled. The strip carries
+  no `scroll-smooth` and the call passes `behavior: 'instant'`; a test pins the option
+  because jsdom has no `scrollIntoView` to catch the real thing.
+- **The day key is derived in the member's timezone, not sliced off the ISO string.** A
+  Friday 20:45 kickoff in Britain is Saturday morning in Auckland, so a slice would put
+  `?date=` on a day the reader's own screen does not show.
+- **This selection pushes history where `useGameweekHistory` replaces it.** `gw` is a filter
+  on a screen; the day *is* the screen, so back has to be the way out of the archive. Both
+  the newest day and the older ones write `?date=` explicitly — leaving the newest bare
+  would mean a shared link silently moves to a different Saturday next week.
+- **An unresolvable `?date=` renders the latest day and leaves the URL alone.** Rewriting it
+  during render would spend a history entry undoing the member's own back button.
+- **The strip is a `role="toolbar"` with roving tabindex**, so a season of Saturdays costs
+  one tab stop rather than seventy-nine; that trade is only honest because the arrow keys,
+  Home and End work and carry focus with the selection. Selected chips use
+  `aria-current="date"` — the token means exactly this.
+- **Two old assertions were rewritten, not weakened.** `lists previous results grouped by
+  day, newest day first` asserted the shape this batch replaces, and the day heading gained
+  its year (`Saturday 2 May` → `Saturday 2 May 2026`) because the abbreviated chips are the
+  only other place the date appears and none of them name a season.
+
+**Next:** Batch 109 is web-only and reached members on this close-out push. Group M continues
+with **Batch 110** (API/data — provider-neutral match retention and the team-season read
+contract), then a **mandatory `/ship-prod`** before Batch 111. Batch 95 remains soft-blocked.
