@@ -2182,7 +2182,7 @@ at `3366b38f`, migration `021`.
 
 ### Forward recovery plan — migration `022`, Batch 110
 
-**Status: written 2026-09-04, awaiting owner approval. Not cleared to ship.**
+**Status: approved by the owner, 2026-09-04. Cleared to ship.**
 
 Required by `/ship-prod` step 1.7 before `022` may be deployed. Production is measured at
 head `021` serving `3366b38f`; this shipment moves it to `022` and carries Batch 110 — the
