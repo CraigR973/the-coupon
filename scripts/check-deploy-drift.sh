@@ -32,9 +32,9 @@ API="${API_ORIGIN:-https://api-production-109b1.up.railway.app}"
 
 # Paths that end up in the API image. `railway up` uploads the whole working
 # directory, but only these change what the service runs: apps/api is the
-# source (requirements*.txt included), migrations is the schema, and the two
-# TOML files drive the build and start command.
-API_PATHS=(apps/api migrations nixpacks.toml railway.toml)
+# source (requirements*.txt included), migrations is the schema, and Nixpacks
+# plus Railway IaC drive the build and start command.
+API_PATHS=(apps/api migrations nixpacks.toml .railway/railway.ts)
 
 # Routes that only exist from a given batch onward. A 404 here means the API
 # predates that batch; anything else (403 behind auth, 200) means it is present.

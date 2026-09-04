@@ -1,8 +1,8 @@
 """Batch 100 — migrate-on-boot refuses to run when more than one process could.
 
 ``nixpacks.toml`` starts the service with ``alembic upgrade head && uvicorn ...``, so
-every boot migrates. That is correct only because ``railway.toml`` pins the service to one
-replica; raise it and two containers apply the same DDL to the same database seconds
+every boot migrates. That is correct only because ``.railway/railway.ts`` pins the service
+to one replica; raise it and two containers apply the same DDL to the same database seconds
 apart, with Alembic holding no lock of its own.
 
 The constraint used to be a comment asking people to read it. These hold it instead —
@@ -12,6 +12,7 @@ be an outage.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import tomllib
@@ -30,6 +31,7 @@ from src.migration_guard import (
 _API = Path(__file__).resolve().parents[1]
 _ROOT = _API.parents[1]
 _ALEMBIC_INI = _API / "alembic.ini"
+_RAILWAY_IAC = _ROOT / ".railway" / "railway.ts"
 
 #: A DSN that cannot connect and says so immediately — port 1 is refused, not timed out.
 #: Used to prove *ordering*: the guard has to answer before anything reaches a database.
@@ -79,8 +81,17 @@ def test_a_declaration_that_is_not_a_count_is_not_evidence_of_safety(value: str)
 # ── The declaration has to match what Railway is actually asked for ────────────
 
 
+def _deployment_invariants() -> dict[str, Any]:
+    """Read the JSON-shaped constants consumed by the Railway IaC service graph."""
+    source = _RAILWAY_IAC.read_text()
+    marker = "export const DEPLOYMENT_INVARIANTS = "
+    start = source.index(marker) + len(marker)
+    end = source.index(" as const;", start)
+    return json.loads(source[start:end])
+
+
 def _effective_replica_count(deploy: dict[str, Any]) -> int:
-    """Total processes ``railway.toml`` asks for, summed across regions.
+    """Total processes ``.railway/railway.ts`` asks for, summed across regions.
 
     ``numReplicas`` is per-region. Two regions at one replica each is two processes
     booting and two ``alembic upgrade head`` runs, while ``numReplicas`` still reads 1 —
@@ -93,17 +104,26 @@ def _effective_replica_count(deploy: dict[str, Any]) -> int:
     return sum(int(region.get("numReplicas", default)) for region in regions.values())
 
 
-def test_the_declared_count_matches_what_railway_is_actually_asked_for() -> None:
-    """The guard reads the image's declaration; this is what keeps that declaration true."""
-    railway = tomllib.loads((_ROOT / "railway.toml").read_text())
-    nixpacks = tomllib.loads((_ROOT / "nixpacks.toml").read_text())
-
-    declared = nixpacks["variables"][REPLICA_COUNT_ENV]
-    assert int(declared) == _effective_replica_count(railway["deploy"]), (
-        f"nixpacks.toml declares {REPLICA_COUNT_ENV}={declared} but railway.toml asks "
+def _assert_declared_count_matches(deploy: dict[str, Any], declared: str) -> None:
+    assert int(declared) == _effective_replica_count(deploy), (
+        f"nixpacks.toml declares {REPLICA_COUNT_ENV}={declared} but .railway/railway.ts asks "
         "Railway for a different number of replicas — the boot guard would be checking "
         "a figure that is no longer true"
     )
+
+
+def test_the_declared_count_matches_what_railway_is_actually_asked_for() -> None:
+    """The guard reads the image's declaration; this is what keeps that declaration true."""
+    nixpacks = tomllib.loads((_ROOT / "nixpacks.toml").read_text())
+    _assert_declared_count_matches(
+        _deployment_invariants(), nixpacks["variables"][REPLICA_COUNT_ENV]
+    )
+
+
+def test_a_divergent_image_declaration_is_rejected() -> None:
+    """Prove the coupling fails closed instead of only exercising today's matching values."""
+    with pytest.raises(AssertionError, match="different number of replicas"):
+        _assert_declared_count_matches(_deployment_invariants(), "2")
 
 
 def test_a_second_region_counts_even_though_num_replicas_still_reads_one() -> None:

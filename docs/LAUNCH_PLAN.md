@@ -88,9 +88,9 @@ chooses otherwise:
   (`STATUS.md`).
 - [x] The Railway/Nixpacks config installs PostgreSQL tools and backend
   dependencies, runs Alembic before Uvicorn, and fails startup if migration
-  fails (`railway.toml`, `nixpacks.toml`).
+  fails (`.railway/railway.ts`, `nixpacks.toml`).
 - [x] Railway build, restart, and health-check configuration exists
-  (`railway.toml`).
+  (`.railway/railway.ts`).
 - [x] Async SQLAlchemy and Alembic disable prepared-statement caching for
   compatibility with Supabase transaction pooling
   (`apps/api/src/database.py`, `migrations/env.py`).
@@ -192,7 +192,7 @@ chooses otherwise:
   risk: `sync_slate` upserts and never deletes. Revisit post-launch.
 - [ ] Move migrations out of concurrent web startup before ever increasing the
   API above one replica. The one-replica MVP may retain migration-on-start.
-  **Not work today** — `railway.toml` pins `numReplicas = 1`. This is a
+  **Not work today** — `.railway/railway.ts` pins `numReplicas = 1`. This is a
   precondition on a future change, kept so nobody raises the replica count
   without reading it.
 
@@ -210,7 +210,7 @@ production. Rate limiting is a new requirement the Exchange did not impose:
 the provider handed to the request path must cache.
 
 - [x] Enforce exactly one always-on Railway API replica with sleep disabled and
-  `SCHEDULER_ENABLED=true`. ✅ `railway.toml` sets `numReplicas = 1`,
+  `SCHEDULER_ENABLED=true`. ✅ `.railway/railway.ts` sets `numReplicas = 1`,
   `sleepApplication = false`, and `multiRegionConfig` pinning one replica to
   `europe-west4-drams3a`; `SCHEDULER_ENABLED=true` is sealed in production.
 - [x] Add Sunday/Monday settlement retries. ✅ `scheduler.py` settles at
@@ -247,8 +247,9 @@ the provider handed to the request path must cache.
 - [x] Configure exact staging and production CORS origins. ✅ The API allows a
   single `FRONTEND_ORIGIN`; verified against production on 2026-08-20, an
   `OPTIONS` preflight returns that exact origin with credentials enabled.
-- [x] Change Railway's health check to `/api/v1/health/ready`. ✅ `railway.toml`
-  sets it, with `healthcheckTimeout = 300` for migration-on-boot headroom.
+- [x] Change Railway's health check to `/api/v1/health/ready`. ✅
+  `.railway/railway.ts` sets it, with `healthcheckTimeout = 300` for
+  migration-on-boot headroom.
 - [x] Require `ENVIRONMENT` explicitly outside local development. ✅ Handled in
   `config.py:246`; an unknown value is rejected by the enum.
 - [x] Add Railway/Nixpacks build configuration coverage and a Playwright

@@ -55,7 +55,7 @@ def _do_run_migrations(connection):  # type: ignore[no-untyped-def]
 
 async def _run_async_migrations() -> None:
     # Batch 100. Before the engine, not after: `nixpacks.toml` runs this inside the web
-    # process on every boot, which is safe only while `railway.toml` pins the service to
+    # process on every boot, which is safe only while `.railway/railway.ts` pins the service to
     # one replica. Raise that and two containers race the same upgrade. Checked here
     # rather than in the start command so it holds for every way this is invoked.
     assert_single_replica()

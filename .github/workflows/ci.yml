@@ -53,55 +53,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: |
-          python - <<'PY'
-          import pathlib
-          import json
-          import tomllib
-
-          root = pathlib.Path.cwd()
-          railway = tomllib.loads((root / "railway.toml").read_text())
-          nixpacks = tomllib.loads((root / "nixpacks.toml").read_text())
-          vercel = json.loads((root / "apps/web/vercel.json").read_text())
-
-          assert railway["build"]["builder"] == "nixpacks"
-          assert railway["build"]["nixpacksConfigPath"] == "nixpacks.toml"
-          assert railway["deploy"]["healthcheckPath"] == "/api/v1/health/ready"
-          assert railway["deploy"]["numReplicas"] == 1
-          assert railway["deploy"]["sleepApplication"] is False
-          assert railway["deploy"]["ipv6EgressEnabled"] is True
-          assert railway["deploy"]["multiRegionConfig"] == {
-              "europe-west4-drams3a": {"numReplicas": 1}
-          }
-          assert "postgresql_17" in nixpacks["phases"]["setup"]["nixPkgs"]
-          install_cmd = " ".join(nixpacks["phases"]["install"]["cmds"])
-          assert "python -m venv --copies /opt/venv" in install_cmd
-          assert "apps/api/requirements.txt" in install_cmd
-          assert nixpacks["phases"]["install"]["paths"] == ["/opt/venv/bin"]
-
-          start_cmd = nixpacks["start"]["cmd"]
-          assert "python -m src.runtime_secrets" in start_cmd
-          assert "alembic -c apps/api/alembic.ini upgrade head" in start_cmd
-          assert "uvicorn src.main:app" in start_cmd
-          assert start_cmd.index("python -m src.runtime_secrets") < start_cmd.index(
-              "alembic -c apps/api/alembic.ini upgrade head"
-          )
-          assert start_cmd.index(
-              "alembic -c apps/api/alembic.ini upgrade head"
-          ) < start_cmd.index("uvicorn src.main:app")
-
-          assert not (root / "vercel.json").exists()
-          assert vercel["installCommand"] == "pnpm install --frozen-lockfile"
-          assert vercel["buildCommand"] == "pnpm build"
-          assert vercel["outputDirectory"] == "dist"
-          assert vercel["rewrites"][0]["destination"] == "/index.html"
-          assert any(
-              header["source"] == "/sw.js" for header in vercel["headers"]
-          )
-          PY
+      - run: pnpm install --frozen-lockfile
+      - run: python scripts/assert-deployment-config.py
 
   frontend:
     runs-on: ubuntu-latest

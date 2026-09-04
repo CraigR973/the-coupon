@@ -129,46 +129,19 @@ finally:
 PY
 
 echo
-echo "deployment-config"
-step "railway/nixpacks/vercel assertions" "$ROOT" "$PYTHON" - <<'PY'
-import json, pathlib, tomllib
-root = pathlib.Path("/Users/craigrobinson/the-coupon")
-railway = tomllib.loads((root / "railway.toml").read_text())
-nixpacks = tomllib.loads((root / "nixpacks.toml").read_text())
-vercel = json.loads((root / "apps/web/vercel.json").read_text())
-assert railway["build"]["builder"] == "nixpacks"
-assert railway["build"]["nixpacksConfigPath"] == "nixpacks.toml"
-assert railway["deploy"]["healthcheckPath"] == "/api/v1/health/ready"
-assert railway["deploy"]["numReplicas"] == 1
-assert railway["deploy"]["sleepApplication"] is False
-assert railway["deploy"]["ipv6EgressEnabled"] is True
-assert railway["deploy"]["multiRegionConfig"] == {"europe-west4-drams3a": {"numReplicas": 1}}
-assert "postgresql_17" in nixpacks["phases"]["setup"]["nixPkgs"]
-install_cmd = " ".join(nixpacks["phases"]["install"]["cmds"])
-assert "python -m venv --copies /opt/venv" in install_cmd
-assert "apps/api/requirements.txt" in install_cmd
-assert nixpacks["phases"]["install"]["paths"] == ["/opt/venv/bin"]
-start = nixpacks["start"]["cmd"]
-assert "python -m src.runtime_secrets" in start
-assert "alembic -c apps/api/alembic.ini upgrade head" in start
-assert "uvicorn src.main:app" in start
-assert start.index("python -m src.runtime_secrets") < start.index("alembic -c apps/api/alembic.ini upgrade head")
-assert start.index("alembic -c apps/api/alembic.ini upgrade head") < start.index("uvicorn src.main:app")
-assert not (root / "vercel.json").exists()
-assert vercel["installCommand"] == "pnpm install --frozen-lockfile"
-assert vercel["buildCommand"] == "pnpm build"
-assert vercel["outputDirectory"] == "dist"
-assert vercel["rewrites"][0]["destination"] == "/index.html"
-assert any(header["source"] == "/sw.js" for header in vercel["headers"])
-PY
-
-echo
-echo "frontend"
+echo "node dependencies"
 if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
   # shellcheck source=/dev/null
   . "$HOME/.nvm/nvm.sh" && nvm use 20 --silent
 fi
 step "pnpm install --frozen-lockfile" "$ROOT" pnpm install --frozen-lockfile
+
+echo
+echo "deployment-config"
+step "railway/nixpacks/vercel assertions" "$ROOT" "$PYTHON" scripts/assert-deployment-config.py
+
+echo
+echo "frontend"
 step "lint"      "$ROOT" pnpm --dir apps/web lint
 step "typecheck" "$ROOT" pnpm --dir apps/web typecheck
 step "test"      "$ROOT" pnpm --dir apps/web test

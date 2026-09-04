@@ -43,6 +43,10 @@ deployment. It must not be used to finish provisioning L4.
    with read-only platform inspection. Stop on any mismatch. Never infer a
    production target from `.railway`, `.vercel`, MCP, or cached CLI state.
    Production Supabase must never be attached to MCP.
+   Query the exact Railway service instance's `railwayConfigFile` field too.
+   Require it to be null or empty; a non-empty legacy Config File setting would
+   compete with `.railway/railway.ts`, so stop and clear that setting explicitly
+   before continuing.
 5. Confirm the required Railway variable names without displaying values:
    `DATABASE_URL`, `ENVIRONMENT`, `FRONTEND_ORIGIN`, `JWT_ACCESS_SECRET`,
    `JWT_REFRESH_SECRET`, `LOG_LEVEL`, `ODDS_API_BOOKMAKER`, `ODDS_API_KEY`,
@@ -104,6 +108,47 @@ and `--service`, which is what makes it safe; never drop them, and never read
 the deployed state from a bare `railway status`. For read-only inspection of
 production outside this workflow, `railway api` takes the IDs as GraphQL
 variables and needs no link at all.
+
+Apply the reviewed Railway IaC before uploading source. `config plan` and
+`config apply` do not accept selector flags, so the exact IDs are supplied as
+environment variables; these override the repository's staging link. Write a
+pinned plan, review its redacted output, and require that it changes only the
+existing `api` service without deleting a resource or variable. Never pass
+`--show-values`, `--decrypt-variables`, or `--confirm-destructive`. Railway's
+TypeScript evaluator requires Node 22 or newer, independently of the web app's
+Node 20 toolchain; require `nvm` to have a Node 22 release installed:
+
+```bash
+. /Users/craigrobinson/.nvm/nvm.sh --no-use
+nvm use 22 --silent
+RAILWAY_IAC_PLAN="$(mktemp /tmp/the-coupon-production-iac.XXXXXX.json)"
+RAILWAY_PROJECT_ID=e030ebe3-e7fc-43c9-9478-4e80cafaa126 \
+RAILWAY_ENVIRONMENT_ID=8f18cb49-5137-4557-900a-031bcab4ac38 \
+RAILWAY_SERVICE_ID=d59f4f17-3e7d-4b3b-bf40-30620150fa2f \
+/Users/craigrobinson/.nvm/versions/node/v20.20.2/lib/node_modules/@railway/cli/bin/railway \
+  config plan --file /Users/craigrobinson/the-coupon/.railway/railway.ts \
+  --out "$RAILWAY_IAC_PLAN"
+```
+
+Stop on an unexpected or destructive plan. Otherwise apply exactly that pinned
+plan, still without `--confirm-destructive`, then remove the temporary plan:
+
+```bash
+. /Users/craigrobinson/.nvm/nvm.sh --no-use
+nvm use 22 --silent
+RAILWAY_PROJECT_ID=e030ebe3-e7fc-43c9-9478-4e80cafaa126 \
+RAILWAY_ENVIRONMENT_ID=8f18cb49-5137-4557-900a-031bcab4ac38 \
+RAILWAY_SERVICE_ID=d59f4f17-3e7d-4b3b-bf40-30620150fa2f \
+/Users/craigrobinson/.nvm/versions/node/v20.20.2/lib/node_modules/@railway/cli/bin/railway \
+  config apply --plan "$RAILWAY_IAC_PLAN" --yes
+rm "$RAILWAY_IAC_PLAN"
+```
+
+Capture the deployment ID printed by `config apply`, when present, and poll it
+to terminal `SUCCESS` before continuing. A failed IaC deployment stops the
+shipment: restore the prior Railway deployment and do not upload source. This
+serialization matters because both the old and new image run boot migrations
+and the scheduler.
 
 First stamp the commit being shipped so `/api/v1/health` can report what is
 actually running. Railway injects `RAILWAY_GIT_COMMIT_SHA` only for
