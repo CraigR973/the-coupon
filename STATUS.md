@@ -1342,15 +1342,16 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 95 and 106-111 unchecked** — seven remaining.
-Batch 95 comes from the 2026-08-26 full-application review, and 106-111 were specified
+`docs/BUILD_PLAN.md` carries **Batches 95 and 107-111 unchecked** — six remaining.
+Batch 95 comes from the 2026-08-26 full-application review, and 107-111 were specified
 from the owner's 2026-09-03 Coupon, home, notification and Football Stats review. Batch 95
-remains in the soft-blocked tail of Group D. Group J is closed and shipped, and Group K is
-half done, so the executable wave resumes at Batch 106:
+remains in the soft-blocked tail of Group D. Groups J and K are both closed, so the
+executable wave resumes at Batch 107 — the next batch with an API half, and therefore the
+next one carrying a shipment:
 
 ```text
 J  104 shipped   API+infra → shipped 2026-09-04
-K  105 done  106 web       → (no ship)
+K  105 106 done  web       → no ship owed
 L  107           API/data  → /ship-prod → 108 web
 M  109 110       web+API   → /ship-prod → 111 web
 ```
@@ -1358,11 +1359,12 @@ M  109 110       web+API   → /ship-prod → 111 web
 `/group-start <I-M>` now orchestrates those groups. It still gives every batch its own
 branch, full gate and automatic close-out; it stops at each API checkpoint for an explicit
 `/ship-prod`, then verifies deployment drift before a rerun can continue. The full intended
-remaining order is `106 → 107 → ship → 108 → 109 → 110 → ship → 111`.
+remaining order is `107 → ship → 108 → 109 → 110 → ship → 111`.
 
-Group K unified Your pick and Combined coupon into one state-aware Current round surface in
-Batch 105; Batch 106 remains, separating future action from historical odds on home and
-containing the hero glows.
+**Group K is complete.** Batch 105 unified Your pick and Combined coupon into one
+state-aware Current round surface and Batch 106 separated future action from historical odds
+on home and contained the hero glows. Both are web-only and reached members on their own
+close-out pushes; `check-deploy-drift.sh` reports nothing to ship.
 Purposeful state colour is folded into those hierarchy changes rather than becoming a
 standalone restyle. Group L adds concise `X/Y picked` notifications, a durable all-picked
 transition and the final picker's truthful in-app hand-off. Group M adds result-day carousel
@@ -1431,6 +1433,31 @@ the whole coupon rather than the two it used to print. Old links keep working:
 `/leagues/:slug/predictions/coupon` redirects into `#coupon` carrying `?gw=` and honouring a
 fragment it already had, and `couponSectionPath` is the one helper that mints that address —
 **Batch 107's all-picked notification should deep-link with it rather than by hand.**
+
+**Batch 106 gave every home card one explicit state**, and that closed a defect visible on
+the commonest Sunday shape in the product: a settled round's pick, fold and combined odds
+were printed as the card's body with `Next opens in 2d` beside them, so last week's price
+read as the price of the round being counted down to. `homeCardState` names the state first
+— **Pick required**, **Pick submitted**, **Round in progress**, **Between rounds** — and the
+primary part of the card carries only what that state's next action needs. Everything about
+the round just gone moved under `Last result`, which now owns its pick, fold and price;
+where the API sends no `last_result`, the panel is built from the settled round itself, so
+those figures always have somewhere labelled to live.
+
+While picks are open a card shows that league's own `n of m picked` rather than a fold that
+moves on every claim — the fold returns once the round is frozen, which is the one state
+where it is a fact about now. Each card answers from its own summary throughout, and the
+copy stopped claiming a week that several leagues do not share.
+
+**The hero's corner glows are no longer filtered children.** A `filter` gives a child its
+own rendering context and WebKit paints such a child past a rounded parent's corners, which
+is why a coloured bloom sat outside the top-right and bottom-left corners in Safari. They
+are radial gradients on one clipped layer now — a background, which every engine clips to
+`border-radius` — so the fix does not depend on engine-specific clipping. **WebKit could
+not be driven on this Mac** (`playwright install webkit` refuses on macOS 13, and Safari
+needs `safaridriver --enable`), so the corners were verified in Chromium in both themes at
+390×844 and by cropping the screenshots; an owner glance in real Safari is still worth a
+minute.
 
 **Group F is complete and shipped** — Batch 96 went to production on 2026-08-30 as Railway
 deployment `7ec86030-9877-434f-beab-f4e942d7c14e`, message `ship production 5634827`,

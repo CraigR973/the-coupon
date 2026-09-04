@@ -3200,3 +3200,39 @@ green after the header change) · production-preview `coupon-flow` e2e PASS, scr
 
 **Next:** Batch 106 — home mixes the next round's clock with the previous round's odds. It is
 the second half of Group K, web-only, and no `/ship-prod` is owed by either.
+
+## Batch 106 — Home mixes the next round's clock with the previous round's odds
+**Commits:** 5ac2b96 · verified: `scripts/ci-local.sh` PASS (11 checks, green first run) ·
+production-preview `coupon-flow` e2e PASS, screenshots in `artifacts/batch-106/`
+
+### Key facts for future sessions
+- **`homeCardState` decides what the card may say, and the precedence is the product rule.**
+  `settled` and `notOpenYet` both mean `between_rounds` *even when the member holds a pick* —
+  that is the Sunday shape the batch was written for, and it is why last round's pick is no
+  longer allowed anywhere near the `Next opens` clock.
+- **`LastResultPanel` is now the only home for a settled round's pick, fold and price**, so
+  it gained a fallback: with no `last_result` in the response it is built from a settled
+  `current_round`. Without that, an API predating Batch 79 would show a settled round
+  nothing at all once the primary card stopped carrying it. `current_round` cannot say how
+  many legs landed, so that clause is omitted rather than guessed.
+- **The fold is deliberately absent while picks are open.** It moves on every claim and was
+  competing with the deadline; `showsCouponFigures` allows it only in `round_in_progress`,
+  where the coupon is frozen. Progress (`n of m picked`) took its place, from that league's
+  own `member_count`.
+- **The hero glows stopped being filtered children.** They are radial gradients on one
+  clipped layer, because a `filter` gives a child its own rendering context and WebKit
+  paints such a child past a rounded parent's corners — the actual Safari defect. A
+  background cannot escape `border-radius` in any engine, so the fix does not depend on the
+  clip working; `overflow-hidden` and a matching `clip-path` stay as second and third lines.
+- **WebKit could not be driven on this machine.** `playwright install webkit` refuses on
+  macOS 13 ("does not support webkit on mac13"), and Safari itself needs `safaridriver
+  --enable`, which needs the owner's password. The corners were verified in Chromium in
+  both themes at 390×844 and by cropping the screenshots; the engine-specific risk was
+  removed rather than tested around. **An owner glance at both hero corners in real Safari
+  is still worth one minute.**
+- **Home copy no longer claims a week.** "one clear view of every round", "No pick made this
+  round" — a league sets its own window and several do not share one.
+
+**Next:** Group K is complete, both batches web-only with no `/ship-prod` owed. The next
+executable group is **L**: Batch 107 (API/data), then a mandatory `/ship-prod` checkpoint
+before Batch 108. Batch 95 remains soft-blocked.

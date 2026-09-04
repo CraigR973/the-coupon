@@ -3210,7 +3210,7 @@ answered until it lands, because until then there is no data to look at.
   locking, settlement or Season scoring. Purposeful state colour may be added here, but
   this is not a general restyle.
 
-- [ ] **Batch 106 — Home mixes the next round's clock with the previous round's odds**
+- [x] **Batch 106 — Home mixes the next round's clock with the previous round's odds** ✅ 2026-09-04
   — specified 2026-09-03 from the owner review of league-card content and layout. Give
   every league card one explicit current state: **Pick required**, **Pick submitted**,
   **Round in progress**, or **Between rounds**. The primary part of the card owns only the
