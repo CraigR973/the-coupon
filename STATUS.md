@@ -1366,10 +1366,12 @@ state-aware Current round surface and Batch 106 separated future action from his
 on home and contained the hero glows. Both are web-only and reached members on their own
 close-out pushes; `check-deploy-drift.sh` reports nothing to ship.
 Purposeful state colour is folded into those hierarchy changes rather than becoming a
-standalone restyle. Group L adds concise `X/Y picked` notifications, a durable all-picked
-transition and the final picker's truthful in-app hand-off. Group M adds result-day carousel
-navigation, persists the full selected league season including future/non-final fixtures,
-then makes league-table teams open that addressable season view.
+standalone restyle. **Group L is half done and paused at its checkpoint**: Batch 107's
+`X/Y picked` notifications and durable all-picked transition are closed on `main` and owe a
+`/ship-prod`; Batch 108's final-picker hand-off and truthful notification copy must not
+start until that ship leaves `check-deploy-drift.sh` in sync. Group M adds result-day
+carousel navigation, persists the full selected league season including future/non-final
+fixtures, then makes league-table teams open that addressable season view.
 
 **Batch 104 was the only item in this plan with an external deadline and is now closed and
 live.** `.railway/railway.ts` replaces the deprecated `railway.toml` before Railway's
@@ -1458,6 +1460,38 @@ not be driven on this Mac** (`playwright install webkit` refuses on macOS 13, an
 needs `safaridriver --enable`), so the corners were verified in Chromium in both themes at
 390×844 and by cropping the screenshots; an owner glance in real Safari is still worth a
 minute.
+
+**Batch 107 is closed and is the first half of Group L — it is not live until the next
+`/ship-prod`.** Pick pushes now read as one line: `2-1 Hibs` over
+`Dave picked Arsenal @ 1.80 · 3/12 picked`. They previously named the league in both the
+title and the body of a tray entry that is already league-scoped, and said nothing about the
+round; the recovered room went to the one thing a member could not otherwise learn from a
+phone — how close the coupon is to being worth copying.
+
+**The denominator counts members, not recipients.** A mute is a statement about a phone
+rather than about who still owes a pick, so push subscription and per-league mute decide
+delivery and nothing else. Counting recipients would have announced a smaller league than
+exists and — the real failure — called a round complete with muted members yet to play.
+
+**The transition to `Y/Y` is its own event and replaces the ordinary alert rather than
+following it**: `Dave picked Arsenal @ 1.80 · 12/12 picked — all picks are in`, delivered to
+every eligible member *including the final picker*, deep-linked to that exact gameweek's
+copy section through the address Batch 105 settled. It is the only pick trigger that tells
+somebody what they just did, because they are the one person for whom something changed.
+
+**That event is a row, and it needs to be for two independent reasons.** Two members
+claiming the last two selections seconds apart both commit and both then read a full
+coupon — so which of them completed the round has no answer in application code, and
+`uq_gameweek_completions_gameweek` (migration `021`) decides it: the insert that lands is
+the transition. Separately, delivery is blocking webpush calls on a member's request path,
+and where a lost pick alert costs nothing this happens once a round — `delivered_at` stays
+null until a fan-out finishes, and the next submission on that round claims and retries it.
+
+The successful pick response now carries `picked_count`, `member_count` and `all_picked`,
+read once and shared with the push so the screen and the tray cannot disagree. **Batch 108
+consumes exactly those fields, so the checkpoint is mandatory**: it must not reach Vercel
+while production Railway still serves a pick response without them. That is the 2026-08-06
+shape, and the reason Group L has a `/ship-prod` in the middle of it rather than at the end.
 
 **Group F is complete and shipped** — Batch 96 went to production on 2026-08-30 as Railway
 deployment `7ec86030-9877-434f-beab-f4e942d7c14e`, message `ship production 5634827`,

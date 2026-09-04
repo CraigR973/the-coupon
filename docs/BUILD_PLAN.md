@@ -3236,8 +3236,8 @@ answered until it lands, because until then there is no data to look at.
   colour. No change to the summary API, Coupon screens, league rules or a broader palette
   rewrite.
 
-- [ ] **Batch 107 — Pick notifications do not say how close the league is to a complete
-  coupon** — specified 2026-09-03 from the owner notification review, after Batch 105 has
+- [x] **Batch 107 — Pick notifications do not say how close the league is to a complete
+  coupon** ✅ 2026-09-04 — specified 2026-09-03 from the owner notification review, after Batch 105 has
   established the canonical current-round and copy-section destination. For an ordinary
   new or changed pick, send one concise league-scoped event in the form
   `Dave picked Arsenal @ 1.80 · 3/12 picked`: who picked, what they picked, their frozen

@@ -3236,3 +3236,44 @@ production-preview `coupon-flow` e2e PASS, screenshots in `artifacts/batch-106/`
 **Next:** Group K is complete, both batches web-only with no `/ship-prod` owed. The next
 executable group is **L**: Batch 107 (API/data), then a mandatory `/ship-prod` checkpoint
 before Batch 108. Batch 95 remains soft-blocked.
+
+## Batch 107 — Pick notifications do not say how close the league is to a complete coupon
+**Commits:** aeda5df · verified: `scripts/ci-local.sh` PASS (11 checks, green first run)
+
+### Key facts for future sessions
+- **The denominator counts members, not recipients, and that is the whole trap.** The query
+  that finds recipients already existed and returning its length would have looked right —
+  it would have announced a smaller league and called a round complete with muted members
+  yet to play. `round_progress` deliberately does *not* filter on `notification_muted`;
+  `notification_targets` still does. A pick left by someone who has since left or been
+  deactivated is out of both halves, so `X` can never exceed `Y`.
+- **The completion row exists for two independent reasons.** Two members claiming the last
+  two selections seconds apart both commit and both then read `12/12`, so "did I complete
+  it?" has no answer in application code — `uq_gameweek_completions_gameweek` decides it and
+  the insert that lands is the transition. Separately, `delivered_at` stays null until a
+  fan-out finishes, so a failed delivery is retried by the next submission on that round
+  rather than lost. Either reason alone would justify the table.
+- **`claim_pending_completion` uses `SKIP LOCKED`, not `FOR UPDATE`.** A concurrent
+  submitter that queued behind the lock would wait out somebody else's webpush round-trips
+  before its own pick response returned, then find the work done and skip anyway.
+- **The router now has three post-commit transactions, not one.** Record, deliver, then the
+  ordinary alert — each committing alone. One `try` around all three would tie the durable
+  record to the outcome of a webpush call, which is the exact coupling the row breaks.
+- **The completion replaces the ordinary alert; a change afterwards does not.** `completed_now`
+  comes from the insert, so only the transition suppresses the ordinary push. A pick moved
+  into an already-full coupon is ordinary, at `12/12`, and mints no second event.
+- **Batch 76's copy assertions were rewritten, on purpose.** Three tests pinned
+  `Dave took Arsenal to win at 1.80 in 2-1 Hibs.` and a title that differed between claim and
+  move. The batch respecifies that line, so they now pin
+  `2-1 Hibs` / `Dave picked Arsenal to win @ 1.80 · 3/12 picked` and assert the titles now
+  match — the verb is the only thing left telling the two events apart.
+- **`POST /picks` returns `SubmitPickResponse`, a subclass.** `GET .../pick` keeps the plain
+  `PickResponse`: it answers "what did I pick", and an aggregate over the whole league has no
+  business on a read that runs on every screen showing a member their own selection. The
+  frontend types are structural, so nothing in `apps/web` needed touching — Batch 108 adds
+  them to `types.ts` when it consumes them.
+
+**Next:** Group L stops here. Batch 107 is API/data only and **is not live until `/ship-prod`**
+— Batch 108 consumes `picked_count` / `member_count` / `all_picked` from the pick response and
+must not reach Vercel before Railway serves them. Run `/ship-prod`, then rerun `/group-start L`
+so it can verify drift and continue with Batch 108. Batch 95 remains soft-blocked.
