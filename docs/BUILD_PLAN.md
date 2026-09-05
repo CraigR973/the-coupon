@@ -3524,7 +3524,7 @@ answered until it lands, because until then there is no data to look at.
   or to `current_round_order`. No placeholder rounds, and no return of a per-league ad-hoc round.
   Do not begin until Batch 112 has shipped and `scripts/check-deploy-drift.sh` reports in sync.
 
-- [ ] **Batch 114 — The card offers prices that do not exist, and asking spends the quota**
+- [x] **Batch 114 — The card offers prices that do not exist, and asking spends the quota** ✅ 2026-09-05
   Specified 2026-09-05 from a live outage. Members were refused with `ODDS_UNAVAILABLE` on the
   morning of a match day — Burnley v Bristol City (`72339770`) at 08:06:10 UTC, then `72204256`
   and `72202632` — on a round whose lock was still five hours away. odds-api.io was answering

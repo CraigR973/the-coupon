@@ -3438,3 +3438,49 @@ web-only and reached members on this close-out push; Batch 110's API has been li
 `docs/BUILD_PLAN.md` now carries **only Batch 95** unchecked, in the soft-blocked tail of
 Group D — still waiting on the FEAT-A09 egress attribution and the off-platform-storage
 decision.
+
+## Batch 114 — The card offers prices that do not exist, and asking spends the quota
+**Commits:** cc86312 · verified: `scripts/ci-local.sh` 11/11 green (second run; see below)
+
+### Key facts for future sessions
+- **The guard for this existed and was green throughout, because it declared its own
+  premise.** `test_request_budget.py` asserted the whole arithmetic against a real
+  `CachingOddsProvider` and claimed in its docstring that if it passed, real traffic could
+  not exhaust the quota. It passed because `LAUNCH_SATURDAY_FIXTURES = 131` was hardcoded
+  and the round production held was 202. Set it to 202 and exactly five tests fail — the
+  saturated day, both ad-hoc round limits, one member changing their mind, and a league's
+  whole pick allowance — while `test_saturated_browsing_near_lock_stays_inside_the_hourly_limit`
+  still passes, which is why this arrived as a burst on a match morning rather than as a
+  drift anyone could watch. The module now drives the real `askable`/`record_observations`
+  loop and a Postgres-backed test fails when a live card outgrows the measurement.
+- **`observed` is the field that makes the marker safe, and the port's default needed it
+  too.** A degraded sweep, a cache hit and a browse withheld for the pick reserve must all
+  be unable to conclude that a fixture is unpriced — otherwise a briefly unreachable
+  provider blanks the card. `OddsSnapshot.observed` carries only the events that got a
+  definite answer. The abstract `fetch_odds_best_effort` on `OddsProvider` returned an empty
+  one, so an *unwrapped* provider could never teach the deployment anything; caught by a
+  test, since production always hands out the cached provider.
+- **The negative ceiling deliberately beats a tightened `max_age_seconds`.** The pick path
+  asking again inside a minute cannot discover a market that is not there, so `_stale` uses
+  `max(ttl, unpriced_ttl)` for a `None` entry. The bounded re-check, not a tighter ceiling,
+  is what finds a market a bookmaker opens late.
+- **A fixture somebody has claimed is never filtered off the card.** Not in the batch's own
+  verification list, added because a bookmaker withdrawing a market hours after a claim
+  would otherwise take a member's own selection off the screen they made it on. The pooled
+  `fixtures` row is shared by every league, which is also why the HTTP tests mark through a
+  fixture that takes the marker back in teardown.
+- **`PRICE_MOVED` carries its value in the detail string.** `ApiError` keeps only a string
+  `detail` (`lib/api.ts` drops a non-string one), and the member's decision is whether to
+  take the new price, so the code alone is not an answer. `PRICE_MOVED:<price>` is the only
+  detail in the API shaped that way.
+- **Both web-half changes degrade against the un-shipped API.** `SubmitPickBody.odds` is an
+  extra field pydantic ignores, and `AdminDashboard.odds_budget` is optional and its section
+  simply does not render — so the Vercel deploy from this close-out is safe ahead of
+  `/ship-prod`, which is not the usual case and was checked rather than assumed.
+
+**Next:** **`/ship-prod` is owed and this one matters** — Batch 114 is a live production
+defect fix whose API half is the fix. After it ships, delete `ODDS_CACHE_NEAR_TTL_SECONDS`
+and `ODDS_CACHE_PICK_TTL_SECONDS` from the Railway `api` service (set by hand at 09:02 UTC
+on 2026-09-05, absent from the repository) and confirm the `config.py` defaults hold. Then
+Batches 112 and 113, in that order, per their own scope boundaries. Batch 95 is still
+soft-blocked.

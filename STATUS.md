@@ -1342,10 +1342,36 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **only Batch 95 unchecked** — one remaining, and it is not part
-of this wave. **Groups I through M are complete**, which closes out both the 2026-08-26
+`docs/BUILD_PLAN.md` carries **Batches 95, 112 and 113 unchecked**. **Batch 114 is built and
+is a shipment owed**: it is a live-production defect fix, it changes the API, and its whole
+point is unreachable until `/ship-prod` runs.
+
+**Batch 114 — the plan was exhausted on a match morning.** On 2026-09-05 members were refused
+with `ODDS_UNAVAILABLE` at 08:06 UTC on a round whose lock was five hours away, because
+odds-api.io's 100 requests/hour was already gone. The open round held **202 fixtures, 103 of
+them FA Cup qualifying ties**, and Bet365 priced not one of the 103: they cost 11 of every
+sweep's 21 requests and rendered as rows no member could ever pick. A fixture now *remembers*
+that the bookmaker prices nothing on it (revision 023, re-checked every six hours), those rows
+leave the card, a `429` costs one request instead of one per retry, the plan is counted and
+shown on the admin dashboard with a floor reserved for the pick path, and the price a member
+taps is the price they get — a submission carrying a stale one is refused with `PRICE_MOVED`
+and the new number. Measured through the real cache: the tightest browsing hour falls from 42
+requests to **20 of 100**, and a saturated day from 564 to **344 of 500**.
+
+**Two things are owed on Batch 114 and neither is automatic.** First the `/ship-prod`; then
+production is running a temporary override set by hand at 09:02 UTC on 2026-09-05 —
+`ODDS_CACHE_NEAR_TTL_SECONDS` and `ODDS_CACHE_PICK_TTL_SECONDS` both `3600` on the Railway
+`api` service, deliberately reversing the *this path must not degrade* rule so a pick would
+freeze whatever the cache held. Neither variable exists in the repository, so the deployment
+and `config.py` disagree until both are **deleted** and the defaults confirmed. Batch 114
+replaces that bargain with `PRICE_MOVED`, which is why it can be retired rather than merely
+tolerated.
+
+Batches 112 and 113 were specified on 2026-09-04 and are unstarted; 114 was taken before both
+on its own instruction, being the live defect. Batch 95 remains in the soft-blocked tail of
+Group D. **Groups I through M are complete**, which closes out both the 2026-08-26
 full-application review and the owner's 2026-09-03 Coupon, home, notification and Football
-Stats review. Batch 95 remains in the soft-blocked tail of Group D:
+Stats review:
 
 ```text
 I  103 done      web       → no ship owed
