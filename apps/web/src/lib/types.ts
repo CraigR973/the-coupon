@@ -255,6 +255,19 @@ export interface SubmitPickBody {
   fixture_id: string;
   market: PickMarket;
   outcome: PickOutcome;
+  /**
+   * The price this member was looking at when they tapped, exactly as the card rendered
+   * it (Batch 114).
+   *
+   * The card may be up to half an hour old and the submit path prices the fixture afresh,
+   * so what a member taps has never been quite what they are scored on. Sending it back
+   * lets the API refuse with `PRICE_MOVED` and the new number instead of silently freezing
+   * one they never saw.
+   *
+   * Optional because the two halves deploy apart — an API from before Batch 114 ignores
+   * it, and omitting it simply skips the check.
+   */
+  odds?: number;
 }
 
 export interface PickResponse {
@@ -909,6 +922,27 @@ export interface AdminSchedulerState {
   jobs: Array<{ id: string; next_run_utc: string | null }>;
 }
 
+/**
+ * What the odds provider's plan has left, as the API process has counted it (Batch 114).
+ *
+ * An estimate rather than the provider's own accounting: it counts what that process sent
+ * and knows nothing of another instance or of what the plan thought before it started.
+ * That is still the difference between seeing a quota run down and finding out from a
+ * member that it has gone — which is how 2026-09-05's outage was discovered.
+ */
+export interface AdminOddsBudget {
+  /** False when no provider session has been established since the process started. */
+  live: boolean;
+  hour_used: number;
+  hour_limit: number;
+  hour_remaining: number;
+  day_used: number;
+  day_limit: number;
+  day_remaining: number;
+  /** Seconds left on the `429` cooldown, or null when upstream is not suppressed. */
+  rate_limited_for: number | null;
+}
+
 export interface AdminDashboard {
   active_members: number;
   members_awaiting_pin: number;
@@ -917,6 +951,11 @@ export interface AdminDashboard {
   stuck_rounds: AdminStuckRound[];
   recent_audit: AdminAuditEntry[];
   scheduler: AdminSchedulerState;
+  /**
+   * Optional because the web app deploys from `main` while the API waits for
+   * `/ship-prod`, so this screen has to render against an API that predates Batch 114.
+   */
+  odds_budget?: AdminOddsBudget;
 }
 
 export interface AdminSyncJob {

@@ -43,6 +43,7 @@ from src.services.gameweek import (
     resolve_gameweek,
     slate_odds_max_age,
 )
+from src.services.odds_pricing import askable, pickable, record_observations
 from src.services.odds_provider import FixtureOdds
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -209,20 +210,34 @@ async def current_gameweek(
     """A gameweek's slate — the latest by default, or ``gameweek_id`` when browsing back."""
     gameweek = await resolve_gameweek(db, league.id, gameweek_id)
 
-    fixtures = await fixtures_for(db, gameweek.id)
+    now = datetime.now(UTC).replace(tzinfo=None)
+    #: Every fixture the round plays. The card may show fewer (see `pickable` below), but
+    #: the roster still has to name the game behind a pick that is no longer on it.
+    all_fixtures = await fixtures_for(db, gameweek.id)
+    fixtures = all_fixtures
 
     taken = await _taken_selections(db, league.id, gameweek.id)
     # Browsing tolerates a stale-ish price; the ceiling tightens as lock nears, and the
     # price a member is actually scored on is refreshed at submit time, not here.
     max_age = slate_odds_max_age(
         gameweek,
-        datetime.now(UTC).replace(tzinfo=None),
+        now,
         near_ttl=settings.odds_cache_near_ttl_seconds,
         far_ttl=settings.odds_cache_ttl_seconds,
     )
-    odds_by_event, odds_degraded = await _live_odds(
-        provider, [f.provider_event_id for f in fixtures], max_age_seconds=max_age
+    # Batch 114. Only ask about fixtures where asking can tell us something: on the round
+    # that prompted the batch, 103 of 202 were ties Bet365 prices nothing on, and they
+    # cost 11 requests of every 21-request sweep for the answer *no*.
+    asked = askable(fixtures, now, recheck_seconds=settings.odds_unpriced_recheck_seconds)
+    odds_by_event, odds_degraded, observed = await _live_odds(
+        provider, [f.provider_event_id for f in asked], max_age_seconds=max_age
     )
+    # Record only what this sweep actually learned. `observed` is empty on every path that
+    # did not reach the provider, so a degraded sweep marks nothing — which is what keeps
+    # the filter below from blanking a card because the source was briefly unreachable.
+    if record_observations(asked, observed, odds_by_event.keys(), now):
+        await db.commit()
+    fixtures = pickable(fixtures, claimed={fixture_id for fixture_id, _, _ in taken})
     if odds_degraded:
         log.warning(
             "slate served with degraded odds",
@@ -272,7 +287,7 @@ async def current_gameweek(
         )
         for fixture in fixtures
     ]
-    members = await _gameweek_members(db, league.id, gameweek.id, fixtures)
+    members = await _gameweek_members(db, league.id, gameweek.id, all_fixtures)
     return GameweekSlateResponse(
         gameweek_id=str(gameweek.id),
         starts_on=gameweek.starts_on,
@@ -417,7 +432,7 @@ async def _gameweek_members(
 
 async def _live_odds(
     provider: OddsProviderDep, event_ids: list[str], *, max_age_seconds: float
-) -> tuple[dict[str, FixtureOdds], bool]:
+) -> tuple[dict[str, FixtureOdds], bool, frozenset[str]]:
     """Prices for the card, plus whether they came from a failed refresh.
 
     Best-effort on purpose. This used to call ``fetch_odds`` with no fallback, so any
@@ -429,11 +444,16 @@ async def _live_odds(
     A stale price is a far better outcome than a broken screen, and a card with no
     prices at all still shows the fixtures. Freezing a price onto a pick is the
     opposite case and stays on ``fetch_odds`` (``routers/picks.py``).
+
+    The third return is the set of events this call actually got a definite answer about
+    (Batch 114). It is the *evidence* half of the response, as distinct from the prices:
+    an event served from cache or lost to a failed refresh appears in neither, so nothing
+    downstream can mistake "we did not ask" for "the bookmaker prices nothing".
     """
     if not event_ids:
-        return {}, False
+        return {}, False, frozenset()
     snapshot = await provider.fetch_odds_best_effort(event_ids, max_age_seconds=max_age_seconds)
-    return {o.provider_event_id: o for o in snapshot.odds}, snapshot.degraded
+    return {o.provider_event_id: o for o in snapshot.odds}, snapshot.degraded, snapshot.observed
 
 
 def _selection_options(

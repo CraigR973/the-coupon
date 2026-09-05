@@ -121,6 +121,57 @@ class Settings(BaseSettings):
     odds_cache_near_ttl_seconds: int = 1800
     odds_cache_pick_ttl_seconds: int = 60
 
+    # ── What the absence of a price costs (Batch 114) ───────────────────────────
+    #
+    # The arithmetic above sizes the budget on 131 fixtures the bookmaker *prices*. On
+    # 2026-09-05 an open round held 202, of which 103 — the FA Cup qualifying round, non-
+    # league ties — Bet365 priced none. Those 103 cost 11 of every sweep's 21 requests and
+    # rendered as rows no member could pick, and the plan was gone by 08:06 on a match
+    # morning.
+    #
+    # A `None` entry used to expire on the same clock as a real price, so "this fixture has
+    # no market" was re-bought every half hour. It is a far more durable fact than a price
+    # is: a bookmaker that has not opened a market on a non-league cup tie will still not
+    # have opened one in thirty minutes. Six hours is the ceiling for the in-process entry
+    # and the floor for re-asking about a persisted marker (`fixtures.odds_unpriced_since_utc`,
+    # revision 023) — long enough to take the 103 out of the hourly bill, short enough that a
+    # market opened late on the morning of a match is found before that afternoon's lock.
+    odds_cache_unpriced_ttl_seconds: int = 21600
+    odds_unpriced_recheck_seconds: int = 21600
+
+    # How long a `429` suppresses upstream calls. A rate limit says the quota is already
+    # spent, so the one thing that cannot help is another request — and the pick path
+    # retries by hand: `72204256` was refused twice inside one second by a member tapping
+    # again, each tap a fresh call against an empty budget. Five minutes is shorter than
+    # the hour a quota takes to roll over, deliberately: the counters below are an estimate
+    # of the plan's own, and a cooldown longer than the recovery would keep serving stale
+    # prices after the allowance came back.
+    odds_rate_limited_cooldown_seconds: int = 300
+
+    # The plan, as numbers the process can count against rather than a comment. Nothing
+    # counted what had been spent, which is why an exhausted allowance and a five-hour-old
+    # card looked identical from outside. These are the free plan's published limits; a
+    # deployment on a larger plan raises them and the tiers above widen to match.
+    odds_hourly_request_limit: int = 100
+    odds_daily_request_limit: int = 500
+    # The floor of the hourly allowance kept for the pick path. Browsing is a convenience
+    # with no deadline; freezing a price is the one action that expires, so it must not be
+    # starved by a card somebody left open. Fifty is `LEAGUE_MAX_MEMBERS`: a full league can
+    # still take its picks in the hour when browsing has spent everything else.
+    odds_pick_reserve_requests: int = 50
+
+    # When the late slate pass runs, Europe/London, as a `CronTrigger` hour expression.
+    #
+    # It was pinned at `9,13` in `create_scheduler`. 13:00 London is ninety minutes before
+    # the default 14:30 lock, so the pass spent ~30 requests in the hour members are hardest
+    # to serve — and by then most of them have already picked, so the freshness was worth
+    # less than the quota (owner decision, 2026-09-05). 11:00 keeps a late pass that can
+    # still catch a postponement while leaving the pick peak alone.
+    #
+    # A setting rather than a literal because a cron a deployment cannot change without a
+    # release is one nobody can move during an incident.
+    odds_refresh_slate_hours: str = "9,11"
+
     # How many upcoming Saturdays the daily discovery job walks into `fixtures`. Fixture
     # discovery costs one request per UK competition (~30), so each extra Saturday is ~30
     # requests once a day — cheap, and it means a member picking on Tuesday already has a

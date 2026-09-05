@@ -49,10 +49,13 @@ describe('PickCard', () => {
     expect(screen.getByText('2.00')).toBeTruthy();
   });
 
-  it('grabs an available selection and reports the identity to onGrab', () => {
+  it('grabs an available selection and reports the identity and price to onGrab', () => {
+    // The price rides along since Batch 114 — and it is `2`, the number rendered on the
+    // button two assertions above, because sending anything else would defeat the point:
+    // the API holds the submission to the price the member was actually looking at.
     const { onGrab } = renderCard();
     fireEvent.click(screen.getByTestId('selection-fx1-MATCH_ODDS-HOME'));
-    expect(onGrab).toHaveBeenCalledWith('fx1', 'MATCH_ODDS', 'HOME');
+    expect(onGrab).toHaveBeenCalledWith('fx1', 'MATCH_ODDS', 'HOME', 2);
   });
 
   it('marks the caller’s own selection as the current pick', () => {
@@ -245,7 +248,7 @@ describe('PickCard — inline football context', () => {
       fixture: { ...FIXTURE, context: { home: FORFAR, away: BRECHIN } },
     });
     fireEvent.click(screen.getByTestId('selection-fx1-MATCH_ODDS-HOME'));
-    expect(onGrab).toHaveBeenCalledWith('fx1', 'MATCH_ODDS', 'HOME');
+    expect(onGrab).toHaveBeenCalledWith('fx1', 'MATCH_ODDS', 'HOME', 2);
   });
 });
 

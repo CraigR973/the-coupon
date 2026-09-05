@@ -5,26 +5,63 @@ fixture discovery (scheduled, cheap, ahead of time) from pricing (on demand, beh
 cache whose ceiling tightens as lock approaches), and this module holds that split to
 the numbers.
 
-The measured launch Saturday is the fixture: 131 qualifying 15:00 kick-offs across 30
-UK competitions. Discovery therefore costs ~30 requests per Saturday walked; a full
-odds sweep costs ``ceil(131 / 10) = 14``.
-
 These tests count *upstream* calls through a real :class:`CachingOddsProvider`, so
 they measure the thing that is actually rate-limited rather than a model of it.
+
+**This module was green throughout the outage it exists to prevent** (Batch 114). On
+2026-09-05 members were refused with ``ODDS_UNAVAILABLE`` on a match morning, on a round
+whose lock was five hours away, because the hourly allowance was gone by 08:06. Every test
+here passed, because the round it budgeted for was a hardcoded
+``LAUNCH_SATURDAY_FIXTURES = 131`` and the round production actually held was **202**.
+Set it to 202 and five of these tests fail: the saturated day, both ad-hoc round limits,
+one member changing their mind, and a league's whole pick allowance.
+
+So the round is no longer declared here. :data:`OBSERVED_LARGEST_ROUND` is a *measurement*
+with a date against it, :func:`test_the_budget_covers_the_largest_round_the_database_holds`
+turns red when a real card outgrows it, and the sweeps below are driven through the same
+``askable`` / ``record_observations`` loop the pick screen runs — so what they count is the
+requests the shipped code would actually send, filter and all, rather than a model of it.
 """
 
 from __future__ import annotations
 
 import math
+import os
+from collections.abc import AsyncIterator
+from datetime import datetime, timedelta
 
+import pytest
+import pytest_asyncio
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.config import settings
+from src.database import AsyncSessionLocal
+from src.models.gameweek import GameweekFixture
 from src.services.gameweek import slate_odds_max_age, upcoming_slate_dates
 from src.services.odds_cache import CachingOddsProvider
+from src.services.odds_pricing import askable, record_observations
 from tests.test_odds_cache import _Clock, _CountingProvider
+from tests.test_odds_pricing import _fixture
 
 HOURLY_LIMIT = 100
 DAILY_LIMIT = 500
 
-LAUNCH_SATURDAY_FIXTURES = 131
+#: The largest round the deployment has been observed to hold, and how much of it the
+#: bookmaker prices. Measured against production on 2026-09-05 — 2-1 Hibs's open round,
+#: the one that exhausted the plan: **202 fixtures, 103 of them ``england-fa-cup``**
+#: qualifying ties, non-league from AFC Portchester down, and the sweep log read
+#: ``fixtures=202 priced=99``. Bet365 priced not one of the 103.
+#:
+#: A measurement, not a design constant. The number that made this module lie was
+#: ``LAUNCH_SATURDAY_FIXTURES = 131`` — a real measurement too, of a Saturday that stopped
+#: being the biggest one. What keeps this one honest is not its value but
+#: `test_the_budget_covers_the_largest_round_the_database_holds`, which fails when a card
+#: outgrows it, so a round that grows turns the suite red rather than surprising a member.
+OBSERVED_LARGEST_ROUND = 202
+OBSERVED_UNPRICED = 103
+OBSERVED_PRICED = OBSERVED_LARGEST_ROUND - OBSERVED_UNPRICED
+
 UK_COMPETITIONS = 30
 EVENTS_PER_ODDS_REQUEST = 10
 
@@ -34,7 +71,15 @@ FAR_TTL = 7200.0
 NEAR_TTL = 1800.0
 PICK_TTL = 60.0
 
-SLATE = [f"ev{i}" for i in range(LAUNCH_SATURDAY_FIXTURES)]
+#: Event ids for the priced part of that round — the ones a pick can be taken on, and so
+#: the ones every per-fixture assertion below indexes into.
+SLATE = [f"ev{i}" for i in range(OBSERVED_PRICED)]
+#: And the ties the bookmaker prices nothing on, which the card learns to stop asking about.
+UNPRICED_SLATE = [f"cup{i}" for i in range(OBSERVED_UNPRICED)]
+
+#: A wall clock for the marker, beside the monotonic one the cache runs on. The two advance
+#: together — `_card_load` is the only thing that moves either.
+EPOCH = datetime(2026, 9, 5, 0, 0)
 
 
 def _sweeps(inner: _CountingProvider) -> int:
@@ -43,16 +88,63 @@ def _sweeps(inner: _CountingProvider) -> int:
 
 
 def _cache(clock: _Clock) -> tuple[CachingOddsProvider, _CountingProvider]:
-    inner = _CountingProvider()
+    inner = _CountingProvider(priced=set(SLATE))
     return CachingOddsProvider(inner, ttl_seconds=FAR_TTL, clock=clock), inner
 
 
+def _round_fixtures(*, learned: bool = True) -> list:
+    """The production round as unattached ORM rows.
+
+    ``learned`` is the state the *database* is in, and it is the realistic one: a round is
+    discovered days before it is played, so by the hour before lock the deployment has long
+    since found out which of its ties the bookmaker prices. Persisting that on ``fixtures``
+    rather than in the process is precisely what makes it survive the restart that would
+    otherwise re-spend it — so budgeting the peak hour against a cold, unlearned card would
+    be budgeting for a state this batch exists to make impossible.
+
+    ``learned=False`` is the genuinely cold card — a brand-new round, once.
+    """
+    priced = [_fixture(event_id) for event_id in SLATE]
+    unpriced = [
+        _fixture(
+            event_id,
+            unpriced_since=EPOCH if learned else None,
+            checked_at=EPOCH if learned else None,
+        )
+        for event_id in UNPRICED_SLATE
+    ]
+    return priced + unpriced
+
+
+async def _card_load(
+    cache: CachingOddsProvider, fixtures: list, clock: _Clock, *, max_age: float
+) -> None:
+    """One pick-screen load, through the same two rules the router runs.
+
+    Deliberately the whole loop rather than a bare ``fetch_odds``: the saving this batch
+    buys is that the second sweep asks about 99 fixtures instead of 202, and it only shows
+    up if the marker is being written between the two.
+    """
+    now = EPOCH + timedelta(seconds=clock.now)
+    asked = askable(fixtures, now, recheck_seconds=settings.odds_unpriced_recheck_seconds)
+    snapshot = await cache.fetch_odds_best_effort(
+        [f.provider_event_id for f in asked], max_age_seconds=max_age
+    )
+    record_observations(asked, snapshot.observed, {o.provider_event_id for o in snapshot.odds}, now)
+
+
 async def _browse_for(
-    cache: CachingOddsProvider, clock: _Clock, *, hours: float, max_age: float, every_seconds: float
+    cache: CachingOddsProvider,
+    clock: _Clock,
+    fixtures: list,
+    *,
+    hours: float,
+    max_age: float,
+    every_seconds: float,
 ) -> None:
     """Simulate members loading the pick page every ``every_seconds`` for ``hours``."""
     for _ in range(int(hours * 3600 / every_seconds)):
-        await cache.fetch_odds(SLATE, max_age_seconds=max_age)
+        await _card_load(cache, fixtures, clock, max_age=max_age)
         clock.advance(every_seconds)
 
 
@@ -60,7 +152,7 @@ async def _tightest_browsing_hour() -> int:
     """Fifteen members hammering the page every twenty seconds for the final hour."""
     clock = _Clock()
     cache, inner = _cache(clock)
-    await _browse_for(cache, clock, hours=1, max_age=NEAR_TTL, every_seconds=20)
+    await _browse_for(cache, clock, _round_fixtures(), hours=1, max_age=NEAR_TTL, every_seconds=20)
     return _sweeps(inner)
 
 
@@ -68,18 +160,116 @@ async def _saturated_day_of_browsing() -> int:
     """A full 24 hours of someone refreshing continuously, through every tier."""
     clock = _Clock()
     cache, inner = _cache(clock)
+    fixtures = _round_fixtures()
     # Lock more than a day out: the loosest ceiling.
-    await _browse_for(cache, clock, hours=12, max_age=FAR_TTL, every_seconds=60)
+    await _browse_for(cache, clock, fixtures, hours=12, max_age=FAR_TTL, every_seconds=60)
     # The day before and match morning.
-    await _browse_for(cache, clock, hours=6, max_age=FAR_TTL / 2, every_seconds=60)
+    await _browse_for(cache, clock, fixtures, hours=6, max_age=FAR_TTL / 2, every_seconds=60)
     # The final approach.
-    await _browse_for(cache, clock, hours=6, max_age=NEAR_TTL, every_seconds=20)
+    await _browse_for(cache, clock, fixtures, hours=6, max_age=NEAR_TTL, every_seconds=20)
     return _sweeps(inner)
 
 
 def _daily_discovery() -> int:
     """What the scheduled discovery run spends: one request per competition per date."""
     return UK_COMPETITIONS * len(upcoming_saturdays_for_budget())
+
+
+# ── The round the budget is sized on (Batch 114) ─────────────────────────────
+
+
+@pytest_asyncio.fixture
+async def session() -> AsyncIterator[AsyncSession]:
+    """A read-only session for the one test here that needs the database.
+
+    Local rather than in `conftest` because this module is otherwise pure arithmetic and
+    must keep running without a database — the budget it asserts is a property of the
+    code, and losing every one of these tests on a laptop with no PostgreSQL would be a
+    poor trade for one tripwire.
+    """
+    async with AsyncSessionLocal() as db:
+        try:
+            yield db
+        finally:
+            await db.rollback()
+
+
+@pytest.mark.skipif(
+    not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
+)
+async def test_the_budget_covers_the_largest_round_the_database_holds(
+    session: AsyncSession,
+) -> None:
+    """The tripwire that `LAUNCH_SATURDAY_FIXTURES = 131` could never be.
+
+    That constant was a real measurement of a real Saturday. What made it dangerous was
+    that nothing re-took it: the deployment's biggest round grew to 202 and the number
+    stayed 131, so this module went on certifying a budget for a card that no longer
+    existed while members were refused picks against the one that did.
+
+    Reading the database is what closes that loop. A round that outgrows the measurement
+    fails here — visibly, on the gate, before a match morning — instead of surprising a
+    member.
+    """
+    biggest = (
+        await session.execute(
+            select(func.count())
+            .select_from(GameweekFixture)
+            .group_by(GameweekFixture.gameweek_id)
+            .order_by(func.count().desc())
+            .limit(1)
+        )
+    ).scalar()
+
+    if biggest is None:
+        pytest.skip("no rounds in this database to measure")
+    assert biggest <= OBSERVED_LARGEST_ROUND, (
+        f"a round holds {biggest} fixtures, past the {OBSERVED_LARGEST_ROUND} this module "
+        f"budgets for — re-measure OBSERVED_LARGEST_ROUND and OBSERVED_UNPRICED against "
+        f"production, then re-run this suite and fix whatever it turns red"
+    )
+
+
+async def test_the_production_shape_costs_ten_requests_a_sweep_not_twenty_one() -> None:
+    """The saving, measured end to end rather than argued.
+
+    The first load of a cold card pays for all 202, because the deployment has not learned
+    anything yet. Every load after it pays for the 99 the bookmaker prices — which is what
+    lets the near tier stay where it is instead of spending 42 requests an hour on a plan
+    with 100.
+    """
+    clock = _Clock()
+    cache, inner = _cache(clock)
+    fixtures = _round_fixtures(learned=False)
+
+    await _card_load(cache, fixtures, clock, max_age=NEAR_TTL)
+    first = _sweeps(inner)
+    clock.advance(NEAR_TTL)
+    await _card_load(cache, fixtures, clock, max_age=NEAR_TTL)
+    second = _sweeps(inner) - first
+
+    assert first == 21, "the cold card costs what the whole round costs"
+    assert second == 10, f"the second sweep cost {second} requests, not ten"
+
+
+async def test_the_unpriced_ties_are_re_asked_once_a_recheck_and_no_oftener() -> None:
+    """The bound that stops the saving becoming a fixture hidden for good."""
+    clock = _Clock()
+    cache, inner = _cache(clock)
+    fixtures = _round_fixtures()
+    recheck = settings.odds_unpriced_recheck_seconds
+
+    # A full day of match-morning browsing at the tightest tier.
+    await _browse_for(cache, clock, fixtures, hours=24, max_age=NEAR_TTL, every_seconds=NEAR_TTL)
+
+    cup_asks = sum(1 for call in inner.odds_calls if "cup0" in call)
+    windows = 24 * 3600 // recheck
+    sweeps = len(inner.odds_calls)
+    assert 1 <= cup_asks <= windows, (
+        f"the unpriced ties were asked about {cup_asks} times in 24 hours, against {sweeps} "
+        f"sweeps and {windows} re-check windows — one per window is the bound, and never "
+        f"zero, because a bookmaker that opens a market late has to be found"
+    )
 
 
 async def test_saturated_browsing_near_lock_stays_inside_the_hourly_limit() -> None:
@@ -122,7 +312,7 @@ async def test_freezing_every_members_pick_costs_one_request_each() -> None:
     clock = _Clock()
     cache, inner = _cache(clock)
 
-    await cache.fetch_odds(SLATE, max_age_seconds=NEAR_TTL)  # one sweep to browse
+    await _card_load(cache, _round_fixtures(), clock, max_age=NEAR_TTL)  # one sweep to browse
     sweeps_after_browse = _sweeps(inner)
 
     for member in range(15):
@@ -379,7 +569,7 @@ def test_the_aggregate_bound_still_lets_a_full_league_take_its_picks() -> None:
     assert _pick_shared_limits()["hour"] >= LEAGUE_MAX_MEMBERS
 
 
-def test_the_aggregate_bound_is_per_league_rather_than_per_installation() -> None:
+async def test_the_aggregate_bound_is_per_league_rather_than_per_installation() -> None:
     """The residual, stated rather than left to be rediscovered.
 
     The bucket is keyed on the league (``picks._league_budget_key``), so it bounds a
@@ -392,7 +582,8 @@ def test_the_aggregate_bound_is_per_league_rather_than_per_installation() -> Non
     This test is the tripwire: it says how many leagues the current numbers cover, so a
     change to either the limit or the plan has to come back through here.
     """
-    concurrent_leagues_covered = (HOURLY_LIMIT - 28) // _pick_shared_limits()["hour"]
+    peak_browsing = await _tightest_browsing_hour()
+    concurrent_leagues_covered = (HOURLY_LIMIT - peak_browsing) // _pick_shared_limits()["hour"]
     assert (
         concurrent_leagues_covered >= 1
     ), "one league picking flat out must fit the hour beside peak browsing"

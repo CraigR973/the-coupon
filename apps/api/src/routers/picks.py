@@ -25,6 +25,7 @@ with ``PICKS_BUSY`` (429) rather than served a price it could not confirm.
 import uuid
 from collections.abc import Coroutine
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Annotated, Any, TypeVar
 
 import structlog
@@ -120,6 +121,14 @@ PICK_SUBMIT_SHARED_SCOPE = "pick-submit-provider-budget"
 #: not land, which a silent queue would not do (owner decision, 2026-08-27).
 PICKS_BUSY = "PICKS_BUSY"
 
+#: What a member is told when the price moved between the card and their tap (Batch 114).
+#:
+#: Sent as ``PRICE_MOVED:<current price>`` — the code alone is not an answer, because the
+#: member's decision is *whether to take the new number*, and they cannot make it without
+#: seeing it. A refusal rather than a silent freeze: the price is what a winner is scored
+#: on, and scoring somebody on a number they never saw is the thing this exists to stop.
+PRICE_MOVED = "PRICE_MOVED"
+
 
 def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
@@ -132,6 +141,17 @@ class SubmitPickRequest(BaseModel):
     fixture_id: str
     market: PickMarket
     outcome: PickOutcome
+    #: The price the member was looking at when they tapped, as the card rendered it.
+    #:
+    #: Batch 114. The card shows a price up to thirty minutes old and this path freezes a
+    #: sixty-second one, so what a member taps has never been quite what they are scored
+    #: on. Sending it back makes the difference *visible*: a price that has moved is
+    #: refused with `PRICE_MOVED` and the new number, and the member takes it or leaves it.
+    #:
+    #: Optional because the web app deploys from `main` while the API waits for
+    #: `/ship-prod`, so both halves have to work alone. `None` means "no displayed price
+    #: to honour" and skips the check, which is exactly the behaviour that shipped before.
+    odds: Decimal | None = None
 
 
 class PickResponse(BaseModel):
@@ -244,7 +264,7 @@ async def submit_pick(
         )
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=PICKS_BUSY)
 
-    selection = await _snapshot_selection(provider, fixture, body.market, body.outcome)
+    selection = await _snapshot_selection(provider, fixture, body.market, body.outcome, body.odds)
 
     # And again, because the line above left the process. `_snapshot_selection` is an
     # outbound HTTP call to a third party on the request path, and the deadline it was
@@ -553,11 +573,24 @@ async def _round_playing(db: AsyncSession, league: League, fixture: Fixture) -> 
     return gameweek
 
 
+#: The precision a price is compared at, which is the precision it is *scored* at:
+#: ``picks.odds_at_pick`` is ``Numeric(6, 2)`` and a winner takes ``round(odds x 10)``.
+#: Comparing any finer would refuse a member over a difference that cannot reach their
+#: score, and would make the check hostage to the float the card round-trips through.
+_PRICE_STEP = Decimal("0.01")
+
+
+def _same_price(displayed: Decimal, current: Decimal) -> bool:
+    """Whether the price a member tapped is still the price they would be scored on."""
+    return displayed.quantize(_PRICE_STEP) == current.quantize(_PRICE_STEP)
+
+
 async def _snapshot_selection(
     provider: OddsProviderDep,
     fixture: Fixture,
     market: PickMarket,
     outcome: PickOutcome,
+    displayed: Decimal | None = None,
 ) -> Selection:
     """Fetch the fixture's odds and return the chosen priced selection.
 
@@ -572,6 +605,15 @@ async def _snapshot_selection(
     ``round(odds × 10)`` from it, so a stale or missing one is not a degraded pick, it is
     a wrong score. An unreachable provider refuses the submission — loudly, and as a
     ``503`` rather than an unhandled crash, so the client can say what happened.
+
+    ``displayed`` closes the gap that argument leaves open (Batch 114). Freshness here was
+    only ever *relative* freshness: the card is allowed to be half an hour old, this fetch
+    a minute, and the member was silently scored on whichever number arrived last. Handed
+    the price they were actually looking at, this refuses with ``PRICE_MOVED`` and the new
+    one rather than freezing a number they never saw. The check costs no upstream request
+    — it reads the answer the fetch above already returned — which is what makes the
+    guarantee independent of the TTLs, and is why this path can go back to being strict
+    and fresh instead of holding an hour-long cache to hide the movement.
     """
     # The one price that gets frozen onto a scored pick, so it buys freshness the
     # browse path cannot afford — but for a single fixture, which is one request.
@@ -590,8 +632,23 @@ async def _snapshot_selection(
         ) from exc
     for fixture_odds in odds:
         for selection in fixture_odds.selections:
-            if selection.market.value == market.value and selection.outcome.value == outcome.value:
-                return selection
+            if selection.market.value != market.value or selection.outcome.value != outcome.value:
+                continue
+            if displayed is not None and not _same_price(displayed, selection.price):
+                log.info(
+                    "pick refused: the price moved under the member",
+                    fixture=fixture.provider_event_id,
+                    displayed=str(displayed),
+                    current=str(selection.price),
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    # The current price travels *in* the detail because `ApiError` keeps
+                    # only a string one, and the member cannot decide whether to take it
+                    # without seeing the number. `pickErrorMessage` splits it back out.
+                    detail=f"{PRICE_MOVED}:{selection.price.quantize(_PRICE_STEP)}",
+                )
+            return selection
     raise HTTPException(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="SELECTION_NOT_AVAILABLE"
     )

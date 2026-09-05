@@ -154,7 +154,9 @@ def test_create_scheduler_domain_jobs_fire_on_uk_wall_clock() -> None:
         expected = {
             # Discovery is daily and early — the pre-fetch half of the Batch 11 split.
             "discover_fixtures": "cron[hour='6', minute='0']",
-            "refresh_slate": "cron[hour='9,13', minute='0']",
+            # Batch 114 took the hours out of the source and moved the late pass clear of
+            # the lock; `test_the_late_slate_pass_is_clear_of_the_lock_hour` is the rule.
+            "refresh_slate": f"cron[hour='{settings.odds_refresh_slate_hours}', minute='0']",
             # Hourly at :15 since Batch 76 — a daily job cannot deliver a reminder three
             # hours before a deadline that moves with each league's window.
             "pick_reminders": "cron[minute='15']",
@@ -170,6 +172,50 @@ def test_create_scheduler_domain_jobs_fire_on_uk_wall_clock() -> None:
             assert str(job.trigger.timezone) == "Europe/London"
             assert job.coalesce is True
             assert job.max_instances == 1
+    finally:
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
+
+
+# ── Batch 114: the late slate pass must not spend the pick hour ──────────────
+
+
+#: The default window's lock, in Europe/London — 15:00 kick-off less thirty minutes.
+#: Every league sets its own, but this is the one an unconfigured league plays and the
+#: one production's two leagues run on.
+DEFAULT_LOCK_HOUR = 14.5
+
+
+def test_the_late_slate_pass_is_clear_of_the_lock_hour() -> None:
+    """It was pinned at `9,13`, and 13:00 London is ninety minutes before a 14:30 lock.
+
+    That put ~30 provider requests into the hour members are hardest to serve, on a plan
+    whose whole hourly allowance is 100 — and by then most members have already picked, so
+    the freshness it bought was worth less than the quota it cost (owner decision,
+    2026-09-05). The pass still runs late enough to catch a postponement; it simply no
+    longer runs while the card is being picked over.
+    """
+    hours = [float(hour) for hour in settings.odds_refresh_slate_hours.split(",")]
+
+    for hour in hours:
+        assert not (DEFAULT_LOCK_HOUR - 1 <= hour <= DEFAULT_LOCK_HOUR), (
+            f"the slate pass at {hour:g}:00 falls inside the hour before a "
+            f"{DEFAULT_LOCK_HOUR:g} lock, which is the spend this batch removed"
+        )
+    assert max(hours) < DEFAULT_LOCK_HOUR, "a pass after the lock cannot firm up a card"
+
+
+def test_the_late_slate_pass_schedule_is_a_setting_rather_than_a_literal() -> None:
+    """A cron a deployment cannot change without a release is one nobody can move.
+
+    2026-09-05's answer to an exhausted quota was to change two environment variables on
+    the running service. The schedule that was spending it was not reachable that way.
+    """
+    scheduler = create_scheduler()
+    try:
+        job = scheduler.get_job("refresh_slate")
+        assert job is not None
+        assert settings.odds_refresh_slate_hours in str(job.trigger)
     finally:
         if scheduler.running:
             scheduler.shutdown(wait=False)

@@ -35,6 +35,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
 from src.auth import create_access_token, hash_pin
+from src.config import settings
 from src.database import AsyncSessionLocal
 from src.main import app
 from src.models.fixture import Fixture
@@ -314,6 +315,30 @@ async def test_the_dashboard_reports_the_scheduler_it_can_actually_see(
 
     assert dashboard["scheduler"]["running"] is False
     assert isinstance(dashboard["scheduler"]["jobs"], list)
+
+
+async def test_the_dashboard_reports_the_odds_budget_without_spending_any_of_it(
+    client: AsyncClient,
+) -> None:
+    """Batch 114. Nothing counted the plan, so an exhausted one looked like a stale card.
+
+    On 2026-09-05 the hourly allowance was gone by 08:06 and the first anyone knew of it
+    was a member being refused a pick. The counters are on the screen an admin already
+    checks on a Saturday morning — and reading them must not establish a provider session
+    or send a request, because a dashboard left open on a second screen would then be
+    spending the very budget it reports.
+    """
+    admin = await _profile(UserRole.admin)
+
+    dashboard = (await client.get("/api/v1/admin/dashboard", headers=_auth(admin))).json()
+
+    budget = dashboard["odds_budget"]
+    assert budget["live"] is False, "reading the dashboard must not build a provider session"
+    assert budget["hour_limit"] == settings.odds_hourly_request_limit
+    assert budget["day_limit"] == settings.odds_daily_request_limit
+    assert budget["hour_remaining"] == budget["hour_limit"] - budget["hour_used"]
+    assert budget["day_remaining"] == budget["day_limit"] - budget["day_used"]
+    assert budget["rate_limited_for"] is None
 
 
 async def test_the_dashboard_shows_the_next_lock_per_league_not_every_round(

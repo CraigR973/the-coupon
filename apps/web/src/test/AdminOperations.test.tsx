@@ -78,6 +78,16 @@ const DASHBOARD: AdminDashboard = {
     },
   ],
   scheduler: { enabled: true, running: false, jobs: [{ id: 'settle_gameweeks', next_run_utc: null }] },
+  odds_budget: {
+    live: true,
+    hour_used: 82,
+    hour_limit: 100,
+    hour_remaining: 18,
+    day_used: 310,
+    day_limit: 500,
+    day_remaining: 190,
+    rate_limited_for: null,
+  },
 };
 
 describe('the admin dashboard', () => {
@@ -101,6 +111,42 @@ describe('the admin dashboard', () => {
 
     expect(await screen.findByText('Not running')).toBeTruthy();
     expect(screen.getByText(/configured on/i)).toBeTruthy();
+  });
+
+  it('shows how much of the odds provider’s plan is left', async () => {
+    // Batch 114. On 2026-09-05 the hourly allowance was gone by 08:06 and the first anyone
+    // knew was a member being refused a pick on a round that locked five hours later.
+    apiFetch.mockResolvedValue(DASHBOARD);
+
+    renderPage(<AdminDashboardPage />);
+
+    expect(await screen.findByText('This hour')).toBeTruthy();
+    expect(screen.getByLabelText('This hour: 82 of 100 requests used')).toBeTruthy();
+    expect(screen.getByLabelText('Today: 310 of 500 requests used')).toBeTruthy();
+  });
+
+  it('says so while a rate limit is being held off', async () => {
+    apiFetch.mockResolvedValue({
+      ...DASHBOARD,
+      odds_budget: { ...DASHBOARD.odds_budget, rate_limited_for: 42.4 },
+    });
+
+    renderPage(<AdminDashboardPage />);
+
+    expect(await screen.findByText(/rate limited/i)).toBeTruthy();
+    expect(screen.getByText(/holding off 43s/i)).toBeTruthy();
+  });
+
+  it('renders against an API that predates the budget counters', async () => {
+    // The web app deploys from `main` while the API waits for `/ship-prod`, so this
+    // screen has to come up without the field at all.
+    const { odds_budget: _omitted, ...older } = DASHBOARD;
+    apiFetch.mockResolvedValue(older);
+
+    renderPage(<AdminDashboardPage />);
+
+    expect(await screen.findByText('3 pending')).toBeTruthy();
+    expect(screen.queryByText('This hour')).toBeNull();
   });
 
   it('counts the members waiting to choose a PIN', async () => {

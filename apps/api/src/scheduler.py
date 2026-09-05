@@ -642,7 +642,12 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(
         run_refresh_slate,
         trigger="cron",
-        hour="9,13",  # twice daily: leagues may play any day, so no day_of_week filter
+        # Twice daily: leagues may play any day, so no day_of_week filter. The hours come
+        # from `ODDS_REFRESH_SLATE_HOURS` rather than from here (Batch 114) — they were
+        # `9,13`, and 13:00 London is ninety minutes before the default 14:30 lock, so the
+        # pass spent ~30 requests in the hour members are hardest to serve. A cron a
+        # deployment cannot change without a release is one nobody can move mid-incident.
+        hour=settings.odds_refresh_slate_hours,
         minute=0,
         timezone="Europe/London",
         id="refresh_slate",

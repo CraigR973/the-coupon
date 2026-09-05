@@ -40,6 +40,14 @@ export const myPickKey = (slug: string, gameweekId: string | undefined) =>
  */
 export const PICK_SUBMIT_TIMEOUT_MS = 12_000;
 
+/**
+ * The refusal a submission gets when the price moved between the card and the tap.
+ *
+ * Sent as `PRICE_MOVED:<current price>`, which is the only detail in the API that carries
+ * a value rather than only a code — see `pickErrorMessage`.
+ */
+export const PRICE_MOVED = 'PRICE_MOVED';
+
 /** Turn the backend `detail` code into a player-facing message. */
 export function pickErrorMessage(detail: string): string {
   switch (detail) {
@@ -63,6 +71,14 @@ export function pickErrorMessage(detail: string): string {
     case 'PICKS_BUSY':
       return 'Too many picks are being made in your league right now — your pick wasn’t saved. Try again in a few minutes.';
     default:
+      // Batch 114. `PRICE_MOVED:<price>` — the code alone is not an answer, because what
+      // the member has to decide is whether to take the *new* number, and they cannot
+      // decide that without seeing it. The price rides in the detail because `ApiError`
+      // keeps only a string one.
+      if (detail.startsWith(`${PRICE_MOVED}:`)) {
+        const moved = detail.slice(PRICE_MOVED.length + 1);
+        return `That price moved before your pick landed — it’s now ${moved}. Tap again to take it.`;
+      }
       return detail || 'Could not save your pick — try again.';
   }
 }
@@ -89,8 +105,19 @@ export interface OutstandingPick {
 }
 
 export interface PickEditor {
-  /** Grab (or re-pick to) a selection. One pick per member per gameweek. */
-  submit: (fixtureId: string, market: PickMarket, outcome: PickOutcome) => void;
+  /**
+   * Grab (or re-pick to) a selection. One pick per member per gameweek.
+   *
+   * `odds` is the price the button was showing when it was tapped, carried through so the
+   * API can refuse a price that has moved rather than freeze one the member never saw
+   * (Batch 114).
+   */
+  submit: (
+    fixtureId: string,
+    market: PickMarket,
+    outcome: PickOutcome,
+    odds?: number,
+  ) => void;
   /** `selectionKey` currently being submitted, for a per-button spinner. */
   pendingKey: string | null;
   isSubmitting: boolean;
@@ -321,8 +348,8 @@ export function usePickEditor(
   }, []);
 
   const submit = useCallback(
-    (fixtureId: string, market: PickMarket, outcome: PickOutcome) => {
-      const body: SubmitPickBody = { fixture_id: fixtureId, market, outcome };
+    (fixtureId: string, market: PickMarket, outcome: PickOutcome, odds?: number) => {
+      const body: SubmitPickBody = { fixture_id: fixtureId, market, outcome, odds };
       // Drop whatever was held before this one goes out. One pick per member per round
       // means the newest intent is the only one that can be correct, so an older unsent
       // intent must not survive to fire later and take the member's claim backwards —

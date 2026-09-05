@@ -45,6 +45,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from src.config import settings
 from src.services.odds_provider import (
+    EVENTS_PER_ODDS_REQUEST,
     Competition,
     EventSettlement,
     FixtureOdds,
@@ -52,6 +53,7 @@ from src.services.odds_provider import (
     OddsProvider,
     OddsProviderAPIError,
     OddsProviderAuthError,
+    OddsProviderRateLimited,
     Outcome,
     OutcomeResult,
     Selection,
@@ -77,9 +79,12 @@ _TIMEOUT = 30.0
 # ``/odds/multi`` takes a comma-separated id list and rejects more than ten ids with
 # ``400 {"error":"Maximum 10 eventIds allowed"}`` — measured against the live API on
 # 2026-08-04. Chunking at the cap is what makes a full slate a handful of requests
-# instead of one per fixture, which matters against a 100/hour budget: the launch
-# Saturday carries 131 qualifying fixtures.
-_MULTI_ODDS_CHUNK = 10
+# instead of one per fixture, which matters against a 100/hour budget.
+#
+# It is the port's :data:`EVENTS_PER_ODDS_REQUEST` since Batch 114, because the cache and
+# the budget suite have to convert event counts into request counts without importing
+# this module. The alias stays for the call site below, which reads as a chunk size.
+_MULTI_ODDS_CHUNK = EVENTS_PER_ODDS_REQUEST
 
 # The four home nations as odds-api.io labels them. Verified against the live catalogue on
 # 2026-08-04: 728 football leagues, none of which carry a ``country`` field, so the country
@@ -665,7 +670,7 @@ class OddsApiProvider(OddsProvider):
                 # and slowed its own recovery. Fail fast and let the cache cover the gap
                 # (``CachingOddsProvider.fetch_odds_best_effort``).
                 log.warning("odds-api rate limited", path=path)
-                raise OddsProviderAPIError(f"odds-api.io {path} rate-limited (429), not retried")
+                raise OddsProviderRateLimited(f"odds-api.io {path} rate-limited (429), not retried")
             if response.status_code >= 500:
                 if attempt == _MAX_RETRIES:
                     raise OddsProviderAPIError(

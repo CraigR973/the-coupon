@@ -61,6 +61,7 @@ from src.services.credentials import (
     revoke_all_refresh_tokens,
 )
 from src.services.gameweek import PICKABLE_STATES
+from src.services.odds_session import odds_session
 from src.services.scoring import settle_gameweek
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -508,6 +509,31 @@ class SchedulerState(BaseModel):
     jobs: list[SchedulerJobState]
 
 
+class OddsBudgetState(BaseModel):
+    """What the odds provider's plan has left, as this process has counted it (Batch 114).
+
+    Nothing counted it before, which is why an exhausted allowance and a five-hour-old
+    card looked identical from the outside on 2026-09-05: members were refused with
+    ``ODDS_UNAVAILABLE`` on a match morning and the only way to find out why was to read
+    the logs. Now it is on the screen an admin already checks.
+
+    An estimate rather than the provider's own accounting — see
+    :class:`~src.services.odds_cache.OddsBudget`. ``live`` is false when no provider
+    session has been established since this process started, in which case the counts are
+    zero because nothing has been spent *by this process*, not because the plan is full.
+    """
+
+    live: bool
+    hour_used: int
+    hour_limit: int
+    hour_remaining: int
+    day_used: int
+    day_limit: int
+    day_remaining: int
+    #: Seconds left on the ``429`` cooldown, or ``None`` when upstream is not suppressed.
+    rate_limited_for: float | None
+
+
 class AdminDashboard(BaseModel):
     active_members: int
     members_awaiting_pin: int
@@ -516,11 +542,42 @@ class AdminDashboard(BaseModel):
     stuck_rounds: list[StuckRound]
     recent_audit: list[AuditEntry]
     scheduler: SchedulerState
+    odds_budget: OddsBudgetState
 
 
 #: How much of the audit trail the dashboard shows. Enough to see this morning's activity,
 #: short enough that the screen stays a summary rather than a log viewer.
 RECENT_AUDIT_ROWS = 25
+
+
+def _odds_budget_state() -> OddsBudgetState:
+    """The provider budget, read from the live session without establishing one.
+
+    Read-only in the strongest sense: the dashboard must not authenticate a provider, and
+    certainly must not spend a request, to report on how many are left.
+    """
+    budget = odds_session.budget()
+    if budget is None:
+        return OddsBudgetState(
+            live=False,
+            hour_used=0,
+            hour_limit=settings.odds_hourly_request_limit,
+            hour_remaining=settings.odds_hourly_request_limit,
+            day_used=0,
+            day_limit=settings.odds_daily_request_limit,
+            day_remaining=settings.odds_daily_request_limit,
+            rate_limited_for=None,
+        )
+    return OddsBudgetState(
+        live=True,
+        hour_used=budget.hour_used,
+        hour_limit=budget.hour_limit,
+        hour_remaining=budget.hour_remaining,
+        day_used=budget.day_used,
+        day_limit=budget.day_limit,
+        day_remaining=budget.day_remaining,
+        rate_limited_for=budget.rate_limited_for,
+    )
 
 
 def _scheduler_state(request: Request) -> SchedulerState:
@@ -707,6 +764,7 @@ async def dashboard(request: Request, admin: AdminUser, db: Db) -> AdminDashboar
             for entry, actor_name in audit_rows
         ],
         scheduler=_scheduler_state(request),
+        odds_budget=_odds_budget_state(),
     )
 
 

@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/PageHeader';
+import { cn } from '@/lib/utils';
 import { AdminNav } from './AdminNav';
 
 /** Every instant on this screen is operational, so it reads in the admin's own zone. */
@@ -113,6 +114,45 @@ export function AdminDashboardPage() {
             )}
           </Section>
 
+          {/* Batch 114. The plan running down used to be invisible: on 2026-09-05 the
+              hourly allowance was gone by 08:06 and the first anyone knew was a member
+              being refused a pick. An estimate — this counts what the API process sent —
+              but the difference between watching a quota fall and being told about it. */}
+          {data.odds_budget && (
+            <Section title="Odds provider budget">
+              <Card>
+                <CardContent className="p-3">
+                  {data.odds_budget.rate_limited_for !== null && (
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-warning" aria-hidden />
+                      <Badge variant="warning">
+                        Rate limited · holding off {Math.ceil(data.odds_budget.rate_limited_for)}s
+                      </Badge>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <Meter
+                      label="This hour"
+                      used={data.odds_budget.hour_used}
+                      limit={data.odds_budget.hour_limit}
+                    />
+                    <Meter
+                      label="Today"
+                      used={data.odds_budget.day_used}
+                      limit={data.odds_budget.day_limit}
+                    />
+                  </div>
+                  {!data.odds_budget.live && (
+                    <p className="mt-2 font-sans text-[11px] text-text-muted">
+                      No provider session yet — nothing has been spent since this API
+                      process started.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </Section>
+          )}
+
           <Section title="Scheduler">
             <Card>
               <CardContent className="p-3">
@@ -172,6 +212,36 @@ function Stat({ label, value, hint }: { label: string; value: number; hint?: str
         {hint && <p className="font-sans text-[11px] text-text-muted">{hint}</p>}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * One allowance, as used-of-limit with a bar behind it.
+ *
+ * A bar rather than a bare number because the question an admin has on a match morning is
+ * "have we got enough left", which is a proportion, not a count. The count is there for
+ * the runbook.
+ */
+function Meter({ label, used, limit }: { label: string; used: number; limit: number }) {
+  const fraction = limit > 0 ? Math.min(1, used / limit) : 0;
+  // The same three bands the cache widens its browse ceiling on, so the screen and the
+  // behaviour agree: past half spent it slackens, past three-quarters it slackens again.
+  const tone =
+    fraction >= 0.75 ? 'bg-error' : fraction >= 0.5 ? 'bg-warning' : 'bg-success';
+  return (
+    <div>
+      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">{label}</p>
+      <p className="mt-1 font-sans text-sm tabular-nums text-text-primary">
+        {used} <span className="text-text-muted">/ {limit || '—'}</span>
+      </p>
+      <div
+        className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-border"
+        role="img"
+        aria-label={`${label}: ${used} of ${limit} requests used`}
+      >
+        <div className={cn('h-full rounded-full', tone)} style={{ width: `${fraction * 100}%` }} />
+      </div>
+    </div>
   );
 }
 

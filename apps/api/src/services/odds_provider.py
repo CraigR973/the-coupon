@@ -52,6 +52,17 @@ KICKOFF_HOUR = 15  # 15:00 UK local — "one Saturday's 3pm kick-offs"
 MARKET_MATCH_ODDS = "MATCH_ODDS"
 MARKET_BTTS = "BOTH_TEAMS_TO_SCORE"
 
+#: How many events one upstream odds request may carry.
+#:
+#: The port's number rather than one provider's, because it is what turns a list of event
+#: ids into a count of *requests* — the unit the plan is denominated in. Anything that
+#: budgets, counts or reserves provider requests needs it, and importing the concrete
+#: provider to get it would put the odds-api.io module in the cache's and the budget
+#: suite's import graph. odds-api.io's ``/odds/multi`` rejects an eleventh id outright
+#: (``_MULTI_ODDS_CHUNK``); a provider that batches differently overrides the arithmetic
+#: by passing its own value to :class:`~src.services.odds_cache.CachingOddsProvider`.
+EVENTS_PER_ODDS_REQUEST = 10
+
 
 # ── Exceptions ─────────────────────────────────────────────────────────────────
 
@@ -66,6 +77,20 @@ class OddsProviderAuthError(OddsProviderError):
 
 class OddsProviderAPIError(OddsProviderError):
     """The provider returned an error, or a response we cannot use."""
+
+
+class OddsProviderRateLimited(OddsProviderAPIError):
+    """The provider refused because the plan's quota is already spent (``429``).
+
+    Separated from its parent in Batch 114 because the two want opposite handling. A
+    network blip or a ``500`` is worth retrying on the next page load — the provider may
+    well be back. A ``429`` says the budget is gone, and every retry against it is another
+    request charged for the answer *no*: on 2026-09-05 one member tapping twice inside a
+    second bought two of them against an empty allowance.
+
+    :class:`~src.services.odds_cache.CachingOddsProvider` holds a short cooldown on this
+    type alone, so a rate limit costs one request rather than one per attempt.
+    """
 
 
 # ── Domain models ──────────────────────────────────────────────────────────────
@@ -116,10 +141,19 @@ class OddsSnapshot:
     refresh — last known prices, or none at all — rather than a live answer. It is the
     browsing path's return type alone: freezing a price onto a pick calls
     :meth:`OddsProvider.fetch_odds`, which raises rather than degrading.
+
+    ``observed`` is the events this call actually put a question to the provider about and
+    got a definite answer for — the ones whose presence or absence from ``odds`` is
+    *evidence* rather than an artefact of the cache. Batch 114 needs the distinction to
+    write ``fixtures.odds_unpriced_since_utc``: an event served from cache, withheld to
+    protect the pick reserve, or lost to a failed refresh says nothing about what the
+    bookmaker prices, and marking it on that basis would take a pickable fixture off the
+    card. Empty on every path that did not reach upstream, which is the safe default.
     """
 
     odds: list[FixtureOdds]
     degraded: bool
+    observed: frozenset[str] = frozenset()
 
 
 class Competition(BaseModel):
@@ -476,7 +510,10 @@ class OddsProvider(ABC):
         except OddsProviderError as exc:
             log.warning("odds unavailable, serving none", events=len(event_ids), error=repr(exc))
             return OddsSnapshot(odds=[], degraded=True)
-        return OddsSnapshot(odds=odds, degraded=False)
+        # A provider with no cache went upstream for every id and came back, so every one
+        # of them got a definite answer — which is exactly what `observed` means. The
+        # cached override reports the subset it actually refilled instead.
+        return OddsSnapshot(odds=odds, degraded=False, observed=frozenset(event_ids))
 
     @abstractmethod
     async def settle(self, event_ids: Sequence[str]) -> list[EventSettlement]:

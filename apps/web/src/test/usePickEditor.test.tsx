@@ -89,6 +89,15 @@ describe('pickErrorMessage', () => {
     expect(pickErrorMessage('Some other server message')).toBe('Some other server message');
   });
 
+  it('shows the new number when Batch 114’s price check refuses', () => {
+    // The code alone is not an answer: what the member has to decide is whether to take
+    // the price that has moved, and they cannot decide that without seeing it.
+    const message = pickErrorMessage('PRICE_MOVED:3.50');
+    expect(message).toContain('3.50');
+    expect(message).toMatch(/moved/i);
+    expect(message).toMatch(/tap again/i);
+  });
+
   it('names the league, not the member, when Batch 89’s shared budget refuses', () => {
     // The member did nothing wrong and their own limit is untouched. Copy that reads as
     // an accusation makes someone who has picked once today stop trying.
@@ -118,6 +127,44 @@ describe('usePickEditor', () => {
     );
     expect(mockToast.success).toHaveBeenCalledWith(expect.stringContaining('Forfar'));
     expect(result.current.outstanding).toBeNull();
+  });
+
+  it('carries the price the member was looking at, so a moved one can be refused', async () => {
+    // The card may be half an hour old and the submit path prices the fixture afresh, so
+    // until Batch 114 what a member tapped had never been quite what they were scored on.
+    mockApiFetch.mockResolvedValue(PICK);
+    const { result } = renderHook(() => usePickEditor('test-league', 'gw1'), { wrapper });
+
+    act(() => {
+      result.current.submit('fx1', 'MATCH_ODDS', 'HOME', 3.5);
+    });
+
+    await waitFor(() => expect(mockToast.success).toHaveBeenCalled());
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      SUBMIT_PATH,
+      expect.objectContaining({
+        body: JSON.stringify({
+          fixture_id: 'fx1',
+          market: 'MATCH_ODDS',
+          outcome: 'HOME',
+          odds: 3.5,
+        }),
+      }),
+    );
+  });
+
+  it('omits the price when the caller has none, so an older API is unaffected', async () => {
+    // The web app deploys from `main` while the API waits for `/ship-prod`.
+    mockApiFetch.mockResolvedValue(PICK);
+    const { result } = renderHook(() => usePickEditor('test-league', 'gw1'), { wrapper });
+
+    act(() => {
+      result.current.submit('fx1', 'MATCH_ODDS', 'HOME');
+    });
+
+    await waitFor(() => expect(mockToast.success).toHaveBeenCalled());
+    const [, options] = submits()[0];
+    expect((options as { body: string }).body).not.toContain('odds');
   });
 
   it('gives the submission a deadline rather than waiting forever', async () => {

@@ -28,7 +28,7 @@ import structlog
 from src.config import Environment, OddsProviderName, settings
 from src.services.betfair import Betfair, FakeBetfair
 from src.services.odds_api import OddsApiProvider
-from src.services.odds_cache import CachingOddsProvider
+from src.services.odds_cache import CachingOddsProvider, OddsBudget
 from src.services.odds_provider import OddsProvider, OddsProviderError
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -86,8 +86,29 @@ class OddsProviderSession:
             assert self._client is not None  # _login sets it or raises
             return self._client
 
+    def budget(self) -> OddsBudget | None:
+        """What the live client has spent, or ``None`` when none has been established.
+
+        Deliberately does not acquire one: the admin dashboard reads this, and a screen
+        an admin leaves open must not authenticate a provider — still less spend a
+        request — to report on a budget. A ``None`` here means "nothing has asked the
+        provider for anything since this process started", which is itself the answer.
+        """
+        return None if self._client is None else self._client.budget()
+
     async def _login(self, now: datetime) -> None:
-        client = CachingOddsProvider(build_provider(), ttl_seconds=settings.odds_cache_ttl_seconds)
+        client = CachingOddsProvider(
+            build_provider(),
+            ttl_seconds=settings.odds_cache_ttl_seconds,
+            # Batch 114. The absence of a price is a far more durable fact than a price,
+            # a `429` must not cost a request per retry, and the plan is a number the
+            # process counts against rather than a comment in `config.py`.
+            unpriced_ttl_seconds=settings.odds_cache_unpriced_ttl_seconds,
+            rate_limited_cooldown_seconds=settings.odds_rate_limited_cooldown_seconds,
+            hourly_request_limit=settings.odds_hourly_request_limit,
+            daily_request_limit=settings.odds_daily_request_limit,
+            pick_reserve_requests=settings.odds_pick_reserve_requests,
+        )
         await client.login()
         self._client = client
         self._validated_at = now

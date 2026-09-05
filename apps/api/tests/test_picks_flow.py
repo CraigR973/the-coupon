@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import os
 import uuid
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -28,6 +28,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import create_access_token, hash_pin
+from src.config import settings
 from src.database import AsyncSessionLocal
 from src.deps import get_odds_provider, get_optional_odds_provider
 from src.main import app
@@ -226,13 +227,24 @@ def _limit_amount(limit_value: str, granularity: str) -> int:
 
 
 async def _submit(
-    client: AsyncClient, slug: str, player: Profile, fixture_id: str, market: str, outcome: str
+    client: AsyncClient,
+    slug: str,
+    player: Profile,
+    fixture_id: str,
+    market: str,
+    outcome: str,
+    odds: float | None = None,
 ) -> Response:
-    return await client.post(
-        f"/api/v1/leagues/{slug}/picks",
-        json={"fixture_id": fixture_id, "market": market, "outcome": outcome},
-        headers=_auth(player),
-    )
+    """Submit a pick. ``odds`` is the price the card was showing (Batch 114).
+
+    Left out by default so every test written before that batch keeps asserting what it
+    always did — which is also what an API of this version receives from a web app that
+    has not deployed yet.
+    """
+    body: dict[str, object] = {"fixture_id": fixture_id, "market": market, "outcome": outcome}
+    if odds is not None:
+        body["odds"] = odds
+    return await client.post(f"/api/v1/leagues/{slug}/picks", json=body, headers=_auth(player))
 
 
 # ── The full flow ─────────────────────────────────────────────────────────────
@@ -2601,3 +2613,296 @@ async def test_a_second_league_keeps_its_own_pick_budget(
         client, quiet.slug, quiet_member, quiet_fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME"
     )
     assert quiet_pick.status_code == 201, quiet_pick.text
+
+
+# ── Batch 114: the price a member clicks is the price they get ────────────────
+#
+# The card is allowed to be half an hour old and the submit path prices the fixture
+# afresh, so what a member tapped had never been quite what they were scored on. These
+# drive the real request path with a real cache in front, because "no upstream call" is a
+# property of the wrapper and not of the router.
+
+
+class _CountedOdds(FakeBetfair):
+    """The canned provider, counting how many times prices were actually asked for."""
+
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+        self.odds_calls = 0
+
+    async def fetch_odds(
+        self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
+    ) -> list[FixtureOdds]:
+        self.odds_calls += 1
+        return await super().fetch_odds(event_ids, max_age_seconds=max_age_seconds)
+
+
+@pytest_asyncio.fixture
+async def client_and_counted() -> AsyncIterator[tuple[AsyncClient, _CountedOdds]]:
+    """A client whose provider is the real cache in front of a counting canned one.
+
+    The TTL is generous on purpose: the point of these tests is that the *check* is free,
+    which is only visible while the entry the card was built from is still warm.
+    """
+    stub = _CountedOdds.with_sample_data()
+    cached = CachingOddsProvider(stub, ttl_seconds=3600.0)
+    app.dependency_overrides[get_odds_provider] = lambda: cached
+    app.dependency_overrides[get_optional_odds_provider] = lambda: cached
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client, stub
+    app.dependency_overrides.pop(get_odds_provider, None)
+    app.dependency_overrides.pop(get_optional_odds_provider, None)
+
+
+async def _priced_selection(
+    client: AsyncClient, slug: str, player: Profile
+) -> tuple[str, str, str, float]:
+    """Read the card the way a member does, and return one selection off it."""
+    slate = await client.get(f"/api/v1/leagues/{slug}/gameweek/current", headers=_auth(player))
+    assert slate.status_code == 200, slate.text
+    for fixture in slate.json()["fixtures"]:
+        for selection in fixture["selections"]:
+            if selection["taken_by_player_id"] is None:
+                return (
+                    fixture["fixture_id"],
+                    selection["market"],
+                    selection["outcome"],
+                    selection["odds"],
+                )
+    raise AssertionError("the canned card offered nothing to pick")
+
+
+async def test_a_submission_carrying_the_displayed_price_is_accepted(
+    client_and_counted: tuple[AsyncClient, _CountedOdds],
+) -> None:
+    """The ordinary journey: tap what is on screen, get what you tapped."""
+    client, stub = client_and_counted
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["shown"])
+        await _open_sample_gameweek(session, stub, league)
+
+    fixture_id, market, outcome, price = await _priced_selection(client, league.slug, alice)
+    response = await _submit(client, league.slug, alice, fixture_id, market, outcome, odds=price)
+
+    assert response.status_code == 201, response.text
+    assert response.json()["odds"] == price
+
+
+async def test_a_stale_displayed_price_is_refused_with_the_current_one(
+    client_and_counted: tuple[AsyncClient, _CountedOdds],
+) -> None:
+    """And the refusal costs no upstream request — it reads what the card was built from."""
+    client, stub = client_and_counted
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["moved"])
+        await _open_sample_gameweek(session, stub, league)
+
+    fixture_id, market, outcome, price = await _priced_selection(client, league.slug, alice)
+    calls_after_the_card = stub.odds_calls
+
+    response = await _submit(
+        client, league.slug, alice, fixture_id, market, outcome, odds=price + 1.5
+    )
+
+    assert response.status_code == 409, response.text
+    detail = response.json()["detail"]
+    assert detail.startswith("PRICE_MOVED:"), detail
+    assert Decimal(detail.split(":", 1)[1]) == Decimal(str(price)).quantize(Decimal("0.01"))
+    assert stub.odds_calls == calls_after_the_card, "the check must cost no upstream request"
+
+    async with AsyncSessionLocal() as session:
+        held = await session.execute(
+            select(func.count()).select_from(Pick).where(Pick.league_id == league.id)
+        )
+        assert held.scalar() == 0, "a refused submission must not have written a pick"
+
+
+async def test_a_submission_with_no_displayed_price_is_accepted_as_before(
+    client_and_counted: tuple[AsyncClient, _CountedOdds],
+) -> None:
+    """The web app deploys from `main` while the API waits, so both halves work alone."""
+    client, stub = client_and_counted
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["oldweb"])
+        await _open_sample_gameweek(session, stub, league)
+
+    fixture_id, market, outcome, _ = await _priced_selection(client, league.slug, alice)
+    response = await _submit(client, league.slug, alice, fixture_id, market, outcome)
+
+    assert response.status_code == 201, response.text
+
+
+# ── Batch 114: fixtures the bookmaker prices nothing on ───────────────────────
+
+
+@pytest_asyncio.fixture
+async def mark_unpriced() -> AsyncIterator[Callable[..., Awaitable[None]]]:
+    """Write the marker a real sweep would have written, and take it back afterwards.
+
+    Fixtures are **pooled** — one row per real match, shared by every league — so a marker
+    committed here outlives the test that wrote it and would take the same canned fixture
+    off every later test's card. The teardown is what keeps these hermetic.
+    """
+    marked: list[str] = []
+
+    async def mark(event_id: str, *, checked_at: datetime | None) -> None:
+        marked.append(event_id)
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                update(Fixture)
+                .where(Fixture.provider_event_id == event_id)
+                .values(odds_unpriced_since_utc=_now(), odds_checked_at_utc=checked_at)
+            )
+            await session.commit()
+
+    yield mark
+
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(Fixture)
+            .where(Fixture.provider_event_id.in_(marked))
+            .values(odds_unpriced_since_utc=None, odds_checked_at_utc=None)
+        )
+        await session.commit()
+
+
+async def _card_event_ids(client: AsyncClient, slug: str, player: Profile) -> list[str]:
+    slate = await client.get(f"/api/v1/leagues/{slug}/gameweek/current", headers=_auth(player))
+    assert slate.status_code == 200, slate.text
+    return [f["provider_event_id"] for f in slate.json()["fixtures"]]
+
+
+async def test_a_fixture_the_bookmaker_prices_nothing_on_is_kept_off_the_card(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+    mark_unpriced: Callable[..., Awaitable[None]],
+) -> None:
+    """Every one of the 103 FA Cup ties rendered as a row no member could ever pick."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["filtered"])
+        await _open_sample_gameweek(session, fake, league)
+
+    assert SAMPLE_SL2_EVENT_ID in await _card_event_ids(client, league.slug, alice)
+    await mark_unpriced(SAMPLE_SL2_EVENT_ID, checked_at=_now())
+
+    shown = await _card_event_ids(client, league.slug, alice)
+
+    assert SAMPLE_SL2_EVENT_ID not in shown
+    assert SAMPLE_EPL_EVENT_ID in shown, "the priced fixture is untouched"
+
+
+async def test_a_fixture_that_turns_priceable_comes_back_on_the_next_recheck(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+    mark_unpriced: Callable[..., Awaitable[None]],
+) -> None:
+    """The bound that stops the saving becoming a fixture hidden for good.
+
+    A bookmaker opens a market on a cup tie the morning it draws a Premier League side.
+    The marker survives a restart; it must not survive the market opening.
+    """
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["recheck"])
+        await _open_sample_gameweek(session, fake, league)
+
+    stale = _now() - timedelta(seconds=settings.odds_unpriced_recheck_seconds + 60)
+    await mark_unpriced(SAMPLE_SL2_EVENT_ID, checked_at=stale)
+
+    shown = await _card_event_ids(client, league.slug, alice)
+
+    assert SAMPLE_SL2_EVENT_ID in shown, "the re-check found the market and unmarked it"
+    async with AsyncSessionLocal() as session:
+        row = await session.execute(
+            select(Fixture.odds_unpriced_since_utc).where(
+                Fixture.provider_event_id == SAMPLE_SL2_EVENT_ID
+            )
+        )
+        assert row.scalar() is None, "and the marker was cleared, not merely bypassed"
+
+
+async def test_a_degraded_sweep_removes_no_rows(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """A provider we cannot reach is not evidence that a fixture has no price.
+
+    Filtering on a failed sweep would blank the whole card exactly when it is least
+    affordable — which is the Batch 48 outage with a new cause.
+    """
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["degraded"])
+        seed = FakeBetfair.with_sample_data()
+        await _open_sample_gameweek(session, seed, league)
+
+    stub = _BrokenOdds.with_sample_data()
+    cached = _cached(stub)
+    app.dependency_overrides[get_odds_provider] = lambda: cached
+    app.dependency_overrides[get_optional_odds_provider] = lambda: cached
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            slate = await client.get(
+                f"/api/v1/leagues/{league.slug}/gameweek/current", headers=_auth(alice)
+            )
+    finally:
+        app.dependency_overrides.pop(get_odds_provider, None)
+        app.dependency_overrides.pop(get_optional_odds_provider, None)
+
+    assert slate.status_code == 200, slate.text
+    body = slate.json()
+    assert body["odds_degraded"] is True
+    assert len(body["fixtures"]) == 2, "both canned fixtures still render"
+
+    async with AsyncSessionLocal() as session:
+        # Scoped to this round's own fixtures: the pool is shared across the module, and
+        # other tests here legitimately teach the deployment about events their provider
+        # does not price. What this asserts is that *this* failed sweep concluded nothing.
+        marked = await session.execute(
+            select(func.count())
+            .select_from(Fixture)
+            .where(
+                Fixture.provider_event_id.in_([SAMPLE_EPL_EVENT_ID, SAMPLE_SL2_EVENT_ID]),
+                Fixture.odds_unpriced_since_utc.is_not(None),
+            )
+        )
+        assert marked.scalar() == 0, "a failed sweep marked nothing"
+
+
+async def test_a_round_whose_every_fixture_is_unpriced_still_renders(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+    mark_unpriced: Callable[..., Awaitable[None]],
+) -> None:
+    """An empty card is a worse answer than an honest one."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["allunpriced"])
+        await _open_sample_gameweek(session, fake, league)
+
+    for event_id in (SAMPLE_EPL_EVENT_ID, SAMPLE_SL2_EVENT_ID):
+        await mark_unpriced(event_id, checked_at=_now())
+
+    shown = await _card_event_ids(client, league.slug, alice)
+
+    assert sorted(shown) == sorted([SAMPLE_EPL_EVENT_ID, SAMPLE_SL2_EVENT_ID])
+
+
+async def test_a_fixture_somebody_has_claimed_is_never_hidden(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+    mark_unpriced: Callable[..., Awaitable[None]],
+) -> None:
+    """A withdrawn market must not take a member's own selection off the screen."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["claimed"])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+
+    grabbed = await _submit(
+        client, league.slug, alice, fixtures[SAMPLE_SL2_EVENT_ID], "MATCH_ODDS", "HOME"
+    )
+    assert grabbed.status_code == 201, grabbed.text
+    await mark_unpriced(SAMPLE_SL2_EVENT_ID, checked_at=_now())
+
+    shown = await _card_event_ids(client, league.slug, alice)
+
+    assert SAMPLE_SL2_EVENT_ID in shown

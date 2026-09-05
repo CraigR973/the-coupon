@@ -41,3 +41,26 @@ class Fixture(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     # Betfair. Ten of the thirty UK slugs exceed 32 characters and the longest
     # across all competitions is 66, so this matches `competition`'s width.
     competition_id: Mapped[str] = mapped_column(String(120), nullable=False)
+
+    # ── What the bookmaker will and will not price (Batch 114) ─────────────────
+    #
+    # Odds are still not stored here — these two say whether asking is worth a request.
+    #
+    # `odds_unpriced_since_utc` is set the first time a successful sweep comes back with
+    # no selections for this fixture, and cleared the moment one comes back with any. It
+    # is the deployment *learning* something durable: a bookmaker with no market on a
+    # non-league cup tie will not have opened one by the next page load, and on 2026-09-05
+    # 103 such fixtures cost half of every sweep and rendered as unpickable rows.
+    #
+    # `odds_checked_at_utc` is what stops that from being permanent. A marked fixture is
+    # re-asked once `ODDS_UNPRICED_RECHECK_SECONDS` have passed, so a market opened late is
+    # found and the row returns to the card.
+    #
+    # Only a sweep that actually reached the provider writes here. A degraded one is not
+    # evidence of anything — see `routers/gameweek.py`.
+    odds_unpriced_since_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True
+    )
+    odds_checked_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True
+    )

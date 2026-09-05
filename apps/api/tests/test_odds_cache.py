@@ -26,6 +26,8 @@ from src.services.odds_provider import (
     Market,
     OddsProvider,
     OddsProviderAPIError,
+    OddsProviderError,
+    OddsProviderRateLimited,
     Outcome,
     Selection,
     Slate,
@@ -486,3 +488,323 @@ async def test_an_uncached_provider_degrades_to_no_prices() -> None:
 
     assert snapshot.odds == []
     assert snapshot.degraded is True
+
+
+# ── Batch 114: what the absence of a price costs ──────────────────────────────
+#
+# The launch budget was sized on 131 fixtures the bookmaker *prices*. On 2026-09-05 an
+# open round held 202, of which Bet365 priced none of the 103 FA Cup qualifying ties. They
+# cost 11 requests of every 21-request sweep, and the hourly allowance was gone by 08:06 on
+# a match morning with a lock five hours away.
+
+
+def _budgeted(
+    inner: OddsProvider,
+    clock: _Clock,
+    *,
+    ttl: float = 300.0,
+    unpriced_ttl: float | None = None,
+    cooldown: float = 0.0,
+    hourly: int | None = None,
+    daily: int | None = None,
+    reserve: int = 0,
+) -> CachingOddsProvider:
+    """A cache with Batch 114's knobs, defaulting to the pre-batch behaviour."""
+    return CachingOddsProvider(
+        inner,
+        ttl_seconds=ttl,
+        unpriced_ttl_seconds=unpriced_ttl,
+        rate_limited_cooldown_seconds=cooldown,
+        hourly_request_limit=hourly,
+        daily_request_limit=daily,
+        pick_reserve_requests=reserve,
+        clock=clock,
+    )
+
+
+async def test_an_unpriced_event_is_re_asked_once_per_negative_ceiling() -> None:
+    """Not once per sweep, which is what spent the plan on the answer *no*."""
+    inner = _CountingProvider(priced={"a"})
+    clock = _Clock()
+    cache = _budgeted(inner, clock, ttl=300.0, unpriced_ttl=21600.0)
+
+    # Six hours of sweeps at the 300s ceiling: 72 of them.
+    for _ in range(72):
+        await cache.fetch_odds(["a", "b"])
+        clock.advance(300)
+
+    priced_asks = sum(1 for call in inner.odds_calls if "a" in call)
+    unpriced_asks = sum(1 for call in inner.odds_calls if "b" in call)
+    assert priced_asks == 72, "the priced event keeps its own ceiling"
+    assert unpriced_asks == 1, f"the unpriced one was re-asked {unpriced_asks} times in six hours"
+
+
+async def test_the_negative_ceiling_still_expires() -> None:
+    """A market a bookmaker opens late must still be found — the marker is not permanent."""
+    inner = _CountingProvider(priced={"a"})
+    clock = _Clock()
+    cache = _budgeted(inner, clock, ttl=300.0, unpriced_ttl=21600.0)
+
+    await cache.fetch_odds(["a", "b"])
+    clock.advance(21600)
+    inner.priced = {"a", "b"}
+    result = await cache.fetch_odds(["a", "b"])
+
+    assert [o.provider_event_id for o in result] == ["a", "b"]
+
+
+async def test_a_tight_ceiling_cannot_shorten_the_negative_one() -> None:
+    """The pick path asking again inside a minute cannot discover a market that is not there."""
+    inner = _CountingProvider(priced={"a"})
+    clock = _Clock()
+    cache = _budgeted(inner, clock, ttl=300.0, unpriced_ttl=21600.0)
+
+    await cache.fetch_odds(["a", "b"])
+    clock.advance(60)
+    await cache.fetch_odds(["b"], max_age_seconds=60.0)
+
+    assert sum(1 for call in inner.odds_calls if "b" in call) == 1
+
+
+async def test_the_unpriced_ceiling_defaults_to_the_ordinary_one() -> None:
+    """A caller that passes nothing keeps exactly the behaviour that shipped before."""
+    inner = _CountingProvider(priced={"a"})
+    clock = _Clock()
+    cache = _cache(inner, clock, ttl=300.0)
+
+    await cache.fetch_odds(["a", "b"])
+    clock.advance(300)
+    await cache.fetch_odds(["a", "b"])
+
+    assert sum(1 for call in inner.odds_calls if "b" in call) == 2
+
+
+async def test_only_a_real_answer_counts_as_evidence() -> None:
+    """`observed` is what lets the caller write the persistent marker, so it must be exact."""
+    inner = _CountingProvider(priced={"a"})
+    clock = _Clock()
+    cache = _budgeted(inner, clock, ttl=300.0)
+
+    fresh = await cache.fetch_odds_best_effort(["a", "b"])
+    assert fresh.observed == {"a", "b"}, "both got a definite answer, price or no price"
+
+    cached = await cache.fetch_odds_best_effort(["a", "b"])
+    assert cached.observed == frozenset(), "a cache hit is not new evidence"
+
+    clock.advance(300)
+    inner.odds_error = OddsProviderAPIError("upstream unreachable")
+    failed = await cache.fetch_odds_best_effort(["a", "b"])
+    assert failed.degraded is True
+    assert failed.observed == frozenset(), "a failed sweep is not evidence of anything"
+
+
+# ── A 429 must stop costing requests ──────────────────────────────────────────
+
+
+async def test_ten_retries_after_a_rate_limit_cost_one_request() -> None:
+    """`72204256` was refused twice inside one second, each tap a fresh call.
+
+    The cooldown is the difference between a rate limit costing one request and costing one
+    per attempt — against a budget that is, by the provider's own account, already gone.
+    """
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _budgeted(inner, clock, ttl=300.0, cooldown=300.0)
+    inner.odds_error = OddsProviderRateLimited("429")
+
+    for _ in range(10):
+        await cache.fetch_odds_best_effort(["a"])
+        clock.advance(1)
+
+    assert len(inner.odds_calls) == 1, f"ten retries cost {len(inner.odds_calls)} upstream calls"
+
+
+async def test_the_eleventh_after_the_cooldown_costs_one_more() -> None:
+    """Held off, not given up on — the quota does roll over and the card must recover."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _budgeted(inner, clock, ttl=300.0, cooldown=300.0)
+    inner.odds_error = OddsProviderRateLimited("429")
+
+    for _ in range(10):
+        await cache.fetch_odds_best_effort(["a"])
+        clock.advance(1)
+    clock.advance(300)
+    inner.odds_error = None
+    recovered = await cache.fetch_odds_best_effort(["a"])
+
+    assert len(inner.odds_calls) == 2
+    assert [o.provider_event_id for o in recovered.odds] == ["a"]
+    assert recovered.degraded is False
+
+
+async def test_the_pick_path_is_refused_inside_the_cooldown_without_calling_upstream() -> None:
+    """It still raises — a pick may not freeze a price it could not confirm — but for free."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _budgeted(inner, clock, ttl=300.0, cooldown=300.0)
+    inner.odds_error = OddsProviderRateLimited("429")
+
+    with pytest.raises(OddsProviderError):
+        await cache.fetch_odds(["a"])
+    calls_after_the_first = len(inner.odds_calls)
+    with pytest.raises(OddsProviderRateLimited):
+        await cache.fetch_odds(["a"])
+
+    assert len(inner.odds_calls) == calls_after_the_first
+
+
+async def test_an_ordinary_failure_keeps_trying_on_the_next_load() -> None:
+    """Batch 48's reason holds for a blip and not for a `429`, so the two stay apart."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _budgeted(inner, clock, ttl=300.0, cooldown=300.0)
+    inner.odds_error = OddsProviderAPIError("upstream unreachable")
+
+    for _ in range(3):
+        await cache.fetch_odds_best_effort(["a"])
+        clock.advance(1)
+
+    assert len(inner.odds_calls) == 3
+
+
+# ── Counting the budget, reserving it, and bending before breaking ────────────
+
+
+async def test_the_budget_counts_requests_rather_than_events() -> None:
+    """The plan is denominated in requests, and the provider carries ten events in one."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _budgeted(inner, clock, hourly=100, daily=500)
+
+    await cache.fetch_odds([f"ev{i}" for i in range(25)])
+
+    budget = cache.budget()
+    assert budget.hour_used == 3, "25 events is three requests, not 25"
+    assert budget.day_used == 3
+    assert budget.hour_remaining == 97
+    assert budget.day_remaining == 497
+
+
+async def test_the_hourly_count_rolls_off_and_the_daily_one_does_not() -> None:
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _budgeted(inner, clock, ttl=60.0, hourly=100, daily=500)
+
+    await cache.fetch_odds(["a"])
+    clock.advance(3601)
+
+    budget = cache.budget()
+    assert budget.hour_used == 0
+    assert budget.day_used == 1
+
+
+async def test_the_pick_reserve_holds_when_browsing_has_spent_the_hour() -> None:
+    """Browsing has no deadline; freezing a price does. The floor is for the latter."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _budgeted(inner, clock, ttl=1.0, hourly=10, daily=500, reserve=4)
+
+    # Browse until the reserve binds. The TTL is a second, so every load goes upstream.
+    for _ in range(20):
+        await cache.fetch_odds_best_effort(["a"])
+        clock.advance(2)
+    spent_by_browsing = len(inner.odds_calls)
+    assert cache.budget().hour_remaining <= 4, "the premise: browsing has run the hour down"
+
+    await cache.fetch_odds(["a"], max_age_seconds=1.0)
+
+    assert spent_by_browsing == 6, "browsing stops at the reserve rather than at the limit"
+    assert len(inner.odds_calls) == spent_by_browsing + 1, "the pick path still gets through"
+
+
+async def test_browsing_held_off_by_the_reserve_is_not_reported_as_degraded() -> None:
+    """Rationing is not the source being unreachable, and the card must not say it is."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _budgeted(inner, clock, ttl=1.0, hourly=10, daily=500, reserve=4)
+
+    for _ in range(20):
+        snapshot = await cache.fetch_odds_best_effort(["a"])
+        clock.advance(2)
+
+    assert snapshot.degraded is False
+    assert [o.provider_event_id for o in snapshot.odds] == ["a"], "still served from cache"
+
+
+async def test_the_browse_ceiling_widens_as_the_budget_falls() -> None:
+    """Freshness should degrade along a slope the counters can explain, not stop at a cliff.
+
+    Three bands, on the tighter of the two allowances: full rate above half the plan, then
+    2x, then 4x. Refreshing at full rate into a wall is what turned a busy morning into a
+    refusal — the card kept asking at the near tier until nothing was left for the picks.
+    """
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _budgeted(inner, clock, ttl=300.0, hourly=100, daily=500)
+
+    await cache.fetch_odds_best_effort(["a"])
+    clock.advance(301)
+    await cache.fetch_odds_best_effort(["a"])
+    assert len(inner.odds_calls) == 2, "at full budget a 301s-old entry is stale, as asked"
+
+    # Past half the hour — 52 requests of 100 — so the ceiling doubles to 600s.
+    await cache.fetch_odds([f"ev{i}" for i in range(500)])
+    assert 0.25 <= cache.budget().hour_remaining / 100 < 0.5, "the premise of this band"
+    calls = len(inner.odds_calls)
+    clock.advance(400)
+    await cache.fetch_odds_best_effort(["a"])
+    assert len(inner.odds_calls) == calls, "400s is inside 2x, and 1x would have refreshed it"
+
+    # Past three-quarters, and it doubles again to 1200s.
+    await cache.fetch_odds([f"more{i}" for i in range(300)])
+    assert cache.budget().hour_remaining / 100 < 0.25, "the premise of this band"
+    calls = len(inner.odds_calls)
+    clock.advance(400)
+    await cache.fetch_odds_best_effort(["a"])
+    assert len(inner.odds_calls) == calls, "the entry is 800s old and still inside 4x"
+
+
+async def test_widening_is_off_when_no_limit_is_configured() -> None:
+    """A test or an unmetered provider keeps exactly the pre-Batch-114 ceiling."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _cache(inner, clock, ttl=300.0)
+
+    await cache.fetch_odds_best_effort(["a"])
+    clock.advance(301)
+    await cache.fetch_odds_best_effort(["a"])
+
+    assert len(inner.odds_calls) == 2
+
+
+async def test_the_pick_path_never_has_its_ceiling_widened() -> None:
+    """It is the one action with a deadline; it gets the freshness it asked for."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _budgeted(inner, clock, ttl=300.0, hourly=100, daily=500)
+
+    await cache.fetch_odds([f"ev{i}" for i in range(800)])
+    assert cache.budget().hour_remaining / 100 < 0.25, "the band where browsing would widen 4x"
+    await cache.fetch_odds(["a"], max_age_seconds=60.0)
+    calls = len(inner.odds_calls)
+    clock.advance(61)
+    await cache.fetch_odds(["a"], max_age_seconds=60.0)
+
+    assert len(inner.odds_calls) == calls + 1
+
+
+async def test_invalidate_does_not_forget_the_cooldown_or_the_spend() -> None:
+    """A re-login must not become a way to keep asking a provider that said stop."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _budgeted(inner, clock, ttl=300.0, cooldown=300.0, hourly=100, daily=500)
+    inner.odds_error = OddsProviderRateLimited("429")
+    await cache.fetch_odds_best_effort(["a"])
+
+    cache.invalidate()
+
+    assert cache.budget().day_used == 1
+    assert cache.budget().rate_limited_for == 300.0
+    await cache.fetch_odds_best_effort(["a"])
+    assert len(inner.odds_calls) == 1

@@ -124,7 +124,11 @@ export interface PickCardProps {
   busy: boolean;
   /** The member's odds notation. Display only. */
   oddsFormat: OddsFormat;
-  onGrab: (fixtureId: string, market: PickMarket, outcome: PickOutcome) => void;
+  /**
+   * `odds` is the price this button was rendering when it was tapped (Batch 114) — the
+   * number the member actually chose, which the API holds the submission to.
+   */
+  onGrab: (fixtureId: string, market: PickMarket, outcome: PickOutcome, odds: number) => void;
 }
 
 /**
@@ -312,7 +316,7 @@ function SelectionButton({
   unresolved: OutstandingState | null;
   oddsFormat: OddsFormat;
   timezone: string;
-  onGrab: (fixtureId: string, market: PickMarket, outcome: PickOutcome) => void;
+  onGrab: (fixtureId: string, market: PickMarket, outcome: PickOutcome, odds: number) => void;
 }) {
   const label = outcomeLabel(sel.market, sel.outcome, fixture.home, fixture.away);
   const takenByOther = sel.taken_by_player_id !== null && !sel.mine;
@@ -323,7 +327,9 @@ function SelectionButton({
     <button
       type="button"
       disabled={!grabbable}
-      onClick={() => onGrab(fixture.fixture_id, sel.market, sel.outcome)}
+      // `sel.odds` is what this button is rendering two lines below, so the price sent is
+      // by construction the one the member is looking at.
+      onClick={() => onGrab(fixture.fixture_id, sel.market, sel.outcome, sel.odds)}
       aria-pressed={sel.mine}
       data-testid={`selection-${fixture.fixture_id}-${sel.market}-${sel.outcome}`}
       className={cn(
