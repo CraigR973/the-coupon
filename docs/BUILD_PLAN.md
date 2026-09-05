@@ -3359,6 +3359,284 @@ answered until it lands, because until then there is no data to look at.
   table redesign. Do not begin until Batch 110's API has shipped and
   `scripts/check-deploy-drift.sh` reports in sync.
 
+- [ ] **Batch 112 — A window change strands the rounds built against the old one**
+  Specified 2026-09-04 from a live report. A league created at 21:19 on Friday 4 September
+  with a Friday 19:00 window, then edited to Saturday 12:00 ninety seconds later, ended up
+  holding four rounds on two cadences — Fri 4 Sep, Sat 5 Sep, Fri 11 Sep, Sat 12 Sep —
+  numbered 1, 3, 2, 4 in date order, with both Friday rounds holding no picks and the
+  Fri 4 Sep one already past its deadline when it was written.
+
+  Three defects compound. `populate_cadence_rounds` and `discover_fixtures` only ever add,
+  so nothing retires a round built against a window the league no longer plays;
+  `refresh_rounds` names this exact case in its own docstring and does not close it, and
+  `unlocked_round_dates` then keeps the stranded round inside the discovery horizon, so it
+  is re-synced daily and never ages out. `upcoming_slate_dates` includes today by date
+  alone, so a league created on its own window day after the lock mints a round whose
+  deadline has already passed. And `in_play` puts that dead round in tier 0 of
+  `current_round_order` — ahead of every round still accepting picks — until
+  `IN_PLAY_GRACE_MINUTES` past its own window closing, so the Coupon tab, the home card and
+  the pick screen all default to a locked round nobody can claim on. Measured against
+  production: the stranded Fri 4 Sep round and the real Sat 5 Sep round held the *same* 204
+  fixtures, and the stranded Fri 11 Sep round would have taken the league over again a week
+  later.
+
+  **A league's rounds are its cadence and nothing else.** Remove
+  `POST /api/v1/leagues/{slug}/gameweeks` and the "Add a one-off round" card in
+  `LeagueSettingsPage`. Owner decision 2026-09-04: an extra week becomes a deployment-level
+  fact in Batch 113 — declared once by a site admin, played by every league — so a league
+  admin no longer writes rounds that a shared numbering has to accommodate. Production holds
+  **zero** one-off rounds, so nothing anyone has used is being taken away, and the gap before
+  113 lands is accepted rather than bridged.
+
+  That is what makes the retirement rule derivable with **no new state**: a stranded round is
+  one whose `starts_on` is not a cadence date for the league's current window over the
+  horizon, which holds no picks, and which has not settled. No origin column, no migration,
+  no backfill that could condemn a legitimate round. The no-picks condition is what makes it
+  safe to retire a round whose lock has already passed — what `rederive_claim_periods`
+  protects is a deadline members claimed against, and with no picks there is no claim; a
+  settled round is history and is left alone whatever its date. A delete leaves a gap in the
+  numbering, which `next_gameweek_number` already documents as correct.
+
+  Retirement runs in the cadence populate behind creation and "refresh rounds", **and in the
+  daily discovery job before it syncs** — so a league already in this state heals itself at
+  06:00 without an admin touching it, and `unlocked_round_dates` cannot re-feed a date that
+  has just been retired.
+
+  Never mint a round whose lock has already passed. The populate skips a cadence date whose
+  derived `locks_at_utc` is in the past *and* which the league does not already hold a round
+  on — so a dead round is never created, while an existing round is never dropped by the
+  same rule.
+
+  Verification: a window edit moving the weekday, with and without picks on the stranded
+  rounds; a stranded round that has locked but holds no picks (retired) beside one holding a
+  pick (kept) and a settled one (kept); league creation on its own window day both before and
+  after the lock; the daily discovery job retiring and then not resurrecting a stranded date;
+  `current_round_order` over the resulting set; and the ad-hoc round endpoint and its settings
+  card gone, with no route left behind. Reproduce the production shape — four rounds on two
+  cadences — and assert it converges on two. Run the full PostgreSQL-backed gate.
+
+  Scope boundary: retiring stranded cadence rounds, refusing to create an already-locked one,
+  and removing the per-league ad-hoc round. No change to `in_play` or `current_round_order`,
+  no change to how rounds are numbered or labelled, and no replacement for the removed
+  endpoint — that is Batch 113. **API and web; stop for `/ship-prod` before Batch 113.**
+
+- [ ] **Batch 113 — The deployment has no season calendar, so every league counts alone**
+  Specified 2026-09-04 on the owner's decision, taken against the alternative of leading every
+  round label with its date; amended 2026-09-05 with the backfill protocol below. Production holds
+  two leagues and they already disagree about the
+  same Saturday: 2-1 Hibs calls 5 September **Gameweek 5** while McCann's Defenders calls it
+  **Gameweek 3**, because `next_gameweek_number` counts each league's own rounds from its own
+  first one. Every league created mid-season starts that gap again, and the home card renders
+  leagues side by side, so the disagreement is visible in one glance.
+
+  Give the deployment a **season calendar** — one stored row per season, owned by site admins,
+  carrying the week-1 anchor and the extra weeks. It is the object Batch 112 left a hole for
+  when it removed the per-league one-off round, and the object deployment-wide numbering has
+  been assuming all along.
+
+  **Numbering.** A round's number is the football week it falls in, not how many rounds its own
+  league has played. Week N is the week centred on the Nth canonical Saturday of the season,
+  running Wednesday to the following Tuesday in UK local time — so a Friday-evening league and
+  a Saturday league on the same weekend share a number, and a midweek round belongs to the
+  weekend beside it rather than the one behind it.
+
+  **The anchor is stored once and never recomputed**: the first canonical Saturday of the season
+  on which any league in the deployment holds a round. Recomputing it would renumber a settled
+  season the moment a league added an earlier round. Against the existing data the anchor is
+  Saturday 8 August 2026, which leaves 2-1 Hibs's four settled rounds numbered exactly as its
+  twelve members were told — 1 to 4, with 5 September as 5 — and moves McCann's Defenders' 5
+  September round from 3 to 5, which is the alignment this batch is for. A round created earlier
+  than the stored anchor takes week 1 alongside the existing week-1 rounds, separated by the
+  within-week ordinal below; moving the anchor instead is refused once any round in that season
+  has settled.
+
+  **The backfill is a dry run before it is anything else.** Renumbering is a script in the shape of
+  `backfill_names_and_numbers.py` (Batch 74, applied and independently verified on 2026-08-26), not
+  an implicit side effect of the migration. It reports every round whose number moves — league,
+  date, `was Gameweek N -> now Gameweek M` — and writes nothing until it is run a second time with
+  an explicit apply flag. Renumbering a round members have already played is **permitted but never
+  silent**: refusing it would leave a league that joined mid-season permanently unalignable, which
+  is the invariant this batch exists to create, so the cost is recorded rather than prevented. That
+  is the same tension Batches 41, 68 and 74 each landed on, and the same answer.
+
+  Against today's data the dry run is nearly a no-op — 2-1 Hibs moves nothing, because the anchor is
+  its own first round, and McCann's Defenders moves two rounds that hold no picks. The first real
+  cost falls on the first league that joins mid-season with settled rounds behind it.
+
+  **Applying it to production is not part of this batch's ship** (owner decision 2026-09-05). The
+  batch delivers the script, its dry-run output and its tests; running it against production is a
+  separate, explicit owner action, as Batch 74's was.
+
+  **Extra weeks are global and are not optional.** A site admin declares an extra week by date;
+  **every** league plays it, with no opt-out (owner decision 2026-09-04 — an opt-out or an opt-in
+  would recreate by another route exactly the divergence this batch removes). The calendar
+  declares the *date*; each league materialises it through its own kick-off times and competition
+  selection, as the removed per-league endpoint did, so a league whose selection carries nothing
+  on that date simply gets no round rather than an error — which is how `populate_cadence_rounds`
+  already treats an empty date. Materialisation happens **on the discovery job, never in the
+  request path**: the removed endpoint walked the provider inline while one admin waited, and that
+  does not scale to every league in the deployment. Cost stays bounded because `discover_fixtures`
+  groups by window, so an extra week costs one sweep per *distinct window* — two today, not two
+  per league. Batch 112's retirement rule extends to match: a league's legitimate dates become its
+  cadence **union** the declared extra weeks, so a round on a withdrawn extra week is retired by
+  the rule that already exists.
+
+  **A second round in one football week** — an extra week declared beside a weekend — takes a
+  within-week ordinal in `starts_on` order: the bare number is that week's first round, a second
+  takes `b`, a third `c`. Because extras are global the suffix is a property of the calendar
+  rather than one league's private disambiguation, so "Gameweek 6b" names the same date
+  everywhere. Every surface that prints a round label must render a non-integer one.
+
+  `Gameweek.number` and `next_gameweek_number` are **kept exactly as they are**, and stop being
+  displayed. They remain the league's internal ordinal: the never-reuse guarantee Batch 41 wrote
+  down, the key `seasons_played` and the standings archive read, and the number a deleted round
+  must not hand back. The season week is additive beside it, so nothing about picks, settlement,
+  points or the leaderboard changes. `season_for` and `season_bounds` stay the single definition
+  of where a season starts — the rollover is read from them rather than expressed a second time,
+  which is the drift `seasons_played` already warns about.
+
+  Placeholder rounds for the weeks a league joined too late to play are **deliberately not
+  created**. They would enter `current_round_order` tier 3 and could open a new league's home card
+  on an empty August round; they would need a denominator exemption in Batch 70's `picks_played`;
+  and they would add an empty-round state to the round nav, the Season tab and `PickOpenSchedule`.
+  A league's Season tab lists the rounds it actually played, under numbers the rest of the
+  deployment agrees with. This is the owner decision in this batch most worth revisiting if the
+  season shape reads wrong.
+
+  The calendar's surface is the admin console, beside Dashboard, Sync and Results (Batch 69):
+  read the season's weeks, declare an extra one, withdraw one that has no picks against it.
+  Withdrawing a week any league has picks on is refused rather than cascaded.
+
+  Verification: the week rule over a Friday, Saturday, Sunday and Wednesday round in one football
+  week, and either side of a season rollover; the stored anchor surviving a later-added earlier
+  round; an anchor move refused after a settlement; the backfill dry run naming every moved number
+  and writing nothing without the apply flag, including a round that already holds settled picks;
+  two leagues on different weekdays agreeing on
+  a number; a declared extra week reaching every league including one whose competition selection
+  excludes it; an extra week materialised by discovery rather than in the request path, charged
+  one sweep per distinct window; withdrawal refused once a pick exists; the backfill reproducing
+  2-1 Hibs's settled numbering unchanged and moving McCann's Defenders as stated; and a suffixed
+  label rendering in the round nav, the home card, the Season tab and the combined coupon at
+  390×844 in both themes. Run migrations and the full PostgreSQL-backed gate.
+
+  Scope boundary: the season calendar — its anchor, its extra weeks, the within-week ordinal and
+  the labels drawn from them. No change to `Gameweek.number`, to how picks or points are computed,
+  or to `current_round_order`. No placeholder rounds, and no return of a per-league ad-hoc round.
+  Do not begin until Batch 112 has shipped and `scripts/check-deploy-drift.sh` reports in sync.
+
+- [ ] **Batch 114 — The card offers prices that do not exist, and asking spends the quota**
+  Specified 2026-09-05 from a live outage. Members were refused with `ODDS_UNAVAILABLE` on the
+  morning of a match day — Burnley v Bristol City (`72339770`) at 08:06:10 UTC, then `72204256`
+  and `72202632` — on a round whose lock was still five hours away. odds-api.io was answering
+  `429`: the free plan's 100/hour was gone by 08:06, and the hour had to roll over before anyone
+  could pick again.
+
+  The card was not the one the budget was sized for. 2-1 Hibs's open round held **202 fixtures,
+  103 of them `england-fa-cup`** — the qualifying round, non-league ties from AFC Portchester
+  down. `config.py` sizes the whole request budget on a measured 131-fixture Saturday: 14
+  requests a sweep at ten ids per `/odds/multi`, 28/hour at the tightest tier. 202 fixtures is 21
+  a sweep and 42/hour, before a single pick is submitted.
+
+  And the log reads `fixtures=202 priced=99`. 202 − 103 = 99: **Bet365 priced not one of the
+  103.** They cost 11 of the 21 requests in every sweep, and every one of them rendered on the
+  card as a row no member could ever pick.
+
+  **1. Learn that a price does not exist, and stop asking.** `CachingOddsProvider._snapshot`
+  stores an unpriced event as `_Entry(None, stored_at)` — the same `stored_at` a real price gets
+  — and `_stale` cannot tell the two apart, so a fixture the bookmaker will never price expires
+  on the same thirty-minute clock as a Premier League match. At the near tier those 103 alone are
+  22 requests an hour: a rate that spends the whole 500/day plan in a day, on the answer *no*.
+  Give the negative entry its own far longer ceiling, and **persist it** — a marker on `fixtures`
+  written by the sweep, not an in-process flag, because a restart otherwise re-shows every
+  unpickable row and re-spends every request. Re-check on a bounded interval so a market a
+  bookmaker opens late is still found.
+
+  **2. Keep unpriceable fixtures off the card.** Owner decision 2026-09-05. The filter reads the
+  stored marker, **never this request's fetch result** — a provider we cannot reach is not
+  evidence that a fixture has no price, and filtering on a failed sweep would blank the whole
+  card exactly when it is least affordable. `odds_degraded` must therefore never remove a row.
+  Two floors: a fixture that becomes priceable reappears on the next re-check, and a filter that
+  would empty a round which has fixtures shows them unfiltered instead. An empty card is a worse
+  answer than an honest one.
+
+  **3. The price a member clicks is the price they get.** Owner decision 2026-09-05. Today the
+  card shows a price up to thirty minutes old and the submit path freezes a sixty-second one, so
+  what a member taps has never been quite what they are scored on. Carry the displayed price on
+  `SubmitPickRequest` and freeze it only if it still matches what the cache holds; otherwise
+  refuse with a new `PRICE_MOVED` carrying the current price, and let them take it or leave it.
+  The check costs **no upstream request** — it is read against the same cache entry the card was
+  built from. This is what makes the guarantee independent of the TTLs: the pick path can go back
+  to being strict and fresh without ever silently scoring somebody on a number they never saw.
+  `pickErrorMessage` needs the copy for it.
+
+  **4. A `429` must stop costing requests.** On the failure path `_snapshot` deliberately writes
+  nothing, so a recovered provider is served fresh on the next page load rather than the next TTL
+  boundary — and that reason holds for a network blip. It does not hold for a `429`, which says
+  the quota is already spent: `72204256` was refused twice inside one second by a member tapping
+  again, and each tap was a fresh upstream request against an empty budget. Hold a short cooldown
+  after a `429` — serve the cache, and raise on the pick path without calling upstream — so a
+  rate limit costs one request rather than one per retry.
+
+  **5. Count the budget, reserve it, and bend before breaking.** Nothing counts what has been
+  spent, which is why a five-hour-old card and an exhausted plan looked identical from the
+  outside. Add per-hour and per-day counters on the provider, logged and shown on the admin
+  dashboard. Then use them: **reserve a floor of the hourly allowance for the pick path**, so
+  browsing can never starve the one action with a deadline, and widen the browse TTL as the
+  remaining budget falls rather than refreshing at full rate into a wall. Freshness should
+  degrade along a slope the counters can explain, not stop at a cliff nobody can see.
+
+  With 1 and 2 in place a sweep costs roughly ten requests rather than twenty-one, and the near
+  tier can *tighten* to around twenty minutes inside the same daily cap — fresher than the design
+  that broke. Take that number from the counters once they exist rather than from this paragraph.
+
+  **The guard for exactly this existed, and was green throughout.**
+  `tests/test_request_budget.py` asserts the whole arithmetic against a real
+  `CachingOddsProvider`, and claims in its own docstring that *if this passes, real traffic cannot
+  exhaust the quota*. It passes because `LAUNCH_SATURDAY_FIXTURES = 131` is a hardcoded constant.
+  Set it to the 202 production actually carries and **five of its twenty-one tests fail**: the
+  saturated day, both ad-hoc round limits, one member changing their mind, and a league's whole
+  pick allowance. `test_saturated_browsing_near_lock_stays_inside_the_hourly_limit` still passes —
+  21 a sweep is 42/hour — which is why this arrived as a burst on a match morning rather than as a
+  drift anyone could watch coming. The constant has to stop being a constant: derive it from the
+  largest round the deployment actually holds, so a card that grows is what turns the suite red
+  rather than what surprises a member.
+
+  **Move the late slate refresh clear of the lock.** `refresh_slate` is pinned at `hour="9,13"`
+  Europe/London in `create_scheduler` — 08:00 and 12:00 UTC in BST — and the second lands ninety
+  minutes before a Saturday 13:30 lock, spending ~30 requests in the hour members are hardest to
+  serve. Owner decision 2026-09-05: by then most members have already picked, so the freshness it
+  buys is worth less than the quota it costs. Re-time it clear of the lock window, and take the
+  schedule out of the source — a cron a deployment cannot change without a release is one nobody
+  can move during an incident.
+
+  **Production is running on a temporary override that this batch must retire.** On 2026-09-05 at
+  09:02 UTC, to get members picking before that afternoon's lock,
+  `ODDS_CACHE_NEAR_TTL_SECONDS` and `ODDS_CACHE_PICK_TTL_SECONDS` were both set to `3600` on the
+  Railway `api` service — deliberately reversing the *this path must not degrade* rule in
+  `_snapshot_selection` so a pick freezes whatever the cache holds. Item 3 replaces that bargain
+  with a better one. Both variables are absent from the repository defaults, so the deployment and
+  `config.py` currently disagree. Land this batch, delete both, and confirm the defaults hold.
+
+  Verification: an unpriced event re-fetched once per negative ceiling rather than once per sweep,
+  and its marker surviving a restart; a priced one unaffected; a fixture that turns priceable
+  reappearing on the card; a degraded sweep removing **no** rows, and a round whose every fixture
+  is unpriced still rendering; a submission carrying a stale displayed price refused with
+  `PRICE_MOVED` and no upstream call, and the matching one accepted; a `429` followed by ten
+  retries costing one upstream request, with the eleventh after the cooldown costing one more; the
+  pick reserve holding when browsing has spent the hour; the TTL widening as the budget falls;
+  and the late refresh no longer firing inside the hour before a lock. Reproduce the production
+  shape — 202 fixtures, 103 never priced — and assert a day's browsing stays inside 500.
+  `test_request_budget.py` must fail before the fix and pass after it, off a fixture count it
+  derives rather than declares. Run migrations and the full PostgreSQL-backed gate.
+
+  Scope boundary: what the provider's absence of a price means — to the cache, to the card, and to
+  a submission — plus the counters and the late refresh's timing. No change to how points are
+  computed from a frozen price, to the lock rules, or to the other scheduled jobs. Narrowing
+  `leagues.competitions` is **not** the mechanism for item 2: the FA Cup third round in January is
+  priced, and a league that excluded the competition would lose it; the deployment learning per
+  fixture is right where a per-competition filter is wrong. API and web. No dependency on Batch 112
+  or 113 — this is a live production defect and should be taken before both.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
