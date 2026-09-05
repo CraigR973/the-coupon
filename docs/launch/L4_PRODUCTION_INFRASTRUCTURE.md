@@ -2298,6 +2298,161 @@ one 402):
    consumes it yet — Batch 111 is the consumer and has not been built, which is the whole
    point of stopping the group here.
 
+### Forward recovery plan — migration `023`, Batch 114
+
+**Status: written 2026-09-05, awaiting owner approval. Not cleared to ship.**
+
+Required by `/ship-prod` step 1.7 before `023` may be deployed. Production is measured at
+head `022` serving `daa4bd5c`; this shipment moves it to `023` and carries Batch 114 — the
+fix for the live quota outage that refused members a pick at 08:06 UTC this morning.
+
+**`023` is the smallest shape a migration can have on a live table**: two
+`ADD COLUMN ... NULL` statements against `fixtures`, no default, no backfill, no index, no
+constraint. Measured read-only from the running container on 2026-09-05:
+
+| measured | value |
+| --- | --- |
+| `alembic_version` | `022` |
+| PostgreSQL | 17.6 |
+| `fixtures` | **1,003 rows**, 344 kB including indexes |
+| `fixtures` columns / indexes | 9 / 3 |
+| existing `odds*` columns on `fixtures` | **none** — `023` collides with nothing |
+| `gameweek_fixtures` | 2,907 rows |
+| **largest round** | **264 fixtures** (2026-09-11, `mccann-s-defenders`, open) |
+| open rounds | 2, carrying 265 distinct fixtures |
+| whole database | 16 MB |
+| `fixtures` RLS | **enabled and forced**, zero `anon`/`authenticated`/`PUBLIC` grants |
+
+**Nothing here can be slow and nothing here can fail.** A nullable `ADD COLUMN` with no
+default has been metadata-only since PostgreSQL 11 — no row is rewritten, so the 1,003 rows
+and 344 kB are irrelevant to it, and the `ACCESS EXCLUSIVE` lock is held for a catalogue
+update. There is no `UPDATE`, no `CREATE INDEX`, no type change and no `NOT NULL`, which is
+the only shape of `ADD COLUMN` that existing data can refuse. This is a strictly smaller
+claim than `022`, which rewrote 755 rows and built an index.
+
+**The rollout window is safe, and nullability is what makes it safe.** The new container
+runs `alembic upgrade head` while the `022` container is still serving. That older image has
+no `odds_unpriced_since_utc` or `odds_checked_at_utc` in its `Fixture` model: SQLAlchemy
+emits explicit column lists, so its `SELECT`s cannot see columns added underneath them, and
+its `INSERT`s omit both — which succeeds precisely because they are nullable. A `NOT NULL`
+column without a default would have failed every fixture write from the still-serving old
+image for the length of the rollout, which is the daily discovery job's whole output.
+
+**There is no backfill, deliberately, and that is a correctness choice rather than a
+shortcut.** Every row starts `NULL` — unmarked, shown on the card, asked about — which is
+exactly the behaviour that shipped before this batch. The marker is a thing the deployment
+*learns* from a sweep that actually reached the provider; the first card load after the
+migration teaches it. A backfill would have to guess which fixtures a bookmaker prices, and
+guessing wrong hides a fixture members can legitimately pick.
+
+**API rollback is unavailable the moment `023` applies**, on the same terms as `012`
+onwards: every pre-`023` image ships revisions `001`–`022` only, so against a database
+stamped `023` its Alembic fails with `Can't locate revision identified by '023'` before
+uvicorn is reached, the `&&` chain in `nixpacks.toml` stops, and the healthcheck fails. **Do
+not attempt a Railway rollback to `daa4bd5c` or anything older after this ships.** The
+recorded baseline is a record, not a usable target. Vercel rollback is unaffected.
+
+**Unlike `022`, there is no data hazard behind that block.** A `022` image on a `023`
+database would simply never read or write the two columns; they would sit at whatever the
+last `023` sweep left, going stale but never wrong, and nothing derives a pick, a price, a
+score or a standing from them. The only cost of running one would be that the card stops
+filtering and the request saving is lost — that is, the state production is in today. If a
+future release ever makes pre-`023` images bootable against this database, running one is
+**safe**, which is the opposite of `022`'s answer and worth recording as such.
+
+Recovery once `023` *has* applied is forward-only:
+
+1. **Deploy a corrected image at head `023` or higher.** The normal path.
+2. **Disabling Batch 114's filter needs no migration and no deploy.** Set
+   `ODDS_UNPRICED_RECHECK_SECONDS=0` on the Railway service: every marked fixture then falls
+   due for re-check on every sweep, so `askable` returns the whole card and the request
+   saving disappears — the pre-batch behaviour, reached by one variable. The filter itself is
+   `pickable`, which reads the stored marker; to take that out as well,
+   `UPDATE fixtures SET odds_unpriced_since_utc = NULL` restores every row to the card
+   immediately and costs nothing else, because nothing derives from the column.
+3. **`UPDATE fixtures SET odds_unpriced_since_utc = NULL, odds_checked_at_utc = NULL`
+   returns the table to its pre-Batch-114 contents, and that is its entire effect.** The two
+   columns have no foreign key, no index, no constraint and no dependant; every read that
+   predates this batch ignores them. It cannot damage a pick, a price, a score or a standing.
+   The deployment re-learns the markers on the next sweeps at the usual cost.
+4. **Never run `alembic downgrade` against production.** This downgrade *is* schema-clean —
+   two columns, no dependants — and would even restore pre-`023` bootability. It is still
+   forbidden: the running image is at `023` and would re-apply it on the next boot, and the
+   information it discards (which fixtures the bookmaker has been observed not to price) is
+   recoverable only by re-spending the provider requests this batch exists to save.
+
+**What this shipment does to the size of things**, since Supabase production is a Free plan
+whose egress quota has a standing unattributed consumer (FEAT-A09, which has already caused
+one 402):
+
+* **Storage is not the concern.** Two nullable timestamps on 1,003 rows is at most ~16 kB of
+  actual storage, and nullable columns added at the end of a row cost nothing until written.
+* **The recurring write is small and bounded by the marker, not by the card.** Only fixtures
+  whose marker is set, cleared or re-confirmed are written; a fixture that was priced and
+  still is writes nothing. On the measured 264-fixture round that is at most a few hundred
+  row updates per re-check window, not per card load.
+* **The read is unchanged.** The two columns ride along on a `SELECT` the card already made.
+* **The net effect on the odds provider is a large reduction**, which is the point: a sweep
+  stops paying for the fixtures the bookmaker prices nothing on.
+
+**Post-deploy checks specific to this shipment**, beyond the standard `/health` and
+`/health/ready` agreement at `023`:
+
+1. **`alembic upgrade head` must print exactly one `Running upgrade 022 -> 023` line** in the
+   bounded boot-log snapshot. More than one, or none, means the database was not where this
+   plan assumes.
+2. **Confirm both columns landed and the table's guard rails did not move.** In the same
+   in-container session: `fixtures.odds_unpriced_since_utc` and `fixtures.odds_checked_at_utc`
+   both present as `timestamp without time zone`, both **nullable**, both defaulting to
+   `NULL`; `fixtures` still RLS **enabled and forced** with zero `anon`/`authenticated`/`PUBLIC`
+   grants; column count 9 → 11; index count unchanged at 3. The table count does not change —
+   `023` creates no table.
+3. **Confirm every row starts unmarked**: zero rows with a non-null
+   `odds_unpriced_since_utc` immediately after the migration, before any card has been loaded.
+   A non-zero count would mean a backfill ran that this plan says does not exist.
+4. **Watch the first sweep actually learn.** After one authenticated card load of an open
+   round, `odds_unpriced_since_utc` should be non-null for the fixtures Bet365 prices nothing
+   on and null for the rest, with `odds_checked_at_utc` set on exactly those rows. This is the
+   one check that cannot be made before shipping, because the marker is the thing the
+   deployment learns.
+5. **Then re-measure the budget constants.** See the note below: the round production holds
+   has already outgrown the figure Batch 114 recorded.
+
+#### The measurement Batch 114 recorded is already stale
+
+Batch 114 sized its budget on the round measured during the outage — **202 fixtures, 103 of
+them `england-fa-cup` qualifying ties that Bet365 priced none of** — and recorded it as
+`OBSERVED_LARGEST_ROUND` / `OBSERVED_UNPRICED` in `apps/api/tests/test_request_budget.py`.
+Preflight for this shipment measured the live database and found the largest round is now
+**264 fixtures**, on 2026-09-11 for `mccann-s-defenders`.
+
+That is the new Postgres-backed tripwire
+(`test_the_budget_covers_the_largest_round_the_database_holds`) doing exactly what it was
+written for, and it is worth being precise about what it does and does not mean:
+
+* **It does not block this shipment, and it does not make the fix wrong.** The filter is
+  strictly better at any round size — the bigger the unpriced tail, the more it saves. A
+  264-fixture round unfiltered is 27 requests a sweep and 54/hour at the near tier, which is
+  the state production is in *right now*; every part of this batch reduces that.
+* **It does mean the recorded certification is understated.** The suite currently certifies
+  the arithmetic for 202/99. It passes on the gate because CI runs against a scratch database
+  with no rounds in it, so the tripwire skips.
+* **The honest number cannot be taken before shipping.** `OBSERVED_UNPRICED` for the 264-
+  fixture round is knowable only from the marker this migration creates, or by spending ~27
+  live provider requests probing prices on a match day — which is the budget this batch
+  exists to protect.
+* **The composition has already changed, and it vindicates the design.** The 264-fixture
+  round holds **zero** FA Cup fixtures; its long tail is 40 `england-amateur-fa-trophy` plus
+  a spread of `england-amateur-*` divisions. Batch 114's scope boundary says narrowing
+  `leagues.competitions` is the wrong mechanism and the deployment learning *per fixture* is
+  the right one. A per-competition filter tuned to `england-fa-cup` a day ago would already
+  be catching nothing.
+
+**Owner action recorded here rather than assumed:** after this ships and the first sweeps
+have written markers, re-measure both constants against production and re-run
+`test_request_budget.py`, then fix whatever it turns red. That is a follow-up batch, not a
+condition on this deployment.
+
 ## Shipment — 2026-09-04, `2a1f74da` (Batch 110, migration `022`)
 
 The Group M checkpoint. Source commit `2a1f74da32cf02b3db518cb373092e1582d74098`, carrying
