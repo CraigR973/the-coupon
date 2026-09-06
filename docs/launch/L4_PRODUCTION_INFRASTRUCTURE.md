@@ -2300,7 +2300,14 @@ one 402):
 
 ### Forward recovery plan — migration `023`, Batch 114
 
-**Status: written 2026-09-05, awaiting owner approval. Not cleared to ship.**
+**Status: approved by the owner, 2026-09-06. Cleared to ship.**
+
+Written 2026-09-05 and approved the following day, so every measurement below was
+**re-confirmed unchanged before deploying**: head still `022`, `fixtures` still 1,003 rows,
+largest round still 264, still no `odds*` column. The window was also checked rather than
+assumed — the next lock was 2026-09-11 10:30Z, nearly five days out, with **zero pending
+picks** and nothing in play, which is as far from `022`'s "avoid a Saturday afternoon" as
+this deployment gets.
 
 Required by `/ship-prod` step 1.7 before `023` may be deployed. Production is measured at
 head `022` serving `daa4bd5c`; this shipment moves it to `023` and carries Batch 114 — the
