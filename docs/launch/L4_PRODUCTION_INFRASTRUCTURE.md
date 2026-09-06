@@ -631,6 +631,10 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-08-26 | Railway `api` | `a8ab5234-06c2-41d3-8358-405d95910d15` | `f41a383a` (Batches 79–81) | `016` |
 | 2026-08-27 | Vercel web | `dpl_AA5mjrASLwSikRYYxuYHtC1Xajcm` | `3cb8b4f1` (Batches 82–85) | — |
 | 2026-08-27 | Railway `api` | `caeb17c2-732c-4195-9322-e7b84e7db3d8` | `3cb8b4f1` (Batches 82–85) | **`017`** |
+| … | … | … | … | … |
+| 2026-09-06 | Vercel web | `dpl_6Qvw3kDe8epXjinnGq3n4gQ4MTgs` | `4fb18923` (Batch 114) | — |
+| 2026-09-06 | Railway `api` | `45bca567-03bb-48a8-b1da-e2e8f9ff13a1` | `4fb18923` (Batch 114) | **`023`** |
+| 2026-09-06 | Railway `api` | `aadbc897-7e8b-415c-aab3-0138cf4ec2a1` | `4fb18923` (retire TTL overrides) | `023` |
 
 The 2026-08-19 shipment carries Batch 35 and is the **first API deployment since
 `013` that applies no migration**, which is what restores the rollback target the
@@ -2412,8 +2416,15 @@ one 402):
    in-container session: `fixtures.odds_unpriced_since_utc` and `fixtures.odds_checked_at_utc`
    both present as `timestamp without time zone`, both **nullable**, both defaulting to
    `NULL`; `fixtures` still RLS **enabled and forced** with zero `anon`/`authenticated`/`PUBLIC`
-   grants; column count 9 → 11; index count unchanged at 3. The table count does not change —
+   grants; column count 9 → 11; index count unchanged. The table count does not change —
    `023` creates no table.
+
+   *(Corrected after the fact: this line first said "index count unchanged at 3". The index
+   count is **2** — the primary key and `uq_fixtures_provider_event`. The figure was written
+   without having been measured, because the pre-deploy query batch that would have taken it
+   failed against the pooler and was replaced by one that omitted it. The property being
+   asserted is unaffected and did hold: `023` contains no `create_index`, and the count is 2
+   before and after.)*
 3. **Confirm every row starts unmarked**: zero rows with a non-null
    `odds_unpriced_since_utc` immediately after the migration, before any card has been loaded.
    A non-zero count would mean a backfill ran that this plan says does not exist.
@@ -2459,6 +2470,113 @@ written for, and it is worth being precise about what it does and does not mean:
 have written markers, re-measure both constants against production and re-run
 `test_request_budget.py`, then fix whatever it turns red. That is a follow-up batch, not a
 condition on this deployment.
+
+## Shipment — 2026-09-06, `4fb18923` (Batch 114, migration `023`)
+
+The live-defect fix. Source commit `4fb189233f2e068b98425769d8068dbccf75fa0b`, carrying
+Batch 114 (`cc863124`), its close-out, and the approved `023` recovery plan. Taken **before**
+Batches 112 and 113 on the batch's own instruction, being the fix for an outage that had
+already refused members a pick.
+
+`ci-local.sh` PASS (11 checks) from the clean checkout at `9ce972f3`, whose delta to the
+shipped commit is **docs-only** (162 added lines in this file, verified with
+`git diff --name-only`); a green GitHub Actions run exists for `9ce972f3` itself; `git diff
+--check` clean; repository at a sole Alembic head of `023`.
+
+Preflight confirmed by read-only inspection, never from cached CLI state: project
+`the-coupon-production`, environment `production` and service `api` each the sole entry under
+the recorded IDs; `railwayConfigFile` **null**; 13 of 13 required Railway variables present by
+name alone; zero `BF_*`; Vercel production carrying `VITE_API_URL` and `VITE_VAPID_PUBLIC_KEY`
+encrypted and production-scoped. Window checked rather than assumed: next lock 2026-09-11
+10:30Z, **zero pending picks**, nothing in play.
+
+**IaC was deliberately not applied, and that is the notable operational fact of this
+shipment.** `config plan` reported `0 to add, 2 to change, **2 to destroy**` — the two changes
+being the familiar never-converging fields, the two destructions being
+`ODDS_CACHE_NEAR_TTL_SECONDS` and `ODDS_CACHE_PICK_TTL_SECONDS`, which `.railway/railway.ts`
+does not declare because they were set by hand at 09:02 UTC on 2026-09-05 to mitigate the
+outage. `/ship-prod` says stop on a destructive plan and never pass `--confirm-destructive`,
+so the plan was reviewed, **not applied**, and the pinned file removed. Skipping it changes
+nothing about what deploys: those four fields are real on the deployment manifest regardless,
+which the post-deploy manifest below confirms.
+
+**The ordering hazard, and why the variables were retired second.** Applying the plan — or
+deleting the variables first by any route — would have minted a redeploy of the *old*
+`daa4bd5c` image on the repository defaults, which is precisely the configuration that
+exhausted the plan that morning, with none of Batch 114 present to compensate. `railway
+variable delete` has **no `--skip-deploys` flag**, so a delete-then-upload sequence could not
+be made safe. The order taken was upload first, then delete: every intermediate state carried
+the full fix and merely looser TTLs.
+
+`RAILWAY_GIT_COMMIT_SHA` stamped to `4fb18923…` with `--skip-deploys`, worktree re-checked
+clean immediately before the upload, `railway up` with every selector explicit: deployment
+**`45bca567-03bb-48a8-b1da-e2e8f9ff13a1`**, `SUCCESS` in about two minutes, message `ship
+production 4fb1892`, `imageDigest
+sha256:6317d41170930cdeb1d81127c14f09ddf2023294c59b211581d103097b6f9857`.
+
+Then both overrides were deleted. **The delete minted no redeploy**, so the serving container
+kept its env snapshot and still read `3600`/`3600` — confirmed by grepping `/proc/1/environ`
+for the key names and by reading `settings` in-container. One `railway redeploy` was therefore
+required: deployment **`aadbc897-7e8b-415c-aab3-0138cf4ec2a1`**, `SUCCESS`. After it the
+running container reads `near_ttl 1800`, `pick_ttl 60` — the repository defaults — with **zero
+`ODDS_CACHE_*` keys in the process environment. The deployment and `config.py` no longer
+disagree.** Batch 114's other settings read as shipped: `unpriced 21600`, `recheck 21600`,
+`cooldown 300`, `hourly 100`, `daily 500`, `reserve 50`, `refresh 9,11`.
+
+Section 4 skipped by design: Vercel's GitHub integration had already built `4fb18923` as
+`dpl_6Qvw3kDe8epXjinnGq3n4gQ4MTgs`, holding the stable alias — confirmed by reading
+`meta.githubCommitSha` from the Vercel API, not inferred from timing. Predecessor
+`dpl_Fr58pqvagXwrEdgiDTUUKpRfYf4e` (`9ce972f3`) is the **Vercel rollback baseline**. The
+Railway rollback baseline recorded before this shipment, `09a91247-…`, is already `REMOVED`,
+and a pre-`023` image is forbidden as a target anyway — see the recovery plan.
+
+Post-deploy: `/health` reports sha `4fb18923…` and migration `023`; `/health/ready` agrees at
+`023` with `db: ok`. The manifest confirms `numReplicas: 1`, `multiRegionConfig: {
+"europe-west4-drams3a": { numReplicas: 1 } }`, `sleepApplication: false`, `ipv6EgressEnabled:
+true`, `healthcheckPath /api/v1/health/ready` at `300`, `restartPolicyType ON_FAILURE` ×3,
+`limitOverride.containers` `cpu 0.25` / `memoryBytes 500000000`, `builder NIXPACKS` with
+`nixpacksConfigPath /nixpacks.toml`.
+
+The migrating boot printed **exactly one** `Running upgrade 022 -> 023` line; the redeploy
+printed none, which is the correct answer for a container booting against a database already
+at head. Both boots logged `api starting` and `scheduler started` with **all eleven jobs
+registered**. Across 40 and 45 log lines: zero structlog warnings, zero genuine errors, zero
+5xx, zero hits on all five leakage patterns. (Railway tags stderr as `level: error`, so every
+uvicorn `INFO` line carries that tag; the count above excludes them. A first pass at this
+analysis read only the `message` field and so scanned empty strings for the 29 structlog
+lines, which put `event` there instead — the figures here are from re-parsing the whole line.)
+
+The plan's schema checks all held: both columns present as `timestamp without time zone`,
+**nullable**, defaulting to `NULL`; `fixtures` column count 9 → 11; RLS **enabled and forced**
+with zero `anon`/`authenticated`/`PUBLIC` grants; table count unchanged at 20; and **zero rows
+marked or checked**, which is the evidence that no backfill ran.
+
+Combined smoke: the stable web root, `/football?date=2026-05-02` and
+`/leagues/2-1-hibs/round` all return 200 and serve a byte-identical SPA shell (sha256
+`481cc728…`, 3,844 bytes), retaining `strict-transport-security`, `nosniff`,
+`referrer-policy`, `permissions-policy` and `cache-control`. CORS preflight from the exact
+recorded origin returns 200 with the matching `access-control-allow-origin` and
+`access-control-allow-credentials: true` on both the card and the pick-submit route; both
+still answer 401 unauthenticated, as does the admin dashboard. Readiness and migration head
+rechecked after the frontend promotion and still agree at `023`.
+
+Backup/restore-point identity: **none** — production has no managed backup, no PITR and no
+durable dump, under the owner's 2026-07-30 deferral.
+
+`scripts/check-deploy-drift.sh` reports **in sync**: `origin/main` and the deployed API both
+at `4fb18923`, migration `023`.
+
+**Two things remain open, and neither is a defect in this shipment.**
+
+1. **The marker has not been observed writing yet.** Post-deploy check 4 needs an
+   authenticated member to open a pick screen — the marker is written by the card sweep, and
+   there is no way to trigger one from here without a member's credentials. `fixtures` reads
+   zero marked and zero checked, which is the correct starting state. Confirm on the next
+   card load.
+2. **The budget constants are understated.** The largest round in production is **264
+   fixtures** against the `OBSERVED_LARGEST_ROUND = 202` Batch 114 recorded, and its long tail
+   is `england-amateur-*` rather than the FA Cup. See the note in the recovery plan above: the
+   honest re-measurement needs the marker this migration creates, so it is a follow-up batch.
 
 ## Shipment — 2026-09-04, `2a1f74da` (Batch 110, migration `022`)
 
