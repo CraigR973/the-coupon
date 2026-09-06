@@ -3637,6 +3637,98 @@ answered until it lands, because until then there is no data to look at.
   fixture is right where a per-competition filter is wrong. API and web. No dependency on Batch 112
   or 113 — this is a live production defect and should be taken before both.
 
+- [ ] **Batch 115 — Nothing learns until a member arrives, and the budget certifies a round that no longer exists**
+  Specified 2026-09-06 from the `/ship-prod` of Batch 114, which closed the outage and left
+  two things measurably open. Both are about the same thing: the deployment now *can* learn
+  which fixtures a bookmaker prices, and nothing makes it learn at a useful moment or feeds
+  what it learns back into the number the suite certifies.
+
+  **1. The marker is written on the critical path, and only there.** Measured against
+  production fifteen minutes after `023` applied: `odds_checked_at_utc` is **`never`** across
+  all 1,003 fixtures, and zero are marked. That is correct behaviour and it is the problem —
+  `record_observations` runs in `current_gameweek`, so the only thing that teaches the
+  deployment anything is an authenticated member opening a pick screen. The consequence
+  falls exactly where Batch 114 was written to defend: the **first** member to open the card
+  on a match morning pays the whole cold sweep — `ceil(264 / 10) = 27` requests against a
+  100/hour plan — in the hour everyone else is trying to pick, and every member after them
+  picks for free off what that one member bought. The six-hour re-check has the same shape:
+  whichever card load happens to land after it falls due pays for all of it.
+
+  `refresh_slate` already exists to firm up the imminent card, and its docstring still says
+  *"Odds themselves are snapshotted onto each pick at pick time and served through the
+  provider's own TTL cache, so there is nothing to warm here."* Batch 114 made that sentence
+  false. There is now something to warm, and it is the one thing that is expensive exactly
+  when it is least affordable.
+
+  **Warm the marker on the scheduled pass, so a member never pays to discover it.** The job
+  sweeps each open round's askable fixtures once, writes the marker from what comes back, and
+  commits — the same `askable` / `record_observations` pair the card runs, called from a job
+  that has no member waiting on it.
+
+  **This is not free, and the arithmetic should be stated rather than implied.** A brand-new
+  round costs one full sweep — 27 requests at today's largest — wherever it is paid. Warming
+  it means paying that on the job *and* a cheaper priced-only sweep when the first member
+  arrives, so the absolute daily total rises by roughly one sweep per new round. What it buys
+  is the removal of a 27-request spike from the hour before a lock, replaced by about ten.
+  The daily cap has the room and the hourly one does not, which is the whole reason the tiers
+  are shaped the way they are. Steady state is cheaper still, because the marker persists and
+  only the re-check cadence re-pays.
+
+  Open decision for the owner: whether the warm pass covers **every** open round or only the
+  imminent one. `refresh_slate` already uses a horizon of 1 and says why — the far weeks have
+  not firmed up. The same argument applies here, and the counter-argument is that a league
+  whose round opens early then gets no warming at all.
+
+  **2. The certification is sized on a round that no longer exists, and it went stale in a
+  day.** Batch 114 recorded `OBSERVED_LARGEST_ROUND = 202` / `OBSERVED_UNPRICED = 103` from
+  the outage. Preflight for its own shipment, the next day, measured the largest round at
+  **264** — and 242 behind it — with **zero** FA Cup fixtures: the long tail is now 40
+  `england-amateur-fa-trophy` plus a spread of `england-amateur-*` divisions. The shape
+  recurred within twenty-four hours under a different competition, which is the strongest
+  argument yet for the scope boundary Batch 114 drew: the deployment learning *per fixture* is
+  right where a per-competition filter would already be catching nothing.
+
+  `test_the_budget_covers_the_largest_round_the_database_holds` is the tripwire Batch 114 added
+  for exactly this and it is already red against production data. It passes on the gate only
+  because CI runs against a scratch database with no rounds in it — which is honest, and is
+  also why a hand-maintained constant will go stale again the moment nobody re-measures.
+
+  **Stop maintaining the number by hand.** The suite should read the largest round *and* its
+  unpriced share out of the database when one is present, and fall back to the recorded
+  measurement only when there is not — with the recorded pair kept as a dated floor rather
+  than as the thing being trusted. That is the difference between a constant that lied for a
+  month and a measurement that re-takes itself. Record today's as 264, and record that its
+  unpriced share was not yet knowable when this was specified, because item 1 had not run.
+
+  Then re-run the whole budget suite against the real numbers and **fix whatever turns red**.
+  That is the part that cannot be sized in advance: at 264 fixtures the answer depends on the
+  priced share, and if it does not fit, the fix is a decision — a tighter horizon, a different
+  tier, or a bigger plan — not a smaller assertion. Never reach green by loosening the guard;
+  that is what made this necessary twice.
+
+  **Explicitly out of scope: tightening the near tier.** Batch 114 observed that a cheaper
+  sweep might let the near tier tighten to around twenty minutes — *fresher* than the design
+  that broke — and said to take that number from the counters rather than from the paragraph.
+  The counters shipped; they have no production data through them yet, and item 1 is what will
+  give them some. Deciding it here would be taking the number from the paragraph after all.
+
+  Verification: the scheduled pass writing the marker with no member involved, and a member's
+  first card load afterwards costing the priced subset rather than the whole round; the pass
+  being a no-op for a round already learned inside its re-check window; a degraded or
+  rate-limited pass writing **nothing**, on the same evidence rule the card uses; the pass not
+  running inside the hour before a lock, beside the `refresh_slate` timing Batch 114 moved; the
+  budget suite deriving both figures from a seeded database and falling back to the recorded
+  pair without one; the tripwire passing against a round larger than the recorded floor once
+  the derivation is live; and the full suite green against the production shape as measured at
+  the time the batch is built rather than as written here. Run migrations and the full
+  PostgreSQL-backed gate.
+
+  Scope boundary: when and by what the marker is learned, and where the budget suite gets its
+  figures. No change to what the marker *means*, to the card filter, to `PRICE_MOVED`, to the
+  `429` cooldown, or to the reserve. No change to the TTL tiers themselves. **API only — no
+  web half, so nothing reaches members until `/ship-prod`.** Depends on Batch 114, which
+  shipped 2026-09-06; independent of Batches 112 and 113.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

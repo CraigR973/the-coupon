@@ -1342,9 +1342,9 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 95, 112 and 113 unchecked**. **Batch 114 is built and
-is a shipment owed**: it is a live-production defect fix, it changes the API, and its whole
-point is unreachable until `/ship-prod` runs.
+`docs/BUILD_PLAN.md` carries **Batches 95, 112, 113 and 115 unchecked**. **Nothing is owed —
+Batch 114 shipped on 2026-09-06** (`4fb18923`, migration `023`) and `check-deploy-drift.sh`
+reports in sync.
 
 **Batch 114 — the plan was exhausted on a match morning.** On 2026-09-05 members were refused
 with `ODDS_UNAVAILABLE` at 08:06 UTC on a round whose lock was five hours away, because
@@ -1358,17 +1358,35 @@ taps is the price they get — a submission carrying a stale one is refused with
 and the new number. Measured through the real cache: the tightest browsing hour falls from 42
 requests to **20 of 100**, and a saturated day from 564 to **344 of 500**.
 
-**Two things are owed on Batch 114 and neither is automatic.** First the `/ship-prod`; then
-production is running a temporary override set by hand at 09:02 UTC on 2026-09-05 —
-`ODDS_CACHE_NEAR_TTL_SECONDS` and `ODDS_CACHE_PICK_TTL_SECONDS` both `3600` on the Railway
-`api` service, deliberately reversing the *this path must not degrade* rule so a pick would
-freeze whatever the cache held. Neither variable exists in the repository, so the deployment
-and `config.py` disagree until both are **deleted** and the defaults confirmed. Batch 114
-replaces that bargain with `PRICE_MOVED`, which is why it can be retired rather than merely
-tolerated.
+**Both things Batch 114 owed are now closed.** It shipped on 2026-09-06 as deployment
+`45bca567`, and the temporary override set by hand at 09:02 UTC the previous day —
+`ODDS_CACHE_NEAR_TTL_SECONDS` and `ODDS_CACHE_PICK_TTL_SECONDS` both `3600`, deliberately
+reversing the *this path must not degrade* rule — was deleted afterwards. That needed a second
+deployment (`aadbc897`): `railway variable delete` mints no redeploy, so the serving container
+kept reading `3600` from its own env snapshot until it was restarted. Production now reads
+`near_ttl 1800` / `pick_ttl 60` with **zero** `ODDS_CACHE_*` keys in the process environment,
+so the deployment and `config.py` no longer disagree. The Railway IaC plan was reviewed and
+**not applied**: it wanted to delete those same two variables, which `/ship-prod` classifies as
+destructive, and doing it that way round would have restarted the *old* image on the defaults
+that caused the outage. See the 2026-09-06 shipment entry in
+`docs/launch/L4_PRODUCTION_INFRASTRUCTURE.md`.
+
+**Batch 115 is what Batch 114 left open**, specified 2026-09-06 from its own shipment. Two
+things, both measured rather than predicted. The marker is written *only* by an authenticated
+card load, so fifteen minutes after `023` applied `odds_checked_at_utc` read `never` across all
+1,003 fixtures — meaning the first member to open the card on a match morning pays the whole
+27-request cold sweep in the hour everyone else is picking, and `refresh_slate`'s docstring
+still claims "there is nothing to warm here". And the certification went stale in a day:
+Batch 114 recorded a 202-fixture round, production's largest is now **264** with **zero** FA
+Cup and an `england-amateur-*` tail instead — the same shape under a different competition
+inside twenty-four hours, which is the strongest argument yet for learning per fixture rather
+than per competition. Tightening the near tier stays out of scope until the counters have real
+data to take the number from.
 
 Batches 112 and 113 were specified on 2026-09-04 and are unstarted; 114 was taken before both
-on its own instruction, being the live defect. Batch 95 remains in the soft-blocked tail of
+on its own instruction, being the live defect. Production's two open rounds — Friday 11 and
+Saturday 12 September, both McCann's Defenders — are the stranded-cadence shape Batch 112
+describes, still live. Batch 95 remains in the soft-blocked tail of
 Group D. **Groups I through M are complete**, which closes out both the 2026-08-26
 full-application review and the owner's 2026-09-03 Coupon, home, notification and Football
 Stats review:
