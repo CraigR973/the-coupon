@@ -3638,6 +3638,9 @@ answered until it lands, because until then there is no data to look at.
   or 113 — this is a live production defect and should be taken before both.
 
 - [ ] **Batch 115 — Nothing learns until a member arrives, and the budget certifies a round that no longer exists**
+  **Superseded 2026-09-11 by Batch 119**, which found the cause of the silence this row only
+  described and folds both its items in. Kept unchecked rather than struck: it was never
+  built, and the reasoning below is still the reasoning 116 carries out.
   Specified 2026-09-06 from the `/ship-prod` of Batch 114, which closed the outage and left
   two things measurably open. Both are about the same thing: the deployment now *can* learn
   which fixtures a bookmaker prices, and nothing makes it learn at a useful moment or feeds
@@ -3728,6 +3731,316 @@ answered until it lands, because until then there is no data to look at.
   `429` cooldown, or to the reserve. No change to the TTL tiers themselves. **API only — no
   web half, so nothing reaches members until `/ship-prod`.** Depends on Batch 114, which
   shipped 2026-09-06; independent of Batches 112 and 113.
+
+- [ ] **Batch 116 — A pick alert names a selection nobody can place, and stamps the product's
+  name over the league's**
+  Specified 2026-09-11 from the owner's live use of the alerts Batch 107 shipped. Two defects
+  in the same three-line tray entry, specified together because both decide whether the alert
+  is usable without opening the app.
+
+  **1. Half the selections the product offers cannot be named in an alert.** `notify_pick_made`
+  interpolates `pick.runner_name` raw (`notification_triggers.py:281`), and `_runner_name`
+  (`odds_api.py:301`) composes that string from the market alone: Match Odds returns a team
+  name, but **BTTS returns the bare word `Yes` or `No`, and a draw returns `The Draw`**. So a
+  BTTS claim reaches the league as *"Dave picked Yes @ 1.80 · 3/12 picked"* — a price, a
+  progress count, and no fixture. The alert exists because the coupon is a land-grab and the
+  rest of the league needs to know what has gone; on a BTTS or draw claim it says something
+  has gone and refuses to say what.
+
+  The product's vocabulary for this already exists — the API's does not. `selectionSummary()`
+  (`lib/coupon.ts:145`) renders exactly the right phrase, `Both teams score (Forfar v
+  Brechin)`, and every coupon row, pasted line and home card has used it since Batch 105. The
+  alert is the one surface that never got it, because the API composes its own copy. The two
+  are not merely unimplemented on one side: the API says `The Draw` where the web says `Draw`
+  and `Yes` where the web says `Both teams score`, so this is a divergence to close, not a
+  helper to port verbatim. `fixture.home` and `fixture.away` are already loaded at both call
+  sites (`picks.py:379` and `:412`), so naming the fixture costs no query.
+
+  **The completion alert has the same defect and a harder fix.** `_completion_body`
+  (`notification_triggers.py:296`) reads `completion.selection`, a stored `String(120)`
+  written from `pick.runner_name` at the transition (`gameweek_completion.py:56`). That row is
+  deliberately frozen — a retry must quote the round as it completed, not as it stands — so
+  naming the fixture means either composing the phrase before the insert or carrying the teams
+  as their own columns. **Prefer columns to a composed string:** the stored value is a datum
+  today and would become a rendered sentence, which is what makes the next copy revision a
+  migration. Either way this is migration `024`.
+
+  **2. The product's name arrives twice, and only one of the two is ours to remove.** The owner
+  reports the alert reading as being *from Coupon* when it does not need to. Nothing in the
+  payload says it — `notification_triggers.py:280` sets the title to `member.league_name`,
+  `push_notification_service.py:164` encodes `{title, body, data}` verbatim, and `sw.ts:90`
+  hands it straight to `showNotification`. There are exactly two candidates, with different
+  fixes:
+
+  * **The platform's own attribution.** `short_name: 'Coupon'` (`vite.config.ts:49`) is what
+    iOS and Android stamp above every notification from an installed PWA. It cannot be
+    suppressed, only renamed.
+  * **The title.** For the league whose slug is `the-coupon` — whose name is very likely the
+    `DEFAULT_LEAGUE_NAME` of `"The Coupon"` (`seeds.py:35`) — the title *is* "The Coupon",
+    sitting under an OS header reading "Coupon". Batch 107 moved the league name into the
+    title precisely because the tray is already league-scoped; on this one league that
+    decision prints the product's name twice and the league's name never.
+
+  **Owner decision, and the batch should not start without it: a screenshot of the actual
+  notification.** If it is the OS header the fix is a manifest rename and is cosmetic. If it
+  is the title the fix is behavioural — a league whose name is the product's name needs a
+  different title, and that is a rule to choose rather than a string to edit. Guessing here
+  ships copy the owner did not ask for, into the one surface that reaches a phone unprompted.
+
+  Verification: a BTTS claim and a draw claim each reaching the tray naming their fixture, and
+  a Match Odds claim not naming it redundantly — the `fixtureContext` rule, where a team
+  selection takes the *other* team and a draw or BTTS call takes the pairing; the completion
+  alert naming the fixture off the frozen row, including on a retry that runs after the final
+  picker has moved their pick; the copy assertions at `test_notification_batch_76.py:398` and
+  `test_pick_progress_batch_107.py:338` updated to the new phrasing rather than loosened;
+  migration `024` applying and rolling back on clean `pgserver`; and the full
+  PostgreSQL-backed gate.
+
+  Scope boundary: what a pick alert *says*. No change to who receives one, to the per-league
+  mute, to quiet hours, to the `tag` collapsing, or to the progress counts Batch 107
+  established. No change to the pick-reminder or picks-open copy. **API only, plus the one
+  manifest line if item 2 resolves that way — otherwise no web half, so nothing reaches
+  members until `/ship-prod`.** Independent of Batches 112, 113 and 115.
+
+- [ ] **Batch 117 — Home names the round it has finished with and never the one it is asking
+  about, and the coupon is the last thing on the coupon page**
+  Specified 2026-09-11 from the owner's live use. Two complaints about the same failure from
+  opposite ends: a member cannot tell which round a surface is talking about, and the thing
+  the whole game builds toward is below the fold for the entire window in which it can be
+  acted on.
+
+  **1. The only round home names is the one that is over.** `LastResultPanel` prints `Last
+  result · {round.label}` (`DashboardPage.tsx:579`), resolved through `roundName()` to
+  "Gameweek 4". The card above it — the live one, carrying the deadline, the member's own
+  claim and the progress count — prints a state badge, a clock and a selection, and **never
+  names its round at all**. The owner's reading is exact: last result says Gameweek 4 and this
+  week says nothing.
+
+  **The frontend cannot fix this alone.** `LastResult` carries `number` (`me.py:122`);
+  `CurrentRound` does not (`me.py:86`). That absence is why `lastRoundView`'s fallback branch
+  degrades to a bare date instead of calling `roundName` — the field is not there to call it
+  with. So this is an API addition, a type addition, and a label.
+
+  Add `number` to `CurrentRound`, **optional and nullable on the web side**, for the reason the
+  rest of `types.ts` already documents: Vercel releases the web app on merge while the API
+  waits for `/ship-prod`, so for that window the field is absent and the card must print the
+  date rather than a blank. `roundName(number, fallbackDate)` (`coupon.ts:80`) already encodes
+  that fallback and needs no change.
+
+  **2. The coupon leads only once it is too late to act on it.** `CurrentRoundPage.tsx:444`
+  orders the page `couponFirst ? couponBlock : slateBlock`, and `couponLeads` (`coupon.ts:287`)
+  is true only for `complete`, `locked_incomplete` and `settled`. While picks are open — the
+  whole period in which a member has anything to do — the fixture slate leads and the combined
+  coupon sits beneath a list Batch 105 sized for a hundred fixtures. The owner wants it at the
+  top unconditionally.
+
+  **And there is no collapse to put it behind.** `CouponSection` always renders the fold card
+  and the full `<ol>` of every member's leg. Moving it up without collapsing it would push the
+  slate down by the league's entire membership, so the two halves of this item are one change
+  rather than two. `CompetitionSection` (`CurrentRoundPage.tsx:476`) is the house accordion
+  pattern and should be followed rather than reinvented.
+
+  **Owner decision: what a deep link does to a collapsed section.** The completion alert links
+  to `#coupon` (`coupon_section_url`, `notification_triggers.py:220`), `CouponCompleteNotice`
+  scrolls there, and `focusCouponSection` (`CurrentRoundPage.tsx:57`) focuses it. All three
+  exist to put a member in front of the finished coupon and all three would land them on a
+  closed accordion. Auto-expanding on arrival is the obvious answer and it is still a
+  decision, because it means the section's open state is not purely the member's.
+
+  Note what this retires: if the coupon always leads, `couponLeads` has no callers. Delete it
+  rather than leaving a phase helper nothing consults.
+
+  Verification: the home card naming its round on an API that sends `number` **and** falling
+  back to the date on one that does not — both directions tested, because the second is the
+  live state between this batch's close-out and its `/ship-prod`; the coupon section rendering
+  above the slate in every `RoundPhase`, `not_open` included; the section collapsed on first
+  paint with its state surviving a re-render; arrival via the completion notice, the `#coupon`
+  fragment and `focusCouponSection` each behaving as the decision above settles; the
+  accessibility suite passing on the new accordion; and the full gate.
+
+  Scope boundary: which round a surface names, and where the coupon sits on the page. No
+  change to what the coupon *contains*, to `buildCouponShareText`, to the pasted text, to
+  `RoundStatus`, or to the home card's states and clocks (Batch 106). **Both halves — the web
+  half reaches members on close-out and `number` does not until `/ship-prod`, which is why the
+  fallback is the tested case and not the incidental one.** Independent of Batches 112, 113
+  and 115.
+
+- [ ] **Batch 118 — Every word the product says to someone outside it describes a flow that no
+  longer exists, and the page that says it properly cannot be reached**
+  Specified 2026-09-11 from the owner's live use. The invite message and the browser landing
+  page are one problem with two faces: together they are the entire first impression, neither
+  has kept up with the app behind them, and a working version of one is already written and
+  orphaned.
+
+  **1. The invite tells people to get their PIN from an admin.** `buildInviteMessage`
+  (`invite.ts:17`) says *"Then sign in with the display name and PIN from your admin."* That
+  flow is gone, and the codebase already records it: `BrowserOnboarding.tsx:11` notes that
+  *"signup became public on 2026-08-22, so the old 'your admin will provide your details' line
+  was describing a flow that no longer exists."* The onboarding copy was corrected then; the
+  invite copy was not — and the invite is the half that gets sent to strangers.
+
+  Two further drifts in the same fourteen lines. It routes the recipient through *"Open
+  Leagues → Join by code"* (`invite.ts:19`) while `/join/:token` invite links exist as a
+  one-tap path that `LeagueAdminInvitesPage.tsx:84` already mints, so the message explains only
+  the clunkier of the two flows it could offer. And it opens with *"Install the app first:"*
+  over the bare origin (`invite.ts:15`), which is wrong for a desktop recipient and drops
+  every other recipient onto item 2.
+
+  **2. The landing page that works is orphaned; the one people reach has holes.** There are two
+  onboarding surfaces and the product routes to the weaker one.
+
+  `WelcomePage` is already close to what the owner is asking for: per-platform install steps
+  for iOS, Android and desktop, with register and sign-in links. **Nothing links to `/welcome`
+  and nothing redirects there.** Its only reference outside the route table is the
+  `SELF_MANAGED` exclusion at `InstallPromptController.tsx:9` — the one piece of code that
+  mentions the page does so in order to stay out of its way.
+
+  What visitors actually reach is `BrowserOnboarding`, via `InstallPromptController`, and it
+  has two holes:
+
+  * **Desktop gets nothing at all.** The controller returns `null` when `!isMobile`
+    (`InstallPromptController.tsx:57`), so a desktop visitor lands on the login screen with no
+    statement of what the app is. The invite message sends them there.
+  * **Android without `beforeinstallprompt` gets nothing either.** The install button renders
+    on `canInstall` and the manual steps on `isIos` (`BrowserOnboarding.tsx:39` and `:46`).
+    Firefox Android, Samsung Internet, or Chrome before the event fires satisfies neither: the
+    explainer renders and beneath it there is no install instruction of any kind.
+
+  **The fix is mostly routing, not writing.** Settle which surface is the landing page and
+  delete the other before drafting a word — two components answering the same question is how
+  one of them went stale unnoticed. Then fill the two holes: a manual Android path that does
+  not depend on an event firing, and a desktop story that says plainly what the app is.
+
+  **Owner decision: whether desktop is a supported way to play or a prompt to install.**
+  `DesktopInstructions` (`WelcomePage.tsx:57`) says the app works in a desktop browser and
+  offers register and sign-in; `InstallPromptController` gates nothing on desktop, which is
+  consistent with that; the invite message tells everyone to install first. Two of the three
+  agree and the copy is the odd one out, but the owner should confirm that reading before the
+  invite is rewritten around it.
+
+  Verification: the invite message naming no PIN-from-admin flow, offering the invite link as
+  the primary path with the join code as the alternative, and reading correctly for a desktop
+  recipient; one landing surface reachable from a cold visit on each of iOS Safari, iOS
+  non-Safari, Android with the install event, Android without it, and desktop — with install
+  instructions present in every mobile case and a description of the product present in all
+  five; the orphaned surface deleted rather than left behind; `BrowserOnboarding.test.tsx` and
+  `invite.test.ts` asserting the new copy's claims rather than its old strings; the
+  accessibility suite passing on whichever surface survives; and the full gate.
+
+  Scope boundary: what the product says to a person who is not signed in, and which component
+  says it. No change to registration, to the join-by-code or invite-token endpoints, to
+  `JoinPage`'s claim flow, or to the PWA manifest. No change to anything behind the login.
+  **Web only — it reaches members on close-out, with no API half and nothing owed to
+  `/ship-prod`.** Independent of Batches 112, 113 and 115.
+
+- [ ] **Batch 119 — Discovery cannot afford to run, and nothing said so for a week**
+  Specified 2026-09-11 from a live investigation, and it supersedes Batch 115 (fold that
+  row's two items into this one). **No round was created by any scheduled job between
+  2026-09-04 20:21 and this batch being written** — a week in which 2-1-Hibs's twelve
+  members had nothing to play, their 12 September round did not exist, and the only thing
+  that surfaced it was somebody going looking.
+
+  **`fetch_slate` costs one request per UK competition, and the catalogue is 67.**
+  `config.py` documents "~30" and `test_request_budget.py` hardcodes `UK_COMPETITIONS = 30`.
+  Measured live on 2026-09-11: `fetch_competitions` returns **67**, and one `fetch_slate`
+  logged `uk_leagues=67`. `discover_fixtures` fetches once per `(window, date)`, so the
+  daily run costs
+
+      2 distinct windows x 2 cadence dates x 67 competitions = 268 requests
+
+  against a plan of **100/hour**. It cannot complete. It takes a `429` partway, raises out
+  of `_league_events` -> `fetch_slate` -> `discover_fixtures`, and `run_discover_fixtures`
+  catches it as `log.exception("fixture discovery failed")` and returns `False`. Reproduced
+  by hand: the first `fetch_slate` returned 176 fixtures; the next raised
+  `odds-api.io /events rate-limited (429), not retried`.
+
+  **Worse, the run discards what it achieved.** `run_discover_fixtures` commits once at the
+  end, so an exception anywhere skips the commit and the `async with` rolls the whole
+  session back. Every completed `(window, date)` — bought and paid for — is thrown away.
+  A run that got 100 requests in has nothing to show for them, and tomorrow's run starts
+  from the same place and fails the same way. **Commit each `(window, date)` as it lands**,
+  so a run that cannot finish still leaves the deployment better off than it found it.
+
+  **The dates and the logic are fine, and that is worth recording** so nobody re-debugs it:
+  `active_leagues` returns both leagues, `window_for` is right, `upcoming_slate_dates`
+  returns `['2026-09-12', '2026-09-19']`, and a hand-run `fetch_slate` -> `verify_slate` ->
+  `sync_slate` produced a 12 September round for 2-1-Hibs with 176 fixtures. Nothing is
+  broken except the budget.
+
+  **This is the same defect as Batch 114, in the same file, one constant along.** Batch 114
+  existed because `LAUNCH_SATURDAY_FIXTURES = 131` described a world that had grown to 202,
+  inside a suite whose docstring claims that if it passes, real traffic cannot exhaust the
+  quota. `UK_COMPETITIONS = 30` is the identical shape:
+  `test_discovery_is_a_fixed_daily_cost_independent_of_traffic` asserts `30 x 2 = 60 <= 100`
+  and passes, while the real burst is 268. **Derive it the way Batch 114 derived the fixture
+  count** — from the provider catalogue or from the deployment's own leagues — so the number
+  re-takes itself. A second hand-maintained constant beside the one just fixed is not an
+  oversight to correct quietly; it is evidence that the fix was too narrow.
+
+  **Then make discovery fit the plan**, which is a design decision this batch has to take
+  rather than assume. The cost is `windows x dates x competitions` and each factor is
+  attackable: narrow the fetch to the competitions the deployment's leagues actually play
+  (today every league is `competitions = ALL`, so this saves nothing yet, but it is the
+  factor that grows with the catalogue); walk one date per run rather than the whole
+  horizon; or spread the run across hours so the burst never exceeds one hour's allowance.
+  The horizon exists so a member picking on Tuesday has a full card, so shortening it is a
+  product cost, not a free saving. Whatever is chosen, the budget suite must certify it
+  against the **measured** catalogue, not a remembered one.
+
+  **Silence has to become an alarm.** The admin dashboard shows stuck rounds and scheduler
+  state, and neither could see this: the scheduler was running perfectly and every round it
+  held was in the past. Two reads would have caught it on day one — **the newest round
+  creation time across the deployment**, and **any league with members and no open round**.
+  Both are one query and neither spends a provider request. A job that fails every day for a
+  week while reporting nothing is the actual defect here; the arithmetic is only its cause.
+
+  **A second, independent defect found in the same investigation.** `/odds/multi` answers
+  `400 One or more eventIds not found` when **any** id in the chunk is unknown, and
+  `_event_odds` loops chunks with no per-chunk handling, so one dead id raises out of the
+  whole sweep. Observed in production: `fixtures=202 priced=0` three times in one evening,
+  with the degraded banner, on a settled round. The 20 failing ids were all matches played
+  between 29 August and 5 September — odds-api.io expires an id after its match — and **738
+  already-played fixtures are still pooled**, so this grows. Isolate the chunk: a `400` on
+  one chunk should cost that chunk's ten their prices, not the card its prices. And an id
+  the provider says does not exist is a durable fact about that fixture, which is exactly
+  what Batch 114's marker is for — record it rather than re-asking forever.
+
+  **Folded in from Batch 115**, whose premise this investigation confirmed and sharpened.
+  The marker read `0 checked` across all 1,003 fixtures a week after `023` shipped, and the
+  reason was not only that a member has to arrive: every sweep that did run was degraded by
+  the defect above, so `observed` was empty and `record_observations` correctly wrote
+  nothing. Warm the marker on a scheduled pass as 115 specifies; and note the related
+  observability gap in Batch 114's own design — a fixture that was priced and still is
+  writes nothing at all, so "never swept" and "swept, everything priced" are
+  indistinguishable in the data. That ambiguity cost real time in this investigation.
+  Record a sweep timestamp per round, or accept the ambiguity deliberately and write down
+  why.
+
+  **The 12 September round was created by hand** on 2026-09-11 to unblock the twelve
+  members, via `populate_cadence_rounds` with `provider=None` — pool only, zero provider
+  requests — after a rolled-back dry run. It is gameweek 6, 179 fixtures, locking
+  13:30 UTC, picks opening 02:00 UTC, which matches the league's own cadence exactly. That
+  is a manual intervention standing in for a job, and it is the thing this batch exists to
+  stop being necessary.
+
+  Verification: the measured catalogue size driving the budget assertions rather than a
+  literal, and `test_discovery_is_a_fixed_daily_cost_independent_of_traffic` failing against
+  67 before the fix and passing after it; a discovery run that exhausts the plan partway
+  leaving every completed `(window, date)` committed; a run that completes leaving the same
+  rounds it does today; the two silence alarms firing against a database whose newest round
+  is a week old and whose league has members and no open round, and staying quiet against a
+  healthy one; a `/odds/multi` chunk answering `400` costing only that chunk its prices,
+  with the rest of the card priced; an expired id recorded rather than re-asked; and the
+  warm pass writing the marker with no member involved. Reproduce the production shape — 67
+  competitions, 2 windows, 2 dates — and assert the daily run fits 100/hour and 500/day. Run
+  migrations and the full PostgreSQL-backed gate.
+
+  Scope boundary: what discovery costs, what survives a partial run, what the deployment
+  says when a job stops producing, and per-chunk isolation of the odds fetch. No change to
+  what a round *is*, to the cadence, to pricing rules, to `PRICE_MOVED`, or to the TTL
+  tiers. Does not fix Batch 112's stranded rounds, which are visible in the same data and
+  stay 112's. **API only — nothing reaches members until `/ship-prod`.** Supersedes Batch
+  115; independent of 112 and 113, and should be taken before both.
 
 ## Verification
 
