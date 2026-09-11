@@ -3977,15 +3977,41 @@ answered until it lands, because until then there is no data to look at.
   re-takes itself. A second hand-maintained constant beside the one just fixed is not an
   oversight to correct quietly; it is evidence that the fix was too narrow.
 
-  **Then make discovery fit the plan**, which is a design decision this batch has to take
-  rather than assume. The cost is `windows x dates x competitions` and each factor is
-  attackable: narrow the fetch to the competitions the deployment's leagues actually play
-  (today every league is `competitions = ALL`, so this saves nothing yet, but it is the
-  factor that grows with the catalogue); walk one date per run rather than the whole
-  horizon; or spread the run across hours so the burst never exceeds one hour's allowance.
-  The horizon exists so a member picking on Tuesday has a full card, so shortening it is a
-  product cost, not a free saving. Whatever is chosen, the budget suite must certify it
-  against the **measured** catalogue, not a remembered one.
+  **Then make discovery fit the plan. Owner decision, 2026-09-11, in two halves** — taken
+  against the alternatives of shortening the horizon or spreading the run across hours, both
+  rejected because the horizon exists so a member picking on Tuesday already has a full card.
+  The cost is `windows x dates x competitions`, and both halves attack the last factor.
+
+  **The product half: the deployment stops playing competitions nobody wants to pick.**
+  Remove every `england-amateur-*` competition **except the national leagues**, remove the
+  FA Trophy, and remove Ireland — which in practice means Northern Ireland, because the
+  catalogue carries no Republic of Ireland competition at all. Northern Ireland is a UK
+  division and dropping it is a deliberate product call, not a side effect of the wording.
+  Measured against the pool on 2026-09-11: of the **33** competitions that have ever carried
+  a fixture onto a round, this removes **13** and keeps **20** — the eleven English amateur
+  divisions (Isthmian, Northern Premier, both Southern League Premiers, Super League 2 Women
+  and five more) plus the FA Trophy, plus the two Northern Ireland divisions.
+
+  This half is **member-visible**: the card shrinks, and it is meant to. It is also what
+  makes the 264-fixture rounds stop happening — the long tail that exhausted the plan on
+  2026-09-05 and again on 2026-09-11 was exactly this set.
+
+  **The cost half: discovery stops walking competitions that have never carried a fixture.**
+  The catalogue holds 67 UK competitions and the pool holds 33, so **34 have never once put a
+  fixture on a round** and every daily run pays a request each to find that out again. This
+  half is invisible to members — those competitions return nothing whether they are asked or
+  not.
+
+  Together the daily run is roughly `20 x 2 windows x 2 dates = 80` requests against a
+  100/hour plan. **Take that 67 from a live `fetch_competitions` when the batch is built, not
+  from this paragraph** — the number in Batch 114's suite was stale within a day, and this one
+  is a week old already.
+
+  **The residual, which this batch must handle rather than leave:** a competition that is
+  never walked can never be discovered, so skipping the never-used ones is a ratchet that
+  slowly starves the catalogue. A periodic full-catalogue walk is required — weekly is the
+  obvious cadence — and it costs the untrimmed count, so it needs a slot where that fits
+  (its own hour, or a single date) rather than being folded into the daily run.
 
   **Silence has to become an alarm.** The admin dashboard shows stuck rounds and scheduler
   state, and neither could see this: the scheduler was running perfectly and every round it
@@ -4025,7 +4051,10 @@ answered until it lands, because until then there is no data to look at.
 
   Verification: the measured catalogue size driving the budget assertions rather than a
   literal, and `test_discovery_is_a_fixed_daily_cost_independent_of_traffic` failing against
-  67 before the fix and passing after it; a discovery run that exhausts the plan partway
+  67 before the fix and passing after it; the trim removing exactly the thirteen named
+  competitions and keeping the national leagues, asserted against the slug rules rather than
+  a hand-listed set; a competition with no stored fixture skipped by the daily run and still
+  reached by the periodic full walk; a discovery run that exhausts the plan partway
   leaving every completed `(window, date)` committed; a run that completes leaving the same
   rounds it does today; the two silence alarms firing against a database whose newest round
   is a week old and whose league has members and no open round, and staying quiet against a
