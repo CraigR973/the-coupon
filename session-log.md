@@ -3660,3 +3660,41 @@ recovery plan before any `/ship-prod` carries it. Then Batches 112, 113; 95 is s
 plan is written and still marked *awaiting owner approval*; approving it is the gate. That
 ship also carries Batch 117's `number`, so home stops printing dates and starts printing
 "Gameweek 6" at the same moment. Remaining unchecked: Batches 95, 112, 113 and 115.
+
+## Batch 112 — A window change strands the rounds built against the old one
+**Commits:** 282db2a · verified: `scripts/ci-local.sh` PASS (11 checks), **second attempt**
+
+### Key facts for future sessions
+- **The retirement rule is bounded to the horizon, and that bound is the whole design.**
+  Without `starts_on >= today` every past round nobody happened to pick on matches the rule
+  — a legitimate Saturday the league forgot is not junk — and retirement would quietly eat
+  the season. The cost is that a stranded round already in the past survives as an inert
+  row; it is off the discovery horizon by the same bound so it is never re-synced, and its
+  effect on `current_round_order` expires with `IN_PLAY_GRACE_MINUTES`. Changing that
+  ordering is explicitly not this batch's.
+- **Order matters in `discover_fixtures`: retire *before* `unlocked_round_dates`.** That
+  read is what put a stranded round back inside the horizon every morning, so retiring
+  after it would delete a round and re-feed its date in the same run.
+- **The already-locked refusal is conditioned on `status is None`.** It only ever declines
+  to *create*. A league mid-season holding a round on today whose lock passed this morning
+  is a real week, and an unconditional rule would have dropped it on the next rebuild.
+- **Two gate failures, both the batch's own doing, both narrowed rather than deleted.**
+  `test_discovery_refreshes_an_unlocked_round_off_the_cadence` and
+  `test_two_leagues_sharing_an_off_cadence_date_share_one_fetch` asserted that an *unclaimed*
+  off-cadence round survives to be refreshed, which is exactly what this batch stops. The
+  property survives with a narrower precondition — a round holding a claim — so both now
+  add a pick via a new `_claim` helper. The third failure was the web test for the removed
+  card, replaced by an assertion that the card and its input are gone.
+- **`PROVIDER_SLATE_FETCH_LIMIT` outlived the endpoint that named it.** Two spenders remain:
+  `refresh_rounds` on a cadence date the pool cannot serve, and the admin console's sync
+  trigger. `test_request_budget.py`'s ad-hoc section is renamed to match — the assertions are
+  unchanged, the prose described a route that no longer exists.
+- **`refresh_slate`'s docstring claimed the ad-hoc endpoint as its only production caller.**
+  It is now `populate_cadence_rounds`, reached only for a cadence date the pool cannot
+  serve — the same unshared-fetch case, so the reasoning it gives is still right.
+
+**Next:** **`/ship-prod` before Batch 113**, which the rows require of each other: 112's
+scope boundary says stop for a ship, and 113 says do not begin until 112 has shipped and
+`check-deploy-drift.sh` reports in sync — 113 replaces the endpoint 112 removed, so it
+assumes 112's API is live. That ship also carries migration `024` (Batch 116), whose
+recovery plan still awaits approval.

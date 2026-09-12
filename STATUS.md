@@ -1373,6 +1373,18 @@ to leave `short_name` as it is. The row's other candidate, a league whose own na
 Coupon", is unreachable today and is now asserted as a known gap rather than closed by guess
 (`7967e4d`).
 
+**Batch 112 is built and merged** (`282db2a`, 2026-09-12). A league's rounds are its
+cadence and nothing else: `retire_stranded_rounds` deletes a round whose date is not a
+cadence date for the league's *current* window, which holds no picks and has not settled —
+no new column, no migration. It runs in the populate behind creation and "refresh rounds",
+and in the daily discovery job *before* `unlocked_round_dates`, which is the ordering that
+stops a stranded round being re-fed to the sweep keeping it alive. The populate also
+refuses to mint a round whose lock has already passed. `POST /leagues/{slug}/gameweeks` and
+the "Add a one-off round" card are gone; production held zero one-off rounds.
+
+**Batch 113 must not begin until 112 has shipped.** Both rows say so — 112 stops for a
+ship, and 113 replaces the endpoint 112 removed, so it assumes 112's API is live.
+
 **A `/ship-prod` is owed and it carries `024`**, whose forward recovery plan is written and
 still marked *awaiting owner approval*. That approval is the gate, and it is not a formality:
 `024` is irreversible in this deployment and gives up the API rollback the 2026-09-12

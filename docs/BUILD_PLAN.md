@@ -3359,7 +3359,7 @@ answered until it lands, because until then there is no data to look at.
   table redesign. Do not begin until Batch 110's API has shipped and
   `scripts/check-deploy-drift.sh` reports in sync.
 
-- [ ] **Batch 112 — A window change strands the rounds built against the old one**
+- [x] **Batch 112 — A window change strands the rounds built against the old one** ✅ 2026-09-12
   Specified 2026-09-04 from a live report. A league created at 21:19 on Friday 4 September
   with a Friday 19:00 window, then edited to Saturday 12:00 ninety seconds later, ended up
   holding four rounds on two cadences — Fri 4 Sep, Sat 5 Sep, Fri 11 Sep, Sat 12 Sep —
