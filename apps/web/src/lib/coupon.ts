@@ -283,7 +283,3 @@ export function roundPhase(progress: RoundProgress): RoundPhase {
   return progress.mine ? 'submitted' : 'open';
 }
 
-/** True while the coupon is the round's headline rather than the fixture list. */
-export function couponLeads(phase: RoundPhase): boolean {
-  return phase === 'complete' || phase === 'locked_incomplete' || phase === 'settled';
-}

@@ -558,6 +558,19 @@ export interface CurrentRound {
   gameweek_id: string;
   /** The date this league's window opens. Not necessarily a Saturday. */
   starts_on: string; // ISO date (yyyy-mm-dd)
+  /**
+   * What members call this round — "Gameweek 12" (Batch 117).
+   *
+   * `LastResult` has carried this since Batch 79 and this had nothing, which is why home
+   * named the round it had finished with and never the one it was asking about.
+   *
+   * **Optional as well as nullable, and the two mean different things.** `null` is a round
+   * discovered before Batch 41 and so genuinely unnumbered; *absent* is the window between
+   * this batch's close-out and its `/ship-prod`, when Vercel is serving this field's reader
+   * and the API is not yet sending it. `roundName` treats both the same way and prints the
+   * date, which is why that fallback is the tested case here rather than the incidental one.
+   */
+  number?: number | null;
   status: GameweekStatus;
   locks_at_utc: string;
   /** When picks open; null when the league announces no opening. */

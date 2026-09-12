@@ -753,19 +753,65 @@ describe('the round’s phase decides what leads', () => {
       : 'slate-first';
   }
 
-  it('asks for a pick, and leads with the slate, while the member holds none', async () => {
+  /**
+   * Batch 117 settled this the other way, on the owner's instruction: the coupon leads in
+   * every phase. It used to lead only for `complete`, `locked_incomplete` and `settled` —
+   * only once there was nothing left to do about it — so for the whole window a member
+   * could act in, the thing the game builds toward was below a fixture list Batch 105
+   * sized for a hundred rows. What makes that affordable is the fold, asserted beside each
+   * of these: the section leads, and the slate is not pushed down by the membership.
+   */
+  it('leads with the coupon while the member still holds no pick', async () => {
     stubSlate(unclaimed(), { leg_count: 0, legs: [] });
     renderPage();
 
     expect(await screen.findByText('Pick required')).toBeTruthy();
     expect(screen.getByTestId('my-pick-summary').textContent).toMatch(/grab a selection below/i);
-    expect(order()).toBe('slate-first');
+    expect(order()).toBe('coupon-first');
   });
 
-  it('says the pick is in, and still leads with the slate, while others are missing', async () => {
+  it('leads with the coupon once the pick is in and others are missing', async () => {
     renderPage();
     expect(await screen.findByText('Pick submitted')).toBeTruthy();
-    expect(order()).toBe('slate-first');
+    expect(order()).toBe('coupon-first');
+  });
+
+  it('leads with the coupon before picks have even opened', async () => {
+    stubSlate({ status: 'scheduled', picks_open_at_utc: '2999-01-01T14:00:00' });
+    renderPage();
+
+    expect(await screen.findByText(/picks open in/i)).toBeTruthy();
+    expect(order()).toBe('coupon-first');
+  });
+
+  it('folds the legs away on first paint, so leading does not bury the slate', async () => {
+    renderPage();
+
+    await screen.findByText('Pick submitted');
+    expect(screen.getByTestId('coupon-toggle').getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByTestId('acca-leg-0')).not.toBeVisible();
+    // And the headline is still there, so leading with it says something.
+    expect(screen.getByText(/1-fold accumulator/i)).toBeVisible();
+  });
+
+  it('opens on the member’s own tap and stays open across a re-render', async () => {
+    // Half an hour out, so the clock counts seconds and a tick is observable inside the
+    // test's patience. The default slate locks far enough ahead to show whole days.
+    stubSlate({ locks_at_utc: naiveUtc(30) });
+    renderPage();
+
+    await screen.findByText('Pick submitted');
+    fireEvent.click(screen.getByTestId('coupon-toggle'));
+    expect(screen.getByTestId('acca-leg-0')).toBeVisible();
+
+    // The lock countdown re-renders this page every second. Waiting for it to tick is a
+    // real re-render rather than a simulated one, and the fold is not allowed to spring
+    // shut underneath somebody reading it.
+    const before = screen.getByTestId('round-clock').textContent;
+    await waitFor(() => {
+      expect(screen.getByTestId('round-clock').textContent).not.toBe(before);
+    });
+    expect(screen.getByTestId('acca-leg-0')).toBeVisible();
   });
 
   it('leads with the completed coupon once every member has picked', async () => {
@@ -820,5 +866,30 @@ describe('the copy section', () => {
     renderPage();
     const section = await screen.findByTestId('coupon-section');
     expect(document.activeElement).not.toBe(section);
+  });
+
+  /**
+   * Batch 117 folded the legs away, which puts a new way to fail at the end of every path
+   * that was built to put a member in front of the coupon: they arrive, they are focused,
+   * and the thing they came for is closed. Owner decision, taken as the row's own reading:
+   * arriving opens it, which does mean the section's open state is not purely the
+   * member's — that is the trade, and it is the right way round, because all three ways in
+   * exist for one purpose.
+   */
+  it('opens itself when the URL names it, so an arrival is not met by a closed fold', async () => {
+    renderPage(['/leagues/the-coupon/predictions#coupon']);
+
+    await screen.findByTestId('coupon-section');
+    await waitFor(() =>
+      expect(screen.getByTestId('coupon-toggle').getAttribute('aria-expanded')).toBe('true'),
+    );
+    expect(screen.getByTestId('acca-leg-0')).toBeVisible();
+  });
+
+  it('stays folded for a member who simply opened the page', async () => {
+    renderPage();
+
+    await screen.findByTestId('coupon-section');
+    expect(screen.getByTestId('coupon-toggle').getAttribute('aria-expanded')).toBe('false');
   });
 });

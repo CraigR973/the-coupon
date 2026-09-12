@@ -9,7 +9,6 @@ import {
   fixtureContext,
   selectionSummary,
   roundPhase,
-  couponLeads,
   selectionKey,
   pickStatusLabel,
   roundName,
@@ -305,13 +304,3 @@ describe('roundPhase', () => {
   });
 });
 
-describe('couponLeads', () => {
-  it('puts the coupon first exactly when it is worth having', () => {
-    expect(couponLeads('complete')).toBe(true);
-    expect(couponLeads('locked_incomplete')).toBe(true);
-    expect(couponLeads('settled')).toBe(true);
-    expect(couponLeads('open')).toBe(false);
-    expect(couponLeads('submitted')).toBe(false);
-    expect(couponLeads('not_open')).toBe(false);
-  });
-});

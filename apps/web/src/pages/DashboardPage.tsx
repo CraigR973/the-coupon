@@ -373,6 +373,11 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
   const { label: stateLabel, variant: stateVariant } = HOME_CARD_STATE[state];
   const showFigures = showsCouponFigures(state) && !!round && round.leg_count > 0;
   const lastRound = lastRoundView(entry);
+  // The card names its round only while it is *about* it. `between_rounds` covers two
+  // shapes: a round whose picks have not opened, where the clock counts down to that
+  // round's own opening and naming it is the point; and a settled round, where the clock
+  // is already counting the *next* one and `Last result` below names the settled one.
+  const namesRound = state !== 'between_rounds' || notOpenYet;
 
   // The clock belongs to whichever round the state is about — this one while it is live,
   // the next one once this one is done with. They are never both on screen.
@@ -408,6 +413,20 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
           </div>
           <ArrowRight className="h-5 w-5 shrink-0 text-text-muted" aria-hidden />
         </div>
+
+        {/* Batch 117. The card above `Last result` named no round at all, so home said
+            "Last result · Gameweek 4" over a live card the member could not identify —
+            the only thing on the screen they might still act on. Printed exactly when the
+            body and the clock are about *this* round: a settled card's clock counts down
+            to the next round's opening, and `Last result` below already names that one. */}
+        {namesRound && round && (
+          <p
+            className="mb-2 truncate font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted"
+            data-testid={`home-round-${entry.slug}`}
+          >
+            {roundName(round.number, formatCalendarDate(round.starts_on, 'EEE d MMM'))}
+          </p>
+        )}
 
         <div
           className="mb-3 flex flex-wrap items-center justify-between gap-2"

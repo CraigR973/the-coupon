@@ -2066,6 +2066,12 @@ async def test_cross_league_summary_carries_each_leagues_current_round(
     current = by_slug[playing.slug]["current_round"]
     assert current["gameweek_id"] == str(gameweek.id)
     assert current["status"] == "open"
+    # Batch 117. `LastResult` carried this and `CurrentRound` did not, so home named the
+    # round it had finished with and never the one it was asking about. It is the same
+    # number the round was assigned at discovery — asserted against the row rather than
+    # against a literal, because a shared database makes the sequence depend on what else
+    # the league already holds.
+    assert current["number"] == gameweek.number
     assert current["leg_count"] == 2, "the whole league's acca, not just the caller's leg"
     assert current["combined_odds"] == 4.56  # 1.9 × 2.4
     assert current["my_pick"]["home"] == "Arsenal"

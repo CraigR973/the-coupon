@@ -364,6 +364,11 @@ describe('the completion hand-off', () => {
       ),
     );
     await waitFor(() => expect(document.activeElement?.id).toBe('coupon'));
+    // And open, since Batch 117 folded the legs away. The hand-off exists to put a member
+    // in front of the finished coupon; landing them on a closed accordion would undo it.
+    await waitFor(() =>
+      expect(screen.getByTestId('coupon-toggle').getAttribute('aria-expanded')).toBe('true'),
+    );
   });
 
   it('never writes to the clipboard on its own', async () => {

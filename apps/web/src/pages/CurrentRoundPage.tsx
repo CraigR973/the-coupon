@@ -26,7 +26,7 @@ import type {
   SelectionOption,
 } from '../lib/types';
 import { competitionRank } from '../lib/competitions';
-import { couponLeads, fixtureContext, outcomeLabel, roundName, roundPhase } from '../lib/coupon';
+import { fixtureContext, outcomeLabel, roundName, roundPhase } from '../lib/coupon';
 import { COUPON_SECTION_HASH, COUPON_SECTION_ID, couponSectionPath } from '../lib/leagues';
 import { formatCalendarDate } from '../lib/time';
 import { PageHeader } from '../components/PageHeader';
@@ -144,6 +144,11 @@ export function CurrentRoundPage() {
   const { hasLeagues, isLoading: leaguesLoading } = useLeague();
   const gameweekId = useSelectedGameweekId();
   const { hash } = useLocation();
+  // Closed on first paint, and owned here rather than inside the section because three
+  // things outside it open it on arrival (Batch 117). A page-level `useState` survives
+  // every re-render this screen does — the countdown ticks once a second — and resets only
+  // when the member navigates to a different round, which is the right moment to re-fold.
+  const [couponOpen, setCouponOpen] = useState(false);
 
   const {
     data: slate,
@@ -260,6 +265,11 @@ export function CurrentRoundPage() {
   // it should also be where the keyboard is.
   useEffect(() => {
     if (hash !== COUPON_SECTION_HASH) return;
+    // Opened as well as focused, since Batch 117 folded the legs away: all three ways in
+    // exist to put a member in front of a finished coupon, and every one of them would
+    // otherwise land them on a closed accordion. The section element itself always
+    // renders, so focus and scroll are unaffected by the fold.
+    setCouponOpen(true);
     focusCouponSection();
   }, [hash, coupon?.gameweek_id, slate?.gameweek_id]);
 
@@ -274,6 +284,7 @@ export function CurrentRoundPage() {
   const openCompletedCoupon = () => {
     if (!completion) return;
     dismissCompletion();
+    setCouponOpen(true);
     navigate(couponSectionPath(slug, completion.gameweekId));
     focusCouponSection();
   };
@@ -307,8 +318,6 @@ export function CurrentRoundPage() {
           ? 'Picks are locked'
           : `Picks lock in ${formatCountdown(countdown)}`;
 
-  const couponFirst = couponLeads(phase);
-
   const couponBlock = slate ? (
     <CouponSection
       coupon={coupon}
@@ -317,6 +326,8 @@ export function CurrentRoundPage() {
       memberCount={memberCount}
       roundLabel={roundLabel}
       oddsFormat={oddsFormat}
+      open={couponOpen}
+      onToggle={() => setCouponOpen((v) => !v)}
     />
   ) : null;
 
@@ -440,9 +451,14 @@ export function CurrentRoundPage() {
         />
       )}
 
+      {/* The coupon leads, in every phase (Batch 117). It used to lead only once the round
+          was complete, locked or settled — only once there was nothing left to do about it
+          — so for the whole window a member could act in, the thing the game builds toward
+          was below a fixture list sized for a hundred rows. Its legs fold away, which is
+          what stops leading with it pushing the slate down by the league's membership. */}
       <div className="flex flex-col gap-6">
-        {couponFirst ? couponBlock : slateBlock}
-        {couponFirst ? slateBlock : couponBlock}
+        {couponBlock}
+        {slateBlock}
       </div>
     </div>
   );

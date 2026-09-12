@@ -60,6 +60,7 @@ const SUMMARY: CrossLeagueSummary = {
       current_round: {
         gameweek_id: 'gw-a',
         starts_on: '2026-08-22',
+        number: 6,
         status: 'open',
         locks_at_utc: FAR_FUTURE,
         picks_open_at_utc: null,
@@ -538,6 +539,92 @@ describe('the week just gone', () => {
  * card's body with `Next opens in 2d` beside them. Nothing said the two belonged to
  * different rounds, so the odds read as the price of the round being counted down to.
  */
+/**
+ * Batch 117, from the owner's live use: "last result says Gameweek 4 and this week says
+ * nothing". `LastResult` carried `number` and `CurrentRound` did not, so the live card —
+ * the one with the deadline, the member's own claim and the progress count — was the only
+ * thing on the screen a member could not identify.
+ *
+ * Both directions are tested because both are live states. The API sends `number` after
+ * this batch's `/ship-prod`; between close-out and that shipment Vercel is serving this
+ * code against an API that does not, and the card has to print the date rather than a
+ * blank or a "Gameweek ?" placeholder.
+ */
+describe('the card names its round', () => {
+  it('by number when the API sends one', async () => {
+    renderPage();
+
+    const label = await screen.findByTestId('home-round-the-coupon');
+    expect(label.textContent).toBe('Gameweek 6');
+  });
+
+  it('by date when the API is older than this field', async () => {
+    renderPage();
+
+    // `work-league`'s round carries no `number` at all — the shape an un-shipped API sends.
+    const label = await screen.findByTestId('home-round-work-league');
+    expect(label.textContent).toMatch(/Sat 22 Aug/);
+  });
+
+  it('by date when the round genuinely has no number', async () => {
+    stubFetch({
+      ...SUMMARY,
+      per_league: [
+        {
+          ...SUMMARY.per_league[0],
+          current_round: { ...SUMMARY.per_league[0].current_round!, number: null },
+        },
+      ],
+    });
+    renderPage();
+
+    const label = await screen.findByTestId('home-round-the-coupon');
+    expect(label.textContent).toMatch(/Sat 22 Aug/);
+  });
+
+  /**
+   * A settled card's clock is already counting down to the *next* round's opening, and
+   * `Last result` below names the settled one. Naming it twice, once against a clock that
+   * is about something else, would be the confusion this batch exists to remove.
+   */
+  it('and stays quiet on a settled card, where Last result already names it', async () => {
+    stubFetch({
+      ...SUMMARY,
+      per_league: [
+        {
+          ...SUMMARY.per_league[0],
+          current_round: { ...SUMMARY.per_league[0].current_round!, status: 'settled' },
+        },
+      ],
+    });
+    renderPage();
+
+    await screen.findByTestId('home-card-the-coupon');
+    expect(screen.queryByTestId('home-round-the-coupon')).toBeNull();
+  });
+
+  it('but does name a round whose picks have not opened yet', async () => {
+    stubFetch({
+      ...SUMMARY,
+      per_league: [
+        {
+          ...SUMMARY.per_league[0],
+          current_round: {
+            ...SUMMARY.per_league[0].current_round!,
+            status: 'scheduled',
+            picks_open_at_utc: FAR_FUTURE,
+          },
+        },
+      ],
+    });
+    renderPage();
+
+    // The clock here counts down to *this* round's opening, so the card is about it.
+    const label = await screen.findByTestId('home-round-the-coupon');
+    expect(label.textContent).toBe('Gameweek 6');
+  });
+});
+
 describe('a league card’s state', () => {
   /** `SUMMARY`'s first league only, patched. */
   function onlyFirst(entry: Partial<CrossLeagueSummary['per_league'][number]>) {

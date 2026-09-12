@@ -92,6 +92,15 @@ class CurrentRound(BaseModel):
 
     gameweek_id: str
     starts_on: date
+    #: What members call this round — "Gameweek 12". ``None`` on a round discovered
+    #: before Batch 41, exactly as on :class:`LastResult`.
+    #:
+    #: Batch 117, from the owner's live use, and the whole reason that batch has an API
+    #: half. Home printed ``Last result · Gameweek 4`` above a live card that named no
+    #: round at all — the one thing on the screen a member might still act on, and the
+    #: only one they could not identify. ``LastResult`` carried ``number`` and this did
+    #: not, so the frontend could not fix it alone: ``roundName`` had nothing to call.
+    number: int | None
     status: str
     locks_at_utc: UtcDatetime
     # When picks open, or ``null`` when the league announces no opening (Batch 27). The
@@ -379,6 +388,7 @@ async def _latest_rounds(
             Gameweek.id,
             Gameweek.league_id,
             Gameweek.starts_on,
+            Gameweek.number,
             Gameweek.status,
             Gameweek.locks_at_utc,
             Gameweek.picks_open_at_utc,
@@ -430,6 +440,7 @@ async def _latest_rounds(
         row.league_id: CurrentRound(
             gameweek_id=str(row.id),
             starts_on=row.starts_on,
+            number=row.number,
             status=row.status.value,
             locks_at_utc=row.locks_at_utc,
             picks_open_at_utc=row.picks_open_at_utc,

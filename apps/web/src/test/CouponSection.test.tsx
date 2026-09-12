@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { axe } from 'jest-axe';
 import userEvent from '@testing-library/user-event';
 import { CouponSection } from '@/components/CouponSection';
 import { entriesForRound } from '@/components/PickRow';
@@ -70,6 +71,13 @@ interface Options {
   memberCount?: number;
   members?: GameweekMember[];
   myPlayerId?: string;
+  /**
+   * Batch 117 folded the legs away. These tests are about what the section *says*, so the
+   * default here is expanded; the fold itself is asserted in its own block below, where the
+   * open state is the subject rather than the setup.
+   */
+  open?: boolean;
+  onToggle?: () => void;
 }
 
 function renderSection(value: Coupon, options: Options = {}) {
@@ -82,6 +90,8 @@ function renderSection(value: Coupon, options: Options = {}) {
       memberCount={options.memberCount ?? value.leg_count}
       roundLabel="Gameweek 4"
       oddsFormat="decimal"
+      open={options.open ?? true}
+      onToggle={options.onToggle ?? (() => {})}
     />,
   );
 }
@@ -383,5 +393,95 @@ describe('a round being played', () => {
       { phase: 'settled' },
     );
     expect(screen.queryByText('Live')).toBeNull();
+  });
+});
+
+/**
+ * Batch 117. The coupon now leads the page in every phase, which it could not do while it
+ * rendered one row per member — the slate would have started a screen and a half down on a
+ * full league. The fold is the other half of that change, so it is asserted as behaviour
+ * rather than assumed as styling.
+ */
+describe('CouponSection — the legs fold away', () => {
+  it('hides the legs when closed and keeps the fold, the price and the copy control', () => {
+    renderSection(coupon(), { open: false });
+
+    // The headline stays: it is fixed-height and it is the answer to "what is riding on
+    // this round", which is what makes leading with the section worth doing.
+    expect(screen.getByText(/2-fold accumulator/i)).toBeVisible();
+    expect(screen.getByText('3.50')).toBeVisible();
+    expect(screen.getByRole('button', { name: /copy text/i })).toBeVisible();
+
+    // The membership-sized part does not.
+    expect(screen.getByTestId('acca-leg-0')).not.toBeVisible();
+    expect(screen.getByTestId('acca-leg-1')).not.toBeVisible();
+  });
+
+  it('shows the legs when open', () => {
+    renderSection(coupon(), { open: true });
+
+    expect(screen.getByTestId('acca-leg-0')).toBeVisible();
+    expect(screen.getByTestId('acca-leg-1')).toBeVisible();
+  });
+
+  it('reports its state to a screen reader and names what it controls', () => {
+    const { unmount } = renderSection(coupon(), { open: false });
+    const closed = screen.getByTestId('coupon-toggle');
+    expect(closed.getAttribute('aria-expanded')).toBe('false');
+    expect(closed.getAttribute('aria-controls')).toBe('coupon-legs');
+    unmount();
+
+    renderSection(coupon(), { open: true });
+    expect(screen.getByTestId('coupon-toggle').getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('asks the page to toggle rather than deciding for itself', async () => {
+    const onToggle = vi.fn();
+    renderSection(coupon(), { open: false, onToggle });
+
+    await userEvent.click(screen.getByTestId('coupon-toggle'));
+
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts the legs on the header, so a closed section still says how full it is', () => {
+    renderSection(coupon(), { open: false, memberCount: 4 });
+
+    expect(screen.getByTestId('coupon-toggle').textContent).toContain('2 of 4');
+  });
+
+  it('says so on the header when nobody has picked', () => {
+    renderSection(coupon({ leg_count: 0, legs: [], combined_odds: 1 }), {
+      open: false,
+      memberCount: 0,
+    });
+
+    expect(screen.getByTestId('coupon-toggle').textContent).toContain('No picks yet');
+  });
+});
+
+describe('CouponSection — the accordion is reachable', () => {
+  // jsdom cannot evaluate CSS custom properties, so contrast is checked by
+  // `contrast.test.ts` against the tokens instead. Every other rule runs at full severity.
+  const AXE_CONFIG = { rules: { 'color-contrast': { enabled: false } } };
+
+  it('has no axe violations closed', async () => {
+    const { container } = renderSection(coupon(), { open: false });
+    expect(await axe(container, AXE_CONFIG)).toHaveNoViolations();
+  });
+
+  it('has no axe violations open', async () => {
+    const { container } = renderSection(coupon(), { open: true });
+    expect(await axe(container, AXE_CONFIG)).toHaveNoViolations();
+  });
+
+  it('keeps the heading a heading, so the section is still navigable by landmark', () => {
+    renderSection(coupon(), { open: false });
+
+    const heading = screen.getByRole('heading', { name: /the coupon/i });
+    expect(heading.id).toBe('coupon-section-heading');
+    expect(screen.getByTestId('coupon-section').getAttribute('aria-labelledby')).toBe(
+      'coupon-section-heading',
+    );
   });
 });
