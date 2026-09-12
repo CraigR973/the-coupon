@@ -2948,3 +2948,84 @@ durable dump, under the owner's 2026-07-30 deferral.
 
 `scripts/check-deploy-drift.sh` reports **in sync**: `origin/main` and the deployed API both
 at `daa4bd5c`, migration `022`.
+
+## Shipment — 2026-09-12, `b95d81dd` (Batches 112 and 116, migration `024`)
+
+Source commit `b95d81dd6bdcf8f4a78aad247e6f1fb912d47983`, carrying Batch 112 (`282db2a`,
+retiring stranded rounds and removing the per-league ad-hoc endpoint), Batch 116
+(`b7afab2` + `7967e4d`, a pick alert that names its fixture, and item 2 resolved to no code
+change), their close-outs, and the approved `024` recovery plan. `ci-local.sh` PASS (11
+checks) from the clean checkout; a GitHub Actions run exists for the shipped commit itself
+and is green; `git diff --check` clean; repository at a sole Alembic head of `024`.
+
+**Shipped after the day's lock, deliberately.** 2-1 Hibs locked at 13:30 UTC and preflight
+began at 13:49, so no round was taking picks during the deploy. The twelve picks that round
+carries were `pending` throughout and are untouched — settlement runs at 18:00/20:00/22:00
+London and needs only that the service is healthy, which it is.
+
+Preflight confirmed by read-only inspection, never from cached CLI state: project
+`the-coupon-production`, environment `production` and service `api` each the sole entry
+under the recorded IDs; `railwayConfigFile` **null**; 13 of 13 required Railway variables
+present by name alone, with **zero** `ODDS_CACHE_*` keys — the temporary override retired
+on 2026-09-06 has stayed retired. **A `vercel list` run without the production project
+pinned returned the *staging* project's deployments**, exactly the trap section 4 documents;
+the production listing was re-taken through the API with `projectId` explicit, and the
+rollback baseline below comes from that.
+
+Rollback baselines: Railway **`f5113599-b122-45a5-8d0a-4251f8142c02`** (`7dd8f3d`, head
+`023`) and Vercel **`dpl_FPZhDSWGZQTzKm3uV8ne6cCTub8U`** (`8447dd6`). **The Railway one
+stopped being usable the moment `024` applied** — every pre-`024` image ships revisions up
+to `023` only and fails to boot against a migrated database. It is a record, not a target.
+
+IaC: `config plan` reported `0 to add, 2 to change, 0 to destroy` against the `api` service
+only — the same four fields (`build.nixpacksConfigPath`, `deploy.numReplicas`,
+`deploy.restartPolicyType`, `deploy.sleepApplication`) the `022`, `023` and `daa4bd5c`
+shipments also applied, `destructive: false`. Applied from the pinned plan with `--yes`, no
+`--confirm-destructive`, plan file removed. **Unlike the last shipment this apply minted a
+redeploy** — `acd0b32e-2e14-4813-85a7-a712f54d6a7f`, a redeploy of the then-current
+`7dd8f3d` image — which was polled to `SUCCESS` before any source was uploaded, as the
+workflow requires so that two images never run boot migrations at once.
+
+`RAILWAY_GIT_COMMIT_SHA` stamped to `b95d81dd…` with `--skip-deploys`, worktree re-checked
+clean immediately before the upload, `railway up` with every selector explicit: deployment
+**`9f158e05-c60f-4442-a422-1faa92687104`**, `SUCCESS` in about seventy seconds, message
+`ship production b95d81d — Batches 112 and 116, migration 024`, `imageDigest
+sha256:b66dfd0fa6b407df68987dc28c5371472285d3147eea3c3f173cc722c402674b`.
+
+Section 4 skipped by design: Vercel's GitHub integration had already built `b95d81dd` as
+`dpl_Buq9PZGxhD29wCAaKjC935PDkHJf`, holding the stable alias — confirmed by reading
+`meta.githubCommitSha` from the Vercel API, not inferred from timing.
+
+Post-deploy: `/health` reports sha `b95d81dd…` and migration `024`; `/health/ready` agrees
+at `024` with `db: ok`. The deployment manifest confirms `numReplicas: 1`,
+`multiRegionConfig: { "europe-west4-drams3a": { numReplicas: 1 } }`, `sleepApplication:
+false`, `ipv6EgressEnabled: true`, `healthcheckPath /api/v1/health/ready` at `300`,
+`restartPolicyType ON_FAILURE` ×3, `limitOverride.containers` `cpu 0.25` /
+`memoryBytes 500000000`, `builder NIXPACKS` with `nixpacksConfigPath /nixpacks.toml`.
+
+**The boot log contains exactly one `Running upgrade 023 -> 024` line**, which is the
+recovery plan's first post-deploy check. Across 95 lines: zero errors, zero tracebacks,
+zero 5xx, and zero hits on all five leakage patterns. The scheduler started with its jobs
+registered.
+
+The plan's remaining checks, read back in-container: head `024`; all four columns present
+on `gameweek_completions` as nullable with no default (`market` and `outcome` on the reused
+`pick_market` / `pick_outcome` types — **no enum type was added**); column count 9 → 13 with
+the index count unchanged at 2; **2 rows, 0 of them populated**, so nothing was backfilled;
+RLS still **enabled and forced** with zero `anon`/`authenticated`/`PUBLIC` grants; and the
+twelve pending picks still pending.
+
+Combined smoke: the stable web root, `/football` and
+`/leagues/2-1-hibs/predictions` all return 200 and serve a byte-identical SPA shell,
+retaining `strict-transport-security`, `nosniff`, `referrer-policy`, `permissions-policy`
+and `cache-control`. CORS preflight from the exact recorded origin returns 200 with the
+matching `access-control-allow-origin` and `access-control-allow-credentials: true`.
+**Batch 112's removal verified live**: `POST /api/v1/leagues/{slug}/gameweeks` answers
+`405` while `GET` on the same path still answers `401` — the method is gone, the collection
+is not. Readiness and migration head rechecked afterwards and still agree at `024`.
+
+Backup/restore-point identity: **none** — production has no managed backup, no PITR and no
+durable dump, under the owner's 2026-07-30 deferral.
+
+`scripts/check-deploy-drift.sh` reports **in sync**: `origin/main` and the deployed API both
+at `b95d81dd`, migration `024`.
