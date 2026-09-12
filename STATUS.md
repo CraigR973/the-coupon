@@ -1364,6 +1364,18 @@ ten had been costing the whole card its prices (`fixtures=202 priced=0`, three t
 evening); a refused chunk is now isolated and the expired id inside it is found and recorded.
 **No migration — head stays `023`**, deliberately, so a rollback stays available.
 
+**Batch 117 — home named the round it had finished with, and the coupon was last on the
+coupon page.** Closed out 2026-09-12 (`bf87f0a`). `LastResult` had carried `number` since
+Batch 79 and `CurrentRound` had nothing, so the live card — the deadline, the member's own
+claim, the progress count — was the only thing on home a member could not identify. The API
+now sends it and the card names its round exactly when the card is about that round. The
+coupon leads the page in every phase instead of only once there was nothing left to do about
+it, and its legs fold away so leading with it does not push the slate down by the league's
+membership. **A second owner decision was taken rather than deferred:** arriving via the
+completion notice, the `#coupon` fragment or `focusCouponSection` opens the section. **The
+web half is live from the push and the `number` field is not** — between now and `/ship-prod`
+the card prints the round's date, which is the tested case.
+
 **Batch 118 — the first impression described a flow that had been deleted.** Closed out
 2026-09-12 (`a29662a`), web-only, so it reached members on the push. The invite message told
 recipients to "sign in with the display name and PIN from your admin" three weeks after public

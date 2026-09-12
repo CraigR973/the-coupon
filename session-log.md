@@ -3553,3 +3553,34 @@ soft-blocked.
   PIN` and `your admin` and stayed green for three weeks while the flow it described was gone.
 
 **Next:** `/ship-prod` (Batch 119's API half is owed), then Batch 117.
+
+## Batch 117 — Home names the round it has finished with, and the coupon is last on the coupon page
+**Commits:** bf87f0a · verified: `scripts/ci-local.sh` PASS (11 checks), first attempt
+
+### Key facts for future sessions
+- **A second owner decision was taken rather than deferred.** The row asks what a deep link
+  should do to a collapsed section and calls auto-expanding "the obvious answer"; nobody was
+  there to confirm it, so it was taken. All three ways into the section — the completion
+  notice, the `#coupon` fragment a push notification carries, and `focusCouponSection` — now
+  open it. The cost is that the open state is not purely the member's, and it is one line in
+  each of the three call sites if the owner wants it back.
+- **`CurrentRound.number` is optional *and* nullable on the web side, and the two are
+  different facts.** `null` is a round discovered before Batch 41; *absent* is the window
+  between this close-out and its `/ship-prod`, which is live right now. `roundName` prints
+  the date for both, and `DashboardPage.test.tsx` tests the absent case explicitly by leaving
+  `number` off `work-league`'s fixture.
+- **The fold is the legs, not the whole section.** The fold count, the frozen price and the
+  copy control stay visible when it is closed — they are fixed-height, and they are what
+  makes leading with the section worth doing at all. What folds is the one row per member,
+  which is the part that would have pushed the slate down by the league's membership.
+- **The open state lives on the page, not in `CouponSection`.** Three things outside the
+  component open it on arrival, and a page-level `useState` also survives the once-a-second
+  re-render the lock countdown causes. `CurrentRoundPage.test.tsx` asserts that by waiting
+  for the clock text to change rather than by simulating a render.
+- **`couponLeads` is deleted.** With the coupon always leading it had no callers; its tests
+  went with it rather than being left asserting a rule nothing consults.
+- **This batch is why a `/ship-prod` matters twice over.** The web half is live from this
+  push and prints dates where it will print "Gameweek 6" once the API ships `number`.
+
+**Next:** `/ship-prod` — Batch 119's API half and Batch 117's `number` are both owed. Then
+Batch 116 (migration `024`, merged but not shipped).

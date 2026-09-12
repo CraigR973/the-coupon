@@ -3802,8 +3802,8 @@ answered until it lands, because until then there is no data to look at.
   manifest line if item 2 resolves that way — otherwise no web half, so nothing reaches
   members until `/ship-prod`.** Independent of Batches 112, 113 and 115.
 
-- [ ] **Batch 117 — Home names the round it has finished with and never the one it is asking
-  about, and the coupon is the last thing on the coupon page**
+- [x] **Batch 117 — Home names the round it has finished with and never the one it is asking
+  about, and the coupon is the last thing on the coupon page** ✅ 2026-09-12
   Specified 2026-09-11 from the owner's live use. Two complaints about the same failure from
   opposite ends: a member cannot tell which round a surface is talking about, and the thing
   the whole game builds toward is below the fold for the entire window in which it can be
