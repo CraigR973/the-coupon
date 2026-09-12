@@ -1783,94 +1783,34 @@ class _BrokenCatalogue(FakeBetfair):
         raise OddsProviderAPIError("upstream unreachable")
 
 
-async def test_ad_hoc_gameweek_creates_a_filtered_round_and_is_idempotent(
+async def test_the_ad_hoc_round_endpoint_is_gone(
     client_and_fake: tuple[AsyncClient, FakeBetfair],
 ) -> None:
-    """An admin can create a round on an arbitrary date; the competition filter applies."""
-    client, _ = client_and_fake
-    async with AsyncSessionLocal() as session:
-        (alice,), league = await _seed_league(session, ["adhoc"])
-    await _make_admin(league, alice)
-    slug = league.slug
+    """Batch 112 removed it, and "removed" means the route is not there.
 
-    # Narrow to the EPL before creating the round, so the filter is exercised on a fresh card.
-    await client.patch(
-        f"/api/v1/leagues/{slug}",
-        json={"competitions": [{"slug": SAMPLE_EPL_ID, "name": "English Premier League"}]},
-        headers=_auth(alice),
-    )
+    Three tests stood here — a filtered round, its rate limit, and its 422 on a barren
+    date. They went with the endpoint. What replaces them is the assertion that nothing was
+    left behind: a league's rounds are its cadence and nothing else, and an extra week
+    becomes a deployment-level fact in Batch 113 rather than a per-league write.
 
-    r = await client.post(
-        f"/api/v1/leagues/{slug}/gameweeks",
-        json={"starts_on": SAMPLE_SATURDAY.isoformat()},
-        headers=_auth(alice),
-    )
-    assert r.status_code == 201, r.text
-    created = r.json()
-    assert created["created"] is True
-    assert created["fixture_count"] == 1, "only the EPL fixture, not the Scottish one"
-    gwid = created["gameweek_id"]
-
-    # The single fixture on the round is the EPL one.
-    slate = (
-        await client.get(
-            f"/api/v1/leagues/{slug}/gameweek/current?gameweek_id={gwid}", headers=_auth(alice)
-        )
-    ).json()
-    assert [f["home"] for f in slate["fixtures"]] == ["Arsenal"]
-
-    # Re-posting the same date refreshes in place — same round, created=false.
-    again = await client.post(
-        f"/api/v1/leagues/{slug}/gameweeks",
-        json={"starts_on": SAMPLE_SATURDAY.isoformat()},
-        headers=_auth(alice),
-    )
-    assert again.status_code == 201
-    assert again.json()["gameweek_id"] == gwid and again.json()["created"] is False
-
-
-async def test_ad_hoc_gameweek_is_rate_limited_to_what_the_request_budget_allows(
-    client_and_fake: tuple[AsyncClient, FakeBetfair],
-) -> None:
-    """The only provider call left in the request path, so the limit is the guard.
-
-    An unconfigured league's call is one ``/events`` per UK competition — the cost of a
-    whole discovery run — and exhausting odds-api.io's quota is silent: picks simply stay
-    ``pending`` and the week never finishes. The arithmetic behind the number is asserted
-    in ``tests/test_request_budget.py``; this pins that it is actually enforced.
+    A `405` rather than a `404` because `GET /{slug}/gameweeks` — the season list — still
+    lives at this path. That is the point of asserting it: the method is gone, the
+    collection is not.
     """
     client, _ = client_and_fake
     async with AsyncSessionLocal() as session:
-        (alice,), league = await _seed_league(session, ["limited"])
+        (alice,), league = await _seed_league(session, ["noadhoc"])
     await _make_admin(league, alice)
 
-    async def create() -> Response:
-        return await client.post(
-            f"/api/v1/leagues/{league.slug}/gameweeks",
-            json={"starts_on": SAMPLE_SATURDAY.isoformat()},
-            headers=_auth(alice),
-        )
-
-    assert (await create()).status_code == 201
-    assert (await create()).status_code == 201, "re-posting the same date is still allowed"
-    assert (await create()).status_code == 429
-
-
-async def test_ad_hoc_gameweek_with_no_fixtures_is_a_422(
-    client_and_fake: tuple[AsyncClient, FakeBetfair],
-) -> None:
-    """A date the provider prices nothing for is a clear error, not an empty round."""
-    client, _ = client_and_fake
-    async with AsyncSessionLocal() as session:
-        (alice,), league = await _seed_league(session, ["barren"])
-    await _make_admin(league, alice)
-
-    r = await client.post(
+    posted = await client.post(
         f"/api/v1/leagues/{league.slug}/gameweeks",
-        json={"starts_on": date(2030, 1, 5).isoformat()},
+        json={"starts_on": SAMPLE_SATURDAY.isoformat()},
         headers=_auth(alice),
     )
-    assert r.status_code == 422 and r.json()["detail"] == "NO_FIXTURES"
+
+    assert posted.status_code == 405, posted.text
+    listed = await client.get(f"/api/v1/leagues/{league.slug}/gameweeks", headers=_auth(alice))
+    assert listed.status_code == 200, "the season list is untouched"
 
 
 async def test_config_surfaces_are_gated_to_admins(
@@ -1890,13 +1830,6 @@ async def test_config_surfaces_are_gated_to_admins(
     ).status_code == 403
     assert (
         await client.get(f"/api/v1/leagues/{slug}/competitions", headers=_auth(bob))
-    ).status_code == 403
-    assert (
-        await client.post(
-            f"/api/v1/leagues/{slug}/gameweeks",
-            json={"starts_on": "2027-12-26"},
-            headers=_auth(bob),
-        )
     ).status_code == 403
     # The admin is allowed the catalogue.
     assert (

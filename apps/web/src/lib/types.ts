@@ -711,24 +711,6 @@ export interface CompetitionCatalogue {
   selected: CompetitionRef[];
 }
 
-/** POST /leagues/{slug}/gameweeks — the result of creating an ad-hoc round. */
-export interface AdHocGameweekResult {
-  gameweek_id: string;
-  starts_on: string;
-  status: GameweekStatus;
-  locks_at_utc: string;
-  /** When picks open; null when the league announces no opening. */
-  picks_open_at_utc: string | null;
-  /**
-   * What members call this round — "Gameweek 12". Optional and nullable: the web app
-   * deploys ahead of the API, and a round discovered before Batch 41 has no number.
-   * Absent means label the round by its date alone.
-   */
-  number?: number | null;
-  fixture_count: number;
-  /** True when this call created the round; false when it refreshed an existing one. */
-  created: boolean;
-}
 
 /** One round in a `POST /leagues/{slug}/gameweeks/refresh` result. */
 export interface RefreshedRound {

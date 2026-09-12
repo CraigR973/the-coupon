@@ -217,15 +217,19 @@ describe('LeagueSettingsPage — admin configuration (Batch 15)', () => {
     expect(api.patch?.competitions).toEqual([{ slug: 'retired', name: 'Retired Cup' }]);
   });
 
-  it('creates an ad-hoc round for a chosen date', async () => {
-    const api = stubApi();
+  it('offers no way to add a one-off round (Batch 112)', async () => {
+    // The card and its endpoint are gone: a league's rounds are its cadence and nothing
+    // else, because an off-cadence round is one `retire_stranded_rounds` cannot tell from
+    // one a window edit left behind without storing where it came from. An extra week
+    // becomes a deployment-level fact in Batch 113 instead. Asserted rather than deleted,
+    // so the card cannot quietly return without this failing.
+    stubApi();
     renderPage();
-    const dateInput = await screen.findByLabelText(/round date/i);
-    fireEvent.change(dateInput, { target: { value: '2027-12-26' } });
-    fireEvent.click(screen.getByRole('button', { name: /create round/i }));
+    await screen.findByRole('button', { name: /save changes/i });
 
-    await waitFor(() => expect(api.post).not.toBeNull());
-    expect(api.post?.starts_on).toBe('2027-12-26');
+    expect(screen.queryByLabelText(/round date/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /create round/i })).toBeNull();
+    expect(screen.queryByText(/one-off round/i)).toBeNull();
   });
 });
 

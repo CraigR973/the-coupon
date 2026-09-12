@@ -797,12 +797,54 @@ async def _bare_round(session: AsyncSession, league: League, starts_on: date) ->
     return gameweek
 
 
+async def _claim(session: AsyncSession, league: League, gameweek: Gameweek) -> Pick:
+    """One member's claim on a round, which is what keeps it alive after Batch 112.
+
+    Retirement deletes an off-cadence round that holds no picks, so a test that wants to
+    watch discovery *refresh* one has to give it the thing that makes it legitimate. That
+    is the narrowing, not a workaround: an unclaimed round off the cadence is precisely
+    what a window edit strands, and the batch exists to take those away.
+    """
+    tag = uuid.uuid4().hex[:8]
+    player = Profile(display_name=f"claimer-{tag}", pin_hash="x", role=UserRole.player)
+    fixture = Fixture(
+        provider_event_id=f"claimed-{tag}",
+        home="Forfar Athletic",
+        away="Brechin City",
+        kickoff_utc=datetime.combine(gameweek.starts_on, datetime.min.time()),
+        competition="Scotland - League Two",
+        competition_id="scotland-league-two",
+    )
+    session.add_all([player, fixture])
+    await session.flush()
+    pick = Pick(
+        league_id=league.id,
+        gameweek_id=gameweek.id,
+        fixture_id=fixture.id,
+        player_id=player.id,
+        market=PickMarket.MATCH_ODDS,
+        outcome=PickOutcome.HOME,
+        runner_name="Forfar Athletic",
+        odds_at_pick=Decimal("2.00"),
+    )
+    session.add(pick)
+    await session.flush()
+    return pick
+
+
 async def test_discovery_refreshes_an_unlocked_round_off_the_cadence(
     session: AsyncSession,
 ) -> None:
-    """The Boxing Day case: nothing else would ever revisit this round."""
+    """The Boxing Day case: nothing else would ever revisit this round.
+
+    Batch 112 narrowed which rounds this applies to. An off-cadence round that holds no
+    picks is now retired before the sweep reaches it — that is the fix for a window edit
+    stranding the old cadence — so the round a league genuinely holds is the one with a
+    claim on it, and it must still be refreshed.
+    """
     league = await _sunday_league(session, "one-off")
     one_off = await _bare_round(session, league, SAMPLE_SATURDAY)
+    await _claim(session, league, one_off)
     assert await fixtures_for(session, one_off.id) == []
 
     await discover_fixtures(session, FakeBetfair.with_sample_data(), [league], SAMPLE_SATURDAY, 1)
@@ -831,11 +873,15 @@ async def test_an_off_cadence_date_is_not_synced_to_the_leagues_that_did_not_ask
 async def test_two_leagues_sharing_an_off_cadence_date_share_one_fetch(
     session: AsyncSession,
 ) -> None:
-    """Grouping is still by window, so a date two leagues both added costs one request."""
+    """Grouping is still by window, so a date two leagues both added costs one request.
+
+    Both rounds carry a claim, because Batch 112 retires an unclaimed off-cadence round
+    before discovery sees it — see `_claim`.
+    """
     first = await _sunday_league(session, "boxing-day-a")
     second = await _sunday_league(session, "boxing-day-b")
-    await _bare_round(session, first, SAMPLE_SATURDAY)
-    await _bare_round(session, second, SAMPLE_SATURDAY)
+    await _claim(session, first, await _bare_round(session, first, SAMPLE_SATURDAY))
+    await _claim(session, second, await _bare_round(session, second, SAMPLE_SATURDAY))
 
     fake = FakeBetfair.with_sample_data()
     calls: list[date] = []

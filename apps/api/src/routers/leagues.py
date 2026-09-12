@@ -18,7 +18,7 @@ from src.config import settings
 from src.database import get_db
 from src.deps import OddsProviderDep, OptionalOddsProviderDep
 from src.models.fixture import Fixture
-from src.models.gameweek import Gameweek, GameweekFixture
+from src.models.gameweek import GameweekFixture
 from src.models.league import (
     DEFAULT_LOCK_OFFSET_MINUTES,
     DEFAULT_OFFERED_MARKETS,
@@ -40,7 +40,6 @@ from src.services.gameweek import (
     PopulatedRounds,
     populate_cadence_rounds,
     rederive_claim_periods,
-    refresh_slate,
     uk_today,
 )
 from src.services.notification_triggers import notify_member_joined
@@ -1452,98 +1451,28 @@ async def league_competitions(
 
 
 # ---------------------------------------------------------------------------
-# POST /api/v1/leagues/{slug}/gameweeks  — an ad-hoc round (e.g. Boxing Day)
+# The ad-hoc round is gone (Batch 112)
 # ---------------------------------------------------------------------------
-
-
-class CreateGameweekRequest(BaseModel):
-    starts_on: date
-
-
-class AdHocGameweekResponse(BaseModel):
-    gameweek_id: str
-    starts_on: date
-    status: str
-    locks_at_utc: UtcDatetime
-    # When picks open, or ``null`` when the league announces no opening (Batch 27).
-    picks_open_at_utc: UtcDatetime | None
-    # What members call this round — "Gameweek 12" (Batch 41). A one-off takes the next
-    # number in the season rather than the position its date implies; see
-    # ``next_gameweek_number``.
-    number: int | None
-    fixture_count: int
-    # True when this call created the round; false when it refreshed an existing one.
-    created: bool
-
-
-@router.post(
-    "/{slug}/gameweeks", response_model=AdHocGameweekResponse, status_code=status.HTTP_201_CREATED
-)
-@limiter.shared_limit(
-    PROVIDER_SLATE_FETCH_LIMIT, scope=PROVIDER_SLATE_FETCH_SCOPE, key_func=per_user_key
-)
-async def create_gameweek(
-    request: Request,
-    slug: str,
-    body: CreateGameweekRequest,
-    admin_ctx: LeagueAdminDep,
-    provider: OddsProviderDep,
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> AdHocGameweekResponse:
-    """Create a round on a date outside the league's normal cadence — Boxing Day, say.
-
-    Fetches that date's slate with the league's own window (its kick-off times, anchored
-    on the requested date, so the weekday need not be the league's usual one) and its
-    competition selection, then upserts it as a round. This walks the provider in the
-    request path — one ``/events`` request per competition *this league plays*, which
-    since Batch 35 is its own selection rather than all ~30 UK competitions — so it is
-    tightly rate-limited; it is an occasional admin action, not a hot path. See
-    :data:`PROVIDER_SLATE_FETCH_LIMIT` for the arithmetic behind the limit.
-
-    The round is adopted by the scheduler like any other: ``open_due_gameweeks``,
-    ``lock_due_gameweeks`` and settlement all select on status and instants with no date
-    filter, and once it is inside the discovery horizon the refresh job revisits it (see
-    :func:`~src.services.gameweek.discover_fixtures`).
-
-    A date the provider carries no qualifying fixtures for (or one the league's competition
-    selection excludes entirely) is a 422 rather than an empty round. A round already on
-    the date is refreshed in place and returned with ``created=false``. A date in the past
-    yields an already-locked, unpickable round — harmless, and simplest not to forbid.
-    """
-    player, league = admin_ctx
-
-    existing = await db.execute(
-        select(Gameweek.id).where(
-            Gameweek.league_id == league.id, Gameweek.starts_on == body.starts_on
-        )
-    )
-    already = existing.scalar_one_or_none()
-
-    gameweek = await refresh_slate(db, provider, league, body.starts_on)
-    if gameweek is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="NO_FIXTURES")
-    await db.commit()
-    await db.refresh(gameweek)
-
-    count = await db.execute(select(func.count()).where(GameweekFixture.gameweek_id == gameweek.id))
-    log.info(
-        "ad-hoc gameweek synced",
-        league_id=str(league.id),
-        gameweek_id=str(gameweek.id),
-        starts_on=str(body.starts_on),
-        created=already is None,
-        player_id=str(player.id),
-    )
-    return AdHocGameweekResponse(
-        gameweek_id=str(gameweek.id),
-        starts_on=gameweek.starts_on,
-        status=gameweek.status.value,
-        locks_at_utc=gameweek.locks_at_utc,
-        picks_open_at_utc=gameweek.picks_open_at_utc,
-        number=gameweek.number,
-        fixture_count=count.scalar_one(),
-        created=already is None,
-    )
+#
+# `POST /{slug}/gameweeks` let a league admin write a round on any date — Boxing Day,
+# say — outside the league's cadence. It is removed, and nothing replaces it here.
+#
+# **A league's rounds are its cadence and nothing else.** A round off the cadence is a
+# round `retire_stranded_rounds` cannot tell from one left behind by a window edit
+# without storing where it came from, and the whole point of that rule is that it needs
+# no new state. Keeping both meant either a column recording a round's origin or a
+# retirement rule that could condemn a legitimate round.
+#
+# An extra week becomes a *deployment-level* fact instead (owner decision 2026-09-04,
+# Batch 113): declared once by a site admin and played by every league, so one league's
+# admin no longer writes rounds a shared numbering has to accommodate. Production held
+# **zero** one-off rounds when this was taken, so nothing anyone had used was withdrawn,
+# and the gap until 113 lands is accepted rather than bridged.
+#
+# `PROVIDER_SLATE_FETCH_LIMIT` and `PROVIDER_SLATE_FETCH_SCOPE` stay where they are: the
+# admin console's manual sync trigger charges the same bucket (`routers/admin.py`), and
+# `refresh_rounds` below charges it for a cadence date the pool cannot serve. The budget
+# they guard is unchanged; one of the three things spending it has gone.
 
 
 # ---------------------------------------------------------------------------

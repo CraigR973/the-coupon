@@ -6,7 +6,6 @@ import { apiFetch } from '@/lib/api';
 import { PRIVACY_OPTIONS, type LeaguePrivacy } from '@/lib/leagues';
 import { useRouteLeague } from '@/hooks/useRouteLeague';
 import type {
-  AdHocGameweekResult,
   CompetitionCatalogue,
   CompetitionRef,
   GameweekSummary,
@@ -82,12 +81,10 @@ export function LeagueSettingsPage() {
   const [markets, setMarkets] = useState<Set<PickMarket>>(new Set(ALL_MARKETS.map((m) => m.value)));
   const [allUk, setAllUk] = useState(true);
   const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(new Set());
-  const [adHocDate, setAdHocDate] = useState('');
   // Once the admin touches the competition controls, a late-arriving (or refetched)
   // catalogue must not overwrite their in-progress choice.
   const catalogueTouched = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isCreatingRound, setIsCreatingRound] = useState(false);
   const [isRefreshingRounds, setIsRefreshingRounds] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
@@ -235,36 +232,6 @@ export function LeagueSettingsPage() {
       );
     } finally {
       setIsSaving(false);
-    }
-  }
-
-  async function handleCreateRound() {
-    if (!adHocDate) {
-      toast.error('Choose a date for the round.');
-      return;
-    }
-    setIsCreatingRound(true);
-    try {
-      const result = await apiFetch<AdHocGameweekResult>(`/api/v1/leagues/${slug}/gameweeks`, {
-        method: 'POST',
-        body: JSON.stringify({ starts_on: adHocDate }),
-      });
-      toast.success(
-        `${result.created ? 'Round created' : 'Round refreshed'} — ${result.fixture_count} ${
-          result.fixture_count === 1 ? 'fixture' : 'fixtures'
-        }`,
-      );
-      setAdHocDate('');
-      queryClient.invalidateQueries({ queryKey: ['gameweeks', slug] });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create round';
-      toast.error(
-        message.includes('NO_FIXTURES')
-          ? 'No fixtures found for that date in this league’s competitions.'
-          : message,
-      );
-    } finally {
-      setIsCreatingRound(false);
     }
   }
 
@@ -651,36 +618,6 @@ export function LeagueSettingsPage() {
             onClick={handleRefreshRounds}
           >
             {isRefreshingRounds ? 'Refreshing…' : 'Refresh rounds'}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Add a one-off round</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs font-sans text-text-muted">
-            Create a round on a date outside the usual cadence — Boxing Day, say. It uses this
-            league’s window times and competitions on the date you choose.
-          </p>
-          <div className="space-y-1">
-            <Label htmlFor="adHocDate">Round date</Label>
-            <Input
-              id="adHocDate"
-              type="date"
-              value={adHocDate}
-              onChange={(e) => setAdHocDate(e.target.value)}
-            />
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            disabled={isCreatingRound}
-            onClick={handleCreateRound}
-          >
-            {isCreatingRound ? 'Creating…' : 'Create round'}
           </Button>
         </CardContent>
       </Card>

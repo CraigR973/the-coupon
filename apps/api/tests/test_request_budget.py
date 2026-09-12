@@ -13,7 +13,7 @@ they measure the thing that is actually rate-limited rather than a model of it.
 whose lock was five hours away, because the hourly allowance was gone by 08:06. Every test
 here passed, because the round it budgeted for was a hardcoded
 ``LAUNCH_SATURDAY_FIXTURES = 131`` and the round production actually held was **202**.
-Set it to 202 and five of these tests fail: the saturated day, both ad-hoc round limits,
+Set it to 202 and five of these tests fail: the saturated day, both slate-fetch limits,
 one member changing their mind, and a league's whole pick allowance.
 
 So the round is no longer declared here. :data:`OBSERVED_LARGEST_ROUND` is a *measurement*
@@ -493,21 +493,26 @@ def test_discovery_cost_scales_with_windows_not_leagues() -> None:
     assert DAILY_WALK_COMPETITIONS * len(mixed) * dates <= DAILY_LIMIT
 
 
-# ── The one provider call left in the request path (Batch 35) ────────────────
+# ── The admin-triggered slate walks, and the bucket they share ───────────────
 #
-# `POST /leagues/{slug}/gameweeks` walks the provider synchronously to build a round on a
-# date outside the league's cadence. It costs one request per competition the league
-# plays — its own selection since Batch 35, all ~30 UK competitions when unconfigured —
-# so the limit on it has to fit whatever the budget above leaves unspent.
+# Two routes can still make an admin's request walk the provider: "refresh rounds"
+# (`POST /leagues/{slug}/gameweeks/refresh`), on a cadence date the shared fixture pool
+# cannot serve, and the admin console's manual sync trigger. They draw down **one**
+# per-admin bucket — `PROVIDER_SLATE_FETCH_LIMIT` — because two separate `2/hour` limits
+# against a plan with room for two would simply be `4/hour`.
+#
+# The third was `POST /leagues/{slug}/gameweeks`, the per-league ad-hoc round, removed by
+# Batch 112. The bucket outlived it unchanged: what it guards is a *spend*, not an
+# endpoint, and one of the three ways of spending it has gone.
 
-#: What one call costs an unconfigured all-UK league — the worst case, and the one the
+#: What one walk costs an unconfigured all-UK league — the worst case, and the one the
 #: limit has to survive. A league that has narrowed its competitions pays its own count
 #: instead (1-3 in practice); that saving is asserted on requests issued in
 #: ``test_scheduler_jobs.py`` rather than modelled here.
-AD_HOC_ALL_UK_REQUESTS = DAILY_WALK_COMPETITIONS
+SLATE_WALK_REQUESTS = DAILY_WALK_COMPETITIONS
 
 
-def _ad_hoc_limits() -> dict[str, int]:
+def _slate_fetch_limits() -> dict[str, int]:
     """The shipped limit, parsed the way slowapi parses it: granularity → calls."""
     from limits import parse_many
 
@@ -516,29 +521,30 @@ def _ad_hoc_limits() -> dict[str, int]:
     return {item.GRANULARITY.name: item.amount for item in parse_many(PROVIDER_SLATE_FETCH_LIMIT)}
 
 
-def test_the_ad_hoc_round_limit_is_bounded_by_the_day_as_well_as_the_hour() -> None:
+def test_the_slate_fetch_limit_is_bounded_by_the_day_as_well_as_the_hour() -> None:
     """An hourly cap alone permits 24x its own number a day, and the day is the tighter one."""
-    assert set(_ad_hoc_limits()) == {"hour", "day"}
+    assert set(_slate_fetch_limits()) == {"hour", "day"}
 
 
-async def test_the_ad_hoc_round_limit_fits_what_the_hour_leaves_spare() -> None:
-    """The endpoint's whole allowance must fit beside the peak browsing hour."""
+async def test_the_slate_fetch_limit_fits_what_the_hour_leaves_spare() -> None:
+    """The bucket's whole allowance must fit beside the peak browsing hour."""
     spare = HOURLY_LIMIT - await _tightest_browsing_hour()
-    spend = _ad_hoc_limits()["hour"] * AD_HOC_ALL_UK_REQUESTS
-    assert spend <= spare, f"{spend} ad-hoc requests an hour against {spare} spare"
+    spend = _slate_fetch_limits()["hour"] * SLATE_WALK_REQUESTS
+    assert spend <= spare, f"{spend} admin-triggered requests an hour against {spare} spare"
 
 
-async def test_the_ad_hoc_round_limit_fits_what_the_day_leaves_spare() -> None:
+async def test_the_slate_fetch_limit_fits_what_the_day_leaves_spare() -> None:
     """And beside a fully saturated day of browsing plus the discovery run.
 
-    This is the arithmetic the endpoint got wrong: at ``6/hour`` an admin could spend
-    ~180 requests an hour against a 100/hour plan, and exhaustion is silent — picks stay
-    ``pending`` and the week never finishes.
+    This is the arithmetic the ad-hoc endpoint got wrong before Batch 57: at ``6/hour`` an
+    admin could spend ~180 requests an hour against a 100/hour plan, and exhaustion is
+    silent — picks stay ``pending`` and the week never finishes. That endpoint is gone, and
+    the bound it taught the bucket is what the surviving two spenders inherit.
     """
     scheduled = _daily_discovery() + _weekly_full_catalogue_walk() + _warm_pass()
     spare = DAILY_LIMIT - await _saturated_day_of_browsing() - scheduled
-    spend = _ad_hoc_limits()["day"] * AD_HOC_ALL_UK_REQUESTS
-    assert spend <= spare, f"{spend} ad-hoc requests a day against {spare} spare"
+    spend = _slate_fetch_limits()["day"] * SLATE_WALK_REQUESTS
+    assert spend <= spare, f"{spend} admin-triggered requests a day against {spare} spare"
 
 
 def test_the_configured_defaults_are_the_ones_this_module_budgets_for() -> None:
@@ -591,18 +597,18 @@ async def test_one_member_cannot_exhaust_the_plan_by_changing_their_mind() -> No
 
     This is the property that failed. At the previous ``60/hour`` one member could spend
     sixty upstream requests against a plan with roughly a dozen to spare once peak
-    browsing and the ad-hoc round allowance are subtracted — and exhaustion is silent:
+    browsing and the admin slate-fetch allowance are subtracted — and exhaustion is silent:
     everyone else's prices simply stop refreshing.
     """
     spare = (
         HOURLY_LIMIT
         - await _tightest_browsing_hour()
-        - _ad_hoc_limits()["hour"] * (AD_HOC_ALL_UK_REQUESTS)
+        - _slate_fetch_limits()["hour"] * (SLATE_WALK_REQUESTS)
     )
     spend = _pick_submit_limits()["hour"]
     assert spend <= spare, (
         f"one member may spend {spend} requests an hour against {spare} spare "
-        f"(hourly {HOURLY_LIMIT} less browsing and ad-hoc rounds)"
+        f"(hourly {HOURLY_LIMIT} less browsing and admin slate fetches)"
     )
 
 
@@ -673,7 +679,7 @@ async def test_a_leagues_whole_pick_allowance_fits_what_the_hour_leaves_spare() 
 
     Browsing is the fixed cost and does not grow with membership — the slate cache
     collapses every reader into one sweep — so what it leaves is what the pick path may
-    spend. The ad-hoc round allowance is deliberately *not* reserved against this one, and
+    spend. The admin slate-fetch allowance is deliberately *not* reserved against this one, and
     that is a departure from ``test_one_member_cannot_exhaust_the_plan_by_changing_their_mind``
     above: there the question is whether one actor can break the budget alone, which has
     to hold under the worst stacking. Here it is how much of the plan the product's core
@@ -751,11 +757,11 @@ def _sync_jobs() -> dict[str, object]:
 
 
 def test_the_manual_trigger_adds_no_allowance_of_its_own() -> None:
-    """It shares the ad-hoc bucket, so the whole allowance is still the ad-hoc one."""
+    """It shares the slate-fetch bucket, so the whole allowance is still that one."""
     from src.routers.admin import PROVIDER_SLATE_FETCH_LIMIT as trigger_limit
-    from src.routers.leagues import PROVIDER_SLATE_FETCH_LIMIT as ad_hoc_limit
+    from src.routers.leagues import PROVIDER_SLATE_FETCH_LIMIT as refresh_limit
 
-    assert trigger_limit is ad_hoc_limit
+    assert trigger_limit is refresh_limit
 
 
 def test_the_costliest_manual_job_fits_what_the_hour_leaves_spare() -> None:
@@ -775,15 +781,15 @@ def test_the_costliest_manual_job_fits_what_the_hour_leaves_spare() -> None:
 def test_the_whole_manual_allowance_fits_beside_the_scheduled_runs() -> None:
     """The bucket is denominated in slate walks, so the cap is walks × the walk cost.
 
-    ``2/hour`` of walks at 30 requests each is 60 — the number the ad-hoc endpoint was
+    ``2/hour`` of walks is the number the removed ad-hoc endpoint was
     already sized to, which is the point of sharing the bucket rather than adding one.
     """
-    allowance = _ad_hoc_limits()["hour"] * AD_HOC_ALL_UK_REQUESTS
+    allowance = _slate_fetch_limits()["hour"] * SLATE_WALK_REQUESTS
     jobs = _sync_jobs()
     for job in jobs.values():
         units = job.budget_units  # type: ignore[attr-defined]
         cost = job.provider_requests  # type: ignore[attr-defined]
-        assert cost <= units * AD_HOC_ALL_UK_REQUESTS, (
+        assert cost <= units * SLATE_WALK_REQUESTS, (
             f"{job.key} costs {cost} requests but is charged {units} walk(s)"  # type: ignore[attr-defined]
         )
     assert allowance <= HOURLY_LIMIT

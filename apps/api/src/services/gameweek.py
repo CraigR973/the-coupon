@@ -816,6 +816,82 @@ async def unlocked_round_dates(
     return dates
 
 
+async def retire_stranded_rounds(
+    db: AsyncSession, league: League, today: date, horizon: int
+) -> list[date]:
+    """Delete the rounds this league no longer plays. Returns the dates retired.
+
+    Batch 112, from a live report. A league created at 21:19 on Friday 4 September with a
+    Friday window, then edited to Saturday ninety seconds later, held four rounds on two
+    cadences — Fri 4, Sat 5, Fri 11, Sat 12 September — because
+    :func:`populate_cadence_rounds` and :func:`discover_fixtures` only ever *add*. Nothing
+    retired the rounds built against the window the league had stopped playing, and
+    :func:`unlocked_round_dates` then kept them inside the discovery horizon, so they were
+    re-synced every morning and never aged out. The stranded Friday round and the real
+    Saturday one held the same 204 fixtures.
+
+    **A league's rounds are its cadence and nothing else**, which is what makes this
+    derivable with no new state. A stranded round is one whose ``starts_on`` is not a
+    cadence date for the league's *current* window over the horizon, which holds no picks,
+    and which has not settled. No origin column, no migration, and no backfill that could
+    condemn a legitimate round.
+
+    The three conditions each carry their weight:
+
+    * **Not a cadence date** is the whole definition of stranded — the league does not play
+      that day any more.
+    * **No picks** is what makes it safe to retire a round whose lock has already passed.
+      What :func:`rederive_claim_periods` protects is a deadline members claimed against,
+      and with no picks there is no claim to protect.
+    * **Not settled** because a settled round is history and is left alone whatever its
+      date.
+
+    **Bounded to the horizon, and that bound is deliberate.** Only rounds from ``today``
+    through the last cadence date are candidates. Without it every past round nobody
+    happened to pick on would be a stranded round — a legitimate Saturday the whole league
+    forgot is not junk, it is a week they played badly — and retirement would quietly eat
+    history. The cost is that a stranded round already in the past survives as an inert
+    row; it is off the discovery horizon by the same bound, so it is never re-synced, and
+    the harm it did in ``current_round_order`` expires with ``IN_PLAY_GRACE_MINUTES`` on
+    its own. Changing that ordering is explicitly not this batch's.
+
+    A delete leaves a gap in the numbering, which :func:`next_gameweek_number` already
+    documents as correct: a number is never reused, so the gap is the honest record that a
+    round existed and was withdrawn. Flushes but does not commit — the caller owns the
+    transaction.
+    """
+    cadence = set(upcoming_slate_dates(today, window_for(league), horizon))
+    if not cadence:  # pragma: no cover — `upcoming_slate_dates` always returns at least one
+        return []
+
+    rows = await db.execute(
+        select(Gameweek).where(
+            Gameweek.league_id == league.id,
+            Gameweek.starts_on >= today,
+            Gameweek.starts_on <= max(cadence),
+            Gameweek.starts_on.notin_(cadence),
+            Gameweek.status != GameweekStatus.settled,
+            ~select(Pick.id).where(Pick.gameweek_id == Gameweek.id).exists(),
+        )
+    )
+    stranded = list(rows.scalars().all())
+    if not stranded:
+        return []
+
+    retired = sorted(gameweek.starts_on for gameweek in stranded)
+    await db.execute(delete(Gameweek).where(Gameweek.id.in_([g.id for g in stranded])))
+    await db.flush()
+    # The links go with them: `gameweek_fixtures.gameweek_id` is `ON DELETE CASCADE`, and
+    # the fixtures themselves are pooled and shared, so nothing another league plays moves.
+    log.info(
+        "retired stranded rounds",
+        league_id=str(league.id),
+        dates=[d.isoformat() for d in retired],
+        cadence=[d.isoformat() for d in sorted(cadence)],
+    )
+    return retired
+
+
 def slate_odds_max_age(gameweek: Gameweek, now: datetime, near_ttl: float, far_ttl: float) -> float:
     """How stale a browsed price may be, tightening as the lock approaches.
 
@@ -933,6 +1009,12 @@ async def discover_fixtures(
 
     cadence = {window: upcoming_slate_dates(today, window, horizon) for window in by_window}
     horizon_end = max((dates[-1] for dates in cadence.values()), default=today)
+    # Batch 112, and the order matters. Retiring *before* `unlocked_round_dates` is what
+    # stops a stranded round being re-fed to the sweep that keeps it alive: the read below
+    # is what put it back inside the horizon every morning. A league already in this state
+    # therefore heals itself at 06:00 with nobody touching it.
+    for league in leagues:
+        await retire_stranded_rounds(db, league, today, horizon)
     off_cadence = await unlocked_round_dates(
         db, [league.id for league in leagues], today, horizon_end
     )
@@ -970,11 +1052,15 @@ async def refresh_slate(
     The league's competition selection is pushed **into the fetch** here, which is the
     opposite of what :func:`sync_slate` does and deliberately so. Discovery filters at
     link time because its fetch is shared between every league on the window, so asking
-    for fewer competitions would save one league's money by spending another's. This
-    function has exactly one production caller — the ad-hoc round endpoint — and there
-    the fetch is one league's alone: nobody shares it, so filtering afterwards is simply
-    paying for ~30 UK competitions to keep as few as one. A league playing two divisions
-    now costs two requests instead of thirty.
+    for fewer competitions would save one league's money by spending another's. Here the
+    fetch is one league's alone: nobody shares it, so filtering afterwards is simply
+    paying for every UK competition to keep as few as one. A league playing two divisions
+    costs two requests instead of the whole catalogue.
+
+    Its production caller was the ad-hoc round endpoint until Batch 112 removed it. The
+    surviving one is :func:`populate_cadence_rounds`, which reaches here only for a
+    cadence date the shared fixture pool cannot serve — the same unshared-fetch case, so
+    the reasoning above is unchanged.
 
     The trade that buys it: a narrowed ad-hoc fetch no longer warms the pool for a wider
     league on the same date. That is correct rather than a regression — nothing shared
@@ -1083,6 +1169,7 @@ async def populate_cadence_rounds(
     horizon: int,
     *,
     may_fetch: Callable[[], bool] | None = None,
+    now: datetime | None = None,
 ) -> PopulatedRounds:
     """Create or top up this league's cadence rounds now, without waiting for 06:00.
 
@@ -1107,7 +1194,13 @@ async def populate_cadence_rounds(
     that asked for it, so a neighbour's Boxing Day must not be invented here for a league
     that never requested one.
 
-    A date whose round is already ``locked`` or ``settled`` is skipped. Its card is fixed
+    **Retires before it adds** (Batch 112). A league whose window moved has rounds built
+    against the old one, and nothing used to take them away; :func:`retire_stranded_rounds`
+    runs first so a rebuild converges on the cadence instead of accumulating beside it.
+
+    A date whose round is already ``locked`` or ``settled`` is skipped, and so is one whose
+    lock has already passed and which the league holds no round on — the second is Batch
+    112's refusal to mint a round nobody could ever pick. Its card is fixed
     and its picks are frozen, which is the same boundary :func:`unlocked_round_dates`
     draws for the daily job. Rounds that *are* rebuilt keep both ends of their claim
     period: :func:`sync_slate` derives ``picks_open_at_utc`` and ``locks_at_utc`` only
@@ -1119,7 +1212,13 @@ async def populate_cadence_rounds(
     """
     window = window_for(league)
     dates = upcoming_slate_dates(today, window, horizon)
+    # Batch 112. Before adding anything, drop what this league has stopped playing —
+    # otherwise a window edit leaves the old cadence's rounds beside the new one's, and
+    # only ever accumulates. Runs here rather than at the call sites because both of them
+    # (creation, and the admin's "refresh rounds") want it.
+    await retire_stranded_rounds(db, league, today, horizon)
     existing = await _rounds_by_date(db, league.id, dates)
+    moment = _naive_utc(now) if now is not None else datetime.now(UTC).replace(tzinfo=None)
 
     gameweeks: list[Gameweek] = []
     created: list[date] = []
@@ -1131,6 +1230,15 @@ async def populate_cadence_rounds(
     for starts_on in dates:
         status = existing.get(starts_on)
         if status is not None and status not in PICKABLE_STATES:
+            skipped.append(starts_on)
+            continue
+        # Batch 112. Never mint a round whose deadline has already gone. A league created
+        # on its own window day *after* the lock used to get one, because
+        # `upcoming_slate_dates` includes today by date alone and asks nothing about the
+        # time — so its first round was unpickable the moment it was written. Conditioned
+        # on `status is None` so the rule only ever refuses to *create*: an existing round
+        # on a passed lock is a real week this league played and is never dropped by it.
+        if status is None and window.locks_at(starts_on) <= moment:
             skipped.append(starts_on)
             continue
 

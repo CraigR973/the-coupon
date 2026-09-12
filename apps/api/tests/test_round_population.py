@@ -12,7 +12,8 @@ What these tests hold to:
 * creating a league on an already-pooled window issues **zero** upstream requests and
   still gets its rounds with fixtures linked;
 * an empty pool falls back to a real fetch, and that fetch is charged to the same
-  per-admin bucket the ad-hoc round endpoint spends, so neither can outspend it;
+  per-admin bucket the admin console's sync trigger spends, so neither can outspend it
+  (it was the ad-hoc round endpoint until Batch 112 removed that);
 * a neighbour's one-off date produces no round for the new league — a creation-time
   populate walks the *cadence* only;
 * "refresh rounds" may add fixtures to an unlocked round and may never move an instant
@@ -118,13 +119,17 @@ def _auth(profile: Profile) -> dict[str, str]:
     return {"Authorization": f"Bearer {create_access_token(profile.id, profile.role)}"}
 
 
-async def _player() -> Profile:
-    """A player with an account, committed so the HTTP endpoints can authenticate them."""
+async def _player(role: UserRole = UserRole.player) -> Profile:
+    """A player with an account, committed so the HTTP endpoints can authenticate them.
+
+    ``role`` is for the one test that needs an actor who can reach both the league's
+    refresh and the admin console's sync trigger — the bucket they share is keyed per user.
+    """
     async with AsyncSessionLocal() as session:
         player = Profile(
             display_name=f"gaffer-{uuid.uuid4().hex[:8]}",
             pin_hash=hash_pin("1234"),
-            role=UserRole.player,
+            role=role,
         )
         session.add(player)
         await session.commit()
@@ -400,7 +405,7 @@ async def test_an_empty_pool_falls_back_to_a_fetch_and_is_refused_past_the_share
     assert len(counter.slate_calls) == allowance, "a refusal must not reach the provider"
 
 
-async def test_the_populate_path_and_the_ad_hoc_endpoint_share_one_budget(
+async def test_the_populate_path_and_the_admin_sync_trigger_share_one_budget(
     client_and_counter: tuple[AsyncClient, CountingBetfair],
 ) -> None:
     """Two routes onto one provider, so two separate limits would simply be twice the limit.
@@ -408,9 +413,15 @@ async def test_the_populate_path_and_the_ad_hoc_endpoint_share_one_budget(
     The arithmetic behind ``PROVIDER_SLATE_FETCH_LIMIT`` measures what odds-api.io's plan
     leaves spare for admin-triggered sweeps. It only holds if every route that can cause
     one draws down the same bucket.
+
+    The pair used to be this one and the per-league ad-hoc round endpoint; Batch 112
+    removed that, and the surviving second spender is the admin console's manual sync
+    trigger. Same property, same bucket, one fewer way in — and the actor is deliberately a
+    site admin who is *also* this league's admin, because the bucket is keyed per user and
+    that is exactly who can reach both routes.
     """
     client, counter = client_and_counter
-    admin = await _player()
+    admin = await _player(role=UserRole.admin)
     window = _window(WEDNESDAY, 20 * 60 + 45)
     league = await _seed_league(admin, window)
 
@@ -421,12 +432,8 @@ async def test_the_populate_path_and_the_ad_hoc_endpoint_share_one_budget(
     spent = len(counter.slate_calls)
     assert spent == min(_hourly_sweeps(), settings.slate_horizon_weeks)
 
-    ad_hoc = await client.post(
-        f"/api/v1/leagues/{league.slug}/gameweeks",
-        json={"starts_on": _cadence(window)[0].isoformat()},
-        headers=_auth(admin),
-    )
-    assert ad_hoc.status_code == 429, "the ad-hoc endpoint sees the bucket the refresh emptied"
+    triggered = await client.post("/api/v1/admin/jobs/refresh-slate/run", headers=_auth(admin))
+    assert triggered.status_code == 429, "the sync trigger sees the bucket the refresh emptied"
     assert len(counter.slate_calls) == spent
 
 
