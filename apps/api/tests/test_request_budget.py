@@ -37,7 +37,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.database import AsyncSessionLocal
+from src.models.fixture import Fixture
 from src.models.gameweek import GameweekFixture
+from src.services.competitions import (
+    MEASURED_DAILY_WALK,
+    MEASURED_PLAYED_CATALOGUE,
+    MEASURED_UK_CATALOGUE,
+    is_played,
+)
 from src.services.gameweek import slate_odds_max_age, upcoming_slate_dates
 from src.services.odds_cache import CachingOddsProvider
 from src.services.odds_pricing import askable, record_observations
@@ -62,7 +69,29 @@ OBSERVED_LARGEST_ROUND = 202
 OBSERVED_UNPRICED = 103
 OBSERVED_PRICED = OBSERVED_LARGEST_ROUND - OBSERVED_UNPRICED
 
-UK_COMPETITIONS = 30
+#: What a walk of the competition catalogue costs, measured live with ``fetch_competitions``
+#: on 2026-09-12 and held in one place (:mod:`src.services.competitions`) so this module and
+#: ``admin_ops`` cannot drift apart again.
+#:
+#: ``UK_COMPETITIONS = 30`` used to live on this line, and it is the second constant in this
+#: file to describe a world that had moved — ``LAUNCH_SATURDAY_FIXTURES = 131`` was the
+#: first. It was a real measurement of a real catalogue. What made it dangerous is that
+#: nothing re-took it: the catalogue grew to **67**, ``test_discovery_is_a_fixed_daily_cost``
+#: went on asserting ``30 x 2 = 60 <= 100`` and passing, and the run production actually
+#: made was ``2 windows x 2 dates x 67 = 268`` — which cannot complete, took a ``429``
+#: partway through every morning, and produced **no round at all between 2026-09-04 and
+#: 2026-09-11** while twelve members had nothing to play.
+#:
+#: :func:`test_the_daily_walk_is_no_bigger_than_the_database_says` is what re-takes it.
+DAILY_WALK_COMPETITIONS = MEASURED_DAILY_WALK
+FULL_CATALOGUE_COMPETITIONS = MEASURED_PLAYED_CATALOGUE
+
+#: Distinct slate *windows* across the deployment, measured 2026-09-11: 2-1 Hibs on the
+#: default Saturday 15:00 and McCann's Defenders on its own. The cost is
+#: ``windows x dates x competitions`` and every one of the three multiplies, so a budget
+#: written against one window is not a budget.
+OBSERVED_DISTINCT_WINDOWS = 2
+
 EVENTS_PER_ODDS_REQUEST = 10
 
 # Mirrors the defaults in `Settings`; asserted against them below so the two cannot
@@ -171,8 +200,36 @@ async def _saturated_day_of_browsing() -> int:
 
 
 def _daily_discovery() -> int:
-    """What the scheduled discovery run spends: one request per competition per date."""
-    return UK_COMPETITIONS * len(upcoming_saturdays_for_budget())
+    """What the scheduled discovery run spends: one request per competition, window and date.
+
+    All three factors, since Batch 119. This function multiplied competitions by dates and
+    left the windows out, which understated the production shape by half before the
+    catalogue size understated it again.
+    """
+    return (
+        DAILY_WALK_COMPETITIONS * OBSERVED_DISTINCT_WINDOWS * len(upcoming_saturdays_for_budget())
+    )
+
+
+def _weekly_full_catalogue_walk() -> int:
+    """What the weekly release on the daily run's ratchet spends, on the day it runs.
+
+    The whole played catalogue rather than the pooled subset — that is its entire purpose —
+    narrowed on the two factors that can be narrowed without losing the point: a single
+    date, and a single window rotated by ISO week. Exactly one catalogue walk, which is the
+    cheapest this pass can possibly be.
+    """
+    return FULL_CATALOGUE_COMPETITIONS
+
+
+def _warm_pass() -> int:
+    """What the marker-warming pass spends on a cold round of the size budgeted for.
+
+    The worst case and the rarest: a round the deployment has never swept. Every pass after
+    it asks only about the priced subset, and a round already learned inside its re-check
+    window costs nothing at all.
+    """
+    return math.ceil(OBSERVED_LARGEST_ROUND / EVENTS_PER_ODDS_REQUEST)
 
 
 # ── The round the budget is sized on (Batch 114) ─────────────────────────────
@@ -286,8 +343,15 @@ async def test_a_saturated_day_of_browsing_stays_inside_the_daily_limit() -> Non
     """
     browsing = await _saturated_day_of_browsing()
     discovery = _daily_discovery()
-    total = browsing + discovery
-    why = f"browsing {browsing} + discovery {discovery} exceeds {DAILY_LIMIT}/day"
+    # The worst *day*: the Sunday the full-catalogue walk also runs, and a round so new
+    # the warm pass pays for all of it.
+    weekly = _weekly_full_catalogue_walk()
+    warm = _warm_pass()
+    total = browsing + discovery + weekly + warm
+    why = (
+        f"browsing {browsing} + discovery {discovery} + full-catalogue walk {weekly} + "
+        f"warm pass {warm} exceeds {DAILY_LIMIT}/day"
+    )
     assert total <= DAILY_LIMIT, why
 
 
@@ -323,11 +387,88 @@ async def test_freezing_every_members_pick_costs_one_request_each() -> None:
 
 
 async def test_discovery_is_a_fixed_daily_cost_independent_of_traffic() -> None:
-    """Discovery is scheduled, so its cost is the horizon — not how busy the app is."""
-    saturdays = upcoming_saturdays_for_budget()
-    burst = UK_COMPETITIONS * len(saturdays)
-    why = "the daily discovery burst must fit inside one hour's allowance"
+    """Discovery is scheduled, so its cost is the horizon — not how busy the app is.
+
+    And it has to *fit*, which this test asserted and did not check. The shape production
+    actually ran is spelled out first, because a number that passed while the deployment it
+    described could not complete a single run is the whole reason Batch 119 exists.
+    """
+    dates = len(upcoming_saturdays_for_budget())
+    untrimmed = MEASURED_UK_CATALOGUE * OBSERVED_DISTINCT_WINDOWS * dates
+    assert untrimmed > HOURLY_LIMIT, (
+        f"{MEASURED_UK_CATALOGUE} competitions x {OBSERVED_DISTINCT_WINDOWS} windows x "
+        f"{dates} dates = {untrimmed} — if this ever fits, the catalogue has shrunk and "
+        f"the trim in src/services/competitions.py should be re-argued rather than kept"
+    )
+
+    burst = _daily_discovery()
+    why = (
+        f"the daily discovery burst is {burst} requests "
+        f"({DAILY_WALK_COMPETITIONS} competitions x {OBSERVED_DISTINCT_WINDOWS} windows x "
+        f"{dates} dates) and must fit inside one hour's allowance of {HOURLY_LIMIT}"
+    )
     assert burst <= HOURLY_LIMIT, why
+
+
+async def test_the_weekly_full_catalogue_walk_fits_its_own_hour() -> None:
+    """The release on the ratchet, and why it needs a slot of its own.
+
+    Skipping competitions that have never carried a fixture is what makes the daily run
+    affordable, and on its own it would slowly starve the catalogue: a competition that is
+    never walked can never be discovered. The weekly pass walks everything this deployment
+    plays, which costs the untrimmed count — so it runs in its own hour, on a single date,
+    and must fit there beside nothing else.
+    """
+    walk = _weekly_full_catalogue_walk()
+    assert walk <= HOURLY_LIMIT, (
+        f"the full-catalogue walk is {walk} requests against {HOURLY_LIMIT}/hour — it is "
+        f"already down to a single date, so the next lever is the trim, not the hour"
+    )
+    assert walk > DAILY_WALK_COMPETITIONS, (
+        f"the full walk asks about {walk} competitions and the daily run about "
+        f"{DAILY_WALK_COMPETITIONS} — if they are the same, the walk is not reaching "
+        f"anything the daily run skips and the ratchet has no release"
+    )
+
+
+@pytest.mark.skipif(
+    not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
+)
+async def test_the_daily_walk_is_no_bigger_than_the_database_says(
+    session: AsyncSession,
+) -> None:
+    """The tripwire that ``UK_COMPETITIONS = 30`` could never be.
+
+    The daily run walks the competitions that have ever put a fixture in the pool, narrowed
+    by the product trim — and the pool is in the database, so the real number can be read
+    rather than remembered. A deployment that grows past the measurement turns this red on
+    the gate instead of taking a ``429`` on a match morning.
+
+    Reads ``fixtures`` directly rather than through the provider: measuring this against
+    a live catalogue would mean spending a request to run the test suite.
+    """
+    pooled = {
+        competition_id
+        for (competition_id,) in (
+            await session.execute(select(Fixture.competition_id).distinct())
+        ).all()
+        if competition_id
+    }
+    if not pooled:
+        pytest.skip("no fixtures in this database to measure")
+
+    walked = [competition_id for competition_id in pooled if is_played(competition_id)]
+    assert len(walked) <= DAILY_WALK_COMPETITIONS, (
+        f"the daily run would walk {len(walked)} competitions, past the "
+        f"{DAILY_WALK_COMPETITIONS} this module budgets for — re-measure "
+        f"MEASURED_DAILY_WALK against production with fetch_competitions, then re-run "
+        f"this suite and fix whatever it turns red"
+    )
+    assert len(pooled) <= MEASURED_PLAYED_CATALOGUE, (
+        f"the pool holds {len(pooled)} competitions, more than the "
+        f"{MEASURED_PLAYED_CATALOGUE} the played catalogue was measured at — the "
+        f"catalogue measurement is stale"
+    )
 
 
 def test_discovery_cost_scales_with_windows_not_leagues() -> None:
@@ -344,12 +485,12 @@ def test_discovery_cost_scales_with_windows_not_leagues() -> None:
     friday_night = SlateWindow(start_weekday=4, start_minute=19 * 60, end_weekday=0)
 
     fifteen_leagues_one_window = {SATURDAY_THREE_PM for _ in range(15)}
-    assert UK_COMPETITIONS * len(fifteen_leagues_one_window) * dates <= HOURLY_LIMIT
+    assert DAILY_WALK_COMPETITIONS * len(fifteen_leagues_one_window) * dates <= HOURLY_LIMIT
 
     # Two distinct windows cost two, not two-per-league.
     mixed = {SATURDAY_THREE_PM, SATURDAY_THREE_PM, friday_night}
     assert len(mixed) == 2
-    assert UK_COMPETITIONS * len(mixed) * dates <= DAILY_LIMIT
+    assert DAILY_WALK_COMPETITIONS * len(mixed) * dates <= DAILY_LIMIT
 
 
 # ── The one provider call left in the request path (Batch 35) ────────────────
@@ -363,7 +504,7 @@ def test_discovery_cost_scales_with_windows_not_leagues() -> None:
 #: limit has to survive. A league that has narrowed its competitions pays its own count
 #: instead (1-3 in practice); that saving is asserted on requests issued in
 #: ``test_scheduler_jobs.py`` rather than modelled here.
-AD_HOC_ALL_UK_REQUESTS = UK_COMPETITIONS
+AD_HOC_ALL_UK_REQUESTS = DAILY_WALK_COMPETITIONS
 
 
 def _ad_hoc_limits() -> dict[str, int]:
@@ -394,7 +535,8 @@ async def test_the_ad_hoc_round_limit_fits_what_the_day_leaves_spare() -> None:
     ~180 requests an hour against a 100/hour plan, and exhaustion is silent — picks stay
     ``pending`` and the week never finishes.
     """
-    spare = DAILY_LIMIT - await _saturated_day_of_browsing() - _daily_discovery()
+    scheduled = _daily_discovery() + _weekly_full_catalogue_walk() + _warm_pass()
+    spare = DAILY_LIMIT - await _saturated_day_of_browsing() - scheduled
     spend = _ad_hoc_limits()["day"] * AD_HOC_ALL_UK_REQUESTS
     assert spend <= spare, f"{spend} ad-hoc requests a day against {spare} spare"
 

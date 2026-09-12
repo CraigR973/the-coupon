@@ -16,6 +16,7 @@ in-process scheduler can't be relied on (see docs/runbooks/scheduled-jobs-cron.m
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 
 import structlog
@@ -26,10 +27,12 @@ from sqlalchemy import and_, delete, or_, text
 
 from src.config import settings
 from src.database import AsyncSessionLocal
+from src.models.league import League
 from src.models.notification import ActionType, ActorType, AuditLog
 from src.models.rate_limit import RateLimitCounter
 from src.models.refresh_token import RefreshToken
 from src.services.backup import create_backup
+from src.services.discovery_health import discovery_health
 from src.services.football_data import backfill_season, season_or_default, sync_football_data
 from src.services.football_session import football_session
 from src.services.fotmob_health import fotmob_health
@@ -39,8 +42,10 @@ from src.services.gameweek import (
     gameweeks_due_a_reminder,
     lock_due_gameweeks,
     open_due_gameweeks,
+    pooled_competition_ids,
     settleable_gameweeks,
     uk_today,
+    warmable_gameweeks,
     window_for,
 )
 from src.services.live_scores import poll_live_scores
@@ -49,7 +54,9 @@ from src.services.notification_triggers import (
     notify_picks_open,
     send_pick_reminders,
 )
+from src.services.odds_provider import SlateWindow
 from src.services.odds_session import odds_session
+from src.services.odds_warm import warm_round
 from src.services.scoring import (
     settle_gameweeks_via_provider,
     standings,
@@ -237,6 +244,158 @@ async def report_football_provider_health() -> bool:
         return False
 
 
+async def report_discovery_silence() -> bool:
+    """Log the two silence alarms. Returns whether either fired. Batch 119.
+
+    In ``finally`` on the discovery job, like the football-provider alert beside it and for
+    a sharper version of the same reason: the run that most needs to report is the one that
+    threw. But it also reports on the run that *succeeded*, because the week this exists
+    for had no successful runs at all and the dashboard read healthy throughout — the
+    scheduler was up, its jobs were firing, and every round it held was in the past.
+
+    Two queries, no provider request, no writes. It swallows its own errors like every
+    other job here: an alarm that fails to log must not turn a sweep that worked into a
+    failed run.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            health = await discovery_health(
+                session,
+                datetime.now(UTC).replace(tzinfo=None),
+                stale_after_hours=settings.discovery_stale_after_hours,
+            )
+    except Exception:
+        log.exception("discovery health check failed")
+        return False
+
+    if not health.alarm:
+        log.info(
+            "discovery health ok",
+            hours_since_newest_round=health.hours_since_newest_round,
+        )
+        return False
+    log.error(
+        "discovery has stopped producing",
+        stale=health.stale,
+        hours_since_newest_round=health.hours_since_newest_round,
+        stale_after_hours=health.stale_after_hours,
+        leagues_without_open_round=[
+            {"slug": league.slug, "members": league.members}
+            for league in health.leagues_without_open_round
+        ],
+    )
+    return True
+
+
+async def run_discover_full_catalogue() -> bool:
+    """Walk the whole played catalogue once a week, in its own hour. Batch 119.
+
+    The release on the daily run's ratchet. :func:`run_discover_fixtures` walks only the
+    competitions that have ever carried a fixture, which is free in member terms and would
+    slowly starve the catalogue on its own: a competition that is never walked can never be
+    discovered, so a division promoted into the provider's coverage next season would never
+    appear.
+
+    It costs the untrimmed count — 41 competitions after the product trim, measured
+    2026-09-12 — so it gets a slot where that fits, and the cost is cut to exactly one
+    catalogue walk by narrowing all three factors to one:
+
+    * **a single date** (``horizon=1``) rather than the daily run's whole horizon, and
+    * **a single window**, rotated by ISO week so each is reached in turn.
+
+    One window is enough because **the fixture pool is shared and window-agnostic**. What
+    this pass is for is learning that a competition exists and plays; the moment one of its
+    fixtures lands in the pool, :func:`~src.services.gameweek.pooled_competition_ids`
+    returns it and the *daily* run walks it for every window from then on. Rotating means
+    each window's own card also picks up a late-discovered competition directly, within as
+    many weeks as the deployment has windows — and a deployment with one window, which is
+    what this one is today, has nothing to rotate.
+
+    Sunday, because it is the quietest morning — every league's round has settled and the
+    next one is six days out — and at 04:00, clear of the 06:00 daily run so the two never
+    share an hour's allowance.
+    """
+    try:
+        provider = await odds_session.acquire()
+        football = await football_session.acquire()
+        async with AsyncSessionLocal() as session:
+            leagues = await active_leagues(session)
+            walking = _one_window_of(leagues, _uk_today())
+            gameweeks = await discover_fixtures(
+                session,
+                provider,
+                walking,
+                _uk_today(),
+                1,
+                football=football,
+                competition_ids=None,  # the whole played catalogue — that is the point
+                commit_each=True,
+            )
+            await session.commit()
+        log.info(
+            "full catalogue walked",
+            leagues=len(leagues),
+            leagues_on_this_window=len(walking),
+            gameweeks=len(gameweeks),
+        )
+        return True
+    except Exception:
+        log.exception("full catalogue walk failed")
+        return False
+
+
+def _one_window_of(leagues: Sequence[League], today: date) -> list[League]:
+    """The leagues sharing this week's turn of the window rotation.
+
+    Stable order — a window is identified by its own four numbers, not by dictionary
+    insertion — so the rotation is a property of the calendar rather than of the order
+    rows came back in.
+    """
+    by_window: dict[SlateWindow, list[League]] = {}
+    for league in leagues:
+        by_window.setdefault(window_for(league), []).append(league)
+    if not by_window:
+        return []
+    windows = sorted(
+        by_window,
+        key=lambda w: (w.start_weekday, w.start_minute, w.end_weekday, w.end_minute),
+    )
+    return by_window[windows[today.isocalendar().week % len(windows)]]
+
+
+async def run_warm_odds_marker() -> bool:
+    """Learn which fixtures the bookmaker prices, before a member pays to. Batch 115/119.
+
+    See :mod:`src.services.odds_warm` for why this exists and what it costs. The job's own
+    job is only to choose the rounds and own the transaction: one commit per round, so a
+    pass that is rate-limited partway keeps what the earlier rounds taught it — the same
+    rule discovery now follows, for the same reason.
+    """
+    try:
+        provider = await odds_session.acquire()
+        now = datetime.now(UTC).replace(tzinfo=None)
+        warmed = 0
+        rounds = 0
+        async with AsyncSessionLocal() as session:
+            for gameweek in await warmable_gameweeks(
+                session, now, horizon_weeks=settings.odds_warm_horizon_weeks
+            ):
+                rounds += 1
+                warmed += await warm_round(
+                    session,
+                    provider,
+                    gameweek,
+                    now,
+                    recheck_seconds=settings.odds_unpriced_recheck_seconds,
+                )
+                await session.commit()
+        log.info("odds marker warm pass", rounds=rounds, fixtures_marked=warmed)
+        return True
+    except Exception:
+        log.exception("odds marker warm pass failed")
+        return False
+
+
 # ── Coupon domain jobs (Batch 4) ────────────────────────────────────────────────
 # Each draws the odds provider from the shared ``odds_session`` and owns its DB
 # transaction (the domain functions flush; the job commits), and logs+swallows its own
@@ -246,17 +405,42 @@ async def report_football_provider_health() -> bool:
 async def run_discover_fixtures() -> bool:
     """Walk the coming weeks' fixtures into the table, once a day.
 
-    The pre-fetch half of Batch 11's split. Discovery is scheduled, cheap, and ahead
-    of time — one request per UK competition per Saturday, so the whole horizon costs
-    about sixty requests once daily. Pricing is deliberately *not* pre-fetched: a
-    price only matters at the instant a member freezes it onto a pick, and sweeping
-    the card for odds is what the provider's rate limit cannot afford.
+    The pre-fetch half of Batch 11's split. Discovery is scheduled, cheap, and ahead of
+    time. Pricing is deliberately *not* pre-fetched: a price only matters at the instant a
+    member freezes it onto a pick, and sweeping the card for odds is what the provider's
+    rate limit cannot afford.
+
+    **It stopped being cheap, and nothing said so** (Batch 119). The cost is
+    ``windows x dates x competitions``; the docstring here said "about sixty requests" and
+    the live catalogue was 67 competitions, so two windows across a two-week horizon was
+    ``2 x 2 x 67 = 268`` against a plan of 100/hour. The run took a ``429`` partway, raised,
+    was caught below as a one-line exception, and returned ``False`` — every morning for a
+    week, while twelve members had nothing to play.
+
+    Three changes, and each is a different half of that:
+
+    * **it walks less.** ``competition_ids`` is the set that has ever carried a fixture
+      (:func:`~src.services.gameweek.pooled_competition_ids`), on top of the product trim
+      the provider applies for every caller. Together that is ~20 competitions rather
+      than 67.
+    * **it keeps what it bought.** ``commit_each`` commits every ``(window, date)`` as it
+      lands, so a run that still cannot finish leaves the deployment better off than it
+      found it instead of rolling the whole thing back.
+    * **it says when it has produced nothing.** The two reads in
+      :mod:`src.services.discovery_health` cost one query each and no provider request, and
+      are logged at ``error`` whether this run succeeded or failed — a run that "succeeds"
+      against a deployment whose newest round is a week old is the exact shape that hid
+      this for seven days.
+
+    The horizon is deliberately untouched. It exists so a member picking on Tuesday
+    already has a full card.
     """
     try:
         provider = await odds_session.acquire()
         football = await football_session.acquire()
         async with AsyncSessionLocal() as session:
             leagues = await active_leagues(session)
+            pooled = await pooled_competition_ids(session)
             gameweeks = await discover_fixtures(
                 session,
                 provider,
@@ -264,6 +448,10 @@ async def run_discover_fixtures() -> bool:
                 _uk_today(),
                 settings.slate_horizon_weeks,
                 football=football,
+                # An empty pool is a deployment with nothing to narrow by — walk
+                # everything and bootstrap, which is what the weekly pass does anyway.
+                competition_ids=pooled or None,
+                commit_each=True,
             )
             gameweek_ids = [str(g.id) for g in gameweeks]
             windows = len({window_for(league) for league in leagues})
@@ -272,6 +460,7 @@ async def run_discover_fixtures() -> bool:
             "fixtures discovered",
             leagues=len(leagues),
             distinct_windows=windows,
+            competitions_walked=len(pooled),
             gameweeks=len(gameweek_ids),
         )
         return True
@@ -279,6 +468,7 @@ async def run_discover_fixtures() -> bool:
         log.exception("fixture discovery failed")
         return False
     finally:
+        await report_discovery_silence()
         # Batch 101. In `finally` on the one job that runs the void cross-check: a sweep
         # that threw is exactly when the source is in trouble, and reporting only on the
         # happy path would lose the alert precisely when it matters.
@@ -308,7 +498,7 @@ async def run_refresh_slate() -> bool:
             leagues = await active_leagues(session)
             # Horizon of 1: only the round about to be played.
             gameweeks = await discover_fixtures(
-                session, provider, leagues, _uk_today(), 1, football=football
+                session, provider, leagues, _uk_today(), 1, football=football, commit_each=True
             )
             refreshed = len(gameweeks)
             await session.commit()
@@ -635,6 +825,36 @@ def create_scheduler() -> AsyncIOScheduler:
         minute=0,
         timezone="Europe/London",
         id="discover_fixtures",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+    )
+    scheduler.add_job(
+        run_discover_full_catalogue,
+        trigger="cron",
+        # Sunday 04:00 London — Batch 119. Its own hour, clear of the 06:00 daily run: it
+        # walks the whole played catalogue rather than the pooled subset, so the two
+        # sharing an hour would put both back over the 100/hour plan that caused this.
+        day_of_week="sun",
+        hour=4,
+        minute=0,
+        timezone="Europe/London",
+        id="discover_full_catalogue",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+    )
+    scheduler.add_job(
+        run_warm_odds_marker,
+        trigger="cron",
+        # 07:00 London — an hour after discovery, so the card it warms is the one just
+        # walked in, and well clear of any default 14:30 lock. Batch 114 moved the late
+        # slate pass off 13:00 precisely to stop a scheduled job spending the hour members
+        # are hardest to serve; this is the same shape and keeps the same distance.
+        hour=7,
+        minute=0,
+        timezone="Europe/London",
+        id="warm_odds_marker",
         replace_existing=True,
         coalesce=True,
         max_instances=1,

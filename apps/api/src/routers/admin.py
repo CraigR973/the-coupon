@@ -60,6 +60,7 @@ from src.services.credentials import (
     pin_reset_audit,
     revoke_all_refresh_tokens,
 )
+from src.services.discovery_health import discovery_health
 from src.services.gameweek import PICKABLE_STATES
 from src.services.odds_session import odds_session
 from src.services.scoring import settle_gameweek
@@ -534,6 +535,39 @@ class OddsBudgetState(BaseModel):
     rate_limited_for: float | None
 
 
+class SilentLeagueState(BaseModel):
+    """A league with members and no round any of them can still pick on."""
+
+    league_slug: str
+    league_name: str
+    members: int
+
+
+class DiscoveryHealthState(BaseModel):
+    """Whether anything is still producing rounds, and who is going without (Batch 119).
+
+    The reading this screen could not give. Between 2026-09-04 and 2026-09-11 no scheduled
+    job created a single round, and every panel here said the deployment was healthy:
+    ``scheduler`` showed APScheduler up with `discover_fixtures` due at 06:00, and
+    ``stuck_rounds`` was empty because every round the deployment held had already been
+    played. Twelve members had nothing to play for a week and the only thing that surfaced
+    it was somebody going looking.
+
+    Two reads, one query each, no provider request — see
+    :mod:`src.services.discovery_health` for why the first needs a week-long threshold and
+    the second needs none.
+    """
+
+    newest_round_created_at: UtcDatetime | None
+    hours_since_newest_round: float | None
+    stale_after_hours: float
+    #: Round creation has stopped, or has never started.
+    stale: bool
+    leagues_without_open_round: list[SilentLeagueState]
+    #: Either alarm — what the screen colours on.
+    alarm: bool
+
+
 class AdminDashboard(BaseModel):
     active_members: int
     members_awaiting_pin: int
@@ -543,6 +577,7 @@ class AdminDashboard(BaseModel):
     recent_audit: list[AuditEntry]
     scheduler: SchedulerState
     odds_budget: OddsBudgetState
+    discovery: DiscoveryHealthState
 
 
 #: How much of the audit trail the dashboard shows. Enough to see this morning's activity,
@@ -715,6 +750,8 @@ async def dashboard(request: Request, admin: AdminUser, db: Db) -> AdminDashboar
         )
     ).all()
 
+    health = await discovery_health(db, now, stale_after_hours=settings.discovery_stale_after_hours)
+
     actor = _names_subquery()
     audit_rows = (
         await db.execute(
@@ -765,6 +802,19 @@ async def dashboard(request: Request, admin: AdminUser, db: Db) -> AdminDashboar
         ],
         scheduler=_scheduler_state(request),
         odds_budget=_odds_budget_state(),
+        discovery=DiscoveryHealthState(
+            newest_round_created_at=health.newest_round_created_at,
+            hours_since_newest_round=health.hours_since_newest_round,
+            stale_after_hours=health.stale_after_hours,
+            stale=health.stale,
+            leagues_without_open_round=[
+                SilentLeagueState(
+                    league_slug=league.slug, league_name=league.name, members=league.members
+                )
+                for league in health.leagues_without_open_round
+            ],
+            alarm=health.alarm,
+        ),
     )
 
 

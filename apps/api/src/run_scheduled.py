@@ -15,7 +15,9 @@ Usage:
 
 Jobs:
     backup         database backup
+    discover-full-catalogue  weekly walk of every competition this deployment plays
     refresh-slate  refresh the upcoming Saturday's slate + fixtures from the odds provider
+    warm-odds      learn which of the imminent card's fixtures the bookmaker prices
     remind         push a pick reminder to members who haven't picked
     open           open any scheduled gameweek past its announced pick-open time
     lock           lock any gameweek past its 14:30 deadline
@@ -34,6 +36,7 @@ from collections.abc import Awaitable, Callable
 from src.scheduler import (
     run_backfill_football_season,
     run_discover_fixtures,
+    run_discover_full_catalogue,
     run_live_scores,
     run_lock_gameweeks,
     run_open_gameweeks,
@@ -42,12 +45,15 @@ from src.scheduler import (
     run_scheduled_backup,
     run_settle_gameweeks,
     run_sync_football_data,
+    run_warm_odds_marker,
 )
 
 JOBS: dict[str, Callable[[], Awaitable[bool]]] = {
     "backup": run_scheduled_backup,
     "discover-fixtures": run_discover_fixtures,
+    "discover-full-catalogue": run_discover_full_catalogue,
     "refresh-slate": run_refresh_slate,
+    "warm-odds": run_warm_odds_marker,
     "remind": run_pick_reminders,
     "open": run_open_gameweeks,
     "lock": run_lock_gameweeks,

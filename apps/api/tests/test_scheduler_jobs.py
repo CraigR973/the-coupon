@@ -73,6 +73,7 @@ from src.services.gameweek import (
     members_missing_picks,
     open_due_gameweeks,
     picks_open_at,
+    pooled_competition_ids,
     rederive_claim_periods,
     refresh_slate,
     settleable_gameweeks,
@@ -258,9 +259,13 @@ async def test_two_leagues_on_one_window_cost_a_single_provider_fetch(
 
     original = fake.fetch_slate
 
-    async def counting_fetch_slate(window: object, starts_on: date) -> object:
+    async def counting_fetch_slate(
+        window: object, starts_on: date, *, competition_ids: Collection[str] | None = None
+    ) -> object:
         calls.append(starts_on)
-        return await original(window, starts_on)  # type: ignore[arg-type]
+        return await original(  # type: ignore[arg-type]
+            window, starts_on, competition_ids=competition_ids
+        )
 
     fake.fetch_slate = counting_fetch_slate  # type: ignore[method-assign]
 
@@ -289,9 +294,13 @@ async def test_a_different_window_costs_its_own_fetch(session: AsyncSession) -> 
     calls: list[date] = []
     original = fake.fetch_slate
 
-    async def counting_fetch_slate(window: object, starts_on: date) -> object:
+    async def counting_fetch_slate(
+        window: object, starts_on: date, *, competition_ids: Collection[str] | None = None
+    ) -> object:
         calls.append(starts_on)
-        return await original(window, starts_on)  # type: ignore[arg-type]
+        return await original(  # type: ignore[arg-type]
+            window, starts_on, competition_ids=competition_ids
+        )
 
     fake.fetch_slate = counting_fetch_slate  # type: ignore[method-assign]
 
@@ -638,6 +647,11 @@ async def test_only_the_open_round_loses_a_fixture_two_rounds_share(
 # same one-request-per-competition fan-out the live odds-api.io client pays.
 
 
+#: What ``FakeBetfair.with_sample_data`` carries, so a narrowing can be asserted against the
+#: intersection rather than against a count that depends on what else the database holds.
+_CANNED_COMPETITIONS = frozenset({SAMPLE_EPL_ID, SAMPLE_SL2_ID, "99999"})
+
+
 def _count_competition_requests(fake: FakeBetfair, asked: list[list[str]]) -> None:
     """Record the competitions each ``list_events`` request covers, in order."""
     original = fake.list_events
@@ -670,17 +684,54 @@ async def test_an_ad_hoc_fetch_asks_only_for_the_competitions_the_league_plays(
     assert [f.competition_id for f in await fixtures_for(session, gameweek.id)] == [SAMPLE_EPL_ID]
 
 
-async def test_an_unconfigured_league_still_pays_for_every_competition(
+async def test_an_unconfigured_league_is_narrowed_to_the_pool_and_nobody_elses_choice(
     session: AsyncSession,
 ) -> None:
-    """All-UK is a genuine selection, not a missing one — narrowing must not invent it."""
-    _, league = await _seed_league(session, ["all-uk"])
+    """Batch 119 narrowed the one other place that walked the whole catalogue.
+
+    "All-UK" is still a genuine selection rather than a missing one: an unconfigured league
+    is never handed some other league's competitions, and the assertion at the end is what
+    holds that. What changed is what "all UK" *costs*. This function priced it at ~30
+    requests and it measured **67** — the same stale number that made the daily discovery
+    run unaffordable for a week — so an unconfigured ad-hoc fetch now asks for the
+    competitions that have actually carried a fixture, which is the same narrowing the
+    daily job uses and is released by the same weekly full-catalogue walk.
+
+    A cold pool has nothing to narrow by and still walks everything, so a deployment can
+    bootstrap itself; that branch is asserted first.
+    """
+    _, narrowed = await _seed_league(session, ["epl-only"])
+    narrowed.competitions = [{"slug": SAMPLE_EPL_ID, "name": "English Premier League"}]
+    _, unconfigured = await _seed_league(session, ["all-uk"])
+    await session.flush()
+
+    canned = {SAMPLE_EPL_ID, SAMPLE_SL2_ID}
     fake = FakeBetfair.with_sample_data()
     asked: list[list[str]] = []
     _count_competition_requests(fake, asked)
 
-    assert await refresh_slate(session, fake, league, SAMPLE_SATURDAY) is not None
-    assert len(asked) == 3, "every canned competition, one request each"
+    if not await pooled_competition_ids(session):
+        assert await refresh_slate(session, fake, unconfigured, SAMPLE_SATURDAY) is not None
+        assert len(asked) == 3, "an empty pool narrows by nothing and bootstraps"
+
+    # Warm the pool the way a discovery run would, then ask again.
+    await discover_fixtures(
+        session, FakeBetfair.with_sample_data(), [unconfigured], SAMPLE_SATURDAY, 1
+    )
+    pooled = await pooled_competition_ids(session)
+    assert canned <= pooled
+
+    asked.clear()
+    assert await refresh_slate(session, fake, unconfigured, SAMPLE_SATURDAY) is not None
+    walked = {competition for call in asked for competition in call}
+    assert (
+        walked == pooled & _CANNED_COMPETITIONS
+    ), "an unconfigured league walks the pool — not the catalogue, and not a subset of it"
+    assert canned <= walked, "everything that has carried a fixture is still reached"
+
+    asked.clear()
+    assert await refresh_slate(session, fake, narrowed, SAMPLE_SATURDAY) is not None
+    assert asked == [[SAMPLE_EPL_ID]], "a league that chose still pays only for its choice"
 
 
 async def test_shared_discovery_does_not_narrow_its_fetch(session: AsyncSession) -> None:

@@ -309,10 +309,13 @@ class TestFetchCompetitions:
     async def test_lists_every_uk_competition_the_provider_carries(self) -> None:
         competitions = await _provider(_routed(SLATE_ROUTES)).fetch_competitions()
 
+        # Northern Ireland is absent, and deliberately: Batch 119's trim is applied in
+        # `_uk_leagues`, which the picker and the slate both open with, so the picker can
+        # never offer a competition the slate would not draw from. National League North
+        # is the carve-out the owner kept out of the `england-amateur-*` rule.
         assert {c.competition_id for c in competitions} == {
             "england-amateur-national-league-north",
             "england-premier-league",
-            "northern-ireland-premiership",
             SL1,
             "scotland-league-two",
             "wales-cymru-premier",

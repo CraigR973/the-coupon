@@ -12,6 +12,7 @@ from src.models.notification import ActionType, ActorType, AuditLog
 from src.scheduler import (
     create_scheduler,
     run_discover_fixtures,
+    run_discover_full_catalogue,
     run_lock_gameweeks,
     run_pick_reminders,
     run_refresh_slate,
@@ -91,6 +92,8 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
         assert job_ids == {
             "connection_warmup",
             "discover_fixtures",
+            "discover_full_catalogue",
+            "warm_odds_marker",
             "refresh_slate",
             "pick_reminders",
             "open_gameweeks",
@@ -164,6 +167,13 @@ def test_create_scheduler_domain_jobs_fire_on_uk_wall_clock() -> None:
             "open_gameweeks": "cron[minute='1']",
             "lock_gameweeks": "cron[minute='0']",
             "settle_gameweeks": "cron[hour='18,20,22', minute='0']",
+            # Batch 119. The weekly full-catalogue walk gets its own hour on the quietest
+            # morning — it costs the untrimmed catalogue, so sharing 06:00 with the daily
+            # run would put both back over the 100/hour plan that caused the outage.
+            "discover_full_catalogue": "cron[day_of_week='sun', hour='4', minute='0']",
+            # And the marker-warming pass an hour after discovery, so the card it warms is
+            # the one just walked in, and far clear of any default 14:30 lock.
+            "warm_odds_marker": "cron[hour='7', minute='0']",
         }
         for job_id, trigger_repr in expected.items():
             job = scheduler.get_job(job_id)
@@ -228,14 +238,23 @@ def test_the_late_slate_pass_schedule_is_a_setting_rather_than_a_literal() -> No
 
 @pytest.mark.asyncio
 async def test_run_discover_fixtures_walks_the_horizon_and_commits() -> None:
-    """The daily job spans the configured horizon, not just this Saturday."""
+    """The daily job spans the configured horizon, and narrows what it walks inside it.
+
+    Batch 119 added the second half. The horizon is deliberately untouched — it exists so
+    a member picking on Tuesday already has a full card — and the cost is cut on the other
+    two factors instead, so what this asserts is that the job hands discovery the pooled
+    competitions and asks it to commit as it goes.
+    """
     session = AsyncMock()
     gameweek = MagicMock()
     gameweek.id = uuid.uuid4()
+    pooled = {"scotland-premiership", "england-championship"}
     with (
         patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
         patch("src.scheduler.active_leagues", new=AsyncMock(return_value=[MagicMock()])),
+        patch("src.scheduler.pooled_competition_ids", new=AsyncMock(return_value=pooled)),
+        patch("src.scheduler.report_discovery_silence", new=AsyncMock(return_value=False)),
         patch(
             "src.scheduler.discover_fixtures", new=AsyncMock(return_value=[gameweek])
         ) as discover,
@@ -245,6 +264,88 @@ async def test_run_discover_fixtures_walks_the_horizon_and_commits() -> None:
     session.commit.assert_awaited_once()
     # discover_fixtures(session, provider, leagues, today, horizon)
     assert discover.await_args.args[4] == settings.slate_horizon_weeks
+    assert discover.await_args.kwargs["competition_ids"] == pooled
+    assert discover.await_args.kwargs["commit_each"] is True
+
+
+@pytest.mark.asyncio
+async def test_run_discover_fixtures_narrows_by_nothing_on_an_empty_pool() -> None:
+    """A deployment with no fixtures has nothing to narrow by, so it walks everything.
+
+    The narrowing is a ratchet, and this is the one place it must not engage: an empty pool
+    would otherwise narrow the walk to nothing at all and the deployment could never
+    bootstrap itself.
+    """
+    session = AsyncMock()
+    with (
+        patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.active_leagues", new=AsyncMock(return_value=[MagicMock()])),
+        patch("src.scheduler.pooled_competition_ids", new=AsyncMock(return_value=set())),
+        patch("src.scheduler.report_discovery_silence", new=AsyncMock(return_value=False)),
+        patch("src.scheduler.discover_fixtures", new=AsyncMock(return_value=[])) as discover,
+    ):
+        assert await run_discover_fixtures() is True
+
+    assert discover.await_args.kwargs["competition_ids"] is None
+
+
+@pytest.mark.asyncio
+async def test_run_discover_full_catalogue_asks_for_everything_on_one_date() -> None:
+    """The weekly release on the ratchet: no narrowing, a horizon of one, one window.
+
+    Its whole purpose is to reach competitions the daily run skips, so narrowing it would
+    make it pointless; its cost is the untrimmed catalogue, so the horizon and the window
+    are where it has to be cheap.
+    """
+    session = AsyncMock()
+    with (
+        patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.active_leagues", new=AsyncMock(return_value=[MagicMock()])),
+        patch("src.scheduler.discover_fixtures", new=AsyncMock(return_value=[])) as discover,
+    ):
+        assert await run_discover_full_catalogue() is True
+
+    assert discover.await_args.args[4] == 1, "a single date"
+    assert discover.await_args.kwargs["competition_ids"] is None
+    assert discover.await_args.kwargs["commit_each"] is True
+
+
+@pytest.mark.asyncio
+async def test_the_full_catalogue_walk_covers_one_window_at_a_time() -> None:
+    """One window a week, rotated, because the fixture pool is shared across all of them.
+
+    A competition discovered through any window is one the *daily* run walks for every
+    window from the next morning, so paying for the whole catalogue once per window in one
+    night would be paying twice for the same lesson.
+    """
+    from datetime import date as _date
+
+    from src.models.league import League
+    from src.scheduler import _one_window_of
+
+    def _league(start_weekday: int, start_minute: int) -> League:
+        # Set explicitly: the columns are NOT NULL with server defaults, so an unsaved row
+        # carries `None` where a real one carries the default Saturday 15:00.
+        league = League()
+        league.slate_start_weekday = start_weekday
+        league.slate_start_minute = start_minute
+        league.slate_end_weekday = start_weekday
+        league.slate_end_minute = start_minute
+        league.lock_offset_minutes = 30
+        return league
+
+    leagues = [_league(5, 15 * 60), _league(5, 15 * 60), _league(4, 19 * 60)]
+
+    chosen = {
+        tuple(sorted(id(lg) for lg in _one_window_of(leagues, _date(2026, 9, day))))
+        for day in range(1, 29, 7)
+    }
+    assert len(chosen) == 2, "both windows are reached as the weeks turn"
+    for week in chosen:
+        assert len(week) in (1, 2), "each run covers exactly one window's leagues"
+    assert _one_window_of([], _date(2026, 9, 1)) == []
 
 
 @pytest.mark.asyncio

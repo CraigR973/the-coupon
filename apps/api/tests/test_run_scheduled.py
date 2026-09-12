@@ -14,7 +14,9 @@ def test_jobs_cover_expected_names() -> None:
     assert set(run_scheduled.JOBS) == {
         "backup",
         "discover-fixtures",
+        "discover-full-catalogue",
         "refresh-slate",
+        "warm-odds",
         "remind",
         "open",
         "lock",

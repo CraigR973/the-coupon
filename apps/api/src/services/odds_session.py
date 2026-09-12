@@ -108,6 +108,9 @@ class OddsProviderSession:
             hourly_request_limit=settings.odds_hourly_request_limit,
             daily_request_limit=settings.odds_daily_request_limit,
             pick_reserve_requests=settings.odds_pick_reserve_requests,
+            # Batch 119. A `400` on one chunk of ten must not cost the card its prices,
+            # and the dead id inside it has to be found rather than re-asked forever.
+            isolation_requests=settings.odds_isolation_requests,
         )
         await client.login()
         self._client = client

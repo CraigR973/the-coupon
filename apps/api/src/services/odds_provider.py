@@ -79,6 +79,25 @@ class OddsProviderAPIError(OddsProviderError):
     """The provider returned an error, or a response we cannot use."""
 
 
+class OddsProviderBadRequest(OddsProviderAPIError):
+    """The provider rejected the request itself (``400``) — the ids, not the plan.
+
+    Batch 119, from a second live defect. ``/odds/multi`` answers
+    ``400 One or more eventIds not found`` when **any** id in the chunk is unknown, and
+    odds-api.io expires an id once its match has been played. Production held 738
+    already-played fixtures in the pool, so one dead id in a chunk of ten was taking the
+    whole sweep down: ``fixtures=202 priced=0`` three times in one evening, with the
+    degraded banner, on a settled round.
+
+    Separated from its parent so the two can be told apart where it matters. A ``500`` or
+    a network blip says nothing about any particular fixture and is worth asking again;
+    a ``400`` on a chunk means at least one of those ids is gone, and a ``400`` on a
+    *single* id is a durable fact about that one fixture —
+    :class:`~src.services.odds_cache.CachingOddsProvider` records it through Batch 114's
+    marker rather than re-asking forever.
+    """
+
+
 class OddsProviderRateLimited(OddsProviderAPIError):
     """The provider refused because the plan's quota is already spent (``429``).
 

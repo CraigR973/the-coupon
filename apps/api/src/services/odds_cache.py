@@ -60,6 +60,7 @@ from src.services.odds_provider import (
     EventSettlement,
     FixtureOdds,
     OddsProvider,
+    OddsProviderBadRequest,
     OddsProviderError,
     OddsProviderRateLimited,
     OddsSnapshot,
@@ -121,6 +122,12 @@ class CachingOddsProvider(OddsProvider):
     ``unpriced_ttl_seconds`` is the same bound for the *absence* of a price, which is a
     far more durable fact and gets a far longer ceiling. It defaults to ``ttl_seconds``,
     which is the pre-Batch-114 behaviour, so a caller that does not care keeps it.
+
+    ``isolation_requests`` is how many extra requests one refill may spend finding the
+    expired id inside a chunk the provider refused (Batch 119, :meth:`_isolate`). It
+    defaults to ``0`` — a refused chunk simply loses its ten their prices, which is the
+    isolation this batch is mainly about; the production session passes
+    ``ODDS_ISOLATION_REQUESTS`` so the dead id is also recorded rather than re-asked.
     """
 
     def __init__(
@@ -134,6 +141,7 @@ class CachingOddsProvider(OddsProvider):
         daily_request_limit: int | None = None,
         pick_reserve_requests: int = 0,
         events_per_request: int = EVENTS_PER_ODDS_REQUEST,
+        isolation_requests: int = 0,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._inner = inner
@@ -144,6 +152,7 @@ class CachingOddsProvider(OddsProvider):
         self._day_limit = daily_request_limit
         self._reserve = pick_reserve_requests
         self._events_per_request = max(1, events_per_request)
+        self._isolation_requests = max(0, isolation_requests)
         self._clock = clock
         self._entries: dict[str, _Entry] = {}
         self._lock = asyncio.Lock()
@@ -275,51 +284,160 @@ class CachingOddsProvider(OddsProvider):
 
         Charged to the budget whatever the outcome, because the request left either way —
         that is the whole reason a ``429`` needs a cooldown rather than a retry.
+
+        **One request at a time since Batch 119, and the chunking moved here to make that
+        possible.** ``/odds/multi`` answers ``400 One or more eventIds not found`` when
+        *any* id in a chunk of ten has expired, and odds-api.io expires an id once its
+        match has been played. Asking for the whole card in one call meant one dead
+        fixture cost every fixture its price: production logged ``fixtures=202 priced=0``
+        three times in one evening, with the degraded banner, on a settled round.
+
+        The chunk is the unit the provider bills *and* the unit a ``400`` destroys, and
+        this is the only layer that can say so — :attr:`OddsSnapshot.observed` is computed
+        here, and marking a whole rejected chunk unpriced would take nine pickable
+        fixtures off the card to record one dead one. So a rejected chunk yields no
+        entries and is excluded from ``observed``; every other chunk is untouched.
+
+        The wrapped provider still chunks internally for a caller that hands it more than
+        one request's worth directly. Nothing is asked twice: the chunks below are the
+        same size it would have used.
         """
         self._charge(now, len(stale))
-        try:
-            fetched = await self._inner.fetch_odds(stale)
-        except OddsProviderRateLimited as exc:
-            # The quota is already spent, so the one thing that cannot help is another
-            # request. Hold every caller off upstream until it has had a chance to roll
-            # over; the entries below are what everyone is served in the meantime.
-            self._rate_limited_until = now + self._cooldown
-            log.warning(
-                "odds provider rate limited, holding off",
-                stale=len(stale),
-                cooldown_seconds=self._cooldown,
-                error=repr(exc),
-            )
-            if not best_effort:
-                raise
-            return frozenset(), True
-        except OddsProviderError as exc:
-            if not best_effort:
-                raise
-            # The stale entries stay exactly as they are, so the next call tries
-            # upstream again — a provider that recovers is served fresh prices on
-            # the next page load rather than on the next TTL boundary. That reason
-            # holds for a blip and not for a `429`, which is why the branch above
-            # is separate.
-            log.warning(
-                "odds refresh failed, serving cached",
-                stale=len(stale),
-                error=repr(exc),
-            )
-            return frozenset(), True
+        observed: set[str] = set()
+        rejected: list[Sequence[str]] = []
+        degraded = False
 
-        by_event = {o.provider_event_id: o for o in fetched}
-        stored_at = self._clock()
-        for event_id in stale:
-            self._entries[event_id] = _Entry(by_event.get(event_id), stored_at)
+        for chunk in self._chunks(stale):
+            try:
+                fetched = await self._inner.fetch_odds(chunk)
+            except OddsProviderRateLimited as exc:
+                # The quota is already spent, so the one thing that cannot help is another
+                # request. Hold every caller off upstream until it has had a chance to roll
+                # over; the entries below are what everyone is served in the meantime.
+                self._rate_limited_until = now + self._cooldown
+                log.warning(
+                    "odds provider rate limited, holding off",
+                    stale=len(stale),
+                    cooldown_seconds=self._cooldown,
+                    error=repr(exc),
+                )
+                if not best_effort:
+                    raise
+                return frozenset(observed), True
+            except OddsProviderBadRequest as exc:
+                if not best_effort:
+                    raise
+                # At least one id in this chunk is gone, and the answer does not say
+                # which. Nothing here is evidence about any of them.
+                rejected.append(chunk)
+                degraded = True
+                log.warning("odds chunk rejected", size=len(chunk), error=str(exc))
+                continue
+            except OddsProviderError as exc:
+                if not best_effort:
+                    raise
+                # The stale entries stay exactly as they are, so the next call tries
+                # upstream again — a provider that recovers is served fresh prices on
+                # the next page load rather than on the next TTL boundary. That reason
+                # holds for a blip and not for a `429`, which is why the branch above
+                # is separate.
+                degraded = True
+                log.warning(
+                    "odds refresh failed, serving cached", stale=len(chunk), error=repr(exc)
+                )
+                continue
+            self._store(chunk, fetched)
+            observed.update(chunk)
+
+        if rejected:
+            isolated, held_off = await self._isolate(rejected, now)
+            observed.update(isolated)
+            degraded = degraded or held_off
+
         log.debug(
             "odds cache refill",
             fetched_upstream=len(stale),
-            priced=sum(1 for event_id in stale if event_id in by_event),
+            observed=len(observed),
+            rejected_chunks=len(rejected),
         )
-        # Everything asked for got a definite answer, price or no price. That is what
+        # Everything in `observed` got a definite answer, price or no price. That is what
         # makes it safe for the caller to write `fixtures.odds_unpriced_since_utc`.
-        return frozenset(stale), False
+        return frozenset(observed), degraded
+
+    def _chunks(self, event_ids: Sequence[str]) -> list[Sequence[str]]:
+        """``event_ids`` split into one upstream request's worth each."""
+        size = self._events_per_request
+        return [event_ids[start : start + size] for start in range(0, len(event_ids), size)]
+
+    def _store(self, asked: Sequence[str], fetched: Sequence[FixtureOdds]) -> None:
+        """Record one answered chunk — an entry per id, ``None`` where nothing is priced."""
+        by_event = {odds.provider_event_id: odds for odds in fetched}
+        stored_at = self._clock()
+        for event_id in asked:
+            self._entries[event_id] = _Entry(by_event.get(event_id), stored_at)
+
+    async def _isolate(
+        self, rejected: Sequence[Sequence[str]], now: float
+    ) -> tuple[set[str], bool]:
+        """Halve refused chunks until one id can be blamed. Returns (observed, held_off).
+
+        Isolating the chunk keeps the card priced; this is what stops the dead id coming
+        back tomorrow. A chunk that is refused is halved and both halves re-asked: a half
+        that answers resolves its ids for good, and a half that is refused is halved
+        again, down to a single id — and **a single id the provider refuses is a durable
+        fact about that one fixture**. It is returned as ``observed`` with no price, which
+        is precisely the evidence :func:`~src.services.odds_pricing.record_observations`
+        writes ``fixtures.odds_unpriced_since_utc`` from, so ``askable`` stops spending a
+        request on it until the bounded re-check falls due.
+
+        **Bounded by design.** At most ``isolation_requests`` extra requests per refill —
+        two by default — because this runs on the browsing path against a 100/hour plan.
+        Two is enough: each refill halves the suspect set, so a chunk of ten is resolved
+        in three refills and six requests, and the rest of the card is priced throughout.
+        Spending an unbounded budget chasing a dead id would be the same mistake in the
+        other direction.
+        """
+        budget = self._isolation_requests
+        queue = [list(chunk) for chunk in rejected]
+        observed: set[str] = set()
+        while queue and budget > 0:
+            chunk = queue.pop(0)
+            halves = (
+                [chunk] if len(chunk) == 1 else [chunk[: len(chunk) // 2], chunk[len(chunk) // 2 :]]
+            )
+            for half in halves:
+                if budget <= 0:
+                    queue.append(half)
+                    break
+                budget -= 1
+                self._charge(now, len(half))
+                try:
+                    fetched = await self._inner.fetch_odds(half)
+                except OddsProviderRateLimited as exc:
+                    self._rate_limited_until = now + self._cooldown
+                    log.warning(
+                        "odds provider rate limited while isolating a rejected chunk",
+                        cooldown_seconds=self._cooldown,
+                        error=repr(exc),
+                    )
+                    return observed, True
+                except OddsProviderBadRequest:
+                    if len(half) == 1:
+                        # The provider has now refused this id on its own. That is as
+                        # definite as the API gets: the event does not exist.
+                        self._entries[half[0]] = _Entry(None, self._clock())
+                        observed.add(half[0])
+                        log.info("odds event expired at the provider", event_id=half[0])
+                        continue
+                    queue.append(half)
+                    continue
+                except OddsProviderError as exc:
+                    # Not evidence about these ids — leave them for the next refill.
+                    log.warning("odds isolation probe failed", size=len(half), error=repr(exc))
+                    continue
+                self._store(half, fetched)
+                observed.update(half)
+        return observed, bool(queue)
 
     # -- freshness -------------------------------------------------------------
 

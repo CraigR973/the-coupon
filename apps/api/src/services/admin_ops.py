@@ -30,13 +30,21 @@ from dataclasses import dataclass
 from src.config import settings
 from src.models.pick import PickMarket, PickOutcome
 from src.run_scheduled import JOBS
+from src.services.competitions import MEASURED_DAILY_WALK, MEASURED_PLAYED_CATALOGUE
 from src.services.odds_provider import EventSettlement, Market, Outcome, OutcomeResult
 
-#: One ``/events`` call per UK competition is what a single slate walk costs. Measured on
-#: the launch Saturday, 2026-08-04: 131 qualifying 15:00 kick-offs across 30 UK
-#: competitions. ``tests/test_request_budget.py`` holds the same figure and is where the
-#: arithmetic against the 100/hour plan lives.
-REQUESTS_PER_SLATE_WALK = 30
+#: One ``/events`` call per competition walked is what a single slate walk costs, and this
+#: is how many a walk walks.
+#:
+#: It was ``30``, measured on the launch Saturday 2026-08-04 and never re-taken. The live
+#: UK catalogue measured **67** on 2026-09-11, which is why the daily discovery run spent a
+#: week taking a ``429`` partway through and producing nothing. Batch 119 narrowed every
+#: walk twice — a product trim down to 41, then the competitions that have actually carried
+#: a fixture — so the figure a walk costs now comes from
+#: :data:`~src.services.competitions.MEASURED_DAILY_WALK` rather than from this line, and
+#: ``tests/test_request_budget.py`` reads the pool out of the database and turns red when
+#: it outgrows the measurement.
+REQUESTS_PER_SLATE_WALK = MEASURED_DAILY_WALK
 
 
 @dataclass(frozen=True)
@@ -105,6 +113,23 @@ def manual_jobs() -> tuple[ManualJob, ...]:
             label="Refresh this week's slate",
             summary="Top up the next round's card and prices before it locks.",
             provider_requests=REQUESTS_PER_SLATE_WALK,
+        ),
+        ManualJob(
+            key="discover-full-catalogue",
+            label="Walk the full catalogue",
+            summary="Find competitions that have never yet carried a fixture. Weekly job.",
+            # The whole played catalogue rather than the pooled subset — that is the point
+            # of it — on a single date. The dearest button on this screen.
+            provider_requests=MEASURED_PLAYED_CATALOGUE,
+        ),
+        ManualJob(
+            key="warm-odds",
+            label="Warm the odds marker",
+            summary="Learn which of the imminent card's fixtures the bookmaker prices.",
+            # One sweep of the imminent round's askable fixtures, ten fixtures a request.
+            # Costed at a cold card of the size the budget suite is sized on; a round
+            # already learned inside its re-check window costs nothing at all.
+            provider_requests=math.ceil(264 / 10),
         ),
         ManualJob(
             key="open",

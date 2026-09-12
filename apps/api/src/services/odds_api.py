@@ -8,7 +8,9 @@ Replaces the Betfair Exchange (ADR 0002). Two reasons, both blocking:
   every region the deployment platform offers.
 
 odds-api.io aggregates 265+ bookmakers and carries all four Scottish divisions, the full
-English pyramid, Wales, and Northern Ireland. Prices come from **one** bookmaker —
+English pyramid, Wales, and Northern Ireland. What this deployment *plays* is narrower
+than what the provider carries since Batch 119 —
+:mod:`src.services.competitions` holds that trim and why. Prices come from **one** bookmaker —
 Bet365 by owner decision — because the game scores by odds, so mixing books would make a
 member's score depend on who priced their fixture rather than on the risk they took.
 
@@ -44,6 +46,7 @@ import structlog
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from src.config import settings
+from src.services.competitions import is_played
 from src.services.odds_provider import (
     EVENTS_PER_ODDS_REQUEST,
     Competition,
@@ -53,6 +56,7 @@ from src.services.odds_provider import (
     OddsProvider,
     OddsProviderAPIError,
     OddsProviderAuthError,
+    OddsProviderBadRequest,
     OddsProviderRateLimited,
     Outcome,
     OutcomeResult,
@@ -395,7 +399,10 @@ class OddsApiProvider(OddsProvider):
         ``competition_ids`` narrows the catalogue *before* the ``/events`` fan-out,
         which is where the whole cost of this call sits: one request per league walked.
         The ``/leagues`` catalogue itself is memoised on the client, so narrowing does
-        not save that one — it saves the ~30 that follow it.
+        not save that one — it saves the one-per-competition that follow it. That number
+        was written here as "~30" and measured 67 on 2026-09-11, which is what made the
+        daily discovery run unaffordable for a week; it is now narrowed twice, by the
+        product trim in ``_uk_leagues`` and by this argument.
         """
         from_utc, to_utc = window.query_bounds(starts_on)
         leagues = await self._uk_leagues()
@@ -445,9 +452,10 @@ class OddsApiProvider(OddsProvider):
     async def fetch_competitions(self) -> list[Competition]:
         """Every UK competition the provider carries, in name order.
 
-        The same catalogue :meth:`fetch_slate` opens with, and the same ``_is_uk`` rule —
-        roughly thirty of the live 728 — so the picker offers exactly the competitions a
-        slate could ever draw from, including the ones this league has never played.
+        The same catalogue :meth:`fetch_slate` opens with, and the same ``_is_uk`` +
+        ``is_played`` rules — 41 of the live 728, measured 2026-09-12 — so the picker
+        offers exactly the competitions a slate could ever draw from, including the ones
+        this league has never played.
 
         This does not run into the slate's rate limit. The slate costs one ``/events`` per
         competition; this is :meth:`_all_leagues`, a single ``/leagues`` call memoised on
@@ -565,12 +573,20 @@ class OddsApiProvider(OddsProvider):
         return self._leagues
 
     async def _uk_leagues(self) -> list[OALeague]:
-        """The catalogue narrowed to the four home nations, entries without an id dropped.
+        """The catalogue narrowed to what this deployment plays, entries without an id dropped.
 
         Shared by the slate and the competition catalogue so the picker can never offer a
         competition the slate would not consider, or hide one it would.
+
+        Two narrowings, and the second is Batch 119's product trim
+        (:func:`~src.services.competitions.is_played`). It belongs here rather than at one
+        call site because "this deployment does not play Northern Ireland" is a fact about
+        the deployment, not about the screen asking: the slate must not fetch those
+        competitions, the picker must not offer them, and an ad-hoc round must not draw
+        from them. Measured live on 2026-09-12: 67 UK competitions in the catalogue, 41
+        after the trim.
         """
-        return [lg for lg in await self._all_leagues() if _is_uk(lg) and lg.id]
+        return [lg for lg in await self._all_leagues() if _is_uk(lg) and lg.id and is_played(lg.id)]
 
     async def _event_by_id(self, event_id: str) -> OAEvent | None:
         """One event with its ``status`` and ``scores`` — the settlement source.
@@ -692,7 +708,16 @@ class OddsApiProvider(OddsProvider):
                 # request URL, and the API key travels in the query string, so a 4xx would
                 # print the key into any traceback the platform logs. Only the path,
                 # status, and body go into the message.
-                raise OddsProviderAPIError(
+                #
+                # A `400` gets its own type (Batch 119). It is the one 4xx that is about
+                # the *ids* rather than the plan or the key — `/odds/multi` answers
+                # `400 One or more eventIds not found` when any id in the chunk has
+                # expired — and the cache isolates it per chunk instead of losing the
+                # whole card's prices to one dead fixture.
+                error = (
+                    OddsProviderBadRequest if response.status_code == 400 else OddsProviderAPIError
+                )
+                raise error(
                     f"odds-api.io {path} unexpected status {response.status_code}: "
                     f"{response.text[:200]}"
                 )

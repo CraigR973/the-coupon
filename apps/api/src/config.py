@@ -160,6 +160,21 @@ class Settings(BaseSettings):
     # still take its picks in the hour when browsing has spent everything else.
     odds_pick_reserve_requests: int = 50
 
+    # ── Finding the dead id inside a refused chunk (Batch 119) ──────────────────
+    #
+    # `/odds/multi` answers `400 One or more eventIds not found` when *any* id in a chunk
+    # of ten has expired, and odds-api.io expires an id once its match has been played.
+    # Production held 738 already-played fixtures in the pool and logged
+    # `fixtures=202 priced=0` three times in one evening because of it.
+    #
+    # The chunk is isolated for free — a refused chunk now costs its own ten their prices
+    # and nothing else. This is the *extra* budget one refill may spend halving that chunk
+    # to find which id is gone, so the marker can record it rather than the sweep meeting
+    # it again tomorrow. Two, because it runs on the browsing path: each refill halves the
+    # suspect set, so a chunk of ten is resolved in three refills and six requests, and the
+    # daily budget in `tests/test_request_budget.py` is asserted with it included.
+    odds_isolation_requests: int = 2
+
     # When the late slate pass runs, Europe/London, as a `CronTrigger` hour expression.
     #
     # It was pinned at `9,13` in `create_scheduler`. 13:00 London is ninety minutes before
@@ -173,10 +188,32 @@ class Settings(BaseSettings):
     odds_refresh_slate_hours: str = "9,11"
 
     # How many upcoming Saturdays the daily discovery job walks into `fixtures`. Fixture
-    # discovery costs one request per UK competition (~30), so each extra Saturday is ~30
-    # requests once a day — cheap, and it means a member picking on Tuesday already has a
-    # full card rather than waiting for match day.
+    # discovery costs one request per competition walked, per distinct window, per date —
+    # and the "~30" this comment claimed until Batch 119 was 67, so the daily run was 268
+    # requests against a 100/hour plan and failed every day for a week without saying so.
+    # Each extra Saturday still multiplies the whole thing, which is why the horizon is
+    # the one factor Batch 119 deliberately did *not* cut: it exists so a member picking
+    # on Tuesday already has a full card.
     slate_horizon_weeks: int = 2
+
+    # ── When silence becomes an alarm (Batch 119) ───────────────────────────────
+    #
+    # No round was created by any scheduled job between 2026-09-04 20:21 and 2026-09-11,
+    # and nothing said so: the scheduler was running perfectly and every round it held was
+    # in the past. `services/discovery_health.py` turns that into two reads on the admin
+    # dashboard, and this is the threshold for the first of them.
+    #
+    # A round *row* is created when a new date enters the horizon, which on a weekly
+    # cadence is about once a week per league — not daily, however often discovery runs —
+    # so this has to be a week plus slack rather than a day. The second alarm ("a league
+    # with members and no open round") is the fast one: it fired within hours of the 5
+    # September round locking, and would have caught this on day one.
+    discovery_stale_after_hours: int = 192
+
+    # How many upcoming dates the marker-warming pass covers (Batch 115, folded into 119).
+    # One, for the same reason `refresh_slate` uses one: the far weeks have not firmed up,
+    # and warming them would spend the budget on a card that is going to change.
+    odds_warm_horizon_weeks: int = 1
 
     # ── Football data: tables, previous results, form (Batch 16) ────────────────
     #

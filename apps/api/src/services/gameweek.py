@@ -15,7 +15,7 @@ All ``*_utc`` values are stored naive-UTC to match the rest of the schema.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -841,6 +841,30 @@ async def active_leagues(db: AsyncSession) -> list[League]:
     return list(result.scalars().all())
 
 
+async def pooled_competition_ids(db: AsyncSession) -> set[str]:
+    """Every competition that has ever put a fixture in the pool. One query, no requests.
+
+    Batch 119's cost half, and the invisible one. The provider's UK catalogue holds 67
+    competitions and the pool holds 33, so **34 have never once carried a fixture** and
+    every daily discovery run paid a request each to find that out again. Narrowing the
+    daily walk to this set is free in member terms — a competition with no fixtures returns
+    nothing whether it is asked or not — where the product trim in
+    :mod:`src.services.competitions` deliberately is not.
+
+    **This is a ratchet, and the ratchet needs a release.** A competition that is never
+    walked can never be discovered, so on its own this would slowly starve the catalogue as
+    seasons turn over. :func:`~src.scheduler.run_discover_full_catalogue` is the release:
+    a weekly walk of the whole (trimmed) catalogue, in its own hour, on a single date, so
+    the untrimmed cost fits.
+
+    Returns the raw pool. The caller intersects it with whatever else narrows the walk;
+    an empty set means a deployment with no fixtures at all, where the honest answer is to
+    walk everything and bootstrap.
+    """
+    rows = await db.execute(select(Fixture.competition_id).distinct())
+    return {competition_id for (competition_id,) in rows.all() if competition_id}
+
+
 async def discover_fixtures(
     db: AsyncSession,
     provider: OddsProvider,
@@ -849,6 +873,8 @@ async def discover_fixtures(
     horizon: int,
     *,
     football: FootballDataProvider | None = None,
+    competition_ids: Collection[str] | None = None,
+    commit_each: bool = False,
 ) -> list[Gameweek]:
     """Walk every league's coming cards into the pool and link them to its rounds.
 
@@ -882,6 +908,24 @@ async def discover_fixtures(
     cross-check exactly as they share the fetch. Omitting it — as the tests that care only
     about linking do — simply skips verification and trusts the odds provider, which is
     the behaviour that existed before Batch 64.
+
+    ``competition_ids`` narrows the walk before the fan-out, which is where the whole cost
+    is. ``None`` walks everything the provider carries and this deployment plays — the
+    weekly full-catalogue pass, and a database with no fixtures to narrow by. The daily
+    run passes :func:`pooled_competition_ids` (Batch 119); the saving is per request, so
+    it multiplies by windows and dates exactly as the cost does.
+
+    ``commit_each`` commits after each ``(window, date)`` instead of leaving the whole run
+    to the caller's single commit. **This is what a run that cannot finish leaves behind.**
+    Before Batch 119 the job committed once at the end, so the ``429`` it took partway
+    through raised out of here, skipped the commit, and the session rolled back every
+    ``(window, date)`` that had already succeeded — bought and paid for. A run that got
+    a hundred requests in had nothing to show for them, and the next day's run started from
+    the same place and failed the same way. Committing as each lands means a run that
+    exhausts the plan still leaves the deployment better off than it found it.
+
+    Only the scheduler jobs pass it. Everything else — tests, and any caller composing this
+    into a larger transaction — keeps the old contract: flushes, never commits.
     """
     by_window: dict[SlateWindow, list[League]] = {}
     for league in leagues:
@@ -903,7 +947,7 @@ async def discover_fixtures(
                 if starts_on in scheduled
                 else [lg for lg in sharing if starts_on in off_cadence.get(lg.id, set())]
             )
-            slate = await provider.fetch_slate(window, starts_on)
+            slate = await provider.fetch_slate(window, starts_on, competition_ids=competition_ids)
             if not slate.fixtures:
                 continue
             slate, _ = await verify_slate(slate, football)
@@ -913,6 +957,8 @@ async def discover_fixtures(
                 gameweek = await sync_slate(db, league, slate)
                 if gameweek is not None:
                     discovered.append(gameweek)
+            if commit_each:
+                await db.commit()
     return discovered
 
 
@@ -934,14 +980,23 @@ async def refresh_slate(
     league on the same date. That is correct rather than a regression — nothing shared
     this fetch to begin with.
 
+    **An unconfigured league is narrowed too, since Batch 119.** It used to mean "every UK
+    competition", which the paragraph above priced at ~30 and which measured 67 — the same
+    stale number that made the daily run unaffordable, in the one other place that walks
+    the catalogue. It now falls back to the competitions that have ever carried a fixture
+    (:func:`pooled_competition_ids`), the same narrowing the daily job uses and released by
+    the same weekly full walk, so the worst case an admin can trigger is ~20 requests
+    rather than 67. The budget arithmetic in ``routers/leagues.py`` is sized on that.
+
     Returns the synced round, or ``None`` when there is nothing to record — either the
     provider carries no qualifying fixtures (e.g. out of season) or the league's
     competition selection excludes every one it does. Either way no empty round is left
     behind. Flushes but does not commit — the scheduler job owns the transaction.
     """
-    slate = await provider.fetch_slate(
-        window_for(league), starts_on, competition_ids=selected_competition_slugs(league)
-    )
+    selected = selected_competition_slugs(league)
+    if selected is None:
+        selected = frozenset(await pooled_competition_ids(db)) or None
+    slate = await provider.fetch_slate(window_for(league), starts_on, competition_ids=selected)
     if not slate.fixtures:
         return None
     return await sync_slate(db, league, slate)
@@ -1229,6 +1284,43 @@ async def gameweeks_due_a_reminder(db: AsyncSession, now: datetime) -> list[Game
             ),
         )
         .order_by(Gameweek.starts_on.desc())
+    )
+    return list(result.scalars().all())
+
+
+#: How close to a lock the marker-warming pass stops running.
+#:
+#: Batch 114 moved the late slate refresh off 13:00 for this exact reason: a scheduled job
+#: spending ~30 requests in the ninety minutes before a deadline competes with the members
+#: trying to beat it. Warming is the same shape and the same hour, and it is the one job
+#: whose whole purpose is to have already happened — a pass that fires inside the last hour
+#: has missed its point and is only taking allowance from the pick path.
+WARM_LOCK_CLEARANCE = timedelta(hours=1)
+
+
+async def warmable_gameweeks(
+    db: AsyncSession, now: datetime, *, horizon_weeks: int
+) -> list[Gameweek]:
+    """Rounds the marker-warming pass should sweep — Batch 115, folded into Batch 119.
+
+    Claimable rounds whose lock is still comfortably ahead, inside the same short horizon
+    ``refresh_slate`` uses and for the same reason: the far weeks have not firmed up, and
+    warming a card that is going to change spends the budget twice.
+
+    ``scheduled`` is included where the reminder excludes it. A member cannot pick yet, but
+    the marker is not about them — the whole point is that it is learned *before* anybody
+    arrives, and a round opening at 02:00 on match day would otherwise be cold at exactly
+    the moment it is most expensive.
+    """
+    until = now.date() + timedelta(weeks=max(horizon_weeks, 1))
+    result = await db.execute(
+        select(Gameweek)
+        .where(
+            Gameweek.status.in_(PICKABLE_STATES),
+            Gameweek.locks_at_utc > now + WARM_LOCK_CLEARANCE,
+            Gameweek.starts_on <= until,
+        )
+        .order_by(Gameweek.locks_at_utc)
     )
     return list(result.scalars().all())
 

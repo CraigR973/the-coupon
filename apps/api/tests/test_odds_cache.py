@@ -153,8 +153,13 @@ async def test_repeated_pick_page_loads_issue_one_upstream_call() -> None:
         odds = await cache.fetch_odds(slate)
         assert len(odds) == 40
 
-    assert len(inner.odds_calls) == 1
-    assert inner.odds_calls[0] == slate
+    # Four, because the provider bills ten events a request and Batch 119 moved the
+    # chunking into the cache so a chunk the provider refuses can be isolated from the
+    # rest of the card. The same four requests either way — what this test protects is
+    # that fifteen page loads do not multiply them.
+    assert len(inner.odds_calls) == 4
+    assert [event for call in inner.odds_calls for event in call] == slate
+    assert all(len(call) <= 10 for call in inner.odds_calls)
 
 
 async def test_pick_submission_is_served_from_the_slate_batch() -> None:
@@ -359,11 +364,13 @@ async def test_a_tight_ceiling_refetches_only_the_events_asked_for() -> None:
 
     slate = [f"e{i}" for i in range(20)]
     await cache.fetch_odds(slate)
+    swept = len(inner.odds_calls)  # two requests, ten events each
     clock.advance(120)
     await cache.fetch_odds(["e7"], max_age_seconds=60)
 
     assert inner.odds_calls[-1] == ["e7"]
-    assert len(inner.odds_calls) == 2
+    assert swept == 2
+    assert len(inner.odds_calls) - swept == 1, "freezing one pick costs one request"
 
 
 # ── Batch 48: surviving a provider that refuses ───────────────────────────────
