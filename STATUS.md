@@ -1364,6 +1364,19 @@ ten had been costing the whole card its prices (`fixtures=202 priced=0`, three t
 evening); a refused chunk is now isolated and the expired id inside it is found and recorded.
 **No migration — head stays `023`**, deliberately, so a rollback stays available.
 
+**Batch 118 — the first impression described a flow that had been deleted.** Closed out
+2026-09-12 (`a29662a`), web-only, so it reached members on the push. The invite message told
+recipients to "sign in with the display name and PIN from your admin" three weeks after public
+signup replaced that; it now leads with a `/join/:token` link when the league has a live one,
+keeps the join code as the fallback, and reads correctly for someone opening it on a computer.
+`WelcomePage` — per-platform install steps that nothing linked to — is deleted and its content
+folded into `BrowserOnboarding`, which is now the single landing surface: a cold browser visit
+to `/` is routed to `/welcome`, closing the hole where a desktop visitor met the sign-in form
+and no description of the product, and Android now gets manual install steps whether or not
+`beforeinstallprompt` fires. **One owner decision was taken rather than deferred and wants
+confirming:** the row asks whether desktop is a supported way to play or a prompt to install,
+and the majority reading — supported — is what the copy now says.
+
 **Batch 115 is superseded by 119** and stays unchecked rather than struck: its warm pass and
 its measurement-not-a-literal principle are both in 119, and the largest-round derivation is
 not — 119's verification names the *catalogue*, and re-opening `OBSERVED_LARGEST_ROUND` at 264

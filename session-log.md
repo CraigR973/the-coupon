@@ -3522,3 +3522,34 @@ soft-blocked.
   `services/odds_warm.py` and asserted in `test_discovery_budget.py`.
 
 **Next:** `/ship-prod`, then Batches 118 and 117.
+
+## Batch 118 — Every word the product says to someone outside it describes a flow that no longer exists
+**Commits:** a29662a · verified: `scripts/ci-local.sh` PASS (11 checks), first attempt
+
+### Key facts for future sessions
+- **An owner decision was taken rather than deferred, and it should be confirmed.** The row
+  asks the owner whether desktop is a supported way to play or a prompt to install. Nobody
+  was there to ask, so the majority reading was taken — `DesktopInstructions` said the app
+  works in a desktop browser and `InstallPromptController` gated nothing off a phone, so the
+  invite copy was the odd one out. Everything written for desktop follows from that: if the
+  owner wants desktop treated as "install on your phone instead", the desktop card in
+  `BrowserOnboarding` and one sentence of `buildInviteMessage` are what change.
+- **`WelcomePage` is deleted and `/welcome` renders `BrowserOnboarding`.** The surviving name
+  is now a misnomer — it is the landing surface on every platform, not a browser-only gate —
+  but renaming it would have churned the controller, `JoinPage` and the test file the row
+  names by name. Worth doing next time somebody is in here.
+- **The cold-visit redirect is in `ProtectedRoute`, and its two exclusions are load-bearing.**
+  Only `pathname === '/'`, and only when `!detectStandalone()`. A deep link is a returning
+  member and still goes to `/login`, where `next` brings them back; an installed PWA with an
+  expired session must not be told to install what it is already running inside.
+- **Share picks an existing invite; it never mints one.** `handleShare` looks for a live,
+  unused, unexpired invite in the list the page already holds and falls back to the join-code
+  wording when there is none. Pressing Share must not create a credential as a side effect.
+- **The message is capped under 400 characters and both variants are asserted.** With a link
+  it is 379, without one 371 (test params). The linked variant collapses the fallback to a
+  single `origin → Leagues → Join by code → CODE` line — the link above already names the
+  league, so the separate `League:` line was spending 20 characters to repeat it.
+- **The invite tests now assert claims, not strings.** The old suite pinned `display name and
+  PIN` and `your admin` and stayed green for three weeks while the flow it described was gone.
+
+**Next:** `/ship-prod` (Batch 119's API half is owed), then Batch 117.

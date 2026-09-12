@@ -3865,8 +3865,8 @@ answered until it lands, because until then there is no data to look at.
   fallback is the tested case and not the incidental one.** Independent of Batches 112, 113
   and 115.
 
-- [ ] **Batch 118 — Every word the product says to someone outside it describes a flow that no
-  longer exists, and the page that says it properly cannot be reached**
+- [x] **Batch 118 — Every word the product says to someone outside it describes a flow that no
+  longer exists, and the page that says it properly cannot be reached** ✅ 2026-09-12
   Specified 2026-09-11 from the owner's live use. The invite message and the browser landing
   page are one problem with two faces: together they are the entire first impression, neither
   has kept up with the app behind them, and a working version of one is already written and
