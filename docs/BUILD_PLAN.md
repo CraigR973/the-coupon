@@ -3732,8 +3732,8 @@ answered until it lands, because until then there is no data to look at.
   web half, so nothing reaches members until `/ship-prod`.** Depends on Batch 114, which
   shipped 2026-09-06; independent of Batches 112 and 113.
 
-- [ ] **Batch 116 — A pick alert names a selection nobody can place, and stamps the product's
-  name over the league's**
+- [x] **Batch 116 — A pick alert names a selection nobody can place, and stamps the product's
+  name over the league's** ✅ 2026-09-12
   Specified 2026-09-11 from the owner's live use of the alerts Batch 107 shipped. Two defects
   in the same three-line tray entry, specified together because both decide whether the alert
   is usable without opening the app.

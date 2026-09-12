@@ -3626,3 +3626,37 @@ Batch 116 (migration `024`, merged but not shipped).
 
 **Next:** the owner's screenshot for Batch 116 item 2, and the owner's approval of the `024`
 recovery plan before any `/ship-prod` carries it. Then Batches 112, 113; 95 is soft-blocked.
+
+## Batch 116 — A pick alert names a selection nobody can place (item 2)
+**Commits:** 7967e4d · verified: `scripts/ci-local.sh` PASS (11 checks), first attempt
+
+### Key facts for future sessions
+- **Item 2 resolved to "no change", and that is the finding rather than a dodge.** The row
+  named two candidates and refused to start without a screenshot. It arrived 2026-09-12 and
+  showed every alert titled with the **league** — "2-1 Hibs" — under an OS line reading
+  "from Coupon". The title was already right; the second line is the platform's attribution
+  for an installed PWA, which `vite.config.ts`'s `short_name` names and which cannot be
+  suppressed, only renamed. The owner chose to leave it. So there was never a duplication on
+  the route the owner was actually looking at.
+- **The row's other candidate is real, unreachable, and now asserted rather than fixed.** A
+  league whose own name is "The Coupon" would be titled that beneath a header reading
+  "Coupon". No live league can produce it — `the-coupon` is soft-deleted and the two live
+  leagues are 2-1 Hibs and McCann's Defenders — and closing it means choosing what such a
+  league's alert should say instead, which is copy reaching a phone unprompted. Asserted as
+  a known gap in the style Batch 89 used for the unbounded pick path; the test is what a
+  future session deletes when somebody decides the rule.
+- **The manifest is pinned from a Python test, deliberately.** The duplication is a property
+  of a *pair* — the title is composed in `notification_triggers.py` and the attribution in
+  `apps/web/vite.config.ts` — and neither file can see the other, which is why nobody caught
+  it. `test_the_tray_attribution_is_the_name_this_module_assumes` reads the manifest so a
+  rename has to come back through the reasoning that depends on it.
+- **The screenshot independently confirmed three other things.** Item 1's defect is live in
+  production ("picked Yes @ 1.57", no fixture) and is fixed by the half already merged;
+  2-1 Hibs's hand-built round opened on schedule at 03:01 via `run_open_gameweeks`, behaving
+  like any other round rather than a special case; and Batch 107's progress counts are
+  correct, including a re-pick not incrementing the numerator.
+
+**Next:** **`/ship-prod` is owed and now carries migration `024`.** Its forward recovery
+plan is written and still marked *awaiting owner approval*; approving it is the gate. That
+ship also carries Batch 117's `number`, so home stops printing dates and starts printing
+"Gameweek 6" at the same moment. Remaining unchecked: Batches 95, 112, 113 and 115.

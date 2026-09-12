@@ -1364,18 +1364,20 @@ ten had been costing the whole card its prices (`fixtures=202 priced=0`, three t
 evening); a refused chunk is now isolated and the expired id inside it is found and recorded.
 **No migration — head stays `023`**, deliberately, so a rollback stays available.
 
-**Batch 116 is merged and deliberately not shipped, and only half of it is built.** Item 1 —
-a pick alert that names its fixture — is on `main` (`b7afab2`) with **migration `024`**, and
-production is still at `023`. Its forward recovery plan is written and marked *awaiting owner
-approval, not cleared to ship*; approving it approves item 1 only. **Item 2 is unbuilt and the
-BUILD_PLAN row is unchecked:** the row makes "the product's name arrives twice" conditional on
-the owner supplying a screenshot of the actual notification, because the two candidate causes
-have different fixes and one of them is a behavioural change to copy that reaches a phone
-unprompted. That screenshot is the next thing Batch 116 needs.
+**Batch 116 is complete and merged, and is what the next `/ship-prod` carries.** Item 1 — a
+pick alert that names its fixture — is on `main` (`b7afab2`) with **migration `024`**. Item 2
+resolved to **no code change** (owner decision, 2026-09-12): the screenshot showed every alert
+titled with the *league* under an OS line reading "from Coupon", which is the platform's own
+attribution for an installed PWA and cannot be suppressed, only renamed — and the owner chose
+to leave `short_name` as it is. The row's other candidate, a league whose own name is "The
+Coupon", is unreachable today and is now asserted as a known gap rather than closed by guess
+(`7967e4d`).
 
-**A `/ship-prod` is therefore *not* owed and must not be run casually** — the next one would
-carry `024`, which is irreversible in this deployment and removes the API rollback that the
-2026-09-12 shipment currently has.
+**A `/ship-prod` is owed and it carries `024`**, whose forward recovery plan is written and
+still marked *awaiting owner approval*. That approval is the gate, and it is not a formality:
+`024` is irreversible in this deployment and gives up the API rollback the 2026-09-12
+shipment currently has. The same ship also delivers Batch 117's `number`, so home stops
+printing dates and starts printing "Gameweek 6" at that moment.
 
 **Batch 117 — home named the round it had finished with, and the coupon was last on the
 coupon page.** Closed out 2026-09-12 (`bf87f0a`). `LastResult` had carried `number` since
