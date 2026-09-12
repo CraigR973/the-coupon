@@ -1,6 +1,7 @@
-import { Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { detectStandalone } from '../hooks/useInstallPrompt';
 import { PIN_NOT_SET } from '../lib/api';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -12,12 +13,26 @@ interface Props {
 
 export function ProtectedRoute({ requireAdmin = false }: Props) {
   const { player, sessionUnlockRequired } = useAuth();
+  const { pathname } = useLocation();
 
   if (sessionUnlockRequired) {
     return <PinUnlockGate />;
   }
 
   if (!player) {
+    // Batch 118. A cold visit to the root in a *browser* is somebody meeting the product
+    // for the first time — the invite message sends them here — and a login form is not a
+    // statement of what the app is. Desktop had nothing else: the mobile install gate
+    // returns null off a phone, so a desktop visitor landed on the sign-in screen with no
+    // explanation anywhere.
+    //
+    // Deliberately not for an installed app: a standalone session that has expired belongs
+    // at the sign-in form, not at a page telling its owner to install what they already
+    // have. And deliberately only for "/" — a deep link into the app is a returning member
+    // and still goes to login, where `next` can bring them back.
+    if (pathname === '/' && !detectStandalone()) {
+      return <Navigate to="/welcome" replace />;
+    }
     return <Navigate to="/login" replace />;
   }
 

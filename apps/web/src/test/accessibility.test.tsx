@@ -10,6 +10,8 @@ import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { TopBar } from '@/components/TopBar';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { BrowserOnboarding } from '@/components/BrowserOnboarding';
+import * as installPrompt from '@/hooks/useInstallPrompt';
 
 // Disable color-contrast: jsdom cannot evaluate CSS custom properties.
 // All other axe rules run at full severity.
@@ -102,6 +104,47 @@ describe('Accessibility — LoginPage', () => {
       </QueryClientProvider>,
     );
     await new Promise((r) => setTimeout(r, 50));
+    const results = await axe(container, AXE_CONFIG);
+    expect(results).toHaveNoViolations();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BrowserOnboarding — the one surface a signed-out visitor reaches (Batch 118)
+// ---------------------------------------------------------------------------
+
+describe('Accessibility — BrowserOnboarding', () => {
+  /**
+   * The five cold-visit cases, because this is now the *only* onboarding surface and its
+   * content differs per platform — an ordered install list on iOS and Android, a pair of
+   * links on desktop. A suite that checked one of them would be checking the one that
+   * happened to be first.
+   */
+  const CASES: [string, Record<string, boolean>][] = [
+    ['iOS Safari', { isIos: true, isIosSafari: true, isMobile: true }],
+    ['iOS elsewhere', { isIos: true, isMobile: true }],
+    ['Android with the install event', { isAndroid: true, isMobile: true, canInstall: true }],
+    ['Android without it', { isAndroid: true, isMobile: true }],
+    ['desktop', {}],
+  ];
+
+  it.each(CASES)('has no axe violations on %s', async (_name, platform) => {
+    vi.spyOn(installPrompt, 'useInstallPrompt').mockReturnValue({
+      isInstalled: false,
+      justInstalled: false,
+      isIos: false,
+      isIosSafari: false,
+      isAndroid: false,
+      isMobile: false,
+      canInstall: false,
+      prompt: vi.fn(),
+      ...platform,
+    });
+    const { container } = render(
+      <MemoryRouter>
+        <BrowserOnboarding />
+      </MemoryRouter>,
+    );
     const results = await axe(container, AXE_CONFIG);
     expect(results).toHaveNoViolations();
   });

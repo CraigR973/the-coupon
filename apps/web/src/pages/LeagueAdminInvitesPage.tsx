@@ -34,10 +34,20 @@ export function LeagueAdminInvitesPage() {
     if (!league?.join_code) return;
     setIsSharing(true);
     try {
+      // Batch 118. The message leads with a `/join/:token` link when the league has one to
+      // give — it is the one-tap path and the page has been minting these all along, while
+      // the message explained only the join code. Deliberately picks an existing invite
+      // rather than creating one: pressing Share must not mint a credential as a side
+      // effect, so a league with none simply gets the join-code wording.
+      const live = (invites ?? []).find(
+        (invite) =>
+          !invite.used_at && (!invite.expires_at || new Date(invite.expires_at) > new Date()),
+      );
       const message = buildInviteMessage({
         leagueName: league.name,
         joinCode: league.join_code,
         origin: window.location.origin,
+        inviteUrl: live ? `${window.location.origin}/join/${live.token}` : undefined,
       });
       await shareInvite({ message });
     } catch {

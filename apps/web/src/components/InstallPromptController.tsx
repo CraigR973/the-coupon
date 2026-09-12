@@ -4,8 +4,9 @@ import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { BrowserOnboarding } from './BrowserOnboarding';
 import { Brand } from './Brand';
 
-// Routes that manage their own onboarding experience (e.g. /join/:token renders
-// BrowserOnboarding itself and should not be double-rendered by this controller).
+// Routes that render the onboarding surface themselves and must not be double-rendered by
+// this controller: `/join/:token` shows it in place of the claim flow until the app is
+// installed, and `/welcome` *is* it.
 const SELF_MANAGED = ['/join/', '/welcome'];
 
 /**
@@ -45,7 +46,9 @@ function PostInstallScreen() {
  * "Install required" blocker with the full app description + install steps.
  *
  * Already installed (standalone) → null
- * Desktop → null
+ * Desktop → null. Not a hole any more (Batch 118): desktop is a supported way to play, so
+ *   this must not gate it — a cold desktop visit reaches the same onboarding surface by
+ *   being routed to `/welcome`, which is in SELF_MANAGED below.
  * Self-managed route → null (the route handles it)
  * justInstalled (Android, still in browser) → PostInstallScreen
  * Everything else on mobile browser → BrowserOnboarding

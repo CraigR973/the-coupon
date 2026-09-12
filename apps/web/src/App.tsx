@@ -17,6 +17,7 @@ import { COUPON_SECTION_HASH } from './lib/leagues';
 import { RouteFallback } from './components/RouteFallback';
 import { UpdateBanner } from './components/UpdateBanner';
 import { InstallPromptController } from './components/InstallPromptController';
+import { BrowserOnboarding } from './components/BrowserOnboarding';
 import { NotificationsPromptController } from './components/NotificationsPromptController';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -65,7 +66,6 @@ const LeagueAuditLogPage = lazyRoute(() =>
 // Auth / onboarding
 const ForgotPinPage = lazyRoute(() => import('./pages/ForgotPinPage').then((m) => ({ default: m.ForgotPinPage })));
 const SetPinPage = lazyRoute(() => import('./pages/SetPinPage').then((m) => ({ default: m.SetPinPage })));
-const WelcomePage = lazyRoute(() => import('./pages/WelcomePage').then((m) => ({ default: m.WelcomePage })));
 
 // Site admin (Batch 66). Lazy like everything else, and behind `requireAdmin` — a
 // member who is not a site admin never loads a byte of it.
@@ -152,7 +152,11 @@ export function App() {
                       no credential to authenticate with — that is the whole state. */}
                   <Route path="/set-pin" element={<SetPinPage />} />
                   <Route path="/join/:token" element={<JoinPage />} />
-                  <Route path="/welcome" element={<WelcomePage />} />
+                  {/* The landing surface, on every platform (Batch 118). It is where a
+                      cold browser visit to "/" is sent, and it is the same component the
+                      mobile gate and the join flow render, so there is exactly one thing
+                      to keep up to date. */}
+                  <Route path="/welcome" element={<BrowserOnboarding />} />
 
                   {/* Protected: authenticated + LeagueProvider */}
                   <Route element={<ProtectedRoute />}>

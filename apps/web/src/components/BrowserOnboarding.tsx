@@ -1,18 +1,38 @@
-import { Plus, Share } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Menu, Plus, Share } from 'lucide-react';
 import { Brand } from '@/components/Brand';
 import { Button } from '@/components/ui/button';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { brand } from '@/theme/tokens';
 
 /**
- * Full-page install guidance for mobile browsers — what a shared link reaches first on a
- * phone, since `JoinPage` shows this instead of the claim flow until the PWA is
- * installed. It explains the game and the install, then hands off to account creation:
- * signup became public on 2026-08-22, so the old "your admin will provide your details"
- * line was describing a flow that no longer exists.
+ * The product's one statement of what it is, for anybody who is not signed in.
+ *
+ * Batch 118 made it the *only* one. There were two onboarding surfaces and the app routed
+ * to the weaker of them: `WelcomePage` had per-platform install steps for iOS, Android and
+ * desktop and **nothing linked to it** — its sole reference outside the route table was an
+ * exclusion list keeping other code out of its way — while this component, which every
+ * cold mobile visit and every `/join/:token` claim actually reached, had two holes:
+ *
+ * * **desktop got nothing at all**, because the controller in front of it returned `null`
+ *   when the visitor was not on a phone; and
+ * * **Android without `beforeinstallprompt` got nothing either** — the install button
+ *   rendered on `canInstall` and the manual steps on `isIos`, so Firefox Android, Samsung
+ *   Internet, or Chrome before the event fires satisfied neither and the explainer was
+ *   followed by no install instruction of any kind.
+ *
+ * Two components answering the same question is how one of them went stale unnoticed, so
+ * `WelcomePage` is gone and its per-platform content lives here. Five cold-visit cases —
+ * iOS Safari, iOS elsewhere, Android with the install event, Android without it, and
+ * desktop — all reach this, all get a description of the product, and the four mobile ones
+ * all get an install instruction that does not depend on an event firing.
+ *
+ * **Desktop is a supported way to play**, not a prompt to install: the app runs in a
+ * desktop browser, so the desktop case offers account creation and sign-in rather than
+ * telling someone with no phone in their hand to install something.
  */
 export function BrowserOnboarding() {
-  const { isIos, isIosSafari, canInstall, prompt } = useInstallPrompt();
+  const { isIos, isIosSafari, isAndroid, isMobile, canInstall, prompt } = useInstallPrompt();
 
   return (
     <div className="min-h-screen bg-bg flex flex-col items-center justify-center p-6 pt-safe pb-safe">
@@ -27,9 +47,8 @@ export function BrowserOnboarding() {
             One Saturday pick. One shared coupon.
           </h1>
           <p className="text-sm font-sans text-text-secondary leading-relaxed">
-            Claim a priced football selection before the weekly lock. No two
-            members can hold the same selection, and a winner scores its frozen
-            odds multiplied by ten.
+            Claim a priced football selection before the weekly lock. No two members can
+            hold the same selection, and a winner scores its frozen odds multiplied by ten.
           </p>
           <p className="text-xs font-sans text-text-muted">
             Points and bragging rights only — the app never places a bet.
@@ -65,10 +84,60 @@ export function BrowserOnboarding() {
           </div>
         )}
 
-        <p className="text-center text-xs font-sans text-text-muted">
-          Once the app is installed, create your account and join with your code or
-          invite link.
-        </p>
+        {/*
+          Rendered on every Android visit, with or without the button above. The button
+          needs `beforeinstallprompt`, which Firefox Android and Samsung Internet never
+          fire and Chrome fires late — so gating the only instructions on it left a whole
+          class of visitor reading an explainer with no way to act on it.
+        */}
+        {isAndroid && (
+          <div className="rounded-xl border border-border bg-surface px-5 py-5 space-y-3">
+            <p className="text-sm font-sans font-semibold text-text-primary">
+              Install on Android
+            </p>
+            <ol className="space-y-3">
+              <li className="flex gap-3 text-sm font-sans text-text-secondary">
+                <Menu className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+                <span>Open your browser&rsquo;s menu.</span>
+              </li>
+              <li className="flex gap-3 text-sm font-sans text-text-secondary">
+                <Plus className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+                <span>
+                  Choose <strong className="text-text-primary">Add to Home screen</strong>{' '}
+                  (some browsers call it <strong className="text-text-primary">Install app</strong>
+                  ), then open the new icon.
+                </span>
+              </li>
+            </ol>
+          </div>
+        )}
+
+        {!isMobile && (
+          <div className="rounded-xl border border-border bg-surface px-5 py-5 space-y-3">
+            <p className="text-sm font-sans font-semibold text-text-primary">
+              On a computer
+            </p>
+            <p className="text-sm font-sans text-text-secondary leading-relaxed">
+              The Coupon runs right here in your browser — there is nothing to install.
+              On a phone it can be added to your home screen instead.
+            </p>
+            <div className="flex flex-col gap-2 pt-1">
+              <Button asChild className="w-full">
+                <Link to="/register">Create an account</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full">
+                <Link to="/login">I already have an account</Link>
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {isMobile && (
+          <p className="text-center text-xs font-sans text-text-muted">
+            Once the app is installed, create your account — you choose your own display
+            name and PIN — and join with your invite link or join code.
+          </p>
+        )}
       </div>
     </div>
   );
