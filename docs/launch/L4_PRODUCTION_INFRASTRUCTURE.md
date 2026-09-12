@@ -2377,7 +2377,24 @@ one 402):
 
 ### Forward recovery plan — migration `024`, Batch 116
 
-**Status: awaiting owner approval. Not cleared to ship.**
+**Status: approved by the owner, 2026-09-12. Cleared to ship.**
+
+**Two corrections taken at approval time, because the plan aged between writing and
+shipping.** It says below that only item 1 of Batch 116 is built and its row is unchecked;
+item 2 was resolved the same day — to *no code change*, once the owner's screenshot showed
+the title was already the league's name and the second line was the platform's own
+attribution — and the row is struck (`7967e4d`). Approving therefore ships the whole of
+Batch 116, not half of it. And the shipment carries **Batch 112** as well (`282db2a`,
+retiring stranded rounds and removing the per-league ad-hoc endpoint), which merged after
+this plan was written. The migration is unchanged; the payload around it is larger than the
+paragraphs below describe.
+
+**Measurements re-confirmed against production at 13:53 UTC on 2026-09-12**, as the plan
+asks. Head `023`; the four columns `024` adds collide with nothing; `gameweek_completions`
+RLS enabled and forced with zero `anon`/`authenticated`/`PUBLIC` grants. Two figures moved
+since 05:13 and neither changes the migration's shape: `gameweek_completions` is **2 rows**
+rather than 1, and there are **12 pending picks across 14 locked rounds** — today's round,
+waiting for the evening settlement sweep.
 
 Written 2026-09-12, after Batch 116 merged to `main` and **before** anything shipped.
 Batch 116's API half is on `main` and is *not* in production: the deployed image is
