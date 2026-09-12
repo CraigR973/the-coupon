@@ -904,6 +904,79 @@ and credentials enabled, and `/api/docs` still 404s.
 > the DSN, so it did not repeat the exposure, but the leaked value is unchanged
 > and still live.
 
+### 2026-09-12 — `7dd8f3df`, Batches 119, 118 and 117 (no migration)
+
+Source commit `7dd8f3df`, on `origin/main`, gate green (`scripts/ci-local.sh`, 11
+checks) on the exact commit shipped, with a GitHub Actions `Quality` run present
+and successful for it (`34673306176`). **Three merges reached production
+together** — 119 (`f69b5fe`, API), 118 (`a29662a`, web) and 117 (`bf87f0a`,
+both) — and the deployed API had been `4fb18923` since 2026-09-06.
+
+**No Alembic revision**, deliberately. Batch 116 introduces `024` and was
+sequenced *after* this shipment for exactly that reason: a migration is
+irreversible in this deployment, so keeping head at `023` is what leaves a
+rollback available for the three batches that shipped here.
+
+**This shipment ran section 3's IaC step, which the 2026-09-06 one skipped.** The
+plan was `0 to add, 2 to change, 0 to destroy` — `build.nixpacksConfigPath`
+`null → "nixpacks.toml"`, and `deploy.numReplicas` / `restartPolicyType` /
+`sleepApplication` `null → 1 / ON_FAILURE / false` — i.e. writing the values the
+running deployment already used onto the service instance, deleting nothing. The
+2026-09-06 plan was refused because it wanted to delete two `ODDS_CACHE_*`
+variables; those are gone from production now, so the plan came back clean.
+
+The apply minted deployment `387ecc59-02b3-471b-b41b-53636a0e18e1`, which was
+polled to `SUCCESS` before any source was uploaded — it rebuilt the *previous*
+commit, so `/health` still read `4fb18923` at `023` throughout. That serialization
+matters because both images run boot migrations and the scheduler.
+
+Railway `f5113599-b122-45a5-8d0a-4251f8142c02`, `SUCCESS`. **Its predecessor —
+this shipment's rollback baseline — is `387ecc59-02b3-471b-b41b-53636a0e18e1`,
+not the `aadbc897-7e8b-415c-aab3-0138cf4ec2a1` captured during preflight.** The
+IaC apply superseded `aadbc897` and marked it `REMOVED` between the capture and
+the upload; `387ecc59` is the image that was actually live immediately before,
+it bundles head `023`, and the database is stamped `023`, so it can boot. Recorded
+rather than glossed: a baseline captured at step 8 of the preflight is stale the
+moment section 3's own IaC step deploys, and this is the first shipment where
+those two steps both ran.
+
+Section 4 was skipped by design: the GitHub integration had already built
+`7dd8f3df` as `dpl_HyYfUea9iFWuoZnHbSKq9i2CniyU`, confirmed by running
+`vercel inspect` against the stable alias rather than inferring from timing, and
+it already held `https://the-coupon-production.vercel.app`. Its predecessor is
+`dpl_3ksKh47MDm7rjDB3VanSZWGLKKVQ`.
+
+Its content: Batch 119 is the fix for a week in which **no scheduled job created a
+round at all** — discovery cost `2 windows x 2 dates x 67 competitions = 268`
+requests against a 100/hour plan, took a `429` partway through every morning, and
+rolled back everything it had already bought. Batch 118 rewrote the invite message
+and the landing surface. Batch 117 names the round the home card is asking about
+and puts the coupon at the top of the coupon page.
+
+Post-deploy verification: `/health` reports sha `7dd8f3df` and migration `023`,
+`/health/ready` agrees at `023` with `db: ok`, the deployment manifest confirms
+exactly one replica in `europe-west4-drams3a` with serverless sleep disabled,
+IPv6 egress enabled, `limitOverride` 0.25 vCPU / 500 MB and healthcheck
+`/api/v1/health/ready`, the bounded deployment log carries 0 genuine errors, 0
+`5xx` and 0 secret-pattern hits across 47 records, the stable web root and a SPA
+deep link both return 200 with identical bytes and all three committed headers,
+the CORS preflight from `https://the-coupon-production.vercel.app` returns 200
+with that exact origin and credentials enabled, `/api/docs` still 404s, and
+`check-deploy-drift.sh` reports `in sync`.
+
+**The live pricing check was run before and after**, against the same ten fixtures
+of 2-1 Hibs's 12 September round — one `/odds/multi` request each time, 7 of 10
+priced, no `429` and no `400 One or more eventIds not found` either side. The
+round itself was read-only throughout: gameweek 6, 179 fixtures, created
+2026-09-11 22:28:36 by hand, and `open` by the time the shipment finished because
+its 02:00 UTC pick-opening had passed.
+
+> **The 2026-08-22 owner action is still owed** — rotate the production database
+> password for `pugujiiojitstkilphrz` and update Railway's `DATABASE_URL`. Every
+> database read in this shipment went through an asyncpg client that never renders
+> the DSN, so it did not repeat the exposure, but the leaked value is unchanged
+> and still live.
+
 ### Current rollback baselines
 
 Updated after the 2026-08-21 shipment of `1272dde` (Batches 47–48, no
