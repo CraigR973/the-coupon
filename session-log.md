@@ -3484,3 +3484,41 @@ and `ODDS_CACHE_PICK_TTL_SECONDS` from the Railway `api` service (set by hand at
 on 2026-09-05, absent from the repository) and confirm the `config.py` defaults hold. Then
 Batches 112 and 113, in that order, per their own scope boundaries. Batch 95 is still
 soft-blocked.
+
+## Batch 119 — Discovery cannot afford to run, and nothing said so for a week
+**Commits:** f69b5fe · verified: `scripts/ci-local.sh` PASS (11 checks)
+
+### Key facts for future sessions
+- **The catalogue measured 67 again on 2026-09-12**, a day after the row recorded it, so the
+  number did not move — but `MEASURED_UK_CATALOGUE` / `MEASURED_PLAYED_CATALOGUE` (41) /
+  `MEASURED_DAILY_WALK` (20) live in `services/competitions.py` with that date against them,
+  and `test_the_daily_walk_is_no_bigger_than_the_database_says` reads the pool back out of
+  PostgreSQL. Re-measure with `fetch_competitions`, not from a paragraph.
+- **The trim rules land exactly on the owner's numbers.** Run against the live catalogue and
+  the live pool: 67 → 41 played, and of the 33 competitions that had ever carried a fixture
+  it removes precisely the 13 named (11 `england-amateur-*` including the FA Trophy, plus
+  both Northern Ireland divisions) and keeps 20. The row's prose says "eleven English amateur
+  divisions ... plus the FA Trophy", which double-counts; the arithmetic 13/20 is right.
+- **`REQUESTS_PER_SLATE_WALK` was a third copy of the same stale 30**, in `admin_ops`. It now
+  derives from the measurement. Making it honest turned the ad-hoc budget test red, and the
+  fix was to narrow the ad-hoc walk the same way the daily one is narrowed — *not* to lower
+  the shipped `2/hour;3/day` limit. An unconfigured league's ad-hoc fetch now costs ~20
+  rather than 67.
+- **The weekly full walk covers one window, rotated by ISO week**, not all of them. The
+  fixture pool is deployment-wide, so a competition discovered through any window is one the
+  daily run walks for every window from the next morning. Covering every window in one night
+  is paying twice for the same lesson — and it is what put the worst-case day over 500.
+- **Chunking moved from `OddsApiProvider._event_odds` into `CachingOddsProvider._refill`.**
+  It had to: `observed` is computed in the cache, and marking a whole refused chunk unpriced
+  would hide nine pickable fixtures to record one dead one. The provider still chunks for a
+  direct caller. `odds_calls` in the cache tests now counts *requests*, which is what the
+  plan bills — the old `len(odds_calls) == 1` was counting a call that was never the billed
+  unit.
+- **The Batch 114 observability gap was accepted deliberately, not fixed.** A fixture that
+  was priced and still is writes nothing, so "never swept" and "swept, everything priced"
+  stay indistinguishable. Resolving it wants a sweep timestamp per round, which wants a
+  column, and this batch carries **no migration by design** — head stays `023`, which is what
+  keeps a rollback available for the shipment it is sequenced before. Written down in
+  `services/odds_warm.py` and asserted in `test_discovery_budget.py`.
+
+**Next:** `/ship-prod`, then Batches 118 and 117.

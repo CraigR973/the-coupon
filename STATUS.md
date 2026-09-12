@@ -1342,9 +1342,32 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 95, 112, 113 and 115 unchecked**. **Nothing is owed —
-Batch 114 shipped on 2026-09-06** (`4fb18923`, migration `023`) and `check-deploy-drift.sh`
-reports in sync.
+`docs/BUILD_PLAN.md` carries **Batches 95, 112, 113, 115, 116, 117 and 118 unchecked**.
+**A `/ship-prod` is owed and it matters**: Batch 119 is API-only and its whole content is a
+live production defect fix, so nothing in it reaches the deployment until it ships.
+
+**Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
+2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
+single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",
+and the live catalogue measured **67** — so the daily run was `2 windows x 2 dates x 67 = 268`
+requests against a 100/hour plan, took a `429` partway through every morning, and rolled back
+everything it had already bought because it committed once at the end. 2-1 Hibs's twelve
+members had nothing to play and the 12 September round did not exist until it was created by
+hand. Four changes: the owner's product trim (Ireland and `england-amateur-*` except the
+National Leagues, measured to remove exactly 13 of the 33 competitions the pool holds), a
+daily walk narrowed to the competitions that have ever carried a fixture with a weekly
+full-catalogue pass to stop that ratcheting shut, a commit per `(window, date)`, and two
+silence alarms on the admin dashboard that cost one query each. Folded in from Batch 115: a
+scheduled pass that warms the pricing marker, and dated measurements with a database-backed
+tripwire in place of `UK_COMPETITIONS = 30`. Separately, `/odds/multi`'s `400` on one chunk of
+ten had been costing the whole card its prices (`fixtures=202 priced=0`, three times in one
+evening); a refused chunk is now isolated and the expired id inside it is found and recorded.
+**No migration — head stays `023`**, deliberately, so a rollback stays available.
+
+**Batch 115 is superseded by 119** and stays unchecked rather than struck: its warm pass and
+its measurement-not-a-literal principle are both in 119, and the largest-round derivation is
+not — 119's verification names the *catalogue*, and re-opening `OBSERVED_LARGEST_ROUND` at 264
+would change what the budget certifies, which is a decision rather than a batch.
 
 **Batch 114 — the plan was exhausted on a match morning.** On 2026-09-05 members were refused
 with `ODDS_UNAVAILABLE` at 08:06 UTC on a round whose lock was five hours away, because

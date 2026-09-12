@@ -3933,7 +3933,7 @@ answered until it lands, because until then there is no data to look at.
   **Web only — it reaches members on close-out, with no API half and nothing owed to
   `/ship-prod`.** Independent of Batches 112, 113 and 115.
 
-- [ ] **Batch 119 — Discovery cannot afford to run, and nothing said so for a week**
+- [x] **Batch 119 — Discovery cannot afford to run, and nothing said so for a week** ✅ 2026-09-12
   Specified 2026-09-11 from a live investigation, and it supersedes Batch 115 (fold that
   row's two items into this one). **No round was created by any scheduled job between
   2026-09-04 20:21 and this batch being written** — a week in which 2-1-Hibs's twelve
