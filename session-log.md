@@ -3584,3 +3584,45 @@ soft-blocked.
 
 **Next:** `/ship-prod` — Batch 119's API half and Batch 117's `number` are both owed. Then
 Batch 116 (migration `024`, merged but not shipped).
+
+## Batch 116 — A pick alert names a selection nobody can place (item 1 only)
+**Commits:** b7afab2 · verified: `scripts/ci-local.sh` PASS (11 checks), **second attempt**
+
+### Gate failures on the way
+- **`ruff format --check`, first attempt.** `src/routers/picks.py` and the new
+  `tests/test_alert_names_the_fixture_batch_116.py`. Reformatted with the pinned 0.5.4 and
+  rerun green. No other check failed at any point in this batch.
+
+### Key facts for future sessions
+- **Item 2 is NOT built, and the row is deliberately left unchecked.** "The product's name
+  arrives twice" is conditional on an owner decision the row calls blocking — *"a screenshot
+  of the actual notification… Guessing here ships copy the owner did not ask for, into the
+  one surface that reaches a phone unprompted."* Both candidates are choices rather than
+  edits, and one of them (renaming `short_name` in `vite.config.ts`) would give this batch a
+  web half it is scoped not to have. Striking the row would have hidden an unbuilt half.
+- **Migration `024` is on `main` and production is at `023`.** Nothing in this batch is
+  deployed. Its forward recovery plan is in `docs/launch/L4_PRODUCTION_INFRASTRUCTURE.md`
+  marked *awaiting owner approval, not cleared to ship*, with production measured read-only
+  on 2026-09-12: `gameweek_completions` holds **1 row**, no colliding columns, 0 undelivered
+  completions.
+- **Four columns, not one composed phrase, and that is the row's instruction.** Storing
+  `Both teams score (Arsenal v Chelsea)` would work today and would make the next copy
+  revision a migration. `selection` stays the frozen `runner_name` datum and is the fallback
+  for any row written before `024` — there is nothing honest to backfill from, because the
+  round may since have settled and the picker may since have moved.
+- **The API's vocabulary and the web's had *drifted*, not merely diverged in coverage.** The
+  API said `The Draw` where `lib/coupon.ts` says `Draw`, and `Yes` where it says `Both teams
+  score`. `services/selection_text.py` is written to mirror `outcomeLabel` /
+  `fixtureContext` / `selectionSummary` branch for branch, and
+  `test_the_api_says_what_the_web_says` spells out all five branches so a change on either
+  side has to change a test on this one.
+- **`record_completion`'s four new parameters are required, not defaulted.** A default would
+  let a caller silently drop the fixture and put the defect straight back; the seven test
+  call sites were updated instead.
+- **The new tests drive the submit endpoint, not `notify_pick_made`.** The defect was never
+  in the notifier — it is handed a string, and the string was wrong. A unit test on the
+  notifier would have passed throughout, which is why `test_notification_batch_76.py`'s
+  assertion is left as it was with a note pointing at the endpoint-level test.
+
+**Next:** the owner's screenshot for Batch 116 item 2, and the owner's approval of the `024`
+recovery plan before any `/ship-prod` carries it. Then Batches 112, 113; 95 is soft-blocked.

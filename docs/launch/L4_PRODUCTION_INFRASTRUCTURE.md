@@ -2375,6 +2375,112 @@ one 402):
    consumes it yet — Batch 111 is the consumer and has not been built, which is the whole
    point of stopping the group here.
 
+### Forward recovery plan — migration `024`, Batch 116
+
+**Status: awaiting owner approval. Not cleared to ship.**
+
+Written 2026-09-12, after Batch 116 merged to `main` and **before** anything shipped.
+Batch 116's API half is on `main` and is *not* in production: the deployed image is
+`7dd8f3df` at head `023`. Required by `/ship-prod` step 1.7 before `024` may be deployed.
+Re-confirm every measurement below before deploying, as the `023` plan was.
+
+Note also that **only item 1 of Batch 116 is built**. Item 2 — the product's name arriving
+twice in the tray — is blocked on the owner supplying a screenshot of the actual
+notification, per the row's own instruction, so the BUILD_PLAN row is unchecked. Approving
+this plan approves shipping item 1; item 2 is a separate decision.
+
+**`024` is the same shape `023` was, one table along**: four `ADD COLUMN ... NULL`
+statements against `gameweek_completions`, no default, no backfill, no index, no
+constraint, no type change. Two of the four reuse the existing `pick_market` and
+`pick_outcome` enum types rather than creating new ones, so the migration adds no type to
+the database either. Measured read-only from production on 2026-09-12 at 05:13 UTC:
+
+| measured | value |
+| --- | --- |
+| `alembic_version` | `023` |
+| PostgreSQL | 17.6 |
+| `gameweek_completions` | **1 row**, 40 kB including indexes |
+| `gameweek_completions` columns / indexes | 9 / 2 |
+| undelivered completions (`delivered_at IS NULL`) | **0** |
+| existing `market` / `outcome` / `fixture_home` / `fixture_away` columns | **none** — `024` collides with nothing |
+| `pick_market` values | `MATCH_ODDS`, `BOTH_TEAMS_TO_SCORE` — both reused, none added |
+| `pick_outcome` values | `HOME`, `DRAW`, `AWAY`, `YES`, `NO` — as above |
+| `picks` | 63 rows, **0 pending** |
+| rounds locked and unsettled | 0 |
+| whole database | 17 MB |
+| `gameweek_completions` RLS | **enabled and forced**, zero `anon`/`authenticated`/`PUBLIC` grants |
+
+**Nothing here can be slow and nothing here can fail.** A nullable `ADD COLUMN` with no
+default has been metadata-only since PostgreSQL 11, so the one row is irrelevant to it and
+the `ACCESS EXCLUSIVE` lock is a catalogue update. There is no `UPDATE`, no `CREATE INDEX`,
+no type change and no `NOT NULL` — the only shape of `ADD COLUMN` existing data can refuse.
+This is a **smaller** claim than `023`, which touched a 1,003-row table; this one touches a
+table with a single row in it.
+
+**The rollout window is safe, and nullability is what makes it safe.** The new container
+runs `alembic upgrade head` while the `023` container is still serving. That older image's
+`GameweekCompletion` model has none of the four columns: SQLAlchemy emits explicit column
+lists, so its `SELECT`s cannot see columns added underneath them, and the one `INSERT` it
+makes — `record_completion`, `ON CONFLICT DO NOTHING` — omits all four, which succeeds
+precisely because they are nullable. A `NOT NULL` column without a default would have made
+every completion written during the rollout fail.
+
+**Pick a window, and today's is not obviously it.** At the time of measuring, 2-1 Hibs's
+round is `open` with **0 of 12 picks in** and locks at **2026-09-12 13:30 UTC**. The
+completion path is exercised by the *last* member to pick, so the window this migration is
+least welcome in is the hour before that lock — not because the migration is risky, but
+because a rollout that straddles the twelfth pick is the one moment `gameweek_completions`
+is written at all. Ship it well clear of a lock, as `023` was.
+
+**There is no backfill, deliberately.** The one existing row has no fixture to carry and no
+honest way to find one: the round it belongs to may since have settled and the member who
+completed it may since have moved their pick, so joining back through `picks` would describe
+something other than the transition — which is the single thing this table exists to avoid.
+`_completion_body` falls back to `selection` for a row with `market IS NULL`, which produces
+exactly the alert that row would have produced before this batch.
+
+**API rollback is unavailable the moment `024` applies**, on the same terms as every
+migrating shipment since `012`: every pre-`024` image ships revisions `001`–`023` only, so
+against a database stamped `024` its Alembic fails with
+`Can't locate revision identified by '024'` before uvicorn is reached, the `&&` chain in
+`nixpacks.toml` stops, and the healthcheck fails. **Do not attempt a Railway rollback to
+`f5113599-b122-45a5-8d0a-4251f8142c02`, `387ecc59`, or anything older once this ships.**
+Those recorded baselines become records rather than usable targets. Vercel rollback is
+unaffected. This is the whole reason Batch 116 was sequenced *after* the 2026-09-12
+shipment of Batches 119, 118 and 117 — keeping head at `023` is what left those three a
+rollback.
+
+**There is no data hazard behind that block**, on the same reading as `023` and unlike
+`022`. A `023` image on a `024` database would never read or write the four columns; the one
+alert they feed would fall back to `selection` and read exactly as it did before this batch.
+Nothing derives a pick, a price, a score or a standing from them. If a future release ever
+makes pre-`024` images bootable against this database, running one is **safe**.
+
+Recovery once `024` *has* applied is forward-only:
+
+1. **Deploy a corrected image at head `024` or higher.** The normal path.
+2. **Making the alert read as it did before needs no migration and no deploy** beyond one:
+   `_completion_body`'s fallback branch *is* the pre-Batch-116 body, so
+   `UPDATE gameweek_completions SET market = NULL, outcome = NULL, fixture_home = NULL,
+   fixture_away = NULL` returns every completion alert to its old wording immediately. The
+   ordinary pick alert is composed in the request path and needs a code change; there is no
+   variable for it, deliberately, because it holds no state.
+3. **That `UPDATE` is the whole of its effect.** The four columns have no foreign key, no
+   index, no constraint and no dependant; `selection`, `odds`, `member_count`,
+   `final_picker_name` and `delivered_at` are untouched, so the retry machinery and the
+   "already announced" flag keep working exactly as they do now. It cannot damage a pick, a
+   price, a score, a standing or a delivery.
+4. **Never run `alembic downgrade` against production.** This downgrade is schema-clean —
+   four columns, no dependants — and is exercised on every `scripts/ci-local.sh` run; it
+   would even restore pre-`024` bootability. It is still forbidden: the running image is at
+   `024` and would re-apply it on the next boot, and what it discards is the only record of
+   which fixture a completion was about.
+
+**Size.** Four nullable columns on a one-row table add nothing measurable to a 17 MB
+database, and no index. Supabase production is a Free plan with a standing unattributed
+egress consumer (FEAT-A09, which has already caused one 402); this shipment does not move
+that number.
+
 ### Forward recovery plan — migration `023`, Batch 114
 
 **Status: approved by the owner, 2026-09-06. Cleared to ship.**
