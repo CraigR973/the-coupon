@@ -2,11 +2,12 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from src.models.pick import PickMarket, PickOutcome
 
 
 class GameweekCompletion(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -52,8 +53,37 @@ class GameweekCompletion(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     #: when they set one, matching the leaderboard and the ordinary pick alert.
     final_picker_name: Mapped[str] = mapped_column(String(100), nullable=False)
     #: ``Pick.runner_name`` as it stood at the transition; same width as the column it
-    #: is copied from.
+    #: is copied from. It is the provider's word for the runner, which is a team name for
+    #: Match Odds and ``The Draw`` or ``Yes`` for everything else — which is why the four
+    #: columns below exist. Kept as the datum it always was, and as the fallback for a row
+    #: written before revision ``024``.
     selection: Mapped[str] = mapped_column(String(120), nullable=False)
+
+    # ── What the completion alert names (Batch 116, revision 024) ──────────────────
+    #
+    # The alert read `Dave picked Yes @ 1.80 · 12/12 picked — all picks are in`: a price,
+    # a progress count, and no fixture. It could not do better, because `selection` above
+    # is all it had and half the selections this product offers do not name themselves.
+    #
+    # Four columns rather than one composed phrase. Storing `Both teams score (Forfar v
+    # Brechin)` would work today and would make the next copy revision a migration — the
+    # stored value would stop being a datum and become a rendered sentence. These are the
+    # data; `services/selection_text.py` is the copy.
+    #
+    # All four are nullable because a completion written before `024` has no fixture to
+    # carry and no honest way to find one: the round may since have settled and the picker
+    # may since have moved. `_completion_body` falls back to `selection` for those rows,
+    # which is exactly the alert they would have produced anyway.
+    market: Mapped[PickMarket | None] = mapped_column(
+        Enum(PickMarket, name="pick_market", create_type=False), nullable=True
+    )
+    outcome: Mapped[PickOutcome | None] = mapped_column(
+        Enum(PickOutcome, name="pick_outcome", create_type=False), nullable=True
+    )
+    #: The fixture's two teams, frozen like everything else on this row. Same width as
+    #: ``fixtures.home`` / ``fixtures.away``, which is where they are copied from.
+    fixture_home: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    fixture_away: Mapped[str | None] = mapped_column(String(120), nullable=True)
     #: ``Pick.odds_at_pick`` — the frozen price, never a live quote, because a winner is
     #: scored on this number.
     odds: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False)

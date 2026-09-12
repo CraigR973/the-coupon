@@ -25,6 +25,7 @@ from src.services.fotmob_health import FotMobAlert
 from src.services.gameweek import RoundProgress, members_missing_picks, notification_targets
 from src.services.push_notification_service import send_notification
 from src.services.round_completion import claim_pending_completion, mark_delivered
+from src.services.selection_text import selection_summary
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -304,9 +305,33 @@ def _completion_body(completion: GameweekCompletion) -> str:
 
     Every value comes off the row, frozen at the transition. A retry can run after that
     member has moved their pick, and the event is what happened when the coupon filled.
+
+    **What it names changed in Batch 116.** It printed ``completion.selection``, which is
+    ``Pick.runner_name`` — a team name for Match Odds and ``The Draw`` or ``Yes`` for
+    everything else — so the one alert a round only ever sends could reach twelve phones
+    saying a price and a progress count and no fixture. Revision ``024`` froze the four
+    values a selection is *named* from onto the row, and the phrase is rendered here from
+    those, in the same words the coupon uses.
+
+    A row written before ``024`` has none of them and falls back to ``selection``: that is
+    the alert it would have produced anyway, and there is nothing honest to backfill it
+    from — the round may since have settled and the picker may since have moved.
     """
+    named = (
+        selection_summary(
+            completion.market,
+            completion.outcome,
+            completion.fixture_home,
+            completion.fixture_away,
+        )
+        if completion.market is not None
+        and completion.outcome is not None
+        and completion.fixture_home is not None
+        and completion.fixture_away is not None
+        else completion.selection
+    )
     return (
-        f"{completion.final_picker_name} picked {completion.selection} "
+        f"{completion.final_picker_name} picked {named} "
         f"@ {completion.odds:.2f} · {completion.member_count}/{completion.member_count} "
         f"picked — all picks are in"
     )

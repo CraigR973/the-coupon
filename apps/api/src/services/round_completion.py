@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.gameweek import Gameweek
 from src.models.gameweek_completion import GameweekCompletion
+from src.models.pick import PickMarket, PickOutcome
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -36,6 +37,10 @@ async def record_completion(
     selection: str,
     odds: Decimal,
     member_count: int,
+    market: PickMarket,
+    outcome: PickOutcome,
+    fixture_home: str,
+    fixture_away: str,
 ) -> bool:
     """Write the round's completion event if it does not exist yet.
 
@@ -65,6 +70,13 @@ async def record_completion(
             selection=selection,
             odds=odds,
             member_count=member_count,
+            # Batch 116. The alert this row feeds is sent once a round and cannot re-read
+            # the pick — a retry runs after that member may have moved it — so the four
+            # values a selection is *named* from are frozen here with everything else.
+            market=market,
+            outcome=outcome,
+            fixture_home=fixture_home,
+            fixture_away=fixture_away,
         )
         .on_conflict_do_nothing(constraint="uq_gameweek_completions_gameweek")
     )

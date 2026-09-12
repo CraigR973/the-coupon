@@ -50,6 +50,7 @@ from src.services.gameweek import PICKABLE_STATES, pick_refusal, round_progress
 from src.services.notification_triggers import announce_all_picked, notify_pick_made
 from src.services.odds_provider import OddsProviderError, Selection
 from src.services.round_completion import record_completion
+from src.services.selection_text import selection_summary
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -360,6 +361,13 @@ async def submit_pick(
     # webpush call, which is the exact coupling the row exists to break.
     picker_name = await _league_display_name(db, league.id, player)
 
+    # Batch 116. What the alert calls the selection, in the words the coupon uses. It
+    # interpolated `pick.runner_name`, which is composed from the market alone — a team
+    # name for Match Odds, the bare word `Yes` for Both Teams To Score — so half the
+    # selections this product offers reached the tray as a price with no fixture attached.
+    # `fixture` is already loaded here, so naming it costs no query.
+    named_selection = selection_summary(pick.market, pick.outcome, fixture.home, fixture.away)
+
     # Whether *this* submission completed the round. The database decides it, not the
     # count above: two members claiming the last two selections seconds apart both read a
     # full coupon, and only the insert that lands is the transition.
@@ -379,6 +387,13 @@ async def submit_pick(
                     selection=pick.runner_name,
                     odds=pick.odds_at_pick,
                     member_count=progress.member_count,
+                    # The data the phrase is rendered from, frozen with the rest of the
+                    # row: this alert is sent once a round and its retry cannot re-read a
+                    # pick the member may have moved since.
+                    market=pick.market,
+                    outcome=pick.outcome,
+                    fixture_home=fixture.home,
+                    fixture_away=fixture.away,
                 ),
             )
             is True
@@ -409,7 +424,7 @@ async def submit_pick(
                 gameweek,
                 picker_id=player.id,
                 picker_name=picker_name,
-                selection=pick.runner_name,
+                selection=named_selection,
                 odds=pick.odds_at_pick,
                 moved=moved,
                 progress=progress,

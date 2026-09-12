@@ -325,6 +325,10 @@ async def test_the_completion_alert_names_the_final_picker_and_opens_the_copy_se
         selection="Arsenal",
         odds=Decimal("1.80"),
         member_count=12,
+        market=PickMarket.MATCH_ODDS,
+        outcome=PickOutcome.HOME,
+        fixture_home="Arsenal",
+        fixture_away="Chelsea",
     )
 
     with patch(
@@ -335,7 +339,14 @@ async def test_the_completion_alert_names_the_final_picker_and_opens_the_copy_se
     assert told == 2
     call = send.await_args_list[0]
     assert call.args[2] == league.name
-    assert call.args[3] == "Dave picked Arsenal @ 1.80 · 12/12 picked — all picks are in"
+    # Batch 116. It printed `completion.selection` — `Pick.runner_name`, which is a team
+    # name for Match Odds and the bare word `Yes` for Both Teams To Score — so the one
+    # alert a round sends once could reach twelve phones with no fixture in it. The phrase
+    # is now rendered from the four values revision 024 freezes onto the row, in the same
+    # words the coupon uses.
+    assert call.args[3] == (
+        "Dave picked Arsenal (v Chelsea) @ 1.80 · 12/12 picked — all picks are in"
+    )
     assert call.kwargs["data"]["url"] == (
         f"/leagues/{league.slug}/predictions?gw={gameweek.id}#coupon"
     )
@@ -376,6 +387,10 @@ async def test_the_completion_reaches_the_final_picker_and_skips_the_muted(
         selection="Arsenal",
         odds=Decimal("1.80"),
         member_count=3,
+        market=PickMarket.MATCH_ODDS,
+        outcome=PickOutcome.HOME,
+        fixture_home="Arsenal",
+        fixture_away="Chelsea",
     )
 
     with patch(
@@ -416,6 +431,10 @@ async def test_a_round_already_announced_is_never_announced_again(
         selection="Arsenal",
         odds=Decimal("1.80"),
         member_count=2,
+        market=PickMarket.MATCH_ODDS,
+        outcome=PickOutcome.HOME,
+        fixture_home="Arsenal",
+        fixture_away="Chelsea",
     )
     second = await record_completion(
         session,
@@ -425,6 +444,10 @@ async def test_a_round_already_announced_is_never_announced_again(
         selection="Chelsea",
         odds=Decimal("3.40"),
         member_count=2,
+        market=PickMarket.MATCH_ODDS,
+        outcome=PickOutcome.HOME,
+        fixture_home="Arsenal",
+        fixture_away="Chelsea",
     )
     assert (first, second) == (True, False)
 
@@ -475,6 +498,10 @@ async def test_a_fan_out_that_fails_leaves_the_event_to_be_retried(
         selection="Arsenal",
         odds=Decimal("1.80"),
         member_count=2,
+        market=PickMarket.MATCH_ODDS,
+        outcome=PickOutcome.HOME,
+        fixture_home="Arsenal",
+        fixture_away="Chelsea",
     )
 
     with patch(
@@ -552,6 +579,10 @@ async def test_two_simultaneous_final_picks_record_one_completion() -> None:
                 selection="Arsenal",
                 odds=Decimal("1.80"),
                 member_count=2,
+                market=PickMarket.MATCH_ODDS,
+                outcome=PickOutcome.HOME,
+                fixture_home="Arsenal",
+                fixture_away="Chelsea",
             )
             await db.commit()
             return recorded
@@ -590,6 +621,10 @@ async def test_a_second_request_does_not_queue_behind_a_fan_out_in_flight() -> N
             selection="Arsenal",
             odds=Decimal("1.80"),
             member_count=2,
+            market=PickMarket.MATCH_ODDS,
+            outcome=PickOutcome.HOME,
+            fixture_home="Arsenal",
+            fixture_away="Chelsea",
         )
         await db.commit()
 

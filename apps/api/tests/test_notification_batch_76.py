@@ -395,6 +395,11 @@ async def test_the_alert_quotes_the_frozen_price(session: AsyncSession) -> None:
     # the round; it now names it once, in the title, and spends the rest on the only thing
     # a member could not otherwise learn from a phone.
     assert title == "2-1 Hibs"
+    # Batch 116 renders the selection before it gets here, so what this unit test asserts
+    # is that the line is built around whatever it is handed. What the *caller* hands it —
+    # the `selectionSummary` phrase rather than `Pick.runner_name` — is asserted through
+    # the submit endpoint in `test_alert_names_the_fixture_batch_116.py`, which is the only
+    # place that can prove a BTTS claim reaches the tray naming its fixture.
     assert body == "Dave picked Arsenal to win @ 1.80 · 3/12 picked"
 
 
