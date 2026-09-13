@@ -3698,3 +3698,46 @@ scope boundary says stop for a ship, and 113 says do not begin until 112 has shi
 `check-deploy-drift.sh` reports in sync — 113 replaces the endpoint 112 removed, so it
 assumes 112's API is live. That ship also carries migration `024` (Batch 116), whose
 recovery plan still awaits approval.
+
+## Batch 113 — The deployment has no season calendar, so every league counts alone
+**Commits:** `f748117` · verified: `scripts/ci-local.sh` PASS (11 checks); production-preview
+Playwright coupon flow PASS against disposable PostgreSQL through migration `025`, with
+390x844 light/dark screenshots and `Gameweek 1b` inside the viewport
+
+### Gate failures on the way
+- **First full gate:** pinned mypy rejected two implicit re-exports after `season_bounds`
+  and `season_label` moved to the calendar module; both callers now import the canonical
+  module directly. PostgreSQL also failed before migration because the inherited `C.UTF-8`
+  locale is not installed; reruns used the installed `en_US.UTF-8`. The locale reset did not
+  count as a code attempt.
+- **Next full gate:** Ruff caught the import ordering introduced by that fix; the import was
+  reordered. Six football-data tests then failed because the new admin HTTP test committed a
+  far-future fixture which their later shared-pool discovery correctly found. The test now
+  removes only its own committed league, fixture, profile and calendar. The exact ordered
+  slice passed 44/44 before the complete gate was rerun green. A run already collected before
+  that edit repeated the same six failures; no production logic or expected value was changed.
+- **Browser verification:** the first harness used `/health` instead of `/api/v1/health` and
+  stopped before Playwright. The first real browser run reached the final legacy empty-league
+  assertion as its 30-second overall budget expired under competing test load; the unchanged
+  rerun passed. Visual inspection then showed the hash had scrolled the week label above the
+  screenshot, so the acceptance test now requires it inside the viewport; the final unchanged
+  journey passed again in both themes.
+
+### Key facts for future sessions
+- `season_calendars` is deliberately empty after migration `025`. The production backfill is
+  not a migration or ship side effect: dry-run, owner review, explicit apply, then dry-run again.
+- The stored anchor never follows a later-added earlier round. Earlier history clamps into week
+  1 and is disambiguated by the same chronological suffix rule as a global extra date.
+- Global extras are intent, not placeholder rounds. Scheduled discovery offers each date to all
+  leagues once per distinct window; a competition-filtered empty slate creates no round.
+- Withdrawing an extra is refused if any league has a pick on that date. Without picks, Batch
+  112's cadence-union-extras retirement removes the now-stranded round.
+- `Gameweek.number` and `next_gameweek_number` are untouched internal ordinals. Public API
+  responses add optional `season_week`; every member-facing label prefers it and remains
+  compatible while the deployed API lags the web push.
+- The admin Calendar page reads the current season, moves only an unsettled anchor, declares
+  extras globally, and makes the deferred discovery behavior explicit.
+
+**Next:** `/ship-prod` for migration `025` and the additive calendar API, then the separately
+authorised production calendar dry-run/apply. Batch 95 remains soft-blocked; Batch 115 remains
+unchecked because Batch 119 superseded it.

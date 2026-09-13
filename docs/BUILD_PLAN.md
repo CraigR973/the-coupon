@@ -3420,7 +3420,7 @@ answered until it lands, because until then there is no data to look at.
   no change to how rounds are numbered or labelled, and no replacement for the removed
   endpoint — that is Batch 113. **API and web; stop for `/ship-prod` before Batch 113.**
 
-- [ ] **Batch 113 — The deployment has no season calendar, so every league counts alone**
+- [x] **Batch 113 — The deployment has no season calendar, so every league counts alone** ✅ 2026-09-13
   Specified 2026-09-04 on the owner's decision, taken against the alternative of leading every
   round label with its date; amended 2026-09-05 with the backfill protocol below. Production holds
   two leagues and they already disagree about the

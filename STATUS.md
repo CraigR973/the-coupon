@@ -1342,9 +1342,11 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 95, 112, 113, 115, 116, 117 and 118 unchecked**.
-**A `/ship-prod` is owed and it matters**: Batch 119 is API-only and its whole content is a
-live production defect fix, so nothing in it reaches the deployment until it ships.
+`docs/BUILD_PLAN.md` carries **Batches 95 and 115 unchecked**. Batch 95 remains
+soft-blocked and Batch 115 is superseded by 119, so neither is the next implementation.
+**A `/ship-prod` is owed and it matters**: Batch 113 adds migration `025` and the API
+fields/routes the newly deployed web client reads. The production calendar backfill is a
+separate explicit owner action after that ship; do not run it as part of deployment.
 
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
@@ -1381,14 +1383,18 @@ are its cadence and nothing else, `POST /leagues/{slug}/gameweeks` now answers `
 current window, which holds no picks and has not settled — bounded to today forward, so
 history is untouchable. Batch 116's alert now names the fixture it is about.
 
-**Batch 113 is unblocked**: its precondition was 112 shipping with drift in sync, and both
-now hold.
+**Batch 113 is closed on `main`** (`f748117`, migration `025`). One deployment calendar now
+stores each season's immutable week-1 Saturday and global extra dates. Public labels derive
+from its Wednesday-to-Tuesday football weeks, including `6b`/`6c` suffixes, while
+`Gameweek.number` remains the unchanged per-league internal ordinal. The admin Calendar
+surface owns anchor and extra-date changes; discovery alone materialises extras, once per
+distinct window, and refuses withdrawal after any league has picked.
 
-**A `/ship-prod` is owed and it carries `024`**, whose forward recovery plan is written and
-still marked *awaiting owner approval*. That approval is the gate, and it is not a formality:
-`024` is irreversible in this deployment and gives up the API rollback the 2026-09-12
-shipment currently has. The same ship also delivers Batch 117's `number`, so home stops
-printing dates and starts printing "Gameweek 6" at that moment.
+**A `/ship-prod` is owed and it carries `025`.** The web half reaches members from this
+close-out push, but it falls back to the old label until the additive `season_week` API field
+arrives. After the API ship, run `python -m src.backfill_season_calendar --dry-run`, review
+every visible move, and only then run the separately authorised `--apply`; neither command
+is part of this close-out.
 
 **Batch 117 — home named the round it had finished with, and the coupon was last on the
 coupon page.** Closed out 2026-09-12 (`bf87f0a`). `LastResult` had carried `number` since
@@ -1457,10 +1463,8 @@ inside twenty-four hours, which is the strongest argument yet for learning per f
 than per competition. Tightening the near tier stays out of scope until the counters have real
 data to take the number from.
 
-Batches 112 and 113 were specified on 2026-09-04 and are unstarted; 114 was taken before both
-on its own instruction, being the live defect. Production's two open rounds — Friday 11 and
-Saturday 12 September, both McCann's Defenders — are the stranded-cadence shape Batch 112
-describes, still live. Batch 95 remains in the soft-blocked tail of
+Batches 112 and 113 were specified on 2026-09-04 and are now closed; 114 was taken before
+both on its own instruction, being the live defect. Batch 95 remains in the soft-blocked tail of
 Group D. **Groups I through M are complete**, which closes out both the 2026-08-26
 full-application review and the owner's 2026-09-03 Coupon, home, notification and Football
 Stats review:
