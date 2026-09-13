@@ -235,6 +235,12 @@ beforeEach(() => {
 });
 
 describe('CurrentRoundPage', () => {
+  it('uses a suffixed deployment week on the round and combined coupon surface', async () => {
+    stubSlate({ number: 3, season_week: '5b' });
+    renderPage();
+    expect(await screen.findByText(/Gameweek 5b/)).toBeTruthy();
+  });
+
   it('renders this Saturday’s fixtures from the slate', async () => {
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: /scottish league 2/i }));

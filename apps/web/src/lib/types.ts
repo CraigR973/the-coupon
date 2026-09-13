@@ -220,6 +220,8 @@ export interface GameweekSummary {
    * Absent means label the round by its date alone.
    */
   number?: number | null;
+  /** Deployment-wide public week, including an optional suffix: `6` or `6b`. */
+  season_week?: string | null;
   fixture_count: number;
   /** Picks made in *this* league, so the same week reads differently per league. */
   pick_count: number;
@@ -235,6 +237,7 @@ export interface GameweekSlate {
   picks_open_at_utc: string | null;
   /** What members call this round — "Gameweek 12". Absent means label by date alone. */
   number?: number | null;
+  season_week?: string | null;
   fixtures: FixtureSlate[];
   members: GameweekMember[];
   members_missing_picks: number;
@@ -360,6 +363,8 @@ export interface GameweekResult {
   gameweek_id: string;
   /** The date this league's window opened. Not necessarily a Saturday. */
   starts_on: string; // ISO date (yyyy-mm-dd)
+  /** Deployment-wide public week, including an optional suffix: `6` or `6b`. */
+  season_week?: string | null;
   /** Whoever's pick scored the most that round; more than one on a tie. */
   winner_names: string[];
   winner_points: number;
@@ -543,6 +548,7 @@ export interface LastResult {
   starts_on: string; // ISO date (yyyy-mm-dd)
   /** What members call the round; null on one discovered before Batch 41. */
   number: number | null;
+  season_week?: string | null;
   leg_count: number;
   /** How many legs landed. `all_won` alone cannot tell five of six from none of six. */
   picks_won: number;
@@ -571,6 +577,7 @@ export interface CurrentRound {
    * date, which is why that fallback is the tested case here rather than the incidental one.
    */
   number?: number | null;
+  season_week?: string | null;
   status: GameweekStatus;
   locks_at_utc: string;
   /** When picks open; null when the league announces no opening. */
@@ -719,6 +726,7 @@ export interface RefreshedRound {
   status: GameweekStatus;
   /** What members call this round — "Gameweek 12"; null on rounds predating Batch 41. */
   number?: number | null;
+  season_week?: string | null;
   fixture_count: number;
   /** True when this call created the round; false when it topped up an existing one. */
   created: boolean;
@@ -989,4 +997,17 @@ export interface AdminPendingRound {
   status: GameweekStatus;
   locks_at_utc: string;
   fixtures: AdminPendingFixture[];
+}
+
+export interface AdminCalendarWeek {
+  starts_on: string;
+  label: string;
+  is_extra: boolean;
+}
+
+export interface AdminSeasonCalendar {
+  season: number;
+  label: string;
+  week_one_anchor: string;
+  weeks: AdminCalendarWeek[];
 }

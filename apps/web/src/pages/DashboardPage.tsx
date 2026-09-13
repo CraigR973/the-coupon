@@ -424,7 +424,11 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
             className="mb-2 truncate font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted"
             data-testid={`home-round-${entry.slug}`}
           >
-            {roundName(round.number, formatCalendarDate(round.starts_on, 'EEE d MMM'))}
+            {roundName(
+              round.number,
+              formatCalendarDate(round.starts_on, 'EEE d MMM'),
+              round.season_week,
+            )}
           </p>
         )}
 
@@ -544,7 +548,11 @@ function lastRoundView(entry: PerLeagueSummary): LastRoundView | null {
   const result = entry.last_result;
   if (result) {
     return {
-      label: roundName(result.number, formatCalendarDate(result.starts_on, 'EEE d MMM')),
+      label: roundName(
+        result.number,
+        formatCalendarDate(result.starts_on, 'EEE d MMM'),
+        result.season_week,
+      ),
       movement: result.rank_movement ?? null,
       mine: result.my_pick,
       legCount: result.leg_count,
@@ -555,7 +563,11 @@ function lastRoundView(entry: PerLeagueSummary): LastRoundView | null {
   const round = entry.current_round;
   if (!round || round.status !== 'settled') return null;
   return {
-    label: formatCalendarDate(round.starts_on, 'EEE d MMM'),
+    label: roundName(
+      round.number,
+      formatCalendarDate(round.starts_on, 'EEE d MMM'),
+      round.season_week,
+    ),
     movement: null,
     mine: round.my_pick,
     legCount: round.leg_count,

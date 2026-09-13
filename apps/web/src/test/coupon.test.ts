@@ -116,6 +116,10 @@ describe('roundName', () => {
     expect(roundName(12, 'Sat 8 Aug 2026')).toBe('Gameweek 12');
   });
 
+  it('prefers the deployment week and renders its suffix', () => {
+    expect(roundName(3, 'Sat 5 Sep 2026', '5b')).toBe('Gameweek 5b');
+  });
+
   it('falls back to the date when the round has no number', () => {
     // A round discovered before Batch 41, or a slate served by an API deployed before
     // it — routine, since the web app ships ahead of the API.
@@ -303,4 +307,3 @@ describe('roundPhase', () => {
     expect(roundPhase({ ...base, memberCount: 0, missingCount: 0 })).toBe('open');
   });
 });
-

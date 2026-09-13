@@ -4,7 +4,7 @@ import { apiFetch } from '../lib/api';
 import { useLeague } from '../contexts/LeagueContext';
 import { useOddsFormat } from '../hooks/useOddsFormat';
 import { useRouteLeague } from '../hooks/useRouteLeague';
-import { formatOdds } from '../lib/coupon';
+import { formatOdds, roundName } from '../lib/coupon';
 import { couponSectionPath } from '../lib/leagues';
 import { formatCalendarDate } from '../lib/time';
 import type { GameweekResult } from '../lib/types';
@@ -112,7 +112,11 @@ export function ResultsPage() {
               >
                 <div className="min-w-0 flex-1">
                   <p className="font-sans text-sm font-medium text-text-primary">
-                    {formatCalendarDate(result.starts_on, 'EEEE d MMMM')}
+                    {roundName(
+                      undefined,
+                      formatCalendarDate(result.starts_on, 'EEEE d MMMM'),
+                      result.season_week,
+                    )}
                   </p>
                   <p className="truncate font-sans text-xs text-text-muted">
                     {result.winner_names.length === 0

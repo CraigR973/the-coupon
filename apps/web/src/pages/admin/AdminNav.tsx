@@ -6,11 +6,12 @@ import { cn } from '@/lib/utils';
  *
  * Dashboard first because it is the one an admin opens on a Saturday morning; Players
  * second because the PIN-reset push lands there directly and that is the arrival with a
- * member waiting on the other end. Results and Sync are the operational half (Batch 69),
- * and the two least-visited screens sit at the end of the row.
+ * member waiting on the other end. Calendar owns the one deployment-wide season
+ * (Batch 113); Results and Sync are the operational half (Batch 69).
  */
 const TABS = [
   { to: '/admin/dashboard', label: 'Dashboard' },
+  { to: '/admin/calendar', label: 'Calendar' },
   { to: '/admin/players', label: 'Players' },
   { to: '/admin/results', label: 'Results' },
   { to: '/admin/sync', label: 'Sync' },

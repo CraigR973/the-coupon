@@ -44,6 +44,7 @@ from src.services.gameweek import (
 )
 from src.services.notification_triggers import notify_member_joined
 from src.services.odds_provider import UK_TZ, OddsProvider, OddsProviderError
+from src.services.season_calendar import labels_for_gameweeks
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -1486,6 +1487,7 @@ class RefreshedRound(BaseModel):
     status: str
     # What members call this round — "Gameweek 12" (Batch 41).
     number: int | None
+    season_week: str | None = None
     fixture_count: int
     # True when this call created the round; false when it topped up an existing one.
     created: bool
@@ -1554,6 +1556,7 @@ async def refresh_rounds(
         .group_by(GameweekFixture.gameweek_id)
     )
     counts: dict[uuid.UUID, int] = {row[0]: row[1] for row in counted.all()}
+    season_weeks = await labels_for_gameweeks(db, populated.gameweeks)
     created = set(populated.created_dates)
 
     log.info(
@@ -1569,6 +1572,7 @@ async def refresh_rounds(
                 starts_on=gameweek.starts_on,
                 status=gameweek.status.value,
                 number=gameweek.number,
+                season_week=season_weeks.get(gameweek.id),
                 fixture_count=counts.get(gameweek.id, 0),
                 created=gameweek.starts_on in created,
             )

@@ -551,6 +551,26 @@ describe('the week just gone', () => {
  * blank or a "Gameweek ?" placeholder.
  */
 describe('the card names its round', () => {
+  it('by deployment week, including a suffix, before the league ordinal', async () => {
+    stubFetch({
+      ...SUMMARY,
+      per_league: [
+        {
+          ...SUMMARY.per_league[0],
+          current_round: {
+            ...SUMMARY.per_league[0].current_round!,
+            number: 3,
+            season_week: '5b',
+          },
+        },
+      ],
+    });
+    renderPage();
+
+    const label = await screen.findByTestId('home-round-the-coupon');
+    expect(label.textContent).toBe('Gameweek 5b');
+  });
+
   it('by number when the API sends one', async () => {
     renderPage();
 

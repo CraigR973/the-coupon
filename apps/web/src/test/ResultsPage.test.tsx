@@ -30,6 +30,7 @@ const RESULTS: GameweekResult[] = [
   {
     gameweek_id: 'gw-2',
     starts_on: '2026-05-09',
+    season_week: '45b',
     winner_names: ['Bob'],
     winner_points: 21,
     leg_count: 3,
@@ -111,6 +112,7 @@ describe('ResultsPage', () => {
     expect(rows[0].textContent).toContain('Bob won');
     expect(rows[0].textContent).toContain('21 pts');
     expect(rows[1].textContent).toContain('Alice, Carol tied');
+    expect(rows[0].textContent).toContain('Gameweek 45b');
   });
 
   it('shows the combined-coupon outcome badge', async () => {

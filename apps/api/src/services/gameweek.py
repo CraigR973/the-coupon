@@ -42,6 +42,12 @@ from src.services.odds_provider import (
     is_void_status,
 )
 from src.services.push_notification_service import send_notification
+from src.services.season_calendar import (
+    ensure_calendar_for_new_season,
+    extra_weeks_between,
+    season_bounds,
+    season_label,
+)
 from src.services.slate_verification import verify_slate
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -61,27 +67,6 @@ def _naive_utc(value: datetime) -> datetime:
 def _utc_now() -> datetime:
     """Naive-UTC now, matching the ``*_utc`` storage convention."""
     return datetime.now(UTC).replace(tzinfo=None)
-
-
-def season_bounds(season: int) -> tuple[date, date]:
-    """The first and last dates of a season, named by its starting year.
-
-    The inverse of :func:`season_for`, and the reason it exists: numbering is per
-    league *per season*, and the query that finds a league's highest number so far has
-    to express "same season" as a date range the database can filter on.
-    """
-    return date(season, 7, 1), date(season + 1, 6, 30)
-
-
-def season_label(season: int) -> str:
-    """How a season is written on a screen: season ``2026`` is ``2026/27``.
-
-    Here rather than on each surface that draws one, for the same reason
-    :func:`season_bounds` is here: the heading over a table, the entry in the archive
-    selector and the filter that produced the table are then all derived from the one
-    integer, and cannot drift into naming different things the same way.
-    """
-    return f"{season}/{(season + 1) % 100:02d}"
 
 
 async def next_gameweek_number(db: AsyncSession, league_id: Any, starts_on: date) -> int:
@@ -622,6 +607,10 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
         # whole card is called off is a date with no round, not a round with no fixtures.
         if not playable:
             return None
+        # A genuinely new season establishes its deployment-wide anchor only after this
+        # league has proved it has something to play. A migrated season with historical
+        # rounds deliberately stays unanchored until the owner's explicit backfill.
+        await ensure_calendar_for_new_season(db, slate.starts_on)
         opens_at = picks_open_at(league, slate.starts_on)
         gameweek = Gameweek(
             league_id=league.id,
@@ -782,9 +771,8 @@ def upcoming_slate_dates(today: date, window: SlateWindow, count: int) -> list[d
     freezes it onto a pick.
 
     This is the league's **cadence** only — a weekly step from its window's next
-    opening. A round on any other date exists solely because an admin asked for one,
-    so it cannot be derived and has to be read back
-    (:func:`unlocked_round_dates`); see :func:`discover_fixtures`.
+    opening. Batch 113's deployment-wide extra dates are deliberately added by
+    :func:`discover_fixtures`, never by this pure cadence helper.
     """
     first = window.first_start_on_or_after(today)
     return [first + timedelta(weeks=offset) for offset in range(max(count, 1))]
@@ -795,7 +783,9 @@ async def unlocked_round_dates(
 ) -> dict[uuid.UUID, set[date]]:
     """Dates each of these leagues holds a still-claimable round on, within the horizon.
 
-    The off-cadence half of what discovery has to cover. Bounded at both ends on
+    The recovery half of what discovery has to cover. A picked date whose declaration
+    was withdrawn is kept until the refusal is resolved, and legacy off-cadence rows can
+    still exist. Bounded at both ends on
     purpose: a round already locked cannot change in any way a refresh could record —
     its card is fixed and its picks are frozen — and a round beyond the horizon has not
     firmed up yet, so fetching either spends the request budget on nothing.
@@ -817,7 +807,12 @@ async def unlocked_round_dates(
 
 
 async def retire_stranded_rounds(
-    db: AsyncSession, league: League, today: date, horizon: int
+    db: AsyncSession,
+    league: League,
+    today: date,
+    horizon: int,
+    *,
+    legitimate_extra_dates: Collection[date] | None = None,
 ) -> list[date]:
     """Delete the rounds this league no longer plays. Returns the dates retired.
 
@@ -830,16 +825,15 @@ async def retire_stranded_rounds(
     re-synced every morning and never aged out. The stranded Friday round and the real
     Saturday one held the same 204 fixtures.
 
-    **A league's rounds are its cadence and nothing else**, which is what makes this
-    derivable with no new state. A stranded round is one whose ``starts_on`` is not a
-    cadence date for the league's *current* window over the horizon, which holds no picks,
-    and which has not settled. No origin column, no migration, and no backfill that could
-    condemn a legitimate round.
+    **A league's rounds are its cadence union the deployment's declared extra dates.** A
+    stranded round is one whose ``starts_on`` belongs to neither set, which holds no picks,
+    and which has not settled. No origin column is needed: withdrawing an extra simply
+    removes it from the legitimate set and this existing rule retires the empty rounds.
 
     The three conditions each carry their weight:
 
-    * **Not a cadence date** is the whole definition of stranded — the league does not play
-      that day any more.
+    * **Neither cadence nor declared extra** is the whole definition of stranded — the
+      league does not play that day any more.
     * **No picks** is what makes it safe to retire a round whose lock has already passed.
       What :func:`rederive_claim_periods` protects is a deadline members claimed against,
       and with no picks there is no claim to protect.
@@ -863,13 +857,19 @@ async def retire_stranded_rounds(
     cadence = set(upcoming_slate_dates(today, window_for(league), horizon))
     if not cadence:  # pragma: no cover — `upcoming_slate_dates` always returns at least one
         return []
+    extras = (
+        set(legitimate_extra_dates)
+        if legitimate_extra_dates is not None
+        else await extra_weeks_between(db, today, max(cadence))
+    )
+    legitimate = cadence | extras
 
     rows = await db.execute(
         select(Gameweek).where(
             Gameweek.league_id == league.id,
             Gameweek.starts_on >= today,
             Gameweek.starts_on <= max(cadence),
-            Gameweek.starts_on.notin_(cadence),
+            Gameweek.starts_on.notin_(legitimate),
             Gameweek.status != GameweekStatus.settled,
             ~select(Pick.id).where(Pick.gameweek_id == Gameweek.id).exists(),
         )
@@ -888,6 +888,7 @@ async def retire_stranded_rounds(
         league_id=str(league.id),
         dates=[d.isoformat() for d in retired],
         cadence=[d.isoformat() for d in sorted(cadence)],
+        extra_weeks=[d.isoformat() for d in sorted(extras)],
     )
     return retired
 
@@ -964,16 +965,14 @@ async def discover_fixtures(
     is free. Only leagues that genuinely play a different window cost anything more.
 
     The dates walked are each window's cadence (:func:`upcoming_slate_dates`) **union**
-    the dates those leagues already hold unlocked rounds on inside the same horizon
-    (:func:`unlocked_round_dates`). Without the union a one-off round — Boxing Day, say
-    — is never revisited after the admin creates it, so a postponement, a late addition
-    or a corrected kick-off never lands on it, and since :func:`sync_slate` only ever
-    adds links it cannot self-correct either. Grouping still happens by window, so two
-    leagues that both added Boxing Day are refreshed on one fetch.
+    the deployment's declared extra dates and the dates those leagues already hold
+    unlocked rounds on inside the same horizon (:func:`unlocked_round_dates`). Extras go
+    to every league; the unlocked read is only the safety net for legacy or picked rows.
+    Grouping still happens by window, so an extra date costs one sweep per distinct
+    window, not one per league.
 
-    An off-cadence date is synced **only** to the leagues that already hold a round on
-    it. A league sharing the window but not the one-off must not have a Boxing Day round
-    invented for it because its neighbour asked for one.
+    A declared extra date is synced to every league. Any other off-cadence date is synced
+    **only** to the leagues that already hold a round on it.
 
     Dates the provider carries nothing for are skipped rather than left as empty
     rounds. Flushes but does not commit — the caller owns the transaction.
@@ -1009,12 +1008,13 @@ async def discover_fixtures(
 
     cadence = {window: upcoming_slate_dates(today, window, horizon) for window in by_window}
     horizon_end = max((dates[-1] for dates in cadence.values()), default=today)
+    extras = await extra_weeks_between(db, today, horizon_end)
     # Batch 112, and the order matters. Retiring *before* `unlocked_round_dates` is what
     # stops a stranded round being re-fed to the sweep that keeps it alive: the read below
     # is what put it back inside the horizon every morning. A league already in this state
     # therefore heals itself at 06:00 with nobody touching it.
     for league in leagues:
-        await retire_stranded_rounds(db, league, today, horizon)
+        await retire_stranded_rounds(db, league, today, horizon, legitimate_extra_dates=extras)
     off_cadence = await unlocked_round_dates(
         db, [league.id for league in leagues], today, horizon_end
     )
@@ -1022,11 +1022,13 @@ async def discover_fixtures(
     discovered: list[Gameweek] = []
     for window, sharing in by_window.items():
         scheduled = set(cadence[window])
-        dates = scheduled.union(*(off_cadence.get(league.id, set()) for league in sharing))
+        dates = (scheduled | extras).union(
+            *(off_cadence.get(league.id, set()) for league in sharing)
+        )
         for starts_on in sorted(dates):
             playing = (
                 sharing
-                if starts_on in scheduled
+                if starts_on in scheduled or starts_on in extras
                 else [lg for lg in sharing if starts_on in off_cadence.get(lg.id, set())]
             )
             slate = await provider.fetch_slate(window, starts_on, competition_ids=competition_ids)
@@ -1188,11 +1190,10 @@ async def populate_cadence_rounds(
     ``provider`` of ``None`` (no odds source configured or reachable) is the same case
     without the budget question: pool only.
 
-    **Cadence only.** The dates walked are :func:`upcoming_slate_dates` and nothing else,
-    where :func:`discover_fixtures` also covers the off-cadence rounds those leagues
-    already hold. That difference is the point: an off-cadence date belongs to the league
-    that asked for it, so a neighbour's Boxing Day must not be invented here for a league
-    that never requested one.
+    **Cadence only.** The dates walked are :func:`upcoming_slate_dates` and nothing else.
+    Batch 113's global extras materialise only on scheduled discovery: declaring a date
+    must not walk a provider inline while one site admin waits, nor multiply the cost by
+    leagues through their request paths.
 
     **Retires before it adds** (Batch 112). A league whose window moved has rounds built
     against the old one, and nothing used to take them away; :func:`retire_stranded_rounds`

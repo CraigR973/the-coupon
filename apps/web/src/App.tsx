@@ -81,6 +81,9 @@ const AdminAllLeaguesPage = lazyRoute(() =>
 const AdminDashboardPage = lazyRoute(() =>
   import('./pages/admin/DashboardPage').then((m) => ({ default: m.AdminDashboardPage })),
 );
+const AdminCalendarPage = lazyRoute(() =>
+  import('./pages/admin/CalendarPage').then((m) => ({ default: m.CalendarPage })),
+);
 const AdminSyncPage = lazyRoute(() =>
   import('./pages/admin/SyncPage').then((m) => ({ default: m.SyncPage })),
 );
@@ -270,6 +273,7 @@ export function App() {
                         <Route element={<ProtectedRoute requireAdmin />}>
                           <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
                           <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+                          <Route path="/admin/calendar" element={<AdminCalendarPage />} />
                           <Route path="/admin/players" element={<AdminPlayersPage />} />
                           <Route path="/admin/results" element={<AdminResultsPage />} />
                           <Route path="/admin/sync" element={<AdminSyncPage />} />

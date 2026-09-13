@@ -216,6 +216,7 @@ describe('the wrapper the pages share', () => {
     const links = markup.getAllByRole('link').map((a) => a.getAttribute('href'));
     expect(links).toEqual([
       '/admin/dashboard',
+      '/admin/calendar',
       '/admin/players',
       '/admin/results',
       '/admin/sync',

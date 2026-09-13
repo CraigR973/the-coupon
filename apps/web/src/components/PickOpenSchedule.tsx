@@ -60,7 +60,11 @@ export function PickOpenSchedule({ gameweeks, timezone, announced }: PickOpenSch
       </p>
       <ul className="space-y-1.5">
         {rounds.map((gw) => {
-          const label = roundName(gw.number, formatCalendarDate(gw.starts_on, 'd MMM'));
+          const label = roundName(
+            gw.number,
+            formatCalendarDate(gw.starts_on, 'd MMM'),
+            gw.season_week,
+          );
           const opensAt = formatInstant(gw.picks_open_at_utc, timezone, 'EEE d MMM, HH:mm');
           return (
             <li

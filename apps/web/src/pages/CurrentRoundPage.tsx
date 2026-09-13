@@ -233,7 +233,11 @@ export function CurrentRoundPage() {
   });
 
   const roundLabel = slate
-    ? roundName(slate.number, formatCalendarDate(slate.starts_on, 'EEE d MMM yyyy'))
+    ? roundName(
+        slate.number,
+        formatCalendarDate(slate.starts_on, 'EEE d MMM yyyy'),
+        slate.season_week,
+      )
     : 'This round';
 
   const entries = useMemo(

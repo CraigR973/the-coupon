@@ -32,13 +32,13 @@ from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile
 from src.services.coupon import combined_odds
 from src.services.football_provider import current_season
-from src.services.gameweek import season_bounds
 from src.services.odds_provider import (
     EventSettlement,
     Market,
     OddsProvider,
     Outcome,
 )
+from src.services.season_calendar import labels_for_gameweeks, season_bounds
 
 _POINTS_MULTIPLIER = 10
 
@@ -602,6 +602,8 @@ class GameweekResult(BaseModel):
 
     gameweek_id: str
     starts_on: date
+    #: The deployment-wide public week (``6`` or ``6b``), once its calendar exists.
+    season_week: str | None = None
     winner_names: list[str]
     winner_points: int
     leg_count: int
@@ -651,6 +653,10 @@ async def gameweek_results(db: AsyncSession, league_id: uuid.UUID) -> list[Gamew
         if points is not None:
             picks.append((name, int(points), status_, odds))
 
+    gameweek_models = list(
+        (await db.execute(select(Gameweek).where(Gameweek.id.in_(by_gameweek)))).scalars().all()
+    )
+    season_weeks = await labels_for_gameweeks(db, gameweek_models)
     results: list[GameweekResult] = []
     for gw_id, (starts_on, picks) in by_gameweek.items():
         top_points = max((p for _, p, _, _ in picks), default=0)
@@ -659,6 +665,7 @@ async def gameweek_results(db: AsyncSession, league_id: uuid.UUID) -> list[Gamew
             GameweekResult(
                 gameweek_id=str(gw_id),
                 starts_on=starts_on,
+                season_week=season_weeks.get(gw_id),
                 winner_names=winner_names,
                 winner_points=top_points,
                 leg_count=len(picks),

@@ -80,7 +80,11 @@ export function formatOdds(odds: number, format: OddsFormat = 'decimal'): string
 export function roundName(
   number: number | null | undefined,
   fallbackDate: string,
+  seasonWeek?: string | null,
 ): string {
+  if (typeof seasonWeek === 'string' && seasonWeek.length > 0) {
+    return `Gameweek ${seasonWeek}`;
+  }
   return typeof number === 'number' ? `Gameweek ${number}` : fallbackDate;
 }
 
@@ -282,4 +286,3 @@ export function roundPhase(progress: RoundProgress): RoundPhase {
   if (progress.notOpenYet) return 'not_open';
   return progress.mine ? 'submitted' : 'open';
 }
-

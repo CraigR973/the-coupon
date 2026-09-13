@@ -110,4 +110,10 @@ describe('the round counter (Batch 78)', () => {
     render(<GameweekNav history={history(round({ pick_count: 1 }))} />);
     expect(screen.getByText('1 pick')).toBeTruthy();
   });
+
+  it('renders the deployment week suffix instead of the league ordinal', () => {
+    at('2026-08-29T12:00:00Z');
+    render(<GameweekNav history={history(round({ number: 3, season_week: '5b' }))} />);
+    expect(screen.getByText('Gameweek 5b')).toBeTruthy();
+  });
 });

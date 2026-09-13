@@ -33,6 +33,7 @@ from src.services.coupon import combined_odds
 from src.services.football_provider import season_for
 from src.services.gameweek import PICKABLE_STATES, current_round_order
 from src.services.scoring import LONGSHOT_ODDS, FormRound, resolve_season, standings_by_league
+from src.services.season_calendar import labels_for_gameweeks
 
 router = APIRouter(prefix="/api/v1/me", tags=["me"])
 
@@ -101,6 +102,7 @@ class CurrentRound(BaseModel):
     #: only one they could not identify. ``LastResult`` carried ``number`` and this did
     #: not, so the frontend could not fix it alone: ``roundName`` had nothing to call.
     number: int | None
+    season_week: str | None = None
     status: str
     locks_at_utc: UtcDatetime
     # When picks open, or ``null`` when the league announces no opening (Batch 27). The
@@ -129,6 +131,7 @@ class LastResult(BaseModel):
     starts_on: date
     #: What members call the round. ``None`` on a round discovered before Batch 41.
     number: int | None
+    season_week: str | None = None
     leg_count: int
     #: How many of those legs landed. ``all_won`` alone cannot tell five of six from none.
     picks_won: int
@@ -436,11 +439,13 @@ async def _latest_rounds(
                 status=pick.status.value,
             )
 
+    season_weeks = await labels_for_gameweeks(db, gameweek_rows)
     return {
         row.league_id: CurrentRound(
             gameweek_id=str(row.id),
             starts_on=row.starts_on,
             number=row.number,
+            season_week=season_weeks.get(row.id),
             status=row.status.value,
             locks_at_utc=row.locks_at_utc,
             picks_open_at_utc=row.picks_open_at_utc,
@@ -519,11 +524,13 @@ async def _last_results(
                 points_awarded=pick.points_awarded,
             )
 
+    season_weeks = await labels_for_gameweeks(db, gameweek_rows)
     return {
         row.league_id: LastResult(
             gameweek_id=str(row.id),
             starts_on=row.starts_on,
             number=row.number,
+            season_week=season_weeks.get(row.id),
             leg_count=len(legs.get(row.id, [])),
             picks_won=sum(1 for s in statuses.get(row.id, []) if s is PickStatus.won),
             combined_odds=float(combined_odds(legs.get(row.id, []))),

@@ -45,6 +45,7 @@ from src.models.league_membership import LeagueMembership
 from src.models.notification import ActionType, ActorType, AuditLog
 from src.models.pick import Pick, PickStatus
 from src.models.profile import Profile
+from src.models.season_calendar import SeasonCalendar
 from src.rate_limit import consume_shared_limit, limiter, per_user_key
 from src.routers.leagues import PROVIDER_SLATE_FETCH_LIMIT, PROVIDER_SLATE_FETCH_SCOPE
 from src.schemas import UtcDatetime
@@ -61,15 +62,145 @@ from src.services.credentials import (
     revoke_all_refresh_tokens,
 )
 from src.services.discovery_health import discovery_health
+from src.services.football_provider import current_season
 from src.services.gameweek import PICKABLE_STATES
 from src.services.odds_session import odds_session
 from src.services.scoring import settle_gameweek
+from src.services.season_calendar import (
+    declare_extra_week,
+    listed_weeks,
+    move_anchor,
+    season_label,
+    withdraw_extra_week,
+)
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 Db = Annotated[AsyncSession, Depends(get_db)]
+
+
+# ── Deployment season calendar (Batch 113) ──────────────────────────────────
+
+
+class CalendarWeekOut(BaseModel):
+    starts_on: date
+    label: str
+    is_extra: bool
+
+
+class SeasonCalendarOut(BaseModel):
+    season: int
+    label: str
+    week_one_anchor: date
+    weeks: list[CalendarWeekOut]
+
+
+class SeasonAnchorRequest(BaseModel):
+    season: int
+    week_one_anchor: date
+
+
+class ExtraWeekRequest(BaseModel):
+    season: int
+    starts_on: date
+
+
+def _calendar_out(calendar: SeasonCalendar) -> SeasonCalendarOut:
+    return SeasonCalendarOut(
+        season=calendar.season,
+        label=season_label(calendar.season),
+        week_one_anchor=calendar.week_one_anchor,
+        weeks=[
+            CalendarWeekOut(
+                starts_on=week.starts_on,
+                label=week.label,
+                is_extra=week.is_extra,
+            )
+            for week in listed_weeks(calendar)
+        ],
+    )
+
+
+@router.get("/calendar", response_model=SeasonCalendarOut)
+async def get_season_calendar(
+    admin: AdminUser,
+    db: Db,
+    season: int | None = None,
+) -> SeasonCalendarOut:
+    """Read the deployment calendar. No league owns or may override it."""
+    wanted = current_season() if season is None else season
+    calendar = await db.get(SeasonCalendar, wanted)
+    if calendar is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="SEASON_CALENDAR_NOT_FOUND",
+        )
+    return _calendar_out(calendar)
+
+
+@router.put("/calendar/anchor", response_model=SeasonCalendarOut)
+@limiter.limit("30/hour", key_func=per_user_key)
+async def put_season_anchor(
+    request: Request,
+    body: SeasonAnchorRequest,
+    admin: AdminUser,
+    db: Db,
+) -> SeasonCalendarOut:
+    """Set the anchor only while the season has no settled history."""
+    try:
+        calendar = await move_anchor(db, body.season, body.week_one_anchor)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    await db.commit()
+    return _calendar_out(calendar)
+
+
+@router.post("/calendar/extra-weeks", response_model=SeasonCalendarOut)
+@limiter.limit("30/hour", key_func=per_user_key)
+async def post_extra_week(
+    request: Request,
+    body: ExtraWeekRequest,
+    admin: AdminUser,
+    db: Db,
+) -> SeasonCalendarOut:
+    """Declare one date globally; the next discovery run materialises it."""
+    try:
+        calendar = await declare_extra_week(db, body.season, body.starts_on)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    await db.commit()
+    return _calendar_out(calendar)
+
+
+@router.delete("/calendar/extra-weeks", response_model=SeasonCalendarOut)
+@limiter.limit("30/hour", key_func=per_user_key)
+async def delete_extra_week(
+    request: Request,
+    body: ExtraWeekRequest,
+    admin: AdminUser,
+    db: Db,
+) -> SeasonCalendarOut:
+    """Withdraw an unclaimed global date; discovery retires its empty rounds."""
+    try:
+        calendar = await withdraw_extra_week(db, body.season, body.starts_on)
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    await db.commit()
+    return _calendar_out(calendar)
 
 
 def _now() -> datetime:

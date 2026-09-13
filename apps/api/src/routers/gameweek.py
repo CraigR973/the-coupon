@@ -45,6 +45,7 @@ from src.services.gameweek import (
 )
 from src.services.odds_pricing import askable, pickable, record_observations
 from src.services.odds_provider import FixtureOdds
+from src.services.season_calendar import labels_for_gameweeks
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -124,6 +125,9 @@ class GameweekListEntry(BaseModel):
     # What members call this round — "Gameweek 12" (Batch 41). ``null`` for a round that
     # predates the numbering, which reads as "show the date alone".
     number: int | None
+    # Deployment-wide football week (``6`` or ``6b``). ``None`` until the season
+    # calendar has been explicitly created, at which point clients stop showing number.
+    season_week: str | None = None
     fixture_count: int
     # Picks made in *this* league, so the same gameweek reads differently per league.
     pick_count: int
@@ -140,6 +144,7 @@ class GameweekSlateResponse(BaseModel):
     picks_open_at_utc: UtcDatetime | None
     # What members call this round — "Gameweek 12" (Batch 41), or ``null`` when unnumbered.
     number: int | None
+    season_week: str | None = None
     fixtures: list[FixtureSlate]
     members: list[GameweekMember]
     members_missing_picks: int
@@ -183,6 +188,7 @@ async def list_gameweeks(
         .group_by(Pick.gameweek_id)
     )
     pick_counts: dict[uuid.UUID, int] = {row[0]: row[1] for row in pick_rows.all()}
+    season_weeks = await labels_for_gameweeks(db, gameweeks)
     return [
         GameweekListEntry(
             gameweek_id=str(gameweek.id),
@@ -191,6 +197,7 @@ async def list_gameweeks(
             locks_at_utc=gameweek.locks_at_utc,
             picks_open_at_utc=gameweek.picks_open_at_utc,
             number=gameweek.number,
+            season_week=season_weeks.get(gameweek.id),
             fixture_count=fixture_counts.get(gameweek.id, 0),
             pick_count=pick_counts.get(gameweek.id, 0),
         )
@@ -288,6 +295,7 @@ async def current_gameweek(
         for fixture in fixtures
     ]
     members = await _gameweek_members(db, league.id, gameweek.id, all_fixtures)
+    season_weeks = await labels_for_gameweeks(db, [gameweek])
     return GameweekSlateResponse(
         gameweek_id=str(gameweek.id),
         starts_on=gameweek.starts_on,
@@ -295,6 +303,7 @@ async def current_gameweek(
         locks_at_utc=gameweek.locks_at_utc,
         picks_open_at_utc=gameweek.picks_open_at_utc,
         number=gameweek.number,
+        season_week=season_weeks.get(gameweek.id),
         fixtures=slate,
         members=members,
         members_missing_picks=sum(1 for m in members if not m.has_picked),

@@ -21,6 +21,7 @@ from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.league import League
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.profile import Profile, UserRole
+from src.models.season_calendar import SeasonCalendar
 from src.services.betfair import (
     SAMPLE_EPL_MATCH_ODDS_MKT,
     SAMPLE_FORFAR_SEL,
@@ -110,6 +111,12 @@ async def seed_coupon_flow() -> dict[str, object]:
         gameweek = await sync_slate(db, league, slate)
         gameweek.status = GameweekStatus.open
         gameweek.locks_at_utc = _now() + timedelta(hours=2)
+        # Batch 113: put a global extra date immediately before the canonical Saturday.
+        # The regular round is therefore public week ``1b`` on every rendered surface,
+        # which lets the 390x844 screenshots prove the non-integer label survives.
+        calendar = await db.get(SeasonCalendar, SAMPLE_SATURDAY.year)
+        assert calendar is not None
+        calendar.extra_weeks = [SAMPLE_SATURDAY - timedelta(days=1)]
 
         # Batch 16: the canned season's tables and results for whatever competitions the
         # slate just put in the pool. Runs *after* `sync_slate` because ingestion takes

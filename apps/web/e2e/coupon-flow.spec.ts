@@ -210,6 +210,9 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   for (const theme of ['dark', 'light'] as const) {
     await setTheme(alice, theme);
     await expect(alice.getByRole('button', { name: 'Copy result' })).toBeVisible();
+    const seasonWeek = alice.getByText('Gameweek 1b');
+    await seasonWeek.scrollIntoViewIfNeeded();
+    await expect(seasonWeek).toBeInViewport();
     await expectNoAxeViolations(alice);
     // Nothing on the merged surface may push the page sideways at 390px — the row
     // rebuild is the reason long team and player names no longer can.
@@ -219,6 +222,9 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
     expect(overflow).toBeLessThanOrEqual(0);
     await alice.screenshot({
       path: join(ARTIFACT_DIR, `batch-105-round-settled-${theme}-390x844.png`),
+    });
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-113-season-week-${theme}-390x844.png`),
     });
   }
 

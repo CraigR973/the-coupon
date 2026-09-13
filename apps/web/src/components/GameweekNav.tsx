@@ -44,7 +44,11 @@ export function GameweekNav({ history }: GameweekNavProps) {
 
       <div className="flex min-w-0 flex-col items-center gap-0.5">
         <span className="truncate font-mono text-[11px] uppercase tracking-[0.2em] text-text-primary">
-          {roundName(current.number, formatCalendarDate(current.starts_on, 'EEE d MMM yyyy'))}
+          {roundName(
+            current.number,
+            formatCalendarDate(current.starts_on, 'EEE d MMM yyyy'),
+            current.season_week,
+          )}
         </span>
         <span className="flex items-center gap-1.5">
           <Badge variant={state.open ? 'success' : 'muted'}>{state.label}</Badge>
