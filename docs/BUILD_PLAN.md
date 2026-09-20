@@ -4071,6 +4071,374 @@ answered until it lands, because until then there is no data to look at.
   stay 112's. **API only — nothing reaches members until `/ship-prod`.** Supersedes Batch
   115; independent of 112 and 113, and should be taken before both.
 
+- [ ] **Batch 120 — The member who loses a simultaneous claim is told the app failed, not that someone beat them to it**
+  — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-08 (HIGH, live).
+  Ten or more concurrent submissions for one selection produce exactly one winner — the
+  uniqueness invariant holds — but several losers receive **500** instead of 409. The
+  handler catches the integrity error and rolls back correctly, then builds the conflict
+  message from the league object the rollback has just expired, which needs a database
+  round trip in a context that cannot do one. The 500 carries no CORS header, so the
+  browser sees a network failure and the offline queue reports "we didn't hear back" and
+  then "didn't land — ready to send again" when the selection is in fact gone. Fixture
+  scope behaves the same way.
+
+  Read whatever the conflict message needs into a local before the commit (or refresh the
+  object before using it) and return the 409 the code already intends.
+
+  Verification: a test firing ≥10 concurrent submissions for one selection in both claim
+  scopes, asserting exactly one 201, zero 500s, and the rest carrying the documented
+  conflict code; and that the response carries the CORS header.
+
+  Scope boundary: the pick router's conflict path only. No change to the uniqueness
+  constraints or to the client. **API-carrying.**
+
+- [ ] **Batch 121 — A round stranded by a window change can be picked, settles, and scores**
+  — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-09 (HIGH, live) and
+  CORR-13 (MED). Changing a league's window strands the current week's round. Retirement
+  is bounded by the furthest date in the new cadence, so a round one day past it survives
+  the next couple of discovery runs while still being listed to members; the pick path
+  checks only status and time, so anyone browsing the rounds list can claim it, and once
+  it holds a pick it can never be retired. Settlement has no per-week guard and standings
+  sum every settled round, so both rounds in that football week settle and both count —
+  reproduced as 100 points over five scoring rounds against 80 over four on otherwise
+  identical play. Both rounds also render the same bare week label.
+
+  Extend the retirement bound through the end of the football week (the following
+  Tuesday) so a same-week stray is retired before it can be picked, and refuse to settle
+  more than one round per league per football week.
+
+  Verification: the reproduction — a Saturday-to-Friday window change mid-week — leaves
+  exactly one scoring round and one label; a stray round that already holds a pick is
+  reported rather than silently scored; Batch 112's existing retirement rules still hold.
+
+  Scope boundary: retirement bounds and the settle guard. No change to what a round is,
+  to the cadence, or to scoring arithmetic. **API-carrying.**
+
+- [ ] **Batch 122 — A league admin can clear any member's PIN, including a site admin's, and take over the account**
+  — specified from `docs/review/2026-09-13/01-security.md`, SEC-15 (HIGH, live).
+  `POST /leagues/{slug}/members/{id}/reset-pin` is gated by league-admin of that league and
+  checks only that the target is an active member, never the target's role. It clears the
+  PIN and opens the claim window that the **unauthenticated** `/auth/pin/set` closes — so
+  the admin sets the victim's PIN and signs in as them. Reproduced end to end against a
+  site admin who was an ordinary member of the attacker's league: the attacker reached the
+  admin console their own account had been refused from minutes earlier. Anyone can create
+  a league and become its admin, and the victim is never notified.
+
+  Refuse the reset when the target holds the site-admin role, and when they are an admin of
+  any league; those resets go through the site console only.
+
+  Verification: a test that a league admin resetting a site admin is refused; a test that
+  an ordinary member reset still works; the existing admin-console suite stays green.
+
+  Scope boundary: the league-scoped reset endpoint's target check. No change to the reset
+  mechanism, the claim window, or the site console. **API-carrying.**
+
+- [ ] **Batch 123 — A named member can be locked out of sign-in for a whole Saturday for five requests every fifteen minutes**
+  — specified from `docs/review/2026-09-13/01-security.md`, SEC-18 (HIGH, live).
+  Five wrong PINs lock an account for fifteen minutes and the lock is account-wide: the
+  correct PIN from a different address is refused. Display names are on every leaderboard,
+  so any member can sustain the lock on a rival indefinitely. The client makes it worse —
+  on a cold start with an expired access token it forces a PIN unlock rather than using
+  the still-valid thirty-day refresh token, and shows every failure as "Invalid PIN".
+
+  Two halves. **Web:** attempt a token refresh with the stored refresh token before
+  falling back to a PIN login, so a member holding a valid session is admitted during a
+  griefing lock. **API:** per-source backoff alongside the account lock, and a push when an
+  account locks. Do not admit a correct PIN during a lock — that reopens unlimited guessing.
+
+  Verification: a test that a valid refresh token signs a member in while their account is
+  locked; a test that brute force is unchanged; a test that a lockout notifies the member.
+
+  Scope boundary: the unlock path and the lockout limiter. No change to the lockout
+  duration or attempt count. **API + web — the web half helps on its own.**
+
+- [ ] **Batch 124 — A removed member walks back in with the old join code, and approval-gated leagues are not gated**
+  — specified from `docs/review/2026-09-13/01-security.md`, SEC-16 (MED, live). Removal
+  never rotates the join code, join-by-code has no removed-or-banned check, and the
+  membership upsert restores the soft-deleted row — so a member who saw the code, was
+  removed, and pasted it back was in again immediately. Separately, a `public_request`
+  league that refuses a join request as pending admits the same person through
+  join-by-code without approval.
+
+  Rotate the join code on removal (or record an exclusion), and make join-by-code respect
+  `public_request`.
+
+  Verification: a test that a removed member's old code is refused; a test that
+  join-by-code on a `public_request` league creates a request rather than a membership.
+
+  Scope boundary: removal and the join-by-code path. No change to invites or to the
+  privacy enum. **API-carrying.**
+
+- [ ] **Batch 125 — A site admin can consume a selection in a league they never joined**
+  — specified from `docs/review/2026-09-13/01-security.md`, SEC-17 (MED, live). The
+  league-membership dependency lets site admins bypass the membership check, and the bypass
+  covers writes as well as reads. A non-member site admin submitted a pick that took the
+  selection from a genuine member, appeared in no member list or standing, and could not
+  undo it by leaving.
+
+  Split the dependency into a read variant (bypass kept, for oversight) and a write variant
+  that requires real membership.
+
+  Verification: a test that a non-member site admin is refused on the pick path; a test
+  that site-admin read access to any league is unchanged.
+
+  Scope boundary: the dependency and its call sites. No change to the admin console.
+  **API-carrying.**
+
+- [ ] **Batch 126 — A member can display another member's exact name on the league table**
+  — specified from `docs/review/2026-09-13/01-security.md`, SEC-20 (MED, live). The
+  per-league display-name override stores whatever it is sent, bounded only by length: no
+  uniqueness within the league, no charset or confusable handling. The roster, standings
+  and coupon all render the override, so two members can appear under one name. The
+  registration path does enforce case-insensitive uniqueness; this path is the gap, and it
+  matters because the owner's text-only decision makes the name the whole of a member's
+  identity.
+
+  Enforce uniqueness on the effective name within a league and reuse the registration
+  path's charset rules.
+
+  Verification: a test that an override colliding with another member's effective name is
+  refused; a test that clearing the override still works.
+
+  Scope boundary: the override endpoint. No change to global display names.
+  **API-carrying.**
+
+- [ ] **Batch 127 — The web app is built and tested on a runtime that stopped receiving security fixes in April**
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, OPS-11 (HIGH,
+  live). Node 20 reached end-of-life on 2026-04-30 and is still what CI and the web build
+  use; the engines floor has never been raised. Python 3.12 is fine until late 2028.
+
+  Move CI, `scripts/ci-local.sh` and the Vercel build to Node 22 and raise the engines
+  floor. Fold in OPS-15's toolchain refresh and PIPE-09's pnpm pin if they come cheaply.
+
+  Verification: the full gate green on Node 22, locally and in CI; the deployed web app
+  serving the same bundle behaviour.
+
+  Scope boundary: the toolchain. No application code changes. **Tooling-only (no deploy),
+  but it changes what every later batch is verified on, so it goes first in its group.**
+
+- [ ] **Batch 128 — Every shipment that carries a migration leaves nothing to roll back to**
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, OPS-12 (HIGH,
+  live). A previous image can only be rolled back to if it boots against the database as it
+  now stands, so any shipment applying a migration removes the rollback target until the
+  next shipment that applies none. `STATUS.md` has recorded this repeatedly as a one-off;
+  it is structural, and it applies to the owed migration 025.
+
+  Require a written forward-recovery note for any batch that adds a migration, and make the
+  deployment workflow assert one exists before it uploads. Prefer expand-then-contract
+  migrations so the previous image can always boot.
+
+  Verification: the deployment workflow refuses to proceed when a migration is present with
+  no recovery note; a rehearsal on staging.
+
+  Scope boundary: the deployment workflow and the migration convention. **Tooling-only.**
+
+- [ ] **Batch 129 — The alarms that watch for a silent scheduler only reach a dashboard**
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, OPS-14 (MED,
+  live). The discovery-silence alarms and the provider trigger write to the admin dashboard
+  and the logs; nothing pushes to the owner. The failure they exist to catch once ran for a
+  week unnoticed, and the mechanism that would surface it still needs somebody to look.
+
+  Route the existing alarms to the push channel the product already has, to site admins.
+
+  Verification: a test that a stale-discovery condition sends one push and does not repeat
+  it every run; a test that a healthy deployment sends none.
+
+  Scope boundary: alert delivery. No change to what the alarms detect. **API-carrying.**
+
+- [ ] **Batch 130 — A round completed by someone leaving never announces itself, and later credits the wrong member**
+  — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-14 (MED, live). A round
+  can become complete because the last member who had not picked leaves, is removed, or is
+  deactivated. None of those paths fires the completion notification or writes the
+  completion row, so nothing tells the league the coupon is ready; a later unrelated pick
+  change then fires the event and names that member as the one who completed it.
+
+  Re-evaluate completion on membership change, and attribute the event to the transition
+  rather than to whoever wrote last.
+
+  Verification: a test that a member leaving as the last outstanding picker completes the
+  round once, with the right attribution; a test that a later pick change does not
+  re-complete it.
+
+  Scope boundary: completion evaluation and attribution. No change to the notification copy
+  or the mute gates. **API-carrying.**
+
+- [ ] **Batch 131 — A void pick lowers win rate exactly like a loss**
+  — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-10 (MED, live). Win
+  rate is wins over picks *played*, and played includes void, while the product contract
+  says a void "scores nothing rather than counting as a loss". A member whose only pick was
+  voided shows 0%; one win plus one void shows 50% where it should be 100%. Points are
+  correct; only the derived percentage is wrong. The scoring module already excludes void
+  from the odds denominator and explains why — the reasoning was never carried across.
+
+  Divide by the priced count.
+
+  Verification: a test that a void-only member's win rate is not 0 but undefined-or-100 per
+  the chosen convention; a test that win and loss rates are otherwise unchanged.
+
+  **This changes an oracle test that currently encodes the wrong behaviour**, which under
+  `AGENTS.md` is a decision to report rather than to take silently — say so in the close-out.
+
+  Scope boundary: the win-rate denominator and its oracle. No change to points.
+  **API-carrying.**
+
+- [ ] **Batch 132 — Declaring an extra week renames a round already played, and the season anchor is whichever round arrived first**
+  — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-11 and CORR-12 (both
+  MED, main-only). `declare_extra_week` validates only the season and that the date is not
+  a canonical Saturday — no past-date or settled check, unlike the anchor move and the
+  extra-week withdrawal — so declaring a past Wednesday renamed an already settled, already
+  picked round from "5" to "5b". Separately the season anchor is taken from the first round
+  discovery happens to write, never recomputed, so a Friday league discovered before a
+  Saturday league left the anchor a week late, splitting week 1 into "1" and "1b".
+
+  Refuse past dates and settled weeks in `declare_extra_week`, mirroring the anchor rule;
+  anchor from the earliest canonical Saturday across all leagues' first rounds of the season.
+
+  Verification: a test that declaring an extra week in a settled or past week is refused;
+  a test that the anchor is the earliest canonical Saturday regardless of discovery order.
+
+  Scope boundary: the two calendar guards. No change to label derivation.
+  **API-carrying — both defects only exist once migration 025 ships, so this batch follows
+  that shipment.**
+
+- [ ] **Batch 133 — Daily discovery has no budget of its own, and a third window would exhaust the plan**
+  — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-15 (MED, live). The
+  daily run costs roughly windows × dates × competitions. Competitions are narrowed but not
+  per window, and the horizon is two weeks, so a third distinct window across the deployment
+  puts the run near 120 requests against a 100/hour plan — it would take a 429 partway and
+  starve the later window. Batch 119 fixed this class of failure at two windows; the cliff
+  has moved to three.
+
+  Give the run its own budget and make it degrade window by window rather than by
+  exhausting the plan.
+
+  Verification: a three-window deployment shape completing inside 100/hour, with the last
+  window still served; a run that does exhaust the budget leaving every completed
+  `(window, date)` committed, as Batch 119 requires.
+
+  Scope boundary: discovery's cost control. No change to the competition trim or the
+  cadence. **API-carrying.**
+
+- [ ] **Batch 134 — A mis-settled pick can only be corrected by running a script against production**
+  — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-A10 (HIGH, live). The
+  manual settle endpoint refuses to re-settle anything already settled and its own docstring
+  says a genuine override "means correcting the pick, which is a different act and is not
+  this endpoint". No correction route exists. This has already been needed once and was done
+  with a bespoke one-off script explicitly scoped as not a general import path.
+
+  An audited, site-admin-only correction that re-settles one pick and recomputes the
+  affected standings, writing an audit row.
+
+  Verification: a test that correcting a settled pick updates points and standings and
+  writes an audit row; a test that a non-site-admin is refused; a test that the correction
+  is idempotent.
+
+  Scope boundary: correcting an already-settled pick. No change to ordinary settlement.
+  **API-carrying.**
+
+- [ ] **Batch 135 — Nothing tells a member their round has been settled**
+  — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-B08 (MED, live). Five
+  notification triggers exist — member joined, provider trouble, the pick reminder, picks
+  opening, and a pick being made including the all-picked hand-off. None fires when a round
+  settles, so the weekly loop's payoff is the one moment the product never mentions.
+
+  A settlement notification per league, gated by the existing per-league mute, naming the
+  member's own result.
+
+  Verification: a test that settling a round sends one notification per eligible member; a
+  test that a muted league sends none; a test that re-settling does not re-send.
+
+  Scope boundary: one new trigger on the existing notification path. **API-carrying.**
+
+- [ ] **Batch 136 — A member cannot delete their account or get their data**
+  — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-B07 (MED-HIGH, live).
+  The only deletion is a site-admin soft delete that deliberately keeps the display name
+  reserved, so a departed member's real name stays on historic leaderboards permanently.
+  There is no self-service deletion and no export. Since Batch 74 the login identifier is a
+  real name, and the product is UK-facing.
+
+  Self-service deletion that anonymises the display name while preserving scoring history,
+  plus a data export of the member's own picks, points and profile.
+
+  **Owner decision first**: anonymise and keep history, or remove outright. The
+  recommendation on 2026-09-13 was to anonymise.
+
+  Verification: a test that a deleted member's name is anonymised everywhere it renders
+  while their points still sum into historic standings; a test that the export contains the
+  member's own data and nobody else's.
+
+  Scope boundary: self-service deletion and export. No change to the site-admin delete.
+  **API + web.**
+
+- [ ] **Batch 137 — Four more public screens still render outside the app shell**
+  — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-12 (MED, live).
+  `/forgot-pin`, `/set-pin`, `/join/:token` and `/welcome` have no `<main>` landmark, no
+  level-one heading, and content outside any landmark — the defect Batch 86 fixed for login
+  and register, whose scope boundary said "these two pages' shell only". `/set-pin` is the
+  worst and is the screen a member lands on after a PIN reset.
+
+  Wrap all four in the same shell Batch 86 applied, or move them inside the shared layout.
+
+  Verification: axe-core reports zero violations of `landmark-one-main`, `region` and
+  `page-has-heading-one` on all four screens in both themes; extend the prod-bundle
+  accessibility smoke to cover every public route so this class stops escaping.
+
+  Scope boundary: these four pages' shell and the smoke's route list. No visual redesign.
+  **Web-only.**
+
+- [ ] **Batch 138 — A 70% opacity drops two AA-tuned surfaces below contrast**
+  — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-13 (MED, live). Two
+  surfaces apply an opacity utility over text already tuned to the AA threshold: the
+  team-season kick-off time measures 2.83:1 in light mode and the season strip's "now"
+  badge 3.57:1, against a 4.5:1 requirement. This is the third appearance of the same
+  mistake — a colour tuned on one surface reused on another — this time as an opacity
+  utility rather than a token. A related use on the results-day carousel was spotted but
+  not measured.
+
+  Remove the opacity and use the existing muted-ink token, or add a token that is AA at the
+  opacity actually rendered. Check the carousel while in there.
+
+  Verification: axe-core reports zero `color-contrast` violations on the team-season page
+  and the standings archive in both themes.
+
+  Scope boundary: these components' text colours. **Web-only.**
+
+- [ ] **Batch 139 — The pick screen opens with every fixture hidden, and every outcome arrives as the same red toast**
+  — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-02 and DES-03 (both
+  high impact). Arriving at the round, every competition group is collapsed: the member sees
+  headings and counts, no fixture and no price, and must tap before the screen shows what
+  they came for. Separately, losing the race for a selection, a price that moved, the league
+  being busy, a genuine failure, and the reassurance that an offline pick was queued all
+  arrive through the same error toast — the app has 57 error toasts, 44 success, two
+  informational, and zero warnings or action buttons.
+
+  Open the first competition by default (or the one holding the earliest kick-off); add a
+  warning variant for "someone got there first" and "the price moved", each carrying the
+  action that follows, and an informational variant for queued-offline.
+
+  Verification: a test that the first group renders expanded; tests that each refusal
+  renders its own variant and action. Pairs with Batch 120, which makes the lost-race
+  response correct in the first place — take 120 first.
+
+  Scope boundary: the round screen's default state and the toast variants. **Web-only.**
+
+- [ ] **Batch 140 — The desktop layout is the phone layout stretched**
+  — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-01 (high impact).
+  There is not one large-breakpoint utility in the application (45 small, 9 medium, zero
+  large or extra-large) and the shell pins the same maximum width at every viewport; the
+  current-round, leaderboard and results pages have no responsive utilities at all. At 1280
+  the product is one narrow column of phone-sized cards in a wide empty frame — and the
+  owner has decided desktop is a supported way to play.
+
+  A real two-column arrangement at the large breakpoint for the three screens that carry
+  lists — round beside coupon, standings beside form — and a wider shell maximum.
+
+  Verification: screenshots at 1280×800 in both themes showing the two-column arrangement;
+  the 390×844 layouts unchanged; axe-core clean at both widths.
+
+  Scope boundary: responsive layout for those three screens and the shell width. No new
+  components, no imagery, no token changes that could affect contrast. **Web-only.**
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
