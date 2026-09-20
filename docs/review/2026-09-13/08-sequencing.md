@@ -1,4 +1,4 @@
-# 08 — Sequencing: how Batches 120-140 group
+# 08 — Sequencing: how Batches 120-155 group
 
 The same discipline as the 2026-08-26 sequencing: `/batch-start N` still takes
 one batch, on its own branch, through its own gate, with its own automatic
@@ -98,15 +98,88 @@ Everything here reaches members on its own close-out push.
 same member moment, one fixing the response and the other how it reads. 140 is
 the largest piece of visual work in the review and should be taken on its own.
 
+## Group T — Security hardening · Batches 141, 142, 143 · **web + API** → `/ship-prod` at the end
+
+| batch | finding |
+| --- | --- |
+| 141 | SEC-19 no CSP, and the app can be framed (web-only, reaches members on its own push) |
+| 142 | SEC-21 cryptography pin, SEC-23 web-push timeout and port |
+| 143 | SEC-25 logout leaves a league name, SEC-26 invite to a deleted league |
+
+142 carries a live decision inside it: the fix version is past the point where
+macOS wheels stop, which the local gate deliberately fails on. Decide there
+rather than working around it.
+
+## Group U — The measured performance work · Batches 144, 145, 146 · **API-carrying** → `/ship-prod`
+
+| batch | finding |
+| --- | --- |
+| 144 | PERF-01 the labelling helper reads every round, twice (+ OPS-16 docstring) |
+| 145 | PERF-03 an 84 KB slate served uncompressed |
+| 146 | PERF-04 (as corrected) and PERF-05 — indexes and pool sizing |
+
+**144 is worth taking before the 025 shipment if it can be**, because that
+shipment is what makes it live. 146 is the only migration in this half of the
+plan.
+
+## Group V — The remaining member-facing gaps · Batches 147, 148 · **API + web** → `/ship-prod`
+
+| batch | finding |
+| --- | --- |
+| 147 | CORR-17 the reminder skips the repeated DST hour |
+| 148 | FEAT-A11 a renamed member with no push can never be told |
+
+147 is low priority but cheap, and the October clock change is the deadline that
+makes it worth doing now rather than next year.
+
+## Group W — Finishing the visual pass · Batches 149, 150, 151 · **web-only** → no shipment owed
+
+| batch | finding |
+| --- | --- |
+| 149 | DES-04, DES-05, DES-06 — toasts, skeletons, error states |
+| 150 | DES-07 first-run home |
+| 151 | DES-08, DES-09 — one statistic component, and a type scale |
+
+151 raises font sizes and unifies a component; it touches the most files of the
+three, so it goes last.
+
+## Group X — The pipeline · Batches 152, 153, 154, 155 · **tooling-only, deploys nothing**
+
+| batch | finding |
+| --- | --- |
+| 152 | PIPE-03, PIPE-04, PIPE-05 — the gate can test the wrong server, records no counts, and the drift check runs after the push |
+| 153 | PIPE-06, PIPE-02 — stale gate numbers, and a hook that contradicts the policy |
+| 154 | PIPE-07 — 106k tokens of cold-start reading |
+| 155 | PIPE-08 — real names in a public repository |
+
+**Take 152 early, out of order if necessary.** Every other batch in this plan is
+verified by the gate it repairs, and 152 is what makes "green" mean something
+before an automatic push deploys it. 153's hook change and 155's redaction both
+need the owner first.
+
+**PIPE-01 is not a batch.** The local agent configuration binds a write-capable
+database tool to the wrong project with a blanket shell allow; it is a file on
+the owner's machine, outside the repository, and should be corrected by hand
+rather than by an agent that the same configuration governs.
+
+## Accepted with no action
+
+- **CORR-16** — the season-rollover week split across two calendars. No league
+  plays that boundary; revisit if one does.
+- **SEC-22** — seventeen advisories confined to the build toolchain, none
+  reachable in production. Folded into Batch 127's toolchain refresh as hygiene.
+- **SEC-14**, and the other decisions recorded on 2026-08-27, are unchanged.
+- **CORR-18** (average rank across leagues) and the combined coupon's treatment
+  of a void leg are **owner decisions**, not batches — see the README. If the
+  owner drops the rank field, it is a one-line change to fold into any web batch.
+
 ## Held back deliberately
 
-- **The pipeline batches** (PIPE-01 to PIPE-09) are tooling-only and deploy
-  nothing, so they can be taken at any point. PIPE-01 should be done by the owner
-  by hand, today, because it is a local configuration that contradicts the
-  project's own rule.
-- **DES-04 to DES-09** and the remaining feature gaps (FEAT-A11, FEAT-A12,
-  FEAT-B09) are real but small; they belong in whichever group next touches
-  those files rather than as batches of their own.
+- **FEAT-A12** (the register screen ignores the signup kill switch) and
+  **FEAT-B09** (the history has no season filter) are small and web-only; they
+  belong in whichever batch next touches those screens rather than alone. Note
+  FEAT-A12 needs the configuration route readable unauthenticated, which reverses
+  a documented decision — raise it if it is taken.
 - **The unfinished lenses** (below) come before any of this if the owner wants
   the register complete first.
 

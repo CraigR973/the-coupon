@@ -46,9 +46,13 @@ oracle) remains accepted and was not reopened.
 | SEC-21 | LOW-MED | live | verified | `cryptography` 48.0.1 has accreted three advisories since SEC-09 pinned it |
 | SEC-22 | LOW | live | verified | Seventeen advisories in the web build toolchain, none reachable in production |
 | SEC-23 | LOW | live | verified | Push allowlist holds; port and timeout hardening outstanding |
-| SEC-24 | LOW | main-only | plausible | Admin extra-week endpoints skip the Saturday-only rule `move_anchor` enforces |
 | SEC-25 | LOW | live | verified | Logout leaves the previous member's last-viewed league in browser storage |
 | SEC-26 | LOW | live | plausible | `claim-invite` looks up a league without the `deleted_at` filter |
+
+**SEC-24 was withdrawn on reconciliation** — it claimed the admin extra-week
+endpoints skip a Saturday-only rule the anchor move enforces. An extra week is by
+definition a non-canonical, midweek date; requiring a Saturday there would forbid
+the only thing the feature exists to express. See `09-reconciliation.md`.
 
 ## SEC-15 · HIGH · live · verified — a league admin can take over any member's account
 

@@ -112,7 +112,11 @@ carries one further API commit — `f748117`, Batch 113, migration 025 — so **
 | SEC-22..SEC-26, CORR-16..CORR-18, PERF-05, OPS-15, OPS-16, FEAT-A12, FEAT-B09, PIPE-09 | LOW/INFO | — | see the lens documents | — |
 
 Roughly: **9 HIGH, 27 MED (including three high-impact design), and the rest LOW
-or informational.**
+or informational.** Every one was then re-checked against the source — 44 of 46
+confirmed at the stated location, one refined (PERF-04) and one withdrawn
+(SEC-24). That pass is `09-reconciliation.md`, and **every surviving finding now
+has a batch, an owner decision, or an explicit "accepted, no action"**:
+Batches 120-155.
 
 ## What is already excellent — do not churn it
 
@@ -158,6 +162,12 @@ or informational.**
 
 ## Where this review was wrong
 
+- **SEC-24 was withdrawn.** It read a deliberate asymmetry as a missing guard: an
+  extra week is by definition a midweek date, so the Saturday rule it claimed was
+  missing would forbid the feature's whole purpose.
+- **PERF-04 was overstated.** Picks are indexed; the real gap is that the index is
+  left-anchored on the league and cannot serve a round-only lookup, plus an
+  unindexed round date column.
 - An accessibility run reported a missing page title and language on the
   empty-results screen. It was a capture artefact — a dead database process under
   a live holder — and a re-run produced a clean page with zero violations. The
@@ -199,5 +209,6 @@ or informational.**
 | [05-feature-gaps.md](05-feature-gaps.md) | spec-versus-built, and what a paying member expects |
 | [06-premium-design.md](06-premium-design.md) | the core screens against a paid-app bar |
 | [07-agent-pipeline.md](07-agent-pipeline.md) | the gate, the automatic push, and what is prose rather than machinery |
-| [08-sequencing.md](08-sequencing.md) | Batches 120-140 in deployment-safe groups, and the unfinished work |
+| [08-sequencing.md](08-sequencing.md) | Batches 120-155 in deployment-safe groups, and the unfinished work |
+| [09-reconciliation.md](09-reconciliation.md) | every finding re-checked against the source, line by line |
 | [screenshots/](screenshots/) | 173 images, indexed by `INDEX.md` |

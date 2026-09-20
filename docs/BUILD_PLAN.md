@@ -4439,6 +4439,293 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: responsive layout for those three screens and the shell width. No new
   components, no imagery, no token changes that could affect contrast. **Web-only.**
 
+- [ ] **Batch 141 — The web app ships no Content-Security-Policy and can be framed**
+  — specified from `docs/review/2026-09-13/01-security.md`, SEC-19 (MED, live).
+  `apps/web/vercel.json` sets only `Cache-Control`, `Permissions-Policy`,
+  `Referrer-Policy` and `X-Content-Type-Options`. There is no CSP and no
+  `frame-ancestors`/`X-Frame-Options`. The API's own headers are exemplary by contrast.
+  This matters here because the client keeps a thirty-day refresh token in
+  `localStorage`: with no CSP there is no second line of defence if script ever runs on
+  the origin, and with no frame-ancestors the app can be framed.
+
+  Add a CSP to the web headers, tight enough to be worth having (`default-src 'self'`,
+  an explicit `connect-src` for the API origin, `frame-ancestors 'none'`), and confirm
+  the bundle, the service worker and the fonts still load under it.
+
+  Verification: production headers carry the policy; the prod-bundle Playwright smoke
+  passes with zero CSP violations reported in the console.
+
+  Scope boundary: response headers only. No change to token storage — that is a larger
+  question and is not this batch. **Web-only.**
+
+- [ ] **Batch 142 — The cryptography pin has gone stale and web push has no timeout**
+  — specified from `docs/review/2026-09-13/01-security.md`, SEC-21 (LOW-MED) and SEC-23
+  (LOW), both live. A live OSV query over 900 pins found `cryptography==48.0.1` — the
+  version SEC-09 pinned as clean — now carrying three advisories, fixed in 49.0.0 and
+  50.0.0. None is reachable: the application never uses the library directly, only
+  transitively for VAPID signing. Separately `webpush()` is called with **no timeout**, so
+  eleven blocking sends on a request path can stall the worker if a push service hangs,
+  and the endpoint allowlist does not restrict the port.
+
+  Bump `cryptography` past the advisories and give `webpush()` an explicit timeout;
+  restrict the endpoint port while in there. **Note OPS-07's constraint**: 49.0.0 is where
+  macOS wheels stop, so `scripts/ci-local.sh`'s `--only-binary` guard will fail loudly —
+  decide deliberately between a source build locally and holding at 48.0.1 with the
+  advisories documented as unreachable.
+
+  Verification: the gate green on the chosen version; a test that a hanging push service
+  does not block the request beyond the timeout.
+
+  Scope boundary: the pin and the push call. No change to the VAPID flow.
+  **API-carrying.**
+
+- [ ] **Batch 143 — Logout leaves the last league on screen, and an invite to a deleted league still resolves**
+  — specified from `docs/review/2026-09-13/01-security.md`, SEC-25 and SEC-26 (both LOW,
+  live). `clearTokens()` removes the access, refresh and player keys only, so
+  `coupon_last_viewed_league` — a private league's slug and name — survives a logout on a
+  shared browser and pre-selects for whoever signs in next. Separately `claim-invite` looks
+  the league up without the `deleted_at` filter every other lookup applies, so an invite to
+  a deleted league resolves instead of failing cleanly.
+
+  Clear the league-recency and switch-scroll keys in `clearTokens()` and on identity
+  switch; add the `deleted_at` filter to the invite's league lookup.
+
+  Verification: a test that no league key survives logout; a test that claiming an invite
+  to a soft-deleted league is refused.
+
+  Scope boundary: those two lookups. **API + web.**
+
+- [ ] **Batch 144 — Home reads every round in the deployment, twice, to draw its labels**
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-01 (MED,
+  main-only) and OPS-16 (INFO). `labels_for_gameweeks` loads every round in the deployment
+  as ORM objects to derive a label, and the cross-league summary calls it **twice**
+  (`me.py:442` and `:527`). Measured at 3.5 ms per call over 76 rounds and 16 ms over 963,
+  growing with every round every league ever plays; a distinct-value projection measured
+  7.6× cheaper. Not live yet — it arrives with migration 025. While in the file, `me.py`'s
+  docstring claims nine queries where there are fifteen.
+
+  Project only the columns the labels need, and resolve once per request rather than per
+  call site.
+
+  Verification: the summary's statement count and row volume measured before and after at
+  both the production and stress shapes, with the label output identical.
+
+  Scope boundary: the labelling helper and its call sites. No change to the labels
+  themselves. **API-carrying — worth taking before the 025 shipment if it can be.**
+
+- [ ] **Batch 145 — The biggest thing a member downloads is served uncompressed**
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-03 (MED,
+  live). A fully-priced 264-fixture slate is about **84 KB of JSON**, and there is no
+  compression middleware anywhere in the API, nor `vary: accept-encoding` from production.
+  That is the single largest payload on the Saturday-morning path, on a phone.
+
+  Add response compression for JSON above a sensible threshold and confirm the reverse
+  proxy passes it through.
+
+  Verification: the slate response measured compressed and uncompressed; `content-encoding`
+  and `vary` present in production after the shipment; the prod-bundle smoke unaffected.
+
+  Scope boundary: response compression. No change to payload shape — trimming the slate is
+  a separate question. **API-carrying.**
+
+- [ ] **Batch 146 — The queries that sweep rounds cannot use the indexes that exist**
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-04 (MED,
+  live, as corrected in `09-reconciliation.md`) and PERF-05 (LOW). `picks` carries a
+  composite `ix_picks_league_gameweek` on `(league_id, gameweek_id)`, which is left-anchored
+  on `league_id` and therefore cannot serve the lookups that filter on `gameweek_id` alone
+  — the existence check inside stranded-round retirement and the settle sweep — and
+  `gameweeks.starts_on`, which retirement and discovery range over, has no index at all.
+  Invisible at today's size; it is the first thing to bite as rounds accumulate. Separately
+  the pool allows ten connections plus ten overflow from a process that executes one
+  statement at a time.
+
+  Add an index on `gameweeks.starts_on` and one that serves a `gameweek_id`-only pick
+  lookup; right-size the pool to what one worker can use.
+
+  Verification: `EXPLAIN (ANALYZE)` on the retirement and settle queries at the stress
+  shape showing index scans where they sequentially scanned; the full gate green.
+
+  Scope boundary: indexes and pool sizing. No query rewrites beyond what the indexes need.
+  **Migration.**
+
+- [ ] **Batch 147 — The reminder job skips the repeated hour when the clocks go back**
+  — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-17 (LOW, live). The
+  reminder runs on a wall-clock cron in Europe/London (`scheduler.py:903-914`,
+  `CronTrigger(minute=15)`), so on the October fall-back the firing jumps from 23:15 to
+  01:15 UTC and a round locking in the repeated hour — roughly 03:45 to 04:30 GMT — gets no
+  reminder. Spring forward has no gap, and the hourly lock sweep has none either, so
+  locking and settlement are unaffected.
+
+  Drive reminders from the UTC lock instants rather than a wall-clock cron, or accept the
+  gap and document it where the job is defined.
+
+  Verification: a test that a round locking inside the repeated hour on 2026-10-25 is
+  reminded exactly once; the existing reminder tests unchanged.
+
+  Scope boundary: the reminder trigger. No change to the reminder's content, window or
+  recipients. **API-carrying, low priority.**
+
+- [ ] **Batch 148 — A renamed member with no push subscription can never be told**
+  — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-A11 (MED, live).
+  `rename_notice.py` delivers by web push only and writes its "told them" marker only when
+  a push is actually delivered, so a member with no active subscription is retried on every
+  boot and never informed through any channel. One of the three members renamed by Batch 74
+  is in exactly that state. `STATUS.md` records it as a timing note ("watch for that third
+  marker"); it is a design gap, because there is no second channel to watch for.
+
+  Add an in-app notice shown on next sign-in as the fallback, and treat that as delivery
+  for the marker.
+
+  Verification: a test that a member with no push subscription is shown the notice once on
+  next sign-in and the marker is then written; a test that a member who got the push is not
+  shown it again.
+
+  Scope boundary: the rename notice's delivery channels. No general display-name-changed
+  system. **API + web.**
+
+- [ ] **Batch 149 — Toasts collide with the tab bar, skeletons do not match what replaces them, and errors look like empty states**
+  — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-04, DES-05 and DES-06
+  (med impact, live). The toaster is anchored bottom-right with no offset for the 60px tab
+  bar or the safe area, so on a phone a toast lands on the navigation. Loading states are
+  generic grey bars that do not match the shape of the content, which jumps 53px when they
+  resolve — and an `.animate-shimmer` class exists in the stylesheet (`index.css:398`) with
+  **zero users**. An error state renders identically to an empty state, with no retry.
+
+  Offset the toaster above the tab bar and the safe-area inset; shape the skeletons to the
+  content they stand in for and use the shimmer that already exists; give error states
+  their own treatment and a retry control.
+
+  Verification: screenshots at 390×844 in both themes showing a toast clear of the tab bar,
+  a skeleton matching its resolved content, and an error state distinct from the empty one
+  with a working retry.
+
+  Scope boundary: these three presentational concerns. No data-layer changes. **Web-only.**
+
+- [ ] **Batch 150 — The first screen a new member sees stops at 58% and its only action is a text link**
+  — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-07 (med impact,
+  live). Batch 97 made home fill the viewport — measured at 81% of 844px with the full-page
+  height equal to the viewport — but only for the state where a member already has a
+  league. First-run home ends at 58% and offers a single inline text link as its call to
+  action. It is the first impression, and it is the one home state the fill-the-viewport
+  work never reached.
+
+  Give first-run home a real primary action and enough content to reach the fold, reusing
+  the patterns Batch 97 established rather than inventing new ones.
+
+  Verification: a first-run screenshot at 390×844 in both themes reaching the fold, with a
+  button-weight primary action; axe-core clean.
+
+  Scope boundary: the no-league home state. No change to the populated home.
+  **Web-only.**
+
+- [ ] **Batch 151 — The same statistic is drawn two ways, and there is no type scale**
+  — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-08 and DES-09 (med
+  impact, live). The hero statistic and the card statistic are the same object rendered
+  five different ways, including different colours for the figure itself. And
+  `tailwind.config.ts` defines no `fontSize` or `lineHeight` at all, so type is chosen per
+  component: 84 nodes render at 11px or smaller and four at 9px, which is below comfortable
+  for odds and points on a phone.
+
+  Unify the two statistic components behind one, and define a type scale in the Tailwind
+  config, raising the smallest sizes as part of it.
+
+  Verification: both statistic surfaces rendering from one component; no node below the new
+  minimum; axe-core contrast clean in both themes at both viewports; screenshots before and
+  after.
+
+  Scope boundary: the statistic component and the type scale. Raising sizes only — no
+  colour changes, so contrast cannot regress. **Web-only.**
+
+- [ ] **Batch 152 — The gate can pass without testing the bundle, and nothing notices a weakened gate**
+  — specified from `docs/review/2026-09-13/07-agent-pipeline.md`, PIPE-03, PIPE-04 and
+  PIPE-05 (MED, tooling and live). Three holes in the machinery that stands between an
+  agent and production. `ci-local.sh:154` starts `vite preview` with **no `--port` and no
+  `--strictPort`**, then sleeps five seconds, while the Playwright config targets a fixed
+  URL — so if that port is already held (the repository's own `.claude/launch.json` defines
+  a preview server on it) the smoke silently tests whatever was already there. The `step()`
+  helper discards each check's output on success, so **no test count is ever recorded** and
+  a batch that deletes or skips tests passes identically to one that does not. And
+  `phase-closeout.md` pushes `main` at step 8 and runs the drift check at step 9 — *after*
+  the deploy — with nothing refusing a close-out whose web half needs an API that has not
+  shipped. There is a live instance of that right now.
+
+  Force the preview port and wait for readiness instead of sleeping; record the backend and
+  frontend test counts in the close-out report and fail when they fall; assert the gate
+  script and the lint/type configuration are unmodified in the batch's own diff; run the
+  drift check **before** the push and refuse to close out a split-half batch until a
+  shipment is scheduled.
+
+  Verification: the gate fails loudly when the preview port is occupied; a close-out report
+  showing counts; a rehearsal where a deliberately deleted test fails the gate; a rehearsal
+  where a web half depending on an unshipped route is refused.
+
+  Scope boundary: the gate script and the close-out workflow. No change to what the checks
+  themselves assert. **Tooling-only (no deploy).**
+
+- [ ] **Batch 153 — The instructions quote a gate that has not existed for a month, and the hook argues against the policy**
+  — specified from `docs/review/2026-09-13/07-agent-pipeline.md`, PIPE-06 and PIPE-02 (MED,
+  documentation and live). "509 passed, 151 skipped" and "88 seconds" appear as present-day
+  fact in `AGENTS.md:123`, `batch-verify.md:21` and `:26`, and `phase-closeout.md:20`.
+  Measured on `2ce6f42`: **734 passed / 438 skipped** without a database and **1,172 passed
+  / 0 skipped** with one, in 4m48s — more than three times the quoted figure, which matters
+  because that figure is the argument for not skipping the database run. `batch-verify.md:18`
+  also undercounts the full gate as ten checks; it is eleven. Separately both stop hooks
+  print, on a clean feature branch, that close-out should run "only when the user asks",
+  contradicting `AGENTS.md:50-56` at the exact moment an agent is deciding.
+
+  Apply the corrections listed in `docs/review/2026-09-13/08-sequencing.md`, date the
+  numbers so the next drift is visible, and realign the hook text. **The hook change is the
+  owner's to approve** — it alters how every future session behaves.
+
+  Verification: the quoted numbers match a fresh run; the hook text and `AGENTS.md` say the
+  same thing.
+
+  Scope boundary: documentation and hook text. No workflow logic changes.
+  **Tooling-only (no deploy).**
+
+- [ ] **Batch 154 — Two documents cost 106k tokens to read and under 2% of one is current**
+  — specified from `docs/review/2026-09-13/07-agent-pipeline.md`, PIPE-07 (MED,
+  documentation). `STATUS.md` is 1,937 lines (~34.5k tokens) and under 2% of it is current
+  state: both major sections are historical narrative, one walking backwards through
+  completed batches. `docs/BUILD_PLAN.md` is 4,094 lines (~71.4k tokens) with 117 closed
+  rows against a handful open, and `session-log.md` duplicates the per-batch narrative
+  one-for-one. `/next-batch-prompt` and `/group-start` instruct an agent to read **all of
+  both** to find the first unchecked row. Worse, `STATUS.md` contradicts itself in ways
+  visible only on a full read — a group described as "one batch in" and then "complete"
+  fifteen lines later, renamed members "not told" and then "two of three, correctly",
+  a rollback baseline "usable" and later "not usable" — with no dates on the bold claims.
+
+  Cut `STATUS.md` to a current-state page of about 150 lines (what is live, what is owed,
+  what is open, the toolchain) and move the history into `session-log.md`, which already
+  holds it; separate the build plan's open rows from its closed ones; point the two command
+  workflows at the trimmed head.
+
+  Verification: a cold `/next-batch-prompt` reaching the right batch having read an order of
+  magnitude less; no statement in the trimmed `STATUS.md` contradicted by another.
+
+  Scope boundary: documentation structure and the two command workflows' reading
+  instructions. No change to the batch checklist's content. **Tooling-only (no deploy).**
+
+- [ ] **Batch 155 — Two people's real names and old sign-in names are in a public repository**
+  — specified from `docs/review/2026-09-13/07-agent-pipeline.md`, PIPE-08 (MED, privacy,
+  live). `STATUS.md`, `docs/BUILD_PLAN.md` and `docs/backfills/2026-08-names-and-numbers.md`
+  carry two **non-owner** real names together with their old and new sign-in names, all
+  tracked, in a repository `STATUS.md` itself describes as an owner-approved public origin.
+  Neither prior review flagged it.
+
+  Redact the names from the working tree, replacing them with stable non-identifying
+  references where the history needs to make sense.
+
+  **Owner decision first**: redact the working tree only, or also rewrite history. The
+  recommendation on 2026-09-13 was to redact now and treat a history rewrite as a separate
+  call, since a rewrite invalidates every existing clone and shipped SHA.
+
+  Verification: the names appear nowhere in the tracked tree; the backfill document still
+  reads coherently.
+
+  Scope boundary: redaction in the working tree. History rewriting is explicitly out of
+  scope unless separately authorised. **Tooling-only (no deploy).**
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

@@ -43,7 +43,7 @@ CPU, not database.
 | PERF-01 | MED | main-only | verified | The new season-calendar labelling loads every round in the deployment, twice per home request |
 | PERF-02 | MED | live | verified | One worker: concurrent requests queue rather than overlap |
 | PERF-03 | MED | live | verified | An 84 KB slate is served uncompressed |
-| PERF-04 | MED | live | verified | Picks are scanned per round; the round date column has no usable index |
+| PERF-04 | MED | live | verified | The round-sweep queries cannot use the pick index that exists, and the round date column has none |
 | PERF-05 | LOW | live | verified | The connection pool is sized for concurrency the process cannot use |
 | OPS-15 | LOW | live | plausible | The web build toolchain is several majors behind |
 | OPS-16 | INFO | live | verified | A docstring claims nine queries where there are fifteen |
@@ -133,9 +133,14 @@ with no compression anywhere in the API and no `vary: accept-encoding` from
 production. That is the single biggest payload a member downloads, on a phone,
 on a Saturday morning.
 
-**PERF-04** — picks are sequentially scanned per round, and the round start-date
-column has no usable index. Invisible at today's size; it is the first thing to
-bite as rounds accumulate.
+**PERF-04** — `picks` *is* indexed, by a composite on `(league_id, gameweek_id)`,
+but that index is left-anchored on the league, so it cannot serve the lookups
+filtering on the round alone — the existence check inside stranded-round
+retirement and the settle sweep — which is what the stress-shape plans showed
+scanning. `gameweeks.starts_on`, which retirement and discovery range over, has
+no index at all. Invisible at today's size; the first thing to bite as rounds
+accumulate. (Corrected on reconciliation — the first write-up said picks were
+unindexed; see `09-reconciliation.md`.)
 
 **PERF-05** — the connection pool allows ten plus ten overflow against one
 Postgres, from a process that executes one statement at a time. Harmless, but it
