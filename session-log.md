@@ -3741,3 +3741,28 @@ Playwright coupon flow PASS against disposable PostgreSQL through migration `025
 **Next:** `/ship-prod` for migration `025` and the additive calendar API, then the separately
 authorised production calendar dry-run/apply. Batch 95 remains soft-blocked; Batch 115 remains
 unchecked because Batch 119 superseded it.
+
+## Batch 152 — The gate can pass without testing the bundle, and nothing notices a weakened gate
+**Commits:** `5cefff3` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,172 backend and
+1,045 frontend tests passed, 0 skipped; strict-port production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- Test counts are exact ratcheting baselines in `scripts/ci-test-counts.env`: a fall fails,
+  an unrecorded rise fails with instructions to raise the baseline, and a baseline reduction
+  is refused before the gate runs.
+- Ordinary batches cannot change the gate, CI workflow, test discovery, package test command,
+  or lint/type configuration. Batch 152's bootstrap exemption required its named branch and
+  its source row to remain unchecked; a temporary ordinary branch refused the same diff.
+- The production preview uses strict port 4173, waits for its own Vite readiness line plus an
+  HTTP response, and shares one helper between local and GitHub gates. Holding the port with
+  another server failed loudly before Playwright ran; the normal five-test smoke passed.
+- Removing one frontend test for the rehearsal produced 1,044 against the recorded 1,045 and
+  failed the full gate. The test was restored before the final 11-check run.
+- Close-out now runs deployment drift before the push and classifies the batch diff. A
+  temporary API+web diff was refused until an explicit shipment acknowledgement; tooling,
+  web-only and API-only batches report their actual deployment consequence.
+- The rehearsal's first full gate also found the inherited `C.UTF-8` unsupported by this Mac;
+  `pgserver` passed under installed `en_US.UTF-8`. This was an environment reset, not a code
+  fix. The final full gate passed first attempt with that locale.
+
+**Next:** `/group-start N` (Batches 120 → 121 → 122), then its explicit `/ship-prod` checkpoint.

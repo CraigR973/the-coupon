@@ -1342,11 +1342,19 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-`docs/BUILD_PLAN.md` carries **Batches 95 and 115 unchecked**. Batch 95 remains
+The next planned implementation is **`/group-start N`**, beginning with Batch 120 and
+ending after Batches 121 and 122 at an explicit `/ship-prod` checkpoint. Batch 95 remains
 soft-blocked and Batch 115 is superseded by 119, so neither is the next implementation.
-**A `/ship-prod` is owed and it matters**: Batch 113 adds migration `025` and the API
-fields/routes the newly deployed web client reads. The production calendar backfill is a
-separate explicit owner action after that ship; do not run it as part of deployment.
+The production calendar backfill remains a separate explicit owner action; do not infer
+authority to run it from a batch or deployment command.
+
+**Batch 152 hardened the automatic delivery gate** (`5cefff3`). The local gate now records
+and enforces exactly 1,172 PostgreSQL-backed backend tests and 1,045 frontend tests, with
+zero skips; those baselines may only move upwards. Ordinary batches cannot alter the gate,
+CI workflow, test discovery, or lint/type configuration while being judged by them. The
+production-bundle smoke owns strict port 4173 and waits for its own Vite process to become
+ready. Close-out checks deployment drift before the push and refuses an API+web batch until
+the owner explicitly schedules `/ship-prod`.
 
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
@@ -1366,8 +1374,8 @@ ten had been costing the whole card its prices (`fixtures=202 priced=0`, three t
 evening); a refused chunk is now isolated and the expired id inside it is found and recorded.
 **No migration — head stays `023`**, deliberately, so a rollback stays available.
 
-**Batch 116 is complete and merged, and is what the next `/ship-prod` carries.** Item 1 — a
-pick alert that names its fixture — is on `main` (`b7afab2`) with **migration `024`**. Item 2
+**Batch 116 is complete, merged and live.** Item 1 — a pick alert that names its fixture —
+landed on `main` (`b7afab2`) with **migration `024`**. Item 2
 resolved to **no code change** (owner decision, 2026-09-12): the screenshot showed every alert
 titled with the *league* under an OS line reading "from Coupon", which is the platform's own
 attribution for an installed PWA and cannot be suppressed, only renamed — and the owner chose
@@ -1390,11 +1398,12 @@ from its Wednesday-to-Tuesday football weeks, including `6b`/`6c` suffixes, whil
 surface owns anchor and extra-date changes; discovery alone materialises extras, once per
 distinct window, and refuses withdrawal after any league has picked.
 
-**A `/ship-prod` is owed and it carries `025`.** The web half reaches members from this
-close-out push, but it falls back to the old label until the additive `season_week` API field
-arrives. After the API ship, run `python -m src.backfill_season_calendar --dry-run`, review
-every visible move, and only then run the separately authorised `--apply`; neither command
-is part of this close-out.
+**Migration `025` and its additive calendar API are live.** The 22 Sep pre-push drift check
+reported the deployed API at `2aa02c56` with migration `025`; every later commit on
+`origin/main` was documentation and none reached the API image, so nothing is owed. The
+production calendar backfill is still separate: run
+`python -m src.backfill_season_calendar --dry-run`, review every visible move, and only then
+run the separately authorised `--apply`; neither command is part of a normal close-out.
 
 **Batch 117 — home named the round it had finished with, and the coupon was last on the
 coupon page.** Closed out 2026-09-12 (`bf87f0a`). `LastResult` had carried `number` since
@@ -1405,8 +1414,8 @@ coupon leads the page in every phase instead of only once there was nothing left
 it, and its legs fold away so leading with it does not push the slate down by the league's
 membership. **A second owner decision was taken rather than deferred:** arriving via the
 completion notice, the `#coupon` fragment or `focusCouponSection` opens the section. **The
-web half is live from the push and the `number` field is not** — between now and `/ship-prod`
-the card prints the round's date, which is the tested case.
+web half and the `number` field are both live**; the card falls back to the round's date only
+for genuinely older data where no number exists.
 
 **Batch 118 — the first impression described a flow that had been deleted.** Closed out
 2026-09-12 (`a29662a`), web-only, so it reached members on the push. The invite message told

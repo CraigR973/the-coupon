@@ -4639,7 +4639,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the statistic component and the type scale. Raising sizes only — no
   colour changes, so contrast cannot regress. **Web-only.**
 
-- [ ] **Batch 152 — The gate can pass without testing the bundle, and nothing notices a weakened gate**
+- [x] **Batch 152 — The gate can pass without testing the bundle, and nothing notices a weakened gate** ✅ 2026-09-22
   — specified from `docs/review/2026-09-13/07-agent-pipeline.md`, PIPE-03, PIPE-04 and
   PIPE-05 (MED, tooling and live). Three holes in the machinery that stands between an
   agent and production. `ci-local.sh:154` starts `vite preview` with **no `--port` and no
