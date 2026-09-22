@@ -3032,7 +3032,7 @@ at `b95d81dd`, migration `024`.
 
 ### Forward recovery plan — migration `025`, Batch 113
 
-**Status: written 2026-09-22, awaiting owner approval. Not yet cleared to ship.**
+**Status: approved by the owner, 2026-09-22. Cleared to ship.**
 
 Required by `/ship-prod` step 1.7 before `025` may be deployed. Batch 113's API half has
 been on `main` since 13 September and is **not** in production: the deployed image is
