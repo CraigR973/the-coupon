@@ -1342,15 +1342,15 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-Group N is in progress. **Batches 120 and 121 are closed; Batch 122 is next**, followed by
-the group's explicit `/ship-prod` checkpoint. Both closed batches are API-only and are not
-live until that shipment. Batch 95 remains
+**Group N is closed on `main`; `/ship-prod` is now required.** Batches 120, 121 and 122
+are API-only and none is live until that explicit checkpoint ships them together. Do not
+start the next phase before the deployed API is confirmed in sync. Batch 95 remains
 soft-blocked and Batch 115 is superseded by 119, so neither is the next implementation.
 The production calendar backfill remains a separate explicit owner action; do not infer
 authority to run it from a batch or deployment command.
 
 **Batch 152 hardened the automatic delivery gate** (`5cefff3`). The local gate now records
-and enforces exactly 1,177 PostgreSQL-backed backend tests and 1,045 frontend tests, with
+and enforces exactly 1,179 PostgreSQL-backed backend tests and 1,045 frontend tests, with
 zero skips; those baselines may only move upwards. Ordinary batches cannot alter the gate,
 CI workflow, test discovery, or lint/type configuration while being judged by them. The
 production-bundle smoke owns strict port 4173 and waits for its own Vite process to become
@@ -1369,6 +1369,12 @@ Friday is removed before it can be claimed. If a pre-existing claim makes an und
 stray non-retirable, settlement refuses it and writes an operational error instead of
 awarding points. Declared global calendar extras remain intentional second rounds and
 still settle; they are distinguished from strays by the stored season calendar.
+
+**Batch 122 closed the league-admin PIN-reset takeover** (`30fe08b`). The league-scoped
+reset now refuses a target who is a site admin or an active admin of any league, using one
+403 contract that directs privileged recovery to the site console without disclosing which
+role triggered it. Ordinary-member recovery, session revocation, the 24-hour claim window
+and the site-console reset are unchanged.
 
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a

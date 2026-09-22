@@ -3805,3 +3805,23 @@ unchecked because Batch 119 superseded it.
   121 API-only. Both stay queued for the single Group N `/ship-prod` after Batch 122.
 
 **Next:** Batch 122, then the explicit Group N `/ship-prod` checkpoint.
+
+## Batch 122 — A league admin can clear any member's PIN, including a site admin's, and take over the account
+**Commits:** `30fe08b` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,179 backend and
+1,045 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- The league-scoped reset refuses a target whose profile has the site-admin role or whose
+  active membership makes them an admin of any league, not only the current league.
+- Both privileged cases return `403 SITE_ADMIN_RESET_REQUIRED`; the shared response says
+  where recovery belongs without revealing which privilege the target holds.
+- The refusal happens before `clear_pin`, audit or commit, so the PIN and every live session
+  remain intact and no unauthenticated 24-hour claim window opens.
+- The site-console endpoint is deliberately unchanged and successfully resets the same
+  protected target; the existing ordinary-member league reset also remains green.
+- Focused PostgreSQL verification passed 18/18 and the complete 11-check gate passed on
+  its first run under `en_US.UTF-8`; no gate failure needed a fix.
+- The pre-push guard found Batches 120 and 121 already owed and classified Batch 122
+  API-only. One explicit Group N `/ship-prod` now carries all three.
+
+**Next:** `/ship-prod`, then rerun `/group-start N` to verify the checkpoint in sync.

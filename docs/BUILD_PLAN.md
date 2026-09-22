@@ -4114,7 +4114,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: retirement bounds and the settle guard. No change to what a round is,
   to the cadence, or to scoring arithmetic. **API-carrying.**
 
-- [ ] **Batch 122 — A league admin can clear any member's PIN, including a site admin's, and take over the account**
+- [x] **Batch 122 — A league admin can clear any member's PIN, including a site admin's, and take over the account** ✅ 2026-09-22
   — specified from `docs/review/2026-09-13/01-security.md`, SEC-15 (HIGH, live).
   `POST /leagues/{slug}/members/{id}/reset-pin` is gated by league-admin of that league and
   checks only that the target is an active member, never the target's role. It clears the
