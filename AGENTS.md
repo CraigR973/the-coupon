@@ -31,7 +31,7 @@ When the user invokes a slash command, read and follow its matching canonical
 file:
 
 - `/next-batch-prompt <mode>` → `docs/agent-commands/next-batch-prompt.md`
-- `/group-start <I-M>` → `docs/agent-commands/group-start.md`
+- `/group-start <I-Y>` → `docs/agent-commands/group-start.md`
 - `/batch-start <id>` → `docs/agent-commands/batch-start.md`
 - `/batch-verify <id>` → `docs/agent-commands/batch-verify.md`
 - `/phase-closeout <id>` → `docs/agent-commands/phase-closeout.md`

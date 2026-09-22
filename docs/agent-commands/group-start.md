@@ -5,7 +5,13 @@ description: Implement a documented Coupon batch group without collapsing its ba
 # /group-start
 
 `$ARGUMENTS` must be one group letter from **I** through **M**, as documented in
-`docs/review/2026-08-26/07-sequencing.md`. Treat the letter case-insensitively.
+`docs/review/2026-08-26/07-sequencing.md`, or **N** through **Y**, as documented in
+`docs/review/2026-09-13/08-sequencing.md`. Treat the letter case-insensitively.
+
+For an N-Y group, read the model and effort it runs at from
+`docs/review/2026-09-13/09-prompts.md` — a group runs at the **strictest setting any
+of its batches asks for**, and that value is derived from the per-batch table there,
+never typed independently.
 
 This command is an orchestrator. It does not change `/batch-start`, automatic
 batch close-out, or `/ship-prod`: every batch still gets its own branch, full
@@ -21,9 +27,32 @@ The current manifest is:
 | K | 105 → 106 |
 | L | 107 → **stop for `/ship-prod`** → 108 |
 | M | 109 → 110 → **stop for `/ship-prod`** → 111 |
+| N | 120 → 121 → 122 → **stop for `/ship-prod`** |
+| O | 123 → 124 → 125 → 126 → **stop for `/ship-prod`** |
+| P | 127 → 128 → 129 → **stop for `/ship-prod`** |
+| Q | 130 → 131 → 132 → 133 → **stop for `/ship-prod`** |
+| R | 134 → 135 → 136 → **stop for `/ship-prod`** |
+| S | 137 → 138 → 139 → 140 |
+| T | 141 → 142 → 143 → **stop for `/ship-prod`** |
+| U | 144 → 145 → 146 → **stop for `/ship-prod`** |
+| V | 147 → 148 → **stop for `/ship-prod`** |
+| W | 149 → 150 → 151 |
+| X | 152 → 153 → 154 → 155 |
+| Y | 158 → 159 → 160 → 161 → 162 → **stop for `/ship-prod`** → 163 → 164 → 165 → 166 → 167 → 168 |
+
+Groups S and W are web-only and carry no shipment. Group X deploys nothing at
+all. **Batch 95 is deliberately in no group**: it stays blocked on the
+storage-egress attribution, which is an owner action.
+
+**The nine-phase run order in `docs/review/2026-09-13/09-prompts.md` supersedes
+these letters for sequencing.** Several phases take only part of a group — the
+gate repair takes 152 alone out of X, for instance — and are run as a sequence
+of `/batch-start` calls. The letters remain the thematic grouping and are what
+this command accepts.
 
 1. Validate the argument against that manifest. Find and read the exact group
-   section in `docs/review/2026-08-26/07-sequencing.md`, then read every batch
+   section in `docs/review/2026-08-26/07-sequencing.md` (groups I-M) or
+   `docs/review/2026-09-13/08-sequencing.md` (groups N-Y), then read every batch
    row and its verification and scope boundary in `docs/BUILD_PLAN.md`. Also
    read `STATUS.md` and the relevant recent entries in `session-log.md` before
    deciding where the group resumes.

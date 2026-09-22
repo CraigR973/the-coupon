@@ -248,6 +248,7 @@ passes. Say so if you would rather Group N went first.
 | [05-feature-gaps.md](05-feature-gaps.md) | spec-versus-built, and what a paying member expects |
 | [06-premium-design.md](06-premium-design.md) | the core screens against a paid-app bar |
 | [07-agent-pipeline.md](07-agent-pipeline.md) | the gate, the automatic push, and what is prose rather than machinery |
+| [09-prompts.md](09-prompts.md) | model, effort and the copy-paste run order per phase |
 | [08-sequencing.md](08-sequencing.md) | Batches 120-168 in deployment-safe groups, the decided order, and the unfinished work |
 | [09-reconciliation.md](09-reconciliation.md) | every finding re-checked against the source, line by line |
 | [screenshots/](screenshots/) | 173 images, indexed by `INDEX.md` |
