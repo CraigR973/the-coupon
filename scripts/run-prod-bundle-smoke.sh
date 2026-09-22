@@ -39,7 +39,10 @@ for ((attempt = 0; attempt < READINESS_TIMEOUT_SECONDS * READINESS_POLLS_PER_SEC
   # Vite writes its Local address only after it has successfully bound the
   # strict port. Requiring that line prevents a pre-existing server satisfying
   # the HTTP probe during the short interval before Vite reports EADDRINUSE.
-  if grep -qE 'Local:.*4173' "$LOG" && curl -fsS --max-time 2 "$URL" >/dev/null; then
+  # GitHub's forced-colour environment inserts ANSI control bytes around the
+  # label and colon. Match the semantic line without requiring them to be
+  # adjacent; the strict-port process check and HTTP probe still both apply.
+  if grep -qE 'Local.*4173' "$LOG" && curl -fsS --max-time 2 "$URL" >/dev/null; then
     ready=true
     break
   fi
