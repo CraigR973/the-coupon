@@ -87,6 +87,14 @@ carries one further API commit — `f748117`, Batch 113, migration 025 — so **
 | CORR-11 | MED | main-only | Declaring an extra week renames a round already played | 02 |
 | CORR-12 | MED | main-only | The season anchor is whichever round was discovered first | 02 |
 | CORR-13 | MED | main-only | Two rounds in one football week share a label | 02 |
+| UX-14 | HIGH | live | Keyboard focus is invisible on every button — 1.3-1.5:1 where 3:1 is required | 03 |
+| PERF-06 | HIGH | live | The hourly slate refresh walks every competition, twice a day | 04 |
+| PERF-07 | HIGH | live | A third league window breaks both the hourly and daily provider plan | 04 |
+| PERF-08 | HIGH | live | The plan counter cannot see half the requests, including the largest consumer | 04 |
+| PERF-09 | HIGH | live | Twenty leagues can spend ten times the provider plan | 04 |
+| PERF-10 | MED | live | Submitting a pick waits for every phone in the league — 8.8s at 50 members | 04 |
+| PERF-11 | MED | live | The service worker precaches the whole app, undoing the route splitting | 04 |
+| PERF-13 | MED | live | The lock countdown re-renders the whole pick screen every second | 04 |
 | UX-12 | MED | live | Four more public screens render outside the app shell | 03 |
 | UX-13 | MED | live | A 70% opacity drops two surfaces below AA | 03 |
 | PERF-01 | MED | main-only | Home reads every round in the deployment, twice per request | 04 |
@@ -111,12 +119,16 @@ carries one further API commit — `f748117`, Batch 113, migration 025 — so **
 | DES-04..DES-09 | med | live | Toasts under the tab bar, generic skeletons, errors that look empty, no type scale | 06 |
 | SEC-22..SEC-26, CORR-16..CORR-18, PERF-05, OPS-15, OPS-16, FEAT-A12, FEAT-B09, PIPE-09 | LOW/INFO | — | see the lens documents | — |
 
-Roughly: **9 HIGH, 27 MED (including three high-impact design), and the rest LOW
+Roughly: **14 HIGH, 36 MED (including three high-impact design), and the rest LOW
 or informational.** Every one was then re-checked against the source — 44 of 46
 confirmed at the stated location, one refined (PERF-04) and one withdrawn
 (SEC-24). That pass is `09-reconciliation.md`, and **every surviving finding now
 has a batch, an owner decision, or an explicit "accepted, no action"**:
-Batches 120-157.
+Batches 120-168.
+
+**Deploy tags corrected 2026-09-22.** Migration 025 shipped that morning, so
+production and `main` are in sync and the four findings originally tagged
+`main-only` — PERF-01 and CORR-11, CORR-12, CORR-13 — are all **live**.
 
 ## What is already excellent — do not churn it
 
@@ -133,6 +145,16 @@ Batches 120-157.
 - **The offline pick queue works**, including the lost-race path — one POST on
   reconnect, correct messaging.
 - **Every prior register item spot-checked still holds**, fourteen of them.
+- **The client does no background polling at all** — zero requests in five idle
+  minutes on home and on the round screen, so between actions a member costs the
+  API nothing. It is why the provider pressure is entirely scheduler-side.
+- **Members are not what strains the odds plan.** A saturated Saturday's browsing
+  is 20 requests an hour, freezing a pick costs one, and a repriced retry costs
+  nothing; the jobs spend the rest.
+- **Route splitting is real** — a `lazyRoute` helper and 67 chunks. Only the
+  service worker's precache undoes it.
+- **Accessible naming is complete**: zero unnamed controls across eight routes,
+  no horizontal scroll at 320px, and `prefers-reduced-motion` genuinely works.
 - **The design system is good** and both themes are considered; Batch 97's
   fill-the-viewport work on home genuinely worked.
 
@@ -173,6 +195,11 @@ passes. Say so if you would rather Group N went first.
 - **PERF-04 was overstated.** Picks are indexed; the real gap is that the index is
   left-anchored on the league and cannot serve a round-only lookup, plus an
   unindexed round date column.
+- **The lead asserted the app had no route splitting**, from a grep for `lazy(`
+  that missed the `lazyRoute` helper the app actually uses. The performance pass
+  checked rather than accepting it: there are 67 chunks, and the real defect is
+  that the service worker precaches all of them. Nothing false reached these
+  documents, but the brief that produced them was wrong.
 - An accessibility run reported a missing page title and language on the
   empty-results screen. It was a capture artefact — a dead database process under
   a live holder — and a re-run produced a clean page with zero violations. The
@@ -192,16 +219,23 @@ passes. Say so if you would rather Group N went first.
 
 ## What this review did not do
 
-- **Three passes are unfinished**: the manual accessibility half (keyboard, focus
-  rings, zoom and reflow, reduced motion, 44px targets), the web performance pass
-  (bundle, Lighthouse, re-renders, query keys) and the odds-budget and scheduler
-  measurements. All three are specified in `08-sequencing.md`.
-- The peripheral design screens and the PWA polish pass were not judged, and the
-  ranked top-ten design changes with mockups were not produced.
-- No live provider verification — the real slate and pricing check remains the
-  owner's. No load or authenticated testing against production.
+- **No real screen-reader run.** WebKit will not install on this machine and
+  VoiceOver cannot be driven headlessly, so the live-region findings state what
+  the markup declares, not what a screen reader says. Worth five minutes of the
+  owner's time on the pick flow.
+- **No live provider verification** — the real slate and pricing check remains the
+  owner's, and no load or authenticated testing was run against production.
+- **The peripheral design screens and the PWA polish pass were not judged**, and
+  the ranked top-ten design changes with mockups were not produced. The corpus
+  also still lacks a genuine settled-results screen, a settled combined coupon
+  and the four pick-feedback states — a re-capture was started and interrupted.
+- **Provider latency is not measured**; the Saturday budget's wall-clock figures
+  assume a nominal 300 ms per call, so the request *counts* are the evidence and
+  the timings are indicative. The machine was shared throughout, so every
+  millisecond figure carries roughly ±30%.
 - The documentation corrections listed in `08-sequencing.md` were **identified
-  but not applied**, so this branch changes no file outside this directory.
+  but not applied**, so this branch changes no file outside this directory and
+  `docs/BUILD_PLAN.md`.
 
 ## The documents
 
@@ -214,6 +248,6 @@ passes. Say so if you would rather Group N went first.
 | [05-feature-gaps.md](05-feature-gaps.md) | spec-versus-built, and what a paying member expects |
 | [06-premium-design.md](06-premium-design.md) | the core screens against a paid-app bar |
 | [07-agent-pipeline.md](07-agent-pipeline.md) | the gate, the automatic push, and what is prose rather than machinery |
-| [08-sequencing.md](08-sequencing.md) | Batches 120-157 in deployment-safe groups, the decided order, and the unfinished work |
+| [08-sequencing.md](08-sequencing.md) | Batches 120-168 in deployment-safe groups, the decided order, and the unfinished work |
 | [09-reconciliation.md](09-reconciliation.md) | every finding re-checked against the source, line by line |
 | [screenshots/](screenshots/) | 173 images, indexed by `INDEX.md` |

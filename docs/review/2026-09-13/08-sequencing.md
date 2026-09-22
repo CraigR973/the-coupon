@@ -1,4 +1,4 @@
-# 08 — Sequencing: how Batches 120-157 group
+# 08 — Sequencing: how Batches 120-168 group
 
 The same discipline as the 2026-08-26 sequencing: `/batch-start N` still takes
 one batch, on its own branch, through its own gate, with its own automatic
@@ -18,9 +18,9 @@ on top of the first.
 ## The decided order (owner, 2026-09-22)
 
 1. **`/ship-prod`** — migration 025, owed since 13 September.
-2. **The three unfinished passes** — manual accessibility, web performance,
-   odds budget and scheduler. The owner chose to complete the register before
-   building.
+2. ~~The three unfinished passes~~ — **done 2026-09-22**. They added 14 findings
+   and Batches 158-168, including one HIGH the automated sweep structurally
+   could not see (invisible keyboard focus) and four on the provider budget.
 3. **Batch 152** — the gate repair, taken out of order.
 4. **Group N onward** as laid out below.
 
@@ -193,6 +193,42 @@ rather than by an agent that the same configuration governs.
   of a void leg are **owner decisions**, not batches — see the README. If the
   owner drops the rank field, it is a one-line change to fold into any web batch.
 
+## Group Y — What the three completed passes found · Batches 158-168
+
+Ordered by what a member feels, then by what unblocks a later measurement.
+
+| batch | finding | class |
+| --- | --- | --- |
+| 158 | UX-14 invisible keyboard focus | web-only |
+| 159 | PERF-06/07 refresh walks every competition; third window breaks the plan | API |
+| 160 | PERF-08 the counter is blind to half the spend | API |
+| 161 | PERF-09 per-league bucket does not bound the installation | API |
+| 162 | PERF-10 the pick waits for the whole league's phones | API |
+| 163 | PERF-11 the service worker precaches everything | web-only |
+| 164 | PERF-12/17 animation library and fonts | web-only |
+| 165 | PERF-13/15/16 countdown, contexts, query keys | web-only |
+| 166 | PERF-14 standings blocking time | web-only |
+| 167 | UX-15/16/17 clipping, focus return, toast urgency | web-only |
+| 168 | UX-19/20 target sizes and zoom chrome | web-only |
+
+**158 first** — it is the only HIGH here a member meets on every screen, and it
+is web-only so it reaches them on its own close-out push.
+
+**159 before Batch 133.** Halving the refresh job's competition scope changes the
+budget that Batch 133's discovery limit has to fit; doing 133 first means sizing
+a budget against a cost that is about to drop.
+
+**160 before re-tuning anything about the budget.** The valve thresholds and the
+pick reserve are currently set against a gauge that misses half the spend — any
+tuning done before the counter is honest is tuning against noise.
+
+**166 last of the web performance batches, and re-measure before starting it.**
+Its 915 ms may be mostly 164 and 165; chasing it first risks optimising the
+wrong thing.
+
+**168 pairs with Batch 140** — both concern what the layout does at desktop
+widths and under zoom.
+
 ## Held back deliberately
 
 - **FEAT-A12** (the register screen ignores the signup kill switch) and
@@ -205,25 +241,16 @@ rather than by an agent that the same configuration governs.
 
 ## What this review did not finish
 
-Three passes were cut short by usage limits and are worth completing before the
-register is treated as closed:
+The three interrupted passes are **complete as of 2026-09-22**. What remains
+genuinely unfinished is the design lens's other half: the peripheral screens
+(auth family, settings, the admin console, football) and the PWA polish pass —
+manifest, maskable icons, splash, and **safe-area insets in standalone mode**,
+which pairs with DES-04's toast-under-the-tab-bar finding. The ranked top-ten
+design changes with token values and mockups were not produced either.
 
-1. **The manual accessibility pass** — keyboard-only walk, focus-ring contrast,
-   accessible names from the live tree, 200% zoom and 320px reflow, reduced
-   motion, and 44px target measurement. The axe sweep and the screenshot corpus
-   are done; this is the other half of lens 03.
-2. **The web performance pass** — bundle size and route splitting, Lighthouse on
-   the production bundle for home, coupon and standings, requests per screen and
-   per idle minute, re-render hot spots and query-key hygiene.
-3. **The odds-budget and scheduler pass** — requests per scheduled job and per
-   member action, the hour-by-hour Saturday budget against 100/hour and 500/day,
-   job durations and overlap, and event-loop blocking from the synchronous push
-   sends. Note the correctness lens already found the three-window cliff
-   (CORR-15) from the cost model.
-
-Also unfinished: the peripheral design screens and the PWA polish pass
-(manifest, maskable icons, splash, safe-area insets in standalone mode), and the
-ranked top-ten design changes with mockups.
+The screenshot corpus also still lacks a genuine settled-results screen, a
+settled combined coupon, and the four pick-feedback states: those captures were
+found to be the idle screen, and the re-capture was interrupted.
 
 ## Documentation corrections to apply
 

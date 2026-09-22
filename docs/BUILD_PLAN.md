@@ -4765,6 +4765,191 @@ answered until it lands, because until then there is no data to look at.
   them. **API + web — remove the web's use first, or in the same batch, so the field's
   removal cannot break a deployed client.**
 
+- [ ] **Batch 158 — Keyboard focus is invisible on every button in the app**
+  — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-14 (HIGH, live).
+  `button.tsx:11` sets `focus-visible:outline-none` and replaces the native outline with
+  `focus-visible:shadow-glow`, where `--shadow-glow` is `0 0 0 3px rgba(16,185,129,0.25)`.
+  Measured from rendered pixels: **1.49-1.53:1 in dark, 1.27-1.28:1 in light**, against the
+  3:1 WCAG 2.2 requires of a focus indicator. Text inputs clear it (7.07 / 3.77) only
+  because they also get `focus-visible:border-primary`. **axe has no focus-indicator rule**,
+  which is why 88 clean automated runs said nothing about it.
+
+  Give buttons a focus ring that clears 3:1 in both themes — reuse the existing border
+  token rather than inventing a colour — or drop `outline-none` and style the native outline.
+
+  Verification: computed contrast of the focus indicator against its background measured
+  ≥3:1 on buttons, selection rows and the bottom-nav items, in both themes; existing axe
+  runs stay clean.
+
+  Scope boundary: focus styling. No change to hover or active states. **Web-only.**
+
+- [ ] **Batch 159 — The hourly slate refresh walks every competition, and a third window breaks the plan**
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-06 and
+  PERF-07 (both HIGH, live). `run_refresh_slate` calls discovery with **no competition
+  list**, so it walks the full pool — 41 competitions where the daily job, narrowed by
+  Batch 119, walks 20. That is 82 of a Saturday's 283 requests, and at three windows it
+  alone is **123 in one hour**, twice a day. Two windows already sits at 82; a third takes
+  the hour to **145** and the day to **527**, breaking both the 100/hour and 500/day plan.
+  Production runs one window today, so this is one league-settings change away, and nothing
+  refuses it.
+
+  Pass the narrowed competition set to the refresh job as the daily job does. Take this
+  before Batch 133's discovery budget: it halves the cost of every additional window, which
+  changes the budget that batch has to fit.
+
+  Verification: the refresh job's request count measured against a counting fake before and
+  after; a three-window deployment shape fitting inside 100/hour and 500/day.
+
+  Scope boundary: the refresh job's competition scope. No change to the cadence, the
+  horizon, or what a round is. **API-carrying.**
+
+- [ ] **Batch 160 — The request counter cannot see the requests that matter most**
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-08 (HIGH,
+  live). The plan counter is charged **only from the odds cache**, on `fetch_odds`
+  refreshes. `fetch_slate`, `fetch_competitions` and `settle` are separate provider entry
+  points that never reach it, so the gauge sees roughly **127 of 283** requests. Both the
+  cache's widening valve and the **50-request reserve that protects the pick path** read
+  that gauge. Batch 114 built that reserve so a member could still freeze a price on a busy
+  morning; it is reserving against a number that misses half the spend.
+
+  Charge every provider entry point, not only the cached one, so the counter measures the
+  plan rather than a fraction of it.
+
+  Verification: a counting fake driving a full Saturday shows the counter and the fake
+  agreeing; the pick reserve refuses at the real boundary rather than late.
+
+  Scope boundary: where the counter is charged. No change to the tiers, the valve's
+  thresholds or the reserve's size — those are re-tuned once the gauge is honest.
+  **API-carrying.**
+
+- [ ] **Batch 161 — Twenty leagues can spend ten times the provider plan**
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-09 (HIGH,
+  live), closing the OPS-10 residual the 2026-08-26 review left open. The pick path charges
+  a per-league bucket of 50/hour against an installation plan of 100/hour. At **5 leagues
+  that is 250/hour — 150 over**; at **20 leagues, 1,000/hour**. It is real spend rather than
+  a ceiling, because the refusal path deliberately exempts the pick path.
+
+  Charge a shared installation bucket beneath the per-league one, so a league's share is
+  bounded by what the deployment actually has left.
+
+  Verification: a test that N leagues each spending their bucket cannot exceed the
+  installation plan; a test that a single league's experience at today's scale is unchanged.
+
+  Scope boundary: the shared bucket. No change to `PICKS_BUSY`'s message or to the
+  per-league limit. **API-carrying.**
+
+- [ ] **Batch 162 — Submitting a pick waits for every phone in the league**
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-10 (MED,
+  live). Measured: `notify_pick_made` performs **49 sequential sends taking 8,759 ms**,
+  added to the submitting member's own request on a 50-member league — about **1.7 seconds
+  at production's twelve**. The event loop is not blocked; the member's request is, on the
+  one action the whole product is built around.
+
+  Hand the fan-out to a background task and answer the member as soon as the pick is
+  committed. Batch 107's delivery guarantees stay — the completion row and its retry are
+  what make that safe.
+
+  Verification: submit latency measured with and without the fan-out at 12 and 50 members;
+  a test that every eligible member still receives exactly one alert.
+
+  Scope boundary: when the fan-out runs. No change to who receives what.
+  **API-carrying.**
+
+- [ ] **Batch 163 — The service worker downloads the whole app, including screens a member cannot open**
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-11 (MED,
+  live). The app splits routes properly — a `lazyRoute` helper, 67 emitted chunks — and then
+  the service worker precaches **all 82 files, 974 KiB**, admin console chunks included, on
+  install. The splitting works and the precache undoes it.
+
+  Exclude role-gated chunks from the precache manifest and let them load on demand; keep
+  precaching the shell and the routes every member actually uses.
+
+  Verification: precache manifest size measured before and after; the offline fallback and
+  the deep-link smoke still pass; an admin screen still loads for an admin.
+
+  Scope boundary: the precache manifest. No change to the runtime caching strategies.
+  **Web-only.**
+
+- [ ] **Batch 164 — An animation library is a seventh of the JavaScript and mostly unused**
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-12 (MED,
+  live) and PERF-17 (LOW). framer-motion is **107.1 KB minified, 13.9% of all JavaScript,
+  and 62.2% unused on home**. Three of four font files load on the sign-in screen (49 KB,
+  one preloaded) where one would do.
+
+  Replace the handful of transitions that use it with CSS, or import only what is used;
+  trim the sign-in font payload. The reduced-motion block at `index.css:419` already exists
+  and must keep working.
+
+  Verification: bundle bytes before and after; the reduced-motion behaviour unchanged;
+  Lighthouse re-measured on home.
+
+  Scope boundary: the animation dependency and font loading. No visual redesign.
+  **Web-only.**
+
+- [ ] **Batch 165 — The lock countdown re-renders the entire pick screen once a second**
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-13 (MED),
+  PERF-15 and PERF-16 (LOW), all live. `useCountdown` sits in the page body, so every tick
+  re-renders the whole round screen; there is **no `React.memo` anywhere in the codebase**
+  to stop the cascade. The auth and league context values are rebuilt on every render. Query
+  keys are ad-hoc strings with no factory, and the standings key omits the season it depends
+  on, so two seasons share one cache entry.
+
+  Move the countdown into its own component, memoise the two context values, and introduce a
+  query-key factory — starting with the standings key, which is a correctness bug as well as
+  a hygiene one.
+
+  Verification: commits per idle five seconds measured before and after on home and the
+  round screen; a test that two seasons do not share a standings cache entry.
+
+  Scope boundary: these three. No data-fetching redesign. **Web-only.**
+
+- [ ] **Batch 166 — Standings blocks a phone's main thread for nearly a second**
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-14 (MED,
+  live). Lighthouse mobile, median of three throttled runs: login 98, home 92, current round
+  95, **standings 77 with 915 ms of total blocking time** — the worst figure in the set. The
+  number is solid; the cause was not isolated.
+
+  **Take this after Batches 164 and 165 and re-measure first** — the animation library and
+  the countdown cascade may account for most of it, and chasing it before they land risks
+  optimising the wrong thing.
+
+  Verification: Lighthouse mobile re-run on standings, median of three, with the blocking
+  time attributed to a named cause before any change is made.
+
+  Scope boundary: whatever the re-measurement identifies. **Web-only.**
+
+- [ ] **Batch 167 — Three keyboard and reflow defects the automated sweep cannot see**
+  — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-15, UX-16 and UX-17
+  (MED, live). Pick-market labels clip at 320 CSS px — "No — not both score" needs 106px in a
+  68px box — and three more elements clip under the WCAG 1.4.12 text-spacing override.
+  Escape on the bottom-nav "More" sheet drops focus onto `<body>` instead of returning it to
+  the trigger, which the account menu does correctly. Error toasts share sonner's single
+  polite region with successes, so a failed pick never interrupts — which matters more now
+  that a lost claim race can arrive looking like a network error.
+
+  Let the market labels wrap at the narrow breakpoint; return focus to the trigger on
+  Escape, copying the account menu; render failures into an assertive region.
+
+  Verification: no clipping at 320px or under the text-spacing override; focus returns to
+  the trigger; a failure toast carries an assertive role.
+
+  Scope boundary: these three. **Web-only.**
+
+- [ ] **Batch 168 — Two links are under the minimum target size and 200% zoom gives a third of the screen to navigation**
+  — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-19 and UX-20 (LOW,
+  live). "Forgot PIN?" renders 316×**16** and "About & scoring rules" 358×**20**, both under
+  the 24px minimum of WCAG 2.2 SC 2.5.8 ("Create account" is inline text and exempt). At 200%
+  zoom on a 1280 viewport the layout falls back to mobile chrome, which then eats 142px of
+  the 450px usable height.
+
+  Raise both targets to 24px; keep the desktop chrome at 200% zoom, which follows naturally
+  from Batch 140's responsive work and should be verified together with it.
+
+  Verification: both targets measured ≥24px; usable viewport at 200% zoom measured before
+  and after.
+
+  Scope boundary: those two targets and the zoom breakpoint. **Web-only — pairs with Batch 140.**
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

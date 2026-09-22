@@ -47,6 +47,20 @@ CPU, not database.
 | PERF-05 | LOW | live | verified | The connection pool is sized for concurrency the process cannot use |
 | OPS-15 | LOW | live | plausible | The web build toolchain is several majors behind |
 | OPS-16 | INFO | live | verified | A docstring claims nine queries where there are fifteen |
+| PERF-06 | HIGH | live | verified | The hourly slate refresh walks the whole competition pool, twice a day |
+| PERF-07 | HIGH | live | verified | A third league window breaks both the hourly and the daily provider plan |
+| PERF-08 | HIGH | live | verified | The plan counter cannot see roughly half the requests, including the largest consumer |
+| PERF-09 | HIGH | live | verified | The per-league pick bucket does not bound the installation: 20 leagues can spend ten times the plan |
+| PERF-10 | MED | live | verified | Submitting a pick waits for every push in the league to be sent, one after another |
+| OPS-17 | MED | live | verified | No scheduled job sets a misfire grace time, so all thirteen take the one-second default |
+| PERF-11 | MED | live | verified | The service worker precaches the entire app, undoing the route splitting |
+| PERF-12 | MED | live | verified | An animation library is 14% of all JavaScript and 62% unused on home |
+| PERF-13 | MED | live | verified | The lock countdown re-renders the whole pick screen every second |
+| PERF-14 | MED | live | verified | Standings blocks the main thread for 915 ms on a throttled phone |
+| PERF-15 | LOW | live | verified | Two context values are rebuilt on every render |
+| PERF-16 | LOW | live | verified | Query keys are ad-hoc, and one omits the season it depends on |
+| PERF-17 | LOW | live | verified | Three font files load on the sign-in screen, one of them preloaded |
+| OPS-18 | LOW | live | verified | Four jobs share the top of the hour and an overrun is dropped rather than queued |
 
 ## OPS-11 · HIGH · live · verified — the runtime is past end-of-life
 
@@ -146,6 +160,132 @@ unindexed; see `09-reconciliation.md`.)
 Postgres, from a process that executes one statement at a time. Harmless, but it
 is sized for a concurrency the process cannot produce.
 
+
+## The provider budget, measured
+
+A Saturday at production's shape — one league, twelve members, one window —
+spends **283 of the 500-a-day plan**, peaking at **63 of 100 in the 09:00 and
+11:00 hours**. Both peaks are the scheduler, not members: saturated browsing
+costs 20 requests an hour, freezing a pick costs **one**, and a `PRICE_MOVED`
+retry inside the cache window costs **nothing**.
+
+That is the headline, and it reframes the whole budget question: **the members
+are not the problem, the jobs are.**
+
+| | requests |
+| --- | --- |
+| Saturday total, production shape | 283 / 500 |
+| worst hour | 63 / 100 |
+| of which `refresh_slate` | 82 a day, both peaks |
+| saturated member browsing | 20 / hour |
+| freezing a pick | 1 |
+| `PRICE_MOVED` retry within 60s | 0 |
+| **at three windows** | **145 / hour, 527 / day — both broken** |
+
+### PERF-06 · HIGH — the hourly refresh walks everything
+
+`run_refresh_slate` calls discovery with **no competition list**, so it walks the
+full pool — 41 competitions where the daily job, narrowed by Batch 119, walks 20.
+It is 82 of the day's 283 requests, and at three windows it alone is **123 in a
+single hour**, twice a day. Batch 119 narrowed one caller and missed this one.
+**Fix:** pass the same narrowed set the daily job passes.
+
+### PERF-07 · HIGH — the third window is the cliff
+
+Two windows already sits at 82 requests. A third takes the hour to **145** and
+the day to **527**, breaking both limits. Production has one window today, so
+this is not live pressure — it is one league-settings change away, and nothing
+in the code refuses it. **Fix:** give discovery its own budget (Batch 133) and
+land PERF-06 first, which halves the cost of every extra window.
+
+### PERF-08 · HIGH — the counter is blind to its biggest consumer
+
+The plan counter is charged **only from the odds cache** — `fetch_odds`
+refreshes. `fetch_slate`, `fetch_competitions` and `settle` are separate provider
+entry points that never reach it, so the gauge sees roughly **127 of 283**
+requests. Both the cache's widening valve and the **50-request reserve that
+protects the pick path** read that gauge. Batch 114 built the reserve precisely
+so a member could still freeze a price on a busy morning; it is reserving
+against a number that misses half the spend. **Fix:** charge every provider
+entry point, not just the cached one.
+
+### PERF-09 · HIGH — the per-league bucket is not an installation ceiling
+
+The pick path charges a per-league bucket of 50/hour against a plan of 100/hour.
+At **5 leagues that is 250/hour — 150 over**; at **20 leagues, 1,000/hour, ten
+times the plan**. It is real spend rather than a ceiling because the refusal
+path exempts the pick path deliberately. This is the OPS-10 residual the last
+review recorded as unbounded, now with numbers. **Fix:** charge a shared
+installation bucket beneath the per-league one.
+
+### PERF-10 · MED — the pick waits for the whole league's phones
+
+Measured: `notify_pick_made` performs **49 sequential sends taking 8,759 ms**,
+added to the submitting member's request on a 50-member league — about **1.7
+seconds at production's twelve**. The event loop is not blocked; the member's own
+request is, on the one action the product is built around. **Fix:** hand the
+fan-out to a background task and answer the member immediately.
+
+### OPS-17 and OPS-18
+
+**OPS-17** — not one of the thirteen scheduled jobs sets `misfire_grace_time`,
+so every one takes the one-second default: a job that fires while the single
+worker is busy is dropped rather than run late. Measured peak event-loop lag was
+387 ms against a 33 ms baseline, so the window is real.
+
+**OPS-18** — four jobs share the top of the hour, and an overrun is dropped
+rather than queued.
+
+Job durations against a 50-member, 38-round, 1,520-fixture database were all
+**≤113 ms except `sync_football_data` at 931 ms** — and those are the database
+and CPU floor only, since the fake provider answers instantly.
+
+## The web client, measured
+
+| | |
+| --- | --- |
+| bundle | 823.6 KB JS raw, 278.8 KB gzip, **67 chunks** |
+| cold `/login` | 9 requests, 166.6 KB |
+| reaching home | ~34 requests, ~253 KB |
+| then the service worker precaches | **974 KiB across 82 files**, admin chunks included |
+| Lighthouse mobile (median of 3) | login **98** · home **92** · current round **95** · standings **77** |
+| worst blocking time | standings **915 ms** |
+| API calls per screen | home 2 / 2.1 KB · current round 4 / 8.7 KB · standings 4 / 4.3 KB |
+| **idle polling** | **0 requests in 5 minutes** on home and on current round |
+
+**The client does no background polling at all.** Between actions a member costs
+the API nothing, which is why the provider pressure above is entirely
+scheduler-side. Worth protecting.
+
+### PERF-11 · MED — the service worker undoes the code splitting
+
+The app *does* split routes — a `lazyRoute` helper, 67 emitted chunks. Then the
+service worker precaches **all 82 files, 974 KiB**, including the admin console
+chunks, on install. Every member downloads the whole application including
+screens they can never open. **Fix:** exclude admin and other role-gated chunks
+from the precache manifest and let them load on demand.
+
+### PERF-12, PERF-13, PERF-14
+
+**PERF-12** — the animation library is **107.1 KB minified, 13.9% of all
+JavaScript, and 62.2% unused on home**.
+
+**PERF-13** — `useCountdown` sits in the page body, so the lock countdown
+re-renders the entire pick screen once a second. There is **no `React.memo`
+anywhere in the codebase**, so nothing stops the cascade.
+
+**PERF-14** — standings blocks the main thread for **915 ms** on a throttled
+phone, the worst figure in the set. The number is solid; the cause was not
+isolated, and PERF-12 and PERF-13 may account for most of it — **re-measure
+after those two before chasing it.**
+
+### PERF-15, PERF-16, PERF-17
+
+The auth and league context values are rebuilt on every render (PERF-15). Query
+keys are ad-hoc strings with no factory, and the standings key omits the season
+it depends on — two seasons share one cache entry (PERF-16). Three of four font
+files load on the sign-in screen, 49 KB, one preloaded (PERF-17).
+
 ## Deploy hygiene — checked
 
 The drift script, the deployment-config assertions, the migration guard's
@@ -180,11 +320,14 @@ wheel constraint; the migration guard is wired end to end.
 
 ## What this pass did not do
 
-**The odds-budget and scheduler measurements were not completed** — requests per
-scheduled job and per member action, the hour-by-hour Saturday budget against the
-100/hour and 500/day plan, scheduler job durations and overlap, and event-loop
-blocking from the synchronous push sends. **The web performance pass was not
-started**: no bundle breakdown, no Lighthouse numbers, no route-splitting
-analysis, no re-render or query-key hygiene. Both are listed in
-`08-sequencing.md`. Nothing was measured against production, and admin,
-authentication and notification routes were not measured at all.
+No measurement against production, and admin, authentication and notification
+routes were not measured at all. Real provider latency is not measured — the
+wall-clock estimates use a nominal 300 ms per call, so the **request counts are
+the evidence and the timings are indicative**. `sync_football_data` was measured
+on its failure path. FotMob's own daily plan was not modelled at 15 leagues.
+Thread-pool saturation under concurrent submits was not tested.
+
+The machine ran at a load average of 7-92 throughout, shared with two other
+passes, so every millisecond figure carries roughly ±30% and the
+load-independent numbers — request counts, bytes, chunk counts, query counts —
+are what the findings rest on.
