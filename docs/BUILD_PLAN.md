@@ -4071,7 +4071,7 @@ answered until it lands, because until then there is no data to look at.
   stay 112's. **API only — nothing reaches members until `/ship-prod`.** Supersedes Batch
   115; independent of 112 and 113, and should be taken before both.
 
-- [ ] **Batch 120 — The member who loses a simultaneous claim is told the app failed, not that someone beat them to it**
+- [x] **Batch 120 — The member who loses a simultaneous claim is told the app failed, not that someone beat them to it** ✅ 2026-09-22
   — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-08 (HIGH, live).
   Ten or more concurrent submissions for one selection produce exactly one winner — the
   uniqueness invariant holds — but several losers receive **500** instead of 409. The

@@ -3766,3 +3766,22 @@ unchecked because Batch 119 superseded it.
   fix. The final full gate passed first attempt with that locale.
 
 **Next:** `/group-start N` (Batches 120 → 121 → 122), then its explicit `/ship-prod` checkpoint.
+
+## Batch 120 — The member who loses a simultaneous claim is told the app failed, not that someone beat them to it
+**Commits:** `c822e69` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,174 backend and
+1,045 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- The conflict code is captured before commit because rollback expires the league object;
+  the database uniqueness constraints and pre-check remain unchanged.
+- The regression synchronises ten real HTTP requests after the pre-check in each claim
+  scope. PostgreSQL chooses one winner; all nine losers receive the scope's 409 code and
+  the configured CORS origin, with exactly one pick stored.
+- The first gate run hit the known unsupported `C.UTF-8` locale before PostgreSQL started.
+  This was an environment reset; the clean reruns used `en_US.UTF-8`.
+- The first database-complete rerun passed 1,174 tests but the ratchet still recorded
+  1,172. The baseline was raised by two as instructed, then the full 11-check gate passed.
+- The close-out guard classified the batch API-only and found the deployed API in sync
+  beforehand. This batch therefore joins the Group N `/ship-prod` owed after Batch 122.
+
+**Next:** Batch 121, then Batch 122 and the explicit Group N `/ship-prod` checkpoint.
