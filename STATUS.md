@@ -1342,15 +1342,15 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-Group N is in progress. **Batch 120 is closed; Batch 121 is next**, followed by Batch 122
-and the group's explicit `/ship-prod` checkpoint. Batch 120 is API-only and is not live
-until that shipment. Batch 95 remains
+Group N is in progress. **Batches 120 and 121 are closed; Batch 122 is next**, followed by
+the group's explicit `/ship-prod` checkpoint. Both closed batches are API-only and are not
+live until that shipment. Batch 95 remains
 soft-blocked and Batch 115 is superseded by 119, so neither is the next implementation.
 The production calendar backfill remains a separate explicit owner action; do not infer
 authority to run it from a batch or deployment command.
 
 **Batch 152 hardened the automatic delivery gate** (`5cefff3`). The local gate now records
-and enforces exactly 1,174 PostgreSQL-backed backend tests and 1,045 frontend tests, with
+and enforces exactly 1,177 PostgreSQL-backed backend tests and 1,045 frontend tests, with
 zero skips; those baselines may only move upwards. Ordinary batches cannot alter the gate,
 CI workflow, test discovery, or lint/type configuration while being judged by them. The
 production-bundle smoke owns strict port 4173 and waits for its own Vite process to become
@@ -1362,6 +1362,13 @@ fixture-scoped leagues now preserve the intended conflict code before a losing t
 rolls back, so every loser receives 409 with CORS rather than an uncaught expired-object
 reload producing 500. The real-PostgreSQL regression puts ten members through the database
 race in each scope and proves one winner, nine documented conflicts and one stored pick.
+
+**Batch 121 closed the same-week stray-round score** (`be387da`). Retirement now inspects
+through the football week's following Tuesday, so a Saturday left behind by a move to
+Friday is removed before it can be claimed. If a pre-existing claim makes an undeclared
+stray non-retirable, settlement refuses it and writes an operational error instead of
+awarding points. Declared global calendar extras remain intentional second rounds and
+still settle; they are distinguished from strays by the stored season calendar.
 
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a

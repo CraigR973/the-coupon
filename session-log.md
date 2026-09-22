@@ -3785,3 +3785,23 @@ unchecked because Batch 119 superseded it.
   beforehand. This batch therefore joins the Group N `/ship-prod` owed after Batch 122.
 
 **Next:** Batch 121, then Batch 122 and the explicit Group N `/ship-prod` checkpoint.
+
+## Batch 121 — A round stranded by a window change can be picked, settles, and scores
+**Commits:** `be387da` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,177 backend and
+1,045 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- Retirement's far bound is now the Tuesday ending the final cadence date's football week.
+  This closes the Saturday just beyond a new Friday cadence without widening into history.
+- Discovery can pass extras preloaded only through its ordinary horizon, so retirement
+  loads the short tail itself and cannot delete a declared date after that horizon.
+- Settlement identifies the current cadence and declared global extras as intentional.
+  An undeclared same-week duplicate is left pending and logged with both round ids.
+- A declared extra beside the normal round remains scoreable as Batch 113 requires; the
+  guard does not collapse intentional `b`/`c` rounds into one.
+- Focused PostgreSQL verification passed 14/14 and the complete 11-check gate passed on
+  its first run under the documented `en_US.UTF-8` locale; no gate failure needed a fix.
+- The pre-push guard found Batch 120 already owed one API shipment and classified Batch
+  121 API-only. Both stay queued for the single Group N `/ship-prod` after Batch 122.
+
+**Next:** Batch 122, then the explicit Group N `/ship-prod` checkpoint.

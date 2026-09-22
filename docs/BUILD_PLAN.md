@@ -4092,7 +4092,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the pick router's conflict path only. No change to the uniqueness
   constraints or to the client. **API-carrying.**
 
-- [ ] **Batch 121 — A round stranded by a window change can be picked, settles, and scores**
+- [x] **Batch 121 — A round stranded by a window change can be picked, settles, and scores** ✅ 2026-09-22
   — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-09 (HIGH, live) and
   CORR-13 (MED). Changing a league's window strands the current week's round. Retirement
   is bounded by the furthest date in the new cadence, so a round one day past it survives
