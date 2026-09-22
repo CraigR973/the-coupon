@@ -21,7 +21,10 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-pnpm --dir "$ROOT/apps/web" exec vite preview \
+# Run Vite directly. GitHub's pnpm wrapper buffers the background process's output until
+# it exits, so the readiness line only reached this log when cleanup killed the preview;
+# the server was listening, but the ownership proof could never observe that fact.
+node "$ROOT/apps/web/node_modules/vite/bin/vite.js" preview "$ROOT/apps/web" \
   --host 127.0.0.1 --port "$PORT" --strictPort >"$LOG" 2>&1 &
 preview=$!
 
