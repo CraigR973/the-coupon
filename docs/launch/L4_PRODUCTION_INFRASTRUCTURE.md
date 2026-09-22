@@ -3029,3 +3029,105 @@ durable dump, under the owner's 2026-07-30 deferral.
 
 `scripts/check-deploy-drift.sh` reports **in sync**: `origin/main` and the deployed API both
 at `b95d81dd`, migration `024`.
+
+### Forward recovery plan — migration `025`, Batch 113
+
+**Status: written 2026-09-22, awaiting owner approval. Not yet cleared to ship.**
+
+Required by `/ship-prod` step 1.7 before `025` may be deployed. Batch 113's API half has
+been on `main` since 13 September and is **not** in production: the deployed image is
+`b95d81dd` at head `024`, while its web half has been live on Vercel since the same day
+and currently calls an admin Calendar route the deployed image answers `404`. That gap is
+the reason to ship, and it is nine days old.
+
+Re-confirm every measurement below before deploying, as the `023` and `024` plans were.
+
+**`025` is the smallest shape a migration can be: one new empty table.** It issues a
+single `CREATE TABLE season_calendars` (five columns, integer primary key, an empty-array
+default) followed by a conditional `DO` block that enables and forces row-level security
+on **that new table only**, revokes `anon`/`authenticated` privileges on it and adds a
+restrictive deny policy. It alters no existing table, adds no column to one, creates no
+index on existing data, changes no type, adds no constraint to existing rows, and performs
+no backfill. Measured read-only from production on 2026-09-22:
+
+| measured | value |
+| --- | --- |
+| `alembic_version` | `024` |
+| PostgreSQL | 17.6 |
+| `season_calendars` already present | **no** — `025` collides with nothing |
+| `auth` schema present | **yes** — so the RLS hardening block does execute |
+| live leagues | **1** (`2-1-hibs`, 12 members); five others soft-deleted |
+| profiles | 13 |
+| rounds | 24, all in season 2026 — earliest `2026-08-08`, latest `2026-10-03` |
+| rounds settled / locked-unsettled / open | 9 / 13 / **0** |
+| picks | 87, **0 pending** |
+| distinct league windows | 1 |
+| next lock | **none — no round is open** |
+| whole database | 17 MB |
+
+**Nothing here can be slow and nothing here can fail on existing data.** Creating a table
+that does not yet exist is a catalogue insert; it takes no lock on any table a member
+reads or writes, because it touches no such table. The RLS statements apply to the table
+being created in the same transaction. There is no `UPDATE`, no `CREATE INDEX`, no type
+change and no `NOT NULL` against existing rows — the shapes that can refuse or block.
+This is a **smaller** claim than `024`, which added four columns to an existing table.
+
+**The rollout window is safe in both directions, and emptiness is what makes it safe.**
+The new container runs `alembic upgrade head` while the `024` container is still serving.
+That older image has no `SeasonCalendar` model and never names `season_calendars`, so a
+table appearing underneath it is invisible: SQLAlchemy emits explicit column lists and the
+old image issues no statement against the new table at all. In the other direction the new
+image finds the table **empty**, which is the designed state — `calendar_for` returns
+`None` and the public label falls back to the round's existing per-league ordinal, exactly
+as the web half has been doing against the `024` API since 13 September. **Shipping the
+schema therefore renames nothing.** No member sees any label change from this deployment.
+
+**The one interaction that could have renamed rounds is already guarded, and it is worth
+stating explicitly because it is the failure this plan exists to rule out.** After the
+ship, the daily discovery job calls `ensure_calendar_for_new_season` whenever it creates a
+round. Had that function anchored season 2026 from whichever round discovery happened to
+sync next — an October date — every historic August and September round would have
+clamped to week `1`, performing the owner's backfill through the scheduler and renaming
+rounds members have already played. It does not: the function counts existing rounds in
+the season first and returns without writing when any exist, with the reasoning recorded
+in its own docstring. Production has 24 rounds in season 2026, so **discovery cannot
+anchor it**. Verified in the code being shipped, not assumed.
+
+**Forward recovery, which is the whole point of this document, because there is no way
+back.** Production has no backup, no PITR and no durable dump under the owner's
+2026-07-30 deferral, and a pre-`025` image cannot resolve revision `025`, so the previous
+Railway deployment stops being a rollback target the moment this lands. What that costs is
+unusually small here:
+
+- **If the migration itself fails**, the boot sequence fails before uvicorn, Railway's
+  health check never passes, and the `024` container keeps serving. Production is
+  unaffected and there is nothing to recover — fix forward and redeploy.
+- **If the new image misbehaves after booting**, the recovery is to ship a corrected image
+  forward. The table is empty and read-only in practice until the backfill runs, so
+  disabling the feature needs no migration: nothing depends on `season_calendars`
+  containing anything.
+- **`downgrade()` drops the table**, which is lossless only while it is empty — as it will
+  be for the whole of this shipment. After the backfill it would discard the anchor and
+  any declared extra weeks; those are re-derivable from the rounds by re-running the
+  backfill, but a downgrade is still not the intended path and is not authorised here.
+- **The backfill is not part of this shipment.** `python -m src.backfill_season_calendar
+  --dry-run` reports every public label that would move; `--apply` writes the calendar.
+  Both remain a separate, explicit owner action after this ship, per the Batch 113 row and
+  the owner's 2026-09-05 decision. Nothing in this deployment runs them.
+
+**The window is as good as it gets, and that is unusual enough to say.** At the time of
+measuring, **no round is open and no lock is pending** — `2-1-hibs` has nothing taking
+picks. The moment a migration of this shape is least welcome is a rollout straddling a
+lock or a member's submission, and right now neither exists. Ship well clear of the next
+round opening rather than waiting for a quieter moment that will not come.
+
+**Two things measured here that the 2026-09-13 review got slightly wrong**, recorded so
+the next reader does not trust the stale figure: production has **one** live league, not
+five — the other five rows are soft-deleted — so the review's "5 leagues, largest 12
+members" data shape was five *rows* rather than five live leagues, and every
+per-league-scaled measurement in it is correspondingly conservative. And **13 rounds sit
+`locked` and unsettled, all holding zero picks**: empty rounds that locked and had nothing
+to settle. They are harmless to scoring and to this migration, but they are the residue
+the review's stray-round finding (CORR-09) describes, visible in production data.
+
+Backup/restore-point identity: **none**, as above.
