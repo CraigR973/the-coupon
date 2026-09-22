@@ -162,8 +162,26 @@
     --shadow-md: 0 4px 16px -2px rgba(0, 0, 0, 0.5);
     --shadow-lg: 0 12px 40px -8px rgba(0, 0, 0, 0.6);
     --shadow-sheet: 0 -8px 32px -4px rgba(0, 0, 0, 0.6);
-    --shadow-glow: 0 0 0 3px rgba(16, 185, 129, 0.25);
-    --shadow-glow-accent: 0 0 0 3px rgba(200, 148, 60, 0.25);
+    /* Focus indicator — two rings, no alpha.
+       These were `0 0 0 3px rgba(...)` at 25% (dark) and 20% (light), which
+       composites against whatever it sits on and measured 1.49-1.53:1 dark and
+       1.27-1.28:1 light — a third of the 3:1 WCAG 2.2 asks of a focus
+       indicator, and invisible in practice. axe has no focus-indicator rule,
+       so 88 clean automated runs said nothing about it.
+
+       The fix is opacity, not hue. The outer ring is the solid `-ink` half of
+       the same brand token — the half that exists to be read against a
+       surface, and which contrast.test.ts already holds to 4.5:1 on all four
+       surface tiers in both palettes, so the ring inherits a guarantee
+       stronger than 3:1 and cannot drift. The inner 2px in `--surface` is a
+       gap: without it a `bg-primary` button would paint the ring onto its own
+       fill. Surface tiers are within 1.24:1 of each other, so one gap colour
+       reads as a gap on all of them. Asserted by src/test/contrast.test.ts. */
+    --shadow-glow: 0 0 0 2px var(--surface), 0 0 0 5px var(--primary-ink);
+    --shadow-glow-accent: 0 0 0 2px var(--surface), 0 0 0 5px var(--accent-ink);
+    /* For controls that sit *on* a brand fill, where the surface gap and the
+       ink ring would both disappear. Same shape, inverted for that ground. */
+    --shadow-glow-on-brand: 0 0 0 2px var(--primary), 0 0 0 5px var(--on-primary);
 
     /* Shimmer keyframe colour tuned for dark bg */
     --shimmer-stripe: rgba(255, 255, 255, 0.04);
@@ -246,8 +264,9 @@
     --shadow-md: 0 4px 16px -4px rgba(20, 24, 31, 0.10);
     --shadow-lg: 0 12px 40px -8px rgba(20, 24, 31, 0.16);
     --shadow-sheet: 0 -8px 32px -4px rgba(20, 24, 31, 0.16);
-    --shadow-glow: 0 0 0 3px rgba(5, 150, 105, 0.20);
-    --shadow-glow-accent: 0 0 0 3px rgba(167, 124, 42, 0.22);
+    --shadow-glow: 0 0 0 2px var(--surface), 0 0 0 5px var(--primary-ink);
+    --shadow-glow-accent: 0 0 0 2px var(--surface), 0 0 0 5px var(--accent-ink);
+    --shadow-glow-on-brand: 0 0 0 2px var(--primary), 0 0 0 5px var(--on-primary);
 
     /* Shimmer keyframe colour tuned for light bg */
     --shimmer-stripe: rgba(20, 24, 31, 0.05);

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { AVATAR_PALETTE } from '@/components/ui/avatar';
@@ -251,4 +251,164 @@ describe.each([
       ).toBeGreaterThanOrEqual(AA_NORMAL);
     },
   );
+});
+
+// ── The focus indicator ─────────────────────────────────────────────────────
+
+/**
+ * WCAG 2.2 SC 1.4.11 Non-text Contrast, for a focus indicator.
+ *
+ * Batch 158. `--shadow-glow` was `0 0 0 3px rgba(16,185,129,0.25)` in dark and
+ * `rgba(5,150,105,0.20)` in light: a ring at a fifth to a quarter alpha, which
+ * composites against whatever it sits on and lands at 1.49-1.53:1 (dark) and
+ * 1.27-1.28:1 (light) against the 3:1 required. Every button in the app used
+ * it, alongside `focus-visible:outline-none`, so keyboard focus was effectively
+ * invisible — and axe has no focus-indicator rule, so 88 clean automated runs
+ * never mentioned it.
+ *
+ * The arithmetic lives here for the same reason the rest of this file does:
+ * jsdom cannot resolve a custom property to a colour, so the rendered-component
+ * tests cannot measure this. Rendering is asserted separately below — that the
+ * ring is *wired to* the controls the review named.
+ */
+const AA_NON_TEXT = 3;
+
+/** Every `--name: <anything>;` in a block, values left as written. */
+function rawTokens(block: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const m of block.matchAll(/--([a-z-]+):\s*([^;]+);/g)) out[m[1]] = m[2].trim();
+  return out;
+}
+
+const DARK_RAW = rawTokens(blockAfter(/:root\s*,\s*html\.dark\s*\{/));
+const LIGHT_RAW = rawTokens(blockAfter(/html\.light\s*\{/));
+
+/**
+ * The two layers of a focus ring token, as token names.
+ *
+ * The shape is `0 0 0 2px var(--gap), 0 0 0 5px var(--ring)`: an inner spread
+ * that separates the indicator from the control's own fill, then the indicator
+ * itself. Parsed rather than hard-coded so changing the shape fails here.
+ */
+function ringLayers(value: string): { gap: string; ring: string } {
+  const layers = value.split(/,(?![^(]*\))/).map((layer) => layer.trim());
+  expect(layers, `expected two box-shadow layers, got: ${value}`).toHaveLength(2);
+  const names = layers.map((layer) => {
+    const m = /var\(--([a-z-]+)\)/.exec(layer);
+    expect(m, `layer is not a bare token reference: ${layer}`).not.toBeNull();
+    return (m as RegExpExecArray)[1];
+  });
+  return { gap: names[0], ring: names[1] };
+}
+
+const FOCUS_TOKENS = ['shadow-glow', 'shadow-glow-accent', 'shadow-glow-on-brand'] as const;
+
+describe.each([
+  ['dark', DARK, DARK_RAW],
+  ['light', LIGHT, LIGHT_RAW],
+])('%s focus indicator', (name, palette, raw) => {
+  it.each(FOCUS_TOKENS)('--%s carries no alpha at all', (token) => {
+    // The regression itself. A translucent ring cannot be measured from the
+    // token, only from the pixels it happens to composite onto, which is how
+    // this shipped: verified against one background and wrong on all of them.
+    expect(raw[token], `--${token}`).toBeDefined();
+    expect(raw[token], `${name}: --${token} is translucent again`).not.toMatch(/rgba?\(/);
+  });
+
+  it.each(['shadow-glow', 'shadow-glow-accent'] as const)(
+    '--%s clears 3:1 on every surface tier',
+    (token) => {
+      const { ring } = ringLayers(raw[token]);
+      for (const surface of SURFACES) {
+        const ratio = contrast(palette[ring], palette[surface]);
+        expect(
+          ratio,
+          `${name}: --${ring} (${palette[ring]}) on --${surface} (${palette[surface]}) is ${ratio.toFixed(2)}:1, needs ${AA_NON_TEXT}:1`,
+        ).toBeGreaterThanOrEqual(AA_NON_TEXT);
+      }
+    },
+  );
+
+  it.each(FOCUS_TOKENS)('--%s separates its ring from its gap', (token) => {
+    // Two layers that read as one blob is one layer with extra steps.
+    const { gap, ring } = ringLayers(raw[token]);
+    const ratio = contrast(palette[ring], palette[gap]);
+    expect(
+      ratio,
+      `${name}: --${ring} on the --${gap} gap is ${ratio.toFixed(2)}:1`,
+    ).toBeGreaterThanOrEqual(AA_NON_TEXT);
+  });
+
+  it.each(['shadow-glow', 'shadow-glow-accent'] as const)(
+    '--%s uses a gap colour that reads as a gap on every tier',
+    (token) => {
+      // One gap colour has to serve four grounds. It can, because the tiers are
+      // within 1.24:1 of each other — but only while that stays true.
+      const { gap } = ringLayers(raw[token]);
+      for (const surface of SURFACES) {
+        const ratio = contrast(palette[gap], palette[surface]);
+        expect(
+          ratio,
+          `${name}: the --${gap} gap reads as an edge on --${surface} at ${ratio.toFixed(2)}:1`,
+        ).toBeLessThan(1.5);
+      }
+    },
+  );
+
+  it('gives a control sitting on a brand fill its own ring', () => {
+    // --shadow-glow would vanish here: its gap is --surface and its ring is the
+    // brand colour, which is the ground. This one inverts both.
+    const { gap, ring } = ringLayers(raw['shadow-glow-on-brand']);
+    expect(gap).toBe('primary');
+    const ratio = contrast(palette[ring], palette['primary']);
+    expect(
+      ratio,
+      `${name}: --${ring} on a --primary fill is ${ratio.toFixed(2)}:1, needs ${AA_NON_TEXT}:1`,
+    ).toBeGreaterThanOrEqual(AA_NON_TEXT);
+  });
+
+  it('would have failed on the ring that shipped', () => {
+    // Guards the guard: the arithmetic above has to reject the real defect.
+    const composite = (hex: string, alpha: number, ground: string) => {
+      const mix = (a: string, b: string, i: number) =>
+        Math.round(parseInt(a.slice(i, i + 2), 16) * alpha + parseInt(b.slice(i, i + 2), 16) * (1 - alpha));
+      const [f, g] = [hex.replace('#', ''), ground.replace('#', '')];
+      return `#${[0, 2, 4].map((i) => mix(f, g, i).toString(16).padStart(2, '0')).join('')}`;
+    };
+    const shipped = name === 'dark' ? ['#10B981', 0.25] : ['#059669', 0.2];
+    const onSurface = composite(shipped[0] as string, shipped[1] as number, palette['surface']);
+    expect(contrast(onSurface, palette['surface'])).toBeLessThan(AA_NON_TEXT);
+  });
+});
+
+describe('the controls the focus ring has to reach', () => {
+  // The review named three: "buttons, selection rows and the bottom-nav items".
+  // Measuring the token proves the colour; this proves it is wired to them.
+  const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
+
+  it.each([
+    ['buttons', 'src/components/ui/button.tsx'],
+    ['selection rows', 'src/components/PickCard.tsx'],
+    ['bottom-nav items', 'src/components/TabBar.tsx'],
+  ])('%s use the shared focus ring', (_label, path) => {
+    expect(read(path)).toMatch(/focus-visible:shadow-glow\b/);
+  });
+
+  it('leaves no control styling focus with a bare ring utility', () => {
+    // `ring-*` utilities bypass the tokens measured above, which is how the two
+    // hold-outs (UpdateBanner, the settings toggle) kept an unmeasured ring.
+    const sources = ['src/components', 'src/pages'];
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(resolve(process.cwd(), dir), { withFileTypes: true })) {
+        const next = `${dir}/${entry.name}`;
+        if (entry.isDirectory()) walk(next);
+        else if (entry.name.endsWith('.tsx') && /focus-visible:ring-/.test(read(next))) {
+          offenders.push(next);
+        }
+      }
+    };
+    sources.forEach(walk);
+    expect(offenders, 'focus styled with an unmeasured ring utility').toEqual([]);
+  });
 });

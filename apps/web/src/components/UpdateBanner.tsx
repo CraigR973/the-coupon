@@ -150,7 +150,7 @@ export function UpdateBanner() {
         {/* Manual trigger — always available so users aren't stuck waiting. */}
         <button
           onClick={reload}
-          className="tap-target shrink-0 px-3 py-1 rounded-sm text-sm font-sans font-semibold bg-white/20 hover:bg-white/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+          className="tap-target shrink-0 px-3 py-1 rounded-sm text-sm font-sans font-semibold bg-white/20 hover:bg-white/30 transition-colors focus-visible:outline-none focus-visible:shadow-glow-on-brand"
         >
           Update now
         </button>

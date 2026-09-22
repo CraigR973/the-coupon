@@ -63,7 +63,7 @@ function Toggle({
         aria-label={label}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus-visible:shadow-glow ${
           checked ? 'bg-primary' : 'bg-border'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >

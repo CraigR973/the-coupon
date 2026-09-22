@@ -98,6 +98,7 @@ export default {
         sheet: 'var(--shadow-sheet)',
         glow: 'var(--shadow-glow)',
         'glow-accent': 'var(--shadow-glow-accent)',
+        'glow-on-brand': 'var(--shadow-glow-on-brand)',
       },
       borderColor: {
         DEFAULT: 'var(--border)',
