@@ -598,6 +598,80 @@ async def _set_pick_scope(league: League, scope: PickScope) -> None:
         await session.commit()
 
 
+@pytest.mark.parametrize(
+    ("pick_scope", "conflict_detail"),
+    [
+        (PickScope.selection, "SELECTION_TAKEN"),
+        (PickScope.fixture, "FIXTURE_TAKEN"),
+    ],
+)
+async def test_simultaneous_claim_losers_receive_a_cors_conflict(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+    monkeypatch: pytest.MonkeyPatch,
+    pick_scope: PickScope,
+    conflict_detail: str,
+) -> None:
+    """Every loser of the database race receives the conflict the router promises.
+
+    The barrier holds all ten requests after their pre-check, so the database unique
+    key — not a later request observing the winner — decides the claim. This exercises
+    the rollback path that used to dereference the expired league and answer 500 without
+    CORS, which the browser surfaced as a network failure.
+    """
+    from src.routers import picks as picks_router
+
+    _, fake = client_and_fake
+    contenders = 10
+    async with AsyncSessionLocal() as session:
+        players, league = await _seed_league(session, [f"racer-{i}" for i in range(contenders)])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    await _set_pick_scope(league, pick_scope)
+    fixture_id = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    original_claim_conflict = picks_router._claim_conflict
+    precheck_barrier = asyncio.Barrier(contenders)
+
+    async def synchronised_claim_conflict(*args: Any, **kwargs: Any) -> str | None:
+        detail = await original_claim_conflict(*args, **kwargs)
+        await asyncio.wait_for(precheck_barrier.wait(), timeout=5)
+        return detail
+
+    monkeypatch.setattr(picks_router, "_claim_conflict", synchronised_claim_conflict)
+
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        responses = await asyncio.gather(
+            *(
+                client.post(
+                    f"/api/v1/leagues/{league.slug}/picks",
+                    json={
+                        "fixture_id": fixture_id,
+                        "market": "MATCH_ODDS",
+                        "outcome": "HOME",
+                    },
+                    headers={**_auth(player), "Origin": settings.frontend_origin},
+                )
+                for player in players
+            )
+        )
+
+    winners = [response for response in responses if response.status_code == 201]
+    losers = [response for response in responses if response.status_code != 201]
+    assert len(winners) == 1, [response.status_code for response in responses]
+    assert len(losers) == contenders - 1
+    for response in losers:
+        assert response.status_code == 409, response.text
+        assert response.json()["detail"] == conflict_detail
+        assert response.headers["access-control-allow-origin"] == settings.frontend_origin
+
+    async with AsyncSessionLocal() as session:
+        held = await session.scalar(
+            select(func.count()).select_from(Pick).where(Pick.gameweek_id == gameweek.id)
+        )
+    assert held == 1
+
+
 async def test_fixture_scope_takes_the_whole_game(
     client_and_fake: tuple[AsyncClient, FakeBetfair],
 ) -> None:

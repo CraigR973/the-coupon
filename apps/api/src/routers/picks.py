@@ -307,6 +307,10 @@ async def submit_pick(
         pick = Pick(league_id=league.id, gameweek_id=gameweek.id, player_id=player.id)
         db.add(pick)
     _apply_selection(pick, fixture, body, selection, league.pick_scope)
+    # A rollback expires every ORM object in the session. Preserve the response code
+    # while ``league`` is still readable so a loser in the database race gets the
+    # intended conflict instead of an implicit async reload and a 500.
+    taken_detail = _taken_detail(league)
 
     try:
         await db.commit()
@@ -314,7 +318,7 @@ async def submit_pick(
         # A concurrent grab won the claim (or the member's pick) between pre-check
         # and commit — the unique constraints are the source of truth.
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_taken_detail(league))
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=taken_detail)
     await db.refresh(pick)
 
     log.info(
