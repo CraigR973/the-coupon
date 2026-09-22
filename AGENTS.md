@@ -92,9 +92,9 @@ from it, so a batch's frontend half reaches members minutes after it verifies,
 before CI has necessarily reported. Two consequences to hold:
 
 - A batch whose web half calls an API route the deployed image does not serve
-  breaks production until `/ship-prod` runs. Step 9 prints the drift; when it
-  says a ship is owed and the batch added both halves of one feature, say so
-  loudly in the close-out report rather than leaving it in the output.
+  breaks production until `/ship-prod` runs. Close-out now checks drift before
+  the push and refuses an API+web batch until the owner explicitly schedules
+  that shipment; never add the acknowledgement on the owner's behalf.
 - The owner's review window is now *after* the deploy, not before it. Report
   what shipped clearly enough to be reverted.
 

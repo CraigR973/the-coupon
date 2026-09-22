@@ -101,5 +101,4 @@ jobs:
       - run: pnpm --dir apps/web build
         env:
           VITE_API_URL: https://api.example.invalid
-      - run: pnpm --dir apps/web exec vite preview --host 127.0.0.1 > /tmp/the-coupon-vite.log 2>&1 & sleep 5
-      - run: pnpm --dir apps/web exec playwright test -c playwright.prod-bundle.config.ts
+      - run: scripts/run-prod-bundle-smoke.sh

@@ -21,7 +21,7 @@
 # Rebuild the venv from scratch: CI_LOCAL_REBUILD=1 scripts/ci-local.sh
 set -uo pipefail
 
-ROOT="/Users/craigrobinson/the-coupon"
+ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 REQ="$ROOT/apps/api/requirements-dev.txt"
 VENV="${CI_LOCAL_VENV:-$HOME/.cache/the-coupon/ci-local-venv}"
 # Matches actions/setup-python in .github/workflows/ci.yml.
@@ -32,6 +32,17 @@ PASSED=0
 
 cleanup() { rm -f "$LOG"; }
 trap cleanup EXIT
+
+if ! "$ROOT/scripts/assert-quality-guardrails.sh"; then
+  exit 1
+fi
+
+read_count() {
+  local key="$1"
+  sed -nE "s/^${key}=([0-9]+)$/\\1/p" "$ROOT/scripts/ci-test-counts.env"
+}
+BACKEND_TEST_COUNT="$(read_count BACKEND_TEST_COUNT)"
+FRONTEND_TEST_COUNT="$(read_count FRONTEND_TEST_COUNT)"
 
 # step <name> <working-dir> <command...>
 step() {
@@ -44,6 +55,47 @@ step() {
     echo "FAIL"
     sed 's/^/      /' "$LOG" | tail -30
     FAILED+=("$name")
+  fi
+}
+
+# test_step <name> <working-dir> <suite> <expected-count> <command...>
+test_step() {
+  local name="$1" dir="$2" suite="$3" expected="$4"; shift 4
+  local summary count skipped
+  printf '  %-36s' "$name"
+  if ! ( cd "$dir" && "$@" ) >"$LOG" 2>&1; then
+    echo "FAIL"
+    sed 's/^/      /' "$LOG" | tail -30
+    FAILED+=("$name")
+    return
+  fi
+
+  if [[ "$suite" == backend ]]; then
+    summary="$(grep -E '[0-9]+ passed' "$LOG" | tail -1)"
+  else
+    summary="$(grep -E 'Tests[[:space:]]+[0-9]+ passed' "$LOG" | tail -1)"
+  fi
+  count="$(printf '%s' "$summary" | grep -Eo '[0-9]+ passed' | head -1 | cut -d' ' -f1)"
+  skipped="$(printf '%s' "$summary" | grep -Eo '[0-9]+ skipped' | head -1 | cut -d' ' -f1)"
+  skipped="${skipped:-0}"
+
+  if [[ -z "$count" || ! "$count" =~ ^[0-9]+$ ]]; then
+    echo "FAIL"
+    echo "      Could not read the $suite test count from the successful command."
+    sed 's/^/      /' "$LOG" | tail -30
+    FAILED+=("$name (count missing)")
+  elif (( skipped > 0 )); then
+    echo "FAIL ($count passed, $skipped skipped; expected no skips)"
+    FAILED+=("$name ($skipped skipped)")
+  elif (( count < expected )); then
+    echo "FAIL ($count tests; expected $expected — tests were removed or skipped)"
+    FAILED+=("$name (test count fell)")
+  elif (( count > expected )); then
+    echo "FAIL ($count tests; baseline is $expected — raise ci-test-counts.env and rerun)"
+    FAILED+=("$name (baseline stale)")
+  else
+    echo "PASS ($count tests, 0 skipped)"
+    PASSED=$((PASSED + 1))
   fi
 }
 
@@ -105,11 +157,12 @@ step "mypy src"            "$ROOT/apps/api" env PYTHONPATH="$ROOT/apps/api" "$PY
 
 # alembic + pytest need a database. Start from a clean schema: the HTTP pick-flow
 # test commits real rows, so a reused cluster accumulates them across runs.
-step "alembic upgrade head + pytest" "$ROOT" "$PYTHON" - <<'PY'
+test_step "alembic upgrade head + pytest" "$ROOT" backend "$BACKEND_TEST_COUNT" \
+  env COUPON_CI_API="$ROOT/apps/api" "$PYTHON" - <<'PY'
 import os, shutil, subprocess, sys, tempfile
 import pgserver
 
-API = "/Users/craigrobinson/the-coupon/apps/api"
+API = os.environ["COUPON_CI_API"]
 pgdata = tempfile.mkdtemp(prefix="coupon-ci-")
 try:
     server = pgserver.get_server(pgdata)
@@ -144,19 +197,13 @@ echo
 echo "frontend"
 step "lint"      "$ROOT" pnpm --dir apps/web lint
 step "typecheck" "$ROOT" pnpm --dir apps/web typecheck
-step "test"      "$ROOT" pnpm --dir apps/web test
+test_step "test" "$ROOT" frontend "$FRONTEND_TEST_COUNT" pnpm --dir apps/web test
 step "build"     "$ROOT" env VITE_API_URL=https://api.example.invalid pnpm --dir apps/web build
 
 if [[ -z "${SKIP_PROD_BUNDLE:-}" ]]; then
   echo
   echo "prod-bundle"
-  step "playwright deep-link smoke" "$ROOT" bash -c '
-    pnpm --dir apps/web exec vite preview --host 127.0.0.1 >/tmp/the-coupon-vite.log 2>&1 &
-    preview=$!
-    trap "kill $preview 2>/dev/null" EXIT
-    sleep 5
-    pnpm --dir apps/web exec playwright test -c playwright.prod-bundle.config.ts
-  '
+  step "playwright deep-link smoke" "$ROOT" "$ROOT/scripts/run-prod-bundle-smoke.sh"
 fi
 
 echo
