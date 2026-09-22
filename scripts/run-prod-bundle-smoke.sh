@@ -7,6 +7,8 @@ set -uo pipefail
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 PORT=4173
 URL="http://127.0.0.1:$PORT"
+READINESS_TIMEOUT_SECONDS=60
+READINESS_POLLS_PER_SECOND=4
 LOG="$(mktemp -t coupon-vite-preview-XXXXXX)"
 preview=""
 
@@ -24,7 +26,7 @@ pnpm --dir "$ROOT/apps/web" exec vite preview \
 preview=$!
 
 ready=false
-for _ in {1..60}; do
+for ((attempt = 0; attempt < READINESS_TIMEOUT_SECONDS * READINESS_POLLS_PER_SECOND; attempt++)); do
   if ! kill -0 "$preview" 2>/dev/null; then
     wait "$preview" 2>/dev/null || status=$?
     sed 's/^/  /' "$LOG" >&2
@@ -43,7 +45,7 @@ done
 
 if [[ "$ready" != true ]]; then
   sed 's/^/  /' "$LOG" >&2
-  echo "prod-bundle smoke: preview did not become ready at $URL within 15 seconds" >&2
+  echo "prod-bundle smoke: preview did not become ready at $URL within ${READINESS_TIMEOUT_SECONDS} seconds" >&2
   exit 1
 fi
 

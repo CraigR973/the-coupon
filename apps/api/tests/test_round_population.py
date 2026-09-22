@@ -144,6 +144,16 @@ def _window(weekday: int, minute: int) -> SlateWindow:
     )
 
 
+def _future_window(days_ahead: int, minute: int) -> SlateWindow:
+    """A point window safely ahead of the wall clock, whichever day the suite runs.
+
+    Batch 112 correctly refuses to create a round after its lock. Tests exercising a
+    complete two-date horizon must therefore put their window in the future rather than
+    naming a weekday that becomes a past deadline for a few hours every week.
+    """
+    return _window((uk_today().weekday() + days_ahead) % 7, minute)
+
+
 def _cadence(window: SlateWindow) -> list[date]:
     """The dates a league on this window would populate — its whole horizon."""
     return upcoming_slate_dates(uk_today(), window, settings.slate_horizon_weeks)
@@ -276,7 +286,7 @@ async def test_a_league_created_on_a_pooled_window_costs_no_provider_requests(
     """
     client, counter = client_and_counter
     admin = await _player()
-    window = _window(TUESDAY, 19 * 60)
+    window = _future_window(1, 19 * 60)
     pooled = await _pool_cadence(window, competition_id="test-div-a")
 
     slug = await _create_league(client, admin, window)
@@ -385,7 +395,7 @@ async def test_an_empty_pool_falls_back_to_a_fetch_and_is_refused_past_the_share
     """
     client, counter = client_and_counter
     admin = await _player()
-    window = _window(TUESDAY, 20 * 60 + 15)
+    window = _future_window(2, 20 * 60 + 15)
     league = await _seed_league(admin, window)
     allowance = min(_hourly_sweeps(), settings.slate_horizon_weeks)
 
@@ -486,8 +496,8 @@ async def test_the_settings_edit_restamps_an_unlocked_round_and_the_refresh_leav
     """
     client, counter = client_and_counter
     admin = await _player()
-    before_window = _window(TUESDAY, 19 * 60 + 15)
-    after_window = _window(TUESDAY, 18 * 60 + 15)
+    before_window = _future_window(3, 19 * 60 + 15)
+    after_window = _future_window(3, 18 * 60 + 15)
     old_card = await _pool_cadence(before_window, competition_id="test-div-e")
 
     slug = await _create_league(client, admin, before_window, pick_open_offset_minutes=2880)
