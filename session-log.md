@@ -3825,3 +3825,25 @@ unchecked because Batch 119 superseded it.
   API-only. One explicit Group N `/ship-prod` now carries all three.
 
 **Next:** `/ship-prod`, then rerun `/group-start N` to verify the checkpoint in sync.
+
+## Batch 158 — Keyboard focus is invisible on every button in the app
+**Commits:** `fa922f8` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,179 backend and
+1,073 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- The fix is opacity, not hue. `--shadow-glow` is now `0 0 0 2px var(--surface), 0 0 0 5px
+  var(--primary-ink)` — a gap layer then a solid ring — and the accent token mirrors it.
+- Tying the ring to the `-ink` half of the brand token means the existing 4.5:1 assertions
+  on ink tokens already guarantee the ring clears 3:1 in both palettes; it cannot drift.
+- The gap layer is one colour for four surface tiers. That works only while the tiers stay
+  within 1.24:1 of each other, which `contrast.test.ts` now asserts explicitly.
+- `--shadow-glow-on-brand` exists because a control sitting on a `--primary` fill would lose
+  both other layers into its own ground. The update banner's button is the only user.
+- No component class string changed for the 49 existing `focus-visible:shadow-glow` sites,
+  so `TeamSeasonPage.test.tsx`'s focus-ring assertion still holds unedited.
+- A new test walks `src/components` and `src/pages` and fails on any `focus-visible:ring-`,
+  which is how the two unmeasured hold-outs survived the original sweep.
+- Gate green on the first run; the only change needed was raising FRONTEND_TEST_COUNT from
+  1,045 to 1,073 for the 28 tests this batch adds.
+
+**Next:** Batch 137.

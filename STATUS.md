@@ -1342,9 +1342,10 @@ groups by window, so putting it there would multiply the provider bill.
 
 ## Next
 
-**Group N is closed on `main`; `/ship-prod` is now required.** Batches 120, 121 and 122
-are API-only and none is live until that explicit checkpoint ships them together. Do not
-start the next phase before the deployed API is confirmed in sync. Batch 95 remains
+**Group N has shipped.** `scripts/check-deploy-drift.sh` reports the deployed API in sync
+at `89217f82`, migration 025, so Batches 120, 121 and 122 are live and no `/ship-prod` is
+owed for them. The nine-phase run order in `docs/review/2026-09-13/09-prompts.md` is the
+running order from here; Phase 3 (158, 137, 138, 139, 167) is under way. Batch 95 remains
 soft-blocked and Batch 115 is superseded by 119, so neither is the next implementation.
 The production calendar backfill remains a separate explicit owner action; do not infer
 authority to run it from a batch or deployment command.
@@ -1375,6 +1376,16 @@ reset now refuses a target who is a site admin or an active admin of any league,
 403 contract that directs privileged recovery to the site console without disclosing which
 role triggered it. Ordinary-member recovery, session revocation, the 24-hour claim window
 and the site-console reset are unchanged.
+
+**Batch 158 made keyboard focus visible** (`fa922f8`). `--shadow-glow` was a ring at 20-25%
+alpha, so the focus indicator on every button measured 1.49-1.53:1 in dark and 1.27-1.28:1
+in light against the 3:1 WCAG 2.2 requires — and axe has no focus-indicator rule, so 88
+clean automated runs never mentioned it. The ring is now two solid layers: a 2px `--surface`
+gap that keeps it off the control's own fill, then a 3px ring in the `-ink` half of the same
+brand token, which `contrast.test.ts` already holds to 4.5:1 on all four surface tiers in
+both palettes. A third token, `--shadow-glow-on-brand`, serves controls sitting on a brand
+fill. The two hold-outs that styled focus with a bare `ring-*` utility now use the shared
+tokens and a test refuses any new one. Web-only; live on the close-out push.
 
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a

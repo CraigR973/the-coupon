@@ -4765,7 +4765,7 @@ answered until it lands, because until then there is no data to look at.
   them. **API + web — remove the web's use first, or in the same batch, so the field's
   removal cannot break a deployed client.**
 
-- [ ] **Batch 158 — Keyboard focus is invisible on every button in the app**
+- [x] **Batch 158 — Keyboard focus is invisible on every button in the app** ✅ 2026-09-22
   — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-14 (HIGH, live).
   `button.tsx:11` sets `focus-visible:outline-none` and replaces the native outline with
   `focus-visible:shadow-glow`, where `--shadow-glow` is `0 0 0 3px rgba(16,185,129,0.25)`.
