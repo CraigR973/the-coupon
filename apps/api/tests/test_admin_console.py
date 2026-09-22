@@ -286,6 +286,64 @@ async def test_the_league_admin_reset_obeys_the_same_rule(client: AsyncClient) -
     assert (await _reload(member.id)).pin_hash is None
 
 
+async def test_a_league_admin_cannot_open_a_site_admins_pin_claim_window(
+    client: AsyncClient,
+) -> None:
+    """The exact takeover: the target is only an ordinary member of this league."""
+    attacker = await _profile()
+    target = await _profile(UserRole.admin)
+    site_operator = await _profile(UserRole.admin)
+    league = await _league_for(attacker)
+    async with AsyncSessionLocal() as session:
+        session.add(LeagueMembership(league_id=league.id, player_id=target.id))
+        await session.commit()
+    await _live_session(target.id)
+
+    refused = await client.post(
+        f"/api/v1/leagues/{league.slug}/members/{target.id}/reset-pin",
+        headers=_auth(attacker),
+    )
+
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == "SITE_ADMIN_RESET_REQUIRED"
+    assert (await _reload(target.id)).pin_hash is not None
+    assert await _live_session_count(target.id) == 1
+
+    # The same target remains resettable through the site console, which owns privileged
+    # account recovery and is deliberately unchanged by this batch.
+    reset = await client.post(
+        f"/api/v1/admin/players/{target.id}/reset-pin",
+        headers=_auth(site_operator),
+    )
+    assert reset.status_code == 200, reset.text
+    assert (await _reload(target.id)).pin_hash is None
+    assert await _live_session_count(target.id) == 0
+
+
+async def test_a_league_admin_cannot_reset_an_admin_of_another_league(
+    client: AsyncClient,
+) -> None:
+    """Protection follows the target across leagues, not only their role in this one."""
+    attacker = await _profile()
+    target = await _profile()
+    attack_league = await _league_for(attacker)
+    await _league_for(target)  # The target is an admin here, outside the attacker's league.
+    async with AsyncSessionLocal() as session:
+        session.add(LeagueMembership(league_id=attack_league.id, player_id=target.id))
+        await session.commit()
+    await _live_session(target.id)
+
+    refused = await client.post(
+        f"/api/v1/leagues/{attack_league.slug}/members/{target.id}/reset-pin",
+        headers=_auth(attacker),
+    )
+
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == "SITE_ADMIN_RESET_REQUIRED"
+    assert (await _reload(target.id)).pin_hash is not None
+    assert await _live_session_count(target.id) == 1
+
+
 # ── A cleared PIN is the absence of one, not a blank one ───────────────────────
 
 

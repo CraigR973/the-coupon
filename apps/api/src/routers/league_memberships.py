@@ -16,7 +16,7 @@ from src.models.invite import Invite
 from src.models.league import League
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.notification import ActionType
-from src.models.profile import Profile
+from src.models.profile import Profile, UserRole
 from src.rate_limit import limiter, per_user_key
 from src.routers.leagues import (
     LeagueAdminDep,
@@ -517,6 +517,26 @@ async def reset_member_pin(
     target = result.scalar_one_or_none()
     if target is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player not found")
+
+    # A cleared PIN can be claimed without authentication for the next 24 hours. A
+    # league admin must therefore never be able to open that window on an account whose
+    # privileges reach beyond an ordinary membership in this league. Keep one response
+    # for both cases so it says where the reset belongs without disclosing which global
+    # privilege the target holds.
+    target_admin_membership = await db.scalar(
+        select(LeagueMembership.id)
+        .where(
+            LeagueMembership.player_id == target.id,
+            LeagueMembership.role == LeagueMemberRole.admin,
+            LeagueMembership.deleted_at.is_(None),
+        )
+        .limit(1)
+    )
+    if target.role is UserRole.admin or target_admin_membership is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="SITE_ADMIN_RESET_REQUIRED",
+        )
 
     revoked = await clear_pin(db, target)
     db.add(pin_reset_audit(player, target, STAGE_RESET, {"league_slug": slug}))
