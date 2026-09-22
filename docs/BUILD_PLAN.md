@@ -4360,8 +4360,9 @@ answered until it lands, because until then there is no data to look at.
   Self-service deletion that anonymises the display name while preserving scoring history,
   plus a data export of the member's own picks, points and profile.
 
-  **Owner decision first**: anonymise and keep history, or remove outright. The
-  recommendation on 2026-09-13 was to anonymise.
+  **Owner decision, 2026-09-22: anonymise and keep history.** The member disappears from
+  view and their display name is freed for reuse, while their settled points still sum
+  into historic standings so past leagues stay coherent.
 
   Verification: a test that a deleted member's name is anonymised everywhere it renders
   while their points still sum into historic standings; a test that the export contains the
@@ -4468,10 +4469,12 @@ answered until it lands, because until then there is no data to look at.
   and the endpoint allowlist does not restrict the port.
 
   Bump `cryptography` past the advisories and give `webpush()` an explicit timeout;
-  restrict the endpoint port while in there. **Note OPS-07's constraint**: 49.0.0 is where
-  macOS wheels stop, so `scripts/ci-local.sh`'s `--only-binary` guard will fail loudly —
-  decide deliberately between a source build locally and holding at 48.0.1 with the
-  advisories documented as unreachable.
+  restrict the endpoint port while in there. **Owner decision, 2026-09-22: hold at 48.0.1.** 49.0.0 is where macOS wheels stop and
+  `scripts/ci-local.sh`'s `--only-binary` guard exists to catch exactly that, so the bump is
+  not taken. Instead **document the three advisories as unreachable** where the pin lives,
+  with the reasoning (the application never calls `cryptography` directly; the only path is
+  transitive VAPID signing), so the next dependency scan does not re-derive this from
+  scratch. The web-push timeout and port restriction are still this batch's work.
 
   Verification: the gate green on the chosen version; a test that a hanging push service
   does not block the request beyond the timeout.
@@ -4674,8 +4677,9 @@ answered until it lands, because until then there is no data to look at.
   contradicting `AGENTS.md:50-56` at the exact moment an agent is deciding.
 
   Apply the corrections listed in `docs/review/2026-09-13/08-sequencing.md`, date the
-  numbers so the next drift is visible, and realign the hook text. **The hook change is the
-  owner's to approve** — it alters how every future session behaves.
+  numbers so the next drift is visible, and realign the hook text. **The hook change is
+  approved (owner, 2026-09-22)**: both stop hooks should say close-out is automatic here
+  and should not wait to be asked, matching `AGENTS.md`.
 
   Verification: the quoted numbers match a fresh run; the hook text and `AGENTS.md` say the
   same thing.
@@ -4716,15 +4720,50 @@ answered until it lands, because until then there is no data to look at.
   Redact the names from the working tree, replacing them with stable non-identifying
   references where the history needs to make sense.
 
-  **Owner decision first**: redact the working tree only, or also rewrite history. The
-  recommendation on 2026-09-13 was to redact now and treat a history rewrite as a separate
-  call, since a rewrite invalidates every existing clone and shipped SHA.
+  **Owner decision, 2026-09-22: redact the working tree only.** A history rewrite
+  invalidates every existing clone and every shipped commit SHA, including those recorded
+  in the deployment and launch logs, and is explicitly **not** authorised by this batch.
 
   Verification: the names appear nowhere in the tracked tree; the backfill document still
   reads coherently.
 
   Scope boundary: redaction in the working tree. History rewriting is explicitly out of
   scope unless separately authorised. **Tooling-only (no deploy).**
+
+- [ ] **Batch 156 — A voided leg's price still multiplies into the combined coupon**
+  — specified from `docs/review/2026-09-13/02-correctness.md`; owner decision 2026-09-22:
+  **exclude void legs**. `build_coupon` appends every pick's `odds_at_pick` into the
+  accumulator unconditionally, verified as `53.01 = 3.75 x 1.90 x 3.10(void) x 2.40`. The
+  contract's wording ("multiplies every member's frozen odds") literally permits it, but a
+  real accumulator settles a voided leg at 1.0, and the contract's own rule is that a void
+  "scores nothing rather than counting as a loss" — carrying its price into the product is
+  the coupon-level version of counting it.
+
+  Exclude void legs from the combined-odds product and say so on the coupon where a leg was
+  voided, so the number is explainable rather than merely different.
+
+  Verification: a test that a round containing a void reports the product of the non-void
+  legs; a test that a round with no voids is unchanged; the clipboard share text agrees with
+  the screen.
+
+  Scope boundary: the combined-odds calculation and its label. No change to scoring — a void
+  already scores nothing — and no change to the frozen prices themselves. **API-carrying.**
+
+- [ ] **Batch 157 — The cross-league summary aggregates rank, which the contract says it does not**
+  — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-18 (LOW, live); owner
+  decision 2026-09-22: **drop the field**. The contract states that across leagues, points
+  and win rate aggregate and rank does not; `me.py` computes and returns `avg_rank` and
+  `avg_rank_leagues` on the cross-league summary anyway. It is arguably meaningless as well
+  as contradictory — an average of ranks across leagues of different sizes.
+
+  Remove both fields from the summary and from whatever the web reads them into.
+
+  Verification: the summary response no longer carries either field; the screens that read
+  them render without them; the contract and the code now agree.
+
+  Scope boundary: those two fields. No change to the points and win-rate aggregates beside
+  them. **API + web — remove the web's use first, or in the same batch, so the field's
+  removal cannot break a deployed client.**
 
 ## Verification
 

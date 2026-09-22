@@ -1,4 +1,4 @@
-# 08 — Sequencing: how Batches 120-155 group
+# 08 — Sequencing: how Batches 120-157 group
 
 The same discipline as the 2026-08-26 sequencing: `/batch-start N` still takes
 one batch, on its own branch, through its own gate, with its own automatic
@@ -14,6 +14,26 @@ not serve is broken in production for the length of that gap.
 and its web half is live against an API that 404s (PIPE-05). **Ship that before
 starting Group N**, or the first close-out push stacks a second undeployed half
 on top of the first.
+
+## The decided order (owner, 2026-09-22)
+
+1. **`/ship-prod`** — migration 025, owed since 13 September.
+2. **The three unfinished passes** — manual accessibility, web performance,
+   odds budget and scheduler. The owner chose to complete the register before
+   building.
+3. **Batch 152** — the gate repair, taken out of order.
+4. **Group N onward** as laid out below.
+
+Steps 2 and 3 both delay Group N, which holds the live Saturday defects. That is
+the owner's call, recorded here rather than argued with.
+
+Also decided: hold the cryptography pin at 48.0.1 (Batch 142 documents the
+advisories as unreachable instead of bumping); anonymise on account deletion
+(Batch 136); exclude void legs from the combined coupon (**Batch 156**, new);
+drop the cross-league average rank (**Batch 157**, new); redact names in the
+working tree only (Batch 155); realign the stop-hook text (Batch 153); do the
+storage-egress attribution next, then Batch 95. PIPE-01 is the owner's own
+two-minute fix and is not a batch.
 
 ## Group N — The Saturday defects · Batches 120, 121, 122 · **API-carrying** → `/ship-prod`
 

@@ -116,7 +116,7 @@ or informational.** Every one was then re-checked against the source — 44 of 4
 confirmed at the stated location, one refined (PERF-04) and one withdrawn
 (SEC-24). That pass is `09-reconciliation.md`, and **every surviving finding now
 has a batch, an owner decision, or an explicit "accepted, no action"**:
-Batches 120-155.
+Batches 120-157.
 
 ## What is already excellent — do not churn it
 
@@ -136,29 +136,34 @@ Batches 120-155.
 - **The design system is good** and both themes are considered; Batch 97's
   fill-the-viewport work on home genuinely worked.
 
-## Owner decisions
+## Owner decisions — answered 2026-09-22
 
-1. **Ship migration 025 now.** Its web half has been live against a 404ing API
-   since 13 September. Recommendation: ship before starting any new batch.
-2. **The local database tooling** (PIPE-01) — rescope to staging read-only, or
-   remove it? Recommendation: rescope by hand, today.
-3. **Account deletion** (FEAT-B07) — anonymise and keep scoring history, or
-   remove outright? Recommendation: anonymise.
-4. **The API's worker count** (PERF-02) — the scheduler lives in the web process,
-   so more workers means more schedulers. Recommendation: stay at one; move the
-   scheduler out before ~10 leagues.
-5. **Storage-egress attribution** (FEAT-A09) — unchanged since August and still
-   the only thing blocking backups (OPS-13). Recommendation: do it next.
-6. **Launch gate L5** — still open after three reviews. Recommendation: close it
-   retroactively or delete it.
-7. **The combined coupon and void legs** — it currently multiplies a void leg's
-   price into the accumulator. Recommendation: exclude void legs.
-8. **Average rank across leagues** (CORR-18) contradicts the contract.
-   Recommendation: drop the field.
-9. **The non-owner names** (PIPE-08) — redact the working tree, or also rewrite
-   history? Recommendation: redact now, decide history separately.
-10. **Restructure `STATUS.md` and the build plan** (PIPE-07)? Recommendation:
-    yes — it saves ~106k tokens of reading on every future batch.
+All twelve were put to the owner and answered. Recorded here so the reasoning
+survives rather than being re-derived by the next review, the way the 2026-08-27
+table did.
+
+| decision | answer | what it means |
+| --- | --- | --- |
+| Ship migration 025 | **ship now** | clears the live 404 on the admin Calendar page and unblocks Batches 132 and 144; leaves the API without a rollback target until the next non-migrating ship |
+| Batch 152 (gate repair) out of order | **take it first** | every other batch is verified by the gate it repairs, and close-out pushes to production automatically |
+| PIPE-01 local agent config | **rescope to staging, read-only** | mirror the Codex config; drop the blanket shell allow and the cross-repo delete rule. Owner does this by hand — not a batch |
+| Account deletion (FEAT-B07) | **anonymise, keep history** | Batch 136: the member disappears and their name is freed, while settled points still sum into historic standings |
+| Cryptography pin (Batch 142) | **hold at 48.0.1** | the fix version is where macOS wheels stop; document the three advisories as unreachable instead, with the reasoning, so the next scan does not re-derive it |
+| Void legs in the combined coupon | **exclude them** | **Batch 156** (new). A real accumulator settles a void at 1.0, and the contract already says a void scores nothing |
+| Average rank across leagues (CORR-18) | **drop the field** | **Batch 157** (new). Restores the contract as written |
+| Name redaction (Batch 155) | **working tree only** | a history rewrite invalidates every clone and shipped SHA; explicitly not authorised |
+| Stop-hook text (Batch 153) | **realign with the policy** | both hooks will say close-out is automatic here, matching `AGENTS.md` |
+| Restructure STATUS and the build plan (Batch 154) | **yes** | pays back ~106k tokens of cold-start reading on every future batch |
+| Storage egress (FEAT-A09) | **attribute it next** | it is the only thing blocking Batch 95, which is the only fix for having no backup at all |
+| The three unfinished passes | **finish before any building** | the register is completed first; see the note below |
+
+**One interaction the owner should know about.** "Finish the unfinished passes
+before any building" and "take Batch 152 first" pull against each other, and both
+sit behind "ship 025 now". The order that honours all three: ship 025, then run
+the manual accessibility, web performance and odds-budget passes, then Batch 152,
+then Group N. That delays the live Saturday defects — the claim-race 500, the
+stray round that scores, and the account takeover — by the length of those three
+passes. Say so if you would rather Group N went first.
 
 ## Where this review was wrong
 
@@ -209,6 +214,6 @@ Batches 120-155.
 | [05-feature-gaps.md](05-feature-gaps.md) | spec-versus-built, and what a paying member expects |
 | [06-premium-design.md](06-premium-design.md) | the core screens against a paid-app bar |
 | [07-agent-pipeline.md](07-agent-pipeline.md) | the gate, the automatic push, and what is prose rather than machinery |
-| [08-sequencing.md](08-sequencing.md) | Batches 120-155 in deployment-safe groups, and the unfinished work |
+| [08-sequencing.md](08-sequencing.md) | Batches 120-157 in deployment-safe groups, the decided order, and the unfinished work |
 | [09-reconciliation.md](09-reconciliation.md) | every finding re-checked against the source, line by line |
 | [screenshots/](screenshots/) | 173 images, indexed by `INDEX.md` |
