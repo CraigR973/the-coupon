@@ -43,6 +43,7 @@ from src.services.odds_provider import (
 )
 from src.services.push_notification_service import send_notification
 from src.services.season_calendar import (
+    canonical_saturday,
     ensure_calendar_for_new_season,
     extra_weeks_between,
     season_bounds,
@@ -857,18 +858,28 @@ async def retire_stranded_rounds(
     cadence = set(upcoming_slate_dates(today, window_for(league), horizon))
     if not cadence:  # pragma: no cover — `upcoming_slate_dates` always returns at least one
         return []
-    extras = (
-        set(legitimate_extra_dates)
-        if legitimate_extra_dates is not None
-        else await extra_weeks_between(db, today, max(cadence))
-    )
+    # A cadence can end before another date in the same Wednesday-to-Tuesday football
+    # week. That was the Saturday-to-Friday window-change hole: with a one-week horizon
+    # the new Friday was the old bound, so the stray Saturday sat one day beyond it and
+    # survived long enough to be claimed. Inspect through the following Tuesday instead.
+    retirement_end = canonical_saturday(max(cadence)) + timedelta(days=3)
+    if legitimate_extra_dates is None:
+        extras = await extra_weeks_between(db, today, retirement_end)
+    else:
+        extras = set(legitimate_extra_dates)
+        # Discovery shares one preloaded set through the ordinary cadence horizon. The
+        # new retirement tail can extend beyond that set, so load only the extra days it
+        # did not cover rather than misclassifying a declared Saturday after Friday.
+        cadence_end = max(cadence)
+        if cadence_end < retirement_end:
+            extras |= await extra_weeks_between(db, cadence_end + timedelta(days=1), retirement_end)
     legitimate = cadence | extras
 
     rows = await db.execute(
         select(Gameweek).where(
             Gameweek.league_id == league.id,
             Gameweek.starts_on >= today,
-            Gameweek.starts_on <= max(cadence),
+            Gameweek.starts_on <= retirement_end,
             Gameweek.starts_on.notin_(legitimate),
             Gameweek.status != GameweekStatus.settled,
             ~select(Pick.id).where(Pick.gameweek_id == Gameweek.id).exists(),

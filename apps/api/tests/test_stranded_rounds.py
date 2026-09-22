@@ -31,6 +31,7 @@ import uuid
 from collections.abc import AsyncIterator
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import Mock
 
 import pytest
 import pytest_asyncio
@@ -44,6 +45,9 @@ from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
 from src.models.league import League
 from src.models.pick import Pick, PickMarket, PickOutcome, PickScope, PickStatus
 from src.models.profile import Profile, UserRole
+from src.models.season_calendar import SeasonCalendar
+from src.services import scoring
+from src.services.admin_ops import settlement_from_score
 from src.services.gameweek import (
     populate_cadence_rounds,
     retire_stranded_rounds,
@@ -51,6 +55,7 @@ from src.services.gameweek import (
     window_for,
 )
 from src.services.odds_provider import SlateWindow
+from src.services.season_calendar import labels_for_gameweeks
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -196,6 +201,124 @@ async def test_the_production_shape_converges_on_two(session: AsyncSession) -> N
     await retire_stranded_rounds(session, league, today, HORIZON)
 
     assert await _dates(session, league) == [date(2026, 9, 5), date(2026, 9, 12)]
+
+
+async def test_saturday_to_friday_edit_retires_the_same_week_stray_and_its_label(
+    session: AsyncSession,
+) -> None:
+    """The new Friday used to be the bound, leaving Saturday just beyond the sweep."""
+    friday = date(2026, 9, 4)
+    saturday = date(2026, 9, 5)
+    league = await _league(session, weekday=FRIDAY, minute=19 * 60)
+    current = await _round(session, league, friday)
+    await _round(session, league, saturday, window=_window(SATURDAY, 12 * 60))
+    session.add(
+        SeasonCalendar(
+            season=2026,
+            week_one_anchor=date(2026, 8, 8),
+            extra_weeks=[],
+        )
+    )
+    await session.flush()
+
+    retired = await retire_stranded_rounds(session, league, friday, horizon=1)
+    remaining = list(
+        (await session.execute(select(Gameweek).where(Gameweek.league_id == league.id))).scalars()
+    )
+    labels = await labels_for_gameweeks(session, remaining)
+
+    assert retired == [saturday]
+    assert [gameweek.id for gameweek in remaining] == [current.id]
+    assert list(labels.values()) == ["5"]
+
+
+async def test_a_picked_same_week_stray_is_reported_and_not_scored(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A claim makes the stray non-retirable, so settlement is the final backstop."""
+    friday = date(2026, 9, 4)
+    saturday = date(2026, 9, 5)
+    league = await _league(session, weekday=FRIDAY, minute=19 * 60)
+    current = await _round(session, league, friday, status=GameweekStatus.locked)
+    stray = await _round(
+        session,
+        league,
+        saturday,
+        status=GameweekStatus.locked,
+        window=_window(SATURDAY, 12 * 60),
+    )
+    current_pick = await _pick_on(session, league, current)
+    stray_pick = await _pick_on(session, league, stray)
+    current_fixture = await session.get(Fixture, current_pick.fixture_id)
+    stray_fixture = await session.get(Fixture, stray_pick.fixture_id)
+    assert current_fixture is not None and stray_fixture is not None
+
+    reported = Mock()
+    monkeypatch.setattr(scoring, "log", reported)
+
+    refused = await scoring.settle_gameweek(
+        session,
+        stray,
+        [settlement_from_score(stray_fixture.provider_event_id, 2, 0)],
+    )
+    settled = await scoring.settle_gameweek(
+        session,
+        current,
+        [settlement_from_score(current_fixture.provider_event_id, 2, 0)],
+    )
+
+    assert refused == 0
+    assert stray.status is GameweekStatus.locked
+    assert stray_pick.status is PickStatus.pending and stray_pick.points_awarded is None
+    assert settled == 1
+    assert current.status is GameweekStatus.settled
+    assert current_pick.status is PickStatus.won and current_pick.points_awarded == 20
+    reported.error.assert_called_once()
+    assert reported.error.call_args.args == ("same-football-week settlement refused",)
+    assert reported.error.call_args.kwargs["reason"] == "undeclared_same_week_round"
+
+
+async def test_a_declared_extra_in_the_same_week_still_settles(
+    session: AsyncSession,
+) -> None:
+    """Calendar extras are intentional second rounds, not stranded cadence rows."""
+    friday = date(2026, 9, 4)
+    extra = date(2026, 9, 5)
+    league = await _league(session, weekday=FRIDAY, minute=19 * 60)
+    current = await _round(session, league, friday, status=GameweekStatus.locked)
+    extra_round = await _round(session, league, extra, status=GameweekStatus.locked)
+    current_pick = await _pick_on(session, league, current)
+    extra_pick = await _pick_on(session, league, extra_round)
+    current_fixture = await session.get(Fixture, current_pick.fixture_id)
+    extra_fixture = await session.get(Fixture, extra_pick.fixture_id)
+    assert current_fixture is not None and extra_fixture is not None
+    session.add(
+        SeasonCalendar(
+            season=2026,
+            week_one_anchor=date(2026, 8, 8),
+            extra_weeks=[extra],
+        )
+    )
+    await session.flush()
+
+    assert (
+        await scoring.settle_gameweek(
+            session,
+            extra_round,
+            [settlement_from_score(extra_fixture.provider_event_id, 2, 0)],
+        )
+        == 1
+    )
+    assert (
+        await scoring.settle_gameweek(
+            session,
+            current,
+            [settlement_from_score(current_fixture.provider_event_id, 2, 0)],
+        )
+        == 1
+    )
+    assert current.status is GameweekStatus.settled
+    assert extra_round.status is GameweekStatus.settled
 
 
 async def test_a_stranded_round_holding_a_pick_is_kept(session: AsyncSession) -> None:
