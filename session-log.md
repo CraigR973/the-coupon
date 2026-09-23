@@ -4151,3 +4151,32 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,215 → 1,225.
 
 **Next:** Batch 161.
+
+## Batch 161 — Twenty leagues can spend ten times the provider plan
+**Commits:** `39b299f` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,240 backend and
+1,147 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- `PICK_SUBMIT_INSTALLATION_LIMIT` is `50/hour;100/day` — the *same* numbers as the
+  per-league bucket, on purpose. That figure was always derived from the installation
+  ("what the hour leaves once peak browsing is subtracted") and merely keyed per league.
+- Charged **after** the league bucket. A league at its own ceiling is refused without
+  touching the deployment's allowance, which is correct because nothing went upstream.
+  The residual over-count — league charged, installation refuses — is the safe direction.
+- **A property was deliberately inverted.** `test_a_second_league_keeps_its_own_pick_budget`
+  asserted a quiet league still picks while a busy one is spent out. With ~50 pick requests
+  available in an hour, two leagues cannot both have 50, so that property was being paid for
+  with budget the deployment does not have. It is now
+  `test_a_second_league_is_bounded_by_what_the_deployment_has_left`, and its docstring
+  carries the reasoning.
+- The per-league bucket is not redundant: it still bounds one league to the plan's spare
+  hour after a redeploy resets the in-memory installation counter, and it refuses first so
+  the log names the league that spent it.
+- `test_the_aggregate_bound_is_per_league_rather_than_per_installation` was renamed to
+  `test_the_per_league_bound_alone_covers_only_a_league_or_two`; its assertions are
+  unchanged, only its docstring, which described a residual that is now closed.
+- Gate failure, attempt 1: I set BACKEND_TEST_COUNT to 1241 and the gate printed 1240 — a
+  miscount on my part, not a removed test. Raised to the printed figure and rerun.
+- Counts: BACKEND 1,225 → 1,240.
+
+**Next:** Batch 133.

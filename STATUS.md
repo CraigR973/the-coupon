@@ -1511,6 +1511,16 @@ forwarded call, so retries, the memoised catalogue fetch and a call that raised 
 recorded. `fetch_odds` is untouched, and no tier, threshold or reserve size moved.
 **API-only: `/ship-prod` is owed, with Batch 159.**
 
+**Batch 161 bounded the pick path by what the deployment has left** (`39b299f`). The pick
+path charged a per-league bucket of 50/hour against a 100/hour plan, so five leagues was
+250/hour and twenty was 1,000/hour — real spend, because the refusal path exempts the pick
+path. A second bucket now sits beneath the per-league one, keyed on the deployment, with the
+same numbers: they were always a statement about the installation that happened to be keyed
+per league. **It inverts a property an existing test asserted** — a quiet league no longer
+picks through a busy one's exhaustion — because the plan leaves about fifty pick requests an
+hour and two leagues cannot both have fifty. `PICKS_BUSY` and the per-league limit are
+untouched. **API-only: `/ship-prod` is owed, with 159 and 160.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",

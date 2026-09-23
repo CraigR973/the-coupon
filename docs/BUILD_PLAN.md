@@ -4822,7 +4822,7 @@ answered until it lands, because until then there is no data to look at.
   thresholds or the reserve's size — those are re-tuned once the gauge is honest.
   **API-carrying.**
 
-- [ ] **Batch 161 — Twenty leagues can spend ten times the provider plan**
+- [x] **Batch 161 — Twenty leagues can spend ten times the provider plan** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-09 (HIGH,
   live), closing the OPS-10 residual the 2026-08-26 review left open. The pick path charges
   a per-league bucket of 50/hour against an installation plan of 100/hour. At **5 leagues
