@@ -79,7 +79,13 @@ async def claim_invite_authenticated(
     if invite.expires_at is not None and invite.expires_at < _now():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invite has expired")
 
-    league_result = await db.execute(select(League).where(League.id == invite.league_id))
+    # Batch 143. `deleted_at` was the one filter this lookup did not apply, so an
+    # invite to a deleted league resolved and the claim went on to build a membership
+    # of a league that no longer exists — where every other lookup in the app would
+    # then answer 404. Refused cleanly instead.
+    league_result = await db.execute(
+        select(League).where(League.id == invite.league_id, League.deleted_at.is_(None))
+    )
     league = league_result.scalar_one_or_none()
     if league is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="League not found")

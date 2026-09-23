@@ -11,6 +11,7 @@ import {
   type StoredPlayer,
 } from '../lib/tokens';
 import { API_BASE, PIN_NOT_SET, refreshStoredSession } from '../lib/api';
+import { forgetLeagueContext } from '../lib/leagueRecency';
 
 interface AuthState {
   player: StoredPlayer | null;
@@ -178,6 +179,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const player = playerFromApiResponse(data);
         await clearApiCaches();
         queryClient.clear();
+        // Batch 143. Signing in is an identity switch: the league the *previous*
+        // account was last looking at must not pre-select for this one, for the same
+        // reason the cached API responses above are dropped.
+        forgetLeagueContext();
         storeTokens(data.access_token, data.refresh_token, player);
         setLockedPlayer(null);
         setState({

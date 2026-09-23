@@ -3,13 +3,14 @@ import { Link, useLocation } from 'react-router-dom';
 import { useLeague } from '@/contexts/LeagueContext';
 import { leagueSwitchPath } from '@/lib/leagues';
 import { cn } from '@/lib/utils';
+import { LEAGUE_SWITCH_SCROLL_KEY } from '@/lib/leagueRecency';
 
 interface Props {
   currentSlug: string;
   className?: string;
 }
 
-const LEAGUE_SWITCH_SCROLL_KEY = 'coupon_league_switch_scroll';
+
 
 function getSavedScrollOffset(): number {
   if (typeof window === 'undefined') return 0;

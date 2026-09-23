@@ -1,3 +1,4 @@
+import { forgetLeagueContext } from './leagueRecency';
 import type { OddsFormat } from './types';
 
 const KEYS = {
@@ -48,6 +49,10 @@ export async function clearApiCaches(): Promise<void> {
 
 export async function clearTokens(): Promise<void> {
   Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
+  // Batch 143. The token keys were the only ones cleared, so a private league's slug
+  // and name outlived a logout on a shared browser and pre-selected for whoever signed
+  // in next.
+  forgetLeagueContext();
   await clearApiCaches();
 }
 

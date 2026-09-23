@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
@@ -29,6 +30,7 @@ from sqlalchemy import select
 from src.auth import create_access_token, hash_pin
 from src.database import AsyncSessionLocal
 from src.main import app
+from src.models.invite import Invite
 from src.models.league import League, LeaguePrivacy
 from src.models.league_join_request import JoinRequestStatus, LeagueJoinRequest
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
@@ -257,3 +259,68 @@ async def test_an_open_league_still_joins_straight_through(client: AsyncClient) 
     assert answer.json()["status"] == "joined"
     assert await _active_membership(league.id, newcomer.id) is not None
     assert await _pending_requests(league.id, newcomer.id) == 0
+
+
+# -- Batch 143: an invite to a deleted league ---------------------------------
+#
+# `claim-invite` looked the league up without the `deleted_at` filter every other
+# lookup in the app applies, so an invite to a deleted league resolved and the claim
+# went on to build a membership of a league that no longer exists — which every
+# subsequent lookup would then answer 404 for.
+
+
+async def _invite(league: League, created_by: Profile) -> Invite:
+    async with AsyncSessionLocal() as session:
+        invite = Invite(
+            league_id=league.id,
+            token=f"tok-{uuid.uuid4().hex}",
+            created_by=created_by.id,
+            is_active=True,
+        )
+        session.add(invite)
+        await session.commit()
+        await session.refresh(invite)
+        return invite
+
+
+async def _soft_delete(league_id: uuid.UUID) -> None:
+    async with AsyncSessionLocal() as session:
+        league = await session.get(League, league_id)
+        assert league is not None
+        league.deleted_at = datetime.now(UTC).replace(tzinfo=None)
+        await session.commit()
+
+
+async def test_an_invite_to_a_deleted_league_is_refused(client: AsyncClient) -> None:
+    admin = await _profile()
+    newcomer = await _profile()
+    league = await _league(admin)
+    invite = await _invite(league, admin)
+
+    await _soft_delete(league.id)
+
+    refused = await client.post(
+        "/api/v1/leagues/claim-invite",
+        json={"token": invite.token},
+        headers=_auth(newcomer),
+    )
+
+    assert refused.status_code == 404, refused.text
+    assert await _active_membership(league.id, newcomer.id) is None
+
+
+async def test_an_invite_to_a_live_league_still_claims(client: AsyncClient) -> None:
+    """The half that must not have moved."""
+    admin = await _profile()
+    newcomer = await _profile()
+    league = await _league(admin)
+    invite = await _invite(league, admin)
+
+    claimed = await client.post(
+        "/api/v1/leagues/claim-invite",
+        json={"token": invite.token},
+        headers=_auth(newcomer),
+    )
+
+    assert claimed.status_code == 200, claimed.text
+    assert await _active_membership(league.id, newcomer.id) is not None
