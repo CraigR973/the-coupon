@@ -4227,3 +4227,28 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,245 → 1,249.
 
 **Next:** Batch 129, then 147, then the Phase 5 `/ship-prod`.
+
+## Batch 129 — The alarms that watch for a silent scheduler only reach a dashboard
+**Commits:** `2179fb5` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,257 backend and
+1,147 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- The football-provider alarm **already pushed** (`notify_football_provider_trouble`). The
+  gap was the discovery-silence one, which only logged. Only that half changed.
+- The cooldown is `consume_durable_limit(session, "alert:discovery-silence", "1/day")` —
+  the rate-limit counter table used as a durable "once per window" record. It survives a
+  redeploy, which an in-process timer would not, and it needs **no migration**. The
+  alternative was a new `ActionType`, and `ALTER TYPE ... ADD VALUE` is irreversible
+  against a production database with no restore point.
+- `notify_discovery_silence` checks `health.alarm` itself rather than trusting the caller.
+- Gate failure, attempt 1: two of my new tests asserted an exact recipient list and an
+  exact body. Both read **deployment-wide** state — `_admin_players` returns every site
+  admin in the database and `leagues_without_open_round` every silent league — so they
+  passed alone and failed in the full suite, where other modules' admins and leagues are
+  committed. The copy test now builds a `DiscoveryHealth` directly, and the recipient test
+  asserts membership rather than identity. Same class of mistake as Batch 159's pool count.
+- The scheduler wiring has its own test: removing the call left every trigger-level test
+  green, because they call `notify_discovery_silence` directly.
+- Counts: BACKEND 1,249 → 1,257.
+
+**Next:** Batch 147, then the Phase 5 `/ship-prod`.

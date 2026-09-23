@@ -1536,6 +1536,14 @@ Starlette background task on a session of their own, after the response body has
 `record_completion` stays on the request path because it is the durable write Batch 107's
 retry depends on. **API-only: `/ship-prod` is owed, with 159, 160, 161 and 133.**
 
+**Batch 129 routed the discovery-silence alarm to the push channel** (`2179fb5`). Batch 119
+built the two reads that would have caught a week of silent scheduling, then sent them to the
+dashboard and the logs — both of which need somebody to look. They now push to site admins,
+naming the leagues with members and nothing to play. The cooldown is a durable rate-limit
+counter rather than an audit row, so it survives a redeploy without needing a new `ActionType`
+and the migration that would have required. **API-only: `/ship-prod` is owed, with 159, 160,
+161, 133 and 162.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",

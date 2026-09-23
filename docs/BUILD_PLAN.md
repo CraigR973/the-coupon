@@ -4233,7 +4233,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: the deployment workflow and the migration convention. **Tooling-only.**
 
-- [ ] **Batch 129 — The alarms that watch for a silent scheduler only reach a dashboard**
+- [x] **Batch 129 — The alarms that watch for a silent scheduler only reach a dashboard** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/04-performance-operations.md`, OPS-14 (MED,
   live). The discovery-silence alarms and the provider trigger write to the admin dashboard
   and the logs; nothing pushes to the owner. The failure they exist to catch once ran for a
