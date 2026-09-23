@@ -29,7 +29,7 @@ from decimal import Decimal
 from typing import Annotated, Any, TypeVar
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -37,7 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser
 from src.config import settings
-from src.database import get_db
+from src.database import AsyncSessionLocal, get_db
 from src.deps import LeagueMemberDep, LeagueMemberWriteDep, OddsProviderDep
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekFixture
@@ -46,7 +46,12 @@ from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome
 from src.models.profile import Profile
 from src.rate_limit import consume_shared_limit, limiter, per_user_key
-from src.services.gameweek import PICKABLE_STATES, pick_refusal, round_progress
+from src.services.gameweek import (
+    PICKABLE_STATES,
+    RoundProgress,
+    pick_refusal,
+    round_progress,
+)
 from src.services.notification_triggers import announce_all_picked, notify_pick_made
 from src.services.odds_provider import OddsProviderError, Selection
 from src.services.round_completion import record_completion
@@ -260,6 +265,9 @@ async def submit_pick(
     league: LeagueMemberWriteDep,
     provider: OddsProviderDep,
     db: Db,
+    # Batch 162. Starlette runs these after the response has been sent, which is the
+    # whole point: the member is told their pick landed and the league is told afterwards.
+    background: BackgroundTasks,
 ) -> SubmitPickResponse:
     fixture = await _resolve_fixture(body.fixture_id, db)
     gameweek = await _round_playing(db, league, fixture)
@@ -453,39 +461,96 @@ async def submit_pick(
             is True
         )
 
-        # Attempted on every submission into a full coupon, not only the completing one.
-        # That is the retry: a fan-out that failed earlier leaves `delivered_at` null, and
-        # the next pick on the round is what picks it back up.
-        await _announce(
-            db,
-            "all-picked alert failed",
-            league,
-            gameweek,
-            announce_all_picked(db, gameweek),
-        )
-
-    # The completion **replaces** the ordinary alert rather than accompanying it — one
-    # event reached the tray, not two. A submission that merely arrived into an
-    # already-full coupon is an ordinary pick and still announces itself, at `12/12`.
-    if not completed_now:
-        await _announce(
-            db,
-            "pick alert failed",
-            league,
-            gameweek,
-            notify_pick_made(
-                db,
-                gameweek,
-                picker_id=player.id,
-                picker_name=picker_name,
-                selection=named_selection,
-                odds=pick.odds_at_pick,
-                moved=moved,
-                progress=progress,
-            ),
-        )
+    # Batch 162. The fan-out itself now runs *after* the response, not before it.
+    #
+    # Measured: 49 sequential sends taking 8,759 ms on a fifty-member league, about 1.7
+    # seconds at production's twelve — added to the submitting member's own request, on
+    # the one action the whole product is built around. The event loop was never blocked;
+    # the member was.
+    #
+    # `record_completion` above deliberately stays on the request path. It is a durable
+    # write, not a send, and it is what makes this safe: a fan-out that never ran leaves
+    # `delivered_at` null and the next pick on the round retries it, which is exactly
+    # Batch 107's guarantee and is unchanged by moving the sending.
+    background.add_task(
+        _announce_after_response,
+        league_id=league.id,
+        gameweek_id=gameweek.id,
+        all_picked=progress.all_picked,
+        completed_now=completed_now,
+        picker_id=player.id,
+        picker_name=picker_name,
+        selection=named_selection,
+        odds=pick.odds_at_pick,
+        moved=moved,
+        progress=progress,
+    )
 
     return response
+
+
+async def _announce_after_response(
+    *,
+    league_id: uuid.UUID,
+    gameweek_id: uuid.UUID,
+    all_picked: bool,
+    completed_now: bool,
+    picker_id: uuid.UUID,
+    picker_name: str,
+    selection: str,
+    odds: Decimal,
+    moved: bool,
+    progress: RoundProgress,
+) -> None:
+    """Both announcements, on a session of their own, once the member has their answer.
+
+    A session of its own because the request's is closed by the time this runs — and
+    because a notification must not be able to touch the transaction the pick landed in,
+    which was already the rule when this ran inline.
+
+    Identifiers rather than ORM objects for the same reason: the instances the handler
+    held belong to a session that no longer exists.
+    """
+    async with AsyncSessionLocal() as db:
+        league = await db.get(League, league_id)
+        gameweek = await db.get(Gameweek, gameweek_id)
+        if league is None or gameweek is None:
+            # Deleted between the claim and the fan-out. Nothing to announce and nobody
+            # to announce it to.
+            return
+
+        if all_picked:
+            # Attempted on every submission into a full coupon, not only the completing
+            # one. That is the retry: a fan-out that failed earlier leaves `delivered_at`
+            # null, and the next pick on the round is what picks it back up.
+            await _announce(
+                db,
+                "all-picked alert failed",
+                league,
+                gameweek,
+                announce_all_picked(db, gameweek),
+            )
+
+        # The completion **replaces** the ordinary alert rather than accompanying it — one
+        # event reached the tray, not two. A submission that merely arrived into an
+        # already-full coupon is an ordinary pick and still announces itself, at `12/12`.
+        if not completed_now:
+            await _announce(
+                db,
+                "pick alert failed",
+                league,
+                gameweek,
+                notify_pick_made(
+                    db,
+                    gameweek,
+                    picker_id=picker_id,
+                    picker_name=picker_name,
+                    selection=selection,
+                    odds=odds,
+                    moved=moved,
+                    progress=progress,
+                ),
+            )
 
 
 T = TypeVar("T")

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from datetime import UTC, date, datetime, timedelta
@@ -2934,3 +2935,143 @@ async def test_a_fixture_somebody_has_claimed_is_never_hidden(
     shown = await _card_event_ids(client, league.slug, alice)
 
     assert SAMPLE_SL2_EVENT_ID in shown
+
+
+# ── Batch 162: the fan-out is no longer on the member's request ───────────────
+#
+# Measured: `notify_pick_made` performed **49 sequential sends taking 8,759 ms** on a
+# fifty-member league, about **1.7 seconds at production's twelve** — added to the
+# submitting member's own request, on the one action the whole product is built around.
+# The event loop was never blocked; the member was.
+#
+# Under `ASGITransport` a background task still finishes before the response is observed,
+# which is why every existing notification test above passes unchanged. What changed is
+# *when* the response body is sent, and that is what these measure: the app is wrapped in
+# a tiny ASGI middleware that timestamps the final `http.response.body` message.
+
+
+class _TimedApp:
+    """The app, with the moment it finishes sending the response body recorded."""
+
+    def __init__(self, inner: object) -> None:
+        self.inner = inner
+        self.body_at: float | None = None
+
+    async def __call__(self, scope: dict, receive: object, send: object) -> None:
+        async def timed_send(message: dict) -> None:
+            if message["type"] == "http.response.body" and not message.get("more_body"):
+                self.body_at = time.perf_counter()
+            await send(message)  # type: ignore[operator]
+
+        await self.inner(scope, receive, timed_send)  # type: ignore[operator]
+
+
+SLOW_SEND_SECONDS = 0.02
+
+
+@pytest.mark.parametrize("members", [12, 50])
+async def test_the_member_is_answered_before_the_league_is_told(
+    monkeypatch: pytest.MonkeyPatch, members: int
+) -> None:
+    """The finding, as two timings from one request.
+
+    A deliberately slow send stands in for a webpush round trip. If the fan-out were
+    still inline, the response body could not be sent until every one of them finished —
+    so comparing "time to the response body" against "time to the end of the request" is
+    the whole measurement.
+    """
+    sends: list[float] = []
+
+    async def _slow_send(*_args: object, **_kwargs: object) -> int:
+        await asyncio.sleep(SLOW_SEND_SECONDS)
+        sends.append(time.perf_counter())
+        return 1
+
+    monkeypatch.setattr("src.services.notification_triggers.send_notification", _slow_send)
+
+    fake = FakeBetfair.with_sample_data()
+    app.dependency_overrides[get_odds_provider] = lambda: fake
+    app.dependency_overrides[get_optional_odds_provider] = lambda: fake
+    timed = _TimedApp(app)
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=timed), base_url="http://test"
+        ) as client:
+            async with AsyncSessionLocal() as session:
+                players, league = await _seed_league(session, [f"m{i}" for i in range(members)])
+                gameweek = await _open_sample_gameweek(session, fake, league)
+                fixtures = await _fixture_ids(session, gameweek.id)
+
+            started = time.perf_counter()
+            response = await _submit(
+                client,
+                league.slug,
+                players[0],
+                fixtures[SAMPLE_EPL_EVENT_ID],
+                "MATCH_ODDS",
+                "HOME",
+            )
+            finished = time.perf_counter()
+    finally:
+        app.dependency_overrides.pop(get_odds_provider, None)
+        app.dependency_overrides.pop(get_optional_odds_provider, None)
+
+    assert response.status_code == 201, response.text
+    assert timed.body_at is not None, "the response body was never sent"
+
+    to_response = timed.body_at - started
+    fan_out = finished - timed.body_at
+    expected_fan_out = (members - 1) * SLOW_SEND_SECONDS
+
+    assert len(sends) == members - 1, "everyone but the picker, exactly once"
+    # The fan-out is real and it is slow — that is the premise, not an aside.
+    assert (
+        fan_out >= expected_fan_out * 0.5
+    ), f"the fan-out took {fan_out:.3f}s, which is not the cost this batch is about"
+    # And the member did not wait for it.
+    assert to_response < fan_out, (
+        f"the member waited {to_response:.3f}s while the fan-out took {fan_out:.3f}s — "
+        "the sends are still on the request path"
+    )
+
+
+@pytest.mark.parametrize("members", [12, 50])
+async def test_every_eligible_member_still_gets_exactly_one_alert(
+    monkeypatch: pytest.MonkeyPatch, members: int
+) -> None:
+    """The scope boundary: when the fan-out runs, not who receives what."""
+    told: list[uuid.UUID] = []
+
+    async def _record(_session: object, user_id: uuid.UUID, *_a: object, **_k: object) -> int:
+        told.append(user_id)
+        return 1
+
+    monkeypatch.setattr("src.services.notification_triggers.send_notification", _record)
+
+    fake = FakeBetfair.with_sample_data()
+    app.dependency_overrides[get_odds_provider] = lambda: fake
+    app.dependency_overrides[get_optional_odds_provider] = lambda: fake
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            async with AsyncSessionLocal() as session:
+                players, league = await _seed_league(session, [f"n{i}" for i in range(members)])
+                gameweek = await _open_sample_gameweek(session, fake, league)
+                fixtures = await _fixture_ids(session, gameweek.id)
+
+            response = await _submit(
+                client,
+                league.slug,
+                players[0],
+                fixtures[SAMPLE_EPL_EVENT_ID],
+                "MATCH_ODDS",
+                "HOME",
+            )
+    finally:
+        app.dependency_overrides.pop(get_odds_provider, None)
+        app.dependency_overrides.pop(get_optional_odds_provider, None)
+
+    assert response.status_code == 201, response.text
+    expected = {player.id for player in players[1:]}
+    assert set(told) == expected, "the audience changed"
+    assert len(told) == len(expected), "somebody was told twice"
+    assert players[0].id not in told, "the picker was told about their own pick"
