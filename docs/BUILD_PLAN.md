@@ -4263,7 +4263,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: completion evaluation and attribution. No change to the notification copy
   or the mute gates. **API-carrying.**
 
-- [ ] **Batch 131 — A void pick lowers win rate exactly like a loss**
+- [x] **Batch 131 — A void pick lowers win rate exactly like a loss** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-10 (MED, live). Win
   rate is wins over picks *played*, and played includes void, while the product contract
   says a void "scores nothing rather than counting as a loss". A member whose only pick was

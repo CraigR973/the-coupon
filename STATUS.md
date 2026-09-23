@@ -1560,6 +1560,16 @@ member. The new line is keyed on the empty picker **name**, not a null id: the i
 nullable since long before this because the foreign key is `ON DELETE SET NULL`.
 **API-only: `/ship-prod` is owed.**
 
+**Batch 131 divided win rate by the picks that actually ran** (`8eff2bb`). It divided by
+`picks_played`, which includes void, so a void lowered a win rate exactly like a loss — a
+void-only member read 0%, and three wins plus a loss plus a postponement read 60% where the
+record is 75%. It now divides by `picks_priced`, the same reasoning `scoring.py` already
+applies to the odds denominator. A member with no priced picks has **no** win rate: `None`,
+which every surface already renders as an absent statistic — not 0% and not 100%.
+**The oracle test changed**, which `AGENTS.md` makes a decision rather than a batch's own
+call; the owner took it on 2026-09-23 and both the old and new expressions are in the file.
+**API-only: `/ship-prod` is owed, with Batch 130.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",

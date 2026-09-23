@@ -4302,3 +4302,29 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,260 → 1,269.
 
 **Next:** Batch 131 — the win-rate oracle, decided by the owner.
+
+## Batch 131 — A void pick lowers win rate exactly like a loss
+**Commits:** `8eff2bb` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,271 backend and
+1,147 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- **The oracle change, quoted.** Before:
+  `"win_rate_pct": round(100 * len(won) / len(played)) if played else None`
+  After:
+  `"win_rate_pct": round(100 * len(won) / len(priced)) if priced else None`
+  Owner's decision, 2026-09-23. The old form is quoted in a comment beside the new one so
+  the change is legible from the test rather than from a commit message.
+- Both surfaces moved together: `services/scoring.py` (per league) and `routers/me.py`
+  (cross-league summary). Leaving either behind reintroduces the profile/summary
+  divergence `Standing.win_rate_pct` was centralised to prevent.
+- No priced picks → `None`, never 0% and never 100%. The UI already renders `null` as an
+  em dash with an explanatory line, so no client change was needed.
+- The regression tests are deliberately **uneven** (1-in-3, 3-in-4). A 2-win/2-loss record
+  is 50% under either denominator, so a test built on that shape proves nothing.
+- **Follow-up for the owner, not done here:** `PlayerProfilePage.tsx` shows "Nothing has
+  settled yet — a win rate appears after the first result." when `win_rate_pct === null`.
+  That is now also the state of a member whose only picks were voided, for whom something
+  *has* settled. Copy is outside this row's scope boundary, so it is left as-is.
+- Counts: BACKEND 1,269 → 1,271.
+
+**Next:** Batch 132.
