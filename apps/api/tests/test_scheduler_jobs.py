@@ -87,6 +87,7 @@ from src.services.scoring import (
     settle_gameweeks_via_provider,
     standings,
 )
+from src.services.season_calendar import SeasonLabels
 from tests.season_dates import same_weekday_in_current_season
 
 pytestmark = pytest.mark.skipif(
@@ -1278,7 +1279,7 @@ async def test_home_and_the_coupon_pick_the_same_round_in_every_state(
     await session.flush()
 
     league_ids = [playing_league.id, stuck_league.id, settled_league.id]
-    home = await _latest_rounds(session, league_ids, member.id)
+    home = await _latest_rounds(session, league_ids, member.id, SeasonLabels())
 
     for league_id in league_ids:
         coupon = await latest_gameweek(session, league_id)

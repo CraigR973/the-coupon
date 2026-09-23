@@ -144,39 +144,80 @@ async def ensure_calendar_for_new_season(
     return await calendar_for(db, season)
 
 
-async def labels_for_gameweeks(db: AsyncSession, gameweeks: Sequence[Any]) -> dict[uuid.UUID, str]:
-    """Public labels for a response's rounds, derived without an N+1 query."""
-    if not gameweeks:
-        return {}
-    wanted_seasons = {season_for(gameweek.starts_on) for gameweek in gameweeks}
-    rows = await db.execute(select(SeasonCalendar).where(SeasonCalendar.season.in_(wanted_seasons)))
-    calendars = {calendar.season: calendar for calendar in rows.scalars().all()}
-    if not calendars:
-        return {}
+class SeasonLabels:
+    """Public round labels for one request, resolved once however many sets ask for them.
 
-    clauses = [
-        and_(
-            Gameweek.starts_on >= season_bounds(season)[0],
-            Gameweek.starts_on <= season_bounds(season)[1],
+    A label depends on every *date* a season's rounds fall on, deployment-wide, because
+    the football week an anchor names is shared across leagues. That read is the whole
+    cost of labelling, and it does not vary with which rounds are being labelled — so a
+    request that labels two sets of rounds, as the cross-league summary does, should pay
+    for it once. Batch 144: reuse across a request, and read **distinct dates** rather
+    than whole ``Gameweek`` rows, which is the same answer off a projection the index can
+    serve instead of a full hydration of every round the deployment has ever played.
+
+    Seasons are resolved lazily and cached, misses included, so an unlabelled season is
+    not re-queried. The cache is therefore only valid while the rounds it covers are
+    unchanged: build one per read request and let it go. A request that *creates* rounds
+    must not share one across that write.
+    """
+
+    def __init__(self) -> None:
+        self._by_season: dict[int, dict[date, str]] = {}
+
+    async def _resolve(self, db: AsyncSession, seasons: Collection[int]) -> None:
+        missing = [season for season in seasons if season not in self._by_season]
+        if not missing:
+            return
+        # Negative entries first: a season with no calendar has no labels, and must not
+        # be asked about again on the next call site in this request.
+        for season in missing:
+            self._by_season[season] = {}
+
+        rows = await db.execute(select(SeasonCalendar).where(SeasonCalendar.season.in_(missing)))
+        calendars = {calendar.season: calendar for calendar in rows.scalars().all()}
+        if not calendars:
+            return
+
+        clauses = [
+            and_(
+                Gameweek.starts_on >= season_bounds(season)[0],
+                Gameweek.starts_on <= season_bounds(season)[1],
+            )
+            for season in calendars
+        ]
+        days = (
+            (await db.execute(select(Gameweek.starts_on).where(or_(*clauses)).distinct()))
+            .scalars()
+            .all()
         )
-        for season in calendars
-    ]
-    deployment_rows = (await db.execute(select(Gameweek).where(or_(*clauses)))).scalars().all()
-    dates_by_season: dict[int, set[date]] = {season: set() for season in calendars}
-    for gameweek in deployment_rows:
-        season = season_for(gameweek.starts_on)
-        if season in dates_by_season:
-            dates_by_season[season].add(gameweek.starts_on)
-    labels = {
-        season: labels_for_dates(calendar, dates_by_season[season])
-        for season, calendar in calendars.items()
-    }
-    return {
-        gameweek.id: labels[season][gameweek.starts_on]
-        for gameweek in gameweeks
-        if (season := season_for(gameweek.starts_on)) in labels
-        and gameweek.starts_on in labels[season]
-    }
+        dates_by_season: dict[int, set[date]] = {season: set() for season in calendars}
+        for day in days:
+            season = season_for(day)
+            if season in dates_by_season:
+                dates_by_season[season].add(day)
+        for season, calendar in calendars.items():
+            self._by_season[season] = labels_for_dates(calendar, dates_by_season[season])
+
+    async def of(self, db: AsyncSession, gameweeks: Sequence[Any]) -> dict[uuid.UUID, str]:
+        """Label these rounds, resolving only the seasons this request has not seen."""
+        if not gameweeks:
+            return {}
+        await self._resolve(db, {season_for(gameweek.starts_on) for gameweek in gameweeks})
+        return {
+            gameweek.id: self._by_season[season][gameweek.starts_on]
+            for gameweek in gameweeks
+            if (season := season_for(gameweek.starts_on)) in self._by_season
+            and gameweek.starts_on in self._by_season[season]
+        }
+
+
+async def labels_for_gameweeks(db: AsyncSession, gameweeks: Sequence[Any]) -> dict[uuid.UUID, str]:
+    """Public labels for a response's rounds, derived without an N+1 query.
+
+    The single-use form. A caller that labels more than one set of rounds should hold a
+    :class:`SeasonLabels` instead and call it twice.
+    """
+    return await SeasonLabels().of(db, gameweeks)
 
 
 async def extra_weeks_between(db: AsyncSession, first: date, last: date) -> set[date]:

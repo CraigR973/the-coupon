@@ -33,7 +33,7 @@ from src.services.coupon import combined_odds
 from src.services.football_provider import season_for
 from src.services.gameweek import PICKABLE_STATES, current_round_order
 from src.services.scoring import LONGSHOT_ODDS, FormRound, resolve_season, standings_by_league
-from src.services.season_calendar import labels_for_gameweeks
+from src.services.season_calendar import SeasonLabels
 
 router = APIRouter(prefix="/api/v1/me", tags=["me"])
 
@@ -221,11 +221,21 @@ async def cross_league_summary(
 ) -> CrossLeagueSummary:
     """The caller's record across all their leagues, plus this week and last in each.
 
-    Nine fixed queries, none of them per league: the caller's memberships, member counts,
-    every league's season table at once, each league's latest round and the picks on it,
-    each league's most recently *settled* round and the picks on that, the next announced
-    opening, and the season table again with those settled rounds left out — which is
-    where rank movement comes from. Adding a sixth league adds rows, not round trips.
+    **Eleven queries, none of them per league**, plus one more when a rank can have
+    moved. Adding a sixth league adds rows, not round trips. In order: the caller's
+    memberships; member counts; every league's season table at once, which is two —
+    the aggregate and the recent-form window; each league's latest round and the picks
+    on it; the round labels, which is two and is shared with the read below; each
+    league's most recently *settled* round and the picks on that; the next announced
+    opening. The twelfth runs only when a settled round falls inside the season the
+    table covers: the season table again with those rounds left out, which is where
+    rank movement comes from, and without the form window it does not need.
+
+    The count was nine when it was written and drifted to thirteen unremarked. Batch
+    144 took two of those back by resolving the labels once for the request rather than
+    once per call site, and the figures above are measured rather than counted by eye —
+    see ``tests/test_cross_league_summary_cost.py``, which pins the label reads at one
+    each however many leagues and rounds are in front of them.
     """
     membership_rows = (
         await db.execute(
@@ -272,8 +282,11 @@ async def cross_league_summary(
         for league_id, table in tables.items()
     }
 
-    rounds = await _latest_rounds(db, league_ids, user.id)
-    results = await _last_results(db, league_ids, user.id)
+    # One resolver for the whole request (Batch 144). Both helpers label rounds, and
+    # the deployment-wide date read behind a label is the same read for both.
+    labels = SeasonLabels()
+    rounds = await _latest_rounds(db, league_ids, user.id, labels)
+    results = await _last_results(db, league_ids, user.id, labels)
     openings = await _next_openings(db, league_ids)
 
     # Movement is the table as it stood *before* the round being reported, differenced
@@ -363,7 +376,7 @@ async def cross_league_summary(
 
 
 async def _latest_rounds(
-    db: AsyncSession, league_ids: list[uuid.UUID], player_id: uuid.UUID
+    db: AsyncSession, league_ids: list[uuid.UUID], player_id: uuid.UUID, labels: SeasonLabels
 ) -> dict[uuid.UUID, CurrentRound]:
     """Each league's current round with its coupon and the caller's leg, keyed by league.
 
@@ -429,7 +442,7 @@ async def _latest_rounds(
                 status=pick.status.value,
             )
 
-    season_weeks = await labels_for_gameweeks(db, gameweek_rows)
+    season_weeks = await labels.of(db, gameweek_rows)
     return {
         row.league_id: CurrentRound(
             gameweek_id=str(row.id),
@@ -448,7 +461,7 @@ async def _latest_rounds(
 
 
 async def _last_results(
-    db: AsyncSession, league_ids: list[uuid.UUID], player_id: uuid.UUID
+    db: AsyncSession, league_ids: list[uuid.UUID], player_id: uuid.UUID, labels: SeasonLabels
 ) -> dict[uuid.UUID, LastResult]:
     """Each league's most recently settled round, keyed by league.
 
@@ -514,7 +527,7 @@ async def _last_results(
                 points_awarded=pick.points_awarded,
             )
 
-    season_weeks = await labels_for_gameweeks(db, gameweek_rows)
+    season_weeks = await labels.of(db, gameweek_rows)
     return {
         row.league_id: LastResult(
             gameweek_id=str(row.id),
