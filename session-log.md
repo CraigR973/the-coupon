@@ -4007,3 +4007,26 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,187 → 1,193, FRONTEND 1,126 → 1,127.
 
 **Next:** Batch 125, then 126, then the Group O `/ship-prod`.
+
+## Batch 125 — A site admin can consume a selection in a league they never joined
+**Commits:** `623f9b7` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,200 backend and
+1,127 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- Both `src/deps.py` and `src/routers/leagues.py` now carry a pair: `require_league_member`
+  (bypass kept, reads) and `require_league_member_write` (no bypass at all). They already
+  duplicated the read variant; the split follows the duplication rather than merging it.
+- Exactly two mutating routes used the member dependency: `POST /{slug}/picks` and
+  `PUT /{slug}/members/me/display-name`. Joining, claiming an invite and the admin console
+  depend on neither variant and are untouched.
+- **`app.routes` is not a flat list on fastapi 0.141.** `include_router` leaves
+  `_IncludedRouter` wrappers that expose no `.routes` and reach their own only through
+  `.original_router`. The obvious walk finds four OpenAPI routes and nothing else — the
+  first version of the structural guard passed while asserting nothing, in both the fixed
+  and the broken state. `test_the_route_walk_actually_finds_the_routes` exists so that
+  cannot recur silently on a future upgrade.
+- Both new assertions were verified against the defect: reverting `submit_pick` to the read
+  variant turns the behavioural test *and* the structural guard red.
+- Counts: BACKEND 1,193 → 1,200. Frontend unchanged.
+
+**Next:** Batch 126, then the Group O `/ship-prod`.

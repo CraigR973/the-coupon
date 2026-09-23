@@ -4169,7 +4169,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: removal and the join-by-code path. No change to invites or to the
   privacy enum. **API-carrying.**
 
-- [ ] **Batch 125 — A site admin can consume a selection in a league they never joined**
+- [x] **Batch 125 — A site admin can consume a selection in a league they never joined** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/01-security.md`, SEC-17 (MED, live). The
   league-membership dependency lets site admins bypass the membership check, and the bypass
   covers writes as well as reads. A non-member site admin submitted a pick that took the

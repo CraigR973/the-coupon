@@ -1454,6 +1454,15 @@ so both now go through one extracted `_create_join_request`, and `JoinByCodeResp
 join-by-code no longer navigate into a league on a `pending` answer; they say a request was
 sent. **API + web: `/ship-prod` is owed.**
 
+**Batch 125 made oversight a read rather than a licence to play** (`623f9b7`). The
+league-membership dependency let site admins past the check for writes as well as reads, so
+a site admin who had never joined could submit a pick — which consumes a selection from that
+league's pool and takes it from a genuine member, while the admin appears in no member list
+or standing and has no membership to leave. The bypass is kept for reads; writes go through a
+second dependency with no bypass, used by `submit_pick` and the per-league display-name
+override. A structural test walks every route and fails any mutating one that still depends on
+the read variant. **API-only: `/ship-prod` is owed.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",
