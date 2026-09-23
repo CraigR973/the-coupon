@@ -4498,7 +4498,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: those two lookups. **API + web.**
 
-- [ ] **Batch 144 — Home reads every round in the deployment, twice, to draw its labels**
+- [x] **Batch 144 — Home reads every round in the deployment, twice, to draw its labels** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-01 (MED,
   main-only) and OPS-16 (INFO). `labels_for_gameweeks` loads every round in the deployment
   as ORM objects to derive a label, and the cross-league summary calls it **twice**

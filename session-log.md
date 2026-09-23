@@ -4435,3 +4435,33 @@ Phase 7 is deliberately not started.
 
 **Next:** Batch 144, which was parked on `feat/batch-144-project-round-labels` when this
 turned up.
+
+## Batch 144 — Home reads every round in the deployment, twice, to draw its labels
+**Commits:** `1bfe512` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,285 backend and
+1,154 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- A round label depends on **every date that season's rounds fall on, deployment-wide** —
+  that is what makes a label a shared idea rather than a per-league one, and it is the
+  whole cost of labelling. It does not vary with which rounds are being labelled.
+- `SeasonLabels` is the per-request resolver. It caches **misses as well as hits**, so a
+  season with no calendar is not re-queried at the next call site. It is only valid while
+  the rounds it covers are unchanged: **build one per read request and let it go — a
+  request that creates rounds must not share one across that write.** Said in its docstring.
+- `labels_for_gameweeks` survives as the single-use wrapper for the four call sites that
+  label one set (gameweek.py twice, leagues.py, scoring.py). Nothing else changed.
+- The read is now `SELECT DISTINCT gameweeks.starts_on`, which cannot return more rows than
+  the season has distinct dates however many leagues played them, and never builds a
+  `Gameweek`. Measured on one shape: **14 statements → 12**.
+- The endpoint's docstring said nine queries when there were thirteen. It now lists eleven
+  and names the conditional twelfth (the second standings read, which runs only when a
+  settled round falls inside the season the table covers).
+- `tests/test_cross_league_summary_cost.py` gives **each test its own season (2041–2043)**.
+  These reads are deployment-wide and the suite shares one database; a count over the
+  season being played would count whatever else the run had committed. Fifth time this
+  trap has appeared — see Batches 159, 129, 133, 132.
+- Both halves proved non-vacuous by reverting: undoing the sharing turns two tests red,
+  undoing the projection turns all three red.
+- Counts: BACKEND 1,282 → 1,285.
+
+**Next:** Batch 145.

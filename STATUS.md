@@ -1588,6 +1588,12 @@ leg stays on the coupon with its price; only the product changes, and `void_leg_
 optional) lets the screen and the clipboard both say why the fold is smaller than the legs.
 **API + web: `/ship-prod` is owed.**
 
+**Batch 144 stopped Home reading every round in the deployment twice** (`1bfe512`). The
+cross-league summary labelled two sets of rounds and paid the deployment-wide date read for
+each, off whole `Gameweek` rows rather than the one column it wanted. `SeasonLabels` resolves
+a season once per request; the read is now a distinct projection. 14 statements to 12.
+**API-only: `/ship-prod` is owed.**
+
 **A red baseline on `main` with no commit behind it** (`2f7d742`, 23 Sep). The gate was
 green at 16:45 UTC and red at 20:39 the same evening: four tests in `test_round_population.py`
 named a fixed weekday for a league's slate window, and once the clock passes that weekday's
