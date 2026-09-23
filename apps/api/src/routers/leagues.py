@@ -253,7 +253,11 @@ async def require_league_member(
     player: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> tuple[Profile, League]:
-    """Dependency: resolves league and verifies caller is an active member."""
+    """Dependency: resolves league and verifies caller is an active member, **to read**.
+
+    Site admins bypass, for oversight. See :func:`src.deps.require_league_member` for why
+    Batch 125 split that bypass away from writes.
+    """
     league = await _resolve_league(slug, db)
     if _is_superadmin(player):
         return player, league
@@ -265,8 +269,24 @@ async def require_league_member(
     return player, league
 
 
+async def require_league_member_write(
+    slug: str,
+    player: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> tuple[Profile, League]:
+    """The same, for anything that changes the league's state. **No site-admin bypass.**"""
+    league = await _resolve_league(slug, db)
+    membership = await _resolve_active_membership(league.id, player.id, db)
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="League membership required"
+        )
+    return player, league
+
+
 LeagueAdminDep = Annotated[tuple[Profile, League], Depends(require_league_admin)]
 LeagueMemberDep = Annotated[tuple[Profile, League], Depends(require_league_member)]
+LeagueMemberWriteDep = Annotated[tuple[Profile, League], Depends(require_league_member_write)]
 
 
 # ---------------------------------------------------------------------------

@@ -21,6 +21,7 @@ from src.rate_limit import limiter, per_user_key
 from src.routers.leagues import (
     LeagueAdminDep,
     LeagueMemberDep,
+    LeagueMemberWriteDep,
     MemberInfo,
     _active_admin_count,
     _active_member_count,
@@ -347,7 +348,9 @@ async def set_my_display_name(
     request: Request,
     slug: str,
     body: DisplayNameRequest,
-    member_ctx: LeagueMemberDep,
+    # A write, so no site-admin bypass (Batch 125). It previously answered 404 through
+    # its own membership lookup, which is the right outcome reached the confusing way.
+    member_ctx: LeagueMemberWriteDep,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     player, league = member_ctx

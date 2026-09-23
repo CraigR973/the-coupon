@@ -29,27 +29,56 @@ async def get_league_or_404(slug: str, db: AsyncSession) -> League:
     return league
 
 
+async def _has_active_membership(league: League, player_id: uuid.UUID, db: AsyncSession) -> bool:
+    membership = await db.execute(
+        select(LeagueMembership.id).where(
+            LeagueMembership.league_id == league.id,
+            LeagueMembership.player_id == player_id,
+            LeagueMembership.deleted_at.is_(None),
+        )
+    )
+    return membership.scalar_one_or_none() is not None
+
+
 async def require_league_member(
     slug: str,
     player: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> League:
-    """Resolve the league by slug and require the caller be an active member.
+    """Resolve the league by slug and require the caller be an active member, **to read**.
 
-    Site admins bypass the membership check. Shared by the picks / gameweek / coupon
-    routers (leagues.py keeps its own equivalents).
+    Site admins bypass the membership check, deliberately and only here: oversight means
+    being able to look at any league without joining it and appearing on its table.
+
+    Batch 125 split this in two, because the bypass covered writes as well. A site admin
+    who had never joined could submit a pick, which **consumed a selection** from the
+    league's pool — taking it from a genuine member. They appeared in no member list and
+    no standing, and could not undo it by leaving, because there was nothing to leave.
+    A write needs :func:`require_league_member_write`.
     """
     league = await get_league_or_404(slug, db)
     if player.role == UserRole.admin:
         return league
-    membership = await db.execute(
-        select(LeagueMembership.id).where(
-            LeagueMembership.league_id == league.id,
-            LeagueMembership.player_id == player.id,
-            LeagueMembership.deleted_at.is_(None),
+    if not await _has_active_membership(league, player.id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="League membership required"
         )
-    )
-    if membership.scalar_one_or_none() is None:
+    return league
+
+
+async def require_league_member_write(
+    slug: str,
+    player: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> League:
+    """The same, for anything that changes the league's state. **No site-admin bypass.**
+
+    Being able to see a league is not the same as being able to play in it. Site admins
+    keep every read path they had; to act inside a league they join it like anybody else,
+    which is also what makes the action attributable and reversible.
+    """
+    league = await get_league_or_404(slug, db)
+    if not await _has_active_membership(league, player.id, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="League membership required"
         )
@@ -57,6 +86,7 @@ async def require_league_member(
 
 
 LeagueMemberDep = Annotated[League, Depends(require_league_member)]
+LeagueMemberWriteDep = Annotated[League, Depends(require_league_member_write)]
 
 
 async def get_odds_provider() -> OddsProvider:

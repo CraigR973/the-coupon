@@ -38,7 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth import CurrentUser
 from src.config import settings
 from src.database import get_db
-from src.deps import LeagueMemberDep, OddsProviderDep
+from src.deps import LeagueMemberDep, LeagueMemberWriteDep, OddsProviderDep
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekFixture
 from src.models.league import League, PickScope
@@ -228,7 +228,11 @@ async def submit_pick(
     slug: str,
     body: SubmitPickRequest,
     player: CurrentUser,
-    league: LeagueMemberDep,
+    # Batch 125. The *write* variant: a site admin who never joined this league can
+    # read it for oversight, but claiming a selection consumes one from the league's
+    # pool — taking it from a genuine member, off every member list and standing, and
+    # with no membership to leave in order to undo it.
+    league: LeagueMemberWriteDep,
     provider: OddsProviderDep,
     db: Db,
 ) -> SubmitPickResponse:
