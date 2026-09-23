@@ -1588,6 +1588,13 @@ leg stays on the coupon with its price; only the product changes, and `void_leg_
 optional) lets the screen and the clipboard both say why the fold is smaller than the legs.
 **API + web: `/ship-prod` is owed.**
 
+**Batch 128 made the migration rollback problem a check rather than a habit** (`00d609e`).
+Production has no restore point and migrates on boot, so every revision removes the rollback
+target until a later shipment applies none — recorded four times as a one-off before anyone
+saw it was structural. A batch adding a revision past `025` now fails its own gate without
+`docs/runbooks/migration-NNN-recovery.md`, and `/ship-prod` step 1.7 refuses the upload.
+`docs/runbooks/migrations.md` is the convention. **Tooling-only; nothing to ship.**
+
 **Batch 145 compressed the Saturday slate** (`f929c3d`). ~84 KB of JSON went down a phone
 uncompressed with no `vary: accept-encoding`; measured on a smaller round, 23,205 bytes became
 3,131 on the wire. Gzip is added **first so it sits innermost** — above the two

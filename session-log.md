@@ -4498,3 +4498,42 @@ turned up.
 
 **Next:** Batch 128, pulled forward ahead of 146 by owner decision (23 Sep) because 146 is
 the plan's only migration and removes the rollback target.
+
+## Batch 128 — Every shipment that carries a migration leaves nothing to roll back to
+**Commits:** `00d609e` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,297 backend and
+1,154 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **Pulled forward out of Phase 9 by owner decision (23 Sep) so it lands before Batch 146**,
+  the plan's only migration.
+- The rule: a batch that adds a revision writes `docs/runbooks/migration-NNN-recovery.md`
+  as part of that batch. `docs/runbooks/migrations.md` is the convention;
+  `migration-016-recovery.md` is the worked example.
+- **Two enforcement points, one definition of "usable".** The batch half is a *test*
+  (`test_migration_recovery_gate.py`) — add a revision past 025 with no plan and the gate
+  goes red on your own branch. The shipment half is `scripts/check-migration-recovery.sh`,
+  wired into `/ship-prod` step 1.7, which reads the deployed revision from production's
+  `/api/v1/health` so a stale note cannot satisfy it. The test calls the script's
+  `--plan-for` mode rather than restating the rule.
+- **The batch half is deliberately not a hook in `check-closeout-safety.sh`.** That file is
+  in `assert-quality-guardrails.sh`'s PROTECTED list, so a batch editing it fails its own
+  gate — correctly. I wrote that hook first, hit the guardrail, and moved it. The test is
+  the better home regardless: it runs on every batch and in CI, not only at close-out.
+- **Exit 2 (unknown deployed revision) is not a pass.** An unestablished starting point
+  means the applied set is unknown, not empty. Waving it through would let past exactly the
+  shipment this exists to stop. Asserted by its own test.
+- The contracting-DDL report scans **`upgrade()` only** — every `downgrade()` drops what its
+  upgrade created, so scanning whole files would flag all 25 revisions and mean nothing. It
+  reports rather than refuses: sometimes contracting is the point, but the plan must say why
+  it could not wait. `create_table` with NOT NULL columns is not contracting and is not
+  reported.
+- **bash 3.2 traps hit while writing this**, both of which pass `bash -n`: `mapfile` does not
+  exist, and `local a="$1" b="$a..."` leaves `b` interpolating an *unset* `a`, which under
+  `set -u` is a hard error. macOS ships 3.2 and the local gate runs on it.
+- Revisions 017–025 are **not** backfilled: deployed already, neither check fires, and the
+  convention starts from 026. Their plans, where written, are sections of the L4 doc.
+- Counts: BACKEND 1,289 → 1,297.
+
+**Next:** Batch 146 — the plan's only migration. It now needs
+`docs/runbooks/migration-026-recovery.md` before it can close out, which is the whole point
+of taking this batch first.

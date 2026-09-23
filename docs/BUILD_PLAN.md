@@ -4217,7 +4217,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the toolchain. No application code changes. **Tooling-only (no deploy),
   but it changes what every later batch is verified on, so it goes first in its group.**
 
-- [ ] **Batch 128 — Every shipment that carries a migration leaves nothing to roll back to**
+- [x] **Batch 128 — Every shipment that carries a migration leaves nothing to roll back to** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/04-performance-operations.md`, OPS-12 (HIGH,
   live). A previous image can only be rolled back to if it boots against the database as it
   now stands, so any shipment applying a migration removes the rollback target until the
