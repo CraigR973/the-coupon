@@ -99,6 +99,26 @@ describe('JoinPage', () => {
     });
   });
 
+
+  // Batch 124. An approval-gated league answers the join code with `pending`: the code
+  // opened a *request*, not a membership. Navigating into the league on that answer
+  // would land the member on a screen they are not yet allowed to see — and, worse,
+  // tell them they are in when an admin has not yet said so.
+  it('stays put and says a request was sent when the league is approval-gated', async () => {
+    storeSignedInPlayer();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ league_slug: 'the-coupon', status: 'pending' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderJoin('abc123');
+    fireEvent.click(screen.getByRole('button', { name: /join league/i }));
+
+    expect(await screen.findByText(/request sent/i)).toBeTruthy();
+    expect(screen.queryByText('Joined')).toBeNull();
+  });
+
   // The membership list is cached for a minute and every coupon surface gates its
   // own query on it, so a join that left the stale copy in place landed the new member
   // on "You're not in a league yet" — the one screen they had just joined to reach.

@@ -23,6 +23,7 @@ export function JoinByCodePage() {
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState<Step>('input');
+  const [pendingName, setPendingName] = useState('');
   const [code, setCode] = useState('');
   const [preview, setPreview] = useState<LeaguePreview | null>(null);
   const [error, setError] = useState('');
@@ -67,8 +68,20 @@ export function JoinByCodePage() {
         if (detail === 'LEAGUE_FULL') throw new Error('This league is full.');
         throw new Error(detail);
       }
-      const data = await resp.json() as { league_slug: string; league_name: string };
+      const data = (await resp.json()) as {
+        league_slug: string;
+        league_name: string;
+        status?: string;
+      };
       dropStaleMemberships(queryClient);
+      // Batch 124. An approval-gated league answers `pending`: the code opened a
+      // request, not a membership. Navigating into the league would land the member on
+      // a screen they are not yet allowed to see.
+      if (data.status === 'pending') {
+        setPendingName(data.league_name);
+        setStep('done');
+        return;
+      }
       navigate(`/leagues/${data.league_slug}`, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join league');
@@ -142,6 +155,23 @@ export function JoinByCodePage() {
                 {isLoading ? 'Joining…' : `Join ${preview.name}`}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 'done' && (
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle className="text-base text-center">Request sent</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-center text-sm font-sans text-text-secondary">
+              {pendingName} asks an admin to approve new members, so your request is
+              waiting for one. You will be able to pick as soon as it is approved.
+            </p>
+            <Button variant="outline" className="w-full" onClick={() => navigate('/', { replace: true })}>
+              Back to my leagues
+            </Button>
           </CardContent>
         </Card>
       )}

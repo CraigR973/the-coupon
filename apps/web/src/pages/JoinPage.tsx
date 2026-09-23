@@ -21,6 +21,7 @@ function AppJoinFlow() {
   const queryClient = useQueryClient();
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [requested, setRequested] = useState(false);
 
   const isJoinCode = JOIN_CODE_RE.test(token.toUpperCase());
   const returnPath = `/join/${encodeURIComponent(token)}`;
@@ -51,8 +52,15 @@ function AppJoinFlow() {
         if (detail === 'LEAGUE_FULL') throw new Error('This league is full.');
         throw new Error(detail);
       }
-      const payload = (await response.json()) as { league_slug: string };
+      const payload = (await response.json()) as { league_slug: string; status?: string };
       dropStaleMemberships(queryClient);
+      // Batch 124. An approval-gated league answers `pending` — the code opened a
+      // request, not a membership — so there is nothing to navigate into yet.
+      if (payload.status === 'pending') {
+        setRequested(true);
+        setIsSubmitting(false);
+        return;
+      }
       navigate(`/leagues/${payload.league_slug}`, { replace: true });
     } catch (claimError) {
       setError(claimError instanceof Error ? claimError.message : 'Failed to join league');
@@ -78,6 +86,11 @@ function AppJoinFlow() {
             {!token ? (
               <p role="alert" className="text-sm text-center text-error">
                 This invite link is incomplete.
+              </p>
+            ) : requested ? (
+              <p role="status" className="text-sm text-center text-text-secondary">
+                Request sent. This league asks an admin to approve new members — you will
+                be able to pick as soon as yours is approved.
               </p>
             ) : player ? (
               <>

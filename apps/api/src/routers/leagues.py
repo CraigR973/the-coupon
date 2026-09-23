@@ -690,6 +690,42 @@ async def _auto_approve_pending_requests(
     return len(requests)
 
 
+async def _create_join_request(
+    league: League,
+    player: Profile,
+    db: AsyncSession,
+) -> LeagueJoinRequest:
+    """Open a pending join request, or refuse because one is already open.
+
+    Extracted in Batch 124 so ``/join`` and ``/join-by-code`` cannot answer a
+    ``public_request`` league differently. They did: ``/join`` created a request and
+    ``/join-by-code`` created a membership, so the same person refused approval at the
+    front door walked in through the code — which every member of the league can read.
+    """
+    existing = await db.execute(
+        select(LeagueJoinRequest).where(
+            LeagueJoinRequest.league_id == league.id,
+            LeagueJoinRequest.player_id == player.id,
+            LeagueJoinRequest.status == JoinRequestStatus.pending,
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="JOIN_REQUEST_PENDING",
+        )
+    join_req = LeagueJoinRequest(
+        league_id=league.id,
+        player_id=player.id,
+        status=JoinRequestStatus.pending,
+        requested_at=_now(),
+        created_at=_now(),
+    )
+    db.add(join_req)
+    db.add(_audit(player, ActionType.join_request_created, "league_join_requests", league.id))
+    return join_req
+
+
 async def _upsert_membership(
     league_id: uuid.UUID,
     player_id: uuid.UUID,
@@ -1664,27 +1700,7 @@ async def join_league(
         return JoinResponse(status="joined")
 
     # public_request: create or reuse a pending join request
-    existing_req_result = await db.execute(
-        select(LeagueJoinRequest).where(
-            LeagueJoinRequest.league_id == league.id,
-            LeagueJoinRequest.player_id == player.id,
-            LeagueJoinRequest.status == JoinRequestStatus.pending,
-        )
-    )
-    if existing_req_result.scalar_one_or_none() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="JOIN_REQUEST_PENDING",
-        )
-    join_req = LeagueJoinRequest(
-        league_id=league.id,
-        player_id=player.id,
-        status=JoinRequestStatus.pending,
-        requested_at=_now(),
-        created_at=_now(),
-    )
-    db.add(join_req)
-    db.add(_audit(player, ActionType.join_request_created, "league_join_requests", league.id))
+    await _create_join_request(league, player, db)
     await db.commit()
     log.info("join request created", league_id=str(league.id), player_id=str(player.id))
     return JoinResponse(status="pending")

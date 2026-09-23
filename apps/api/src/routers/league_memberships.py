@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth import CurrentUser, generate_join_code, generate_opaque_token
 from src.database import get_db
 from src.models.invite import Invite
-from src.models.league import League
+from src.models.league import League, LeaguePrivacy
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.notification import ActionType
 from src.models.profile import Profile, UserRole
@@ -25,6 +25,7 @@ from src.routers.leagues import (
     _active_admin_count,
     _active_member_count,
     _audit,
+    _create_join_request,
     _now,
     _resolve_active_membership,
     _upsert_membership,
@@ -115,6 +116,13 @@ class JoinByCodeBody(BaseModel):
 class JoinByCodeResponse(BaseModel):
     league_slug: str
     league_name: str
+    #: ``"joined"`` or ``"pending"``, matching ``POST /{slug}/join``'s own answer.
+    #:
+    #: Batch 124. A ``public_request`` league used to admit a code holder straight into
+    #: membership, so approval could be skipped entirely by anyone who could read the
+    #: code — which is every member. Now the two doors answer the same way, and the
+    #: caller has to be told which of the two happened.
+    status: str = "joined"
 
 
 @router.post("/join-by-code", response_model=JoinByCodeResponse, status_code=status.HTTP_200_OK)
@@ -142,12 +150,23 @@ async def join_league_by_code(
     if await _active_member_count(league.id, db) >= league.max_members:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="LEAGUE_FULL")
 
+    # An approval-gated league is gated at *both* doors. Holding the code is not
+    # approval — every member can read it, and a league that refuses someone at
+    # `/join` cannot sensibly admit the same person here.
+    if league.privacy == LeaguePrivacy.public_request:
+        await _create_join_request(league, player, db)
+        await db.commit()
+        log.info("join request created by code", league_id=str(league.id), player_id=str(player.id))
+        return JoinByCodeResponse(
+            league_slug=league.slug, league_name=league.name, status="pending"
+        )
+
     await _upsert_membership(league.id, player.id, db)
     db.add(_audit(player, ActionType.member_joined, "league_memberships", league.id))
     await notify_member_joined(db, player.display_name, league.name, league.id)
     await db.commit()
     log.info("joined by code", league_id=str(league.id), player_id=str(player.id))
-    return JoinByCodeResponse(league_slug=league.slug, league_name=league.name)
+    return JoinByCodeResponse(league_slug=league.slug, league_name=league.name, status="joined")
 
 
 # ---------------------------------------------------------------------------
@@ -297,8 +316,20 @@ async def remove_member(
             {"player_id": str(target_player_id)},
         )
     )
+    # Batch 124. The removed member has seen the join code — every member can — and
+    # `_upsert_membership` restores a soft-deleted row, so pasting it back put them
+    # straight in again with no check anywhere on the way. Removal now invalidates the
+    # code for everyone, which is the only thing that actually closes the door: the
+    # league's admin shares the new one, and the person just removed does not get it.
+    league.join_code = generate_join_code()
+    league.updated_at = _now()
+    db.add(_audit(player, ActionType.league_join_code_rotated, "leagues", league.id))
     await db.commit()
-    log.info("member removed", league_id=str(league.id), target=str(target_player_id))
+    log.info(
+        "member removed, join code rotated",
+        league_id=str(league.id),
+        target=str(target_player_id),
+    )
 
 
 # ---------------------------------------------------------------------------
