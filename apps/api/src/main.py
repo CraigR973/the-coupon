@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from starlette.middleware.gzip import GZipMiddleware
 
 from src.config import docs_urls, settings
 from src.database import AsyncSessionLocal
@@ -90,6 +91,29 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
+# Batch 145. A fully-priced Saturday slate is ~84 KB of JSON and is the largest thing a
+# member downloads, on a phone, on the one morning they all open the app at once.
+#
+# **Added first on purpose, which puts it innermost.** `add_middleware` prepends, so the
+# last one added runs outermost — and the two below are `BaseHTTPMiddleware`, which
+# re-emits every response as a *stream*. A gzip layer outside them never sees a
+# content-length, takes the streaming branch, and compresses everything regardless of
+# `minimum_size`: with it outermost, a 658-byte login came back gzipped. Innermost it sees
+# the route's own response and the floor means what it says.
+#
+# `minimum_size` is 4 KB rather than Starlette's 500 bytes, and the reason is not that
+# small payloads compress badly. It is that **a compressed response leaks its own length**,
+# and the responses under 4 KB are the ones carrying credentials — a login hands back two
+# JWTs in 658 bytes, measured. Compressing a secret beside anything a caller can influence
+# is the shape BREACH attacks, and there is nothing to buy by taking the risk: a kilobyte
+# saved once at sign-in is not the Saturday-morning payload this batch exists for. Above
+# 4 KB the responses are slates, rosters and league tables — data the league already sees.
+#
+# `compresslevel` is 6, not Starlette's 9. On a slate this size the last three levels buy
+# about a percent for several times the CPU, on a 0.25-vCPU container that compresses on
+# the event loop below `thread_minimum_size`.
+app.add_middleware(GZipMiddleware, minimum_size=4096, compresslevel=6)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_origin],
@@ -99,6 +123,7 @@ app.add_middleware(
 )
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
+
 
 app.include_router(health.router)
 app.include_router(config_router)
