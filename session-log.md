@@ -4180,3 +4180,29 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,225 → 1,240.
 
 **Next:** Batch 133.
+
+## Batch 133 — Daily discovery has no budget of its own
+**Commits:** `a498e2a` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,245 backend and
+1,147 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- `discover_fixtures` takes `request_budget: int | None = None`. Default `None` means
+  unbounded, so every caller that does not opt in behaves exactly as before; only
+  `run_discover_fixtures` passes `settings.discovery_request_budget` (90).
+- A walk is priced at `len(competition_ids)`, or `MEASURED_PLAYED_CATALOGUE` when the
+  caller passed no narrowing — the honest stand-in for a number this function cannot ask
+  the provider for.
+- **The walk is interleaved by date rank**, not window-major. That was the load-bearing
+  half: with a budget, window-major order costs the *last window entirely* while the first
+  is still buying dates a fortnight out. Order within a rank is `by_window`'s insertion
+  order, so it is stable and no window is systematically last.
+- The budget stop is a `break` after a commit, not an exception, so Batch 119's
+  "keeps every date it bought" property needed its own test on this path.
+- Taken **after** Batch 159 deliberately (the run order says so): 159 halves what an extra
+  window costs, which is the number this budget is sized against.
+- One test I wrote was too weak and I caught it by reverting: `the last window is still
+  served` originally asserted `len(windows) == 3`, which is trivially true. The fake now
+  records the window of each walk and the test asserts all three were served.
+- Counts: BACKEND 1,240 → 1,245.
+
+**Next:** Batch 162.

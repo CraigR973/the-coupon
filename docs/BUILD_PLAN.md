@@ -4301,7 +4301,7 @@ answered until it lands, because until then there is no data to look at.
   **API-carrying — both defects only exist once migration 025 ships, so this batch follows
   that shipment.**
 
-- [ ] **Batch 133 — Daily discovery has no budget of its own, and a third window would exhaust the plan**
+- [x] **Batch 133 — Daily discovery has no budget of its own, and a third window would exhaust the plan** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-15 (MED, live). The
   daily run costs roughly windows × dates × competitions. Competitions are narrowed but not
   per window, and the horizon is two weeks, so a third distinct window across the deployment

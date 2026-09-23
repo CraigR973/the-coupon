@@ -1521,6 +1521,14 @@ picks through a busy one's exhaustion — because the plan leaves about fifty pi
 hour and two leagues cannot both have fifty. `PICKS_BUSY` and the per-league limit are
 untouched. **API-only: `/ship-prod` is owed, with 159 and 160.**
 
+**Batch 133 gave discovery a budget and made it spend it across windows** (`a498e2a`). The
+run costs `windows x dates x competitions` and only the last factor was bounded, so a third
+distinct window — a league-settings change, not a deploy — put it near 120 requests against a
+100/hour plan and would have 429'd partway. `discovery_request_budget` (90) stops the run
+cleanly with everything already bought committed, and the walk is now interleaved by date rank
+rather than window by window: a shortfall costs the far end of every window's horizon instead
+of the whole of the last window. **API-only: `/ship-prod` is owed, with 159, 160 and 161.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",
