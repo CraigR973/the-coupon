@@ -1396,6 +1396,17 @@ only on the two routes where it *is* the page; as `InstallPromptController`'s ov
 a `<div>`, because the route underneath already has a `<main>`. Both accessibility sweeps now
 enumerate every public route rather than a sample. Web-only; live on the close-out push.
 
+**Batch 138 stopped dimming tuned text with opacity** (`6794111`). `opacity-70` composites
+an element into its backdrop rather than dimming its colour, so text tuned to exactly AA fell
+under: the team-season kick-off time at 2.83:1 in light, the season strip's "now" badge at
+3.57:1. Each now steps down a token — primary, secondary, muted — instead of fading. Measuring
+the grounds found the larger half the review had not: the strip's **selected** chip is
+`bg-primary/15` inside a `bg-surface-elevated/70` panel, and brand ink on that composite is
+3.87:1 in light with no opacity involved, so the chip's own label was failing too; the
+results-day carousel is 3.95:1 the same way. Both selected chips now use `--text-primary` and
+keep their brand cue in the border and tint. `contrast.test.ts` now measures composited
+grounds, which no assertion in it previously did. Web-only; live on the close-out push.
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",

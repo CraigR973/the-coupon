@@ -4387,7 +4387,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: these four pages' shell and the smoke's route list. No visual redesign.
   **Web-only.**
 
-- [ ] **Batch 138 — A 70% opacity drops two AA-tuned surfaces below contrast**
+- [x] **Batch 138 — A 70% opacity drops two AA-tuned surfaces below contrast** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-13 (MED, live). Two
   surfaces apply an opacity utility over text already tuned to the AA threshold: the
   team-season kick-off time measures 2.83:1 in light mode and the season strip's "now"

@@ -3871,3 +3871,28 @@ unchecked because Batch 119 superseded it.
   1,073 to 1,083.
 
 **Next:** Batch 138.
+
+## Batch 138 — A 70% opacity drops two AA-tuned surfaces below contrast
+**Commits:** `6794111` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,179 backend and
+1,096 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- The review's two measurements reproduce exactly from the tokens: kick-off time 2.83:1 light,
+  "now" badge 3.58:1 light / 4.06:1 dark. The badge figure is the *unselected* chip.
+- Bigger finding, not in the review: the **selected** chip fails without any opacity. Brand ink
+  on `bg-primary/15` over a `bg-surface-elevated/70` panel is 3.87:1 light (season strip) and
+  3.95:1 (results-day carousel, no panel). The chip label, not just the badge, was under AA.
+- No brand-family token clears 4.5:1 on that tint in light — `--primary-dark` reaches only 4.32
+  on the darkest ground — so a green-on-green chip cannot be fixed by picking a different green.
+  Both chips use `--text-primary` and keep the brand cue in `border-primary/40 bg-primary/15`.
+- `contrast.test.ts` now composites grounds (`over(fg, alpha, bg)`). Every earlier assertion in
+  that file measured a token against a *surface tier*, and none of these three grounds is one —
+  which is how this defect class keeps returning.
+- The opacity guard allows `opacity-40` on the carousel's disabled step buttons: WCAG 1.4.3
+  exempts inactive components. It refuses an opacity utility only on text that is still live.
+- Not in this batch: UX-18's `opacity-60` payout figure on PickCard/PickRow (2.83:1 dark,
+  2.38:1 light). The review says it is the same family; Batch 138's row does not cover it and
+  no batch row currently does.
+- Gate green on the first run; FRONTEND_TEST_COUNT 1,083 → 1,096.
+
+**Next:** Batch 139.
