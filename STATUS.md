@@ -1484,6 +1484,15 @@ framer-motion inject styles at runtime. A new prod-bundle spec applies the shipp
 `vite preview` — which does not read `vercel.json` — and loads every public route under it,
 with the service worker and the preloaded font asserted by name. Web-only; live on the push.
 
+**Batch 143 made logout forget the league** (`5c02dcd`). `clearTokens()` removed the token
+keys only, so a private league's slug and name survived a logout on a shared browser and
+pre-selected for whoever signed in next; both league keys now go on logout and on an identity
+switch. `forgetLeagueContext` lives beside the keys it clears, and the switcher's scroll key
+moved into that module so `lib/` never imports a component. Separately `claim-invite` looked
+its league up without the `deleted_at` filter every other lookup applies, so an invite to a
+deleted league resolved and built a membership of a league that no longer exists; it now
+refuses cleanly. **API + web: `/ship-prod` is owed.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",

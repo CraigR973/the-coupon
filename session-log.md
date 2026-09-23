@@ -4081,3 +4081,23 @@ unchecked because Batch 119 superseded it.
 - Counts: FRONTEND 1,127 → 1,140.
 
 **Next:** Batch 143, then its `/ship-prod`.
+
+## Batch 143 — Logout leaves the last league on screen
+**Commits:** `5c02dcd` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,210 backend and
+1,147 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- `LEAGUE_SWITCH_SCROLL_KEY` moved from `LeagueSwitchStrip.tsx` into `lib/leagueRecency.ts`,
+  which now also exports `forgetLeagueContext()`. That keeps the key names in one place and
+  stops `lib/` needing to import a component to clear them.
+- The scroll key is **sessionStorage**, the recency key **localStorage**. Both are cleared.
+- The clearing test asserts no `coupon_` key matching `/league/i` survives a logout, rather
+  than naming the two. The defect was a `clearTokens` that only knew about tokens, so a
+  third key added later has to fail in the gate and not on a shared laptop.
+- `coupon_theme` is asserted to *survive* logout: the theme belongs to the device, not the
+  account.
+- `forgetLeagueContext` swallows storage exceptions independently per store — a private
+  window or blocked site data must not stop a logout completing.
+- Counts: BACKEND 1,208 → 1,210, FRONTEND 1,140 → 1,147.
+
+**Next:** `/ship-prod` for Batch 143, then Phase 5 (159, 160, 161, 133, 162, 129, 147).

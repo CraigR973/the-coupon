@@ -4482,7 +4482,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the pin and the push call. No change to the VAPID flow.
   **API-carrying.**
 
-- [ ] **Batch 143 — Logout leaves the last league on screen, and an invite to a deleted league still resolves**
+- [x] **Batch 143 — Logout leaves the last league on screen, and an invite to a deleted league still resolves** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/01-security.md`, SEC-25 and SEC-26 (both LOW,
   live). `clearTokens()` removes the access, refresh and player keys only, so
   `coupon_last_viewed_league` — a private league's slug and name — survives a logout on a
