@@ -4246,7 +4246,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: alert delivery. No change to what the alarms detect. **API-carrying.**
 
-- [ ] **Batch 130 — A round completed by someone leaving never announces itself, and later credits the wrong member**
+- [x] **Batch 130 — A round completed by someone leaving never announces itself, and later credits the wrong member** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-14 (MED, live). A round
   can become complete because the last member who had not picked leaves, is removed, or is
   deactivated. None of those paths fires the completion notification or writes the

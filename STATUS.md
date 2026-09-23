@@ -1551,6 +1551,15 @@ and a reminder cannot recover from that the way a lock sweep can, so a round loc
 domain jobs; `gameweeks_due_a_reminder` already selected on the UTC lock instant, so the wall
 clock was never load-bearing. **API-only: `/ship-prod` is owed — this completes Phase 5.**
 
+**Batch 130 completes a round when the roster change fills it** (`092ff38`). A round
+completes when every *active* member has picked, and only the picking path recorded that — so
+a round filled by the last outstanding picker leaving, being removed or being deleted
+announced nothing, and a later unrelated pick change fired the event and credited that member.
+All three doors now re-evaluate completion and attribute it to the transition rather than to a
+member. The new line is keyed on the empty picker **name**, not a null id: the id has been
+nullable since long before this because the foreign key is `ON DELETE SET NULL`.
+**API-only: `/ship-prod` is owed.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",

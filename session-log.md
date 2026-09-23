@@ -4274,3 +4274,31 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,257 → 1,260.
 
 **Next:** the Phase 5 `/ship-prod`, carrying 159, 160, 161, 133, 162, 129 and 147.
+
+## Batch 130 — A round completed by someone leaving never announces itself
+**Commits:** `092ff38` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,269 backend and
+1,147 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- `complete_rounds_after_roster_change(session, league_id)` re-evaluates every pickable
+  round and returns the ones whose completion row it wrote.
+  `settle_completion_after_roster_change` wraps it with the announcement, its own commit
+  and its own exception swallowing — leaving a league must not 500 on a dead subscription.
+- Three call sites: `leave_league`, `remove_member`, and the site-admin `delete_player`
+  (which loops the member's leagues). All three are tested **over HTTP**, because a
+  service-level test passes against an app that never calls the service.
+- **`final_picker_id is None` is not the roster-change marker.** The column has been
+  nullable since long before this — the FK is `ON DELETE SET NULL` — so a null id also
+  means "the member who completed this has since been deleted", and that row still has a
+  name to print. The discriminator is the empty **name**; keying on the id rewrote those
+  alerts and every pre-`024` legacy row too. The full gate caught it via
+  `test_a_completion_written_before_024_falls_back_to_what_it_has`.
+- `record_completion`'s picker/market/outcome/fixture parameters are now optional, which
+  is what lets one function serve both paths.
+- Also fixed a flake this session introduced in Batch 141: the CSP spec's `page.route`
+  handler could still be fetching a font when the page closed. Routes are drained in
+  `afterEach`, and the font assertion now actually checks a woff2 was fetched — its
+  listener had been attached after the navigation that issues the request.
+- Counts: BACKEND 1,260 → 1,269.
+
+**Next:** Batch 131 — the win-rate oracle, decided by the owner.
