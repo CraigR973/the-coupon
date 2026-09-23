@@ -36,7 +36,7 @@ export function ForgotPinPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg flex flex-col items-center justify-center p-4 pt-safe pb-safe">
+    <main className="min-h-screen bg-bg flex flex-col items-center justify-center p-4 pt-safe pb-safe">
       <div className="w-full max-w-sm">
         <div className="mb-10">
           <Brand variant="splash" />
@@ -44,7 +44,7 @@ export function ForgotPinPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-center text-text-primary">Reset PIN</CardTitle>
+            <CardTitle as="h1" className="text-center text-text-primary">Reset PIN</CardTitle>
           </CardHeader>
           <CardContent>
             {submitted ? (
@@ -101,6 +101,6 @@ export function ForgotPinPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </main>
   );
 }

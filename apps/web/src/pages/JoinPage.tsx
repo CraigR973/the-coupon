@@ -61,7 +61,7 @@ function AppJoinFlow() {
   }
 
   return (
-    <div className="min-h-screen bg-bg flex flex-col items-center justify-center p-4 pt-safe pb-safe">
+    <main className="min-h-screen bg-bg flex flex-col items-center justify-center p-4 pt-safe pb-safe">
       <div className="w-full max-w-sm space-y-6">
         <div>
           <Brand variant="splash" />
@@ -72,7 +72,7 @@ function AppJoinFlow() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-center text-text-primary">Join the league</CardTitle>
+            <CardTitle as="h1" className="text-center text-text-primary">Join the league</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {!token ? (
@@ -113,12 +113,12 @@ function AppJoinFlow() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </main>
   );
 }
 
 export function JoinPage() {
   const { isInstalled, isMobile } = useInstallPrompt();
-  if (isMobile && !isInstalled) return <BrowserOnboarding />;
+  if (isMobile && !isInstalled) return <BrowserOnboarding landmark />;
   return <AppJoinFlow />;
 }

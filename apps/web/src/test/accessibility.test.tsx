@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { axe } from 'jest-axe';
 import axeCore from 'axe-core';
@@ -8,6 +8,9 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { LeagueProvider } from '@/contexts/LeagueContext';
 import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
+import { ForgotPinPage } from '@/pages/ForgotPinPage';
+import { SetPinPage } from '@/pages/SetPinPage';
+import { JoinPage } from '@/pages/JoinPage';
 import { TopBar } from '@/components/TopBar';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { BrowserOnboarding } from '@/components/BrowserOnboarding';
@@ -291,32 +294,65 @@ describe.each(['light', 'dark'])(
       document.documentElement.classList.add(theme);
     });
 
-    it.each([
-      ['LoginPage', LoginPage],
-      ['RegisterPage', RegisterPage],
-    ])('%s puts all content in a landmark, under one <h1>', async (_name, Page) => {
-      render(
-        <QueryClientProvider client={makeQueryClient()}>
-          <MemoryRouter>
-            <AuthProvider>
-              <Page />
-            </AuthProvider>
-          </MemoryRouter>
-        </QueryClientProvider>,
+    /**
+     * Every public route, not a sample. Batch 86 fixed `/login` and `/register` and
+     * said so in its scope boundary; the other four kept the defect for a further
+     * three weeks because nothing here named them. `/set-pin` was the worst of them
+     * and is where a member lands after an admin clears their PIN.
+     *
+     * Each case carries its own entry and readiness marker because these screens do
+     * not share a shape: two of them have no form at all.
+     */
+    const PUBLIC_SCREENS: [string, string, JSX.Element, string][] = [
+      ['/login', '/login', <LoginPage />, 'form'],
+      ['/register', '/register', <RegisterPage />, 'form'],
+      ['/forgot-pin', '/forgot-pin', <ForgotPinPage />, 'form'],
+      ['/set-pin', '/set-pin', <SetPinPage />, 'form'],
+      ['/join/:token', '/join/INVITE', <JoinPage />, 'h1'],
+      ['/welcome', '/welcome', <BrowserOnboarding landmark />, 'h1'],
+    ];
+
+    it.each(PUBLIC_SCREENS)(
+      '%s puts all content in a landmark, under one <h1>',
+      async (path, entry, element, ready) => {
+        render(
+          <QueryClientProvider client={makeQueryClient()}>
+            <MemoryRouter initialEntries={[entry]}>
+              <AuthProvider>
+                <Routes>
+                  <Route path={path} element={element} />
+                </Routes>
+              </AuthProvider>
+            </MemoryRouter>
+          </QueryClientProvider>,
+        );
+        await waitFor(() => expect(document.querySelector(ready)).toBeTruthy());
+
+        const results = await axeCore.run(document.documentElement, {
+          runOnly: { type: 'rule', values: PAGE_LEVEL_RULES },
+        });
+        expect(results.violations.map((v) => v.id)).toEqual([]);
+
+        // The structural half of what the two layout-dependent rules would assert,
+        // and stricter than they are: axe passes `landmark-one-main` on a page with
+        // three <main>s and `page-has-heading-one` on one with three <h1>s, since
+        // both ask only whether at least one exists.
+        expect(document.querySelectorAll('main')).toHaveLength(1);
+        expect(document.querySelectorAll('h1')).toHaveLength(1);
+      },
+    );
+
+    it('does not let the install overlay put a second <main> over a route', async () => {
+      // BrowserOnboarding is a whole screen on `/welcome` and inside `/join/:token`,
+      // and a full-screen overlay on top of another route everywhere else. Only the
+      // first two may claim the landmark, or an overlaid protected route — which has
+      // `Layout`'s <main> already — ends up with two.
+      const { container } = render(
+        <MemoryRouter>
+          <BrowserOnboarding />
+        </MemoryRouter>,
       );
-      await waitFor(() => expect(document.querySelector('form')).toBeTruthy());
-
-      const results = await axeCore.run(document.documentElement, {
-        runOnly: { type: 'rule', values: PAGE_LEVEL_RULES },
-      });
-      expect(results.violations.map((v) => v.id)).toEqual([]);
-
-      // The structural half of what the two layout-dependent rules would assert,
-      // and stricter than they are: axe passes `landmark-one-main` on a page with
-      // three <main>s and `page-has-heading-one` on one with three <h1>s, since
-      // both ask only whether at least one exists.
-      expect(document.querySelectorAll('main')).toHaveLength(1);
-      expect(document.querySelectorAll('h1')).toHaveLength(1);
+      expect(container.querySelectorAll('main')).toHaveLength(0);
     });
   },
 );

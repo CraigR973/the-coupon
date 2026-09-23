@@ -22,15 +22,24 @@ const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 );
 CardHeader.displayName = 'CardHeader';
 
-const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
-  ({ className, ...props }, ref) => (
-    <h2
-      ref={ref}
-      className={cn('text-lg font-semibold leading-tight tracking-tight', className)}
-      {...props}
-    />
-  ),
-);
+/**
+ * `as` exists for the pages that render outside `Layout`/`ProtectedRoute` and so
+ * have nothing else to supply the document's `<h1>` — the public auth, invite and
+ * onboarding screens. Batch 86 solved that for `/login` and `/register` by
+ * hand-rolling an `<h1>` carrying CardTitle's own classes; Batch 137 had four more
+ * screens to do it for, and a fifth copy of a magic class string is how those drift
+ * apart. The default is unchanged, so every card in the app still titles at `<h2>`.
+ */
+const CardTitle = React.forwardRef<
+  HTMLHeadingElement,
+  React.HTMLAttributes<HTMLHeadingElement> & { as?: 'h1' | 'h2' }
+>(({ className, as: Heading = 'h2', ...props }, ref) => (
+  <Heading
+    ref={ref}
+    className={cn('text-lg font-semibold leading-tight tracking-tight', className)}
+    {...props}
+  />
+));
 CardTitle.displayName = 'CardTitle';
 
 const CardDescription = React.forwardRef<

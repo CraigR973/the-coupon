@@ -31,11 +31,16 @@ import { brand } from '@/theme/tokens';
  * desktop browser, so the desktop case offers account creation and sign-in rather than
  * telling someone with no phone in their hand to install something.
  */
-export function BrowserOnboarding() {
+export function BrowserOnboarding({ landmark = false }: { landmark?: boolean }) {
   const { isIos, isIosSafari, isAndroid, isMobile, canInstall, prompt } = useInstallPrompt();
+  // This component is a whole screen on `/welcome` and inside `/join/:token`, and a
+  // full-screen overlay *on top of* another route everywhere else
+  // (`InstallPromptController`). Only the first two may claim the document's `<main>`;
+  // the overlay covers routes that already have one, and two <main>s is its own defect.
+  const Root = landmark ? 'main' : 'div';
 
   return (
-    <div className="min-h-screen bg-bg flex flex-col items-center justify-center p-6 pt-safe pb-safe">
+    <Root className="min-h-screen bg-bg flex flex-col items-center justify-center p-6 pt-safe pb-safe">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-3">
           <Brand variant="splash" />
@@ -139,6 +144,6 @@ export function BrowserOnboarding() {
           </p>
         )}
       </div>
-    </div>
+    </Root>
   );
 }

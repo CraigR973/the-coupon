@@ -159,7 +159,7 @@ export function App() {
                       cold browser visit to "/" is sent, and it is the same component the
                       mobile gate and the join flow render, so there is exactly one thing
                       to keep up to date. */}
-                  <Route path="/welcome" element={<BrowserOnboarding />} />
+                  <Route path="/welcome" element={<BrowserOnboarding landmark />} />
 
                   {/* Protected: authenticated + LeagueProvider */}
                   <Route element={<ProtectedRoute />}>
