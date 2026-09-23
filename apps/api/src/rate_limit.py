@@ -11,6 +11,7 @@ than an accident.
 import hashlib
 import json
 import time
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -167,6 +168,29 @@ LOGIN_LIMIT = "5/15 minutes"
 #: keying on it would let anyone page every admin once per name they can guess.
 PIN_RESET_REQUEST_LIMIT = "3/hour"
 
+#: ``/auth/login``, charged **only when a PIN is wrong**, keyed by source address alone.
+#:
+#: Batch 123. ``LOGIN_LIMIT`` is per ``(name, ip)``, so one source can work a whole
+#: leaderboard: five wrong PINs per name, each one locking that account for fifteen
+#: minutes, and display names are public. The account lock is account-wide — the right
+#: answer to brute force and the wrong shape against griefing, because it is the victim
+#: who is shut out.
+#:
+#: This bounds the *source* instead, and only for failures: a member typing their own
+#: PIN correctly spends nothing here, so an honest household behind one NAT never meets
+#: it. Fifteen wrong PINs in fifteen minutes is three accounts' worth of the existing
+#: allowance, which is well beyond fumbling and well short of a leaderboard.
+#:
+#: Deliberately *alongside* the account lock rather than instead of it. Removing the
+#: account lock would reopen unlimited guessing from a rotating source, which is the
+#: thing it exists to stop.
+LOGIN_SOURCE_FAILURE_LIMIT = "15/15 minutes"
+
+
+def login_source_key(request: Request) -> str:
+    """Key for the per-source failure budget: the address, with no name in it."""
+    return f"login-src:{client_address(request)}"
+
 
 def durable_bucket_key(key: str) -> str:
     """Fold a limiter key into something a ``String(200)`` column and a btree can hold.
@@ -305,5 +329,30 @@ async def enforce_pin_reset_request_limit(
     await enforce_durable_limit(request, session, client_address(request), PIN_RESET_REQUEST_LIMIT)
 
 
+async def login_failure_charger(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_limiter_db)],
+) -> Callable[[], Awaitable[None]]:
+    """Hand the login handler a way to spend one of this source's wrong-PIN allowance.
+
+    A callable rather than a plain dependency because the charge has to happen **after**
+    the PIN has been checked: a dependency runs before the handler and would charge
+    correct sign-ins too, which is exactly the shared-address failure this limit is
+    shaped to avoid.
+
+    It rides on the limiter's own session for the same reason
+    :func:`enforce_login_limit` does — the handler commits the failed-attempt count and
+    then raises, and a charge inside that transaction would be at the mercy of it.
+    """
+
+    async def charge() -> None:
+        await enforce_durable_limit(
+            request, session, login_source_key(request), LOGIN_SOURCE_FAILURE_LIMIT
+        )
+
+    return charge
+
+
 DurableLoginLimit = Annotated[None, Depends(enforce_login_limit)]
+ChargeLoginFailure = Annotated[Callable[[], Awaitable[None]], Depends(login_failure_charger)]
 DurablePinResetRequestLimit = Annotated[None, Depends(enforce_pin_reset_request_limit)]

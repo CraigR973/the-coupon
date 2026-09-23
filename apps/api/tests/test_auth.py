@@ -27,7 +27,11 @@ from src.database import get_db
 from src.main import app
 from src.models.profile import OddsFormat, Profile, UserRole
 from src.models.refresh_token import RefreshToken
-from src.rate_limit import enforce_login_limit, enforce_pin_reset_request_limit
+from src.rate_limit import (
+    enforce_login_limit,
+    enforce_pin_reset_request_limit,
+    login_failure_charger,
+)
 from src.routers.auth import REGISTER_LIMIT
 
 # ---------------------------------------------------------------------------
@@ -108,15 +112,23 @@ async def _override_db(mock_db: AsyncMock) -> AsyncGenerator[None, None]:
     async def _no_limit() -> None:
         return None
 
+    async def _no_charge() -> object:
+        async def charge() -> None:
+            return None
+
+        return charge
+
     app.dependency_overrides[get_db] = _fake_db
     app.dependency_overrides[enforce_login_limit] = _no_limit
     app.dependency_overrides[enforce_pin_reset_request_limit] = _no_limit
+    app.dependency_overrides[login_failure_charger] = _no_charge
     try:
         yield
     finally:
         app.dependency_overrides.pop(get_db, None)
         app.dependency_overrides.pop(enforce_login_limit, None)
         app.dependency_overrides.pop(enforce_pin_reset_request_limit, None)
+        app.dependency_overrides.pop(login_failure_charger, None)
 
 
 @pytest.fixture
@@ -1073,3 +1085,161 @@ def test_the_weak_pin_list_covers_the_obvious_shapes() -> None:
         assert is_weak_pin(weak), weak
     for fine in ("8317", "2749", "5081", "9042"):
         assert not is_weak_pin(fine), fine
+
+
+# ---------------------------------------------------------------------------
+# Batch 123 — a griefing lock must not cost a member their valid session
+# ---------------------------------------------------------------------------
+#
+# Five wrong PINs lock an account for fifteen minutes, and the lock is account-wide:
+# the *correct* PIN from a different address is refused too. Display names are on every
+# leaderboard, so any member can hold a rival on the sign-in screen indefinitely by
+# spending five attempts a quarter of an hour.
+#
+# The answer is not to relax the lock — admitting a correct PIN during one reopens
+# unlimited guessing. It is that a member holding a valid thirty-day refresh token has
+# already proved who they are, and should not be sent back through the one path somebody
+# else can close.
+
+
+async def test_a_valid_refresh_token_signs_a_member_in_while_their_account_is_locked(
+    client: AsyncClient,
+) -> None:
+    """The finding, end to end on the API side."""
+    user = _make_user(failed=5, locked_until=_now() + timedelta(minutes=14))
+    record_id = uuid.uuid4()
+    refresh_jwt = create_refresh_token(user.id, record_id)
+    token_record = _make_refresh_record(user.id, refresh_jwt)
+    token_record.id = record_id
+
+    # A stub session per call: each one is a queue of `execute()` answers in the order
+    # that handler asks for them, and login's first question is not refresh's.
+    async with _override_db(_stub_db([_scalar(user)])):
+        # The PIN path is shut, correct PIN and all.
+        refused = await client.post(
+            "/api/v1/auth/login",
+            json={"display_name": "Test User", "pin": "1234"},
+        )
+    assert refused.status_code == 423, refused.text
+
+    async with _override_db(_stub_db([_scalar(token_record), _scalar(user)])):
+        resumed = await client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": refresh_jwt},
+        )
+
+    assert resumed.status_code == 200, resumed.text
+    assert "access_token" in resumed.json()
+    # And the lock is untouched by being routed around — it is still bounding PIN
+    # guessing for whoever is spending the attempts.
+    assert user.locked_until is not None
+    assert user.failed_login_count == 5
+
+
+async def test_brute_force_is_unchanged(client: AsyncClient) -> None:
+    """The half that must not have moved.
+
+    Five attempts still lock, the lock still refuses the correct PIN, and an expired
+    lock still hands the whole counter back rather than one guess.
+    """
+    locking = _make_user(failed=4)
+    async with _override_db(_stub_db([_scalar(locking)])):
+        resp = await client.post(
+            "/api/v1/auth/login", json={"display_name": "Test User", "pin": "9999"}
+        )
+    assert resp.status_code == 401
+    assert locking.failed_login_count == 5
+    assert locking.locked_until is not None
+
+    locked = _make_user(failed=5, locked_until=_now() + timedelta(minutes=5))
+    async with _override_db(_stub_db([_scalar(locked)])):
+        resp = await client.post(
+            "/api/v1/auth/login", json={"display_name": "Test User", "pin": "1234"}
+        )
+    assert resp.status_code == 423
+    assert locked.locked_until is not None
+
+    expired = _make_user(failed=5, locked_until=_now() - timedelta(minutes=1))
+    async with _override_db(_stub_db([_scalar(expired), _scalar(None)])):
+        resp = await client.post(
+            "/api/v1/auth/login", json={"display_name": "Test User", "pin": "1234"}
+        )
+    assert resp.status_code == 200
+    assert expired.failed_login_count == 0
+    assert expired.locked_until is None
+
+
+async def test_a_lockout_notifies_the_member(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The member finds out by being unable to sign in, which on a Saturday is the round."""
+    sent: list[tuple[str, str, dict[str, object]]] = []
+
+    async def _capture(
+        _session: object,
+        _user_id: uuid.UUID,
+        title: str,
+        body: str,
+        **kwargs: object,
+    ) -> int:
+        sent.append((title, body, kwargs))
+        return 1
+
+    monkeypatch.setattr("src.routers.auth.send_notification", _capture)
+
+    user = _make_user(failed=4)
+    async with _override_db(_stub_db([_scalar(user)])):
+        resp = await client.post(
+            "/api/v1/auth/login", json={"display_name": "Test User", "pin": "9999"}
+        )
+
+    assert resp.status_code == 401
+    assert len(sent) == 1
+    title, body, kwargs = sent[0]
+    assert "lock" in title.lower()
+    # It has to say it may not have been them, or a member resets a PIN that works.
+    assert "not you" in body.lower()
+    assert kwargs["tag"] == "account-locked"
+
+
+async def test_a_lockout_that_is_already_held_does_not_notify_again(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One push per lock, not one per attempt — otherwise griefing becomes a push flood."""
+    sent: list[str] = []
+
+    async def _capture(*_args: object, **_kwargs: object) -> int:
+        sent.append("push")
+        return 1
+
+    monkeypatch.setattr("src.routers.auth.send_notification", _capture)
+
+    # Already locked: the handler answers 423 before it can count anything.
+    user = _make_user(failed=5, locked_until=_now() + timedelta(minutes=5))
+    async with _override_db(_stub_db([_scalar(user)])):
+        resp = await client.post(
+            "/api/v1/auth/login", json={"display_name": "Test User", "pin": "9999"}
+        )
+
+    assert resp.status_code == 423
+    assert sent == []
+
+
+async def test_a_failed_push_still_answers_401(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Best-effort. A broken subscription must not turn a refused login into a 500."""
+
+    async def _boom(*_args: object, **_kwargs: object) -> int:
+        raise RuntimeError("push is down")
+
+    monkeypatch.setattr("src.routers.auth.send_notification", _boom)
+
+    user = _make_user(failed=4)
+    async with _override_db(_stub_db([_scalar(user)])):
+        resp = await client.post(
+            "/api/v1/auth/login", json={"display_name": "Test User", "pin": "9999"}
+        )
+
+    assert resp.status_code == 401
+    assert user.locked_until is not None

@@ -35,6 +35,7 @@ from src.models.profile import Profile, UserRole
 from src.models.rate_limit import BUCKET_KEY_MAX_LENGTH, RateLimitCounter
 from src.rate_limit import (
     LOGIN_LIMIT,
+    LOGIN_SOURCE_FAILURE_LIMIT,
     consume_durable_limit,
     consume_shared_limit,
     durable_bucket_key,
@@ -367,3 +368,96 @@ async def test_the_prune_removes_closed_windows_and_leaves_live_ones() -> None:
             ).scalars()
         }
     assert remaining == {live_key}
+
+
+# ── Batch 123 — the source budget beside the account lock ─────────────────────
+#
+# ``LOGIN_LIMIT`` is per ``(name, ip)``, so one source can work a whole leaderboard:
+# five wrong PINs per name, each locking that account for fifteen minutes, and display
+# names are public. ``LOGIN_SOURCE_FAILURE_LIMIT`` bounds the *source* instead — and
+# only its failures, so an honest household behind one address never meets it.
+
+
+async def _source_hits() -> int:
+    """How much of this source's wrong-PIN allowance has been spent.
+
+    Found by prefix rather than by a literal address: under ``ASGITransport`` the client
+    is ``127.0.0.1``, which is an implementation detail of the transport and not part of
+    what this batch is asserting. Every test in this module shares the one source, so
+    these read as deltas.
+    """
+    item = parse_many(LOGIN_SOURCE_FAILURE_LIMIT)[0]
+    async with AsyncSessionLocal() as s:
+        rows = (
+            (
+                await s.execute(
+                    select(RateLimitCounter).where(
+                        RateLimitCounter.bucket_key.like("login-src:%"),
+                        RateLimitCounter.limit_item == item.key_for(),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    return sum(row.hits for row in rows)
+
+
+async def test_a_correct_pin_spends_nothing_from_the_source_budget() -> None:
+    """Why the charge is after the PIN check and not a dependency.
+
+    A dependency runs before the handler and would charge every sign-in, so one address
+    — a household, an office, a phone network's NAT — would lock itself out by using the
+    app correctly. Only wrong answers cost anything.
+    """
+    member = await _profile()
+    before = await _source_hits()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        for _ in range(4):
+            ok = await client.post(
+                "/api/v1/auth/login",
+                json={"display_name": member.display_name, "pin": "8351"},
+            )
+            assert ok.status_code == 200, ok.text
+
+    assert await _source_hits() == before
+
+
+async def test_the_source_budget_is_charged_by_a_wrong_pin() -> None:
+    """The other direction, so the assertion above cannot pass by never charging at all."""
+    member = await _profile()
+    before = await _source_hits()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        for _ in range(3):
+            refused = await client.post(
+                "/api/v1/auth/login",
+                json={"display_name": member.display_name, "pin": "0000"},
+            )
+            assert refused.status_code in (401, 429), refused.text
+
+    assert await _source_hits() == before + 3
+
+
+async def test_one_source_cannot_work_a_leaderboard_five_names_at_a_time() -> None:
+    """The griefing shape: different names, same source, every one of them locking.
+
+    The per-name limit never fires here — each new display name gets its own bucket and
+    sees only its own five attempts. Everything refused below is refused by the source
+    budget, which is the whole point of adding one.
+    """
+    refusals = 0
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        for _ in range(4):
+            victim = await _profile()
+            for _ in range(5):
+                response = await client.post(
+                    "/api/v1/auth/login",
+                    json={"display_name": victim.display_name, "pin": "0000"},
+                )
+                if response.status_code == 429:
+                    refusals += 1
+
+    # Four accounts is twenty wrong PINs against a budget of fifteen.
+    assert refusals > 0

@@ -5,6 +5,7 @@ import {
   isAccessTokenExpiringSoon,
   storeTokens,
   getStoredPlayer,
+  type StoredPlayer,
 } from './tokens';
 
 if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
@@ -110,6 +111,42 @@ async function silentRefresh(): Promise<void> {
   const data = await resp.json();
   const player = getStoredPlayer()!;
   storeTokens(data.access_token, data.refresh_token, player);
+}
+
+/**
+ * Spend the stored refresh token for a new pair, leaving storage untouched on failure.
+ *
+ * Batch 123. On a cold start with an expired access token the app demanded a PIN, even
+ * though the thirty-day refresh token beside it was still perfectly good. That is
+ * ordinarily a nuisance; it becomes a lockout when somebody else is spending the
+ * account's five attempts, because display names are on every leaderboard and the lock
+ * is account-wide. A member holding a valid session has already proved who they are and
+ * should not be asked to prove it again through the one path an attacker can close.
+ *
+ * Distinct from `silentRefresh`, which clears the session when the refresh fails —
+ * correct there, because that is a live session whose token has died. Here a dead token
+ * means "fall back to the PIN screen", and that screen needs the stored player to
+ * render, so nothing is thrown away.
+ */
+export async function refreshStoredSession(): Promise<StoredPlayer | null> {
+  const refreshToken = getRefreshToken();
+  const player = getStoredPlayer();
+  if (!refreshToken || !player) return null;
+  try {
+    const resp = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!resp.ok) return null;
+    const data = (await resp.json()) as { access_token: string; refresh_token: string };
+    storeTokens(data.access_token, data.refresh_token, player);
+    return player;
+  } catch {
+    // Offline, or the API is unreachable. Not an authentication answer, so it must not
+    // read as one — the PIN screen is the fallback either way.
+    return null;
+  }
 }
 
 async function ensureFreshToken(): Promise<void> {

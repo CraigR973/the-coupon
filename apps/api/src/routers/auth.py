@@ -33,6 +33,7 @@ from src.database import get_db
 from src.models.profile import OddsFormat, Profile, UserRole
 from src.models.refresh_token import RefreshToken
 from src.rate_limit import (
+    ChargeLoginFailure,
     DurableLoginLimit,
     DurablePinResetRequestLimit,
     limiter,
@@ -195,6 +196,35 @@ async def _notify_site_admins(
     return reached
 
 
+async def _notify_lockout(db: AsyncSession, user: Profile, until: datetime) -> int:
+    """Tell a member their account has just locked. Returns how many devices were reached.
+
+    Best-effort, like :func:`_notify_site_admins`: a push that cannot be delivered must
+    not turn a refused login into a 500 on the endpoint an attacker is already probing.
+
+    Worth sending even though the member may be the one mistyping. Display names are on
+    every leaderboard and the lock is account-wide, so the member who cannot sign in is
+    very often not the one who spent the attempts — and without this the only signal is
+    a screen saying their own PIN is wrong.
+    """
+    try:
+        return await send_notification(
+            db,
+            user.id,
+            "Sign-in locked for 15 minutes",
+            (
+                "Five wrong PINs were entered for your account. "
+                "If that was not you, nothing else is needed — sign-in opens again shortly."
+            ),
+            data={"type": "account_locked", "until": until.isoformat()},
+            tag="account-locked",
+            timezone_name=user.timezone,
+        )
+    except Exception:  # noqa: BLE001 — a refused login must still answer 401
+        log.warning("lockout notification failed", user_id=str(user.id))
+        return 0
+
+
 async def _issue_token_pair(
     user: Profile,
     db: AsyncSession,
@@ -233,6 +263,9 @@ async def login(
     # wait for a deploy, five more. Same limit, same key, same 429; the count now sits in
     # Postgres and outlives the process. See `src.rate_limit.LOGIN_LIMIT`.
     _limit: DurableLoginLimit = None,
+    # Batch 123. Spent only on a wrong PIN, keyed by source address alone, so one
+    # address cannot work a whole leaderboard five attempts at a time.
+    charge_failure: ChargeLoginFailure = None,  # type: ignore[assignment]
 ) -> TokenResponse:
     result = await db.execute(
         select(Profile).where(
@@ -295,10 +328,20 @@ async def login(
 
     if not verify_pin(body.pin, user.pin_hash):
         user.failed_login_count += 1
+        just_locked = False
         if user.failed_login_count >= MAX_FAILED_ATTEMPTS:
+            just_locked = user.locked_until is None
             user.locked_until = now + LOCKOUT_DURATION
         await db.commit()
         log.info("login failed — wrong pin", user_id=str(user.id))
+        # Batch 123. The lock is account-wide, so the member finds out by being unable to
+        # sign in — on a Saturday, that is the round. Tell them it happened, and that it
+        # was not them, so they can wait it out rather than reset a PIN that works.
+        if just_locked:
+            await _notify_lockout(db, user, now + LOCKOUT_DURATION)
+        # Charged after the PIN check and only on a failure, so a correct sign-in from a
+        # shared address never spends it. See `LOGIN_SOURCE_FAILURE_LIMIT`.
+        await charge_failure()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     if user.failed_login_count or user.locked_until is not None:

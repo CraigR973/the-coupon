@@ -12,8 +12,15 @@ interface Props {
 }
 
 export function ProtectedRoute({ requireAdmin = false }: Props) {
-  const { player, sessionUnlockRequired } = useAuth();
+  const { player, sessionUnlockRequired, sessionResuming } = useAuth();
   const { pathname } = useLocation();
+
+  // Batch 123. The stored refresh token is being spent for a new pair. Showing the PIN
+  // screen for the moment that takes would ask for a credential that is about to be
+  // unnecessary — and on a griefed account, one that is about to be refused.
+  if (sessionResuming) {
+    return <ResumingSession />;
+  }
 
   if (sessionUnlockRequired) {
     return <PinUnlockGate />;
@@ -41,6 +48,19 @@ export function ProtectedRoute({ requireAdmin = false }: Props) {
   }
 
   return <Outlet />;
+}
+
+function ResumingSession() {
+  return (
+    <main
+      className="min-h-screen bg-bg flex flex-col items-center justify-center p-4 pt-safe pb-safe"
+      data-testid="session-resuming"
+    >
+      <p role="status" className="font-sans text-sm text-text-secondary">
+        Resuming your session…
+      </p>
+    </main>
+  );
 }
 
 function PinUnlockGate() {

@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   clearApiCaches,
@@ -10,13 +10,19 @@ import {
   storeTokens,
   type StoredPlayer,
 } from '../lib/tokens';
-import { API_BASE } from '../lib/api';
+import { API_BASE, PIN_NOT_SET, refreshStoredSession } from '../lib/api';
 
 interface AuthState {
   player: StoredPlayer | null;
   isLoading: boolean;
   sessionUnlockRequired: boolean;
   sessionUnlockError: string | null;
+  /**
+   * A stored session is being resumed from its refresh token (Batch 123). True only
+   * between mount and that answer, and only when there was something to resume — so
+   * the PIN screen is never shown to a member who was about to be let in without it.
+   */
+  sessionResuming: boolean;
 }
 
 interface AuthContextValue extends AuthState {
@@ -34,6 +40,35 @@ interface AuthContextValue extends AuthState {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+const INVALID_PIN = 'Invalid PIN. Try again or log out if this is not your account.';
+const UNREACHABLE = 'Could not reach the server. Check your connection and try again.';
+
+/**
+ * What the unlock screen says about a refusal.
+ *
+ * Batch 123. Every failure used to read "Invalid PIN", including a 423 from an
+ * account-wide lock somebody else is holding open and a 429 from a limit already spent
+ * — so a member whose PIN is perfectly good was told to doubt it, and the obvious next
+ * move is to reset a credential that works.
+ *
+ * Mapped from the status rather than read out of the message, so a terse `detail` from
+ * the API cannot quietly replace a sentence written for a member.
+ */
+function unlockMessage(status: number): string {
+  if (status === 423) {
+    return 'Too many failed sign-in attempts on this account. It unlocks again in about fifteen minutes — your PIN has not changed.';
+  }
+  if (status === 429) return 'Too many attempts just now. Wait a few minutes and try again.';
+  return INVALID_PIN;
+}
+
+/** Carries the status through the throw, so the catch says the same thing. */
+class UnlockRefused extends Error {
+  constructor(readonly status: number) {
+    super(unlockMessage(status));
+  }
+}
 
 function playerFromApiResponse(data: {
   player: {
@@ -67,7 +102,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading: false,
     sessionUnlockRequired: initialRequiresUnlock,
     sessionUnlockError: null,
+    sessionResuming: initialRequiresUnlock,
   });
+
+  /**
+   * Batch 123. Spend the refresh token before asking for a PIN.
+   *
+   * An expired *access* token says only that a day has passed. The thirty-day refresh
+   * token beside it is what says the session is still good, and until now nothing
+   * consulted it on a cold start — the app went straight to the PIN screen. That is
+   * ordinarily a nuisance and occasionally a lockout: the account lock is account-wide
+   * and display names are on every leaderboard, so any member can hold a rival on that
+   * screen for as long as they keep spending five attempts a quarter of an hour.
+   *
+   * A member with a valid refresh token has already proved who they are. They are let in
+   * without touching the one path somebody else can close. If the token is dead, the PIN
+   * screen is still there, and nothing about the lockout itself has been relaxed.
+   */
+  useEffect(() => {
+    if (!initialRequiresUnlock) return;
+    let cancelled = false;
+    void refreshStoredSession().then((player) => {
+      if (cancelled) return;
+      if (!player) {
+        setState((s) => ({ ...s, sessionResuming: false }));
+        return;
+      }
+      setLockedPlayer(null);
+      setState({
+        player,
+        isLoading: false,
+        sessionUnlockRequired: false,
+        sessionUnlockError: null,
+        sessionResuming: false,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Runs once: `initialRequiresUnlock` is derived from storage at mount and is what
+    // this effect exists to answer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * POST to an endpoint that answers with a token pair, then adopt that identity.
@@ -104,7 +180,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         queryClient.clear();
         storeTokens(data.access_token, data.refresh_token, player);
         setLockedPlayer(null);
-        setState({ player, isLoading: false, sessionUnlockRequired: false, sessionUnlockError: null });
+        setState({
+          player,
+          isLoading: false,
+          sessionUnlockRequired: false,
+          sessionUnlockError: null,
+          sessionResuming: false,
+        });
       } catch (err) {
         setState((s) => ({ ...s, isLoading: false }));
         throw err;
@@ -149,7 +231,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await clearTokens();
     queryClient.clear();
     setLockedPlayer(null);
-    setState({ player: null, isLoading: false, sessionUnlockRequired: false, sessionUnlockError: null });
+    setState({
+      player: null,
+      isLoading: false,
+      sessionUnlockRequired: false,
+      sessionUnlockError: null,
+      sessionResuming: false,
+    });
   }, [queryClient]);
 
   const updatePlayer = useCallback((patch: Partial<StoredPlayer>) => {
@@ -175,7 +263,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        throw new Error(err.detail ?? 'Invalid PIN');
+        // `PIN_NOT_SET` is a code the unlock screen routes on rather than prints: an
+        // admin cleared the PIN while this session sat on the device, so there is
+        // nothing to unlock and the member is sent to choose a new one.
+        if (err.detail === PIN_NOT_SET) throw new Error(PIN_NOT_SET);
+        throw new UnlockRefused(resp.status);
       }
       const data = await resp.json();
       const player = playerFromApiResponse(data);
@@ -187,6 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading: false,
         sessionUnlockRequired: false,
         sessionUnlockError: null,
+        sessionResuming: false,
       });
       setLockedPlayer(null);
     } catch (err) {
@@ -194,7 +287,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...s,
         isLoading: false,
         sessionUnlockRequired: true,
-        sessionUnlockError: 'Invalid PIN. Try again or log out if this is not your account.',
+        sessionResuming: false,
+        // Every failure used to read "Invalid PIN", including a 423 from a lock somebody
+        // else is holding open and a 429 from a limit already spent. Telling a member
+        // their PIN is wrong when it is not sends them to reset a credential that works.
+        sessionUnlockError:
+          err instanceof UnlockRefused
+            ? err.message
+            : err instanceof Error && err.message === PIN_NOT_SET
+              ? INVALID_PIN
+              : UNREACHABLE,
       }));
       throw err;
     }
