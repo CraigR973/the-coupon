@@ -17,6 +17,7 @@ import os
 import uuid
 from collections.abc import AsyncIterator
 from datetime import date, datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
@@ -29,7 +30,7 @@ from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.profile import Profile, UserRole
-from src.services.discovery_health import discovery_health
+from src.services.discovery_health import DiscoveryHealth, SilentLeague, discovery_health
 
 pytestmark = pytest.mark.asyncio
 
@@ -260,3 +261,236 @@ async def test_the_threshold_is_a_week_and_a_day_and_the_reason_is_the_cadence()
 
     assert settings.discovery_stale_after_hours == 192
     assert settings.discovery_stale_after_hours > 24 * 7
+
+
+# ── Batch 129: the alarm reaches a person ─────────────────────────────────────
+#
+# Batch 119 built these two reads because no round was created by any scheduled job for
+# a week and nothing surfaced it — then routed them to the admin dashboard and the logs,
+# both of which need somebody to go and look. The week this exists for is the proof that
+# nobody does.
+#
+# What the alarm *detects* is untouched here. Only where it arrives is new.
+
+
+async def _site_admin(db: AsyncSession) -> Profile:
+    admin = Profile(
+        display_name=f"adm-{uuid.uuid4().hex[:8]}", pin_hash=hash_pin("1234"), role=UserRole.admin
+    )
+    db.add(admin)
+    await db.flush()
+    return admin
+
+
+def _fresh_cooldown() -> str:
+    """A bucket key nothing else has spent, so each test starts with its allowance."""
+    from src.services import notification_triggers
+
+    return f"{notification_triggers.DISCOVERY_SILENCE_ALERT_KEY}:{uuid.uuid4().hex[:8]}"
+
+
+@needs_db
+async def test_a_stale_deployment_pushes_once_and_not_every_run(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The finding: an alarm nobody is told about, and one nobody can mute."""
+    from src.services import notification_triggers
+
+    monkeypatch.setattr(notification_triggers, "DISCOVERY_SILENCE_ALERT_KEY", _fresh_cooldown())
+    sent: list[tuple[uuid.UUID, str]] = []
+
+    async def _record(_s: object, user_id: uuid.UUID, title: str, *_a: object, **_k: object) -> int:
+        sent.append((user_id, title))
+        return 1
+
+    monkeypatch.setattr(notification_triggers, "send_notification", _record)
+
+    admin = await _site_admin(session)
+    league = await _league_with_members(session, 3)
+    await _round(
+        session,
+        league,
+        date(2026, 9, 5),
+        status=GameweekStatus.locked,
+        locks_at=NOW - timedelta(days=6),
+        created_at=NOW - timedelta(days=30),
+    )
+    await session.flush()
+
+    health = await discovery_health(session, NOW, stale_after_hours=STALE_AFTER)
+    assert health.alarm, "the fixture is not the condition this test is about"
+
+    first = await notification_triggers.notify_discovery_silence(session, health)
+    told_on_the_first_run = list(sent)
+    second = await notification_triggers.notify_discovery_silence(session, health)
+
+    assert first is True, "the alarm never reached anybody"
+    assert second is False, "it would alert on every run, which is how an alert gets muted"
+    # Every *active site admin* is told, and this admin is one of them. Asserted as
+    # membership rather than as an exact list: `_admin_players` reads the whole
+    # deployment, and a shared test database holds every other module's admins too.
+    told_ids = [user_id for user_id, _ in told_on_the_first_run]
+    assert admin.id in told_ids
+    assert len(told_ids) == len(set(told_ids)), "somebody was told twice in one run"
+    assert all("stopped building rounds" in title for _, title in told_on_the_first_run)
+    # And the second run added nothing at all.
+    assert sent == told_on_the_first_run
+
+
+@needs_db
+async def test_a_healthy_deployment_pushes_nothing(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other side, so the alarm is not simply always firing."""
+    from src.services import notification_triggers
+
+    monkeypatch.setattr(notification_triggers, "DISCOVERY_SILENCE_ALERT_KEY", _fresh_cooldown())
+    sent: list[uuid.UUID] = []
+
+    async def _record(_s: object, user_id: uuid.UUID, *_a: object, **_k: object) -> int:
+        sent.append(user_id)
+        return 1
+
+    monkeypatch.setattr(notification_triggers, "send_notification", _record)
+
+    await _site_admin(session)
+    league = await _league_with_members(session, 3)
+    await _round(
+        session,
+        league,
+        date(2026, 9, 12),
+        status=GameweekStatus.open,
+        locks_at=NOW + timedelta(days=1),
+        created_at=NOW - timedelta(hours=2),
+    )
+    await session.flush()
+
+    # This league is not one of the ones going without — asserted the way the rest of
+    # this module does, because `discovery_health` reads the **whole deployment** and a
+    # shared test database always holds somebody else's silent league.
+    live = await discovery_health(session, NOW, stale_after_hours=STALE_AFTER)
+    assert league.slug not in {entry.slug for entry in live.leagues_without_open_round}
+
+    # And a healthy read sends nothing, which the trigger decides for itself rather than
+    # trusting its caller to have checked.
+    healthy = DiscoveryHealth(
+        newest_round_created_at=NOW - timedelta(hours=2),
+        hours_since_newest_round=2.0,
+        stale_after_hours=STALE_AFTER,
+        leagues_without_open_round=(),
+    )
+    assert healthy.alarm is False
+    assert await notification_triggers.notify_discovery_silence(session, healthy) is False
+    assert sent == []
+
+
+@needs_db
+async def test_the_push_names_the_leagues_going_without(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An alert that says only 'something is wrong' is one nobody can act on at 7am."""
+    from src.services import notification_triggers
+
+    monkeypatch.setattr(notification_triggers, "DISCOVERY_SILENCE_ALERT_KEY", _fresh_cooldown())
+    bodies: list[str] = []
+
+    async def _record(
+        _s: object, _uid: uuid.UUID, _title: str, body: str, *_a: object, **_k: object
+    ) -> int:
+        bodies.append(body)
+        return 1
+
+    monkeypatch.setattr(notification_triggers, "send_notification", _record)
+
+    await _site_admin(session)
+    await session.flush()
+
+    # Built rather than read. `discovery_health` reads the whole deployment, so in the
+    # full suite the real read names whichever leagues other modules left silent — which
+    # says nothing about the copy this test is here for.
+    starved = DiscoveryHealth(
+        newest_round_created_at=NOW - timedelta(days=30),
+        hours_since_newest_round=720.0,
+        stale_after_hours=STALE_AFTER,
+        leagues_without_open_round=(
+            SilentLeague(
+                league_id=uuid.uuid4(), slug="quiet-ones", name="The Quiet Ones", members=4
+            ),
+            SilentLeague(league_id=uuid.uuid4(), slug="second", name="Second Division", members=9),
+        ),
+    )
+
+    assert await notification_triggers.notify_discovery_silence(session, starved) is True
+    assert bodies, "nothing was sent"
+    assert "The Quiet Ones" in bodies[0]
+    assert "(4)" in bodies[0], "the member count is what makes it urgent"
+    assert "Second Division" in bodies[0]
+
+
+@needs_db
+async def test_the_push_does_not_list_every_starved_league(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A notification body is a tray entry, not a report."""
+    from src.services import notification_triggers
+
+    monkeypatch.setattr(notification_triggers, "DISCOVERY_SILENCE_ALERT_KEY", _fresh_cooldown())
+    bodies: list[str] = []
+
+    async def _record(
+        _s: object, _uid: uuid.UUID, _title: str, body: str, *_a: object, **_k: object
+    ) -> int:
+        bodies.append(body)
+        return 1
+
+    monkeypatch.setattr(notification_triggers, "send_notification", _record)
+    await _site_admin(session)
+    await session.flush()
+
+    many = DiscoveryHealth(
+        newest_round_created_at=None,
+        hours_since_newest_round=None,
+        stale_after_hours=STALE_AFTER,
+        leagues_without_open_round=tuple(
+            SilentLeague(league_id=uuid.uuid4(), slug=f"l{n}", name=f"League {n}", members=n + 1)
+            for n in range(9)
+        ),
+    )
+
+    assert await notification_triggers.notify_discovery_silence(session, many) is True
+    assert "League 0" in bodies[0]
+    assert "and 6 more" in bodies[0]
+    assert "League 8" not in bodies[0]
+
+
+@needs_db
+async def test_the_cooldown_is_durable_rather_than_in_process(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Why it is a rate-limit counter and not a timer.
+
+    The failure this alarm guards ran for a week. A cooldown held in process forgets on
+    every release, and this deployment releases often — so the alert would come back with
+    each one and be muted for exactly the wrong reason.
+    """
+    from src.models.rate_limit import RateLimitCounter
+    from src.rate_limit import durable_bucket_key
+    from src.services import notification_triggers
+
+    key = _fresh_cooldown()
+    monkeypatch.setattr(notification_triggers, "DISCOVERY_SILENCE_ALERT_KEY", key)
+    monkeypatch.setattr(notification_triggers, "send_notification", AsyncMock(return_value=1))
+
+    await _site_admin(session)
+    await _league_with_members(session, 2)
+    await session.flush()
+    health = await discovery_health(session, NOW, stale_after_hours=STALE_AFTER)
+
+    assert await notification_triggers.notify_discovery_silence(session, health) is True
+
+    stored = await session.execute(
+        select(func.count())
+        .select_from(RateLimitCounter)
+        .where(RateLimitCounter.bucket_key == durable_bucket_key(key))
+    )
+    assert stored.scalar_one() == 1, "the cooldown left nothing behind to survive a restart"

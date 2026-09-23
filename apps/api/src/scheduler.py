@@ -50,6 +50,7 @@ from src.services.gameweek import (
 )
 from src.services.live_scores import poll_live_scores
 from src.services.notification_triggers import (
+    notify_discovery_silence,
     notify_football_provider_trouble,
     notify_picks_open,
     send_pick_reminders,
@@ -245,7 +246,7 @@ async def report_football_provider_health() -> bool:
 
 
 async def report_discovery_silence() -> bool:
-    """Log the two silence alarms. Returns whether either fired. Batch 119.
+    """Log the two silence alarms — and push them. Returns whether either fired.
 
     In ``finally`` on the discovery job, like the football-provider alert beside it and for
     a sharper version of the same reason: the run that most needs to report is the one that
@@ -264,26 +265,34 @@ async def report_discovery_silence() -> bool:
                 datetime.now(UTC).replace(tzinfo=None),
                 stale_after_hours=settings.discovery_stale_after_hours,
             )
+
+            if not health.alarm:
+                log.info(
+                    "discovery health ok",
+                    hours_since_newest_round=health.hours_since_newest_round,
+                )
+                return False
+
+            log.error(
+                "discovery has stopped producing",
+                stale=health.stale,
+                hours_since_newest_round=health.hours_since_newest_round,
+                stale_after_hours=health.stale_after_hours,
+                leagues_without_open_round=[
+                    {"slug": league.slug, "members": league.members}
+                    for league in health.leagues_without_open_round
+                ],
+            )
+            # Batch 129. The log and the dashboard both need somebody to go and look, and
+            # the week this alarm exists for is the proof that nobody does. The push is
+            # cooled down durably, so a broken deployment reminds once a day rather than
+            # once a run.
+            pushed = await notify_discovery_silence(session, health)
+            await session.commit()
+        log.info("discovery silence alert", pushed=pushed)
     except Exception:
         log.exception("discovery health check failed")
         return False
-
-    if not health.alarm:
-        log.info(
-            "discovery health ok",
-            hours_since_newest_round=health.hours_since_newest_round,
-        )
-        return False
-    log.error(
-        "discovery has stopped producing",
-        stale=health.stale,
-        hours_since_newest_round=health.hours_since_newest_round,
-        stale_after_hours=health.stale_after_hours,
-        leagues_without_open_round=[
-            {"slug": league.slug, "members": league.members}
-            for league in health.leagues_without_open_round
-        ],
-    )
     return True
 
 

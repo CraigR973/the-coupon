@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -11,6 +12,7 @@ from src.config import settings
 from src.models.notification import ActionType, ActorType, AuditLog
 from src.scheduler import (
     create_scheduler,
+    report_discovery_silence,
     run_discover_fixtures,
     run_discover_full_catalogue,
     run_lock_gameweeks,
@@ -694,3 +696,78 @@ async def test_scheduler_lifespan_disabled_skips_start(monkeypatch: pytest.Monke
 
     async with lifespan(app):
         assert app.state.scheduler.running is False
+
+
+# ── Batch 129: the alarm is wired to the push, not only to the log ────────────
+
+
+@pytest.mark.asyncio
+async def test_report_discovery_silence_pushes_when_the_alarm_fires() -> None:
+    """The wiring, asserted separately from the trigger it calls.
+
+    `test_discovery_health.py` holds what the push says and how often. This holds that
+    the scheduler actually calls it — without which every one of those tests would pass
+    against a deployment that still only writes to a log nobody reads.
+    """
+    from src.services.discovery_health import DiscoveryHealth
+
+    session = AsyncMock()
+    alarming = DiscoveryHealth(
+        newest_round_created_at=None,
+        hours_since_newest_round=None,
+        stale_after_hours=192.0,
+        leagues_without_open_round=(),
+    )
+    assert alarming.alarm is True
+
+    with (
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.discovery_health", new=AsyncMock(return_value=alarming)),
+        patch("src.scheduler.notify_discovery_silence", new=AsyncMock(return_value=True)) as push,
+    ):
+        assert await report_discovery_silence() is True
+
+    push.assert_awaited_once()
+    assert push.await_args.args[1] is alarming
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_report_discovery_silence_pushes_nothing_when_healthy() -> None:
+    from src.services.discovery_health import DiscoveryHealth
+
+    session = AsyncMock()
+    healthy = DiscoveryHealth(
+        newest_round_created_at=datetime(2026, 9, 11, 20, 0),
+        hours_since_newest_round=2.0,
+        stale_after_hours=192.0,
+        leagues_without_open_round=(),
+    )
+    assert healthy.alarm is False
+
+    with (
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.discovery_health", new=AsyncMock(return_value=healthy)),
+        patch("src.scheduler.notify_discovery_silence", new=AsyncMock(return_value=True)) as push,
+    ):
+        assert await report_discovery_silence() is False
+
+    push.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_failed_alarm_does_not_fail_the_run() -> None:
+    """It swallows its own errors, like every other job here.
+
+    An alarm that cannot send must not turn a discovery sweep that worked into a failed
+    run — the log line has already recorded what happened either way.
+    """
+    session = AsyncMock()
+    with (
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch(
+            "src.scheduler.discovery_health",
+            new=AsyncMock(side_effect=RuntimeError("the read itself fell over")),
+        ),
+    ):
+        assert await report_discovery_silence() is False

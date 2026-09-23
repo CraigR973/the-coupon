@@ -21,6 +21,8 @@ from src.models.gameweek import Gameweek
 from src.models.gameweek_completion import GameweekCompletion
 from src.models.notification import ActionType, ActorType, AuditLog
 from src.models.profile import Profile, UserRole
+from src.rate_limit import consume_durable_limit
+from src.services.discovery_health import DiscoveryHealth
 from src.services.fotmob_health import FotMobAlert
 from src.services.gameweek import RoundProgress, members_missing_picks, notification_targets
 from src.services.push_notification_service import send_notification
@@ -120,6 +122,78 @@ async def notify_football_provider_trouble(session: AsyncSession, alert: FotMobA
                 alert.detail,
                 timezone_name=admin.timezone,
             )
+    return True
+
+
+#: How often the discovery-silence alarm may reach a phone while the condition holds.
+#:
+#: Once a day, which is the cadence of the job that raises it: the alarm exists to be
+#: noticed, and an alert that repeats every run is one that gets muted.
+DISCOVERY_SILENCE_ALERT_LIMIT = "1/day"
+
+#: The durable bucket the cooldown above is counted in.
+#:
+#: A rate-limit counter rather than an audit row, deliberately. The cooldown has to
+#: survive a redeploy — the failure it guards ran for a week, and an in-process timer
+#: would forget it on every release — and ``rate_limit_counters`` is exactly that: one
+#: row per bucket, rolled forward in place, already pruned by the scheduler. The
+#: alternative was a new ``ActionType``, and `ALTER TYPE ... ADD VALUE` cannot be undone
+#: against a production database with no restore point (owner's 2026-07-30 deferral), for
+#: an alert-delivery change that has no other reason to migrate.
+DISCOVERY_SILENCE_ALERT_KEY = "alert:discovery-silence"
+
+
+async def notify_discovery_silence(session: AsyncSession, health: DiscoveryHealth) -> bool:
+    """Push the discovery-silence alarm to the site admins. Batch 129.
+
+    Returns whether anything was sent. ``False`` means an alert is still inside its
+    cooldown, which is the normal answer while a deployment stays broken.
+
+    Batch 119 built these two reads because **no round was created by any scheduled job
+    for a week** and nothing surfaced it — and then routed them to the admin dashboard
+    and the logs, both of which need somebody to go and look. This is the half that
+    reaches a person: the product already has a push channel and a set of site admins,
+    and the alarm that exists to catch a silent week should not itself be silent.
+
+    What it detects is untouched; only where it arrives is new.
+    """
+    if not health.alarm:
+        # Guarded here and not only in the caller. A trigger that fires on a healthy read
+        # because somebody called it in the wrong branch is a worse failure than the one
+        # this exists for: an alert nobody believes is an alert nobody acts on.
+        return False
+
+    if not await consume_durable_limit(
+        session, DISCOVERY_SILENCE_ALERT_KEY, DISCOVERY_SILENCE_ALERT_LIMIT
+    ):
+        return False
+
+    starved = health.leagues_without_open_round
+    if starved:
+        # The urgent half, and the one that comes true within hours: members with a
+        # league and nothing in it to play.
+        body = ", ".join(f"{league.name} ({league.members})" for league in starved[:3])
+        if len(starved) > 3:
+            body += f" and {len(starved) - 3} more"
+        detail = f"No round to pick in: {body}."
+    else:
+        hours = health.hours_since_newest_round
+        detail = (
+            f"No new round has been created for {hours:.0f} hours."
+            if hours is not None
+            else "No round has ever been created."
+        )
+
+    for admin in await _admin_players(session):
+        await send_notification(
+            session,
+            admin.id,
+            "The Coupon has stopped building rounds",
+            detail,
+            data={"type": "discovery_silence", "url": "/admin"},
+            tag="discovery-silence",
+            timezone_name=admin.timezone,
+        )
     return True
 
 
