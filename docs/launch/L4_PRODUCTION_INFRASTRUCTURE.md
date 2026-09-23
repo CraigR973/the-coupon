@@ -635,6 +635,15 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-09-06 | Vercel web | `dpl_6Qvw3kDe8epXjinnGq3n4gQ4MTgs` | `4fb18923` (Batch 114) | — |
 | 2026-09-06 | Railway `api` | `45bca567-03bb-48a8-b1da-e2e8f9ff13a1` | `4fb18923` (Batch 114) | **`023`** |
 | 2026-09-06 | Railway `api` | `aadbc897-7e8b-415c-aab3-0138cf4ec2a1` | `4fb18923` (retire TTL overrides) | `023` |
+| 2026-09-12 | Railway `api` | `f4a2b87b-9732-4188-9180-90fa6673b67f` | `7dd8f3df` / `87cae2e7` era | `025` |
+| 2026-09-23 | Railway `api` | `1ead8cc4-8249-4d71-96e6-e3ae9441076b` | `f5136b1b` (Batch 123) | `025` |
+| 2026-09-23 | Railway `api` | `bdceb421-fb25-446c-99ca-711bc62db9ce` | `4b84b193` (Batch 124) | `025` |
+| 2026-09-23 | Railway `api` | `031548df-5d29-434d-bda1-16b31ba2a4a2` | `07e77ce0` (Batches 125, 126) | `025` |
+| 2026-09-23 | Railway `api` | `91f2ce51-87d0-4082-a3a4-ec56363b1d62` | `ac54a71b` (Batches 141, 143) | `025` |
+| 2026-09-23 | Railway `api` | `1d73c835-17d5-434a-b6d7-091d562668a1` | `ec5d9223` (Phase 5: 159, 160, 161, 133, 162, 129, 147) | `025` |
+| 2026-09-23 | Vercel web | `dpl_41q5xerBMkH2R8fVy1MPiofAGe7D` | `ec5d9223` | — |
+| 2026-09-23 | Railway `api` | `adc3c65e-8bca-4ae5-8a66-0ac270af089a` | `42e79d8b` (Phase 6: 130, 131, 132, 156, 157) | `025` |
+| 2026-09-23 | Vercel web | `dpl_D8ssU6XvfEaDZFvbFpsFLccFSths` | `42e79d8b` | — |
 
 The 2026-08-19 shipment carries Batch 35 and is the **first API deployment since
 `013` that applies no migration**, which is what restores the rollback target the
@@ -3131,3 +3140,37 @@ to settle. They are harmless to scoring and to this migration, but they are the 
 the review's stray-round finding (CORR-09) describes, visible in production data.
 
 Backup/restore-point identity: **none**, as above.
+
+### 2026-09-23 — six shipments in one overnight run, ending at `42e79d8b` (no migration)
+
+Recorded in one entry rather than six because they share every material fact: **migration
+head stayed `025` throughout**, no shipment introduced an Alembic revision, so none needed
+a forward recovery plan and every predecessor remained a bootable rollback target. Each ran
+the same non-destructive Railway IaC plan first (`0 to add, 2 to change, 0 to destroy`,
+re-asserting the four fields Railway nulls out after a deploy), polled its redeploy to
+`SUCCESS`, stamped `RAILWAY_GIT_COMMIT_SHA`, then uploaded. Vercel section 4 was a **no-op
+every time** — the GitHub auto-deploy already held the stable alias, confirmed by reading
+`githubCommitSha` from the Vercel API rather than inferring it from timing.
+
+The per-shipment deployment IDs are in the table above. The detailed per-shipment records —
+preflight results, smoke output, redacted log findings — are in the owner's run log,
+`~/coupon-overnight-2026-09-23.md`, which is the fuller account.
+
+**Current state after the last of them:** Railway `adc3c65e-8bca-4ae5-8a66-0ac270af089a`
+serving `42e79d8b`, Vercel `dpl_D8ssU6XvfEaDZFvbFpsFLccFSths` on the stable alias,
+`check-deploy-drift.sh` **in sync**.
+
+**Rollback baselines for the next shipment:** Railway
+`1d73c835-17d5-434a-b6d7-091d562668a1` (serving `ec5d9223`, bootable at head `025`) and
+Vercel `dpl_HXQdPeck9knZx9dz1ytqLMh6Gdo3` (`1e1df7a4`). Backup/restore-point identity:
+**none**, under the owner's 2026-07-30 deferral.
+
+**Database audit at the last shipment**, read-only and without exposing any value: RLS
+enabled on **21 of 21** public tables, **no** table grants to `anon`, `authenticated` or
+`PUBLIC`, no schema-usage rows for those roles, PostgreSQL 17.6. No downgrade was run and
+production Supabase was not attached to MCP.
+
+**One gap worth knowing before the next shipment.** Production returns `404` for
+`/openapi.json`, so a shipped schema change cannot be observed from outside without
+authenticating. The evidence that a given commit is running is the `sha` field on
+`/api/v1/health` plus the gate at that commit — not a schema probe.
