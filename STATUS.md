@@ -1473,6 +1473,17 @@ normalisation, excluding the caller. Clearing is deliberately unchecked, so a pr
 clash cannot trap someone with an override they cannot remove. **API-only: `/ship-prod` is
 owed, together with Batch 125.**
 
+**Batch 141 gave the web app a Content-Security-Policy** (`591d0c2`). It shipped four
+headers and no CSP, no `frame-ancestors` and no `X-Frame-Options`, which matters because the
+client holds a thirty-day refresh token in `localStorage`. The policy is `default-src 'self'`
+with `frame-ancestors 'none'`, `object-src 'none'`, `base-uri`/`form-action` locked to self,
+and a `connect-src` naming both API origins rather than allowing https wholesale. `script-src`
+is `'self'` plus a single hash for index.html's pre-mount theme script, recomputed by a unit
+test so the two cannot drift; `style-src` keeps `'unsafe-inline'` because Radix, sonner and
+framer-motion inject styles at runtime. A new prod-bundle spec applies the shipped policy to
+`vite preview` — which does not read `vercel.json` — and loads every public route under it,
+with the service worker and the preloaded font asserted by name. Web-only; live on the push.
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",

@@ -4056,3 +4056,28 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,200 → 1,208.
 
 **Next:** the Group O `/ship-prod` checkpoint, carrying Batches 125 and 126.
+
+## Batch 141 — The web app ships no Content-Security-Policy and can be framed
+**Commits:** `591d0c2` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,208 backend and
+1,140 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed (35 tests)
+
+### Key facts for future sessions
+- **Vite does not minify inline HTML scripts.** `dist/index.html` carries the theme script
+  byte-for-byte, which is what makes a hard-coded `'sha256-…'` safe. `src/test/csp.test.ts`
+  recomputes it from `index.html`, so editing that script without updating `vercel.json`
+  fails the gate instead of blanking the theme in production.
+- `connect-src` names **both** API origins on purpose: one `vercel.json` serves the
+  production and staging Vercel projects and `VITE_API_URL` differs between them.
+- `style-src 'unsafe-inline'` is deliberate and is the weakest directive in the policy.
+  Radix, sonner and framer-motion all inject styles at runtime.
+- `vite preview` does not apply `vercel.json`, so `e2e/prod-bundle-csp.spec.ts` reads the
+  shipped policy out of that file and re-fulfils each HTML response with it. Its one
+  deliberate difference is `connect-src` gaining `https://api.example.invalid`, which is
+  what `ci-local.sh` builds the bundle against.
+- That spec carries two guards-of-the-guard: one asserts the header actually reached the
+  document, the other injects a script element and asserts the browser reports a
+  `script-src-elem` violation — otherwise a silently broken listener would make every
+  other case pass on a policy that blocked the whole app.
+- Counts: FRONTEND 1,127 → 1,140.
+
+**Next:** Batch 143, then its `/ship-prod`.

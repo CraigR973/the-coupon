@@ -4440,7 +4440,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: responsive layout for those three screens and the shell width. No new
   components, no imagery, no token changes that could affect contrast. **Web-only.**
 
-- [ ] **Batch 141 — The web app ships no Content-Security-Policy and can be framed**
+- [x] **Batch 141 — The web app ships no Content-Security-Policy and can be framed** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/01-security.md`, SEC-19 (MED, live).
   `apps/web/vercel.json` sets only `Cache-Control`, `Permissions-Policy`,
   `Referrer-Policy` and `X-Content-Type-Options`. There is no CSP and no
