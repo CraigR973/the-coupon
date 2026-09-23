@@ -3949,3 +3949,34 @@ unchecked because Batch 119 superseded it.
 - Gate green on the first run; FRONTEND_TEST_COUNT 1,110 → 1,122.
 
 **Next:** Phase 4 — `/group-start O` (123 → 124 → 125 → 126), then its `/ship-prod`.
+
+## Batch 123 — A named member can be locked out of sign-in for a whole Saturday
+**Commits:** `37c6e40` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,187 backend and
+1,126 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- The lockout is untouched: five attempts, fifteen minutes, a correct PIN still refused
+  during one. `test_brute_force_is_unchanged` asserts all three in one place.
+- `refreshStoredSession` in `lib/api.ts` is deliberately *not* `silentRefresh`: it does not
+  clear storage on failure, because the PIN screen is the fallback and it needs the stored
+  player to render.
+- `AuthState.sessionResuming` exists so `ProtectedRoute` shows "Resuming your session…"
+  rather than a PIN prompt during the refresh — a flash of "enter your PIN" at a member who
+  is about to be admitted without one is the defect in miniature.
+- Unlock messages are mapped from the HTTP status through `UnlockRefused`, not sniffed out
+  of `detail`. A terse API sentence must not replace one written for a member.
+- `LOGIN_SOURCE_FAILURE_LIMIT` is charged through `login_failure_charger`, a dependency that
+  returns a *callable*. It must run after the PIN check — as a plain dependency it would
+  charge correct sign-ins and lock out a shared NAT — and it rides the limiter session, not
+  the handler's, because the handler commits and then raises.
+- The lockout push fires once per lock (`just_locked`), not per attempt, or griefing would
+  become a push flood. It is wrapped so a dead subscription cannot turn a 401 into a 500.
+- Gate failure, attempt 1: `test_the_source_budget_is_charged_by_a_wrong_pin` looked the
+  counter up under `login-src:testclient`. Under `ASGITransport` the client address is
+  `127.0.0.1`, so the row was never found — and the companion "a correct PIN spends nothing"
+  test was passing vacuously for the same reason. Both now find the row by `login-src:%`
+  prefix and assert a **delta**, since every test in that module shares one source address.
+  Green on attempt 2. No product code changed to reach it.
+- Counts: BACKEND 1,179 → 1,187, FRONTEND 1,122 → 1,126.
+
+**Next:** Batch 124, then 125, 126, then the Group O `/ship-prod`.

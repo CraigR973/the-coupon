@@ -1429,6 +1429,19 @@ own: assertive for errors and warnings, polite for the rest. `e2e/prod-bundle-re
 is the first check in the suite to measure 320px reflow or the WCAG 1.4.12 text-spacing
 override, over every route the prod-bundle harness can reach. Web-only; live on the push.
 
+**Batch 123 stopped a griefing lock costing a member their session** (`37c6e40`). The
+account lock is unchanged — admitting a correct PIN during one would reopen unlimited
+guessing — but a cold start now spends the stored thirty-day refresh token before asking
+for a PIN, so a member who has already proved who they are is let in without touching the
+path a rival can close by spending five attempts a quarter of an hour. `refreshStoredSession`
+leaves storage intact on failure, because the PIN screen is the fallback and needs the stored
+player; while the request is in flight the app says it is resuming rather than flashing a PIN
+prompt. Unlock failures are now mapped from the status instead of all reading "Invalid PIN",
+which had been sending members to reset a credential that works. On the API,
+`LOGIN_SOURCE_FAILURE_LIMIT` bounds one *source* to fifteen wrong PINs a quarter of an hour —
+charged after the PIN check, so a correct sign-in from a shared address costs nothing — and a
+member whose account locks is told once per lock. **API + web: `/ship-prod` is owed.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",

@@ -4133,7 +4133,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the league-scoped reset endpoint's target check. No change to the reset
   mechanism, the claim window, or the site console. **API-carrying.**
 
-- [ ] **Batch 123 — A named member can be locked out of sign-in for a whole Saturday for five requests every fifteen minutes**
+- [x] **Batch 123 — A named member can be locked out of sign-in for a whole Saturday for five requests every fifteen minutes** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/01-security.md`, SEC-18 (HIGH, live).
   Five wrong PINs lock an account for fifteen minutes and the lock is account-wide: the
   correct PIN from a different address is refused. Display names are on every leaderboard,
