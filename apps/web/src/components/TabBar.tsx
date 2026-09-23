@@ -1,4 +1,4 @@
-import { useState, useId, useEffect } from 'react';
+import { useState, useId, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -59,6 +59,11 @@ export function TabBar() {
   const { activeSlug, hasLeagues } = useLeague();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
+  // Where the keyboard goes when the sheet closes. Radix restores focus to a
+  // `Dialog.Trigger`, and this sheet is driven by `open` rather than by one, so
+  // without this Escape left focus on `<body>` and the next Tab restarted at the
+  // top of the document — the account menu, a Radix dropdown, never had the bug.
+  const moreTriggerRef = useRef<HTMLButtonElement>(null);
   const layoutId = useId();
 
   // Guarantee the More sheet closes whenever the route changes, regardless of
@@ -171,6 +176,7 @@ export function TabBar() {
               <li key={label} className="contents">
                 {isOverflow ? (
                   <button
+                    ref={moreTriggerRef}
                     type="button"
                     onClick={() => setMoreOpen(true)}
                     aria-haspopup="dialog"
@@ -194,7 +200,12 @@ export function TabBar() {
         </ul>
       </nav>
 
-      <Sheet open={moreOpen} onClose={() => setMoreOpen(false)} title="More">
+      <Sheet
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        title="More"
+        triggerRef={moreTriggerRef}
+      >
         <div className="flex flex-col gap-1">
           {SECONDARY.map(({ to, label, Icon }) => (
             <button

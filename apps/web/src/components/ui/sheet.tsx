@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, type RefObject } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,14 @@ interface SheetProps {
   title?: string;
   children: ReactNode;
   className?: string;
+  /**
+   * The control that opened this sheet, so closing it puts the keyboard back where it
+   * was. Radix restores focus to its own `Dialog.Trigger`, and this sheet has none —
+   * callers drive `open` themselves — so without this Escape drops focus onto `<body>`
+   * and the next Tab starts again from the top of the document. The account menu is a
+   * Radix dropdown with a real trigger, which is why it never had the defect.
+   */
+  triggerRef?: RefObject<HTMLElement | null>;
 }
 
 /**
@@ -24,7 +32,7 @@ interface SheetProps {
  * Drag-to-dismiss is intentionally dropped — the X button + overlay tap +
  * route-change auto-close in TabBar all do the job reliably.
  */
-export function Sheet({ open, onClose, title, children, className }: SheetProps) {
+export function Sheet({ open, onClose, title, children, className, triggerRef }: SheetProps) {
   return (
     <DialogPrimitive.Root
       open={open}
@@ -43,6 +51,14 @@ export function Sheet({ open, onClose, title, children, className }: SheetProps)
         />
         <DialogPrimitive.Content
           aria-describedby={undefined}
+          onCloseAutoFocus={(event) => {
+            const trigger = triggerRef?.current;
+            if (!trigger) return;
+            // Radix's own restore target is its trigger; there isn't one here, so take
+            // the default over and put focus back explicitly.
+            event.preventDefault();
+            trigger.focus();
+          }}
           className={cn(
             'fixed bottom-0 left-0 right-0 z-sheet',
             'bg-surface-elevated border-t border-border rounded-t-2xl shadow-sheet',

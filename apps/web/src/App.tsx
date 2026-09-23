@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from 'sonner';
 import { installResumeRefetch } from './lib/resumeRefetch';
 import { lazyRoute } from './lib/lazyRoute';
 import { AuthProvider } from './contexts/AuthContext';
@@ -17,6 +16,7 @@ import { COUPON_SECTION_HASH } from './lib/leagues';
 import { RouteFallback } from './components/RouteFallback';
 import { UpdateBanner } from './components/UpdateBanner';
 import { InstallPromptController } from './components/InstallPromptController';
+import { AppToaster } from './components/AppToaster';
 import { BrowserOnboarding } from './components/BrowserOnboarding';
 import { NotificationsPromptController } from './components/NotificationsPromptController';
 import { LoginPage } from './pages/LoginPage';
@@ -143,7 +143,7 @@ export function App() {
             <UpdateBanner />
             <InstallPromptController />
             <NotificationsPromptController />
-            <Toaster position="bottom-right" richColors closeButton />
+            <AppToaster />
             <ErrorBoundary>
               <Suspense fallback={<RouteFallback />}>
                 <Routes>

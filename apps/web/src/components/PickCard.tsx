@@ -344,8 +344,13 @@ function SelectionButton({
         'focus-visible:outline-none focus-visible:shadow-glow',
       )}
     >
-      <span className="flex w-full items-center justify-between gap-1">
-        <span className="truncate text-xs font-sans font-medium">
+      <span className="flex w-full items-start justify-between gap-1">
+        {/* Wraps at the narrow end rather than truncating. At 320 CSS px these sit two
+            to a row, and "No — not both score" wants 106px in the 68px that leaves —
+            so `truncate` was cutting the market name in half on the one screen the
+            product exists for. From `sm` there is room for a line, and ellipsis is the
+            better answer for a long team name. */}
+        <span className="min-w-0 break-words text-xs font-sans font-medium sm:truncate">
           {sel.mine && <Check className="mr-0.5 inline h-3 w-3" aria-hidden />}
           {label}
         </span>

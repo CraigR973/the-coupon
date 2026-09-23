@@ -341,3 +341,32 @@ describe('PickCard — opening a club’s form', () => {
     expect(pips.getAttribute('role')).toBe('img');
   });
 });
+
+describe('PickCard — the market label at the narrow end', () => {
+  /**
+   * UX-15. At 320 CSS px the selections sit two to a row, which leaves a market
+   * label about 68px; "No — not both score" wants 106. The label carried `truncate`,
+   * so it was cut off on the one screen the product exists for, on the narrowest
+   * phone the guidelines ask it to work on.
+   *
+   * jsdom gives every element zero dimensions, so this is the class contract rather
+   * than a measurement — the measurement of what a browser actually does with it
+   * lives in `e2e/prod-bundle-reflow.spec.ts`, over the routes that harness reaches.
+   */
+  const labelOf = (testId: string) =>
+    (screen.getByTestId(testId).querySelector('span > span') as HTMLElement).className;
+
+  it('wraps below the sm breakpoint instead of truncating', () => {
+    renderCard();
+    const className = labelOf('selection-fx1-MATCH_ODDS-HOME');
+    // `truncate` unqualified is the defect: it applies at every width.
+    expect(className).not.toMatch(/(^|\s)truncate(\s|$)/);
+    expect(className).toMatch(/\bbreak-words\b/);
+    expect(className).toMatch(/\bmin-w-0\b/);
+  });
+
+  it('still truncates from sm up, where there is a line to lose', () => {
+    renderCard();
+    expect(labelOf('selection-fx1-MATCH_ODDS-HOME')).toMatch(/\bsm:truncate\b/);
+  });
+});
