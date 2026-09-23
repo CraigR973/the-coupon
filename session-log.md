@@ -4030,3 +4030,29 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,193 → 1,200. Frontend unchanged.
 
 **Next:** Batch 126, then the Group O `/ship-prod`.
+
+## Batch 126 — A member can display another member's exact name on the league table
+**Commits:** `ae187ea` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,208 backend and
+1,127 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- `src/display_name.py` now owns `MIN/MAX_DISPLAY_NAME_LENGTH`, `DISPLAY_NAME_RE`,
+  `normalise_display_name` and `validated_display_name`. `routers/auth.py` keeps its old
+  private names as aliases, so registration is byte-for-byte unchanged and nothing that
+  imported them had to move.
+- Uniqueness is on the **effective** name — `coalesce(display_name_override,
+  profiles.display_name)` — because that is what every surface renders. Scoped to one
+  league: two leagues are two games, so the same name is free in another.
+- Clearing an override is deliberately *not* clash-checked. The fallback is the profile's
+  own globally-unique name, and refusing the clear would trap a member holding an override
+  written before this batch.
+- Refusal is `409 NAME_TAKEN_IN_LEAGUE`. There is no web caller of this endpoint yet, so
+  the batch is cleanly API-only.
+- Three self-inflicted test failures on the way, all in the test and none in product code:
+  a literal "Alice Smith" reused across tests violates the global unique index on
+  `lower(display_name)`; `" leading-punct"` is *legal* because normalisation trims first;
+  and an index-based emoji substitution silently pointed at the wrong list entry after I
+  inserted two cases above it.
+- Counts: BACKEND 1,200 → 1,208.
+
+**Next:** the Group O `/ship-prod` checkpoint, carrying Batches 125 and 126.

@@ -1463,6 +1463,16 @@ second dependency with no bypass, used by `submit_pick` and the per-league displ
 override. A structural test walks every route and fails any mutating one that still depends on
 the read variant. **API-only: `/ship-prod` is owed.**
 
+**Batch 126 made a member's name theirs within a league** (`ae187ea`). The per-league
+display-name override stored whatever it was sent, bounded only by the column's 100
+characters — no charset, no normalisation, no uniqueness — while the roster, standings and
+coupon all render it, so two members could appear under one name. The registration rules move
+to `src/display_name.py` and both paths now read them from there; uniqueness is on the
+*effective* name (override, else profile name) within one league, case-insensitively and after
+normalisation, excluding the caller. Clearing is deliberately unchecked, so a pre-existing
+clash cannot trap someone with an override they cannot remove. **API-only: `/ship-prod` is
+owed, together with Batch 125.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",

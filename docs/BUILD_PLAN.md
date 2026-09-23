@@ -4185,7 +4185,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the dependency and its call sites. No change to the admin console.
   **API-carrying.**
 
-- [ ] **Batch 126 — A member can display another member's exact name on the league table**
+- [x] **Batch 126 — A member can display another member's exact name on the league table** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/01-security.md`, SEC-20 (MED, live). The
   per-league display-name override stores whatever it is sent, bounded only by length: no
   uniqueness within the league, no charset or confusable handling. The roster, standings
