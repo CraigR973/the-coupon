@@ -1502,6 +1502,15 @@ does, with the same empty-pool release so a fresh deployment can still bootstrap
 measured against a counting provider driving the real job, not asserted from the argument.
 **API-only: `/ship-prod` is owed.**
 
+**Batch 160 made the plan counter honest** (`8b1aa0d`). It was charged only from the odds
+cache's own refills, so `fetch_slate`, `fetch_competitions` and `settle` never reached it and
+the gauge saw roughly 127 of a Saturday's 283 requests — while the cache's widening valve and
+the 50-request pick reserve both read that gauge. `OddsApiProvider` now counts at the single
+HTTP chokepoint all its requests pass through, and the cache charges the delta across each
+forwarded call, so retries, the memoised catalogue fetch and a call that raised are all
+recorded. `fetch_odds` is untouched, and no tier, threshold or reserve size moved.
+**API-only: `/ship-prod` is owed, with Batch 159.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",

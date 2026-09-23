@@ -4803,7 +4803,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the refresh job's competition scope. No change to the cadence, the
   horizon, or what a round is. **API-carrying.**
 
-- [ ] **Batch 160 — The request counter cannot see the requests that matter most**
+- [x] **Batch 160 — The request counter cannot see the requests that matter most** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-08 (HIGH,
   live). The plan counter is charged **only from the odds cache**, on `fetch_odds`
   refreshes. `fetch_slate`, `fetch_competitions` and `settle` are separate provider entry

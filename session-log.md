@@ -4126,3 +4126,28 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,210 → 1,215.
 
 **Next:** Batch 160.
+
+## Batch 160 — The request counter cannot see the requests that matter most
+**Commits:** `8b1aa0d` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,225 backend and
+1,147 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- `OddsApiProvider.requests_made` is incremented in `_get` and nowhere else. Every request
+  the client sends — slate walks, settlement lookups, the league catalogue, odds — passes
+  through that one function, so a counter anywhere else sees a subset.
+- The cache charges the **delta** across each forwarded call via `_charging(estimate=...)`,
+  falling back to the estimate when the wrapped provider does not expose `requests_made`
+  (the fakes, Betfair). Charged in `finally`, because a call that raised still sent its
+  requests.
+- `fetch_odds` is deliberately *not* wrapped: it already charged, and wrapping it too would
+  double-count. The tiers, the valve's thresholds and the reserve's size are untouched.
+- **The reserve holds browsing, not picking.** `for_pick = not best_effort`, so
+  `fetch_odds` is the pick path and is exempt; `fetch_odds_best_effort` is browsing and
+  falls through to cached entries without raising. My first version of the reserve test had
+  this backwards and expected `fetch_odds` to raise.
+- `test_plan_counter.py` uses a provider that counts what an HTTP client would send rather
+  than mirroring the cache's arithmetic, so the two numbers are independent answers.
+- Verified non-vacuous by reverting the three entry points: nine of ten tests red.
+- Counts: BACKEND 1,215 → 1,225.
+
+**Next:** Batch 161.
