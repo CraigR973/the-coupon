@@ -651,12 +651,11 @@ export interface PerLeagueSummary {
  * The caller's season across every league they play.
  *
  * Points and win rate aggregate honestly — every league scores `round(odds × 10)`
- * off the same scale. Rank does not, so `avg_rank` spans only leagues big enough
- * to rank against and `avg_rank_leagues` says how many that was.
+ * off the same scale. Rank does not aggregate at all — Batch 157 removed `avg_rank`
+ * and `avg_rank_leagues`, because a mean of ranks taken in leagues of different sizes
+ * is not a number anybody can act on. Per-league rank lives on `PerLeagueSummary`.
  */
 export interface CrossLeagueSummary {
-  avg_rank: number | null;
-  avg_rank_leagues: number;
   total_points: number;
   picks_played: number;
   picks_won: number;

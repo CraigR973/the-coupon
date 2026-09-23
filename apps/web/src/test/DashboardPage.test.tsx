@@ -41,8 +41,6 @@ const LEAGUES = [
 const FAR_FUTURE = new Date(Date.now() + 3 * 86_400_000).toISOString();
 
 const SUMMARY: CrossLeagueSummary = {
-  avg_rank: 2.0,
-  avg_rank_leagues: 2,
   total_points: 57,
   picks_played: 5,
   picks_won: 3,
@@ -333,8 +331,6 @@ describe('DashboardPage', () => {
 
   it('points a member with no leagues at the discovery page', async () => {
     stubFetch({
-      avg_rank: null,
-      avg_rank_leagues: 0,
       total_points: 0,
       picks_played: 0,
       picks_won: 0,

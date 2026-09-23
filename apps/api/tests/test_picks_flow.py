@@ -2024,10 +2024,18 @@ async def test_cross_league_summary_totals_points_and_breaks_them_down(
     )
 
 
-async def test_avg_rank_skips_leagues_too_small_to_rank_against(
+async def test_the_summary_averages_no_rank_across_leagues_of_different_sizes(
     client_and_fake: tuple[AsyncClient, FakeBetfair],
 ) -> None:
-    """A two-person league is rank 1 by default and must not flatter the average."""
+    """Batch 157: rank is per-league only; no aggregate of it comes back at all.
+
+    This used to assert ``avg_rank == 2.0`` and ``avg_rank_leagues == 1`` — a mean
+    that skipped the two-person league because it ranks 1 by default. The owner's
+    2026-09-22 decision dropped the pair instead of fixing the mean: third of
+    fifteen and third of three are not the same achievement, so no average of them
+    is actionable. The setup is kept because it is the case that made the old
+    number wrong, and it now pins the fields' absence where they mattered most.
+    """
     client, fake = client_and_fake
     async with AsyncSessionLocal() as session:
         (alice, bob, carol), big = await _seed_league(session, ["alice", "bob", "carol"])
@@ -2047,8 +2055,11 @@ async def test_avg_rank_skips_leagues_too_small_to_rank_against(
     assert by_slug[tiny.slug]["rank"] == 1, "the small league still reports its own rank"
     assert by_slug[tiny.slug]["member_count"] == 2
 
-    assert summary["avg_rank"] == 2.0, "1.5 would mean the two-person league counted"
-    assert summary["avg_rank_leagues"] == 1
+    # Rank survives per league and differs between them (2 and 1 above); nothing at
+    # the top level combines the two. Matched on substring, so a renamed revival
+    # ("mean_rank", "rank_across_leagues") fails here too.
+    ranky = [key for key in summary if "rank" in key]
+    assert ranky == [], f"the summary aggregates rank again: {ranky}"
 
 
 async def test_cross_league_summary_carries_each_leagues_current_round(
@@ -2164,8 +2175,6 @@ async def test_cross_league_summary_shows_an_unpicked_round_and_no_leagues(
 
     empty = (await client.get("/api/v1/me/cross-league-summary", headers=_auth(loner))).json()
     assert empty == {
-        "avg_rank": None,
-        "avg_rank_leagues": 0,
         "total_points": 0,
         "picks_played": 0,
         "picks_won": 0,

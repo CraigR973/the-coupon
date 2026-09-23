@@ -15,8 +15,6 @@ const STORED_PLAYER = JSON.stringify({
 });
 
 const SUMMARY: CrossLeagueSummary = {
-  avg_rank: 2.0,
-  avg_rank_leagues: 2,
   total_points: 57,
   picks_played: 5,
   picks_won: 3,
@@ -111,18 +109,28 @@ describe('CareerProfilePage', () => {
     expect(row.getAttribute('href')).toBe('/leagues/work-league/players/p1');
   });
 
-  it('says how many leagues the average rank actually covers', async () => {
-    stubFetch({ ...SUMMARY, avg_rank: 1.0, avg_rank_leagues: 1 });
-    renderPage();
-    expect(await screen.findByText(/Averaged over 1 of your 2 leagues/)).toBeTruthy();
-  });
-
-  it('explains a missing average rather than showing a misleading number', async () => {
-    stubFetch({ ...SUMMARY, avg_rank: null, avg_rank_leagues: 0 });
+  // Batch 157: rank does not aggregate across leagues, so the career stats no longer
+  // carry an averaged one. Match on /rank/i across the whole stat block rather than the
+  // one old label, so a re-added rank card fails here however it is worded.
+  it('offers no averaged rank, because rank does not aggregate across leagues', async () => {
     renderPage();
     const stats = await screen.findByTestId('career-stats');
-    expect(stats.textContent).toContain('—');
-    expect(screen.getByText(/at least 3 members/)).toBeTruthy();
+    // The card labels live inside career-stats; the explanatory line sits outside it,
+    // so a /rank/i match in here can only be a rank statistic.
+    expect(stats.textContent).not.toMatch(/rank/i);
+    expect(screen.queryByText('Avg rank')).toBeNull();
+    expect(screen.getByText(/Rank does not average across them/)).toBeTruthy();
+  });
+
+  // The removal lands in two deployments: this web app ships on push to main, the API
+  // only at the next /ship-prod. In that window the response still carries the two dead
+  // fields. Extra keys are inert in TypeScript, but only at compile time — this pins
+  // that the running page ignores them rather than rendering anything off them.
+  it('ignores the dead fields an unshipped API still sends', async () => {
+    stubFetch({ ...SUMMARY, avg_rank: 2.0, avg_rank_leagues: 2 } as CrossLeagueSummary);
+    renderPage();
+    const stats = await screen.findByTestId('career-stats');
+    expect(stats.textContent).toBe('Points57Win rate60%Picks won3/5');
   });
 
   it('shows a dash for win rate before anything has settled', async () => {

@@ -39,13 +39,6 @@ router = APIRouter(prefix="/api/v1/me", tags=["me"])
 
 Db = Annotated[AsyncSession, Depends(get_db)]
 
-# Rank does not aggregate the way points do: first of three and first of fifteen are
-# not the same achievement, and a two-person league is rank 1 by default. Leagues
-# below this size are left out of the average so they cannot flatter it — they still
-# appear in the breakdown, with their own rank, which is where that number means
-# something. Ported from wc_2026_predictor along with the endpoint.
-_MIN_MEMBERS_FOR_AVG = 3
-
 
 class ProfileOut(BaseModel):
     id: str
@@ -191,14 +184,14 @@ class CrossLeagueSummary(BaseModel):
 
     Points and win rate aggregate honestly: every league scores ``round(odds × 10)``
     off the same scale, so a total across three of them is a real number. Rank does
-    not, hence ``avg_rank`` carrying its own guard (see ``_MIN_MEMBERS_FOR_AVG``) and
-    the per-league breakdown carrying the ranks that do mean something.
+    not aggregate at all. Batch 157 removed the ``avg_rank`` / ``avg_rank_leagues``
+    pair the endpoint was ported with: a mean of ranks taken in leagues of different
+    sizes is not a figure anybody can act on — third of fifteen and third of three
+    are not the same achievement — and the contract said as much while the code
+    returned one anyway. The ranks that do mean something are per-league, and live
+    on ``PerLeagueSummary``.
     """
 
-    avg_rank: float | None
-    # How many leagues the average actually spans — without it a reader cannot tell
-    # a mean over three leagues from one over the single league big enough to count.
-    avg_rank_leagues: int
     total_points: int
     picks_played: int
     picks_won: int
@@ -249,8 +242,6 @@ async def cross_league_summary(
 
     if not membership_rows:
         return CrossLeagueSummary(
-            avg_rank=None,
-            avg_rank_leagues=0,
             total_points=0,
             picks_played=0,
             picks_won=0,
@@ -307,7 +298,6 @@ async def cross_league_summary(
     )
 
     per_league: list[PerLeagueSummary] = []
-    ranks_for_avg: list[int] = []
     for row in membership_rows:
         member_count = member_counts.get(row.id, 0)
         standing = mine.get(row.id)
@@ -342,8 +332,6 @@ async def cross_league_summary(
                 next_opens_at_utc=openings.get(row.id),
             )
         )
-        if standing is not None and member_count >= _MIN_MEMBERS_FOR_AVG:
-            ranks_for_avg.append(standing.rank)
 
     picks_played = sum(entry.picks_played for entry in per_league)
     picks_won = sum(entry.picks_won for entry in per_league)
@@ -353,8 +341,6 @@ async def cross_league_summary(
     returns = [entry.best_return for entry in per_league if entry.best_return is not None]
 
     return CrossLeagueSummary(
-        avg_rank=round(sum(ranks_for_avg) / len(ranks_for_avg), 2) if ranks_for_avg else None,
-        avg_rank_leagues=len(ranks_for_avg),
         total_points=total_points,
         picks_played=picks_played,
         picks_won=picks_won,

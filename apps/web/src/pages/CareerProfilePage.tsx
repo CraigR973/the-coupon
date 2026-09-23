@@ -17,9 +17,8 @@ import { Skeleton } from '../components/ui/skeleton';
  * figure instead of answering it once. **Points and win rate aggregate** — every
  * league scores `round(odds × 10)` off the same scale, so a season total across
  * three leagues is a real number. **Rank does not**: first of three and first of
- * fifteen are not the same achievement, so the average spans only leagues with
- * enough members to rank against, and the ranks that do mean something live in
- * the per-league breakdown.
+ * fifteen are not the same achievement, so Batch 157 dropped the averaged rank
+ * entirely, and the only ranks shown are the per-league ones in the breakdown.
  *
  * The breakdown links into each league's own profile, which is where a pick's
  * history belongs — a pick's meaning is partly who else could have taken it.
@@ -33,8 +32,8 @@ export function CareerProfilePage() {
     return (
       <div className="space-y-6" aria-label="Loading profile">
         <Skeleton className="h-16 w-full rounded-lg" />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-[88px] rounded-lg" />
           ))}
         </div>
@@ -51,11 +50,6 @@ export function CareerProfilePage() {
     );
   }
 
-  // The average covers fewer leagues than the member plays whenever one of them
-  // is too small to rank against. Saying so beats a figure the reader has to
-  // reverse-engineer from the breakdown.
-  const partialAverage = data.avg_rank_leagues < data.leagues_count;
-
   return (
     <div className="space-y-7">
       <div className="flex items-center gap-4">
@@ -67,24 +61,22 @@ export function CareerProfilePage() {
         <h2 className="mb-3 font-sans text-base font-semibold tracking-tight text-text-primary">
           Across your leagues
         </h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="career-stats">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" data-testid="career-stats">
           <StatCard label="Points" value={data.total_points} />
           <StatCard
             label="Win rate"
             value={data.win_rate_pct === null ? '—' : `${data.win_rate_pct}%`}
           />
           <StatCard label="Picks won" value={`${data.picks_won}/${data.picks_played}`} />
-          <StatCard
-            label="Avg rank"
-            value={data.avg_rank === null ? '—' : `#${data.avg_rank}`}
-          />
         </div>
+        {/* Batch 157, owner's decision 2026-09-22: the averaged rank is gone. The
+            contract says points and win rate aggregate across leagues and rank does not,
+            and a mean of ranks taken in leagues of different sizes is not a number
+            anybody can act on — third of fifteen and third of three are not the same
+            achievement. The per-league ranks below are where rank means something. */}
         <p className="mt-2 font-sans text-xs text-text-muted">
-          {data.avg_rank === null
-            ? 'An average rank needs a league with at least 3 members — first of two is first by default.'
-            : partialAverage
-              ? `Averaged over ${data.avg_rank_leagues} of your ${data.leagues_count} leagues; those with fewer than 3 members are left out, because first of two is first by default.`
-              : 'Points and win rate cover every league. Rank is averaged across them — the per-league ranks below are the ones to compare.'}
+          Points and win rate cover every league. Rank does not average across them — the
+          per-league ranks below are the ones to compare.
         </p>
       </section>
 
