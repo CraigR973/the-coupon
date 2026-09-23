@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
+from apscheduler.triggers.cron import CronTrigger
 
 from src.config import settings
 from src.models.notification import ActionType, ActorType, AuditLog
@@ -162,9 +164,6 @@ def test_create_scheduler_domain_jobs_fire_on_uk_wall_clock() -> None:
             # Batch 114 took the hours out of the source and moved the late pass clear of
             # the lock; `test_the_late_slate_pass_is_clear_of_the_lock_hour` is the rule.
             "refresh_slate": f"cron[hour='{settings.odds_refresh_slate_hours}', minute='0']",
-            # Hourly at :15 since Batch 76 — a daily job cannot deliver a reminder three
-            # hours before a deadline that moves with each league's window.
-            "pick_reminders": "cron[minute='15']",
             # Hourly, a minute clear of the lock sweep so the two never interleave.
             "open_gameweeks": "cron[minute='1']",
             "lock_gameweeks": "cron[minute='0']",
@@ -184,9 +183,104 @@ def test_create_scheduler_domain_jobs_fire_on_uk_wall_clock() -> None:
             assert str(job.trigger.timezone) == "Europe/London"
             assert job.coalesce is True
             assert job.max_instances == 1
+
+        # `pick_reminders` is deliberately **not** in that set — see Batch 147 below.
+        reminders = scheduler.get_job("pick_reminders")
+        assert reminders is not None
+        assert str(reminders.trigger.timezone) != "Europe/London"
     finally:
         if scheduler.running:
             scheduler.shutdown(wait=False)
+
+
+# ── Batch 147: the reminder must not lose the repeated hour ──────────────────
+#
+# On an hourly Europe/London cron the October fall-back skips an hour: firing goes
+# 23:15 UTC straight to 01:15 UTC, because 00:15 occurs twice in local time and the
+# trigger takes it once. Every other job recovers from a skipped hour — a round locks an
+# hour late — but a reminder does not: its predicate is a narrow window around a deadline
+# three hours out, so a round locking roughly 03:15-04:15 UTC that morning is never
+# reminded at all.
+
+#: The 2026 fall-back: 02:00 BST becomes 01:00 GMT, so 01:00-02:00 local happens twice.
+FALL_BACK = datetime(2026, 10, 25, tzinfo=ZoneInfo("UTC"))
+
+
+def _firings(trigger: object, start: datetime, hours: int) -> list[datetime]:
+    """Every fire time in the window, as UTC."""
+    times: list[datetime] = []
+    previous = None
+    nxt = trigger.get_next_fire_time(None, start)  # type: ignore[attr-defined]
+    while nxt is not None and nxt < start + timedelta(hours=hours):
+        times.append(nxt.astimezone(ZoneInfo("UTC")))
+        previous, nxt = nxt, trigger.get_next_fire_time(nxt, nxt)  # type: ignore[attr-defined]
+        if previous == nxt:
+            break
+    return times
+
+
+def test_the_reminder_fires_in_every_utc_hour_across_the_fall_back() -> None:
+    """The fix, as the hours it actually fires in."""
+    scheduler = create_scheduler()
+    try:
+        job = scheduler.get_job("pick_reminders")
+        assert job is not None
+        fired = _firings(job.trigger, FALL_BACK - timedelta(hours=2), 8)
+    finally:
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
+
+    hours = [moment.hour for moment in fired]
+    # Not `sorted()`: the window crosses midnight, so the sequence is 22, 23, 0, 1…
+    assert len(hours) == len(set(hours)), f"it fired twice in one hour: {hours}"
+    # Eight consecutive UTC hours, none missing — 22:00, 23:00 the night before, then
+    # 00:00 through 05:00, which is the range the skipped firing sat in.
+    assert len(fired) == 8, f"fired {len(fired)} times in eight hours: {hours}"
+    assert all(
+        (later - earlier) == timedelta(hours=1)
+        for earlier, later in zip(fired, fired[1:], strict=False)
+    ), hours
+
+
+def test_a_london_hourly_cron_would_have_skipped_one() -> None:
+    """The premise, so the test above is a fix rather than a coincidence.
+
+    Same minute, same cadence, one zone apart — and this one loses an hour.
+    """
+    london = CronTrigger(minute=15, timezone=ZoneInfo("Europe/London"))
+    fired = _firings(london, FALL_BACK - timedelta(hours=2), 8)
+
+    gaps = [later - earlier for earlier, later in zip(fired, fired[1:], strict=False)]
+    assert timedelta(hours=2) in gaps, (
+        "the London cron no longer skips the repeated hour — if APScheduler changed this, "
+        "re-derive whether Batch 147's fix is still needed before relaxing it"
+    )
+    assert len(fired) < 8
+
+
+def test_a_round_locking_in_the_repeated_hour_is_reminded_exactly_once() -> None:
+    """End to end on the arithmetic: the firing exists, and it is the right one.
+
+    A round locking at 04:00 UTC that morning is due its reminder three hours earlier,
+    at 01:00 UTC — inside the window the London cron used to skip.
+    """
+    scheduler = create_scheduler()
+    try:
+        job = scheduler.get_job("pick_reminders")
+        assert job is not None
+        fired = _firings(job.trigger, FALL_BACK, 6)
+    finally:
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
+
+    locks_at = FALL_BACK + timedelta(hours=4)
+    due_from = locks_at - timedelta(hours=3, minutes=30)
+    due_to = locks_at - timedelta(hours=2, minutes=30)
+    covering = [moment for moment in fired if due_from <= moment <= due_to]
+
+    assert (
+        len(covering) == 1
+    ), f"a round locking at {locks_at:%H:%M} UTC is covered by {len(covering)} firings"
 
 
 # ── Batch 114: the late slate pass must not spend the pick hour ──────────────

@@ -947,7 +947,20 @@ def create_scheduler() -> AsyncIOScheduler:
         # :00 so the three never interleave. Daily at 11:00 could not deliver a reminder
         # three hours before a deadline that moves with each league's window.
         minute=15,
-        timezone="Europe/London",
+        # **UTC, alone among the domain jobs** (Batch 147). On an hourly Europe/London
+        # cron the October fall-back skips an hour: firing goes 23:15 UTC straight to
+        # 01:15 UTC, because 00:15 occurs twice in local time and the trigger takes it
+        # once. Every other job recovers from a skipped hour — a round locks an hour
+        # late, discovery runs an hour late — but a reminder does not: its predicate is
+        # a narrow window around a deadline three hours out, so a round locking roughly
+        # 03:15-04:15 UTC that morning is simply never reminded.
+        #
+        # `gameweeks_due_a_reminder` already selects on the UTC lock instant, so the
+        # wall clock was never load-bearing here; it only had to fire once an hour, and
+        # UTC is the only zone in which "once an hour" is always true. The minute is
+        # unchanged, and London's offsets are whole hours, so the :15/:01/:00 separation
+        # from the other two hourly jobs holds exactly as before.
+        timezone="UTC",
         id="pick_reminders",
         replace_existing=True,
         coalesce=True,
