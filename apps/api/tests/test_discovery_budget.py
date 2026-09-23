@@ -82,6 +82,9 @@ class _CatalogueProvider(OddsProvider):
 
     def __init__(self, *, rate_limit_after: int | None = None) -> None:
         self.slate_calls: list[tuple[date, tuple[str, ...] | None]] = []
+        #: The window each walk was for, so a test can ask which windows were served at
+        #: all — the property Batch 133's interleaving is about.
+        self.slate_windows: list[SlateWindow] = []
         self.rate_limit_after = rate_limit_after
         self.odds_calls: list[list[str]] = []
         self.priced: set[str] | None = None
@@ -104,6 +107,7 @@ class _CatalogueProvider(OddsProvider):
     ) -> Slate:
         narrowed = None if competition_ids is None else tuple(sorted(competition_ids))
         self.slate_calls.append((starts_on, narrowed))
+        self.slate_windows.append(window)
         if self.rate_limit_after is not None and len(self.slate_calls) > self.rate_limit_after:
             raise OddsProviderRateLimited("odds-api.io /events rate-limited (429), not retried")
         offered = CARRIES if narrowed is None else tuple(c for c in CARRIES if c in narrowed)
@@ -642,3 +646,181 @@ async def test_three_windows_fit_inside_the_plan_once_the_refresh_is_narrowed(
     ), f"three windows costs {three_window_day} a day against a {DAILY_PLAN} plan"
     # And the unnarrowed shape genuinely did not fit, which is why this batch exists.
     assert 3 * LIVE_CATALOGUE > HOURLY_PLAN
+
+
+# ── Batch 133: the run has a budget, and spends it fairly across windows ───────
+#
+# The cost is `windows x dates x competitions` and only the last factor was bounded.
+# Two windows over a two-week horizon is `2 x 2 x 20 = 80`, inside the plan; a **third**
+# distinct window — a league-settings change, not a deploy — puts it near 120 against a
+# 100/hour plan. The failure shape is the one Batch 119 lived through: a 429 partway,
+# swallowed as a one-line exception, and the later windows starved in silence.
+#
+# Two halves. The run stops on its own budget instead of on the provider's refusal, and
+# the walk is interleaved by date rank so a shortfall costs the far end of every
+# window's horizon rather than the whole of the last window.
+
+
+async def _three_windows(db: AsyncSession) -> list[League]:
+    """Three genuinely distinct windows — Saturday, Friday, and a Sunday of its own."""
+    saturday = await _league(db)
+    friday = await _league(db, window_owner=True)
+    sunday = await _league(db)
+    sunday.slate_start_weekday = 6
+    sunday.slate_start_minute = 16 * 60
+    sunday.slate_end_weekday = 6
+    sunday.slate_end_minute = 16 * 60
+    await db.flush()
+    leagues = [saturday, friday, sunday]
+    assert len({window_for(league) for league in leagues}) == 3
+    return leagues
+
+
+async def test_a_three_window_run_completes_inside_the_hourly_plan(
+    committing_session: AsyncSession,
+) -> None:
+    """The finding: it used to walk past the plan rather than stop at it."""
+    leagues = await _three_windows(committing_session)
+    provider = _CatalogueProvider()
+
+    await discover_fixtures(
+        committing_session,
+        provider,
+        leagues,
+        SATURDAYS[0],
+        2,
+        competition_ids=CARRIES,
+        commit_each=True,
+        request_budget=100,
+    )
+
+    assert _requests(provider) <= 100
+
+
+async def test_the_last_window_is_still_served_when_the_budget_binds(
+    committing_session: AsyncSession,
+) -> None:
+    """The half the interleaving buys.
+
+    Window-major, a shortfall costs the *last window entirely* while the first one is
+    still buying dates a fortnight out that nobody can pick on yet. By date rank, every
+    window gets its nearest date before any window gets its second.
+    """
+    leagues = await _three_windows(committing_session)
+    windows = {window_for(league) for league in leagues}
+    provider = _CatalogueProvider()
+
+    # Room for three walks and not a fourth: exactly one date per window.
+    await discover_fixtures(
+        committing_session,
+        provider,
+        leagues,
+        SATURDAYS[0],
+        2,
+        competition_ids=CARRIES,
+        commit_each=True,
+        request_budget=3 * len(CARRIES),
+    )
+
+    assert len(provider.slate_calls) == 3
+    # Every window was served, which is the property window-major ordering loses: it
+    # would have spent all three walks on the first window's horizon.
+    assert set(provider.slate_windows) == windows
+
+
+async def test_the_budget_is_spent_on_the_nearest_dates_first(
+    committing_session: AsyncSession,
+) -> None:
+    """Rank order, stated as dates rather than as an implementation detail.
+
+    A fortnight-out date nobody can pick on must never be bought ahead of a nearer one
+    belonging to another window.
+    """
+    leagues = await _three_windows(committing_session)
+    provider = _CatalogueProvider()
+
+    await discover_fixtures(
+        committing_session,
+        provider,
+        leagues,
+        SATURDAYS[0],
+        2,
+        competition_ids=CARRIES,
+        commit_each=True,
+        request_budget=3 * len(CARRIES),
+    )
+
+    first_three = [starts_on for starts_on, _ in provider.slate_calls]
+    # Nothing in the first rank may be later than the earliest date of a *later* rank.
+    unbudgeted = _CatalogueProvider()
+    await discover_fixtures(
+        committing_session,
+        unbudgeted,
+        leagues,
+        SATURDAYS[0],
+        2,
+        competition_ids=CARRIES,
+        commit_each=True,
+    )
+    every_date = sorted({starts_on for starts_on, _ in unbudgeted.slate_calls})
+    assert max(first_three) <= every_date[len(first_three) - 1]
+
+
+async def test_a_run_stopped_by_its_budget_keeps_every_date_it_bought(
+    committing_session: AsyncSession,
+) -> None:
+    """Batch 119's requirement, held across Batch 133's new stopping condition.
+
+    A run that cannot finish must leave the deployment better off than it found it. The
+    budget stop is a clean ``break`` after a commit, not an exception, so this is a
+    different code path from the ``429`` Batch 119 tested and it needs its own assertion.
+    """
+    leagues = await _three_windows(committing_session)
+    provider = _CatalogueProvider()
+
+    discovered = await discover_fixtures(
+        committing_session,
+        provider,
+        leagues,
+        SATURDAYS[0],
+        2,
+        competition_ids=CARRIES,
+        commit_each=True,
+        request_budget=2 * len(CARRIES),
+    )
+
+    assert provider.slate_calls, "it bought nothing at all"
+    assert discovered, "it bought dates and recorded none of them"
+
+    # Roll back anything still open, so what is left is only what `commit_each` committed
+    # — the same proof the Batch 119 partial-run test uses, applied to the new stop.
+    bought = [gameweek.id for gameweek in discovered]
+    await committing_session.rollback()
+    stored = await committing_session.execute(
+        select(func.count()).select_from(Gameweek).where(Gameweek.id.in_(bought))
+    )
+    assert stored.scalar_one() == len(bought), "committed rounds did not survive the stop"
+
+
+async def test_no_budget_walks_everything_as_it_always_did(
+    committing_session: AsyncSession,
+) -> None:
+    """The default is unchanged: a caller that passes no budget is not bounded by one."""
+    leagues = await _three_windows(committing_session)
+    bounded = _CatalogueProvider()
+    unbounded = _CatalogueProvider()
+
+    await discover_fixtures(
+        committing_session, unbounded, leagues, SATURDAYS[0], 2, competition_ids=CARRIES
+    )
+    await discover_fixtures(
+        committing_session,
+        bounded,
+        leagues,
+        SATURDAYS[0],
+        2,
+        competition_ids=CARRIES,
+        request_budget=10_000,
+    )
+
+    assert len(unbounded.slate_calls) == len(bounded.slate_calls)

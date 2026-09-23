@@ -452,6 +452,9 @@ async def run_discover_fixtures() -> bool:
                 # everything and bootstrap, which is what the weekly pass does anyway.
                 competition_ids=pooled or None,
                 commit_each=True,
+                # Batch 133. The run's own budget, so a third distinct window degrades it
+                # rather than walking it into a 429 that starves the later windows.
+                request_budget=settings.discovery_request_budget,
             )
             gameweek_ids = [str(g.id) for g in gameweeks]
             windows = len({window_for(league) for league in leagues})

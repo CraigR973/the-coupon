@@ -32,6 +32,7 @@ from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
+from src.services.competitions import MEASURED_PLAYED_CATALOGUE as MEASURED_CATALOGUE
 from src.services.football_provider import FootballDataProvider, current_season, season_for
 from src.services.odds_provider import (
     UK_TZ,
@@ -963,6 +964,7 @@ async def discover_fixtures(
     football: FootballDataProvider | None = None,
     competition_ids: Collection[str] | None = None,
     commit_each: bool = False,
+    request_budget: int | None = None,
 ) -> list[Gameweek]:
     """Walk every league's coming cards into the pool and link them to its rounds.
 
@@ -1030,30 +1032,65 @@ async def discover_fixtures(
         db, [league.id for league in leagues], today, horizon_end
     )
 
-    discovered: list[Gameweek] = []
+    # Batch 133. The walk used to be window-major: every date of the first window, then
+    # every date of the second. With a budget that is the worst possible order, because a
+    # shortfall costs the *last window entirely* while the first one gets its far weeks —
+    # dates nobody can pick on for a fortnight. Interleaved by date rank, every window
+    # gets its nearest date before any window gets its second, so what a shortfall costs
+    # is the far end of the horizon across the board. The order within a rank is the
+    # dictionary's, which is the order the leagues arrived in: stable, and no window is
+    # systematically last.
+    ranked: list[list[tuple[SlateWindow, list[League], date, set[date]]]] = []
     for window, sharing in by_window.items():
         scheduled = set(cadence[window])
         dates = (scheduled | extras).union(
             *(off_cadence.get(league.id, set()) for league in sharing)
         )
-        for starts_on in sorted(dates):
-            playing = (
-                sharing
-                if starts_on in scheduled or starts_on in extras
-                else [lg for lg in sharing if starts_on in off_cadence.get(lg.id, set())]
+        for rank, starts_on in enumerate(sorted(dates)):
+            while len(ranked) <= rank:
+                ranked.append([])
+            ranked[rank].append((window, sharing, starts_on, scheduled))
+    schedule = [entry for rank in ranked for entry in rank]
+
+    # What one ``(window, date)`` walk costs: one ``/events`` per competition it is
+    # narrowed to. An un-narrowed walk pays for the catalogue, and the measured figure is
+    # the honest stand-in for a number this function cannot ask the provider for.
+    per_walk = len(set(competition_ids)) if competition_ids is not None else MEASURED_CATALOGUE
+    spent = 0
+
+    discovered: list[Gameweek] = []
+    for index, (window, sharing, starts_on, scheduled) in enumerate(schedule):
+        if request_budget is not None and spent + per_walk > request_budget:
+            # Stop cleanly rather than walk into a 429. Everything already bought is
+            # committed (``commit_each``), which is what Batch 119 requires of a run that
+            # cannot finish — and saying so at `warning` is what Batch 119 requires of a
+            # run that produced less than it was asked for.
+            log.warning(
+                "discovery stopped on its own budget",
+                budget=request_budget,
+                spent=spent,
+                per_walk=per_walk,
+                walks_skipped=len(schedule) - index,
             )
-            slate = await provider.fetch_slate(window, starts_on, competition_ids=competition_ids)
-            if not slate.fixtures:
-                continue
-            slate, _ = await verify_slate(slate, football)
-            for league in playing:
-                # ``None`` when the league's competition selection excludes the whole
-                # window — no round to record, but the shared fetch is unaffected.
-                gameweek = await sync_slate(db, league, slate)
-                if gameweek is not None:
-                    discovered.append(gameweek)
-            if commit_each:
-                await db.commit()
+            break
+        playing = (
+            sharing
+            if starts_on in scheduled or starts_on in extras
+            else [lg for lg in sharing if starts_on in off_cadence.get(lg.id, set())]
+        )
+        slate = await provider.fetch_slate(window, starts_on, competition_ids=competition_ids)
+        spent += per_walk
+        if not slate.fixtures:
+            continue
+        slate, _ = await verify_slate(slate, football)
+        for league in playing:
+            # ``None`` when the league's competition selection excludes the whole
+            # window — no round to record, but the shared fetch is unaffected.
+            gameweek = await sync_slate(db, league, slate)
+            if gameweek is not None:
+                discovered.append(gameweek)
+        if commit_each:
+            await db.commit()
     return discovered
 
 

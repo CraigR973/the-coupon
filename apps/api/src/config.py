@@ -196,6 +196,24 @@ class Settings(BaseSettings):
     # on Tuesday already has a full card.
     slate_horizon_weeks: int = 2
 
+    # What one discovery run may spend, in provider requests (Batch 133).
+    #
+    # The run costs `windows x dates x competitions` and only the last factor was
+    # bounded. At two windows and a two-week horizon that is `2 x 2 x 20 = 80`, inside
+    # the plan; a **third** distinct window — a league-settings change, not a deploy —
+    # puts it near 120 against a 100/hour plan, and the shape of that failure is the one
+    # Batch 119 already lived through: a 429 partway, taken as a one-line exception, and
+    # the later windows starved while nothing said so.
+    #
+    # Ninety leaves the hour ten requests of headroom. The run is at 06:00 when nothing
+    # else is asking, so the margin is for the unexpected rather than for browsing.
+    #
+    # A budget does not make a big deployment affordable — nothing can, the plan is the
+    # plan — but it changes *how* it fails: the run stops cleanly with every completed
+    # `(window, date)` committed, and because the walk is interleaved by date rank, what
+    # is lost is the far weeks of every window rather than every week of the last one.
+    discovery_request_budget: int = 90
+
     # ── When silence becomes an alarm (Batch 119) ───────────────────────────────
     #
     # No round was created by any scheduled job between 2026-09-04 20:21 and 2026-09-11,
