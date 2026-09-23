@@ -3847,3 +3847,27 @@ unchecked because Batch 119 superseded it.
   1,045 to 1,073 for the 28 tests this batch adds.
 
 **Next:** Batch 137.
+
+## Batch 137 — Four more public screens still render outside the app shell
+**Commits:** `8ed2740` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,179 backend and
+1,083 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed (13 tests)
+
+### Key facts for future sessions
+- `CardTitle` now takes `as?: 'h1' | 'h2'`, default `'h2'`. It exists so a page rendering
+  outside `Layout` can supply the document's `<h1>` without re-typing the class string, which
+  Batch 86 had already done twice by hand.
+- `BrowserOnboarding` takes `landmark?: boolean`. It is the page on `/welcome` and in
+  `JoinPage`'s mobile branch, and a full-screen *overlay* from `InstallPromptController`
+  everywhere else — where the route underneath already owns a `<main>`. Only the first two
+  pass the flag, and a test asserts the default renders no `<main>` at all.
+- The jsdom suite and the prod-bundle browser suite now both enumerate every public route.
+  The split is still forced: `landmark-one-main` and `page-has-heading-one` resolve through
+  axe's visibility check, which jsdom cannot satisfy, so only the browser run decides them.
+- The prod-bundle a11y spec's readiness wait is per-route now; two of the six public routes
+  have no `<form>` to wait for.
+- Verified the new assertions are not vacuous: reverting `ForgotPinPage` alone turns both of
+  its theme cases red, then green again on restore.
+- Gate green on the first run; the only change needed was raising FRONTEND_TEST_COUNT from
+  1,073 to 1,083.
+
+**Next:** Batch 138.

@@ -4371,7 +4371,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: self-service deletion and export. No change to the site-admin delete.
   **API + web.**
 
-- [ ] **Batch 137 — Four more public screens still render outside the app shell**
+- [x] **Batch 137 — Four more public screens still render outside the app shell** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-12 (MED, live).
   `/forgot-pin`, `/set-pin`, `/join/:token` and `/welcome` have no `<main>` landmark, no
   level-one heading, and content outside any landmark — the defect Batch 86 fixed for login

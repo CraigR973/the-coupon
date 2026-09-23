@@ -1387,6 +1387,15 @@ both palettes. A third token, `--shadow-glow-on-brand`, serves controls sitting 
 fill. The two hold-outs that styled focus with a bare `ring-*` utility now use the shared
 tokens and a test refuses any new one. Web-only; live on the close-out push.
 
+**Batch 137 put every public screen in a landmark** (`8ed2740`). `/forgot-pin`, `/set-pin`,
+`/join/:token` and `/welcome` had no `<main>`, no level-one heading and all their content
+outside any landmark — the defect Batch 86 fixed for `/login` and `/register` and explicitly
+scoped to those two. `CardTitle` now takes an `as` prop so a public page can title at `<h1>`
+without a fifth hand-rolled copy of its class string. `BrowserOnboarding` claims the landmark
+only on the two routes where it *is* the page; as `InstallPromptController`'s overlay it stays
+a `<div>`, because the route underneath already has a `<main>`. Both accessibility sweeps now
+enumerate every public route rather than a sample. Web-only; live on the close-out push.
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",
