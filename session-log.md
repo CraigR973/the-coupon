@@ -4355,3 +4355,23 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,271 → 1,278.
 
 **Next:** Batch 156.
+
+## Batch 156 — A voided leg's price still multiplies into the combined coupon
+**Commits:** `46b8d29` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,281 backend and
+1,154 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- `combined_odds` is unchanged and stays pure arithmetic. `build_coupon` filters void
+  before calling it, so the rule about void lives with the data that knows about it.
+- `Coupon.void_leg_count` is **optional with a default of 0** — the Batch 67 rule for
+  every field added to this response, because the web deploys from `main` while the API
+  waits for `/ship-prod`. The web reads it as `?? 0`, which is also correct for a round
+  with no voids.
+- The voided leg stays on the coupon with its frozen price. Only the product changed.
+- `voidLegLabel` is exported from `lib/share.ts` so the screen and the clipboard use one
+  phrase; the agreement between them is asserted as a property over one and two voids.
+- Each surface is covered independently: reverting `share.ts` alone or `CouponSection.tsx`
+  alone turns three tests red each time.
+- Counts: BACKEND 1,278 → 1,281, FRONTEND 1,147 → 1,154.
+
+**Next:** Batch 157, then the Phase 6 `/ship-prod`. Phase 7 is deliberately not started.

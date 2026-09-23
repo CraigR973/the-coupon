@@ -4730,7 +4730,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: redaction in the working tree. History rewriting is explicitly out of
   scope unless separately authorised. **Tooling-only (no deploy).**
 
-- [ ] **Batch 156 — A voided leg's price still multiplies into the combined coupon**
+- [x] **Batch 156 — A voided leg's price still multiplies into the combined coupon** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/02-correctness.md`; owner decision 2026-09-22:
   **exclude void legs**. `build_coupon` appends every pick's `odds_at_pick` into the
   accumulator unconditionally, verified as `53.01 = 3.75 x 1.90 x 3.10(void) x 2.40`. The

@@ -1580,6 +1580,14 @@ week 1 into "1" and "1b"; `reanchor_from_earliest_round` now pulls it back to th
 canonical Saturday the season holds, earlier only and only while nothing has settled.
 **API-only: `/ship-prod` is owed, with 130 and 131.**
 
+**Batch 156 left voided legs out of the combined coupon** (`46b8d29`). `build_coupon`
+multiplied every frozen price into the accumulator unconditionally — production showed
+`53.01 = 3.75 x 1.90 x 3.10(void) x 2.40`. A real accumulator settles a voided leg at 1.0,
+and the product's own rule is that a void scores nothing rather than counting as a loss. The
+leg stays on the coupon with its price; only the product changes, and `void_leg_count` (new,
+optional) lets the screen and the clipboard both say why the fold is smaller than the legs.
+**API + web: `/ship-prod` is owed.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",
