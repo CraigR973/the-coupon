@@ -206,7 +206,10 @@ function MatchRow({
     >
       <div className="w-16 shrink-0 font-mono text-[10px] uppercase tracking-wide text-text-muted">
         <span className="block">{kickoff}</span>
-        {!played && <span className="block opacity-70">{time}</span>}
+        {/* No `opacity-70` here. `--text-muted` is tuned to exactly AA on the surface
+            tiers, so dimming it further put the kick-off time at 2.83:1 in light —
+            the least readable thing on a screen a member opens to read fixtures. */}
+        {!played && <span className="block">{time}</span>}
       </div>
 
       <span aria-hidden className="w-3 shrink-0 font-mono text-[10px] font-semibold text-text-muted">

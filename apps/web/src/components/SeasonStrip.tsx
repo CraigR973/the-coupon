@@ -71,13 +71,22 @@ export function SeasonStrip({ seasons, selected, onSelect, className }: Props) {
                   'inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium font-sans whitespace-nowrap shadow-sm transition-colors press-down',
                   'focus-visible:outline-none focus-visible:shadow-glow',
                   isSelected
-                    ? 'border-primary/40 bg-primary/15 text-primary'
+                    ? 'border-primary/40 bg-primary/15 text-text-primary'
                     : 'border-border bg-surface text-text-secondary hover:border-primary/40 hover:bg-surface-elevated hover:text-text-primary',
                 )}
               >
                 <span>{entry.label}</span>
                 {entry.is_current && (
-                  <span className="font-mono text-[10px] uppercase tracking-wider opacity-70">
+                  /* De-emphasised with a token rather than `opacity-70`. The opacity
+                     composited the badge into the chip behind it and measured 3.57:1
+                     in light — the chip is tinted, so the "already AA" colour it was
+                     dimming was not being measured against what it actually sat on. */
+                  <span
+                    className={cn(
+                      'font-mono text-[10px] uppercase tracking-wider',
+                      isSelected ? 'text-text-secondary' : 'text-text-muted',
+                    )}
+                  >
                     now
                   </span>
                 )}

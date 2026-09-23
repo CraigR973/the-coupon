@@ -412,3 +412,111 @@ describe('the controls the focus ring has to reach', () => {
     expect(offenders, 'focus styled with an unmeasured ring utility').toEqual([]);
   });
 });
+
+// ── Text on a composited ground ─────────────────────────────────────────────
+
+/**
+ * Batch 138. Two surfaces dimmed already-AA text with `opacity-70`, which does
+ * not dim a colour — it composites the whole element into whatever is behind it.
+ * The team-season kick-off time measured 2.83:1 in light and the season strip's
+ * "now" badge 3.57:1, against the 4.5:1 both need.
+ *
+ * Measuring what it landed on turned up the larger half of the defect, which the
+ * review did not: the strip's *selected* chip is `bg-primary/15` inside a
+ * `bg-surface-elevated/70` panel, and brand ink on that composite is 3.87:1 in
+ * light with no opacity involved at all. The chip's own label had the failure,
+ * not just the badge being dimmed. Same again for the results-day carousel, the
+ * "related use spotted but not measured".
+ *
+ * So these cases are grounds the tokens are *not* otherwise checked against: every
+ * assertion above measures a token on a surface tier, and none of these is one.
+ * Tailwind's `/NN` suffix is alpha, so each is arithmetic on the tokens, computed
+ * the same way the browser composites it.
+ */
+
+/** `fg` at `alpha` over `bg`, the way a browser composites a translucent layer. */
+function over(fg: string, alpha: number, bg: string): string {
+  const [f, g] = [fg.replace('#', ''), bg.replace('#', '')];
+  const channelAt = (i: number) =>
+    Math.round(parseInt(f.slice(i, i + 2), 16) * alpha + parseInt(g.slice(i, i + 2), 16) * (1 - alpha));
+  return `#${[0, 2, 4].map((i) => channelAt(i).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
+}
+
+describe.each([
+  ['dark', DARK],
+  ['light', LIGHT],
+])('%s composited grounds', (name, palette) => {
+  /** The season strip's panel: `bg-surface-elevated/70` on the page background. */
+  const strip = () => over(palette['surface-elevated'], 0.7, palette['bg']);
+
+  const GROUNDS: [string, () => string][] = [
+    // A selected chip in the season strip: `bg-primary/15` inside that panel.
+    ['the selected season chip', () => over(palette['primary'], 0.15, strip())],
+    // A selected chip in the results-day carousel, which has no panel behind it.
+    ['the selected result-day chip', () => over(palette['primary'], 0.15, palette['bg'])],
+    // A team-season row for the next fixture: `bg-primary/10` on a card.
+    ['the next-fixture row', () => over(palette['primary'], 0.1, palette['surface'])],
+  ];
+
+  it.each(GROUNDS)('reads %s with the tokens actually on it', (label, ground) => {
+    const bg = ground();
+    // What each of these grounds carries: a chip label and its de-emphasised
+    // companion, or the row's muted kick-off date and time.
+    const on = label.endsWith('row')
+      ? (['text-muted'] as const)
+      : (['text-primary', 'text-secondary'] as const);
+    for (const token of on) {
+      const ratio = contrast(palette[token], bg);
+      expect(
+        ratio,
+        `${name}: --${token} (${palette[token]}) on ${label} (${bg}) is ${ratio.toFixed(2)}:1, needs ${AA_NORMAL}:1`,
+      ).toBeGreaterThanOrEqual(AA_NORMAL);
+    }
+  });
+
+  it('would have failed on the brand ink these chips used to carry', () => {
+    // Guards the guard. `text-primary` resolves to --primary-ink, which is AA on
+    // every *surface tier* — and 3.87-3.95:1 on the tint, in light. The token was
+    // never wrong; the ground it was measured against was.
+    const chip = over(palette['primary'], 0.15, strip());
+    const ratio = contrast(palette['primary-ink'], chip);
+    if (name === 'light') expect(ratio).toBeLessThan(AA_NORMAL);
+    expect(contrast(palette['text-primary'], chip)).toBeGreaterThan(ratio);
+  });
+
+  it('keeps the de-emphasised glyph dimmer than the label it sits beside', () => {
+    // The point of the opacity was hierarchy. Replacing it with a token has to keep
+    // that, or the fix has quietly deleted the design.
+    const chip = over(palette['primary'], 0.15, strip());
+    expect(contrast(palette['text-secondary'], chip)).toBeLessThan(
+      contrast(palette['text-primary'], chip),
+    );
+    expect(contrast(palette['text-muted'], palette['surface'])).toBeLessThan(
+      contrast(palette['text-secondary'], palette['surface']),
+    );
+  });
+});
+
+describe('the components that dimmed text with opacity', () => {
+  // The two the review named, plus the one it flagged as unmeasured. An opacity
+  // utility on live text is the defect itself and cannot be measured from a token,
+  // so it is refused here rather than re-measured.
+  //
+  // A *disabled* control is the one legitimate use: WCAG 1.4.3 exempts inactive
+  // components, and the carousel's step buttons grey out at either end of the run.
+  // So the rule is not "no opacity" but "no opacity on anything still active".
+  it.each([
+    'src/components/SeasonStrip.tsx',
+    'src/components/ResultDayCarousel.tsx',
+    'src/pages/TeamSeasonPage.tsx',
+  ])('%s dims live text with a token, not an opacity utility', (path) => {
+    const source = readFileSync(resolve(process.cwd(), path), 'utf8')
+      // Comments name the removed utilities on purpose; they render nothing.
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/[^\n]*/g, '');
+    const live = source
+      .split('\n')
+      .filter((line) => /\bopacity-\d+\b/.test(line) && !line.includes('cursor-not-allowed'));
+    expect(live, `${path}: opacity applied to text that is still active`).toEqual([]);
+  });
+});
