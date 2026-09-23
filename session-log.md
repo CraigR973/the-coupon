@@ -4206,3 +4206,24 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,240 → 1,245.
 
 **Next:** Batch 162.
+
+## Batch 162 — Submitting a pick waits for every phone in the league
+**Commits:** `c36beb4` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,249 backend and
+1,147 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- `_announce_after_response` takes **identifiers, not ORM objects**: the request's session
+  is closed by the time a background task runs, so it opens `AsyncSessionLocal()` and
+  reloads the league and round. A league deleted in between is a clean no-op.
+- `record_completion` deliberately stays inline. It is a durable write, and it is what
+  makes the move safe — a fan-out that never ran leaves `delivered_at` null and the next
+  pick on the round retries it (Batch 107).
+- **Under `ASGITransport` a background task still completes before the response is
+  observed**, which is why all 89 existing notification tests passed unchanged. That is
+  also why "is it really off the request path?" cannot be measured with httpx timings.
+- The new test wraps the app in an ASGI middleware that timestamps the final
+  `http.response.body`, uses a 20 ms fake send, and asserts time-to-body < fan-out time.
+  Reverting to an inline `await` turns it red at both 12 and 50 members.
+- Counts: BACKEND 1,245 → 1,249.
+
+**Next:** Batch 129, then 147, then the Phase 5 `/ship-prod`.

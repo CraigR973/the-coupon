@@ -4838,7 +4838,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the shared bucket. No change to `PICKS_BUSY`'s message or to the
   per-league limit. **API-carrying.**
 
-- [ ] **Batch 162 — Submitting a pick waits for every phone in the league**
+- [x] **Batch 162 — Submitting a pick waits for every phone in the league** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-10 (MED,
   live). Measured: `notify_pick_made` performs **49 sequential sends taking 8,759 ms**,
   added to the submitting member's own request on a 50-member league — about **1.7 seconds

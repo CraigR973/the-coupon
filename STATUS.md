@@ -1529,6 +1529,13 @@ cleanly with everything already bought committed, and the walk is now interleave
 rather than window by window: a shortfall costs the far end of every window's horizon instead
 of the whole of the last window. **API-only: `/ship-prod` is owed, with 159, 160 and 161.**
 
+**Batch 162 answered the member before telling the league** (`c36beb4`). `notify_pick_made`
+ran 49 sequential sends taking 8,759 ms on a fifty-member league — about 1.7 seconds at
+production's twelve — on the submitting member's own request. Both fan-outs now run in a
+Starlette background task on a session of their own, after the response body has gone;
+`record_completion` stays on the request path because it is the durable write Batch 107's
+retry depends on. **API-only: `/ship-prod` is owed, with 159, 160, 161 and 133.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",
