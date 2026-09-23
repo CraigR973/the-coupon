@@ -353,7 +353,7 @@ describe('CurrentRoundPage', () => {
     const sl2 = await screen.findByTestId('competition-scotland-league-two');
     const headings = screen
       .getAllByTestId(/^competition-/)
-      .map((section) => within(section).getByRole('button', { expanded: false }).textContent ?? '');
+      .map((section) => within(section).getAllByRole('button')[0].textContent ?? '');
     // The EPL group ranks above SL2 even when the Scottish game appears first in the payload.
     expect(headings[0]).toContain('English Premier League');
     expect(headings[1]).toContain('Scottish League 2');
@@ -415,7 +415,7 @@ describe('CurrentRoundPage', () => {
     await screen.findByTestId('competition-england-premier-league');
     const headings = screen
       .getAllByTestId(/^competition-/)
-      .map((section) => within(section).getByRole('button', { expanded: false }).textContent ?? '');
+      .map((section) => within(section).getAllByRole('button')[0].textContent ?? '');
 
     expect(headings).toEqual([
       expect.stringContaining('English Premier League'),
@@ -425,17 +425,34 @@ describe('CurrentRoundPage', () => {
     ]);
   });
 
-  it('keeps competitions collapsed until a member opens one', async () => {
+  it('opens the first competition and keeps the rest collapsed', async () => {
+    // Batch 139. Every group used to start closed, so the round screen opened on
+    // headings and counts — no fixture, no price, nothing the member came for. The
+    // first group now opens; the rest still have to stay shut, or a hundred-fixture
+    // slate stops scanning as competitions at all.
     renderPage();
-    await screen.findByRole('button', { name: /english premier league/i });
-    expect(screen.queryByTestId('pick-card-fx1')).toBeNull();
-    expect(screen.queryByTestId('pick-card-fx2')).toBeNull();
-    const epl = screen
-      .getAllByRole('button', { expanded: false })
-      .find((b) => (b.textContent ?? '').includes('English Premier League'))!;
-    fireEvent.click(epl);
+    const epl = await screen.findByRole('button', { name: /english premier league/i });
+    expect(epl.getAttribute('aria-expanded')).toBe('true');
+    // fx2 is the English Premier League fixture; fx1 is in Scottish League 2.
     expect(screen.getByTestId('pick-card-fx2')).toBeTruthy();
     expect(screen.queryByTestId('pick-card-fx1')).toBeNull();
+
+    const sl2 = screen.getByRole('button', { name: /scottish league 2/i });
+    expect(sl2.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('lets a member close the group it opened for them', async () => {
+    // `defaultOpen` seeds the state and nothing else. Reopening a group somebody has
+    // just shut would be worse than the defect this replaced.
+    renderPage();
+    const epl = await screen.findByRole('button', { name: /english premier league/i });
+    fireEvent.click(epl);
+    expect(epl.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByTestId('pick-card-fx2')).toBeNull();
+
+    const sl2 = screen.getByRole('button', { name: /scottish league 2/i });
+    fireEvent.click(sl2);
+    expect(screen.getByTestId('pick-card-fx1')).toBeTruthy();
   });
 
   it('reports how many members are still to pick', async () => {

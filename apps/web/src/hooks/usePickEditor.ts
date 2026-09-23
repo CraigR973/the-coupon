@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ApiError, NetworkError, apiFetch } from '../lib/api';
@@ -47,6 +47,59 @@ export const PICK_SUBMIT_TIMEOUT_MS = 12_000;
  * a value rather than only a code — see `pickErrorMessage`.
  */
 export const PRICE_MOVED = 'PRICE_MOVED';
+
+/**
+ * What a refusal is, beyond its sentence.
+ *
+ * Batch 139. The app had 57 error toasts, 44 success, two informational and zero
+ * warnings, so losing the race for a selection, a price that moved, the league
+ * running out of provider budget and a genuine failure all arrived identically —
+ * a red toast with no next step in it. Two of those are not errors at all: the
+ * server worked, answered, and the member simply has another move to make.
+ *
+ * `tone` picks the toast variant. `action` names the one thing that follows, which
+ * the hook turns into the toast's button because only the hook can perform it.
+ */
+export type PickRefusalTone = 'warning' | 'error';
+
+export interface PickRefusal {
+  tone: PickRefusalTone;
+  message: string;
+  /**
+   * `refresh-card` — somebody else holds it now, so the card on screen is stale in
+   * exactly the way that makes a member tap it again.
+   * `retake-price` — the price the member wanted is gone and a real one is named;
+   * taking it is one tap, and `price` is what the button says.
+   */
+  action?: 'refresh-card' | 'retake-price';
+  price?: string;
+}
+
+/** Turn the backend `detail` code into a player-facing refusal. */
+export function pickRefusal(detail: string): PickRefusal {
+  switch (detail) {
+    // The two lost races. The server did its job and the member's next move is a
+    // different selection — a warning, not a failure.
+    case 'SELECTION_TAKEN':
+    case 'FIXTURE_TAKEN':
+      return {
+        tone: 'warning',
+        message: pickErrorMessage(detail),
+        action: 'refresh-card',
+      };
+    default: {
+      if (detail.startsWith(`${PRICE_MOVED}:`)) {
+        return {
+          tone: 'warning',
+          message: pickErrorMessage(detail),
+          action: 'retake-price',
+          price: detail.slice(PRICE_MOVED.length + 1),
+        };
+      }
+      return { tone: 'error', message: pickErrorMessage(detail) };
+    }
+  }
+}
 
 /** Turn the backend `detail` code into a player-facing message. */
 export function pickErrorMessage(detail: string): string {
@@ -291,6 +344,10 @@ export function usePickEditor(
   const reconcileRef = useRef(reconcile);
   reconcileRef.current = reconcile;
 
+  // Assigned just below `send`, which cannot be declared before the mutation that
+  // needs it. Only ever read from inside a toast's onClick, long after both exist.
+  const sendRef = useRef<(body: SubmitPickBody) => void>(() => undefined);
+
   const mutation = useMutation({
     mutationFn: (body: SubmitPickBody) =>
       apiFetch<SubmitPickResponse>(`/api/v1/leagues/${slug}/picks`, {
@@ -317,12 +374,17 @@ export function usePickEditor(
       // pick did not land and they know exactly why, so nothing is held.
       if (err instanceof ApiError) {
         hold(null);
-        toast.error(pickErrorMessage(err.message));
+        const refusal = pickRefusal(err.message);
+        const notify = refusal.tone === 'warning' ? toast.warning : toast.error;
+        notify(refusal.message, actionFor(refusal, body, invalidate, sendRef));
         return;
       }
       if (err instanceof NetworkError && !err.mayHaveLanded) {
         hold({ key: keyFor(body), state: 'queued', body });
-        toast.error('You’re offline — we’ll send this pick the moment you’re back.');
+        // Informational, not an error: nothing failed, the pick is held and it goes
+        // the moment the connection does. `OutstandingPickNotice` carries the actions,
+        // so this says the one thing the member could not otherwise know and stops.
+        toast.info('You’re offline — we’ll send this pick the moment you’re back.');
         return;
       }
       // Everything else is the unknown case, including a plain `Error` from somewhere
@@ -346,6 +408,9 @@ export function usePickEditor(
     setPendingKey(keyFor(body));
     mutateRef.current(body);
   }, []);
+  // `onError` is defined above `send` and has to be able to re-send the same body when
+  // the member takes the moved price, so it reaches it the same way `reconcile` does.
+  sendRef.current = send;
 
   const submit = useCallback(
     (fixtureId: string, market: PickMarket, outcome: PickOutcome, odds?: number) => {
@@ -400,6 +465,37 @@ export function usePickEditor(
     completion,
     dismissCompletion,
   };
+}
+
+/**
+ * The toast options that carry a refusal's one next step, or nothing when it has none.
+ *
+ * Kept out of the hook body so the mapping from `PickRefusal` to a button is one
+ * readable thing rather than two nested ternaries inside an error handler.
+ */
+function actionFor(
+  refusal: PickRefusal,
+  body: SubmitPickBody,
+  invalidate: () => void,
+  sendRef: MutableRefObject<(body: SubmitPickBody) => void>,
+): { action: { label: string; onClick: () => void } } | undefined {
+  switch (refusal.action) {
+    case 'refresh-card':
+      // The claim that just failed is still drawn as available, which is precisely
+      // what makes a member tap it a second time. Refetching the slate greys it out.
+      return { action: { label: 'Refresh the card', onClick: invalidate } };
+    case 'retake-price':
+      // One tap on the number the server actually has. The sentence still says the
+      // card works too, because it does.
+      return {
+        action: {
+          label: `Take ${refusal.price}`,
+          onClick: () => sendRef.current(body),
+        },
+      };
+    default:
+      return undefined;
+  }
 }
 
 function keyFor(body: SubmitPickBody): string {

@@ -10,11 +10,15 @@ vi.mock('@/lib/api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
   return { ...actual, apiFetch: vi.fn(), DEFAULT_LEAGUE_SLUG: 'test-league' };
 });
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// `warning` and `info` are new here with Batch 139: the hook now picks a variant per
+// refusal rather than sending everything through `error`.
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
+}));
 
 import { ApiError, NetworkError, apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
-import { usePickEditor, pickErrorMessage } from '@/hooks/usePickEditor';
+import { usePickEditor, pickErrorMessage, pickRefusal } from '@/hooks/usePickEditor';
 import type { PickResponse } from '@/lib/types';
 
 const mockApiFetch = vi.mocked(apiFetch);
@@ -22,6 +26,10 @@ const mockToast = vi.mocked(toast);
 // `vi.mocked(toast)` types the members with sonner's own signatures, not as mocks, so the
 // call log has to be reached through a mock of the function itself.
 const errorToasts = () => vi.mocked(toast.error).mock.calls;
+const warningToasts = () => vi.mocked(toast.warning).mock.calls;
+/** The button a refusal's toast carries, if it carries one. */
+const actionOf = (call: unknown[] | undefined) =>
+  (call?.[1] as { action?: { label: string; onClick: () => void } } | undefined)?.action;
 
 const PICK: PickResponse = {
   id: 'pk1',
@@ -42,11 +50,20 @@ const PICK: PickResponse = {
 const SUBMIT_PATH = '/api/v1/leagues/test-league/picks';
 const MY_PICK_PATH = '/api/v1/leagues/test-league/gameweeks/gw1/pick';
 
-function wrapper({ children }: PropsWithChildren) {
-  const client = new QueryClient({
+function makeClient() {
+  return new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return createElement(QueryClientProvider, { client }, children);
+}
+
+function wrapper({ children }: PropsWithChildren) {
+  return createElement(QueryClientProvider, { client: makeClient() }, children);
+}
+
+/** A wrapper over a client the test keeps, for asserting what the hook invalidates. */
+function wrapperWith(client: QueryClient) {
+  return ({ children }: PropsWithChildren) =>
+    createElement(QueryClientProvider, { client }, children);
 }
 
 /** Every POST the hook issued, in order — the count these tests are really about. */
@@ -182,7 +199,10 @@ describe('usePickEditor', () => {
     expect((options as { timeoutMs?: number }).timeoutMs).toBeGreaterThan(0);
   });
 
-  it('maps a 409 SELECTION_TAKEN into a friendly error toast', async () => {
+  it('maps a 409 SELECTION_TAKEN into a warning carrying the next step', async () => {
+    // Batch 139. The server answered and the member's next move is another selection,
+    // so this is a warning rather than a failure — and the card still draws the
+    // selection as free, which is exactly what makes someone tap it twice.
     mockApiFetch.mockRejectedValue(new ApiError(409, 'SELECTION_TAKEN'));
     const { result } = renderHook(() => usePickEditor('test-league', 'gw1'), { wrapper });
 
@@ -190,8 +210,13 @@ describe('usePickEditor', () => {
       result.current.submit('fx1', 'MATCH_ODDS', 'AWAY');
     });
 
-    await waitFor(() => expect(mockToast.error).toHaveBeenCalled());
-    expect(mockToast.error).toHaveBeenCalledWith(expect.stringMatching(/just grabbed/i));
+    await waitFor(() => expect(mockToast.warning).toHaveBeenCalled());
+    expect(mockToast.warning).toHaveBeenCalledWith(
+      expect.stringMatching(/just grabbed/i),
+      expect.anything(),
+    );
+    expect(mockToast.error).not.toHaveBeenCalled();
+    expect(actionOf(warningToasts().at(-1))?.label).toMatch(/refresh/i);
   });
 
   // ── Batch 90: the two failures that are not answers ───────────────────────
@@ -210,7 +235,10 @@ describe('usePickEditor', () => {
 
     await waitFor(() => expect(result.current.outstanding).not.toBeNull());
     expect(result.current.outstanding).toMatchObject({ key: 'fx1:MATCH_ODDS:HOME', state: 'queued' });
-    expect(mockToast.error).toHaveBeenCalledWith(expect.stringMatching(/offline/i));
+    // Batch 139: informational, not an error. Nothing failed — the pick is held and it
+    // goes the moment the connection does, and `OutstandingPickNotice` owns the actions.
+    expect(mockToast.info).toHaveBeenCalledWith(expect.stringMatching(/offline/i));
+    expect(mockToast.error).not.toHaveBeenCalled();
 
     mockApiFetch.mockReset();
     mockApiFetch.mockResolvedValue(PICK);
@@ -296,9 +324,9 @@ describe('usePickEditor', () => {
     act(() => {
       lost.result.current.submit('fx1', 'MATCH_ODDS', 'HOME');
     });
-    await waitFor(() => expect(mockToast.error).toHaveBeenCalled());
+    await waitFor(() => expect(mockToast.warning).toHaveBeenCalled());
     expect(lost.result.current.outstanding).toBeNull();
-    const lostMessage = errorToasts().at(-1)?.[0];
+    const lostMessage = warningToasts().at(-1)?.[0];
 
     vi.clearAllMocks();
     mockApiFetch.mockRejectedValue(new NetworkError('The network request failed', true));
@@ -361,5 +389,107 @@ describe('usePickEditor', () => {
     mockApiFetch.mockReset();
     act(() => reconnect());
     expect(submits()).toHaveLength(0);
+  });
+});
+
+// ── Batch 139: one variant per outcome, and the step that follows it ─────────
+//
+// Before this, losing the race for a selection, a price that moved, the league
+// running out of provider budget, a genuine failure and the reassurance that an
+// offline pick was queued all arrived as the same red toast with no next step in
+// it — 57 error toasts, 44 success, two informational, zero warnings. Two of those
+// five are not failures at all: the server worked and answered, and the member
+// simply has another move to make.
+
+describe('pickRefusal', () => {
+  it.each([
+    ['SELECTION_TAKEN', 'warning', 'refresh-card'],
+    ['FIXTURE_TAKEN', 'warning', 'refresh-card'],
+    ['PRICE_MOVED:3.50', 'warning', 'retake-price'],
+    // These really are failures: the pick did not save and nothing the member taps
+    // changes that, so there is no action to offer and the tone stays red.
+    ['PICKS_BUSY', 'error', undefined],
+    ['ODDS_UNAVAILABLE', 'error', undefined],
+    ['PICKS_LOCKED', 'error', undefined],
+    ['PICKS_NOT_OPEN', 'error', undefined],
+    ['SELECTION_NOT_AVAILABLE', 'error', undefined],
+    ['', 'error', undefined],
+  ])('reads %s as a %s', (detail, tone, action) => {
+    const refusal = pickRefusal(detail);
+    expect(refusal.tone).toBe(tone);
+    expect(refusal.action).toBe(action);
+    // Whatever the tone, the sentence is the one the member has always been shown.
+    expect(refusal.message).toBe(pickErrorMessage(detail));
+  });
+
+  it('carries the moved price so the button can name it', () => {
+    expect(pickRefusal('PRICE_MOVED:3.50').price).toBe('3.50');
+  });
+});
+
+describe('the action a refusal carries', () => {
+  it('offers to refresh the card when someone else got there first', async () => {
+    mockApiFetch.mockRejectedValue(new ApiError(409, 'FIXTURE_TAKEN'));
+    const client = makeClient();
+    const invalidated: unknown[][] = [];
+    vi.spyOn(client, 'invalidateQueries').mockImplementation((...args: unknown[]) => {
+      invalidated.push(args);
+      return Promise.resolve();
+    });
+    const { result } = renderHook(() => usePickEditor('test-league', 'gw1'), {
+      wrapper: wrapperWith(client),
+    });
+
+    act(() => {
+      result.current.submit('fx1', 'MATCH_ODDS', 'HOME');
+    });
+    await waitFor(() => expect(mockToast.warning).toHaveBeenCalled());
+
+    const action = actionOf(warningToasts().at(-1));
+    expect(action?.label).toMatch(/refresh/i);
+    // The point of the button: the slate still draws the selection as available, which
+    // is what makes a member tap it a second time. Taking the action re-reads the round.
+    act(() => action?.onClick());
+    expect(invalidated.map(([options]) => (options as { queryKey: unknown[] }).queryKey[0])).toEqual(
+      expect.arrayContaining(['gameweek', 'coupon']),
+    );
+    // And re-reading is all it does. Re-sending a claim somebody else now holds would
+    // spend the league's provider budget on a request that cannot succeed.
+    expect(submits()).toHaveLength(1);
+  });
+
+  it('offers the moved price as one tap, and takes it', async () => {
+    mockApiFetch.mockRejectedValue(new ApiError(409, 'PRICE_MOVED:3.50'));
+    const { result } = renderHook(() => usePickEditor('test-league', 'gw1'), { wrapper });
+
+    act(() => {
+      result.current.submit('fx1', 'MATCH_ODDS', 'HOME', 3.4);
+    });
+    await waitFor(() => expect(mockToast.warning).toHaveBeenCalled());
+
+    const action = actionOf(warningToasts().at(-1));
+    expect(action?.label).toBe('Take 3.50');
+
+    mockApiFetch.mockReset();
+    mockApiFetch.mockResolvedValue(PICK);
+    act(() => action?.onClick());
+    await waitFor(() => expect(submits()).toHaveLength(1));
+    // Re-sent as the member last asked for it — same fixture, same selection.
+    const body = JSON.parse((submits()[0][1] as { body: string }).body) as Record<string, unknown>;
+    expect(body).toMatchObject({ fixture_id: 'fx1', market: 'MATCH_ODDS', outcome: 'HOME' });
+  });
+
+  it('leaves a genuine failure red and actionless', async () => {
+    mockApiFetch.mockRejectedValue(new ApiError(429, 'PICKS_BUSY'));
+    const { result } = renderHook(() => usePickEditor('test-league', 'gw1'), { wrapper });
+
+    act(() => {
+      result.current.submit('fx1', 'MATCH_ODDS', 'HOME');
+    });
+    await waitFor(() => expect(mockToast.error).toHaveBeenCalled());
+
+    expect(mockToast.warning).not.toHaveBeenCalled();
+    expect(actionOf(errorToasts().at(-1))).toBeUndefined();
+    expect(errorToasts().at(-1)?.[0]).toMatch(/your league/i);
   });
 });

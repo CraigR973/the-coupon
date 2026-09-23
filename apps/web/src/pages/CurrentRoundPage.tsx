@@ -363,10 +363,16 @@ export function CurrentRoundPage() {
               disabled={locked}
             />
           )}
-          {groups.map((group) => (
+          {groups.map((group, index) => (
             <CompetitionSection
               key={group.competition_id}
               group={group}
+              /* The slate is already ordered — pyramid rank, then the fuller card — so
+                 the first group is the one the member is most likely to want, and the
+                 round screen has to open showing a fixture and a price rather than a
+                 list of headings and counts. Only the first: a hundred-fixture slate
+                 still has to scan as competitions. */
+              defaultOpen={index === 0}
               timezone={timezone}
               locked={locked}
               pendingKey={pendingKey}
@@ -471,11 +477,18 @@ export function CurrentRoundPage() {
 /**
  * One competition's fixtures behind a collapsible header.
  *
- * Closed by default: a hundred-fixture slate should scan as league headers
- * first, with members opening only the competitions they care about.
+ * Closed by default, *except the first*: a hundred-fixture slate should still scan
+ * as league headers, with members opening only the competitions they care about —
+ * but a round screen on which every fixture is hidden shows neither a game nor a
+ * price, which is what the member came for (Batch 139).
+ *
+ * `defaultOpen` seeds the state and nothing more. A member who closes the first
+ * group keeps it closed across a slate refetch, because reopening what somebody
+ * just shut is worse than the defect this fixes.
  */
 function CompetitionSection({
   group,
+  defaultOpen = false,
   timezone,
   locked,
   pendingKey,
@@ -485,6 +498,7 @@ function CompetitionSection({
   onGrab,
 }: {
   group: CompetitionGroup;
+  defaultOpen?: boolean;
   timezone: string;
   locked: boolean;
   pendingKey: string | null;
@@ -493,7 +507,7 @@ function CompetitionSection({
   oddsFormat: OddsFormat;
   onGrab: (fixtureId: string, market: PickMarket, outcome: PickOutcome) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const claimed = group.fixtures.filter((f) => f.taken_by_names.length > 0).length;
 
   return (

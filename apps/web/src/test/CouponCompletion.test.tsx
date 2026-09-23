@@ -247,10 +247,17 @@ function renderPage(entry = '/leagues/the-coupon/predictions') {
   );
 }
 
-/** Competitions start collapsed, so every claim is two clicks: open, then grab. */
+/**
+ * Make sure the English Premier League group is showing its fixtures.
+ *
+ * Batch 139 opens the *first* group on arrival, so whether this costs a click now
+ * depends on where the group sorts in the slate under test — and a click on an
+ * already-open header closes it, which is how this read as "the fixture vanished".
+ */
 async function openCard() {
   const section = await screen.findByTestId('competition-england-premier-league');
-  fireEvent.click(within(section).getByRole('button', { name: /english premier league/i }));
+  const header = within(section).getByRole('button', { name: /english premier league/i });
+  if (header.getAttribute('aria-expanded') !== 'true') fireEvent.click(header);
 }
 
 /** Claim Arsenal — the free selection Alice can be last in with. */
