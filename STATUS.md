@@ -1588,6 +1588,13 @@ leg stays on the coupon with its price; only the product changes, and `void_leg_
 optional) lets the screen and the clipboard both say why the fold is smaller than the legs.
 **API + web: `/ship-prod` is owed.**
 
+**Batch 145 compressed the Saturday slate** (`f929c3d`). ~84 KB of JSON went down a phone
+uncompressed with no `vary: accept-encoding`; measured on a smaller round, 23,205 bytes became
+3,131 on the wire. Gzip is added **first so it sits innermost** — above the two
+`BaseHTTPMiddleware` layers it never sees a content-length and compresses everything, tokens
+included. The 4 KB floor keeps credential-bearing responses (658 bytes) out of it.
+**API-only: `/ship-prod` is owed, and production's `content-encoding` is unconfirmed until then.**
+
 **Batch 144 stopped Home reading every round in the deployment twice** (`1bfe512`). The
 cross-league summary labelled two sets of rounds and paid the deployment-wide date read for
 each, off whole `Gameweek` rows rather than the one column it wanted. `SeasonLabels` resolves

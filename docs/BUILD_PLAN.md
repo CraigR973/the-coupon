@@ -4516,7 +4516,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the labelling helper and its call sites. No change to the labels
   themselves. **API-carrying — worth taking before the 025 shipment if it can be.**
 
-- [ ] **Batch 145 — The biggest thing a member downloads is served uncompressed**
+- [x] **Batch 145 — The biggest thing a member downloads is served uncompressed** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-03 (MED,
   live). A fully-priced 264-fixture slate is about **84 KB of JSON**, and there is no
   compression middleware anywhere in the API, nor `vary: accept-encoding` from production.

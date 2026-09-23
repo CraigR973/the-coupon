@@ -4465,3 +4465,36 @@ turned up.
 - Counts: BACKEND 1,282 → 1,285.
 
 **Next:** Batch 145.
+
+## Batch 145 — The biggest thing a member downloads is served uncompressed
+**Commits:** `f929c3d` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,289 backend and
+1,154 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **`BaseHTTPMiddleware` defeats `GZipMiddleware`'s size floor, and this is the thing to
+  remember.** `add_middleware` prepends, so the last added runs outermost. Both
+  `CorrelationIdMiddleware` and `SecurityHeadersMiddleware` are `BaseHTTPMiddleware`, which
+  re-emits every response as a *stream*. Gzip above them never sees a content-length, takes
+  the streaming branch, and compresses everything however small. With it outermost a
+  658-byte login came back gzipped. **Gzip is therefore added first, innermost, below CORS.**
+  Any new middleware added before it in the file will silently undo this.
+- The floor is **4096**, not Starlette's 500, because a compressed response leaks its own
+  length and everything under 4 KB here carries credentials. The login response is **658
+  bytes**, measured. A test asserts it is both uncompressed *and* under the floor, so the
+  day it grows past 4 KB that test fails rather than the response quietly compressing.
+- `compresslevel=6`, not 9: the last three levels buy about a percent on this payload for
+  several times the CPU, and below `thread_minimum_size` (128 KiB) it runs on the event loop.
+- Measured: **23,205 bytes of JSON → 3,131 on the wire** (12 members, 60 fixtures). The test
+  bound is 3x rather than 7.4x so a library upgrade moving gzip's output a few percent does
+  not turn it red.
+- `content-length` on a compressed response is the *compressed* size and survives the
+  streaming layers above; `response.content` under httpx is decoded. That pair is the
+  measurement.
+- Three separate reverts prove three separate decisions: no middleware (2 tests red), gzip
+  outermost (2 red, including the credential one), floor at 500 (1 red).
+- **Production's `content-encoding` and `vary` are still unconfirmed** — the reverse proxy
+  is the other half of this finding and only production has one. Check at the shipment.
+- Counts: BACKEND 1,285 → 1,289.
+
+**Next:** Batch 128, pulled forward ahead of 146 by owner decision (23 Sep) because 146 is
+the plan's only migration and removes the rollback target.
