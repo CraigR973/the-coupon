@@ -181,6 +181,11 @@ async def post_extra_week(
         ) from exc
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except PermissionError as exc:
+        # Batch 132. `EXTRA_WEEK_LOCKED` — the week has already settled, so relabelling it
+        # would rewrite a round members have played. A 409 for the same reason
+        # `SEASON_ANCHOR_LOCKED` is one: the request is well formed and the state refuses it.
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     await db.commit()
     return _calendar_out(calendar)
 

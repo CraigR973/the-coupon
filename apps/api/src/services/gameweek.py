@@ -47,6 +47,7 @@ from src.services.season_calendar import (
     canonical_saturday,
     ensure_calendar_for_new_season,
     extra_weeks_between,
+    reanchor_from_earliest_round,
     season_bounds,
     season_label,
 )
@@ -624,6 +625,12 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
         )
         db.add(gameweek)
         await db.flush()
+        # Batch 132. The anchor was taken from whichever round discovery happened to
+        # write first and never recomputed, so a Friday league walked before a Saturday
+        # league left it a week late and split week 1 into "1" and "1b". Re-read here,
+        # with this round in the season, so the anchor converges on the earliest
+        # canonical Saturday the season actually holds rather than on a walk order.
+        await reanchor_from_earliest_round(db, season_for(slate.starts_on))
 
     if not selected:
         return gameweek

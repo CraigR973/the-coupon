@@ -36,10 +36,13 @@ from src.services.odds_provider import (
     SlateWindow,
 )
 from src.services.season_calendar import (
+    calendar_for,
     canonical_saturday,
+    declare_extra_week,
     labels_for_dates,
     labels_for_gameweeks,
     move_anchor,
+    reanchor_from_earliest_round,
     withdraw_extra_week,
 )
 
@@ -336,3 +339,146 @@ async def test_withdrawal_is_refused_when_any_league_has_a_pick(
     with pytest.raises(PermissionError, match="EXTRA_WEEK_HAS_PICKS"):
         await withdraw_extra_week(session, 2026, extra)
     assert calendar.extra_weeks == [extra]
+
+
+# ── Batch 132: the two calendar guards ────────────────────────────────────────
+#
+# Both defects only exist once migration 025 ships, which is why this batch follows that
+# shipment rather than preceding it.
+
+
+async def test_declaring_an_extra_week_in_the_past_is_refused(session: AsyncSession) -> None:
+    """A date nobody can still play is not a date to declare.
+
+    `declare_extra_week` validated only the season and that the date was not already
+    canonical, so a past Wednesday was accepted — and relabelled the week around it.
+    """
+    session.add(SeasonCalendar(season=2026, week_one_anchor=date(2026, 8, 8), extra_weeks=[]))
+    await session.flush()
+
+    with pytest.raises(ValueError, match="EXTRA_WEEK_IN_THE_PAST"):
+        await declare_extra_week(session, 2026, date(2026, 8, 5), today=date(2026, 9, 23))
+
+
+async def test_declaring_an_extra_week_in_a_settled_week_is_refused(
+    session: AsyncSession,
+) -> None:
+    """The finding: it renamed an already settled, already picked round from 5 to 5b.
+
+    Mirrors `move_anchor`'s `SEASON_ANCHOR_LOCKED`, narrowed to the one football week a
+    declaration can relabel — a settled week elsewhere in the season is untouched by it.
+    """
+    _, league = await _league(session)
+    session.add(SeasonCalendar(season=2026, week_one_anchor=date(2026, 8, 8), extra_weeks=[]))
+    settled_saturday = date(2026, 9, 12)
+    await _round(session, league, settled_saturday, status=GameweekStatus.settled)
+    await session.flush()
+
+    # The Wednesday of that same football week — the date that would relabel it.
+    with pytest.raises(PermissionError, match="EXTRA_WEEK_LOCKED"):
+        await declare_extra_week(session, 2026, date(2026, 9, 9), today=date(2026, 9, 1))
+
+
+async def test_a_settled_week_elsewhere_does_not_block_a_future_declaration(
+    session: AsyncSession,
+) -> None:
+    """The half that must not move: the lock is the week, not the season.
+
+    Locking the whole season would refuse every declaration from the first settlement
+    onward, which is most of the season and none of the harm.
+    """
+    _, league = await _league(session)
+    session.add(SeasonCalendar(season=2026, week_one_anchor=date(2026, 8, 8), extra_weeks=[]))
+    await _round(session, league, date(2026, 9, 12), status=GameweekStatus.settled)
+    await session.flush()
+
+    ahead = date(2026, 12, 23)
+    calendar = await declare_extra_week(session, 2026, ahead, today=date(2026, 9, 23))
+
+    assert ahead in calendar.extra_weeks
+
+
+async def test_an_unsettled_future_week_is_still_declarable(session: AsyncSession) -> None:
+    """The midweek fixture the feature exists for, with a live round beside it.
+
+    Deliberately not Boxing Day: 26 December 2026 is a Saturday and therefore already
+    canonical, which `EXTRA_WEEK_IS_ALREADY_CANONICAL` refuses for its own older reason.
+    """
+    _, league = await _league(session)
+    session.add(SeasonCalendar(season=2026, week_one_anchor=date(2026, 8, 8), extra_weeks=[]))
+    midweek = date(2026, 12, 29)
+    assert midweek.weekday() != 5, "the date under test must not be a Saturday"
+    await _round(session, league, date(2026, 12, 26), status=GameweekStatus.open)
+    await session.flush()
+
+    calendar = await declare_extra_week(session, 2026, midweek, today=date(2026, 12, 1))
+    assert midweek in calendar.extra_weeks
+
+
+async def test_the_anchor_is_the_earliest_saturday_whatever_the_discovery_order(
+    session: AsyncSession,
+) -> None:
+    """The second finding: the anchor was whichever round discovery happened to write.
+
+    A Friday league walked before a Saturday league left the anchor a week late and split
+    week 1 into "1" and "1b". Which league a scheduler reaches first is not a fact about
+    the season.
+
+    Note this is about *discovery*, not about reading: `labels_for_gameweeks` still never
+    moves an anchor, which `test_stored_anchor_survives_a_later_added_earlier_round`
+    above holds.
+    """
+    # Season 2031, not 2026. `ensure_calendar_for_new_season` establishes an anchor only
+    # for a season with no rounds at all, and `reanchor_from_earliest_round` refuses once
+    # anything in the season has settled — both of which are deployment-wide reads, and
+    # the full suite commits 2026 rounds (settled ones included) from other modules. A
+    # season nothing else touches is the only way to drive this end to end.
+    _, friday = await _league(session, weekday=4)
+    _, saturday = await _league(session, weekday=5)
+    provider = _Provider()
+
+    # The Friday league is walked first. Its first round is 2031-08-08, whose canonical
+    # Saturday is the 9th — a week later than the Saturday league's 2031-08-02.
+    await discover_fixtures(session, provider, [friday], date(2031, 8, 4), 1)
+    calendar = await calendar_for(session, 2031)
+    assert calendar is not None
+    late = calendar.week_one_anchor
+    assert late == canonical_saturday(date(2031, 8, 8)), "the premise: it anchored late"
+
+    await discover_fixtures(session, provider, [saturday], date(2031, 7, 28), 1)
+
+    calendar = await calendar_for(session, 2031)
+    assert calendar is not None
+    assert calendar.week_one_anchor == date(2031, 8, 2), "the anchor did not come back"
+    assert calendar.week_one_anchor < late
+
+
+async def test_the_anchor_never_moves_after_a_settlement(session: AsyncSession) -> None:
+    """The same rule `move_anchor` enforces, applied to the automatic move.
+
+    A settled week that changes number is worse than a week 1 that is late — the numbers
+    are what members remember a season by.
+    """
+    _, league = await _league(session)
+    session.add(SeasonCalendar(season=2026, week_one_anchor=date(2026, 8, 8), extra_weeks=[]))
+    await _round(session, league, date(2026, 8, 8), status=GameweekStatus.settled)
+    await _round(session, league, date(2026, 8, 1), number=2, status=GameweekStatus.open)
+    await session.flush()
+
+    assert await reanchor_from_earliest_round(session, 2026) is None
+    calendar = await calendar_for(session, 2026)
+    assert calendar is not None
+    assert calendar.week_one_anchor == date(2026, 8, 8)
+
+
+async def test_the_anchor_only_ever_moves_earlier(session: AsyncSession) -> None:
+    """Moving it later renumbers every round downward, which is the opposite of a fix."""
+    _, league = await _league(session)
+    session.add(SeasonCalendar(season=2026, week_one_anchor=date(2026, 8, 1), extra_weeks=[]))
+    await _round(session, league, date(2026, 8, 15))
+    await session.flush()
+
+    assert await reanchor_from_earliest_round(session, 2026) is None
+    calendar = await calendar_for(session, 2026)
+    assert calendar is not None
+    assert calendar.week_one_anchor == date(2026, 8, 1)

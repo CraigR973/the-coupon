@@ -10,8 +10,9 @@ from __future__ import annotations
 import uuid
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
@@ -31,6 +32,16 @@ def season_bounds(season: int) -> tuple[date, date]:
 def season_label(season: int) -> str:
     """How season ``2026`` is written on a screen: ``2026/27``."""
     return f"{season}/{(season + 1) % 100:02d}"
+
+
+#: The league's clock. Declared here rather than imported from `services.gameweek`,
+#: which imports *this* module — the one-line convenience would be a circular import.
+UK_TZ = ZoneInfo("Europe/London")
+
+
+def _uk_today() -> date:
+    """Today in UK local time, which is the clock a slate date is written on."""
+    return datetime.now(UK_TZ).date()
 
 
 def canonical_saturday(day: date) -> date:
@@ -245,9 +256,27 @@ async def move_anchor(db: AsyncSession, season: int, anchor: date) -> SeasonCale
     return calendar
 
 
-async def declare_extra_week(db: AsyncSession, season: int, starts_on: date) -> SeasonCalendar:
+async def declare_extra_week(
+    db: AsyncSession, season: int, starts_on: date, *, today: date | None = None
+) -> SeasonCalendar:
+    """Declare a global extra date. Refuses the past and refuses a week already played.
+
+    Batch 132. This validated only the season and that the date was not already a
+    canonical Saturday — no past-date check and no settled check, unlike the anchor move
+    beside it and the withdrawal below it. So declaring a past Wednesday renamed an
+    already settled, already picked round from "5" to "5b": history rewritten by an
+    admin who meant to add a fixture to a week still ahead of them.
+
+    The two guards mirror the ones that already exist. The past-date refusal is the one
+    ``withdraw_extra_week`` gets for free — a date nobody can still play is not a date to
+    declare — and the settled refusal is ``move_anchor``'s ``SEASON_ANCHOR_LOCKED`` rule,
+    applied to the one football week this declaration can relabel rather than to the
+    whole season, because that is the blast radius of an extra date.
+    """
     if season_for(starts_on) != season:
         raise ValueError("EXTRA_WEEK_OUTSIDE_SEASON")
+    if starts_on < (today or _uk_today()):
+        raise ValueError("EXTRA_WEEK_IN_THE_PAST")
     calendar = (
         await db.execute(
             select(SeasonCalendar).where(SeasonCalendar.season == season).with_for_update()
@@ -258,7 +287,78 @@ async def declare_extra_week(db: AsyncSession, season: int, starts_on: date) -> 
     canonical_dates = {week.starts_on for week in listed_weeks(calendar) if not week.is_extra}
     if starts_on in canonical_dates:
         raise ValueError("EXTRA_WEEK_IS_ALREADY_CANONICAL")
+    if await _week_has_settled_round(db, starts_on):
+        raise PermissionError("EXTRA_WEEK_LOCKED")
     calendar.extra_weeks = sorted(set(calendar.extra_weeks) | {starts_on})
+    await db.flush()
+    return calendar
+
+
+async def _week_has_settled_round(db: AsyncSession, day: date) -> bool:
+    """Whether any round in ``day``'s football week has already settled.
+
+    The week is Wednesday to Tuesday around its canonical Saturday, which is the span a
+    declared extra date can relabel — a round in a *different* week is untouched by it,
+    so locking the whole season here would refuse declarations that change nothing.
+    """
+    saturday = canonical_saturday(day)
+    first = saturday - timedelta(days=3)
+    last = saturday + timedelta(days=3)
+    settled = await db.scalar(
+        select(func.count())
+        .select_from(Gameweek)
+        .where(
+            Gameweek.starts_on >= first,
+            Gameweek.starts_on <= last,
+            Gameweek.status == GameweekStatus.settled,
+        )
+    )
+    return bool(settled)
+
+
+async def reanchor_from_earliest_round(db: AsyncSession, season: int) -> SeasonCalendar | None:
+    """Pull an anchor back to the earliest canonical Saturday the season actually holds.
+
+    Batch 132. The anchor was taken from whichever round discovery happened to write
+    first and never recomputed — so a Friday league discovered before a Saturday league
+    left it a week late, and week 1 arrived split into "1" and "1b". Which league a
+    scheduler walked first is not a fact about the season.
+
+    Only ever **earlier**, and only while nothing has settled. Moving it later would
+    renumber rounds downward, and moving it at all after a settlement is the thing
+    ``move_anchor`` already refuses — this is that same rule, applied automatically
+    rather than by an admin.
+
+    Returns the calendar when it moved the anchor, ``None`` otherwise.
+    """
+    calendar = await calendar_for(db, season)
+    if calendar is None:
+        return None
+    first_day, last_day = season_bounds(season)
+    earliest = await db.scalar(
+        select(func.min(Gameweek.starts_on)).where(
+            Gameweek.starts_on >= first_day, Gameweek.starts_on <= last_day
+        )
+    )
+    if earliest is None:
+        return None
+    anchor = canonical_saturday(earliest)
+    if anchor >= calendar.week_one_anchor:
+        return None
+    settled = await db.scalar(
+        select(func.count())
+        .select_from(Gameweek)
+        .where(
+            Gameweek.starts_on >= first_day,
+            Gameweek.starts_on <= last_day,
+            Gameweek.status == GameweekStatus.settled,
+        )
+    )
+    if settled:
+        # The season has played something under the current numbering. Leave it: a
+        # settled week that changes number is worse than a week-1 that is late.
+        return None
+    calendar.week_one_anchor = anchor
     await db.flush()
     return calendar
 
