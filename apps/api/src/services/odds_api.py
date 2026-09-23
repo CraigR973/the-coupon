@@ -348,6 +348,12 @@ class OddsApiProvider(OddsProvider):
         self._bookmaker = bookmaker
         self._client = client or httpx.AsyncClient(base_url=base_url, timeout=_TIMEOUT)
         self._leagues: list[OALeague] | None = None
+        #: Every HTTP request this client has actually sent, counted at the one
+        #: chokepoint they all pass through (:meth:`_get`). Batch 160: the plan counter
+        #: was charged only from the odds cache's own refills, so it saw roughly 127 of
+        #: a Saturday's 283 requests — and both the cache's widening valve and the
+        #: reserve that protects the pick path read that gauge.
+        self.requests_made = 0
 
     @classmethod
     def from_settings(cls) -> OddsApiProvider:
@@ -648,6 +654,11 @@ class OddsApiProvider(OddsProvider):
     ) -> object:
         """GET a v3 endpoint with retries, returning the decoded JSON body.
 
+        Every request this client sends passes through here, which is why
+        :attr:`requests_made` is incremented here and nowhere else: the slate walk, the
+        settlement lookups, the league catalogue and the odds snapshots all arrive at
+        this one function, and a counter anywhere else would see a subset (Batch 160).
+
         Retries the cases where trying again is the right answer — network errors and
         5xx — with exponential backoff. A ``401``/``403`` is an unusable key and raises
         immediately rather than burning retries against a rate-limited plan; a ``429``
@@ -661,6 +672,9 @@ class OddsApiProvider(OddsProvider):
         backoff = _INITIAL_BACKOFF
         for attempt in range(_MAX_RETRIES + 1):
             try:
+                # Counted before the await, so a request that errors or is retried is
+                # still a request the plan was charged for by the provider.
+                self.requests_made += 1
                 response = await self._client.get(path, params=query)
             except httpx.RequestError as exc:
                 if attempt == _MAX_RETRIES:

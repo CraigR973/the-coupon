@@ -48,7 +48,8 @@ from __future__ import annotations
 import asyncio
 import math
 import time
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import AsyncIterator, Callable, Collection, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import date
 
@@ -186,17 +187,29 @@ class CachingOddsProvider(OddsProvider):
         *,
         competition_ids: Collection[str] | None = None,
     ) -> Slate:
-        return await self._inner.fetch_slate(window, starts_on, competition_ids=competition_ids)
+        # One ``/events`` request per competition walked, which is where the whole cost
+        # of this call sits. The estimate is the fallback for a provider that cannot
+        # report its own spend; the real one can, and then this is exact.
+        estimate = len(set(competition_ids)) if competition_ids is not None else 1
+        async with self._charging(estimate=estimate):
+            return await self._inner.fetch_slate(window, starts_on, competition_ids=competition_ids)
 
     async def settle(self, event_ids: Sequence[str]) -> list[EventSettlement]:
-        return await self._inner.settle(event_ids)
+        # One ``/events/{id}`` lookup per distinct event: settlement is read from the
+        # event itself, not from the odds endpoints, which carry only what is still priced.
+        async with self._charging(estimate=len(dict.fromkeys(event_ids))):
+            return await self._inner.settle(event_ids)
 
     async def fetch_competitions(self) -> list[Competition]:
         # Delegated without a TTL of its own. The catalogue turns over between seasons,
         # not between page loads, and the wrapped provider already memoises it per client
         # (``OddsApiProvider._all_leagues``), so a second cache here would duplicate that
         # while adding an expiry the underlying one does not have.
-        return await self._inner.fetch_competitions()
+        #
+        # Charged all the same, because "usually free" is not "free": the first call of a
+        # process pays for the catalogue, and that request is as real as any other.
+        async with self._charging(estimate=1):
+            return await self._inner.fetch_competitions()
 
     # -- the cached one --------------------------------------------------------
 
@@ -524,7 +537,45 @@ class CachingOddsProvider(OddsProvider):
 
     def _charge(self, now: float, events: int) -> None:
         """Record what asking about ``events`` events costs, in *requests*."""
-        self._spent.extend([now] * math.ceil(events / self._events_per_request))
+        self._charge_requests(now, math.ceil(events / self._events_per_request))
+
+    def _charge_requests(self, now: float, requests: int) -> None:
+        """Record ``requests`` upstream requests against the plan."""
+        if requests > 0:
+            self._spent.extend([now] * requests)
+
+    def _inner_requests(self) -> int | None:
+        """How many requests the wrapped provider says it has sent, if it counts them.
+
+        ``OddsApiProvider`` counts at its single HTTP chokepoint, so the delta across a
+        call is exactly what that call cost — including retries, and including the
+        catalogue fetch a slate walk makes on the first call of a process. A provider
+        that does not count (the fakes, Betfair) falls back to the caller's estimate.
+        """
+        counted = getattr(self._inner, "requests_made", None)
+        return counted if isinstance(counted, int) else None
+
+    @asynccontextmanager
+    async def _charging(self, *, estimate: int) -> AsyncIterator[None]:
+        """Charge the plan for whatever the wrapped call actually spends.
+
+        Batch 160. The counter was charged **only** from :meth:`_refill`, so
+        ``fetch_slate``, ``fetch_competitions`` and ``settle`` — three separate provider
+        entry points — never reached it, and the gauge saw roughly 127 of a Saturday's
+        283 requests. Both the cache's widening valve and the 50-request reserve that
+        protects the pick path read that gauge, so the reserve Batch 114 built was
+        reserving against a number that missed half the spend.
+
+        Charged in ``finally`` because a call that raised still sent its requests; a
+        ``429`` in particular is the moment the count matters most.
+        """
+        before = self._inner_requests()
+        try:
+            yield
+        finally:
+            after = self._inner_requests()
+            spent = (after - before) if (before is not None and after is not None) else estimate
+            self._charge_requests(self._clock(), max(spent, 0))
 
     def _refuse_upstream(self, now: float, *, for_pick: bool) -> OddsProviderError | None:
         """Why this call must not go upstream, or ``None`` if it may.
