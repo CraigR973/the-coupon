@@ -150,6 +150,13 @@ def _future_window(days_ahead: int, minute: int) -> SlateWindow:
     Batch 112 correctly refuses to create a round after its lock. Tests exercising a
     complete two-date horizon must therefore put their window in the future rather than
     naming a weekday that becomes a past deadline for a few hours every week.
+
+    **Use this rather than ``_window(SOME_WEEKDAY, ...)`` in any test that needs today's
+    cadence date to exist.** Four more tests were still naming a fixed weekday and went
+    red on the evening of Wednesday 23 September 2026 — not from any change, but because
+    the clock passed 19:15. A test that names a weekday is asserting on the day of the
+    week the suite happens to run, which is a coin toss the suite loses one day in seven.
+    ``_window`` remains correct for tests that only need *a* window, never today's.
     """
     return _window((uk_today().weekday() + days_ahead) % 7, minute)
 
@@ -271,6 +278,25 @@ async def _linked(gameweek_id: uuid.UUID) -> set[uuid.UUID]:
         return {fixture.id for fixture in await fixtures_for(session, gameweek_id)}
 
 
+# ── The clock this file is read on ──────────────────────────────────────────────
+
+
+def test_a_future_window_is_never_today_whatever_day_it_is() -> None:
+    """The invariant four tests were relying on without anything checking it.
+
+    ``_future_window`` is only safe because ``days_ahead`` puts the window on a weekday
+    that is not today — a window on a future day cannot be a deadline that has already
+    passed. Nothing said so, and nothing would have caught a ``days_ahead`` of 0 or 7.
+    Checked over the whole week rather than today, because today is the one day of seven
+    on which the bug does not show.
+    """
+    today = uk_today().weekday()
+    for days_ahead in range(1, 7):
+        window = _future_window(days_ahead, 12 * 60)
+        assert window.start_weekday != today, f"_future_window({days_ahead}) landed on today"
+        assert window.end_weekday != today
+
+
 # ── Creation populates from the pool, for nothing ───────────────────────────────
 
 
@@ -335,9 +361,9 @@ async def test_a_neighbours_one_off_date_produces_no_round_for_a_new_league(
     """
     client, counter = client_and_counter
     admin = await _player()
-    window = _window(THURSDAY, 20 * 60)
+    window = _future_window(5, 20 * 60)
     cadence = _cadence(window)
-    one_off = cadence[0] + timedelta(days=3)  # a Sunday this window never opens on
+    one_off = cadence[0] + timedelta(days=3)  # a weekday this point window never opens on
 
     await _pool_cadence(window, competition_id="test-div-c")
     # The neighbour's one-off: fixtures in the pool *and* a round already on the date.
@@ -432,7 +458,7 @@ async def test_the_populate_path_and_the_admin_sync_trigger_share_one_budget(
     """
     client, counter = client_and_counter
     admin = await _player(role=UserRole.admin)
-    window = _window(WEDNESDAY, 20 * 60 + 45)
+    window = _future_window(4, 20 * 60 + 45)
     league = await _seed_league(admin, window)
 
     spend = await client.post(
@@ -458,7 +484,7 @@ async def test_a_pooled_refresh_costs_nothing_and_so_charges_nothing(
     """
     client, counter = client_and_counter
     admin = await _player()
-    window = _window(THURSDAY, 19 * 60 + 30)
+    window = _future_window(5, 19 * 60 + 30)
     await _pool_cadence(window, competition_id="test-div-d")
     league = await _seed_league(admin, window)
 
@@ -586,7 +612,7 @@ async def test_refresh_rounds_leaves_a_locked_round_alone(
     """
     client, counter = client_and_counter
     admin = await _player()
-    window = _window(WEDNESDAY, 19 * 60 + 15)
+    window = _future_window(4, 19 * 60 + 15)
     await _pool_cadence(window, competition_id="test-div-f")
 
     slug = await _create_league(client, admin, window)
