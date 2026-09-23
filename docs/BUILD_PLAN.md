@@ -4404,7 +4404,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: these components' text colours. **Web-only.**
 
-- [ ] **Batch 139 — The pick screen opens with every fixture hidden, and every outcome arrives as the same red toast**
+- [x] **Batch 139 — The pick screen opens with every fixture hidden, and every outcome arrives as the same red toast** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-02 and DES-03 (both
   high impact). Arriving at the round, every competition group is collapsed: the member sees
   headings and counts, no fixture and no price, and must tap before the screen shows what

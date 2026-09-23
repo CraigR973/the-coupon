@@ -3896,3 +3896,29 @@ unchecked because Batch 119 superseded it.
 - Gate green on the first run; FRONTEND_TEST_COUNT 1,083 → 1,096.
 
 **Next:** Batch 139.
+
+## Batch 139 — The pick screen opens with every fixture hidden, and every outcome arrives as the same red toast
+**Commits:** `7d0e56b` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,179 backend and
+1,110 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- `CompetitionSection` takes `defaultOpen`, passed only for `groups[0]`. It seeds `useState`
+  and nothing else — a member who closes the first group keeps it closed across a refetch.
+- `pickRefusal(detail)` is the new entry point and returns `{ tone, message, action?, price? }`.
+  `pickErrorMessage` survives unchanged as the sentence half, so its nine copy tests are intact.
+- `actionFor` maps a refusal to a sonner action button. `refresh-card` calls the hook's
+  `invalidate`; `retake-price` re-sends the same body through `sendRef`, which exists because
+  `onError` is declared above `send`.
+- The lost-race toast deliberately does **not** auto-refetch. Doing it silently would move the
+  card under the member's finger; the button lets them choose, and costs one request not two.
+- The PRICE_MOVED copy is unchanged — it still ends "Tap again to take it", which is still
+  true — so the button is additive and no copy expectation moved.
+- Three existing tests changed with the behaviour, none weakened. Two ordering tests located a
+  header by `{ expanded: false }` and now use position; the collapsed-by-default test asserts
+  the new specified default and gained a companion proving the member can still close it; the
+  coupon-completion helper now opens its group only when it is not already open (clicking an
+  open header closed it, which read as the fixture vanishing).
+- `vi.mock('sonner')` in usePickEditor.test.tsx now stubs `warning` and `info` as well.
+- Gate green on the first run; FRONTEND_TEST_COUNT 1,096 → 1,110.
+
+**Next:** Batch 167, the last of Phase 3.

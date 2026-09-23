@@ -1407,6 +1407,17 @@ results-day carousel is 3.95:1 the same way. Both selected chips now use `--text
 keep their brand cue in the border and tint. `contrast.test.ts` now measures composited
 grounds, which no assertion in it previously did. Web-only; live on the close-out push.
 
+**Batch 139 opened the round on a fixture and gave refusals their own tone** (`7d0e56b`).
+Every competition group used to start collapsed, so the round screen arrived as headings and
+counts with no fixture and no price; the first group now opens and the rest stay shut.
+`defaultOpen` seeds state only, so closing it sticks across a refetch. Separately the app had
+57 error toasts, 44 success, two informational and zero warnings — a lost race, a moved price,
+the league's provider budget running out, a genuine failure and a queued offline pick all
+looked the same. `pickRefusal` now returns a tone plus the single step that follows: lost races
+and moved prices are warnings carrying "Refresh the card" and "Take <price>", a queued offline
+pick is informational, and anything that genuinely failed stays red with no button on it.
+Web-only; live on the close-out push.
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",
