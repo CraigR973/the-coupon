@@ -4328,3 +4328,30 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,269 → 1,271.
 
 **Next:** Batch 132.
+
+## Batch 132 — Declaring an extra week renames a round already played
+**Commits:** `efdfdeb` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,278 backend and
+1,147 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- `declare_extra_week` takes `today: date | None = None` so the past-date guard is
+  testable. Refusals: `EXTRA_WEEK_IN_THE_PAST` (422) and `EXTRA_WEEK_LOCKED` (409, a
+  `PermissionError` — the endpoint gained that handler, which it did not have).
+- The settled lock is **the football week, not the season**: Wednesday-to-Tuesday around
+  the canonical Saturday, which is the span a declared date can relabel. Locking the
+  season would refuse every declaration after the first settlement.
+- `reanchor_from_earliest_round` runs from `sync_slate` after each round is written.
+  Earlier only, and only while nothing in the season has settled — the same rule
+  `move_anchor` enforces, applied automatically.
+- **`season_calendar` cannot import `gameweek`**: that module imports this one, so
+  `uk_today` is computed locally. mypy passed the circular import happily; importing
+  `src.main` is what caught it. Worth remembering for any future shared helper.
+- The end-to-end anchor test runs in **season 2031**. Calendar creation and re-anchoring
+  are both deployment-wide reads, and the full suite commits 2026 rounds (settled ones
+  included) from other modules — so it passed alone and failed in the gate until moved.
+  That is the fourth deployment-wide-read trap this session.
+- `test_stored_anchor_survives_a_later_added_earlier_round` is untouched and still right:
+  `labels_for_gameweeks` never moves an anchor. Only discovery does.
+- Counts: BACKEND 1,271 → 1,278.
+
+**Next:** Batch 156.

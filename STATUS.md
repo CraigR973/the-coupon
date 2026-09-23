@@ -1570,6 +1570,16 @@ which every surface already renders as an absent statistic — not 0% and not 10
 call; the owner took it on 2026-09-23 and both the old and new expressions are in the file.
 **API-only: `/ship-prod` is owed, with Batch 130.**
 
+**Batch 132 guarded the two calendar rules a declaration can break** (`efdfdeb`).
+`declare_extra_week` had no past-date and no settled check, so declaring a past Wednesday
+renamed an already settled, already picked round from "5" to "5b"; it now refuses both,
+mirroring `move_anchor` and `withdraw_extra_week` — the settled lock narrowed to the one
+football week a declaration can relabel. Separately the season anchor was whichever round
+discovery happened to write first, so a Friday league walked before a Saturday league split
+week 1 into "1" and "1b"; `reanchor_from_earliest_round` now pulls it back to the earliest
+canonical Saturday the season holds, earlier only and only while nothing has settled.
+**API-only: `/ship-prod` is owed, with 130 and 131.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",

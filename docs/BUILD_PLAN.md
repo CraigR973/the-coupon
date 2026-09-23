@@ -4282,7 +4282,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the win-rate denominator and its oracle. No change to points.
   **API-carrying.**
 
-- [ ] **Batch 132 — Declaring an extra week renames a round already played, and the season anchor is whichever round arrived first**
+- [x] **Batch 132 — Declaring an extra week renames a round already played, and the season anchor is whichever round arrived first** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-11 and CORR-12 (both
   MED, main-only). `declare_extra_week` validates only the season and that the date is not
   a canonical Saturday — no past-date or settled check, unlike the anchor move and the
