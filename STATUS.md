@@ -1544,6 +1544,13 @@ counter rather than an audit row, so it survives a redeploy without needing a ne
 and the migration that would have required. **API-only: `/ship-prod` is owed, with 159, 160,
 161, 133 and 162.**
 
+**Batch 147 stopped the pick reminder losing the fall-back hour** (`665e266`). On an hourly
+Europe/London cron the October fall-back skips an hour — 23:15 UTC straight to 01:15 UTC —
+and a reminder cannot recover from that the way a lock sweep can, so a round locking roughly
+03:15-04:15 UTC on 25 October was never reminded. The trigger is now UTC, alone among the
+domain jobs; `gameweeks_due_a_reminder` already selected on the UTC lock instant, so the wall
+clock was never load-bearing. **API-only: `/ship-prod` is owed — this completes Phase 5.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",

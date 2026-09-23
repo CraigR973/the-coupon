@@ -4252,3 +4252,25 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,249 → 1,257.
 
 **Next:** Batch 147, then the Phase 5 `/ship-prod`.
+
+## Batch 147 — The reminder job skips the repeated hour when the clocks go back
+**Commits:** `665e266` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,260 backend and
+1,147 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- `pick_reminders` is the **only** domain job on UTC. The others stay on Europe/London
+  because their wall-clock hour is the point (06:00 discovery, 14:30-adjacent passes); the
+  reminder's is not — it only has to fire once an hour, and UTC is the one zone where
+  "once an hour" is always true.
+- The minute is unchanged at :15. London's offsets are whole hours, so the separation from
+  `open_gameweeks` (:01) and `lock_gameweeks` (:00) is exactly as before.
+- `test_create_scheduler_domain_jobs_fire_on_uk_wall_clock` no longer lists
+  `pick_reminders`; it now asserts explicitly that this one is *not* on Europe/London, so
+  the exception is stated rather than merely absent.
+- The DST tests enumerate the trigger's real fire times across 2026-10-25 rather than
+  reasoning about them, and a companion asserts the London cron still skips an hour — so
+  an APScheduler change that fixed it upstream would surface here instead of leaving a
+  pointless batch in place.
+- Counts: BACKEND 1,257 → 1,260.
+
+**Next:** the Phase 5 `/ship-prod`, carrying 159, 160, 161, 133, 162, 129 and 147.

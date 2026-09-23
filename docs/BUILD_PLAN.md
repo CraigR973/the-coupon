@@ -4551,7 +4551,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: indexes and pool sizing. No query rewrites beyond what the indexes need.
   **Migration.**
 
-- [ ] **Batch 147 — The reminder job skips the repeated hour when the clocks go back**
+- [x] **Batch 147 — The reminder job skips the repeated hour when the clocks go back** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-17 (LOW, live). The
   reminder runs on a wall-clock cron in Europe/London (`scheduler.py:903-914`,
   `CronTrigger(minute=15)`), so on the October fall-back the firing jumps from 23:15 to
