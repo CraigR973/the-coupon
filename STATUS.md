@@ -1588,6 +1588,13 @@ leg stays on the coupon with its price; only the product changes, and `void_leg_
 optional) lets the screen and the clipboard both say why the fold is smaller than the legs.
 **API + web: `/ship-prod` is owed.**
 
+**A red baseline on `main` with no commit behind it** (`2f7d742`, 23 Sep). The gate was
+green at 16:45 UTC and red at 20:39 the same evening: four tests in `test_round_population.py`
+named a fixed weekday for a league's slate window, and once the clock passes that weekday's
+window time today's cadence date is skipped, leaving the asserted horizon a date short. They
+now use the file's own `_future_window`, whose invariant — never today — is itself a test now.
+**Test-only; no shipment.**
+
 **Batch 157 dropped the averaged rank from the cross-league summary** (`e8b5fe4`). The
 contract says points and win rate aggregate across leagues and rank does not; `me.py`
 returned `avg_rank` and `avg_rank_leagues` anyway, ported in with the endpoint. Owner's

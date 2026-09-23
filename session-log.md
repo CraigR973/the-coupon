@@ -4409,3 +4409,29 @@ unchecked because Batch 119 superseded it.
 
 **Next:** the Phase 6 `/ship-prod`, which carries Batches 130, 131, 132, 156 and 157.
 Phase 7 is deliberately not started.
+
+## fix/round-population-window-clock — a red baseline on main, fixed before Batch 144
+**Commits:** `2f7d742` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,282 backend and
+1,154 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **`main` went red with no commit behind it.** The gate was green at `42e79d8` at 16:45 UTC
+  and red at 20:39 the same evening. The cause is the wall clock, not the code.
+- Four tests in `test_round_population.py` named a fixed weekday for a league's slate
+  window. Batch 112 refuses to create a round after its lock, so once the clock passes that
+  weekday's window time, **today's cadence date is skipped for a reason the test never
+  meant** and the horizon it asserts on is one date short. Wednesday 19:15 and 20:45 broke
+  two of them that evening; the other two were waiting for a Thursday.
+- The fix is the file's own `_future_window`, which Batch 112 added with a docstring saying
+  not to name a weekday. It had simply not been applied everywhere.
+- **How the set was measured, which matters more than the fix:** force every window onto
+  today and run the file. A first, cruder sweep also flattened the minutes and implicated
+  eleven tests — three of those failed only because two windows in one test collapsed onto
+  each other, and three more use `_future_window` already and failed only because the sweep
+  broke that helper. Re-running with the minutes preserved gave the real set of four.
+- `_future_window`'s invariant is now a test rather than a convention: it never lands on
+  today for any `days_ahead` in 1..6, asserted across the whole week. `days_ahead=0` fails it.
+- Counts: BACKEND 1,281 → 1,282.
+
+**Next:** Batch 144, which was parked on `feat/batch-144-project-round-labels` when this
+turned up.
