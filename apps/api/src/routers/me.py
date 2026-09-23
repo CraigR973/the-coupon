@@ -358,7 +358,11 @@ async def cross_league_summary(
         total_points=total_points,
         picks_played=picks_played,
         picks_won=picks_won,
-        win_rate_pct=round(100 * picks_won / picks_played) if picks_played else None,
+        # Over `picks_priced`, matching `Standing.win_rate_pct` (Batch 131). Summing the
+        # leagues' own percentages would weight a one-pick league like a twenty-pick one,
+        # so this recomputes from the totals — and it has to use the same denominator the
+        # per-league figure does or the profile and the summary disagree.
+        win_rate_pct=round(100 * picks_won / picks_priced) if picks_priced else None,
         picks_priced=picks_priced,
         cumulative_odds=round(cumulative_odds, 2),
         average_odds=round(cumulative_odds / picks_priced, 2) if picks_priced else None,

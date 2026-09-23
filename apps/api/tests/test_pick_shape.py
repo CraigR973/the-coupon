@@ -148,7 +148,22 @@ def _expected(picks: Sequence[Pick]) -> dict[str, object]:
         "average_odds": round(cumulative / len(priced), 2) if priced else None,
         "points_per_pick": round(total / len(played), 2) if played else None,
         "best_return": max((p.points_awarded or 0 for p in played), default=None),
-        "win_rate_pct": round(100 * len(won) / len(played)) if played else None,
+        # ── The oracle Batch 131 changed, and the only one changed by that batch ──
+        #
+        # It read:
+        #     "win_rate_pct": round(100 * len(won) / len(played)) if played else None
+        # and `played` includes void — so a void lowered a win rate exactly like a loss,
+        # against a contract that says a void "scores nothing rather than counting as a
+        # loss". A member whose only pick was voided read 0%; one win plus one void read
+        # 50% where the record is unbeaten.
+        #
+        # Owner's decision, 2026-09-23: divide by the priced count, which is the same
+        # reasoning `scoring.py` already applies to the odds denominator — a void pick
+        # never ran. A member with no priced picks has **no** win rate: `None`, which
+        # every surface already renders as an absent statistic. Never 0%, which is the
+        # bug being replaced, and never 100% — a perfect record off zero results is the
+        # same class of wrong.
+        "win_rate_pct": round(100 * len(won) / len(priced)) if priced else None,
         "longshot_picks": sum(1 for p in priced if p.odds_at_pick >= LONGSHOT_ODDS),
         "favourite_picks": sum(1 for p in priced if p.odds_at_pick < LONGSHOT_ODDS),
     }
@@ -208,6 +223,9 @@ async def test_a_void_pick_counts_as_played_and_not_as_priced(session: AsyncSess
     assert row.longshot_picks == 0, "a void longshot is not a longshot taken"
     # And the two denominators genuinely differ here, which is the thing the UI must say.
     assert row.picks_played != row.picks_priced
+    # Batch 131. One win and one void is an unbeaten record, not a 50% one. This read 50
+    # before the denominator moved, which is the finding in a single number.
+    assert row.win_rate_pct == 100
 
 
 async def test_a_member_whose_only_pick_was_voided_has_no_odds_figures(
@@ -224,6 +242,10 @@ async def test_a_member_whose_only_pick_was_voided_has_no_odds_figures(
     assert row.average_odds is None, "no average over nothing"
     assert row.cumulative_odds == 0.0
     assert row.points_per_pick == 0.0, "they played a round and scored nothing"
+    # Batch 131, and the owner's decision spelled out: not 0%, which is what this read
+    # before and which calls a member beaten by a fixture that never ran; and not 100%,
+    # because a perfect record off zero results is the same class of wrong. Absent.
+    assert row.win_rate_pct is None
 
 
 async def test_a_member_who_has_never_picked_reports_nothing_rather_than_zero(
@@ -301,3 +323,59 @@ async def test_the_ranking_is_unchanged_by_any_of_this(session: AsyncSession) ->
     assert table[0].rank == 1 and table[1].rank == 2
     # …even though the member below has the longer average price.
     assert table[1].average_odds > table[0].average_odds
+
+
+async def test_win_and_loss_rates_are_otherwise_unchanged(session: AsyncSession) -> None:
+    """The other half of the row's verification: nothing moved for a record with no voids.
+
+    Two wins and two losses is 50% under either denominator, so a test built only on that
+    shape would pass whichever divisor were used. These are deliberately uneven — one win
+    in three, and three in four — so the figure is sensitive to the change and says the
+    change did not touch it.
+    """
+    one_in_three, member_a = await _league_with_member(session)
+    await _settled_pick(session, one_in_three, member_a, week=0, odds="2.00", status=PickStatus.won)
+    await _settled_pick(
+        session, one_in_three, member_a, week=1, odds="2.00", status=PickStatus.lost
+    )
+    await _settled_pick(
+        session, one_in_three, member_a, week=2, odds="2.00", status=PickStatus.lost
+    )
+
+    row = next(
+        s for s in await standings(session, one_in_three.id) if s.player_id == str(member_a.id)
+    )
+    assert row.picks_played == row.picks_priced == 3, "no voids, so the two agree"
+    assert row.win_rate_pct == 33
+
+    three_in_four, member_b = await _league_with_member(session)
+    for week, status in enumerate(
+        (PickStatus.won, PickStatus.won, PickStatus.won, PickStatus.lost)
+    ):
+        await _settled_pick(session, three_in_four, member_b, week=week, odds="2.00", status=status)
+
+    row = next(
+        s for s in await standings(session, three_in_four.id) if s.player_id == str(member_b.id)
+    )
+    assert row.win_rate_pct == 75
+
+
+async def test_a_void_no_longer_drags_a_record_down(session: AsyncSession) -> None:
+    """The finding, as the same record with and without a void beside it.
+
+    Three wins and one loss is 75%. Adding a postponed fixture cannot make a member worse
+    at picking — but it used to, because the void landed in the denominator and nowhere
+    else: 3/5 = 60%.
+    """
+    league, member = await _league_with_member(session)
+    for week, status in enumerate(
+        (PickStatus.won, PickStatus.won, PickStatus.won, PickStatus.lost, PickStatus.void)
+    ):
+        await _settled_pick(session, league, member, week=week, odds="2.00", status=status)
+
+    row = next(s for s in await standings(session, league.id) if s.player_id == str(member.id))
+
+    assert row.picks_played == 5
+    assert row.picks_priced == 4
+    assert row.win_rate_pct == 75, "the void was counted against them"
+    assert round(100 * 3 / 5) == 60, "which is what it used to read"

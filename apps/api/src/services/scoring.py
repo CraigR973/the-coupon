@@ -419,9 +419,20 @@ class Standing(BaseModel):
     points_per_pick: float | None = None
     #: The best single return, in points. ``None`` until something has settled.
     best_return: int | None = None
-    #: Wins over ``picks_played``, as a whole percentage. Computed here rather than by
-    #: each surface, which is how the profile and the summary used to disagree by a
-    #: rounding step.
+    #: Wins over ``picks_priced``, as a whole percentage, or ``None`` when nothing has
+    #: run. Computed here rather than by each surface, which is how the profile and the
+    #: summary used to disagree by a rounding step.
+    #:
+    #: **Over priced, not played** (Batch 131, owner's decision 2026-09-23). It divided by
+    #: ``picks_played``, which includes void — so a void lowered a win rate exactly like a
+    #: loss, against a contract that says a void "scores nothing rather than counting as a
+    #: loss". A member whose only pick was voided showed 0%; one win plus one void showed
+    #: 50% where the record is unbeaten. The reasoning is the one this file already applies
+    #: to the odds denominator two fields up: a void pick never ran.
+    #:
+    #: A member with no priced picks has **no** win rate — ``None``, which every surface
+    #: already renders as an absent statistic. Not 0%, which is the bug, and not 100%: a
+    #: perfect record off zero results is the same class of wrong.
     win_rate_pct: int | None = None
     #: How the priced picks split around :data:`LONGSHOT_ODDS`. The number that actually
     #: answers "what kind of picks is this person making".
@@ -466,7 +477,7 @@ def _rank_rows(
                 average_odds=round(cumulative / priced, 2) if priced else None,
                 points_per_pick=round(total / played, 2) if played else None,
                 best_return=int(row.best_return) if row.best_return is not None else None,
-                win_rate_pct=round(100 * int(row.picks_won) / played) if played else None,
+                win_rate_pct=round(100 * int(row.picks_won) / priced) if priced else None,
                 longshot_picks=longshots,
                 favourite_picks=priced - longshots,
                 recent_form=(form or {}).get(row.player_id, []),
