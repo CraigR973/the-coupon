@@ -4375,3 +4375,37 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,278 → 1,281, FRONTEND 1,147 → 1,154.
 
 **Next:** Batch 157, then the Phase 6 `/ship-prod`. Phase 7 is deliberately not started.
+
+## Batch 157 — The cross-league summary aggregates rank, which the contract says it does not
+**Commits:** `e8b5fe4` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,281 backend and
+1,154 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- Owner's 2026-09-22 decision was **drop the pair**, not refine the mean. `avg_rank`,
+  `avg_rank_leagues`, `_MIN_MEMBERS_FOR_AVG` and `ranks_for_avg` are all gone from
+  `routers/me.py`. `member_counts` stays — it still feeds `PerLeagueSummary.member_count`.
+- **This is the one batch whose halves ship in the safe order by default.** Everywhere else
+  the web deploying first is the hazard; here it is the fix, because the web must stop
+  reading the field before the API stops sending it. Both halves are in one commit, so the
+  push takes the web off it immediately and `/ship-prod` follows.
+- Three tests pin the absence, each proved non-vacuous by re-adding the fields as optional
+  with defaults and watching it fail:
+  - backend, exact-shape: `test_cross_league_summary_shows_an_unpicked_round_and_no_leagues`
+    asserts the whole empty-summary dict, so any field appearing or vanishing is caught.
+  - backend, renamed-revival: `test_the_summary_averages_no_rank_across_leagues_of_different_sizes`
+    asserts no top-level key contains "rank" at all, so `mean_rank` would fail too. It keeps
+    the old test's setup (a 3-person and a 2-person league, ranks 2 and 1) because that is
+    the case that made the old average wrong.
+  - frontend: `/rank/i` must not match inside `career-stats`; the explanatory line sits
+    outside that container, so a match in there can only be a rank statistic.
+- The old backend test asserted `avg_rank == 2.0` and `avg_rank_leagues == 1`. Quoted in
+  the replacement's docstring rather than deleted, so the removed behaviour stays readable.
+- Net frontend count would have fallen by one (two obsolete tests removed, one added). The
+  gate refuses a fall and the baseline may never be lowered, so the gap is filled by a real
+  test, not padding: the page must ignore the dead fields during the window where the
+  unshipped API still sends them. Counts unchanged: BACKEND 1,281, FRONTEND 1,154.
+- The stat grid went `sm:grid-cols-4` → `sm:grid-cols-3`, and the loading skeleton from four
+  boxes to three, so neither leaves a hole where the fourth card was.
+
+**Next:** the Phase 6 `/ship-prod`, which carries Batches 130, 131, 132, 156 and 157.
+Phase 7 is deliberately not started.

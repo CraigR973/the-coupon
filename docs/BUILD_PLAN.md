@@ -4749,7 +4749,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the combined-odds calculation and its label. No change to scoring — a void
   already scores nothing — and no change to the frozen prices themselves. **API-carrying.**
 
-- [ ] **Batch 157 — The cross-league summary aggregates rank, which the contract says it does not**
+- [x] **Batch 157 — The cross-league summary aggregates rank, which the contract says it does not** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/02-correctness.md`, CORR-18 (LOW, live); owner
   decision 2026-09-22: **drop the field**. The contract states that across leagues, points
   and win rate aggregate and rank does not; `me.py` computes and returns `avg_rank` and

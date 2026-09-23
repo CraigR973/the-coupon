@@ -1588,6 +1588,14 @@ leg stays on the coupon with its price; only the product changes, and `void_leg_
 optional) lets the screen and the clipboard both say why the fold is smaller than the legs.
 **API + web: `/ship-prod` is owed.**
 
+**Batch 157 dropped the averaged rank from the cross-league summary** (`e8b5fe4`). The
+contract says points and win rate aggregate across leagues and rank does not; `me.py`
+returned `avg_rank` and `avg_rank_leagues` anyway, ported in with the endpoint. Owner's
+decision 2026-09-22 was to drop the pair, not refine the mean — third of fifteen and third
+of three are not the same achievement. The per-league ranks in the breakdown are untouched.
+Unusually, the web half deploying first is the *safe* order here, so both halves ship in
+one commit. **API + web: `/ship-prod` is owed.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",
