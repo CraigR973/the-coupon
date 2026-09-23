@@ -103,15 +103,40 @@ PICK_SUBMIT_LIMIT = "10/hour"
 #: and the day is the tighter plan — the same lesson `PROVIDER_SLATE_FETCH_LIMIT` learned.
 #: Two hours of full-tilt picking is more rounds than a league locks in a day.
 #:
-#: **Keyed per league**, which bounds a league and not the installation: with several
-#: leagues picking in the same hour the global plan is the binding constraint again, and
-#: the answer to that is the plan rather than a tighter bucket that would refuse members
-#: of a league spending nothing. `test_request_budget.py` states that residual rather than
-#: leaving it to be rediscovered.
+#: **Keyed per league**, which bounds a league and not the installation. Batch 161 closed
+#: the residual that left open: five leagues picking flat out is `250/hour` against a
+#: hundred and twenty leagues is `1,000/hour`, and it is real spend rather than a ceiling
+#: because the refusal path deliberately exempts the pick path. The answer is not a
+#: tighter per-league bucket — that would refuse members of a league spending nothing —
+#: but a second bucket beneath this one, keyed on the deployment. See
+#: `PICK_SUBMIT_INSTALLATION_LIMIT`.
 PICK_SUBMIT_SHARED_LIMIT = "50/hour;100/day"
 
 #: The bucket every pick submission in one league is charged to, whichever member asked.
 PICK_SUBMIT_SHARED_SCOPE = "pick-submit-provider-budget"
+
+#: How much of the provider's hour and day **the whole deployment's** pick submissions
+#: may spend, charged beneath the per-league bucket above (Batch 161).
+#:
+#: The same numbers, because they were always a statement about the *installation* that
+#: happened to be keyed per league: `50/hour` is what the hour leaves once the measured
+#: peak browsing hour is subtracted, and peak browsing does not grow with the number of
+#: leagues any more than it grows with membership — the slate cache collapses every
+#: reader into one sweep. So the figure the per-league bucket was derived from is the
+#: figure the installation gets, and this is where it belongs.
+#:
+#: Today's deployment runs one league, so both buckets are the same size and every
+#: submission charges both: the experience is bit-for-bit what it was. The difference
+#: appears at the second league, which is the point — a league's share is now bounded by
+#: what the deployment actually has left rather than by what it would have left if it
+#: were the only one.
+PICK_SUBMIT_INSTALLATION_LIMIT = "50/hour;100/day"
+
+#: The bucket every pick submission in the deployment is charged to.
+PICK_SUBMIT_INSTALLATION_SCOPE = "pick-submit-installation-budget"
+
+#: One bucket for the whole deployment, so the key is a constant rather than an identity.
+PICK_SUBMIT_INSTALLATION_KEY = "installation"
 
 #: What a member is told when the league's share of the provider budget is gone.
 #:
@@ -263,6 +288,27 @@ async def submit_pick(
     ):
         log.warning(
             "pick refused: the league's share of the provider budget is spent",
+            league_id=str(league.id),
+            gameweek_id=str(gameweek.id),
+            player_id=str(player.id),
+        )
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=PICKS_BUSY)
+
+    # Beneath the league's own bucket, and charged second on purpose (Batch 161). A
+    # league already at its ceiling is refused above without touching the installation's
+    # allowance, which is correct — nothing went upstream. The reverse order would
+    # over-charge the scarce bucket to protect the abundant one.
+    #
+    # When the installation refuses, the league bucket has been charged for a submission
+    # that did not happen. That over-count is the safe direction and the one this file
+    # already chose for the per-league bucket: it can never under-count real spend.
+    if not consume_shared_limit(
+        PICK_SUBMIT_INSTALLATION_KEY,
+        PICK_SUBMIT_INSTALLATION_LIMIT,
+        PICK_SUBMIT_INSTALLATION_SCOPE,
+    ):
+        log.warning(
+            "pick refused: the deployment's share of the provider budget is spent",
             league_id=str(league.id),
             gameweek_id=str(gameweek.id),
             player_id=str(player.id),

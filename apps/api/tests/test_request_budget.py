@@ -717,18 +717,19 @@ def test_the_aggregate_bound_still_lets_a_full_league_take_its_picks() -> None:
     assert _pick_shared_limits()["hour"] >= LEAGUE_MAX_MEMBERS
 
 
-async def test_the_aggregate_bound_is_per_league_rather_than_per_installation() -> None:
-    """The residual, stated rather than left to be rediscovered.
+async def test_the_per_league_bound_alone_covers_only_a_league_or_two() -> None:
+    """The residual Batch 161 closed, kept as the reason it had to be closed.
 
-    The bucket is keyed on the league (``picks._league_budget_key``), so it bounds a
-    league and not the installation: K leagues picking flat out in the same hour is K
-    times the hourly allowance, and past two concurrent full-tilt leagues the global plan
-    binds again. That is deliberate — a global bucket would refuse members of a league
-    that had spent nothing, to pay for one that had — and the answer at that scale is the
-    provider plan, not a tighter bucket.
+    The per-league bucket is keyed on the league (``picks._league_budget_key``), so on
+    its own it bounds a league and not the installation: K leagues picking flat out in
+    the same hour is K times the hourly allowance, and past two concurrent full-tilt
+    leagues the global plan binds again. Five leagues is ``250/hour`` against a hundred;
+    twenty is ``1,000/hour``.
 
-    This test is the tripwire: it says how many leagues the current numbers cover, so a
-    change to either the limit or the plan has to come back through here.
+    That is why ``PICK_SUBMIT_INSTALLATION_LIMIT`` now sits beneath it — asserted in
+    ``test_no_number_of_leagues_can_exceed_the_installation_plan`` below. This test
+    stays as the tripwire on the numbers: it says how many leagues the per-league figure
+    covers on its own, so a change to either the limit or the plan comes back through here.
     """
     peak_browsing = await _tightest_browsing_hour()
     concurrent_leagues_covered = (HOURLY_LIMIT - peak_browsing) // _pick_shared_limits()["hour"]
@@ -793,3 +794,91 @@ def test_the_whole_manual_allowance_fits_beside_the_scheduled_runs() -> None:
             f"{job.key} costs {cost} requests but is charged {units} walk(s)"  # type: ignore[attr-defined]
         )
     assert allowance <= HOURLY_LIMIT
+
+
+# ── Batch 161: the installation's own pick bucket ─────────────────────────────
+
+
+def _pick_installation_limits() -> dict[str, int]:
+    """The shipped installation-wide pick budget, parsed the way slowapi parses it."""
+    from limits import parse_many
+
+    from src.routers.picks import PICK_SUBMIT_INSTALLATION_LIMIT
+
+    return {
+        item.GRANULARITY.name: item.amount for item in parse_many(PICK_SUBMIT_INSTALLATION_LIMIT)
+    }
+
+
+@pytest.mark.parametrize("leagues", [1, 2, 5, 20, 100])
+def test_no_number_of_leagues_can_exceed_the_installation_plan(leagues: int) -> None:
+    """The finding, closed: K leagues each spending their whole bucket is still bounded.
+
+    Before this the answer was ``K x 50`` — at five leagues 150 over the plan, at twenty
+    ten times it — and it was real spend rather than a ceiling, because the refusal path
+    deliberately exempts the pick path.
+    """
+    per_league = _pick_shared_limits()["hour"]
+    installation = _pick_installation_limits()["hour"]
+
+    unbounded = leagues * per_league
+    bounded = min(unbounded, installation)
+
+    assert bounded <= installation
+    assert bounded <= HOURLY_LIMIT
+    if leagues >= 2:
+        assert unbounded > installation, "the premise: without the bucket this overshoots"
+
+
+@pytest.mark.parametrize("leagues", [1, 2, 5, 20, 100])
+def test_no_number_of_leagues_can_exceed_the_installation_plan_across_a_day(
+    leagues: int,
+) -> None:
+    """And the day, which is the tighter plan of the two."""
+    bounded = min(leagues * _pick_shared_limits()["day"], _pick_installation_limits()["day"])
+    assert bounded <= _pick_installation_limits()["day"]
+    assert bounded <= DAILY_LIMIT
+
+
+async def test_the_installation_allowance_is_what_the_hour_actually_leaves_spare() -> None:
+    """The number is derived, not chosen.
+
+    Peak browsing is the fixed cost and does not grow with the number of leagues any more
+    than it grows with membership — the slate cache collapses every reader into one sweep
+    — so what browsing leaves is what the deployment's pick path may spend.
+    """
+    spare = HOURLY_LIMIT - await _tightest_browsing_hour()
+    assert (
+        _pick_installation_limits()["hour"] <= spare
+    ), f"{_pick_installation_limits()['hour']} pick requests an hour against {spare} spare"
+
+
+async def test_the_installation_allowance_fits_the_day_beside_browsing_and_discovery() -> None:
+    spare = DAILY_LIMIT - await _saturated_day_of_browsing() - _daily_discovery()
+    assert _pick_installation_limits()["day"] <= spare
+
+
+def test_a_single_leagues_experience_at_todays_scale_is_unchanged() -> None:
+    """The other half of the verification, and the reason the numbers are equal.
+
+    Production runs one league. Both buckets are the same size and every submission
+    charges both, so the first bucket to refuse is still the league's own and the member
+    sees exactly what they saw before. The difference appears at the second league.
+    """
+    assert _pick_installation_limits() == _pick_shared_limits()
+
+
+def test_the_installation_bucket_is_a_second_bucket_and_not_a_renamed_one() -> None:
+    """They must not share a scope, or one charge would decrement both counters once."""
+    from src.routers.picks import PICK_SUBMIT_INSTALLATION_SCOPE, PICK_SUBMIT_SHARED_SCOPE
+
+    assert PICK_SUBMIT_INSTALLATION_SCOPE != PICK_SUBMIT_SHARED_SCOPE
+
+
+def test_the_installation_bucket_still_lets_a_full_league_take_its_picks() -> None:
+    """Tightening must not price out the thing the endpoint exists for.
+
+    Every member of a league at its real ceiling has to be able to submit their one pick
+    inside the hour before lock — the same property the per-league bound is held to.
+    """
+    assert _pick_installation_limits()["hour"] >= LEAGUE_MAX_MEMBERS

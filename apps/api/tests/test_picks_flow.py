@@ -2585,15 +2585,27 @@ async def test_the_51st_pick_in_an_hour_is_refused_with_a_reason_not_a_stale_pri
         )
 
 
-async def test_a_second_league_keeps_its_own_pick_budget(
+async def test_a_second_league_is_bounded_by_what_the_deployment_has_left(
     client_and_fake: tuple[AsyncClient, FakeBetfair],
 ) -> None:
-    """The bucket is keyed on the league, so one league cannot starve another.
+    """Batch 161 **inverted this test's premise**, deliberately, and here is why.
 
-    The reason the key is the league and not the installation: a global bucket would
-    refuse members of a league that had spent nothing in order to pay for one that had.
-    What that trades away — the plan binds again once several leagues pick flat out in
-    the same hour — is stated in `test_request_budget.py`.
+    It used to assert that a quiet league still picks while a busy one is spent out —
+    the per-league key meaning one league cannot starve another. That property was real,
+    and it was being paid for with money the deployment does not have: the bucket bounds
+    a league, so five leagues picking flat out is `250/hour` against a hundred and twenty
+    is `1,000/hour`, and it is real spend rather than a ceiling because the refusal path
+    exempts the pick path.
+
+    There is no allocation that keeps the old property. The plan leaves about **fifty**
+    pick requests in an hour once peak browsing is subtracted, so two leagues cannot both
+    have fifty. What the installation bucket changes is not whether a league can be
+    starved but whether the starvation is bounded by the plan or silently exceeds it.
+
+    The per-league bucket is not redundant: it still bounds a single league to the plan's
+    spare hour on its own, which is what holds after a redeploy resets the in-memory
+    installation counter, and it is the bucket that refuses first so the log names the
+    league that spent it.
     """
     from src.routers.picks import PICK_SUBMIT_LIMIT, PICK_SUBMIT_SHARED_LIMIT, PICKS_BUSY
 
@@ -2622,10 +2634,13 @@ async def test_a_second_league_keeps_its_own_pick_budget(
     assert last is not None and last.status_code == 429, "the busy league must be spent out"
     assert last.json()["detail"] == PICKS_BUSY
 
+    # The deployment's allowance went with it, so the quiet league is refused too — with
+    # the same code, because "the league is busy" is still what the member needs to know.
     quiet_pick = await _submit(
         client, quiet.slug, quiet_member, quiet_fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME"
     )
-    assert quiet_pick.status_code == 201, quiet_pick.text
+    assert quiet_pick.status_code == 429, quiet_pick.text
+    assert quiet_pick.json()["detail"] == PICKS_BUSY
 
 
 # ── Batch 114: the price a member clicks is the price they get ────────────────
