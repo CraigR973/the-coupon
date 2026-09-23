@@ -26,7 +26,11 @@ from src.services.discovery_health import DiscoveryHealth
 from src.services.fotmob_health import FotMobAlert
 from src.services.gameweek import RoundProgress, members_missing_picks, notification_targets
 from src.services.push_notification_service import send_notification
-from src.services.round_completion import claim_pending_completion, mark_delivered
+from src.services.round_completion import (
+    claim_pending_completion,
+    complete_rounds_after_roster_change,
+    mark_delivered,
+)
 from src.services.selection_text import selection_summary
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -404,11 +408,48 @@ def _completion_body(completion: GameweekCompletion) -> str:
         and completion.fixture_away is not None
         else completion.selection
     )
+    if not completion.final_picker_name:
+        # Batch 130. The round filled because the roster changed — somebody left, was
+        # removed or was deactivated — so there is no last pick to name and no member to
+        # credit. The line the pick path produces is untouched; this is the case that
+        # previously produced no line at all.
+        #
+        # Keyed on the empty **name**, not on a null id. `final_picker_id` is nullable for
+        # an older reason — a deleted profile sets it null and leaves the row — so a null
+        # id also means "the member who completed this has since gone", which is a
+        # different thing and still has a name to print. Nothing but the roster-change
+        # path ever writes an empty name.
+        return f"{completion.member_count}/{completion.member_count} picked " f"— all picks are in"
     return (
         f"{completion.final_picker_name} picked {named} "
         f"@ {completion.odds:.2f} · {completion.member_count}/{completion.member_count} "
         f"picked — all picks are in"
     )
+
+
+async def settle_completion_after_roster_change(session: AsyncSession, league_id: uuid.UUID) -> int:
+    """Complete and announce any round this roster change has just filled. Batch 130.
+
+    Returns how many notifications went out. Commits its own work and swallows its own
+    failures, for the same reason the pick path's announcements do: leaving a league,
+    being removed from one, or having an account deleted must not turn into a 500
+    because a push subscription is dead.
+
+    Called *after* the membership change has committed, so the progress it reads is the
+    one the league actually has.
+    """
+    try:
+        told = 0
+        for gameweek in await complete_rounds_after_roster_change(session, league_id):
+            told += await announce_all_picked(session, gameweek) or 0
+        await session.commit()
+        if told:
+            log.info("round completed by a roster change", league_id=str(league_id), told=told)
+        return told
+    except Exception:
+        log.exception("roster-change completion failed", league_id=str(league_id))
+        await session.rollback()
+        return 0
 
 
 async def announce_all_picked(session: AsyncSession, gameweek: Gameweek) -> int | None:

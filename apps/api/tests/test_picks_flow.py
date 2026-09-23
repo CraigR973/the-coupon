@@ -3075,3 +3075,104 @@ async def test_every_eligible_member_still_gets_exactly_one_alert(
     assert set(told) == expected, "the audience changed"
     assert len(told) == len(expected), "somebody was told twice"
     assert players[0].id not in told, "the picker was told about their own pick"
+
+
+# ── Batch 130: the wiring, not just the rule ─────────────────────────────────
+#
+# `test_pick_progress_batch_107.py` holds what a roster-change completion records and
+# what it is attributed to. This holds that the three doors actually call it — without
+# which every one of those tests passes against an app that still announces nothing.
+
+
+async def test_leaving_a_league_completes_the_round_over_http(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    from src.models.gameweek_completion import GameweekCompletion
+
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (picker, leaver), league = await _seed_league(session, ["picker", "leaver"])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+
+    placed = await _submit(
+        client, league.slug, picker, fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME"
+    )
+    assert placed.status_code == 201, placed.text
+
+    async with AsyncSessionLocal() as session:
+        before = (
+            (
+                await session.execute(
+                    select(GameweekCompletion).where(GameweekCompletion.gameweek_id == gameweek.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert before == [], "the round completed before the leaver had gone"
+
+    gone = await client.delete(f"/api/v1/leagues/{league.slug}/membership", headers=_auth(leaver))
+    assert gone.status_code == 204, gone.text
+
+    async with AsyncSessionLocal() as session:
+        stored = (
+            (
+                await session.execute(
+                    select(GameweekCompletion).where(GameweekCompletion.gameweek_id == gameweek.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert len(stored) == 1, "leaving did not complete the round"
+    assert stored[0].final_picker_id is None, "the round credited a member who did not pick"
+    assert stored[0].member_count == 1
+
+
+async def test_being_removed_completes_the_round_over_http(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    from src.models.gameweek_completion import GameweekCompletion
+
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (admin, removed), league = await _seed_league(session, ["admin", "removed"])
+        # The seeder makes everybody a plain member; removal needs a league admin.
+        membership = (
+            await session.execute(
+                select(LeagueMembership).where(
+                    LeagueMembership.league_id == league.id,
+                    LeagueMembership.player_id == admin.id,
+                )
+            )
+        ).scalar_one()
+        membership.role = LeagueMemberRole.admin
+        await session.commit()
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+
+    placed = await _submit(
+        client, league.slug, admin, fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME"
+    )
+    assert placed.status_code == 201, placed.text
+
+    gone = await client.delete(
+        f"/api/v1/leagues/{league.slug}/members/{removed.id}", headers=_auth(admin)
+    )
+    assert gone.status_code == 204, gone.text
+
+    async with AsyncSessionLocal() as session:
+        stored = (
+            (
+                await session.execute(
+                    select(GameweekCompletion).where(GameweekCompletion.gameweek_id == gameweek.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert len(stored) == 1, "removal did not complete the round"
+    assert stored[0].final_picker_id is None

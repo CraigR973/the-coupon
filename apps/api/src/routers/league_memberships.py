@@ -34,7 +34,10 @@ from src.routers.leagues import (
 )
 from src.schemas import UtcDatetime
 from src.services.credentials import STAGE_RESET, clear_pin, pin_reset_audit
-from src.services.notification_triggers import notify_member_joined
+from src.services.notification_triggers import (
+    notify_member_joined,
+    settle_completion_after_roster_change,
+)
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -338,6 +341,8 @@ async def remove_member(
         league_id=str(league.id),
         target=str(target_player_id),
     )
+    # Batch 130. Removing the last member who had not picked completes the round.
+    await settle_completion_after_roster_change(db, league.id)
 
 
 # ---------------------------------------------------------------------------

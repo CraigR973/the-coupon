@@ -64,6 +64,7 @@ from src.services.credentials import (
 from src.services.discovery_health import discovery_health
 from src.services.football_provider import current_season
 from src.services.gameweek import PICKABLE_STATES
+from src.services.notification_triggers import settle_completion_after_roster_change
 from src.services.odds_session import odds_session
 from src.services.scoring import settle_gameweek
 from src.services.season_calendar import (
@@ -361,6 +362,22 @@ async def unlock_player(request: Request, player_id: uuid.UUID, admin: AdminUser
     log.info("account unlocked by admin", player_id=str(player_id), admin_id=str(admin.id))
 
 
+async def _leagues_of(db: AsyncSession, player_id: uuid.UUID) -> list[uuid.UUID]:
+    """Every league this member still had an undeleted membership row in.
+
+    Read before the delete would be wrong and after it is fine: the membership rows are
+    untouched by a soft account delete — it is `Profile.is_active` that takes them out of
+    `round_progress`'s count.
+    """
+    rows = await db.execute(
+        select(LeagueMembership.league_id).where(
+            LeagueMembership.player_id == player_id,
+            LeagueMembership.deleted_at.is_(None),
+        )
+    )
+    return list(rows.scalars().all())
+
+
 @router.delete("/players/{player_id}", status_code=status.HTTP_204_NO_CONTENT)
 @limiter.limit("20/hour", key_func=per_user_key)
 async def delete_player(request: Request, player_id: uuid.UUID, admin: AdminUser, db: Db) -> None:
@@ -412,6 +429,10 @@ async def delete_player(request: Request, player_id: uuid.UUID, admin: AdminUser
         admin_id=str(admin.id),
         sessions_revoked=revoked,
     )
+    # Batch 130. A deleted account stops being an active member of every league it was
+    # in, so any round where it was the last outstanding picker is now complete.
+    for league_id in await _leagues_of(db, player.id):
+        await settle_completion_after_roster_change(db, league_id)
 
 
 # ---------------------------------------------------------------------------

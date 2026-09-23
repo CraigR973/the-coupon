@@ -42,7 +42,10 @@ from src.services.gameweek import (
     rederive_claim_periods,
     uk_today,
 )
-from src.services.notification_triggers import notify_member_joined
+from src.services.notification_triggers import (
+    notify_member_joined,
+    settle_completion_after_roster_change,
+)
 from src.services.odds_provider import UK_TZ, OddsProvider, OddsProviderError
 from src.services.season_calendar import labels_for_gameweeks
 
@@ -1761,3 +1764,7 @@ async def leave_league(
     db.add(_audit(player, ActionType.member_left, "league_memberships", league.id))
     await db.commit()
     log.info("left league", league_id=str(league.id), player_id=str(player.id))
+    # Batch 130. A round completes when every *active* member has picked, and that count
+    # moves when somebody stops being one. Evaluated after the commit so it reads the
+    # roster the league actually has.
+    await settle_completion_after_roster_change(db, league.id)

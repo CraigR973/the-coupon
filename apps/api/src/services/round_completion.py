@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.gameweek import Gameweek
 from src.models.gameweek_completion import GameweekCompletion
 from src.models.pick import PickMarket, PickOutcome
+from src.services.gameweek import PICKABLE_STATES, round_progress
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -32,15 +33,18 @@ async def record_completion(
     session: AsyncSession,
     gameweek: Gameweek,
     *,
-    picker_id: uuid.UUID,
+    # Nullable since Batch 130: a round can complete because the roster changed, and
+    # there is then no final picker to name. `_completion_body` renders that case from
+    # the null rather than inventing a member who did not pick.
+    picker_id: uuid.UUID | None,
     picker_name: str,
     selection: str,
     odds: Decimal,
     member_count: int,
-    market: PickMarket,
-    outcome: PickOutcome,
-    fixture_home: str,
-    fixture_away: str,
+    market: PickMarket | None,
+    outcome: PickOutcome | None,
+    fixture_home: str | None,
+    fixture_away: str | None,
 ) -> bool:
     """Write the round's completion event if it does not exist yet.
 
@@ -117,3 +121,62 @@ async def claim_pending_completion(
 def mark_delivered(completion: GameweekCompletion) -> None:
     """Stamp a completion event as announced. The caller's commit makes it stick."""
     completion.delivered_at = datetime.now(UTC).replace(tzinfo=None)
+
+
+async def complete_rounds_after_roster_change(
+    session: AsyncSession, league_id: uuid.UUID
+) -> list[Gameweek]:
+    """Rounds of this league that have just become complete because the roster changed.
+
+    Batch 130. A round completes when every active member has picked, and the count moves
+    for two reasons: somebody picks, or somebody stops being an active member. Only the
+    first path recorded a completion, so a round completed by the last outstanding picker
+    **leaving, being removed, or being deactivated** announced nothing at all — and then a
+    later, unrelated pick change fired the event and named *that* member as the one who
+    completed it, which is the part that is actually wrong rather than merely missing.
+
+    Returns the rounds whose completion row this call wrote, so the caller can announce
+    them. Writes nothing for a round that was already complete: the same
+    ``ON CONFLICT DO NOTHING`` that makes the pick path's race safe makes this idempotent,
+    so a membership change on an already-full coupon is a no-op.
+
+    Attribution is to the transition and not to a member: ``final_picker_id`` is null and
+    the name is empty, which is what ``_completion_body`` reads to render the roster-change
+    line. Naming the departing member would be worse than naming nobody — they did not
+    complete the coupon, they stopped being counted.
+    """
+    rounds = (
+        (
+            await session.execute(
+                select(Gameweek).where(
+                    Gameweek.league_id == league_id,
+                    Gameweek.status.in_(PICKABLE_STATES),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    completed: list[Gameweek] = []
+    for gameweek in rounds:
+        progress = await round_progress(session, gameweek)
+        # A round with no active members is not a complete coupon, it is an empty one.
+        if not progress.all_picked or progress.member_count == 0:
+            continue
+        written = await record_completion(
+            session,
+            gameweek,
+            picker_id=None,
+            picker_name="",
+            selection="",
+            odds=Decimal("0"),
+            member_count=progress.member_count,
+            market=None,
+            outcome=None,
+            fixture_home=None,
+            fixture_away=None,
+        )
+        if written:
+            completed.append(gameweek)
+    return completed

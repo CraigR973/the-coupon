@@ -57,7 +57,11 @@ from src.services.notification_triggers import (
     coupon_section_url,
     notify_pick_made,
 )
-from src.services.round_completion import claim_pending_completion, record_completion
+from src.services.round_completion import (
+    claim_pending_completion,
+    complete_rounds_after_roster_change,
+    record_completion,
+)
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -791,3 +795,200 @@ async def test_a_pick_changed_after_the_coupon_filled_is_an_ordinary_alert(
     assert len(completions) == 1
     assert completions[0].final_picker_id == bob.id
     assert completions[0].delivered_at is not None
+
+
+# ── Batch 130: a round completed by somebody leaving ──────────────────────────
+#
+# A round completes when every *active* member has picked, and that count moves for two
+# reasons: somebody picks, or somebody stops being an active member. Only the first path
+# recorded a completion — so a round filled by the last outstanding picker **leaving,
+# being removed, or being deactivated** announced nothing at all, and a later unrelated
+# pick change then fired the event and named *that* member as the one who completed it.
+# The missing announcement is the visible half; the wrong attribution is the wrong half.
+
+
+@pytest.mark.asyncio
+async def test_the_last_outstanding_picker_leaving_completes_the_round_once(
+    session: AsyncSession,
+) -> None:
+    """The finding, in the shape it happens: two members, one picks, the other leaves."""
+    picker = await _profile(session, "picker")
+    leaver = await _profile(session, "leaver")
+    league = await _league(session, picker)
+    await _join(session, league, picker)
+    membership = await _join(session, league, leaver)
+    gameweek = await _round(session, league)
+    await _pick(session, gameweek, picker, "Celtic")
+
+    progress = await round_progress(session, gameweek)
+    assert progress.all_picked is False, "the round is not complete while the leaver owes"
+
+    membership.deleted_at = _now()
+    await session.flush()
+
+    completed = await complete_rounds_after_roster_change(session, league.id)
+
+    assert [g.id for g in completed] == [gameweek.id]
+    stored = (
+        await session.execute(
+            select(GameweekCompletion).where(GameweekCompletion.gameweek_id == gameweek.id)
+        )
+    ).scalar_one()
+    # Attributed to the transition, not to a member: the leaver did not complete the
+    # coupon, they stopped being counted.
+    assert stored.final_picker_id is None
+    assert stored.member_count == 1
+
+
+@pytest.mark.asyncio
+async def test_a_later_pick_change_does_not_re_complete_it(session: AsyncSession) -> None:
+    """The half that was actually wrong rather than merely missing.
+
+    Before this, the event fired on the *next* submission and named that member as the
+    one who completed the round. One completion row per round is what stops it.
+    """
+    picker = await _profile(session, "picker")
+    leaver = await _profile(session, "leaver")
+    league = await _league(session, picker)
+    await _join(session, league, picker)
+    membership = await _join(session, league, leaver)
+    gameweek = await _round(session, league)
+    await _pick(session, gameweek, picker, "Celtic")
+    membership.deleted_at = _now()
+    await session.flush()
+
+    assert await complete_rounds_after_roster_change(session, league.id)
+
+    # Now the remaining member changes their mind, which is the submission that used to
+    # fire the event and take the credit.
+    again = await record_completion(
+        session,
+        gameweek,
+        picker_id=picker.id,
+        picker_name=picker.display_name,
+        selection="Hibs",
+        odds=Decimal("2.00"),
+        member_count=1,
+        market=PickMarket.MATCH_ODDS,
+        outcome=PickOutcome.HOME,
+        fixture_home="Hibs",
+        fixture_away="Celtic",
+    )
+
+    assert again is False, "a second completion event was recorded for one round"
+    stored = (
+        (
+            await session.execute(
+                select(GameweekCompletion).where(GameweekCompletion.gameweek_id == gameweek.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(stored) == 1
+    assert stored[0].final_picker_id is None, "the later pick took the credit"
+
+
+@pytest.mark.asyncio
+async def test_a_roster_change_on_an_incomplete_round_records_nothing(
+    session: AsyncSession,
+) -> None:
+    """Somebody leaving a round that still has outstanding pickers changes nothing."""
+    picker = await _profile(session, "picker")
+    leaver = await _profile(session, "leaver")
+    waiting = await _profile(session, "waiting")
+    league = await _league(session, picker)
+    await _join(session, league, picker)
+    await _join(session, league, waiting)
+    membership = await _join(session, league, leaver)
+    gameweek = await _round(session, league)
+    await _pick(session, gameweek, picker, "Celtic")
+
+    membership.deleted_at = _now()
+    await session.flush()
+
+    assert await complete_rounds_after_roster_change(session, league.id) == []
+
+
+@pytest.mark.asyncio
+async def test_the_last_member_leaving_does_not_complete_an_empty_round(
+    session: AsyncSession,
+) -> None:
+    """``0 >= 0`` is true and is the wrong answer — the same trap Batch 107 names."""
+    only = await _profile(session, "only")
+    league = await _league(session, only)
+    membership = await _join(session, league, only)
+    gameweek = await _round(session, league)
+    await _pick(session, gameweek, only, "Celtic")
+
+    membership.deleted_at = _now()
+    await session.flush()
+
+    assert await complete_rounds_after_roster_change(session, league.id) == []
+    assert gameweek.id is not None
+
+
+@pytest.mark.asyncio
+async def test_a_deactivated_member_completes_it_the_same_way(session: AsyncSession) -> None:
+    """Three doors, one rule: leaving, being removed, and being deactivated."""
+    picker = await _profile(session, "picker")
+    going = await _profile(session, "going")
+    league = await _league(session, picker)
+    await _join(session, league, picker)
+    await _join(session, league, going)
+    gameweek = await _round(session, league)
+    await _pick(session, gameweek, picker, "Celtic")
+
+    going.is_active = False
+    await session.flush()
+
+    completed = await complete_rounds_after_roster_change(session, league.id)
+    assert [g.id for g in completed] == [gameweek.id]
+
+
+@pytest.mark.asyncio
+async def test_the_announcement_names_nobody_when_the_roster_completed_it(
+    session: AsyncSession,
+) -> None:
+    """The copy the pick path produces is untouched; this is the case that had none."""
+    from src.services.notification_triggers import _completion_body
+
+    completion = GameweekCompletion(
+        gameweek_id=uuid.uuid4(),
+        final_picker_id=None,
+        final_picker_name="",
+        selection="",
+        odds=Decimal("0"),
+        member_count=11,
+    )
+
+    body = _completion_body(completion)
+
+    assert body == "11/11 picked — all picks are in"
+    assert "picked  @" not in body, "it rendered the empty picker into the ordinary line"
+
+
+@pytest.mark.asyncio
+async def test_a_completion_whose_picker_was_since_deleted_still_names_them() -> None:
+    """A null `final_picker_id` is **not** the roster-change marker.
+
+    The column is nullable for an older reason: the foreign key is `ON DELETE SET NULL`,
+    so deleting a profile clears the id and leaves the row — and that row still has a
+    name, and still describes a member who really did complete the coupon. Keying the
+    roster-change line on the null id would have rewritten those alerts too, and would
+    have rewritten every pre-`024` legacy row as well.
+    """
+    from src.services.notification_triggers import _completion_body
+
+    departed = GameweekCompletion(
+        gameweek_id=uuid.uuid4(),
+        final_picker_id=None,
+        final_picker_name="Dave",
+        selection="The Draw",
+        odds=Decimal("1.80"),
+        member_count=12,
+    )
+
+    assert _completion_body(departed) == (
+        "Dave picked The Draw @ 1.80 · 12/12 picked — all picks are in"
+    )

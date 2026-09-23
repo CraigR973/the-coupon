@@ -27,6 +27,15 @@ const POLICY = SHIPPED.replace('connect-src ', `connect-src ${PREVIEW_API} `);
 
 const ROUTES = ['/login', '/register', '/forgot-pin', '/set-pin', '/join/INVITE', '/welcome'];
 
+// Every test here installs a `page.route` handler that re-fetches the document to add
+// the policy header. A font or asset request can still be in that handler when the test
+// body finishes, and closing the page underneath it fails the test with
+// "Target page, context or browser has been closed" — which is a flaky gate rather than
+// a finding. Draining the routes first is Playwright's own answer.
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+});
+
 interface Violation {
   directive: string;
   blocked: string;
@@ -140,11 +149,16 @@ test('the preloaded font is not refused', async ({ page }) => {
   await page.waitForTimeout(500);
 
   expect(violations.filter((entry) => entry.directive.startsWith('font-src'))).toEqual([]);
-  const fontRequests: string[] = [];
+  // The font is actually fetched and actually arrives — the listener goes on before the
+  // navigation that issues the request, or it would be watching an empty window.
+  const fonts: string[] = [];
   page.on('requestfinished', (request) => {
-    if (request.url().includes('.woff2')) fontRequests.push(request.url());
+    if (request.url().includes('.woff2')) fonts.push(request.url());
   });
   await page.reload();
   await expect(page.locator('main')).toBeVisible();
+  await page.waitForTimeout(500);
+
   expect(violations).toEqual([]);
+  expect(fonts.length, 'no woff2 was fetched, so nothing was proved').toBeGreaterThan(0);
 });
