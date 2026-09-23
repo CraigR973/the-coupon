@@ -3980,3 +3980,30 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,179 → 1,187, FRONTEND 1,122 → 1,126.
 
 **Next:** Batch 124, then 125, 126, then the Group O `/ship-prod`.
+
+## Batch 124 — A removed member walks back in with the old join code
+**Commits:** `da8a13d` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,193 backend and
+1,127 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- Rotation, not an exclusion list, was chosen from the two options the row offers. It needs
+  no migration and it is the only mechanism that actually closes the door, because the code
+  is readable by every member and the removed member has already seen it.
+- `_create_join_request` is extracted into `routers/leagues.py` and imported by
+  `league_memberships.py`, so `/join` and `/join-by-code` cannot answer a `public_request`
+  league differently again. A test drives one door then the other and expects
+  `JOIN_REQUEST_PENDING`.
+- `JoinByCodeResponse.status` defaults to `"joined"`, so the field is additive.
+- **Deviation from the row, deliberate:** the row says "API-carrying" and this batch also
+  changes two web files. Shipping an API that can answer `pending` while the client
+  navigates into the league on any 200 would strand a member inside a league they are not
+  in. The web change is inert against an API that never sends `pending`.
+- `test_league_join_gate.py` is new and Postgres-backed; it tags every profile and league
+  because the HTTP endpoints commit through their own sessions.
+- Gate failure, first attempt (in the focused run, before the gate): the new audit assertion
+  used `AuditLog.league_id` / `AuditLog.action`, which do not exist — the columns are
+  `target_table` / `target_id` / `action_type`. Fixed in the test; no product code moved.
+  The full gate was then green on its first run.
+- Counts: BACKEND 1,187 → 1,193, FRONTEND 1,126 → 1,127.
+
+**Next:** Batch 125, then 126, then the Group O `/ship-prod`.

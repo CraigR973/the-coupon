@@ -4152,7 +4152,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the unlock path and the lockout limiter. No change to the lockout
   duration or attempt count. **API + web — the web half helps on its own.**
 
-- [ ] **Batch 124 — A removed member walks back in with the old join code, and approval-gated leagues are not gated**
+- [x] **Batch 124 — A removed member walks back in with the old join code, and approval-gated leagues are not gated** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/01-security.md`, SEC-16 (MED, live). Removal
   never rotates the join code, join-by-code has no removed-or-banned check, and the
   membership upsert restores the soft-deleted row — so a member who saw the code, was
