@@ -3922,3 +3922,30 @@ unchecked because Batch 119 superseded it.
 - Gate green on the first run; FRONTEND_TEST_COUNT 1,096 → 1,110.
 
 **Next:** Batch 167, the last of Phase 3.
+
+## Batch 167 — Three keyboard and reflow defects the automated sweep cannot see
+**Commits:** `597905d` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,179 backend and
+1,122 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed (25 tests)
+
+### Key facts for future sessions
+- `Sheet` takes an optional `triggerRef` and handles `onCloseAutoFocus` itself. Radix restores
+  focus to a `Dialog.Trigger`; this sheet has none, which is the whole cause — the account
+  menu is a Radix dropdown *with* a trigger, which is why it was always correct.
+- Sonner 1.7.4 has no per-toast `aria-live` and renders one `<section aria-live="polite">`
+  around the stack, but it forwards a ref to that section. `AppToaster` sets `aria-live="off"`
+  on it in an effect with no dependency array: React only writes an attribute when the
+  rendered value changes, and sonner always renders "polite", so a remount would restore it.
+- `AppToaster` reads the stack through sonner's exported `useSonner()` and mirrors titles into
+  a `role="alert"` region and a `role="status"` region. Only string titles are mirrored.
+- Warnings are assertive alongside errors: Batch 139 made a lost claim race a warning, and it
+  is still a refusal the member has to answer.
+- `e2e/prod-bundle-reflow.spec.ts` flags an element only when its overflow is hidden/clipped
+  *and* its content exceeds the box — a scroll container is a design decision, not a defect.
+  Verified non-vacuous by forcing a clipped `<h1>`: six routes went red, then green on revert.
+- The review's "three further elements clip under the text-spacing override" are unnamed and
+  were measured against a signed-in instance. The new sweep covers the six public routes and
+  finds none there. The pick screen needs a session the prod-bundle harness has not got, so
+  its label is held as a class contract in `PickCard.test.tsx` instead.
+- Gate green on the first run; FRONTEND_TEST_COUNT 1,110 → 1,122.
+
+**Next:** Phase 4 — `/group-start O` (123 → 124 → 125 → 126), then its `/ship-prod`.

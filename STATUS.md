@@ -1418,6 +1418,17 @@ and moved prices are warnings carrying "Refresh the card" and "Take <price>", a 
 pick is informational, and anything that genuinely failed stays red with no button on it.
 Web-only; live on the close-out push.
 
+**Batch 167 closed Phase 3 with three defects axe cannot see** (`597905d`). Pick-market
+labels carried an unqualified `truncate` and were cut off at 320 CSS px, where two-up
+selections leave about 68px for a label wanting 106; they now wrap below `sm`. Closing the
+bottom-nav "More" sheet with Escape left focus on `<body>` because Radix restores focus to a
+`Dialog.Trigger` and this sheet is driven by `open` instead — `Sheet` now takes an optional
+`triggerRef`. And sonner publishes every toast through one polite live region with no
+per-toast override, so `AppToaster` switches sonner's off and carries the text in two of its
+own: assertive for errors and warnings, polite for the rest. `e2e/prod-bundle-reflow.spec.ts`
+is the first check in the suite to measure 320px reflow or the WCAG 1.4.12 text-spacing
+override, over every route the prod-bundle harness can reach. Web-only; live on the push.
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",

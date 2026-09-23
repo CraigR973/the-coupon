@@ -4918,7 +4918,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: whatever the re-measurement identifies. **Web-only.**
 
-- [ ] **Batch 167 — Three keyboard and reflow defects the automated sweep cannot see**
+- [x] **Batch 167 — Three keyboard and reflow defects the automated sweep cannot see** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-15, UX-16 and UX-17
   (MED, live). Pick-market labels clip at 320 CSS px — "No — not both score" needs 106px in a
   68px box — and three more elements clip under the WCAG 1.4.12 text-spacing override.
