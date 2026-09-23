@@ -15,10 +15,23 @@ const FROZEN_ODDS_NOTE =
   'Odds were frozen when each member picked — check your book for current prices before placing anything.';
 
 /** How the fold reads, and whether it is a whole coupon or a round the deadline caught. */
+/** ``1 leg`` / ``2 legs`` — the same phrase on both surfaces. */
+export function voidLegLabel(voided: number): string {
+  return `${voided} leg${voided === 1 ? '' : 's'}`;
+}
+
 function foldLine(coupon: Coupon, memberCount?: number): string {
-  const fold = `${coupon.leg_count}-fold accumulator @ ${formatOdds(coupon.combined_odds)}`;
+  // Batch 156. The fold is the number of legs the price is a product of, so a voided leg
+  // is not one of them — and saying so is the difference between a number that is merely
+  // different and one that is explainable.
+  const voided = coupon.void_leg_count ?? 0;
+  const priced = coupon.leg_count - voided;
+  const fold = `${priced}-fold accumulator @ ${formatOdds(coupon.combined_odds)}`;
+  const voidNote = voided > 0 ? ` — ${voidLegLabel(voided)} void, not in the price` : '';
   const missing = memberCount == null ? 0 : memberCount - coupon.leg_count;
-  return missing > 0 ? `${fold} — incomplete, ${missing} of ${memberCount} never picked` : fold;
+  const missingNote =
+    missing > 0 ? ` — incomplete, ${missing} of ${memberCount} never picked` : '';
+  return `${fold}${voidNote}${missingNote}`;
 }
 
 /**

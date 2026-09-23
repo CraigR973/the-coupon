@@ -6,7 +6,7 @@ import { COUPON_SECTION_ID } from '../lib/leagues';
 
 /** What the header's `aria-controls` points at — the part that folds. */
 const COUPON_LEGS_ID = 'coupon-legs';
-import { buildCouponShareText, buildSettledResultShareText } from '../lib/share';
+import { buildCouponShareText, buildSettledResultShareText, voidLegLabel } from '../lib/share';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { EmptyState } from './EmptyState';
@@ -84,6 +84,11 @@ export function CouponSection({
   //: How many legs the header counts. `coupon.leg_count` is the round's own figure; when
   //: there is no coupon yet the entries are the members still to pick, and none is a leg.
   const legCount = coupon?.leg_count ?? 0;
+  //: Batch 156. The fold is the number of legs the price is a product of, and a voided
+  //: leg is not one of them. `?? 0` covers the deploy gap where the API has not shipped
+  //: the field yet — which is also the right answer for a round with no voids.
+  const voidLegs = coupon?.void_leg_count ?? 0;
+  const pricedLegs = legCount - voidLegs;
 
   async function copyShareText() {
     if (!coupon) return;
@@ -146,7 +151,7 @@ export function CouponSection({
               <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-text-muted">
                 {settled
                   ? `${landed} of ${coupon.leg_count} landed`
-                  : `${coupon.leg_count}-fold accumulator`}
+                  : `${pricedLegs}-fold accumulator`}
               </p>
               <p className="mt-1 text-3xl font-semibold tabular-nums text-text-primary">
                 {formatOdds(coupon.combined_odds, oddsFormat)}
@@ -158,6 +163,16 @@ export function CouponSection({
                   ? `${missing} of ${memberCount} never picked · odds frozen at pick time`
                   : 'Combined odds, frozen at pick time'}
               </p>
+              {/* Batch 156. A voided leg is no longer multiplied into the price — a real
+                  accumulator settles it at 1.0, and this product's own rule is that a
+                  void scores nothing rather than counting as a loss. Said here because a
+                  price that quietly stopped matching the legs above it is worse than one
+                  that changed and explained itself. */}
+              {voidLegs > 0 && (
+                <p className="mt-0.5 break-words font-sans text-xs text-text-muted">
+                  {voidLegLabel(voidLegs)} voided — not in the combined price
+                </p>
+              )}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {settled && coupon.all_won !== null && (

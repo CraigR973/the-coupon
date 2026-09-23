@@ -485,3 +485,93 @@ describe('CouponSection — the accordion is reachable', () => {
     );
   });
 });
+
+describe('Batch 156 — a voided leg is not in the price', () => {
+  /**
+   * `build_coupon` multiplied every leg's frozen odds into the accumulator
+   * unconditionally, so a postponed fixture carried its price into a product it had no
+   * part in. The API now leaves it out; these hold that both surfaces *say* so, because
+   * a price that quietly stopped matching the legs above it is worse than one that
+   * changed and explained itself.
+   */
+  const voided = (): Coupon =>
+    coupon({
+      leg_count: 3,
+      void_leg_count: 1,
+      combined_odds: 3.5,
+      legs: [LEG_A, LEG_B, { ...LEG_A, player_id: 'p3', player_name: 'Cara', status: 'void' }],
+    });
+
+  it('counts the fold from the legs the price is actually made of', () => {
+    renderSection(voided(), { memberCount: 3 });
+    expect(screen.getByText('2-fold accumulator')).toBeInTheDocument();
+    expect(screen.queryByText('3-fold accumulator')).not.toBeInTheDocument();
+  });
+
+  it('says on screen why the fold is smaller than the legs', () => {
+    renderSection(voided(), { memberCount: 3 });
+    expect(screen.getByText(/1 leg voided — not in the combined price/i)).toBeInTheDocument();
+  });
+
+  it('says the same thing in the pasted text', () => {
+    const text = buildCouponShareText(voided(), { roundLabel: 'Gameweek 4', memberCount: 3 });
+    expect(text).toContain('2-fold accumulator @ 3.50');
+    expect(text).toContain('1 leg void, not in the price');
+  });
+
+  it.each([
+    [1, 3, '1 leg'],
+    [2, 4, '2 legs'],
+  ])(
+    'agrees between the screen and the clipboard with %i void(s)',
+    (voidCount, legCount, phrase) => {
+      // The verification the row asks for, as a property rather than one example: the
+      // fold on screen and the fold in the pasted text are the same number, and both
+      // name the same voided legs.
+      const value = coupon({
+        leg_count: legCount,
+        void_leg_count: voidCount,
+        combined_odds: 3.5,
+        legs: [
+          LEG_A,
+          LEG_B,
+          ...Array.from({ length: voidCount }, (_, i) => ({
+            ...LEG_A,
+            player_id: `v${i}`,
+            player_name: `Void ${i}`,
+            status: 'void' as const,
+          })),
+        ],
+      });
+      const fold = legCount - voidCount;
+
+      renderSection(value, { memberCount: legCount });
+      const pasted = buildCouponShareText(value, { roundLabel: 'Gameweek 4', memberCount: legCount });
+
+      expect(screen.getByText(`${fold}-fold accumulator`)).toBeInTheDocument();
+      expect(pasted).toContain(`${fold}-fold accumulator @ 3.50`);
+      expect(screen.getByText(new RegExp(`${phrase} voided`, 'i'))).toBeInTheDocument();
+      expect(pasted).toContain(`${phrase} void, not in the price`);
+    },
+  );
+
+  it('says nothing about voids when there are none', () => {
+    renderSection(coupon(), { memberCount: 2 });
+    expect(screen.getByText('2-fold accumulator')).toBeInTheDocument();
+    expect(screen.queryByText(/voided/i)).not.toBeInTheDocument();
+    expect(
+      buildCouponShareText(coupon(), { roundLabel: 'Gameweek 4', memberCount: 2 }),
+    ).not.toContain('void');
+  });
+
+  it('reads a missing field as zero, for the deploy gap', () => {
+    // The web ships from `main` on merge while the API waits for `/ship-prod`, so for a
+    // few minutes this field is simply absent. Absent has to mean "no voids", not NaN.
+    const legacy = coupon({ leg_count: 2, void_leg_count: undefined });
+    renderSection(legacy, { memberCount: 2 });
+    expect(screen.getByText('2-fold accumulator')).toBeInTheDocument();
+    expect(
+      buildCouponShareText(legacy, { roundLabel: 'Gameweek 4', memberCount: 2 }),
+    ).toContain('2-fold accumulator');
+  });
+});

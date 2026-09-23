@@ -354,6 +354,14 @@ export interface Coupon {
   legs: CouponLeg[];
   /** null until the gameweek settles, then true only if every leg won. */
   all_won: boolean | null;
+  /**
+   * How many legs were voided and so left out of `combined_odds` (Batch 156).
+   *
+   * Optional because the API ships on `/ship-prod` while this deploys from `main`:
+   * during that gap the field is absent and every surface must read it as zero, which
+   * is also the honest answer for a round with no voids.
+   */
+  void_leg_count?: number;
 }
 
 // ── Results — GET /leagues/{slug}/results ───────────────────────────────────

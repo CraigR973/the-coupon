@@ -27,7 +27,12 @@ _TWO_DP = Decimal("0.01")
 
 
 def combined_odds(odds: Sequence[Decimal]) -> Decimal:
-    """Accumulator price: the product of the legs, to 2 dp. Empty → ``1.00``."""
+    """Accumulator price: the product of the legs, to 2 dp. Empty → ``1.00``.
+
+    The caller decides which legs are in it. Since Batch 156 that excludes voided ones:
+    ``build_coupon`` filters before it gets here, so this stays the arithmetic and the
+    rule about void lives with the data that knows about it.
+    """
     product = Decimal(1)
     for value in odds:
         product *= value
@@ -78,6 +83,14 @@ class Coupon(BaseModel):
     combined_odds: float
     legs: list[CouponLeg]
     all_won: bool | None  # None until the gameweek is settled
+    #: How many of ``leg_count`` were voided and so left out of ``combined_odds``
+    #: (Batch 156). Carried rather than left for the client to recount, so the screen and
+    #: the clipboard cannot disagree about which number the price is a product of.
+    #:
+    #: **Optional with a default**, like every field added to this response since Batch
+    #: 67: Vercel deploys the web app from ``main`` on merge while the API waits for
+    #: ``/ship-prod``, so a required field breaks the coupon for everyone in the gap.
+    void_leg_count: int = 0
 
 
 async def build_coupon(db: AsyncSession, league_id: uuid.UUID, gameweek: Gameweek) -> Coupon:
@@ -121,7 +134,18 @@ async def build_coupon(db: AsyncSession, league_id: uuid.UUID, gameweek: Gamewee
     legs: list[CouponLeg] = []
     odds: list[Decimal] = []
     for pick, fixture, player_name in rows:
-        odds.append(pick.odds_at_pick)
+        # Batch 156, owner's decision 2026-09-22. A voided leg's price used to multiply
+        # into the accumulator unconditionally — production showed
+        # `53.01 = 3.75 x 1.90 x 3.10(void) x 2.40`. A real accumulator settles a voided
+        # leg at 1.0, and this product's own rule is that a void "scores nothing rather
+        # than counting as a loss": carrying its price into the product is the
+        # coupon-level version of counting it.
+        #
+        # The leg stays on the coupon with its frozen price, because it is still what
+        # that member claimed. Only the product changes, and `void_leg_count` is what
+        # lets both surfaces say so.
+        if pick.status != PickStatus.void:
+            odds.append(pick.odds_at_pick)
         score = scores.get(fixture.id)
         legs.append(
             CouponLeg(
@@ -154,4 +178,5 @@ async def build_coupon(db: AsyncSession, league_id: uuid.UUID, gameweek: Gamewee
         combined_odds=float(combined_odds(odds)),
         legs=legs,
         all_won=all_won,
+        void_leg_count=len(legs) - len(odds),
     )

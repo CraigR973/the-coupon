@@ -3176,3 +3176,118 @@ async def test_being_removed_completes_the_round_over_http(
 
     assert len(stored) == 1, "removal did not complete the round"
     assert stored[0].final_picker_id is None
+
+
+# ── Batch 156: a voided leg is not in the price ──────────────────────────────
+#
+# `build_coupon` multiplied every pick's frozen odds into the accumulator
+# unconditionally — production showed `53.01 = 3.75 x 1.90 x 3.10(void) x 2.40`. A real
+# accumulator settles a voided leg at 1.0, and this product's own rule is that a void
+# "scores nothing rather than counting as a loss": carrying its price into the product
+# is the coupon-level version of counting it. Owner's decision, 2026-09-22.
+
+
+async def _coupon_with_statuses(
+    client: AsyncClient, fake: FakeBetfair, statuses: list[PickStatus]
+) -> object:
+    """A round of len(statuses) picks, each forced to the status at its index."""
+    from src.services import coupon as coupon_svc
+
+    names = [f"p{i}" for i in range(len(statuses))]
+    async with AsyncSessionLocal() as session:
+        players, league = await _seed_league(session, names)
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+
+    events = [SAMPLE_EPL_EVENT_ID, SAMPLE_SL2_EVENT_ID]
+    outcomes = ["HOME", "AWAY", "DRAW"]
+    for index, player in enumerate(players):
+        placed = await _submit(
+            client,
+            league.slug,
+            player,
+            fixtures[events[index % len(events)]],
+            "MATCH_ODDS",
+            outcomes[index // len(events)],
+        )
+        assert placed.status_code == 201, placed.text
+
+    async with AsyncSessionLocal() as session:
+        picks = (
+            (
+                await session.execute(
+                    select(Pick).where(Pick.gameweek_id == gameweek.id).order_by(Pick.created_at)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(picks) == len(statuses)
+        for pick, status_ in zip(picks, statuses, strict=True):
+            pick.status = status_
+        await session.commit()
+
+    async with AsyncSessionLocal() as session:
+        round_ = (
+            await session.execute(select(Gameweek).where(Gameweek.id == gameweek.id))
+        ).scalar_one()
+        return await coupon_svc.build_coupon(session, league.id, round_)
+
+
+async def test_a_void_leg_is_left_out_of_the_combined_price(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The finding: the product is over the legs that actually ran."""
+    from decimal import Decimal
+
+    from src.services.coupon import combined_odds
+
+    client, fake = client_and_fake
+    coupon = await _coupon_with_statuses(
+        client, fake, [PickStatus.won, PickStatus.void, PickStatus.lost]
+    )
+
+    assert coupon.leg_count == 3, "the voided leg is still on the coupon"
+    assert coupon.void_leg_count == 1
+    priced = [Decimal(str(leg.odds)) for leg in coupon.legs if leg.status != "void"]
+    assert len(priced) == 2
+    assert coupon.combined_odds == float(combined_odds(priced))
+
+    everything = [Decimal(str(leg.odds)) for leg in coupon.legs]
+    assert coupon.combined_odds != float(
+        combined_odds(everything)
+    ), "the void's price is still in the product"
+
+
+async def test_a_round_with_no_voids_is_unchanged(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The half that must not move."""
+    from decimal import Decimal
+
+    from src.services.coupon import combined_odds
+
+    client, fake = client_and_fake
+    coupon = await _coupon_with_statuses(
+        client, fake, [PickStatus.won, PickStatus.lost, PickStatus.won]
+    )
+
+    assert coupon.void_leg_count == 0
+    everything = [Decimal(str(leg.odds)) for leg in coupon.legs]
+    assert coupon.combined_odds == float(combined_odds(everything))
+
+
+async def test_a_round_of_nothing_but_voids_prices_at_one(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The degenerate end, stated rather than discovered.
+
+    Every leg void is an accumulator with no legs, which settles at 1.00 — the same
+    answer `combined_odds([])` has always given, reached a different way.
+    """
+    client, fake = client_and_fake
+    coupon = await _coupon_with_statuses(client, fake, [PickStatus.void, PickStatus.void])
+
+    assert coupon.leg_count == 2
+    assert coupon.void_leg_count == 2
+    assert coupon.combined_odds == 1.00
