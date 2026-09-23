@@ -4783,7 +4783,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: focus styling. No change to hover or active states. **Web-only.**
 
-- [ ] **Batch 159 — The hourly slate refresh walks every competition, and a third window breaks the plan**
+- [x] **Batch 159 — The hourly slate refresh walks every competition, and a third window breaks the plan** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-06 and
   PERF-07 (both HIGH, live). `run_refresh_slate` calls discovery with **no competition
   list**, so it walks the full pool — 41 competitions where the daily job, narrowed by

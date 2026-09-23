@@ -1493,6 +1493,15 @@ its league up without the `deleted_at` filter every other lookup applies, so an 
 deleted league resolved and built a membership of a league that no longer exists; it now
 refuses cleanly. **API + web: `/ship-prod` is owed.**
 
+**Batch 159 narrowed the match-day refresh** (`d1d4b60`). `run_refresh_slate` called
+discovery with no competition list, so it walked the full pool — 41 competitions where the
+daily job walks about 20 — and a walk costs `windows x dates x competitions` at one `/events`
+request each. Two windows was 82 requests in one hour, twice a day, against a 100/hour plan; a
+third window took the hour to 145 and the day to 527. It now narrows exactly as the daily run
+does, with the same empty-pool release so a fresh deployment can still bootstrap. The saving is
+measured against a counting provider driving the real job, not asserted from the argument.
+**API-only: `/ship-prod` is owed.**
+
 **Batch 119 — discovery could not afford to run, and nothing said so for a week.** Closed out
 2026-09-12 (`f69b5fe`). Between 2026-09-04 20:21 and 2026-09-11 **no scheduled job created a
 single round**: `fetch_slate` costs one request per competition, `config.py` documented "~30",

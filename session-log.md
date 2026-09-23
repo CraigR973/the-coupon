@@ -4101,3 +4101,28 @@ unchecked because Batch 119 superseded it.
 - Counts: BACKEND 1,208 → 1,210, FRONTEND 1,140 → 1,147.
 
 **Next:** `/ship-prod` for Batch 143, then Phase 5 (159, 160, 161, 133, 162, 129, 147).
+
+## Batch 159 — The hourly slate refresh walks every competition
+**Commits:** `d1d4b60` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,215 backend and
+1,147 frontend tests passed, 0 skipped; production-bundle Playwright smoke passed
+
+### Key facts for future sessions
+- The fix is one argument — `competition_ids=pooled or None` — and the `or None` is the
+  ratchet release the daily run already had: an empty pool must walk everything or a fresh
+  deployment can never learn a competition.
+- Cost model, stated once: `windows x dates x competitions`, one `/events` request per
+  competition, and `odds_api.fetch_slate` filters its own league list by `competition_ids`,
+  so a narrowed id the provider does not carry costs nothing.
+- **The competition pool is deployment-wide**, so any test that counts `len(pooled)` is
+  measuring whatever the rest of the suite has already committed. My first version of these
+  tests did exactly that: green alone, red in the full gate. They now charge each walk on
+  its **intersection with the fake catalogue**, which is both what the real provider does
+  and stable under a dirty pool.
+- Two existing `run_refresh_slate` tests needed `pooled_competition_ids` patched, the same
+  way the daily-run tests already did. Their assertions are unchanged.
+- Verified non-vacuous by deleting the argument from `run_refresh_slate` — five tests red.
+  Note the string `competition_ids=pooled or None` appears in **both** scheduler jobs, so a
+  naive `replace(..., 1)` edits the daily job instead and proves nothing.
+- Counts: BACKEND 1,210 → 1,215.
+
+**Next:** Batch 160.
