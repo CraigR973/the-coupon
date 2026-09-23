@@ -64,12 +64,31 @@ deployment. It must not be used to finish provisioning L4.
    output.
 6. Confirm Vercel production has encrypted production-scoped `VITE_API_URL`
    and `VITE_VAPID_PUBLIC_KEY`. Do not print or download their values.
-7. Confirm the current migration revision. Do not look for a backup or restore
-   point: under the owner's 2026-07-30 deferral, production has none. Instead,
-   if this shipment introduces an Alembic revision, require a written forward
-   recovery plan for it before deploying, because `nixpacks.toml` applies
-   migrations automatically on boot and the change cannot be undone. Stop if
-   the shipment migrates and no such plan exists.
+7. Confirm the current migration revision, and require a written forward
+   recovery plan for every revision this shipment would apply. Do not look for a
+   backup or restore point: under the owner's 2026-07-30 deferral, production
+   has none, and `nixpacks.toml` applies migrations automatically on boot before
+   uvicorn binds — so the moment a revision lands, **the previous deployment
+   stops being a rollback target**, because that image cannot resolve a revision
+   it does not carry.
+
+   Batch 128 made this a check rather than a habit. Run it and obey it:
+
+   ```bash
+   /Users/craigrobinson/the-coupon/scripts/check-migration-recovery.sh
+   ```
+
+   It reads production's own `/api/v1/health` for the deployed revision, so it
+   cannot be satisfied by a stale note about what was shipped last time. Exit 0
+   means either nothing is being applied or every applied revision has a plan at
+   `docs/runbooks/migration-NNN-recovery.md`. **Exit 1 refuses the shipment and
+   exit 2 means the deployed revision could not be established — an unknown
+   starting point is not an empty diff, and neither result may be uploaded past.**
+   Pass `--deployed <revision>` only when production's revision has been
+   established some other way, never to get past a failing check.
+
+   The plan is written by the batch that adds the revision, not at the shipment.
+   `docs/runbooks/migrations.md` says what it has to answer.
 8. Capture the current healthy Railway and Vercel deployment IDs from the exact
    targets above. These are this shipment's rollback baselines.
 9. Use `$ARGUMENTS` as the deployment message when non-empty; otherwise use
