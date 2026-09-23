@@ -489,3 +489,156 @@ async def test_the_pool_is_shared_so_one_window_teaches_the_whole_deployment(
 
     assert set(CARRIES) <= after
     assert not set(CARRIES) & (before - after)
+
+
+# ── Batch 159: the match-day refresh pays the same narrowed price ──────────────
+#
+# `run_refresh_slate` called discovery with **no competition list**, so it walked the
+# full pool — 41 competitions where the daily job, narrowed by Batch 119, walks about
+# 20. The cost of a walk is `windows x dates x competitions` and the provider charges
+# one `/events` request per competition, so at two windows this job alone was 82
+# requests inside one hour, twice a day, against a 100/hour plan. A third window took
+# that hour to 145 and the day to 527, breaking both halves of the plan — and
+# production runs one window today, so it was one league-settings change away.
+
+
+#: Everything this fake provider's catalogue holds — the thing a walk is charged for.
+CATALOGUE = frozenset((*CARRIES, *BARREN))
+
+
+def _requests(provider: _CatalogueProvider) -> int:
+    """What a run actually costs the plan.
+
+    One `/events` request per competition walked, per `(window, date)` sweep — which is
+    what `odds_api.fetch_slate` does and where the whole cost of the call sits.
+
+    Charged on the **intersection** with the catalogue, because that is what the real
+    provider does: `fetch_slate` filters its own league list by `competition_ids`, so an
+    id the provider does not carry costs nothing. It also makes this stable in the full
+    suite, where the pool is deployment-wide and other modules have already widened it.
+    """
+    return sum(
+        len(CATALOGUE) if narrowed is None else len(CATALOGUE & set(narrowed))
+        for _, narrowed in provider.slate_calls
+    )
+
+
+async def _refresh(session: AsyncSession, provider: OddsProvider, leagues: list[League]) -> None:
+    """Run the real job against this session and provider."""
+    from unittest.mock import AsyncMock, patch
+
+    class _Ctx:
+        async def __aenter__(self) -> AsyncSession:
+            return session
+
+        async def __aexit__(self, *a: object) -> None:
+            return None
+
+    from src import scheduler
+
+    with (
+        patch.object(scheduler.odds_session, "acquire", new=AsyncMock(return_value=provider)),
+        patch.object(scheduler.football_session, "acquire", new=AsyncMock(return_value=None)),
+        patch.object(scheduler, "AsyncSessionLocal", return_value=_Ctx()),
+        patch.object(scheduler, "active_leagues", new=AsyncMock(return_value=leagues)),
+        patch.object(scheduler, "_uk_today", return_value=SATURDAYS[0]),
+    ):
+        assert await scheduler.run_refresh_slate() is True
+
+
+async def test_the_refresh_job_now_walks_only_the_pooled_competitions(
+    committing_session: AsyncSession,
+) -> None:
+    """The finding, measured on requests issued rather than on the argument passed."""
+    league = await _league(committing_session)
+
+    # Teach the pool first, exactly as a previous day's discovery would have.
+    teaching = _CatalogueProvider()
+    await discover_fixtures(
+        committing_session, teaching, [league], SATURDAYS[0], 1, commit_each=True
+    )
+    pooled = await pooled_competition_ids(committing_session)
+    assert set(CARRIES) <= pooled
+
+    provider = _CatalogueProvider()
+    await _refresh(committing_session, provider, [league])
+
+    assert provider.slate_calls, "the refresh job issued no walk at all"
+    for _, narrowed in provider.slate_calls:
+        assert narrowed is not None, "the refresh job walked the whole catalogue again"
+        assert set(narrowed) == pooled, "it narrowed to something other than the pool"
+
+    # One window, one date, and it pays only for the competitions that carry fixtures —
+    # never for the barren ones, which is the whole of the saving.
+    assert _requests(provider) == len(CARRIES)
+    assert _requests(provider) < len(CATALOGUE)
+
+
+async def test_the_refresh_job_costs_what_it_used_to_at_the_catalogue_price(
+    committing_session: AsyncSession,
+) -> None:
+    """The 'before' half of the before-and-after, so the saving is a measurement.
+
+    Discovery with no narrowing is precisely what the job used to do, so this is the old
+    cost rather than a hypothetical one.
+    """
+    league = await _league(committing_session)
+
+    old = _CatalogueProvider()
+    await discover_fixtures(
+        committing_session, old, [league], SATURDAYS[0], 1, competition_ids=None, commit_each=True
+    )
+    before = _requests(old)
+
+    new = _CatalogueProvider()
+    await _refresh(committing_session, new, [league])
+    after = _requests(new)
+
+    assert before == len(CATALOGUE), "the unnarrowed walk pays for every competition"
+    assert after == len(CARRIES), "the narrowed walk pays only for the ones that carry"
+    assert after < before
+
+
+async def test_three_windows_fit_inside_the_plan_once_the_refresh_is_narrowed(
+    committing_session: AsyncSession,
+) -> None:
+    """The shape that broke the plan, and now does not.
+
+    Three windows is the deployment this is protecting against: it is a league-settings
+    change, not a deploy, so nothing in the product refuses it. The refresh runs twice a
+    day, and the hour it runs in is the one the daily run and the members share.
+    """
+    saturday = await _league(committing_session)
+    friday = await _league(committing_session, window_owner=True)
+    leagues = [saturday, friday]
+
+    teaching = _CatalogueProvider()
+    await discover_fixtures(
+        committing_session, teaching, leagues, SATURDAYS[0], 1, commit_each=True
+    )
+
+    provider = _CatalogueProvider()
+    await _refresh(committing_session, provider, leagues)
+    windows = len({window_for(league) for league in leagues})
+    assert windows == 2
+    narrowed = all(call[1] is not None for call in provider.slate_calls)
+    per_window = _requests(provider) // windows
+    assert per_window == len(CARRIES)
+
+    # Scaled to the real catalogue the review measured: 41 in the pool, ~20 narrowed.
+    LIVE_CATALOGUE, LIVE_POOL = 41, 20
+    scaled = LIVE_POOL if narrowed else LIVE_CATALOGUE
+
+    HOURLY_PLAN, DAILY_PLAN, RUNS_PER_DAY = 100, 500, 2
+    three_window_hour = 3 * scaled
+    three_window_day = three_window_hour * RUNS_PER_DAY
+
+    assert scaled == LIVE_POOL, "the refresh is not narrowed, so the arithmetic below is moot"
+    assert (
+        three_window_hour <= HOURLY_PLAN
+    ), f"three windows costs {three_window_hour} in one hour against a {HOURLY_PLAN} plan"
+    assert (
+        three_window_day <= DAILY_PLAN
+    ), f"three windows costs {three_window_day} a day against a {DAILY_PLAN} plan"
+    # And the unnarrowed shape genuinely did not fit, which is why this batch exists.
+    assert 3 * LIVE_CATALOGUE > HOURLY_PLAN

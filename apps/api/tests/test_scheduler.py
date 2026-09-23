@@ -367,6 +367,9 @@ async def test_run_refresh_slate_covers_only_the_imminent_round() -> None:
         patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
         patch("src.scheduler.active_leagues", new=AsyncMock(return_value=[MagicMock()])),
+        # Batch 159 narrowed this job the way the daily one is narrowed, so it now reads
+        # the pool like the daily job does.
+        patch("src.scheduler.pooled_competition_ids", new=AsyncMock(return_value={"a", "b"})),
         patch(
             "src.scheduler.discover_fixtures", new=AsyncMock(return_value=[gameweek])
         ) as discover,
@@ -377,6 +380,48 @@ async def test_run_refresh_slate_covers_only_the_imminent_round() -> None:
 
 
 @pytest.mark.asyncio
+async def test_run_refresh_slate_narrows_to_the_pool_like_the_daily_run() -> None:
+    """Batch 159. It walked the full catalogue while the daily run walked about a third.
+
+    The cost of a walk is ``windows x dates x competitions`` and one `/events` request per
+    competition, so at two windows this job alone was 82 requests in the hour, twice a day,
+    against a 100/hour plan.
+    """
+    session = AsyncMock()
+    pooled = {"scotland-premiership", "england-championship"}
+    with (
+        patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.active_leagues", new=AsyncMock(return_value=[MagicMock()])),
+        patch("src.scheduler.pooled_competition_ids", new=AsyncMock(return_value=pooled)),
+        patch("src.scheduler.discover_fixtures", new=AsyncMock(return_value=[])) as discover,
+    ):
+        assert await run_refresh_slate() is True
+
+    assert discover.await_args.kwargs["competition_ids"] == pooled
+
+
+@pytest.mark.asyncio
+async def test_run_refresh_slate_narrows_by_nothing_on_an_empty_pool() -> None:
+    """The same release on the ratchet the daily run has.
+
+    An empty pool is a deployment with nothing to narrow by. Narrowing to nothing would
+    make the job walk no competitions at all, and it could never bootstrap.
+    """
+    session = AsyncMock()
+    with (
+        patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.active_leagues", new=AsyncMock(return_value=[MagicMock()])),
+        patch("src.scheduler.pooled_competition_ids", new=AsyncMock(return_value=set())),
+        patch("src.scheduler.discover_fixtures", new=AsyncMock(return_value=[])) as discover,
+    ):
+        assert await run_refresh_slate() is True
+
+    assert discover.await_args.kwargs["competition_ids"] is None
+
+
+@pytest.mark.asyncio
 async def test_run_refresh_slate_empty_slate_still_commits() -> None:
     """No target fixtures → no round created, but the (no-op) tx still closes cleanly."""
     session = AsyncMock()
@@ -384,6 +429,7 @@ async def test_run_refresh_slate_empty_slate_still_commits() -> None:
         patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
         patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
         patch("src.scheduler.active_leagues", new=AsyncMock(return_value=[])),
+        patch("src.scheduler.pooled_competition_ids", new=AsyncMock(return_value=set())),
         patch("src.scheduler.discover_fixtures", new=AsyncMock(return_value=[])),
     ):
         await run_refresh_slate()

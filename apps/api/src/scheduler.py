@@ -490,22 +490,50 @@ async def run_refresh_slate() -> bool:
 
     Odds themselves are snapshotted onto each pick at pick time and served through the
     provider's own TTL cache, so there is nothing to warm here.
+
+    **It is narrowed the same way the daily run is** (Batch 159). It called discovery with
+    no competition list, so it walked the full pool — 41 competitions where the daily job
+    walks about 20 — and the cost of a walk is `windows x dates x competitions`, one
+    `/events` request per competition. Two windows was 82 requests in the hour, twice a
+    day, against a 100/hour plan; a third window took that hour to 145 and the day to 527,
+    breaking both the hourly and the daily plan. Production runs one window today, so it
+    was one league-settings change away and nothing refused it.
+
+    The narrowing is the same ratchet with the same release: an empty pool is a deployment
+    with nothing to narrow by, and walks everything so it can bootstrap.
     """
     try:
         provider = await odds_session.acquire()
         football = await football_session.acquire()
         async with AsyncSessionLocal() as session:
             leagues = await active_leagues(session)
+            pooled = await pooled_competition_ids(session)
             # Horizon of 1: only the round about to be played.
             gameweeks = await discover_fixtures(
-                session, provider, leagues, _uk_today(), 1, football=football, commit_each=True
+                session,
+                provider,
+                leagues,
+                _uk_today(),
+                1,
+                football=football,
+                competition_ids=pooled or None,
+                commit_each=True,
             )
             refreshed = len(gameweeks)
             await session.commit()
         if refreshed:
-            log.info("slate refreshed", leagues=len(leagues), gameweeks=refreshed)
+            log.info(
+                "slate refreshed",
+                leagues=len(leagues),
+                gameweeks=refreshed,
+                competitions_walked=len(pooled),
+            )
         else:
-            log.info("slate refresh: no target fixtures", leagues=len(leagues))
+            log.info(
+                "slate refresh: no target fixtures",
+                leagues=len(leagues),
+                competitions_walked=len(pooled),
+            )
         return True
     except Exception:
         log.exception("slate refresh failed")
