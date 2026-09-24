@@ -1588,6 +1588,12 @@ leg stays on the coupon with its price; only the product changes, and `void_leg_
 optional) lets the screen and the clipboard both say why the fold is smaller than the legs.
 **API + web: `/ship-prod` is owed.**
 
+**Batch 163 stopped precaching the admin consoles** (`ba3f580`). The service worker
+downloaded all 82 emitted files on install, undoing the route splitting; it now precaches
+917.2 KiB instead of 979.0 and leaves 13 admin chunks to load on demand. Two admin pages had
+to be renamed first — they emitted the same chunk basenames as the member-facing Dashboard
+and Results, so a prefix filter would have stopped precaching home. **Web-only.**
+
 **Batch 146 indexed the two reads that sweep rounds** (`ee3d196`, **migration `026`**).
 `gameweeks.starts_on` had no index and `picks` had none a `gameweek_id`-only lookup could
 use, so retirement and the settle sweep scanned whole tables. Additive only; at production's

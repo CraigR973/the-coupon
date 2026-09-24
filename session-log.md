@@ -4577,3 +4577,34 @@ backend and 1,154 frontend tests passed, 0 skipped
 
 **Next:** Batches 163, 164, 165, 166 (all web-only), then the Phase 7 `/ship-prod` — which
 carries migration `026` and needs the owner's written approval of the recovery plan first.
+
+## Batch 163 — The service worker downloads the whole app, including screens a member cannot open
+**Commits:** `ba3f580` · verified: `scripts/ci-local.sh` PASS (11 checks), first run; 1,300
+backend and 1,160 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- Measured on this build: **979.0 KiB precached → 917.2 KiB**, 13 chunks (61.9 KiB) left on
+  demand. That is **6.3%**, less than the finding's framing implies — most of the 979 KiB is
+  the shell and the routes members actually use, and those should be precached. Said plainly
+  rather than dressed up.
+- **The rename is the load-bearing part, not the filter.** `pages/admin/DashboardPage.tsx`
+  and `pages/admin/ResultsPage.tsx` emitted `DashboardPage-*.js` and `ResultsPage-*.js` —
+  the *same* chunk basenames as the member-facing pages. A prefix filter over that layout
+  would have stopped precaching **home**. All seven admin pages are now named after their
+  exported components (`Admin*Page`), and a test fails if one is added without the prefix.
+- The per-league console (`/leagues/:slug/admin/*`) is five pages that share no prefix with
+  each other and sit beside member pages, so they are listed by name in
+  `LEAGUE_ADMIN_PAGES`. **Two tests keep that list honest in both directions**: every
+  `/leagues/:slug/admin/` route `App.tsx` declares must be matched, and every name in the
+  list must still appear in `App.tsx`. Both read the file rather than restating it.
+- The filter lives in `lib/precacheFilter.ts`, not inline in `sw.ts`, so it is testable.
+- **`vite.config.ts` is the obvious home for a precache change and is a PROTECTED gate
+  file** — `assert-quality-guardrails.sh` refuses a batch that edits it. Filtering the
+  injected `self.__WB_MANIFEST` inside the service worker needs no build-config change.
+  Second time this run that a protected file forced a better design (see Batch 128).
+- Parsing the built manifest: the injected array uses **quoted** keys — `"url":"assets/…"`
+  — not `url:`, which is workbox's own minified internals. Matching the wrong one silently
+  reports zero entries.
+- Counts: FRONTEND 1,154 → 1,160.
+
+**Next:** Batch 164.

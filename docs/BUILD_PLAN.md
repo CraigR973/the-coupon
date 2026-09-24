@@ -4855,7 +4855,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: when the fan-out runs. No change to who receives what.
   **API-carrying.**
 
-- [ ] **Batch 163 — The service worker downloads the whole app, including screens a member cannot open**
+- [x] **Batch 163 — The service worker downloads the whole app, including screens a member cannot open** ✅ 2026-09-24
   — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-11 (MED,
   live). The app splits routes properly — a `lazyRoute` helper, 67 emitted chunks — and then
   the service worker precaches **all 82 files, 974 KiB**, admin console chunks included, on
