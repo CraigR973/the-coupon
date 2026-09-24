@@ -1,5 +1,10 @@
 # Forward recovery plan — migration 026 (sweep indexes)
 
+> **Approved by the owner on 2026-09-24**, authorising the shipment that applies
+> revision `026` to production. The authorisation covers applying the migration.
+> It does **not** authorise the step-2 rollback below — editing `alembic_version`
+> by hand needs its own explicit go-ahead at the time.
+
 The written plan `/ship-prod` preflight step 1.7 requires before a shipment that
 introduces an Alembic revision, and the first one written under the Batch 128
 convention. See `docs/runbooks/migrations.md` for what this has to answer and
