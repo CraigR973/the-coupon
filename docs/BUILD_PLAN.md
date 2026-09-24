@@ -4531,7 +4531,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: response compression. No change to payload shape — trimming the slate is
   a separate question. **API-carrying.**
 
-- [ ] **Batch 146 — The queries that sweep rounds cannot use the indexes that exist**
+- [x] **Batch 146 — The queries that sweep rounds cannot use the indexes that exist** ✅ 2026-09-24
   — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-04 (MED,
   live, as corrected in `09-reconciliation.md`) and PERF-05 (LOW). `picks` carries a
   composite `ix_picks_league_gameweek` on `(league_id, gameweek_id)`, which is left-anchored

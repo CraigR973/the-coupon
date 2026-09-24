@@ -1588,6 +1588,14 @@ leg stays on the coupon with its price; only the product changes, and `void_leg_
 optional) lets the screen and the clipboard both say why the fold is smaller than the legs.
 **API + web: `/ship-prod` is owed.**
 
+**Batch 146 indexed the two reads that sweep rounds** (`ee3d196`, **migration `026`**).
+`gameweeks.starts_on` had no index and `picks` had none a `gameweek_id`-only lookup could
+use, so retirement and the settle sweep scanned whole tables. Additive only; at production's
+size both builds are sub-millisecond. The pool also drops from 10+10 to 5+5 — 20 connections
+from one container against `max_connections=60` was a third of the instance.
+**API-only: `/ship-prod` is owed, and it carries the migration —
+`docs/runbooks/migration-026-recovery.md` needs owner sign-off before that upload.**
+
 **Batch 128 made the migration rollback problem a check rather than a habit** (`00d609e`).
 Production has no restore point and migrates on boot, so every revision removes the rollback
 target until a later shipment applies none — recorded four times as a one-off before anyone

@@ -4537,3 +4537,43 @@ the plan's only migration and removes the rollback target.
 **Next:** Batch 146 — the plan's only migration. It now needs
 `docs/runbooks/migration-026-recovery.md` before it can close out, which is the whole point
 of taking this batch first.
+
+## Batch 146 — The queries that sweep rounds cannot use the indexes that exist
+**Commits:** `ee3d196` · verified: `scripts/ci-local.sh` PASS (11 checks), first run; 1,300
+backend and 1,154 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **Migration `026`** — the plan's only one. Purely additive: two `CREATE INDEX`, nothing
+  dropped, renamed, altered or rewritten. `docs/runbooks/migration-026-recovery.md` is its
+  forward recovery plan, the first written under Batch 128's convention, and it passes that
+  gate (94 lines).
+- **The rollback is blocked by bookkeeping, not by schema.** The `025` image reads and
+  writes both tables exactly as before — nothing names an index. What stops it booting is
+  `alembic_version` reporting `026`, which its history cannot resolve, so `upgrade head`
+  fails before uvicorn binds. If a rollback is ever genuinely needed, the recovery note's
+  answer is: set the version row back to `025`, **leave the indexes in place**, roll the
+  deployment. Owner authorisation required; the indexes are invisible to that image.
+- `downgrade()` is **lossless at any time** — an index carries nothing not derivable from
+  the table. Unusual here; every migration since `016` has not been.
+- **The tests ask the planner, they do not assert an index exists.** At production's size
+  (87 picks, 24 gameweeks, measured 2026-09-23) PostgreSQL sequentially scans either way
+  and is right to, so the tests seed 6,000 rounds and 20,000 picks, `ANALYZE`, and read
+  `EXPLAIN (ANALYZE, BUFFERS)`. Before: `Seq Scan on gameweeks (cost=0.00..165.01)`. After:
+  `Index Scan using ix_gameweeks_starts_on (cost=0.28..8.58)`.
+- **Everything in that file rolls back.** 20,000 committed picks would slow the whole suite
+  and corrupt every deployment-wide count it takes — the trap this run has hit five times.
+  `ANALYZE` inside the transaction does see the uncommitted rows, which is what makes it work.
+- Two SQL traps inside `text()`: `:first::date` is a syntax error because `::` collides with
+  the bind-parameter marker — use `cast(:first as date)`; and `date + interval` is not a
+  date, so `starts_on` needs `cast(:first as date) + n`.
+- A third test pins the other direction: a read that *does* know its league must still take
+  `ix_picks_league_gameweek`, so the new index does not become the planner's default for
+  everything.
+- **Pool: 10 + 10 → 5 + 5, with an explicit `pool_timeout=10`.** Production's
+  `max_connections` is **60** and about **15 backends** are already Supabase's own — twenty
+  from one container was a third of the instance. If this is ever wrong the symptom is
+  `TimeoutError: QueuePool limit ... reached` ten seconds into a request.
+- Counts: BACKEND 1,297 → 1,300.
+
+**Next:** Batches 163, 164, 165, 166 (all web-only), then the Phase 7 `/ship-prod` — which
+carries migration `026` and needs the owner's written approval of the recovery plan first.
