@@ -4711,7 +4711,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: documentation structure and the two command workflows' reading
   instructions. No change to the batch checklist's content. **Tooling-only (no deploy).**
 
-- [ ] **Batch 155 — Two people's real names and old sign-in names are in a public repository**
+- [x] **Batch 155 — Two people's real names and old sign-in names are in a public repository** ✅ 2026-09-24
   — specified from `docs/review/2026-09-13/07-agent-pipeline.md`, PIPE-08 (MED, privacy,
   live). `STATUS.md`, `docs/BUILD_PLAN.md` and `docs/backfills/2026-08-names-and-numbers.md`
   carry two **non-owner** real names together with their old and new sign-in names, all

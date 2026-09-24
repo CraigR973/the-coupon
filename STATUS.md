@@ -1595,6 +1595,16 @@ recheck (the Supabase host is IPv6-only and this machine lost IPv6 mid-shipment)
 145's compression in production (no public response is over the 4 KB floor). A first attempt
 an hour earlier was refused by Railway at `SNAPSHOT_CODE` and shipped nothing.
 
+**Batch 155 took members' names out of the public repository** (`ca62213`, 2026-09-24).
+The review flagged two renamed members; re-verification found eleven — nine more
+first-and-surname display names sat beside their picks in the Batch 68 backfill. Every
+non-owner member is now "Member A" to "Member L" in code, tests and documents (owner
+decision 2026-09-24); git history still holds the names, since no rewrite was authorised.
+The boot-time rename notice now finds its three profiles by id and says the old sign-in
+name has gone rather than quoting it. Production, read 2026-09-24: the owner and member A
+are marked told; member B has no push subscription and has not been told (Batch 148).
+**API-carrying: `/ship-prod` is owed** for the notice to switch.
+
 **Batch 166 is parked, unstarted.** Its verification requires a Lighthouse mobile run on the
 standings screen — behind authentication, on a real league — before any change is made. A
 local stand-in measured 2026-09-24 (same bundle, seeded league, Chromium at 4x CPU throttle)

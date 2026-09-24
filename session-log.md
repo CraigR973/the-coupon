@@ -4804,3 +4804,28 @@ Method notes worth keeping, because both would have produced a confident wrong a
   `content-encoding` through**, and production now sends `vary` where the finding recorded
   it sent none. (205 bytes is not a realistic ratio — the probe body is one repeated
   string. The realistic figure is the 23,205 → 3,131 measured on a real slate.)
+
+## Batch 155 — Two people's real names and old sign-in names are in a public repository
+**Commits:** `ca62213` · verified: `scripts/ci-local.sh` PASS (11 checks) on the first run;
+1,300 backend and 1,180 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **Every non-owner member is "Member A" to "Member L" in the tracked tree** (no I; the owner
+  stays "Craig"). A and B are the two Batch 74 renamed; the letters follow the 8 August
+  slip's order, not the names. L0 already forbade committing real display names — never
+  reintroduce one. The public git history still holds them; no rewrite was authorised.
+- **The re-verification was the finding.** The row named two people in three documents; the
+  names were in 16 files, including live boot-time code, and nine more members' names had
+  never been flagged. The owner widened the scope to all eleven on 2026-09-24.
+- **The rename notice is keyed by profile id** (`RENAMED_PROFILE_IDS`). Production read
+  2026-09-24: owner and member A marked told; member B has no push subscription and is
+  untold — Batch 148's case. The push no longer quotes the old name, and the marker records
+  only the new one.
+- **The two backfill scripts are records now, not runnable**: against production they stop
+  at member resolution before writing anything.
+- **Direct IPv6 to the Supabase host failed again (`gaierror`) and `railway ssh` worked** on
+  2026-09-24 — the route has flipped again. Base64 a read-only asyncpg script into the
+  container and run it with `/opt/venv/bin/python`.
+- **The full gate took 13m09s** at these counts; the docs' "88 seconds" is Batch 153's job.
+
+**Next:** Batch 154. `/ship-prod` is owed for this batch's API half.
