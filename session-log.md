@@ -4764,6 +4764,14 @@ batch has something to act on.
   behind the first attempt's upload failure. Last verified in full on 2026-09-23 (21 of 21
   tables with RLS, no grants); `026` creates two indexes and touches neither. **Re-run it
   from a host with IPv6 before the next shipment.**
-- **Still outstanding:** Batch 145's production compression check needs one authenticated
-  request to a response over 4 KB. No public endpoint is that large, so it remains the one
-  thing about that batch production has not confirmed.
+- **Batch 145 confirmed live in production, both sides of the threshold** (2026-09-24,
+  after the shipment). No *successful* public response is over 4 KB, but a **422 from
+  `/auth/login`** is unauthenticated, non-mutating and as large as the invalid input it
+  echoes back — which makes it a probe for exactly this:
+  - 3,407-byte body → **no** `content-encoding`. The floor holds.
+  - 7,479-byte body → `content-encoding: gzip`, `content-length: **205**`, and
+    `vary: Accept-Encoding` on both.
+  That answers the question the batch could not: **the reverse proxy passes
+  `content-encoding` through**, and production now sends `vary` where the finding recorded
+  it sent none. (205 bytes is not a realistic ratio — the probe body is one repeated
+  string. The realistic figure is the 23,205 → 3,131 measured on a real slate.)
