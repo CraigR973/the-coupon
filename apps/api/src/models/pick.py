@@ -95,6 +95,12 @@ class Pick(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
             postgresql_where=text("pick_scope = 'fixture'"),
         ),
         Index("ix_picks_league_gameweek", "league_id", "gameweek_id"),
+        # Batch 146. The composite above is left-anchored on `league_id`, so it cannot
+        # serve a lookup that knows only the round — which is what the settle sweep and
+        # the "has anyone picked on this?" existence check inside stranded-round
+        # retirement both do. A round belongs to exactly one league since Batch 14, so
+        # those reads have no league to give it.
+        Index("ix_picks_gameweek_id", "gameweek_id"),
         Index("ix_picks_player_id", "player_id"),
     )
 

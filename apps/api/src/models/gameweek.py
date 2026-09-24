@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from enum import StrEnum
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Index, Integer, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -62,6 +62,11 @@ class Gameweek(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     __tablename__ = "gameweeks"
     __table_args__ = (
         UniqueConstraint("league_id", "starts_on", name="uq_gameweeks_league_starts_on"),
+        # Batch 146. The unique constraint above is left-anchored on `league_id`, so it
+        # cannot serve the reads that range over the *date* across every league —
+        # stranded-round retirement and discovery both do. Nothing else indexed this
+        # column, which is why those were sequential scans over the whole table.
+        Index("ix_gameweeks_starts_on", "starts_on"),
     )
 
     league_id: Mapped[uuid.UUID] = mapped_column(
