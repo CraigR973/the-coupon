@@ -4903,7 +4903,7 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: these three. No data-fetching redesign. **Web-only.**
 
-- [ ] **Batch 166 — Standings blocks a phone's main thread for nearly a second**
+- [x] **Batch 166 — Standings blocks a phone's main thread for nearly a second** ✅ 2026-09-24
   — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-14 (MED,
   live). Lighthouse mobile, median of three throttled runs: login 98, home 92, current round
   95, **standings 77 with 915 ms of total blocking time** — the worst figure in the set. The
@@ -4917,6 +4917,17 @@ answered until it lands, because until then there is no data to look at.
   time attributed to a named cause before any change is made.
 
   Scope boundary: whatever the re-measurement identifies. **Web-only.**
+
+  **Closed by the re-measurement, with no code change.** Re-run on 2026-09-24 after Batches
+  164 and 165, against the production bundle with the standings payload seeded to 5.4 KB
+  across 4 calls (the review measured 4.3 KB). Thirteen Lighthouse mobile runs: **score 87
+  median / 92 best, total blocking time 265 ms median / 128 ms best**, against the review's
+  77 and 915 ms. Attributed cause: the remaining blocking time is framework boot, not this
+  page — `react-vendor` contributes 508 ms of scripting and a 309 ms task, the leaderboard's
+  own chunk 45 ms. The animation library PERF-12 named is absent from the trace. The review's
+  own hypothesis was correct: **PERF-12 and PERF-13 accounted for the 915 ms**, so there is no
+  standings-specific work left. Measured on a contended machine, so the absolute scores read
+  low; the three-page interleaved control is in the session log.
 
 - [x] **Batch 167 — Three keyboard and reflow defects the automated sweep cannot see** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-15, UX-16 and UX-17
