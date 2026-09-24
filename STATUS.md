@@ -1588,6 +1588,11 @@ leg stays on the coupon with its price; only the product changes, and `void_leg_
 optional) lets the screen and the clipboard both say why the fold is smaller than the legs.
 **API + web: `/ship-prod` is owed.**
 
+**Batch 166 is parked, unstarted.** Its verification requires a Lighthouse mobile run on the
+standings screen — behind authentication, on a real league — before any change is made, and
+the row warns that acting without it risks optimising the wrong thing. Batches 164 and 165
+removed two plausible causes of the 915 ms, so re-measuring may close it outright.
+
 **Batch 165 stopped the countdown re-rendering the screen, and named the cache keys**
 (`13e49b4`). The tick lives in a memoised `<Countdown>`; the pages use `useExpiry`, one
 timeout to the boundary. Both context values are memoised. **A live bug came out of the third

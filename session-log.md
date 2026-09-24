@@ -4692,3 +4692,27 @@ backend and 1,160 frontend tests passed, 0 skipped
 - Counts: FRONTEND 1,167 → 1,180.
 
 **Next:** Batch 166, which the plan says to take last and re-measure first.
+
+## Batch 166 — PARKED, not started
+**Branch:** none. Nothing was written.
+
+### Why
+The row's verification is explicit: *"Lighthouse mobile re-run on standings, median of
+three, **with the blocking time attributed to a named cause before any change is made**"* —
+and the row itself warns that chasing the 915 ms before 164 and 165 land "risks optimising
+the wrong thing".
+
+The standings screen is behind authentication and needs a league with members and settled
+rounds. Measuring it means signing in as the owner, which I will not do, and Lighthouse's
+throttled mobile profile is not something the tools here can drive anyway.
+
+So the prerequisite the row makes mandatory cannot be met, and everything after it is
+guesswork. **Batches 164 and 165 both removed plausible causes** — 109 KiB of JavaScript,
+and a per-second re-render of whole screens — so there is a fair chance the figure has
+already moved a long way. That is a reason to re-measure, not a substitute for it.
+
+### What unblocks it
+One Lighthouse mobile run on the standings screen of a real league, median of three,
+against production after the pending shipment lands. Then either the finding is closed
+because the number came down, or the remaining blocking time has a named owner and the
+batch has something to act on.
