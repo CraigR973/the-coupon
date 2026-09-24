@@ -1588,6 +1588,13 @@ leg stays on the coupon with its price; only the product changes, and `void_leg_
 optional) lets the screen and the clipboard both say why the fold is smaller than the legs.
 **API + web: `/ship-prod` is owed.**
 
+**Batch 165 stopped the countdown re-rendering the screen, and named the cache keys**
+(`13e49b4`). The tick lives in a memoised `<Countdown>`; the pages use `useExpiry`, one
+timeout to the boundary. Both context values are memoised. **A live bug came out of the third
+part:** leaving a league invalidated `['leaderboard', slug]`, a key no query has — it cleared
+nothing and left the member on the table of a league they had left. `lib/queryKeys.ts` now
+owns every key. **Web-only.**
+
 **Batch 164 replaced framer-motion with CSS** (`7e37b9b`). 107 KB of JavaScript for five
 transitions, 62% unused on home; the 109 KiB chunk is gone and the precache drops from 917.2
 to 785.7 KiB. **One behaviour changed:** route transitions no longer animate the outgoing

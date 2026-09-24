@@ -4886,7 +4886,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the animation dependency and font loading. No visual redesign.
   **Web-only.**
 
-- [ ] **Batch 165 — The lock countdown re-renders the entire pick screen once a second**
+- [x] **Batch 165 — The lock countdown re-renders the entire pick screen once a second** ✅ 2026-09-24
   — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-13 (MED),
   PERF-15 and PERF-16 (LOW), all live. `useCountdown` sits in the page body, so every tick
   re-renders the whole round screen; there is **no `React.memo` anywhere in the codebase**

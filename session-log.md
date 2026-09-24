@@ -4653,3 +4653,42 @@ backend and 1,160 frontend tests passed, 0 skipped
 - Counts: FRONTEND 1,160 → 1,167.
 
 **Next:** Batch 165.
+
+## Batch 165 — The lock countdown re-renders the entire pick screen once a second
+**Commits:** `13e49b4` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,300 backend and
+1,180 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **The third finding was a live bug, not hygiene.** `LeagueActionsMenu` invalidated
+  `['leaderboard', slug]` after leaving a league; **no query has ever been keyed
+  `leaderboard`** — the tables are keyed `standings`. It cleared nothing, silently, leaving
+  a member looking at the table of a league they had just left. React Query cannot warn:
+  a key matching no query is an ordinary thing for a key to do.
+- `lib/queryKeys.ts` is the factory. Its rule: **a key names every input its request
+  depends on.** `standings.forSeason(slug, null)` spells `null` as `'current'`, because a
+  request where the API chooses the season is a *different* entry, not an absent one.
+- **The key shapes are deliberately unchanged.** `['league', slug]` is both the detail
+  query's own key and the prefix its children hang off, and `LeagueAdminInvitesPage` writes
+  to it with `setQueryData`, which matches exactly rather than by prefix. Members and
+  seasons still live on their own roots, and a test states that rather than assuming it.
+  Reshaping is a later batch and is now one edit here.
+- `useExpiry` replaces `useCountdown` wherever only the **boolean** was wanted: one
+  `setTimeout` to the boundary instead of a 1 s interval. `<Countdown>` is `memo`'d and owns
+  the tick. **`format` is a prop** because the two screens word the remaining time
+  differently and unifying them would change what a member reads on one of them.
+- **`setTimeout` clamps above ~24.8 days and fires immediately**, so a naive version would
+  report a round two months out as already locked and the pick screen would open shut.
+  `useExpiry` re-arms in day-long hops. Its own test.
+- Measured, as the row asks: commits per idle five seconds on a screen with a live clock,
+  **2 → 1** under fake timers. Five ticks inside one `act()` batch into one commit, so the
+  fake-timer figure understates it; in a browser each tick is its own commit.
+- A trap that looked exactly like a bug in the hook: a target computed from `Date.now()`
+  **inside** the component recomputes every render, so the deadline runs away and never
+  arrives. Hoist it — a real page passes an instant from the API.
+- Both context values are now `useMemo`'d. Their callbacks were already `useCallback`.
+- **Frontend baseline note:** the gate printed 1180 where the arithmetic said 1179. The
+  count was stable across three consecutive runs, so the baseline was raised to what the
+  gate printed — the one permitted adjustment.
+- Counts: FRONTEND 1,167 → 1,180.
+
+**Next:** Batch 166, which the plan says to take last and re-measure first.
