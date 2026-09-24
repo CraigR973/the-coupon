@@ -4716,3 +4716,27 @@ One Lighthouse mobile run on the standings screen of a real league, median of th
 against production after the pending shipment lands. Then either the finding is closed
 because the number came down, or the remaining blocking time has a named owner and the
 batch has something to act on.
+
+## Phase 7 shipment — REFUSED BY RAILWAY, nothing shipped (2026-09-24)
+**Attempted commit:** `8d898b4f` (Batches 144, 145, 146, 128 + migration `026`)
+
+- Preflight and source verification passed in full; owner approved the `026` recovery plan.
+- IaC redeploy `29f319d7-85ee-4136-8066-c7b1f1879ca7` SUCCESS. `railway up` then failed:
+  `configErrors: ["Failed to create code snapshot..."]`, deployment
+  `74baee41-fb1d-4eec-898c-7a6a5cc65caa` FAILED at **`SNAPSHOT_CODE`** — the upload step,
+  the only deployment event recorded.
+- **Migration `026` did not apply.** `/api/v1/health/ready` reports the head the *database*
+  is at and it says `025`. No image was built and no container started, so nothing ever
+  reached the database.
+- **Nothing to roll back**; production never left `29f319d7`. The one mutation was
+  `RAILWAY_GIT_COMMIT_SHA`, stamped before the upload, reverted immediately and verified by
+  **reading the variable back** rather than inferring it from `/health` — which reports the
+  env snapshot of the container that started *before* either change and would have looked
+  right either way.
+- `check-deploy-drift.sh` now reports `DRIFTED — 5 of 19`, which is the truth.
+- Rollback baseline for the retry is **`29f319d7`**, not `adc3c65e` — the IaC redeploy
+  superseded it and Railway marked the older one `REMOVED`.
+- **The Vercel CLI token in this environment has expired** (`invalidToken`). The web half
+  was confirmed by fetching the live stylesheet and checking it carries Batch 164's rules
+  and not the removed font — a stronger check than metadata, but the token needs renewing.
+- Per the standing rule, the run stopped here rather than retrying.

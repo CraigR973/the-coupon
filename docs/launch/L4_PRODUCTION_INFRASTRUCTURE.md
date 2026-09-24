@@ -3174,3 +3174,51 @@ production Supabase was not attached to MCP.
 `/openapi.json`, so a shipped schema change cannot be observed from outside without
 authenticating. The evidence that a given commit is running is the `sha` field on
 `/api/v1/health` plus the gate at that commit — not a schema probe.
+
+### 2026-09-24 — `8d898b4f` refused by Railway at `SNAPSHOT_CODE`; nothing shipped
+
+Recorded because a *failed* shipment is the one that leaves misleading state behind, and
+this one is a clean example of the failure mode `/ship-prod` guards against.
+
+The shipment carried Batches 144, 145, 146 and 128, **including migration `026`**, with the
+owner's written approval of `docs/runbooks/migration-026-recovery.md` that morning.
+Preflight passed in full: clean `main` at `8d898b4f`, a green `Quality` CI run for that
+commit, the local gate green (1,300 backend / 1,180 frontend), every Railway selector
+confirmed by read-only GraphQL with `railwayConfigFile` null, all thirteen required
+variables present, Vercel production carrying both encrypted values, and
+`check-migration-recovery.sh` passing on the new plan.
+
+The IaC step succeeded — redeploy `29f319d7-85ee-4136-8066-c7b1f1879ca7`, `SUCCESS`, serving
+the *previous* commit `42e79d8b` as it should. `railway up` then returned a transport error,
+and the deployment it created, `74baee41-fb1d-4eec-898c-7a6a5cc65caa`, went `FAILED` with
+`configErrors: ["Failed to create code snapshot. Please review your last commit, or try
+again."]`.
+
+**It failed at `SNAPSHOT_CODE`, which is the upload — the only deployment event recorded.**
+No image was built, no container started, and `alembic upgrade head` never ran. The
+decisive evidence is `/api/v1/health/ready`, which reports the head the **database** is at:
+`025`. **Migration `026` did not apply**, and production never left `29f319d7`.
+
+**There was nothing to roll back.** The single mutation was `RAILWAY_GIT_COMMIT_SHA`, which
+is stamped *before* the upload and therefore claimed `8d898b4f` while `42e79d8b` was
+serving. It was set back immediately and verified by reading the variable, not inferred:
+`check-deploy-drift.sh` reports `DRIFTED — 5 of 19`, which is the truth. Had it been left,
+drift would have reported `in sync` against a commit production was not running — the
+2026-08-20 failure this step exists to prevent.
+
+| | |
+| --- | --- |
+| Failed deployment | `74baee41-fb1d-4eec-898c-7a6a5cc65caa` (`FAILED`, `SNAPSHOT_CODE`) |
+| Restored / still live | `29f319d7-85ee-4136-8066-c7b1f1879ca7` (`SUCCESS`, `42e79d8b`, migration `025`) |
+| Vercel | untouched; `dpl_F89j4NNt5iuPT1ewkZ6unwB8w8Pg` holds the stable alias |
+| Vercel rollback baseline | `dpl_CwNapM8ziQNfvsMQRbMXn4dY2gqh` |
+| Database | `025`, unchanged |
+
+**Two things for whoever retries this.** The rollback baseline is now `29f319d7`, not
+`adc3c65e` — the IaC redeploy superseded it and Railway has marked the older one `REMOVED`.
+And **the Vercel CLI token in this environment has expired** (`invalidToken` from the REST
+API), so the web half was confirmed by fetching the live stylesheet and checking it carries
+Batch 164's rules and not the removed font, rather than by reading `githubCommitSha`. That
+is a stronger check of what is actually served, but the token needs renewing before a
+shipment that has to move Vercel itself.
+
