@@ -4,12 +4,21 @@ description: Generate the next Coupon batch prompt from the checked build plan.
 
 # /next-batch-prompt
 
-1. Read `STATUS.md`, `docs/BUILD_PLAN.md`, and the latest `session-log.md`
-   section.
+1. Read `STATUS.md` (one page of current state), the head of `docs/BUILD_PLAN.md`
+   down to its `## Closed batches` heading — the product contract, the
+   architecture and every open row — and the latest `session-log.md` section,
+   which is the last one in the file:
+
+   ```bash
+   sed -n '1,/^## Closed batches/p' /Users/craigrobinson/the-coupon/docs/BUILD_PLAN.md
+   ```
+
+   Do not read the closed rows below that heading, or the archive at the top of
+   `session-log.md`, unless the row you are about to emit names one of them.
 2. Locate the first unchecked row:
 
    ```bash
-   grep -nE "^- \[[ x]\] \*\*Batch [0-9]" /Users/craigrobinson/the-coupon/docs/BUILD_PLAN.md
+   grep -nE "^- \[ \] \*\*Batch [0-9]" /Users/craigrobinson/the-coupon/docs/BUILD_PLAN.md
    ```
 
 3. If none remains, report that all planned batches are closed.

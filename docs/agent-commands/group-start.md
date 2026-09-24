@@ -53,9 +53,11 @@ this command accepts.
 1. Validate the argument against that manifest. Find and read the exact group
    section in `docs/review/2026-08-26/07-sequencing.md` (groups I-M) or
    `docs/review/2026-09-13/08-sequencing.md` (groups N-Y), then read every batch
-   row and its verification and scope boundary in `docs/BUILD_PLAN.md`. Also
-   read `STATUS.md` and the relevant recent entries in `session-log.md` before
-   deciding where the group resumes.
+   row and its verification and scope boundary in `docs/BUILD_PLAN.md` — open
+   rows are at its head, closed ones under `## Closed batches`, so find each by
+   `grep -nE "^- \[[ x]\] \*\*Batch N "` and read that row alone rather than the
+   whole file. Also read `STATUS.md` (one page) and the relevant recent entries
+   at the end of `session-log.md` before deciding where the group resumes.
 
 2. Require a clean worktree on local `main` before deriving progress, checking
    drift, or starting a batch:
