@@ -1588,6 +1588,14 @@ leg stays on the coupon with its price; only the product changes, and `void_leg_
 optional) lets the screen and the clipboard both say why the fold is smaller than the legs.
 **API + web: `/ship-prod` is owed.**
 
+**Batch 164 replaced framer-motion with CSS** (`7e37b9b`). 107 KB of JavaScript for five
+transitions, 62% unused on home; the 109 KiB chunk is gone and the precache drops from 917.2
+to 785.7 KiB. **One behaviour changed:** route transitions no longer animate the outgoing
+page away first, so a change is 220ms rather than 440ms. Reduced motion is now one CSS rule
+instead of a hook `TabBar` never called. JetBrains Mono 700, which nothing used, is gone too.
+The dependency stays in `package.json` (protected file); nothing imports it and a test holds
+that. **Web-only.**
+
 **Batch 163 stopped precaching the admin consoles** (`ba3f580`). The service worker
 downloaded all 82 emitted files on install, undoing the route splitting; it now precaches
 917.2 KiB instead of 979.0 and leaves 13 admin chunks to load on demand. Two admin pages had

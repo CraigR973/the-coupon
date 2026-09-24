@@ -4870,7 +4870,7 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the precache manifest. No change to the runtime caching strategies.
   **Web-only.**
 
-- [ ] **Batch 164 — An animation library is a seventh of the JavaScript and mostly unused**
+- [x] **Batch 164 — An animation library is a seventh of the JavaScript and mostly unused** ✅ 2026-09-24
   — specified from `docs/review/2026-09-13/04-performance-operations.md`, PERF-12 (MED,
   live) and PERF-17 (LOW). framer-motion is **107.1 KB minified, 13.9% of all JavaScript,
   and 62.2% unused on home**. Three of four font files load on the sign-in screen (49 KB,

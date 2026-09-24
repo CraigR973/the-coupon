@@ -4608,3 +4608,48 @@ backend and 1,160 frontend tests passed, 0 skipped
 - Counts: FRONTEND 1,154 → 1,160.
 
 **Next:** Batch 164.
+
+## Batch 164 — An animation library is a seventh of the JavaScript and mostly unused
+**Commits:** `7e37b9b` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,300 backend and
+1,167 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- Measured: the **109 KiB framer-motion chunk is gone**; precache manifest **979.0 → 847.5
+  KiB**; what the service worker downloads **917.2 → 785.7 KiB** (with Batch 163's filter).
+- **`PageTransition` lost its exit animation and that is a real behaviour change.**
+  `AnimatePresence mode="wait"` slid the outgoing page away over 220ms *before* the
+  incoming one began. CSS cannot animate an element React has unmounted. A route change is
+  now 220ms rather than 440ms with no blank moment. Restoring the exit means keeping the
+  old tree mounted, which is what cost 107 KB.
+- **`layoutId` was the only thing that genuinely needed framer.** `useSlidingIndicator`
+  replaces it: one measured element per bar, positioned from the **active element's own
+  box** — not index × width, because the tabs are not equal width and the bottom bar shows
+  four or five items by route. `useLayoutEffect` not `useEffect`, or it flashes at the
+  container's left edge on first paint. A `ResizeObserver` catches rotation, late fonts and
+  the iOS keyboard; a window-resize listener would catch only the first.
+- **Reduced motion is now one rule in `index.css`, not a hook per component** — and that
+  fixed a real gap: `PageTransition` and the save button called `useReducedMotion`, `TabBar`
+  never did. The media block also zeroes `--page-enter-x`, because collapsing a duration
+  still leaves one frame of displacement if the animation starts 16px off.
+- The save button's tick is `stroke-dasharray` + animated `stroke-dashoffset` —
+  the technique framer's `pathLength` wraps. `--check-length` must be **≥** the path's true
+  length; too short leaves the tick visibly pre-drawn.
+- TabBar's More button needs **two refs on one element** (active indicator + the sheet's
+  focus anchor), so a callback ref assigns both — and `useRef<T | null>(null)`, because
+  `useRef<T>(null)` infers a read-only `RefObject`.
+- The indicator moving out of the button meant "More is current" had to be said in the
+  markup: it now carries **`aria-current="page"`**, which a screen reader was never told by
+  the coloured span. The test asserts both directions.
+- **JetBrains Mono 700 removed.** Nothing used a bold mono weight — the only reference was
+  its own `@font-face` — so no browser fetched it, but the SW precached 21.9 KB on install.
+- **framer-motion is still declared in `package.json`**, a PROTECTED gate file. Nothing
+  imports it so nothing bundles it, and `animations.test.ts` keeps that true. Removing the
+  declaration needs a gate-maintenance batch. Third protected-file collision this run.
+- `animations.test.ts` also asserts every `animate-*` class used in source exists in
+  `index.css` — a typo'd class renders a fine element with no animation, which reads as a
+  design choice rather than a bug. `tailwindcss-animate` supplies `animate-in`/`animate-out`.
+- **Not done: Lighthouse on home.** Bundle bytes are measured and the CSS verified in a real
+  browser at 375px, but no Lighthouse run — see the overnight log.
+- Counts: FRONTEND 1,160 → 1,167.
+
+**Next:** Batch 165.
