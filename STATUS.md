@@ -71,28 +71,27 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Fifteen rows are open (2026-09-24); they are at the head of `docs/BUILD_PLAN.md`. The run
+Fourteen rows are open (2026-09-24); they are at the head of `docs/BUILD_PLAN.md`. The run
 order agreed on 2026-09-24:
 
-1. **154** — this page and the build plan cost 106k tokens to read.
-2. **153** — the instructions quote gate numbers a month old; the stop hooks contradict
+1. **153** — the instructions quote gate numbers a month old; the stop hooks contradict
    automatic close-out.
-3. **127** — CI, the local gate and the web build still run Node 20, out of support since
+2. **127** — CI, the local gate and the web build still run Node 20, out of support since
    2026-04-30.
-4. **142** — web push has no timeout and its endpoint check ignores the port; the
+3. **142** — web push has no timeout and its endpoint check ignores the port; the
    `cryptography` pin is held at 48.0.1 by owner decision.
-5. **95** — no second copy of the scored history. Blocked on the owner items above.
-6. **134** — a mis-settled pick can only be corrected by a script against production.
-7. **136** — no self-service deletion or data export. UK GDPR questions go to the owner.
-8. **135** — nothing tells a member their round has settled.
-9. **148** — the rename notice has no channel but push.
-10. **115** — nothing learns until a member arrives. Once recorded here as superseded by
-    Batch 119; re-verify before building.
-11. **150** — the first screen a new member sees.
-12. **149** — toasts, skeletons, and errors that look like empty states.
-13. **151** — one statistic drawn two ways; no type scale.
-14. **168** — two links under minimum target size; 200% zoom.
-15. **140** — the desktop layout is the phone layout stretched.
+4. **95** — no second copy of the scored history. Blocked on the owner items above.
+5. **134** — a mis-settled pick can only be corrected by a script against production.
+6. **136** — no self-service deletion or data export. UK GDPR questions go to the owner.
+7. **135** — nothing tells a member their round has settled.
+8. **148** — the rename notice has no channel but push.
+9. **115** — nothing learns until a member arrives. Once recorded here as superseded by
+   Batch 119; re-verify before building.
+10. **150** — the first screen a new member sees.
+11. **149** — toasts, skeletons, and errors that look like empty states.
+12. **151** — one statistic drawn two ways; no type scale.
+13. **168** — two links under minimum target size; 200% zoom.
+14. **140** — the desktop layout is the phone layout stretched.
 
 Known before starting:
 

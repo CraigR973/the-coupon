@@ -7104,3 +7104,26 @@ Method notes worth keeping, because both would have produced a confident wrong a
 - **The full gate took 13m09s** at these counts; the docs' "88 seconds" is Batch 153's job.
 
 **Next:** Batch 154. `/ship-prod` is owed for this batch's API half.
+
+## Batch 154 — Two documents cost 106k tokens to read and under 2% of one is current
+**Commits:** `524e7ba` · verified: `scripts/ci-local.sh` PASS (11 checks) on the first run;
+1,300 backend and 1,180 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **`STATUS.md` is one page of dated current state; rewrite a line, never append.** The old
+  2,268-line page is archived verbatim at the top of this file, headings demoted a level —
+  history, not state, and stale in places when moved.
+- **`docs/BUILD_PLAN.md` opens with the open rows; closed rows are under `## Closed
+  batches` at the end**, in written order. Read the head with
+  `sed -n '1,/^## Closed batches/p'`. The split was scripted and asserted lossless.
+- **A ticked row does not move by itself.** `/strike-batch` still only flips the box, so
+  ticked rows collect in the open section until moved; this run moves each at close-out
+  (154 went in before 155). Teaching `strike-batch.md` to move it is outside this batch.
+- **Measured, not modelled:** the reads `/next-batch-prompt` instructs fell from 529 KB
+  (~131k tokens) to 38 KB (~9k), and both reach Batch 95 — a byte count of the
+  instructed reads, not a separate cold agent session.
+- Production facts gathered for the page (read-only, 2026-09-24): migration `026`;
+  `season_calendars` empty, so the calendar backfill is still the owner's; avatars off;
+  the Vercel CLI token answers 403.
+
+**Next:** Batch 153. `/ship-prod` is still owed for Batch 155's API half.

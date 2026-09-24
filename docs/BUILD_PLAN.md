@@ -376,37 +376,6 @@ ticked rows can collect here until someone moves them below.
   Scope boundary: documentation and hook text. No workflow logic changes.
   **Tooling-only (no deploy).**
 
-- [ ] **Batch 154 — Two documents cost 106k tokens to read and under 2% of one is current**
-  — specified from `docs/review/2026-09-13/07-agent-pipeline.md`, PIPE-07 (MED,
-  documentation). `STATUS.md` is 1,937 lines (~34.5k tokens) and under 2% of it is current
-  state: both major sections are historical narrative, one walking backwards through
-  completed batches. `docs/BUILD_PLAN.md` is 4,094 lines (~71.4k tokens) with 117 closed
-  rows against a handful open, and `session-log.md` duplicates the per-batch narrative
-  one-for-one. `/next-batch-prompt` and `/group-start` instruct an agent to read **all of
-  both** to find the first unchecked row. Worse, `STATUS.md` contradicts itself in ways
-  visible only on a full read — a group described as "one batch in" and then "complete"
-  fifteen lines later, renamed members "not told" and then "two of three, correctly",
-  a rollback baseline "usable" and later "not usable" — with no dates on the bold claims.
-
-  Cut `STATUS.md` to a current-state page of about 150 lines (what is live, what is owed,
-  what is open, the toolchain) and move the history into `session-log.md`, which already
-  holds it; separate the build plan's open rows from its closed ones; point the two command
-  workflows at the trimmed head.
-
-  **Re-verified 2026-09-24: reproduces, and has grown.** `STATUS.md` was 2,268 lines and
-  this file 5,001 — about 126k tokens together against the 106k specified — with 15 open
-  rows against 153 closed. Measured after the change, by bytes of the reads
-  `/next-batch-prompt` instructs (both documents, the row grep and the latest log entry):
-  **529 KB (~131k tokens) before, 38 KB (~9k) after**, and both reach Batch 95. The old
-  `STATUS.md` is archived verbatim at the top of `session-log.md`; the closed rows moved
-  intact to `## Closed batches` below the open ones.
-
-  Verification: a cold `/next-batch-prompt` reaching the right batch having read an order of
-  magnitude less; no statement in the trimmed `STATUS.md` contradicted by another.
-
-  Scope boundary: documentation structure and the two command workflows' reading
-  instructions. No change to the batch checklist's content. **Tooling-only (no deploy).**
-
 - [ ] **Batch 168 — Two links are under the minimum target size and 200% zoom gives a third of the screen to navigation**
   — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-19 and UX-20 (LOW,
   live). "Forgot PIN?" renders 316×**16** and "About & scoring rules" 358×**20**, both under
@@ -4764,6 +4733,37 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: the gate script and the close-out workflow. No change to what the checks
   themselves assert. **Tooling-only (no deploy).**
+
+- [x] **Batch 154 — Two documents cost 106k tokens to read and under 2% of one is current** ✅ 2026-09-24
+  — specified from `docs/review/2026-09-13/07-agent-pipeline.md`, PIPE-07 (MED,
+  documentation). `STATUS.md` is 1,937 lines (~34.5k tokens) and under 2% of it is current
+  state: both major sections are historical narrative, one walking backwards through
+  completed batches. `docs/BUILD_PLAN.md` is 4,094 lines (~71.4k tokens) with 117 closed
+  rows against a handful open, and `session-log.md` duplicates the per-batch narrative
+  one-for-one. `/next-batch-prompt` and `/group-start` instruct an agent to read **all of
+  both** to find the first unchecked row. Worse, `STATUS.md` contradicts itself in ways
+  visible only on a full read — a group described as "one batch in" and then "complete"
+  fifteen lines later, renamed members "not told" and then "two of three, correctly",
+  a rollback baseline "usable" and later "not usable" — with no dates on the bold claims.
+
+  Cut `STATUS.md` to a current-state page of about 150 lines (what is live, what is owed,
+  what is open, the toolchain) and move the history into `session-log.md`, which already
+  holds it; separate the build plan's open rows from its closed ones; point the two command
+  workflows at the trimmed head.
+
+  **Re-verified 2026-09-24: reproduces, and has grown.** `STATUS.md` was 2,268 lines and
+  this file 5,001 — about 126k tokens together against the 106k specified — with 15 open
+  rows against 153 closed. Measured after the change, by bytes of the reads
+  `/next-batch-prompt` instructs (both documents, the row grep and the latest log entry):
+  **529 KB (~131k tokens) before, 38 KB (~9k) after**, and both reach Batch 95. The old
+  `STATUS.md` is archived verbatim at the top of `session-log.md`; the closed rows moved
+  intact to `## Closed batches` below the open ones.
+
+  Verification: a cold `/next-batch-prompt` reaching the right batch having read an order of
+  magnitude less; no statement in the trimmed `STATUS.md` contradicted by another.
+
+  Scope boundary: documentation structure and the two command workflows' reading
+  instructions. No change to the batch checklist's content. **Tooling-only (no deploy).**
 
 - [x] **Batch 155 — Two people's real names and old sign-in names are in a public repository** ✅ 2026-09-24
   — specified from `docs/review/2026-09-13/07-agent-pipeline.md`, PIPE-08 (MED, privacy,
