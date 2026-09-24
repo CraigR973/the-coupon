@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import base64
+import os
+import socket
+import time
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 from httpx import ASGITransport, AsyncClient
 
 from src.auth import get_current_user
@@ -17,7 +25,9 @@ from src.main import app
 from src.models.notification import NotificationPreferences, PushSubscription
 from src.models.profile import Profile
 from src.services.push_notification_service import (
+    PUSH_SEND_TIMEOUT_SECONDS,
     _is_quiet,
+    _send_push_sync,
     send_notification,
 )
 
@@ -308,6 +318,8 @@ async def _subscribe(endpoint: str) -> int:
         "https://evil.example/x?u=fcm.googleapis.com",  # allowlisted host in the query
         "https://fcm.googleapis.com@evil.example/x",  # allowlisted host as userinfo
         "https://notify.windows.com.evil.example/x",  # suffix match must not be loose
+        "https://fcm.googleapis.com:8443/fcm/send/abc",  # allowlisted host, another service
+        "https://web.push.apple.com:22/QABC123",  # allowlisted host, not even HTTPS's port
     ],
 )
 async def test_subscribe_rejects_untrusted_endpoint(endpoint: str) -> None:
@@ -323,6 +335,7 @@ async def test_subscribe_rejects_untrusted_endpoint(endpoint: str) -> None:
         "https://updates.push.services.mozilla.com/wpush/v2/abc123",
         "https://web.push.apple.com/QABC123",
         "https://par02p.notify.windows.com/w/?token=abc",
+        "https://fcm.googleapis.com:443/fcm/send/abc123",  # the default port, spelled out
     ],
 )
 async def test_subscribe_accepts_real_push_services(endpoint: str) -> None:
@@ -500,3 +513,89 @@ async def test_patch_preferences_updates_league_mute() -> None:
         assert membership.notification_muted is True
     finally:
         app.dependency_overrides.clear()
+
+
+# ── Batch 142: a push service that never answers ───────────────────────────────
+
+
+def _b64url(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+
+def _browser_keys() -> dict[str, str]:
+    """A real ``keys`` pair, so the payload genuinely encrypts and the send genuinely
+    reaches the network — the only place a hang can happen."""
+    browser = ec.generate_private_key(ec.SECP256R1())
+    point = browser.public_key().public_bytes(
+        serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint
+    )
+    return {"p256dh": _b64url(point), "auth": _b64url(os.urandom(16))}
+
+
+def _vapid_private_key() -> str:
+    server = ec.generate_private_key(ec.SECP256R1())
+    return _b64url(server.private_numbers().private_value.to_bytes(32, "big"))
+
+
+@contextmanager
+def _push_service_that_never_answers() -> Iterator[str]:
+    """A port that completes the TCP handshake and then says nothing, ever.
+
+    The kernel accepts a connection into the listen backlog by itself, so the client's
+    TLS hello goes out and waits — a push service that has hung, as opposed to one that is
+    down, which refuses at once and was never the danger.
+    """
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(8)
+    try:
+        yield f"https://127.0.0.1:{listener.getsockname()[1]}/push/hung"
+    finally:
+        listener.close()
+
+
+def test_every_push_is_sent_with_a_timeout() -> None:
+    """pywebpush defaults to none and hands ``None`` to ``requests``, which then waits."""
+    with patch("src.services.push_notification_service.webpush") as push:
+        _send_push_sync({"endpoint": "https://fcm.googleapis.com/x", "keys": {}}, "{}")
+    assert push.call_args.kwargs["timeout"] == PUSH_SEND_TIMEOUT_SECONDS
+    assert 0 < PUSH_SEND_TIMEOUT_SECONDS <= 10
+
+
+@pytest.mark.asyncio
+async def test_a_hanging_push_service_is_abandoned_at_the_timeout() -> None:
+    """The row's verification: a hung push service does not hold the request.
+
+    The bound is shortened so the test is quick; the call path is the real one — a real
+    payload encrypted against real keys, sent to a socket that never replies. Without a
+    timeout this call does not return at all.
+    """
+    user_id = uuid.uuid4()
+    session = AsyncMock()
+    with _push_service_that_never_answers() as endpoint:
+        sub = _sub(user_id, endpoint)
+        sub.subscription = {"endpoint": endpoint, "keys": _browser_keys()}
+        session.execute.side_effect = [
+            MagicMock(scalar_one_or_none=MagicMock(return_value=None)),  # prefs
+            MagicMock(scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[sub])))),
+        ]
+        with (
+            patch.object(settings, "vapid_private_key", _vapid_private_key()),
+            patch.object(settings, "vapid_public_key", "pub"),
+            patch("src.services.push_notification_service.PUSH_SEND_TIMEOUT_SECONDS", 0.5),
+            patch.dict(os.environ, {"NO_PROXY": "127.0.0.1", "no_proxy": "127.0.0.1"}),
+            # The module's own logger, not structlog's capture: the app caches a logger on
+            # first use, so a capture set up after an earlier test has logged sees nothing.
+            patch("src.services.push_notification_service.log") as log,
+        ):
+            started = time.monotonic()
+            sent = await send_notification(session, user_id, title="T", body="B")
+            elapsed = time.monotonic() - started
+
+    assert sent == 0, "nothing reached the member, so nothing may be counted as sent"
+    events = [call.args[0] for call in log.warning.call_args_list]
+    assert "push send timed out" in events, f"not a timeout: {log.mock_calls}"
+    # At least the bound itself, which proves the service really hung rather than refused;
+    # the ceiling is margin for a loaded machine, not a performance claim.
+    assert 0.4 <= elapsed < 5, f"the send held the request for {elapsed:.2f}s"
+    assert sub.failed_send_count == 0, "a hung push service is not a dead subscription"

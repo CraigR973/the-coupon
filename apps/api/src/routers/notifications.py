@@ -83,6 +83,11 @@ def _validate_push_endpoint(value: str) -> str:
     if host not in ALLOWED_PUSH_HOSTS and not host.endswith(ALLOWED_PUSH_HOST_SUFFIXES):
         raise ValueError("Push endpoint is not a recognised push service")
 
+    # Batch 142. The allowlist names hosts, not ports, so without this an allowlisted host
+    # could be aimed at any other service it runs. Every real push service is on 443.
+    if parts.port not in (None, 443):
+        raise ValueError("Push endpoint must use the standard HTTPS port")
+
     return value
 
 

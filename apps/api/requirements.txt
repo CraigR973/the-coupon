@@ -119,7 +119,9 @@ pywebpush==2.0.0
 pyyaml==6.0.3
     # via uvicorn
 requests==2.34.2
-    # via pywebpush
+    # via
+    #   -r apps/api/requirements.in
+    #   pywebpush
 six==1.17.0
     # via
     #   apscheduler

@@ -263,6 +263,13 @@ ticked rows can collect here until someone moves them below.
   transitive VAPID signing), so the next dependency scan does not re-derive this from
   scratch. The web-push timeout and port restriction are still this batch's work.
 
+  **Re-verified 2026-09-24: two of three parts reproduce.** `webpush()` was called with no
+  timeout, and pywebpush hands `None` straight to `requests`, so a hung push service held
+  the send indefinitely; and `_validate_push_endpoint` accepted an allowlisted host on port
+  8443 or 22. The third part had largely been done already: `requirements.in` has recorded
+  the same three advisories as unreachable since 2026-08-26 — OSV lists exactly those three
+  against 48.0.1 today — only without their CVE and GHSA numbers, which are now added.
+
   Verification: the gate green on the chosen version; a test that a hanging push service
   does not block the request beyond the timeout.
 

@@ -21,6 +21,7 @@ from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import requests
 import structlog
 from pywebpush import WebPushException, webpush  # type: ignore[import-untyped,unused-ignore]
 from sqlalchemy import select
@@ -33,6 +34,13 @@ from src.models.notification import NotificationPreferences, PushSubscription
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 _FAIL_THRESHOLD = 3
+
+#: How long one push may take, in seconds (Batch 142). ``webpush()`` has no bound of its
+#: own — pywebpush hands ``timeout=None`` straight to ``requests`` — so a push service that
+#: accepted the connection and never answered held this send, and every send queued behind
+#: it, for as long as it chose. Healthy services answer in well under a second; five is
+#: generous to them and still bounds the rest.
+PUSH_SEND_TIMEOUT_SECONDS = 5.0
 
 
 def _utc_now() -> datetime:
@@ -71,6 +79,7 @@ def _send_push_sync(subscription_data: dict[str, Any], payload: str) -> None:
         vapid_private_key=settings.vapid_private_key,
         vapid_claims={"sub": f"mailto:{settings.vapid_contact_email}"},
         content_encoding="aes128gcm",
+        timeout=PUSH_SEND_TIMEOUT_SECONDS,
     )
 
 
@@ -193,6 +202,15 @@ async def send_notification(
                     subscription_id=str(sub.id),
                     fail_count=sub.failed_send_count,
                 )
+        except requests.exceptions.Timeout:
+            # The push service did not answer in time. Not counted towards auto-disable: a
+            # slow or hung push service is theirs to fix, not proof the subscription is dead.
+            log.warning(
+                "push send timed out",
+                user_id=str(user_id),
+                subscription_id=str(sub.id),
+                timeout_s=PUSH_SEND_TIMEOUT_SECONDS,
+            )
         except Exception as exc:
             log.error("unexpected push error", error=str(exc))
 
