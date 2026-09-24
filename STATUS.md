@@ -2041,11 +2041,12 @@ renamed members carry their new names.
 
 What is outstanding now:
 
-**Craig Robinson, Marc Birch and Lewis Steele have not been told their sign-in names
-changed.** Nobody was signed out — the JWT subject is the player id — so this surfaces
-only at the next session expiry or PIN reset, which means the failure arrives days later
-looking unrelated. `Craig`, `Birch` and `Lewis` are also now registrable by anyone, since
-a rename releases a name outright where a deletion would have kept it reserved.
+**The owner and the two renamed members (A and B in the backfill note) have not been told
+their sign-in names changed.** Nobody was signed out — the JWT subject is the player id — so
+this surfaces only at the next session expiry or PIN reset, which means the failure arrives
+days later looking unrelated. `Craig` and both members' old names are also now registrable
+by anyone, since a rename releases a name outright where a deletion would have kept it
+reserved.
 
 **No `/ship-prod` is owed.** Batch 96 shipped on 2026-08-30 (see Group F above) and
 `check-deploy-drift.sh` reports **in sync**. Group E's own ship is paid: it went to

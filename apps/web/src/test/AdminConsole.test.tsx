@@ -32,7 +32,7 @@ vi.mock('@/contexts/AuthContext', () => ({
 function player(overrides: Partial<AdminPlayer> = {}): AdminPlayer {
   return {
     id: 'p1',
-    display_name: 'Lewis',
+    display_name: 'Dana',
     role: 'player',
     is_active: true,
     pin_set: true,
@@ -69,7 +69,7 @@ describe('the admin players screen', () => {
 
     renderPlayers();
 
-    expect(await screen.findByText('Lewis')).toBeTruthy();
+    expect(await screen.findByText('Dana')).toBeTruthy();
     expect(screen.getByText('Sam')).toBeTruthy();
     // The distinction the console exists to draw: "cannot remember their PIN" and
     // "already reset, has not come back" look identical without it.
@@ -113,7 +113,7 @@ describe('the admin players screen', () => {
     expect(confirm.hasAttribute('disabled')).toBe(true);
 
     fireEvent.change(screen.getByLabelText(/confirm display name/i), {
-      target: { value: 'Lewis' },
+      target: { value: 'Dana' },
     });
     expect(
       screen.getByRole('button', { name: /delete player/i }).hasAttribute('disabled'),
@@ -135,7 +135,7 @@ describe('the admin players screen', () => {
 });
 
 describe('the set-a-new-PIN screen', () => {
-  function renderSetPin(entry = '/set-pin?name=Lewis') {
+  function renderSetPin(entry = '/set-pin?name=Dana') {
     return render(
       <MemoryRouter initialEntries={[entry]}>
         <Routes>
@@ -156,7 +156,7 @@ describe('the set-a-new-PIN screen', () => {
 
   it('arrives with the display name already filled from the login redirect', () => {
     renderSetPin();
-    expect((screen.getByLabelText(/display name/i) as HTMLInputElement).value).toBe('Lewis');
+    expect((screen.getByLabelText(/display name/i) as HTMLInputElement).value).toBe('Dana');
   });
 
   it('refuses two PINs that disagree without calling the API', async () => {

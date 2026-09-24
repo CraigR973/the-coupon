@@ -36,7 +36,7 @@ test('production bundle serves deep links through the SPA shell', async ({ page 
   // Batch 66. The far end of a PIN reset is a *public* route — the member arrives with
   // no credential, which is the whole state — so it has to render for a signed-out
   // browser rather than bouncing to /login like everything else here.
-  await page.goto('/set-pin?name=Lewis');
+  await page.goto('/set-pin?name=Dana');
   await expect(page.getByRole('heading', { name: 'Choose a new PIN' })).toBeVisible();
 
   // And the admin console is the opposite: authenticated *and* role-gated, so a

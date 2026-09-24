@@ -1,9 +1,9 @@
 """Batch 74 — four rounds renumbered and three members renamed, in production data.
 
-Neither correction is testable in the sense that matters most: whether "Birch" really is
-Marc Birch is the owner's word, not pytest's. What *is* testable is every way this could
-put a wrong name on a real member's record, or a wrong number on a round people talk about
-by number, without anyone noticing.
+Neither correction is testable in the sense that matters most: whether an old sign-in name
+really belongs to the person it is renamed to is the owner's word, not pytest's. What *is*
+testable is every way this could put a wrong name on a real member's record, or a wrong
+number on a round people talk about by number, without anyone noticing.
 
 * **It fails closed.** A missing round or an unresolvable profile raises before anything
   is written, and a target name somebody else already holds aborts the *whole* run —
@@ -178,14 +178,14 @@ async def test_the_three_members_are_renamed(session: AsyncSession) -> None:
 async def test_a_target_name_already_taken_aborts_the_whole_run(session: AsyncSession) -> None:
     """The renumbering is unrelated to the rename and must still not half-land.
 
-    A stranger holding "Marc Birch" is not something this script may resolve — every
+    A stranger holding "Member A Fullname" is not something this script may resolve — every
     alternative is the owner's decision, and ``display_name`` being the login identifier
     means guessing wrong locks somebody out of their account.
     """
     league = await _seed(session)
     session.add(
         Profile(
-            display_name="Marc Birch",
+            display_name="Member A Fullname",
             pin_hash=hash_pin("8351"),
             role=UserRole.player,
         )
@@ -207,12 +207,14 @@ async def test_a_target_name_already_taken_aborts_the_whole_run(session: AsyncSe
 async def test_a_target_name_held_case_differently_also_aborts(session: AsyncSession) -> None:
     """``auth.py:436`` reserves names case-insensitively, so this must match that.
 
-    "marc birch" and "Marc Birch" are one person twice on a leaderboard, which is the
-    impersonation that check exists to prevent — and renaming onto it would create exactly
-    the pair the database's own constraint cannot see.
+    "member a fullname" and "Member A Fullname" are one person twice on a leaderboard, which
+    is the impersonation that check exists to prevent — and renaming onto it would create
+    exactly the pair the database's own constraint cannot see.
     """
     await _seed(session)
-    session.add(Profile(display_name="marc birch", pin_hash=hash_pin("8351"), role=UserRole.player))
+    session.add(
+        Profile(display_name="member a fullname", pin_hash=hash_pin("8351"), role=UserRole.player)
+    )
     await session.flush()
     with pytest.raises(BackfillError, match="already held"):
         await apply(session)

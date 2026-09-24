@@ -2163,7 +2163,8 @@ Postgres-backed tests · **script shipped, NOT applied to production**
 
 ### Key facts for future sessions
 - **The production dry run is still owed.** `python -m src.backfill_names_and_numbers
-  --dry-run`, then `--apply`, then **tell Craig, Marc and Lewis their new sign-in names**.
+  --dry-run`, then `--apply`, then **tell the owner and members A and B their new sign-in
+  names**.
   `docs/backfills/2026-08-names-and-numbers.md` carries the pre-flight checklist.
 - **A Supabase MCP timeout is not a database outage, and this session proved it.** Every
   query through the MCP timed out including `select 1`; `check-deploy-drift.sh` run
@@ -2174,7 +2175,7 @@ Postgres-backed tests · **script shipped, NOT applied to production**
 - **Renaming a profile releases its name more completely than deleting one does.**
   `auth.py:436` reserves names case-insensitively and **deliberately includes soft-deleted
   rows**, so a departed member keeps their name — but a rename leaves no row holding the
-  old one, so "Craig", "Birch" and "Lewis" become registrable by anyone the moment this
+  old one, so "Craig" and both members' old names become registrable by anyone the moment this
   applies. Counter-intuitive and worth remembering before any future rename.
 - **`display_name` is the login identifier**, matched exactly at `auth.py:228` and again at
   `auth.py:695` for PIN resets. The JWT subject is the player id, so a rename signs nobody
@@ -2276,7 +2277,7 @@ profiles carry their new names; **36 picks and 12 memberships untouched**. A sec
 `--apply` reported every row `==`, proving idempotency against production and not only in
 a test.
 
-- **`Craig`, `Birch` and `Lewis` are now free for anyone to register.** Renaming releases a
+- **`Craig` and both members' old names are now free for anyone to register.** Renaming releases a
   name outright, unlike deleting a member — see the Batch 74 notes above.
 - **The three have not been told.** Nobody was signed out (the JWT subject is the player
   id), so this only bites at the next sign-in or a PIN reset.

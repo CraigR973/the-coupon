@@ -76,7 +76,7 @@ shipped decision, and launch gates left open.
   turn out to bite" but no batch or launch item tracking for that trigger.
 
 - **FEAT-A08 (LOW) — Three renamed members were never told, and their old names are now
-  registrable by anyone.** `STATUS.md:1082-1086`: Batch 74 renamed Craig, Birch and Lewis to
+  registrable by anyone.** `STATUS.md:1082-1086`: Batch 74 renamed the owner and two members to
   their full names for sign-in purposes; nobody was signed out (JWT subject is the player id), so
   the failure surfaces "days later looking unrelated" at next PIN reset/session expiry, and the
   freed short names are now open to registration by a stranger. This sits in STATUS.md prose as

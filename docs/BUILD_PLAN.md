@@ -2034,7 +2034,7 @@ answered until it lands, because until then there is no data to look at.
 
 - [x] **Batch 68 — Two rounds that were played before the app was watching** ✅ 2026-08-24 — the owner's
   first and eighth points (2026-08-23): backfill the last two weeks' results into a league,
-  and correct Lewis Steele's pick for the round of 22 August.
+  and correct a member's pick for the round of 22 August.
 
   Mostly data, but it carries one finding worth recording because it closes off an approach
   that looks obvious. **odds-api.io cannot supply retrospective prices.** `odds_api.py:494`
@@ -2263,7 +2263,8 @@ answered until it lands, because until then there is no data to look at.
   **The rename changes how three people sign in.** `profiles.display_name` is globally unique
   and *is* the login identifier (`routers/auth.py:374`); the owner chose it over
   `league_memberships.display_name_override`, which is per-league and cosmetic. Craig -> Craig
-  Robinson, Birch -> Marc Birch, Lewis -> Lewis Steele. Checked against production on
+  Robinson, and two members from a single name to their full name (members A and B in the
+  backfill note; names withheld by Batch 155). Checked against production on
   2026-08-25: none of the three target names is held, by a live or a soft-deleted row.
   Consequences to carry rather than discover afterwards — the JWT subject is the player id so
   nobody is signed out, but the **next** sign-in and any forgotten-PIN request need the new name
@@ -4724,11 +4725,27 @@ answered until it lands, because until then there is no data to look at.
   invalidates every existing clone and every shipped commit SHA, including those recorded
   in the deployment and launch logs, and is explicitly **not** authorised by this batch.
 
+  **Re-verified 2026-09-24: reproduces, and wider than specified.** GitHub reports the
+  repository `PUBLIC`. The two names were in the three documents above and in three more
+  (`session-log.md`, the 2026-08-26 review, the rounds backfill note); in live code — the
+  Batch 93 boot-time rename notice found both members *by full name* and quoted both names
+  in its push; in the two applied backfill scripts; and in six test files. The Batch 68
+  backfill, its test and its note also carried **nine more** members' first-and-surname
+  display names beside their picks, which the review did not flag — and L0 already said
+  real display names must not be committed.
+
+  **Owner decision, 2026-09-24: every non-owner member, everywhere.** Eleven members become
+  "Member A" to "Member L" (no I), the same letter in code and documents; A and B are the
+  two renamed members. The rename notice finds its three profiles by id, read from
+  production read-only, and its copy says the old sign-in name has gone instead of quoting
+  it. That makes the batch **API-carrying**: `/ship-prod` is owed for the notice to switch.
+
   Verification: the names appear nowhere in the tracked tree; the backfill document still
   reads coherently.
 
   Scope boundary: redaction in the working tree. History rewriting is explicitly out of
-  scope unless separately authorised. **Tooling-only (no deploy).**
+  scope unless separately authorised. **API-carrying** since the 2026-09-24 decision above
+  (originally tooling-only, no deploy).
 
 - [x] **Batch 156 — A voided leg's price still multiplies into the combined coupon** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/02-correctness.md`; owner decision 2026-09-22:

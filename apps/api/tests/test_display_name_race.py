@@ -264,7 +264,7 @@ async def test_upgrade_applies_cleanly_when_names_only_differ_beyond_case(
     await _migrate(config, "016")
 
     async with scratch_engine.begin() as conn:
-        for name in ("Dave", "Marc", "Lewis"):
+        for name in ("Dave", "Erin", "Frank"):
             await conn.execute(
                 text(
                     "INSERT INTO profiles (id, display_name, pin_hash, role) "

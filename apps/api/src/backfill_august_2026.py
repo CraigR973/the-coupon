@@ -35,6 +35,12 @@ Run it with::
 
 Scope: one league, two rounds, two picks. Not a general import path — that is Batch 69's
 manual-results screen, which now exists and is the right tool for anything after this.
+
+**Member names are pseudonymised (Batch 155).** Every member but the owner appears as
+"Member A" to "Member L": the repository is public and a display name is half of a
+member's sign-in. This module is therefore the record of what ran on 2026-08-24 rather than
+a repeatable run — against production it stops at member resolution before writing
+anything, which is the fail-closed behaviour described above.
 """
 
 from __future__ import annotations
@@ -80,9 +86,9 @@ class BackfillPick:
     """One member's selection, as it was actually made.
 
     ``member`` is the app display name, not the nickname the coupon used: the two
-    handwritten coupons name people as "Walesy", "Robbo" and "Gee", and mapping those onto
-    profiles is the step where points can silently land on the wrong person. The mapping
-    was confirmed with the owner on 2026-08-24 rather than inferred.
+    handwritten coupons name people by nickname, and mapping those onto profiles is the
+    step where points can silently land on the wrong person. The mapping was confirmed
+    with the owner on 2026-08-24 rather than inferred.
     """
 
     member: str
@@ -142,15 +148,15 @@ def _win(member: str, home: str, away: str, *, on: str, odds: str, evidence: str
 ROUND_08_AUG = BackfillRound(
     starts_on=date(2026, 8, 8),
     picks=[
-        _btts("Adam wales", "Salford City", "Shrewsbury Town", "1.95", SLIP_08),
-        _btts("Alan tipping", "Burton Albion", "Blackburn Rovers", "1.91", SLIP_08),
-        _btts("Neal Currie", "Leyton Orient London", "Oxford United", "1.70", SLIP_08),
+        _btts("Member C", "Salford City", "Shrewsbury Town", "1.95", SLIP_08),
+        _btts("Member D", "Burton Albion", "Blackburn Rovers", "1.91", SLIP_08),
+        _btts("Member E", "Leyton Orient London", "Oxford United", "1.70", SLIP_08),
         _btts("Craig", "Dundee FC", "Aberdeen FC", "1.67", SLIP_08),
-        _btts("Grant Moore", "St Mirren FC", "St. Johnstone FC", "1.67", SLIP_08),
-        _btts("Shaun Johnstone", "Airdrieonians FC", "East Kilbride FC", "1.62", SLIP_08),
-        _btts("Lewis", "Stranraer FC", "Annan Athletic FC", "1.73", SLIP_08),
+        _btts("Member F", "St Mirren FC", "St. Johnstone FC", "1.67", SLIP_08),
+        _btts("Member G", "Airdrieonians FC", "East Kilbride FC", "1.62", SLIP_08),
+        _btts("Member B", "Stranraer FC", "Annan Athletic FC", "1.73", SLIP_08),
         _win(
-            "Josh Caldow",
+            "Member H",
             "Stockport County FC",
             "Doncaster Rovers",
             on="Stockport County FC",
@@ -158,10 +164,15 @@ ROUND_08_AUG = BackfillRound(
             evidence=SLIP_08,
         ),
         _win(
-            "Birch", "Stoke City", "Oldham Athletic", on="Stoke City", odds="1.42", evidence=SLIP_08
+            "Member A",
+            "Stoke City",
+            "Oldham Athletic",
+            on="Stoke City",
+            odds="1.42",
+            evidence=SLIP_08,
         ),
         _win(
-            "Scott cowie",
+            "Member J",
             "Stenhousemuir FC",
             "Greenock Morton FC",
             on="Stenhousemuir FC",
@@ -169,7 +180,7 @@ ROUND_08_AUG = BackfillRound(
             evidence=SLIP_08,
         ),
         _win(
-            "Craig Gemmell",
+            "Member K",
             "Hamilton Academical FC",
             "Alloa Athletic FC",
             on="Hamilton Academical FC",
@@ -177,7 +188,7 @@ ROUND_08_AUG = BackfillRound(
             evidence=SLIP_08,
         ),
         _win(
-            "Mikey stewart",
+            "Member L",
             "Ross County FC",
             "Montrose FC",
             on="Ross County FC",
@@ -192,7 +203,7 @@ ROUND_15_AUG = BackfillRound(
     starts_on=date(2026, 8, 15),
     picks=[
         _win(
-            "Mikey stewart",
+            "Member L",
             "Norwich City",
             "West Bromwich Albion",
             on="Norwich City",
@@ -200,7 +211,7 @@ ROUND_15_AUG = BackfillRound(
             evidence=SLIP_15,
         ),
         _win(
-            "Craig Gemmell",
+            "Member K",
             "Middlesbrough FC",
             "Lincoln City",
             on="Middlesbrough FC",
@@ -208,7 +219,7 @@ ROUND_15_AUG = BackfillRound(
             evidence=SLIP_15,
         ),
         _win(
-            "Birch",
+            "Member A",
             "Plymouth Argyle",
             "Stockport County FC",
             on="Plymouth Argyle",
@@ -216,7 +227,7 @@ ROUND_15_AUG = BackfillRound(
             evidence=SLIP_15,
         ),
         _win(
-            "Scott cowie",
+            "Member J",
             "Barnsley FC",
             "Bromley FC",
             on="Barnsley FC",
@@ -225,7 +236,7 @@ ROUND_15_AUG = BackfillRound(
         ),
         # The one away pick of the round: Sheffield Wednesday at Leyton Orient.
         _win(
-            "Shaun Johnstone",
+            "Member G",
             "Leyton Orient London",
             "Sheffield Wednesday",
             on="Sheffield Wednesday",
@@ -241,18 +252,18 @@ ROUND_15_AUG = BackfillRound(
             evidence=SLIP_15,
         ),
         _win(
-            "Lewis",
+            "Member B",
             "East Kilbride FC",
             "Cove Rangers FC",
             on="East Kilbride FC",
             odds="1.40",
             evidence=SLIP_15,
         ),
-        _btts("Alan tipping", "Bristol City", "Millwall FC", "1.72", SLIP_15),
-        _btts("Josh Caldow", "Stoke City", "Swansea City", "1.72", SLIP_15),
-        _btts("Grant Moore", "Barnet FC", "Salford City", "1.66", SLIP_15),
-        _btts("Neal Currie", "Grimsby Town", "Exeter City", "1.72", SLIP_15),
-        _btts("Adam wales", "Aberdeen FC", "Dundee FC", "1.61", SLIP_15),
+        _btts("Member D", "Bristol City", "Millwall FC", "1.72", SLIP_15),
+        _btts("Member H", "Stoke City", "Swansea City", "1.72", SLIP_15),
+        _btts("Member F", "Barnet FC", "Salford City", "1.66", SLIP_15),
+        _btts("Member E", "Grimsby Town", "Exeter City", "1.72", SLIP_15),
+        _btts("Member C", "Aberdeen FC", "Dundee FC", "1.61", SLIP_15),
     ],
 )
 
@@ -262,9 +273,9 @@ ROUND_15_AUG = BackfillRound(
 ROUND_22_AUG = BackfillRound(
     starts_on=date(2026, 8, 22),
     picks=[
-        _btts("Lewis", "Everton FC", "Crystal Palace", "1.70", OWNER),
+        _btts("Member B", "Everton FC", "Crystal Palace", "1.70", OWNER),
         _win(
-            "Josh Caldow",
+            "Member H",
             "Cove Rangers FC",
             "Peterhead FC",
             on="Peterhead FC",

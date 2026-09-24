@@ -81,10 +81,17 @@ ROUND_NUMBERS: dict[date, int] = {
 }
 
 #: Old display name to new. Both sides are matched case-insensitively.
+#:
+#: The two members other than the owner are pseudonymised (Batch 155): the repository is
+#: public and a display name is half of a member's sign-in. Each had signed in under one
+#: name and was renamed to their full name. This module is therefore the record of what ran
+#: on 2026-08-26 rather than a repeatable run — against production it stops at "neither ...
+#: matches any profile" before writing anything, which is the fail-closed behaviour it was
+#: built with.
 RENAMES: dict[str, str] = {
     "Craig": "Craig Robinson",
-    "Birch": "Marc Birch",
-    "Lewis": "Lewis Steele",
+    "Member A": "Member A Fullname",
+    "Member B": "Member B Fullname",
 }
 
 

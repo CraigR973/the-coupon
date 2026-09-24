@@ -1,6 +1,6 @@
 """Batch 68 — the two rounds played before the app was watching.
 
-The data itself cannot be tested: whether Walesy really took Salford BTTS at 19/20 is a
+The data itself cannot be tested: whether member C really took Salford BTTS at 19/20 is a
 question for the screenshot, not for pytest. What *can* be tested is everything around it,
 and every one of these is a way this backfill could put a wrong number on a real member's
 record without anyone noticing.
@@ -154,7 +154,7 @@ def test_the_two_undocumented_prices_are_the_ones_that_score_nothing() -> None:
     unevidenced price into a scoring one.
     """
     undocumented = [p for r in ROUNDS for p in r.picks if "owner" in p.evidence]
-    assert {p.member for p in undocumented} == {"Lewis", "Josh Caldow"}
+    assert {p.member for p in undocumented} == {"Member B", "Member H"}
     assert all(p in ROUND_22_AUG.picks for p in undocumented)
 
 
@@ -348,9 +348,9 @@ async def test_the_backfill_settles_from_stored_scores_rather_than_asserting_out
     by_name = {s.display_name: s for s in table}
     # Everyone played both backfilled rounds; only the two 22 August additions have a
     # third. That asymmetry is the check that the correction landed on the right people.
-    assert by_name["Adam wales"].picks_played == 2, "the two backfilled rounds"
-    assert by_name["Lewis"].picks_played == 3, "plus the 22 August pick that was missing"
-    assert by_name["Josh Caldow"].picks_played == 3
+    assert by_name["Member C"].picks_played == 2, "the two backfilled rounds"
+    assert by_name["Member B"].picks_played == 3, "plus the 22 August pick that was missing"
+    assert by_name["Member H"].picks_played == 3
 
 
 async def test_a_backfilled_round_lands_settled_with_its_real_instants(
@@ -401,8 +401,8 @@ async def test_it_leaves_picks_that_are_already_recorded_alone(session: AsyncSes
     in the app and are the record.
     """
     league = await _stage(session, {})
-    lewis = (
-        await session.execute(select(Profile).where(Profile.display_name == "Lewis"))
+    member_b = (
+        await session.execute(select(Profile).where(Profile.display_name == "Member B"))
     ).scalar_one()
     existing_fixture = (
         await session.execute(
@@ -422,7 +422,7 @@ async def test_it_leaves_picks_that_are_already_recorded_alone(session: AsyncSes
         Pick(
             league_id=league.id,
             gameweek_id=gameweek.id,
-            player_id=lewis.id,
+            player_id=member_b.id,
             fixture_id=existing_fixture.id,
             market=PickMarket.MATCH_ODDS,
             outcome=PickOutcome.HOME,
@@ -438,7 +438,7 @@ async def test_it_leaves_picks_that_are_already_recorded_alone(session: AsyncSes
 
     kept = (
         await session.execute(
-            select(Pick).where(Pick.player_id == lewis.id, Pick.gameweek_id == gameweek.id)
+            select(Pick).where(Pick.player_id == member_b.id, Pick.gameweek_id == gameweek.id)
         )
     ).scalar_one()
     assert kept.odds_at_pick == Decimal("9.99"), "an existing pick is the record, not a target"
@@ -454,13 +454,13 @@ async def test_an_unknown_member_stops_the_run(session: AsyncSession) -> None:
         await session.execute(
             select(LeagueMembership)
             .join(Profile, Profile.id == LeagueMembership.player_id)
-            .where(LeagueMembership.league_id == league.id, Profile.display_name == "Grant Moore")
+            .where(LeagueMembership.league_id == league.id, Profile.display_name == "Member F")
         )
     ).scalar_one()
     membership.deleted_at = datetime.now(UTC).replace(tzinfo=None)
     await session.flush()
 
-    with pytest.raises(BackfillError, match="Grant Moore"):
+    with pytest.raises(BackfillError, match="Member F"):
         await plan(session)
 
 
@@ -549,15 +549,15 @@ async def test_a_stated_score_settles_a_fixture_the_store_cannot_answer(
 ) -> None:
     """The hole it exists to fill: no match row, so no scoreline, so no settlement.
 
-    Without it Walesy's 15 August pick would sit pending forever and hold the round open —
+    Without it member C's 15 August pick would sit pending forever and hold the round open —
     and the round would never reach the members who played it.
     """
     league = await _stage(session, {})
 
     await apply(session)
 
-    walesy = (
-        await session.execute(select(Profile).where(Profile.display_name == "Adam wales"))
+    member_c = (
+        await session.execute(select(Profile).where(Profile.display_name == "Member C"))
     ).scalar_one()
     round_15 = (
         await session.execute(
@@ -568,7 +568,7 @@ async def test_a_stated_score_settles_a_fixture_the_store_cannot_answer(
     ).scalar_one()
     pick = (
         await session.execute(
-            select(Pick).where(Pick.player_id == walesy.id, Pick.gameweek_id == round_15.id)
+            select(Pick).where(Pick.player_id == member_c.id, Pick.gameweek_id == round_15.id)
         )
     ).scalar_one()
     # 3-0 is one team scoring, so BTTS Yes loses — decided by the stated score rather than

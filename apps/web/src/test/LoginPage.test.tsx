@@ -219,7 +219,7 @@ describe('LoginPage', () => {
     );
 
     renderLoginWithSetPinRoute('/login');
-    fireEvent.change(screen.getByLabelText(/display name/i), { target: { value: 'Lewis' } });
+    fireEvent.change(screen.getByLabelText(/display name/i), { target: { value: 'Dana' } });
     fillPin('1234');
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
@@ -228,8 +228,8 @@ describe('LoginPage', () => {
   });
 
   it('arrives with the display name filled when set-pin hands it back', () => {
-    renderLoginAt('/login?name=Lewis');
-    expect((screen.getByLabelText(/display name/i) as HTMLInputElement).value).toBe('Lewis');
+    renderLoginAt('/login?name=Dana');
+    expect((screen.getByLabelText(/display name/i) as HTMLInputElement).value).toBe('Dana');
   });
 
   describe('where it sends the member after sign-in', () => {

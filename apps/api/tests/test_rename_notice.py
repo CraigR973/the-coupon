@@ -1,7 +1,7 @@
 """Batch 93 — the one-time notice to the three members Batch 74 renamed.
 
 The hard part is not sending it. It is sending it *once*, from a task that runs on every
-boot, to three accounts identified by name in a database where they may not exist at all —
+boot, to three accounts identified by id in a database where they may not exist at all —
 and not marking someone as told when nothing actually reached them.
 
 Postgres-backed; each test rolls back.
@@ -9,6 +9,7 @@ Postgres-backed; each test rolls back.
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from collections.abc import AsyncIterator, Iterator
@@ -27,7 +28,7 @@ from src.models.notification import ActionType, AuditLog, PushSubscription
 from src.models.profile import Profile
 from src.services.rename_notice import (
     NOTICE_TITLE,
-    RENAMED_MEMBERS,
+    RENAMED_PROFILE_IDS,
     notice_body,
     send_rename_notices,
 )
@@ -63,9 +64,15 @@ def push_enabled() -> Iterator[MagicMock]:
         yield sync
 
 
-async def _renamed_profile(db: AsyncSession, new_name: str, *, subscribed: bool = True) -> Profile:
+async def _renamed_profile(
+    db: AsyncSession, profile_id: uuid.UUID, *, name: str | None = None, subscribed: bool = True
+) -> Profile:
     """One of the three, as production holds them: already carrying the new name."""
-    person = Profile(display_name=new_name, pin_hash=hash_pin("8351"))
+    person = Profile(
+        id=profile_id,
+        display_name=name or f"Renamed {uuid.uuid4().hex[:6]}",
+        pin_hash=hash_pin("8351"),
+    )
     db.add(person)
     await db.flush()
     if subscribed:
@@ -89,28 +96,29 @@ async def _markers(db: AsyncSession) -> list[AuditLog]:
 
 class TestReachesTheThree:
     async def test_notifies_every_renamed_member_that_exists(self, session: AsyncSession) -> None:
-        for member in RENAMED_MEMBERS:
-            await _renamed_profile(session, member.new_name)
+        for profile_id in RENAMED_PROFILE_IDS:
+            await _renamed_profile(session, profile_id)
 
         with push_enabled() as push:
             sent = await send_rename_notices(session)
 
-        assert set(sent) == {m.new_name for m in RENAMED_MEMBERS}
+        assert set(sent) == {str(profile_id) for profile_id in RENAMED_PROFILE_IDS}
         assert all(count == 1 for count in sent.values())
         assert push.call_count == 3
         assert len(await _markers(session)) == 3
 
-    async def test_body_names_the_old_name_and_the_new_one(self) -> None:
-        # The old name is what they will type first, so the copy has to say both.
-        body = notice_body(RENAMED_MEMBERS[0])
-        assert RENAMED_MEMBERS[0].old_name in body
-        assert RENAMED_MEMBERS[0].new_name in body
+    async def test_body_names_the_new_name_and_retires_the_old_one(self) -> None:
+        # The old name is what they will type first, so the copy has to say it is gone.
+        # It no longer quotes it: the old names are not published anywhere (Batch 155).
+        body = notice_body("Member A Fullname")
+        assert 'Sign in as "Member A Fullname"' in body
+        assert "old sign-in name no longer works" in body
         # And must not imply their credentials changed — only the identifier did.
         assert "PIN itself has not changed" in body
         assert NOTICE_TITLE == "Your sign-in name changed"
 
     async def test_leaves_everyone_else_alone(self, session: AsyncSession) -> None:
-        await _renamed_profile(session, f"Someone Else {uuid.uuid4().hex[:6]}")
+        await _renamed_profile(session, uuid.uuid4(), name=f"Someone Else {uuid.uuid4().hex[:6]}")
 
         with push_enabled() as push:
             sent = await send_rename_notices(session)
@@ -127,23 +135,27 @@ class TestReachesTheThree:
         assert sent == {}
         assert push.call_count == 0
 
-    async def test_matches_the_name_case_insensitively(self, session: AsyncSession) -> None:
-        # Migration 017 made display names CI-unique, so the row's case is not guaranteed
-        # to be the case the backfill note recorded.
-        member = RENAMED_MEMBERS[0]
-        await _renamed_profile(session, member.new_name.upper())
+    async def test_finds_them_by_id_whatever_they_are_called_now(
+        self, session: AsyncSession
+    ) -> None:
+        # The id is the match, so a member renamed again since Batch 74 is still reached —
+        # and told the name the row holds now, which is the one that signs them in.
+        profile_id = RENAMED_PROFILE_IDS[0]
+        await _renamed_profile(session, profile_id, name="Renamed Again")
 
         with push_enabled() as push:
             sent = await send_rename_notices(session)
 
         assert push.call_count == 1
-        assert sent == {member.new_name: 1}
+        assert sent == {str(profile_id): 1}
+        _, payload = push.call_args.args
+        assert json.loads(payload)["body"] == notice_body("Renamed Again")
 
 
 class TestOnlyOnce:
     async def test_a_second_run_sends_nothing(self, session: AsyncSession) -> None:
-        for member in RENAMED_MEMBERS:
-            await _renamed_profile(session, member.new_name)
+        for profile_id in RENAMED_PROFILE_IDS:
+            await _renamed_profile(session, profile_id)
 
         with push_enabled() as first:
             await send_rename_notices(session)
@@ -156,34 +168,33 @@ class TestOnlyOnce:
         assert again == {}
         assert len(await _markers(session)) == 3
 
-    async def test_the_marker_records_both_names(self, session: AsyncSession) -> None:
-        member = RENAMED_MEMBERS[0]
-        person = await _renamed_profile(session, member.new_name)
+    async def test_the_marker_records_the_name_they_were_told(self, session: AsyncSession) -> None:
+        person = await _renamed_profile(session, RENAMED_PROFILE_IDS[0])
 
         with push_enabled():
             await send_rename_notices(session)
 
         marker = next(m for m in await _markers(session) if m.target_id == person.id)
         assert marker.target_table == "profiles"
-        assert marker.changes == {"old": member.old_name, "new": member.new_name, "pushes": 1}
+        assert marker.changes == {"new": person.display_name, "pushes": 1}
 
 
 class TestUndelivered:
     async def test_an_unreachable_member_is_not_marked_as_told(self, session: AsyncSession) -> None:
         # No push subscription: send_notification delivers nothing, so nothing was said.
-        member = RENAMED_MEMBERS[0]
-        await _renamed_profile(session, member.new_name, subscribed=False)
+        profile_id = RENAMED_PROFILE_IDS[0]
+        await _renamed_profile(session, profile_id, subscribed=False)
 
         with push_enabled() as push:
             sent = await send_rename_notices(session)
 
         assert push.call_count == 0
-        assert sent == {member.new_name: 0}
+        assert sent == {str(profile_id): 0}
         assert await _markers(session) == [], "marking them told would strand them silently"
 
     async def test_they_are_reached_once_they_subscribe(self, session: AsyncSession) -> None:
-        member = RENAMED_MEMBERS[0]
-        person = await _renamed_profile(session, member.new_name, subscribed=False)
+        profile_id = RENAMED_PROFILE_IDS[0]
+        person = await _renamed_profile(session, profile_id, subscribed=False)
 
         with push_enabled():
             await send_rename_notices(session)
@@ -201,7 +212,7 @@ class TestUndelivered:
             sent = await send_rename_notices(session)
 
         assert later.call_count == 1
-        assert sent == {member.new_name: 1}
+        assert sent == {str(profile_id): 1}
         assert len(await _markers(session)) == 1
 
 

@@ -1,5 +1,11 @@
 # Backfill note — 2-1 Hibs, round numbers and three display names
 
+> **Names are pseudonymised (Batch 155, 2026-09-24).** The repository is public and a
+> display name is half of a member's sign-in, so the two members renamed alongside the
+> owner appear here as **member A** and **member B**, with the same letters as the code.
+> Member A had signed in under their surname and member B under their first name; each
+> was renamed to their full name.
+
 Batch 74, from the owner's first and fourth points on 2026-08-25. Two unrelated
 corrections in one run, because both rewrite a name people have already used and neither
 has a screen in the product that could do it.
@@ -22,8 +28,8 @@ python -m src.backfill_names_and_numbers --dry-run
 | Profile | Was | Becomes |
 | --- | --- | --- |
 | — | Craig | Craig Robinson |
-| — | Birch | Marc Birch |
-| — | Lewis | Lewis Steele |
+| — | member A's surname | member A's full name |
+| — | member B's first name | member B's full name |
 
 ## The renumbering reverses a decision, deliberately
 
@@ -79,8 +85,8 @@ case-insensitively and including soft-deleted rows, the same test `auth.py:436` 
 | Old name | Held | Target | Held | |
 | --- | --- | --- | --- | --- |
 | `Craig` | 1 | `Craig Robinson` | 0 | OK |
-| `Birch` | 1 | `Marc Birch` | 0 | OK |
-| `Lewis` | 1 | `Lewis Steele` | 0 | OK |
+| member A's old name | 1 | member A's full name | 0 | OK |
+| member B's old name | 1 | member B's full name | 0 | OK |
 
 ## Applied to production on 2026-08-26
 
@@ -104,18 +110,18 @@ in a test, and it means a repeat run — accidental or deliberate — is safe.
 
 ### Still outstanding
 
-**Craig, Marc and Lewis have not been told.** Their next sign-in needs the new name, and
-nothing in the product tells them:
+**The owner and members A and B have not been told.** Their next sign-in needs the new
+name, and nothing in the product tells them:
 
 | Was | Now signs in as |
 | --- | --- |
 | Craig | **Craig Robinson** |
-| Birch | **Marc Birch** |
-| Lewis | **Lewis Steele** |
+| member A's surname | **member A's full name** |
+| member B's first name | **member B's full name** |
 
 Nobody has been signed out — the JWT subject is the player id — so this surfaces only when
-a session expires or a PIN reset is requested. **`Craig`, `Birch` and `Lewis` are now
-registrable by anyone.**
+a session expires or a PIN reset is requested. **`Craig` and both members' old names are
+now registrable by anyone.**
 
 ### A wrong turn worth recording
 
@@ -138,7 +144,7 @@ to a tool pointed somewhere else, and only checking *which database* distinguish
    rename it prints the name being freed.
 2. Check the four rounds listed are the four expected — a missing Saturday aborts the run
    by design, naming the date.
-3. Apply, then tell Craig, Marc and Lewis their new sign-in names.
+3. Apply, then tell the owner and members A and B their new sign-in names.
 
 ## How it fails
 
