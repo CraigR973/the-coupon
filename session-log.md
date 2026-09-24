@@ -4740,3 +4740,30 @@ batch has something to act on.
   was confirmed by fetching the live stylesheet and checking it carries Batch 164's rules
   and not the removed font — a stronger check than metadata, but the token needs renewing.
 - Per the standing rule, the run stopped here rather than retrying.
+
+## Phase 7 shipment — SHIPPED on the retry (2026-09-24)
+**Commit:** `13431987`, carrying Batches 144, 145, 146 and 128 — **migration `026`**
+
+- Railway `8701d8c3-7102-4fa5-a108-515bd762937e`, `SUCCESS`. Rollback baseline
+  `673b9f15-4c81-492d-a498-290fc306de90` — but `026` has applied, so restoring it needs
+  `docs/runbooks/migration-026-recovery.md`, not a plain redeploy.
+- **The migration is proved applied by two independent readings**, not one: the deployment
+  log records `Running upgrade 025 -> 026` completing before uvicorn bound, and
+  `/health/ready` — which reports the head the *database* is at — returns `026`, agreeing
+  with `/health`'s image head.
+- Nothing changed between the refused attempt and this one except a docs commit. Same tree,
+  same green CI, same green gate. That is the evidence the first failure was Railway's.
+- Smoke: web root and deep link 200 and byte-identical with every committed security header;
+  CORS 200 from the stable origin with credentials, foreign origin 400 and no ACAO; manifest
+  1 replica `europe-west4-drams3a`, sleep off, IPv6 egress on, 0.25 vCPU / 500 MB. Logs 44
+  lines, 0 errors, clean on all five leak patterns. `check-deploy-drift.sh`: **in sync**.
+- **One preflight check was not completed.** The direct database session — RLS, the
+  `anon`/`authenticated`/`PUBLIC` grant recheck, and confirming Batch 146's two indexes
+  exist — needs the Supabase direct host, which resolves **IPv6-only**, and this machine
+  lost its IPv6 stack mid-shipment (`ping6` could not reach a literal address). Same fault
+  behind the first attempt's upload failure. Last verified in full on 2026-09-23 (21 of 21
+  tables with RLS, no grants); `026` creates two indexes and touches neither. **Re-run it
+  from a host with IPv6 before the next shipment.**
+- **Still outstanding:** Batch 145's production compression check needs one authenticated
+  request to a response over 4 KB. No public endpoint is that large, so it remains the one
+  thing about that batch production has not confirmed.

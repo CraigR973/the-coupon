@@ -644,6 +644,7 @@ gap, and `/phase-closeout` step 9 runs it.
 | 2026-09-23 | Vercel web | `dpl_41q5xerBMkH2R8fVy1MPiofAGe7D` | `ec5d9223` | — |
 | 2026-09-23 | Railway `api` | `adc3c65e-8bca-4ae5-8a66-0ac270af089a` | `42e79d8b` (Phase 6: 130, 131, 132, 156, 157) | `025` |
 | 2026-09-23 | Vercel web | `dpl_D8ssU6XvfEaDZFvbFpsFLccFSths` | `42e79d8b` | — |
+| 2026-09-24 | Railway `api` | `8701d8c3-7102-4fa5-a108-515bd762937e` | `13431987` (Phase 7: 144, 145, 146, 128) | **`026`** |
 
 The 2026-08-19 shipment carries Batch 35 and is the **first API deployment since
 `013` that applies no migration**, which is what restores the rollback target the
@@ -3221,4 +3222,52 @@ API), so the web half was confirmed by fetching the live stylesheet and checking
 Batch 164's rules and not the removed font, rather than by reading `githubCommitSha`. That
 is a stronger check of what is actually served, but the token needs renewing before a
 shipment that has to move Vercel itself.
+
+### 2026-09-24 — `13431987`, Phase 7 (Batches 144, 145, 146, 128) — **migration `026`**
+
+The retry of the shipment refused an hour earlier at `SNAPSHOT_CODE`. Nothing was changed
+between the two attempts except one docs commit recording the first; the tree, the CI run
+and the gate were green for both, which is the evidence that the first failure was Railway's
+and not the repository's.
+
+Railway `673b9f15-4c81-492d-a498-290fc306de90` (IaC redeploy, `SUCCESS`, still serving the
+previous commit) is this shipment's **rollback baseline** — with the caveat that `026` has
+now been applied, so restoring it needs the plan in
+`docs/runbooks/migration-026-recovery.md` rather than a plain redeploy. Its predecessors
+`29f319d7-…` and `adc3c65e-…` are superseded.
+
+Railway `8701d8c3-7102-4fa5-a108-515bd762937e`, `SUCCESS`. The deployment log records
+`Running upgrade 025 -> 026` completing before uvicorn bound, and `/api/v1/health/ready`
+— which reports the head the **database** is at, not the image's — returns `026`. The two
+agree, which is what proves the boot-time migration finished.
+
+Vercel was a no-op; the GitHub auto-deploy already held the stable alias.
+
+Post-deploy verification: `/health` `200` reporting `sha 13431987` and `migration 026`;
+`/health/ready` `200`, `db: ok`, `026`. Web root and `/leagues/discover` both `200` and
+byte-identical, carrying CSP, `X-Frame-Options: DENY`, HSTS, nosniff, referrer and
+permissions policies. CORS preflight `200` from the stable origin with credentials, and a
+foreign origin refused `400` with no `Access-Control-Allow-Origin`. Manifest: one replica in
+`europe-west4-drams3a`, sleep off, IPv6 egress on, 0.25 vCPU / 500 MB, healthcheck
+`/api/v1/health/ready` at 300s, restart policy `ON_FAILURE`. Bounded log snapshot: 44 lines,
+zero errors, clean on all five leak patterns.
+
+**One preflight check could not be completed and is recorded rather than glossed.** Step 3's
+direct database session — the RLS and `anon`/`authenticated`/`PUBLIC` grant recheck, and
+confirming Batch 146's two indexes exist — needs `db.pugujiiojitstkilphrz.supabase.co`,
+which resolves **IPv6-only**. The machine running this shipment lost its IPv6 stack during
+the window (`ping6` could not reach even a literal address), which is the same fault behind
+the first attempt's upload failure. It was verified in full at the 2026-09-23 shipment — 21
+of 21 public tables with RLS, no grants to those three roles — and migration `026` creates
+two indexes and touches neither RLS nor grants, so the expected answer is unchanged. That is
+a reason it is probably fine, not evidence that it is. **Re-run
+`scripts/check-migration-recovery.sh`'s sibling audit from a host with IPv6 before the next
+shipment.**
+
+Backup/restore-point identity: **none**, under the owner's 2026-07-30 deferral.
+
+**Also outstanding:** the Vercel CLI's REST token in that environment is expired
+(`invalidToken`), so the web half was confirmed by fetching the live stylesheet and checking
+it carries Batch 164's rules and not the removed font, rather than by reading
+`githubCommitSha`. Renew with `vercel login` before a shipment that has to move Vercel.
 

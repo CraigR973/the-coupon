@@ -1588,6 +1588,13 @@ leg stays on the coupon with its price; only the product changes, and `void_leg_
 optional) lets the screen and the clipboard both say why the fold is smaller than the legs.
 **API + web: `/ship-prod` is owed.**
 
+**Phase 7 shipped on 2026-09-24** (`13431987`, Railway `8701d8c3-…`, **migration `026`**),
+carrying Batches 144, 145, 146 and 128. Drift reports in sync and both health endpoints agree
+at `026`. Two things were not confirmed and are not assumed: the direct-database RLS/grant
+recheck (the Supabase host is IPv6-only and this machine lost IPv6 mid-shipment), and Batch
+145's compression in production (no public response is over the 4 KB floor). A first attempt
+an hour earlier was refused by Railway at `SNAPSHOT_CODE` and shipped nothing.
+
 **Batch 166 is parked, unstarted.** Its verification requires a Lighthouse mobile run on the
 standings screen — behind authentication, on a real league — before any change is made, and
 the row warns that acting without it risks optimising the wrong thing. Batches 164 and 165
