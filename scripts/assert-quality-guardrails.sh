@@ -40,9 +40,37 @@ if [[ "$branch" == feat/batch-152-* ]] \
   bootstrap=true
 fi
 
-if [[ -n "$changed_protected" && "$bootstrap" != true ]]; then
+# Owner-approved gate maintenance. A batch named here may change the protected files
+# listed against it, and no others, while it runs on its own batch branch and its row is
+# still open — so each entry goes inert when the row is ticked, as the Batch 152 bootstrap
+# does. An entry is itself a change to this protected file: add one only with the owner's
+# approval recorded in that batch's row, never on an agent's own judgement.
+#   153, 127 — approved by the owner on 2026-09-24 (see both rows).
+approved_gate_maintenance() {
+  case "$1" in
+    153) echo "docs/agent-commands/phase-closeout.md scripts/assert-quality-guardrails.sh" ;;
+    127) echo ".github/workflows/ci.yml scripts/ci-local.sh apps/web/package.json" ;;
+  esac
+}
+
+branch_batch="$(printf '%s' "$branch" | sed -nE 's#^(feat|fix|chore)/batch-([0-9]+)-.*#\2#p')"
+approved=""
+if [[ -n "$branch_batch" ]] \
+   && grep -qE "^- \[ \] \*\*Batch $branch_batch " "$ROOT/docs/BUILD_PLAN.md"; then
+  approved="$(approved_gate_maintenance "$branch_batch")"
+fi
+
+unapproved=""
+for path in $changed_protected; do
+  case " $approved " in
+    *" $path "*) ;;
+    *) unapproved+="$path"$'\n' ;;
+  esac
+done
+
+if [[ -n "$unapproved" && "$bootstrap" != true ]]; then
   echo "quality guardrails: FAIL — this batch changes its own gate or lint/type configuration:" >&2
-  printf '  %s\n' $changed_protected >&2
+  printf '  %s\n' $unapproved >&2
   echo "Move that work to an explicitly approved gate-maintenance batch." >&2
   exit 1
 fi
@@ -87,6 +115,9 @@ fi
 
 if [[ "$bootstrap" == true && -n "$changed_protected" ]]; then
   echo "quality guardrails: PASS — Batch 152 bootstrap changes are explicitly in scope"
+elif [[ -n "$changed_protected" ]]; then
+  echo "quality guardrails: PASS — Batch $branch_batch's owner-approved gate maintenance changes:"
+  printf '  %s\n' $changed_protected
 else
   echo "quality guardrails: PASS — gate and lint/type configuration unchanged"
 fi

@@ -188,6 +188,12 @@ ticked rows can collect here until someone moves them below.
   Verification: the full gate green on Node 22, locally and in CI; the deployed web app
   serving the same bundle behaviour.
 
+  **Gate maintenance approved (owner, 2026-09-24).** This batch may change three protected
+  files and no others: `.github/workflows/ci.yml`, `scripts/ci-local.sh`, and
+  `apps/web/package.json` — the last because the production Vercel project builds from
+  `apps/web`, so that file's `engines` field is the only pin in the repository on the Vercel
+  build's Node version. Recorded in `scripts/assert-quality-guardrails.sh` by Batch 153.
+
   Scope boundary: the toolchain. No application code changes. **Tooling-only (no deploy),
   but it changes what every later batch is verified on, so it goes first in its group.**
 
@@ -369,6 +375,23 @@ ticked rows can collect here until someone moves them below.
   numbers so the next drift is visible, and realign the hook text. **The hook change is
   approved (owner, 2026-09-22)**: both stop hooks should say close-out is automatic here
   and should not wait to be asked, matching `AGENTS.md`.
+
+  **Re-verified 2026-09-24: reproduces.** All six quotes stood, and both stop hooks still said
+  "only when the user asks". Measured the same day: without a database **780 passed, 520
+  skipped**; with one **1,300 passed, 0 skipped**; the whole gate 11m10s and 13m09s on two
+  runs. The review's "fifteen queries" for `me.py` had itself gone stale — Batch 144 brought
+  the read to eleven, twelve when a rank can move — so the module docstring now defers to the
+  function's measured count instead of quoting one. That docstring sits under `apps/api`, so
+  close-out classes this batch API-only; it changes nothing at runtime and rides with the
+  `/ship-prod` Batch 155 already owes.
+
+  **Owner decision, 2026-09-24: a named, one-off guardrail exception.** `phase-closeout.md` is
+  a protected file, so this batch could not pass its own gate, and nothing in the guardrail
+  could record an approval. `scripts/assert-quality-guardrails.sh` now lets a named batch
+  change named protected files, on its own branch and only while its row is open: **153**
+  (`phase-closeout.md` and the guardrail itself) and **127** (see its row). Rehearsed: an
+  unapproved protected edit still fails, 153's files fail on a 127 branch, and a ticked row
+  makes the entry inert.
 
   Verification: the quoted numbers match a fresh run; the hook text and `AGENTS.md` say the
   same thing.

@@ -15,15 +15,17 @@ Confirm the current branch is not `main`, then run **the whole gate as one comma
 
 That is the gate. It builds a venv from the pins, starts a clean `pgserver`, runs
 `alembic upgrade head`, and then runs ruff, mypy, the **complete** pytest suite, the
-deployment-config assertions, and the frontend's lint/typecheck/test/build — ten checks.
+deployment-config assertions, and the frontend's install/lint/typecheck/test/build and
+Playwright deep-link smoke — eleven checks.
 `SKIP_PROD_BUNDLE=1` drops only the Playwright deep-link smoke.
 
-**Running pytest without a database is not this gate.** It is `509 passed, 151 skipped`,
+**Running pytest without a database is not this gate.** It is `780 passed, 520 skipped`
+(measured 2026-09-24),
 and the skipped set is the HTTP pick flow, settlement, the scheduler jobs, slate
 persistence, seeds and every migration test. Treating the database run as conditional —
 "when database behavior is in scope" — is how a batch reaches `main` without the core of
 the game having executed once, and `/phase-closeout` pushes `main`, which deploys the web
-app. It is 88 seconds. Run it.
+app. It takes 11 to 13 minutes on this Mac (two runs on 2026-09-24). Run it.
 
 The rest of this file is the same checks run individually, for iterating on one file
 before the gate. They are not a substitute for it.

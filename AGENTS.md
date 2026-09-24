@@ -115,14 +115,16 @@ scripts/ci-local.sh              # everything CI runs; SKIP_PROD_BUNDLE=1 to dro
 **Use this before close-out, not the piecemeal commands below.** It builds its own venv
 from `apps/api/requirements-dev.txt`, so the versions match the pins rather than whatever
 is on `PATH`; it starts a clean `pgserver` and runs `alembic upgrade head` before pytest,
-so the **151 Postgres-backed tests actually execute** instead of skipping; and it checks
+so the **520 Postgres-backed tests actually execute** instead of skipping; and it checks
 the deployment config and the frontend as well. Eleven checks, no skips — ten with
 `SKIP_PROD_BUNDLE=1`, which drops the Playwright deep-link smoke against the
 prod bundle.
 
-Running pytest without `DATABASE_URL` is **509 passed, 151 skipped**, and the skipped set
-is the HTTP pick flow, settlement, the scheduler jobs, slate persistence, seeds and every
-migration test — that is, the core of the game. A green run in that mode says very little.
+Running pytest without `DATABASE_URL` is **780 passed, 520 skipped** (measured
+2026-09-24, at 1,300 tests; the split moves as tests are added, so rerun rather than trust
+it), and the skipped set is the HTTP pick flow, settlement, the scheduler jobs, slate
+persistence, seeds and every migration test — that is, the core of the game. A green run
+in that mode says very little.
 
 ### Running one thing at a time
 

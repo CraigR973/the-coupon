@@ -17,7 +17,7 @@ changes beyond the batch, or if the batch row is already ticked.
    batch changes.
 2. Run or confirm the complete `/batch-verify N` gate — which means
    `scripts/ci-local.sh`, not pytest on its own. Without a database that suite is
-   `509 passed, 151 skipped` and the skips are the pick flow, settlement and the
+   `780 passed, 520 skipped` (2026-09-24) and the skips are the pick flow, settlement and the
    scheduler; step 9 below pushes `main`, and Vercel deploys the web app from it, so a
    batch can reach members without the core of the game having run. Record the
    backend and frontend test counts printed by the gate; the close-out report and

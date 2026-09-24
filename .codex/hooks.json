@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "DIR=${CLAUDE_PROJECT_DIR:-/Users/craigrobinson/the-coupon}; B=$(git -C \"$DIR\" symbolic-ref --short HEAD 2>/dev/null); [ -n \"$B\" ] && [ \"$B\" != \"main\" ] && [ -z \"$(git -C \"$DIR\" status --porcelain 2>/dev/null)\" ] && echo '⚠️  Branch clean — run the matching /phase-closeout <id> or /launch-closeout <Lx> only when the user asks' || true"
+            "command": "DIR=${CLAUDE_PROJECT_DIR:-/Users/craigrobinson/the-coupon}; B=$(git -C \"$DIR\" symbolic-ref --short HEAD 2>/dev/null); [ -n \"$B\" ] && [ \"$B\" != \"main\" ] && [ -z \"$(git -C \"$DIR\" status --porcelain 2>/dev/null)\" ] && echo '⚠️  Branch clean — a build batch whose scripts/ci-local.sh gate is green closes out now: run /phase-closeout <id> without waiting to be asked (AGENTS.md). A launch phase still waits for the user to run /launch-closeout <Lx>.' || true"
           }
         ]
       }

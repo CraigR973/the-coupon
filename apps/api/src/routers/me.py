@@ -7,7 +7,8 @@ because a member in three leagues has three of everything and no single slug is 
 answer.
 
 ``GET /me/cross-league-summary`` is the read those screens share. It costs the same
-nine queries whether the caller is in one league or six — none of them per league.
+number of queries whether the caller is in one league or six — none of them per league.
+:func:`cross_league_summary` counts them, so the figure lives in one place.
 """
 
 import uuid

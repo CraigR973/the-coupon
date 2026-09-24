@@ -423,8 +423,9 @@ application requires a separately reviewed forward recovery plan.
 - [ ] Confirm standings and combined coupon after settlement.
 - [ ] Review errors, failed pushes, Betfair auth refreshes, and database
   connections. Backup completion is out of scope under the 2026-07-30
-  deferral; the nightly job still runs and still logs a successful dump, but
-  it writes to an ephemeral path and produces no recovery artifact.
+  deferral. No backup is scheduled at all: Batch 75 removed the nightly dump,
+  which wrote to an ephemeral path and produced no recovery artifact, and
+  restoring one is Batch 95.
 - [ ] Staging is already dormant from L4 under the 2026-07-30 one-project
   decision. After the first live gameweek, confirm production isolation and
   record the staging reactivation path in
