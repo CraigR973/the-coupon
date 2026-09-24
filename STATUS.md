@@ -71,30 +71,26 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Thirteen rows are open (2026-09-24); they are at the head of `docs/BUILD_PLAN.md`. The run
+Twelve rows are open (2026-09-24); they are at the head of `docs/BUILD_PLAN.md`. The run
 order agreed on 2026-09-24:
 
-1. **127** — CI, the local gate and the web build still run Node 20, out of support since
-   2026-04-30.
-2. **142** — web push has no timeout and its endpoint check ignores the port; the
+1. **142** — web push has no timeout and its endpoint check ignores the port; the
    `cryptography` pin is held at 48.0.1 by owner decision.
-3. **95** — no second copy of the scored history. Blocked on the owner items above.
-4. **134** — a mis-settled pick can only be corrected by a script against production.
-5. **136** — no self-service deletion or data export. UK GDPR questions go to the owner.
-6. **135** — nothing tells a member their round has settled.
-7. **148** — the rename notice has no channel but push.
-8. **115** — nothing learns until a member arrives. Once recorded here as superseded by
+2. **95** — no second copy of the scored history. Blocked on the owner items above.
+3. **134** — a mis-settled pick can only be corrected by a script against production.
+4. **136** — no self-service deletion or data export. UK GDPR questions go to the owner.
+5. **135** — nothing tells a member their round has settled.
+6. **148** — the rename notice has no channel but push.
+7. **115** — nothing learns until a member arrives. Once recorded here as superseded by
    Batch 119; re-verify before building.
-9. **150** — the first screen a new member sees.
-10. **149** — toasts, skeletons, and errors that look like empty states.
-11. **151** — one statistic drawn two ways; no type scale.
-12. **168** — two links under minimum target size; 200% zoom.
-13. **140** — the desktop layout is the phone layout stretched.
+8. **150** — the first screen a new member sees.
+9. **149** — toasts, skeletons, and errors that look like empty states.
+10. **151** — one statistic drawn two ways; no type scale.
+11. **168** — two links under minimum target size; 200% zoom.
+12. **140** — the desktop layout is the phone layout stretched.
 
 Known before starting:
 
-- **127 edits protected gate files.** The guardrail now carries the owner's named
-  exception for it (2026-09-24): `ci.yml`, `ci-local.sh` and `apps/web/package.json` only.
 - **136 and 148 change API and web**, so close-out refuses them until the owner
   explicitly schedules the matching `/ship-prod`.
 
@@ -109,8 +105,9 @@ Checked 2026-09-24.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
   `apps/api/requirements-dev.txt`: Python 3.12, FastAPI 0.141.1, ruff 0.5.4. app-starter's
   venv cannot import the suite.
-- **Frontend** is Node 20.20.2 through nvm and pnpm 9.15.0. The ambient `node` is too old
-  for the tooling.
+- **Frontend** is Node 24.21.0 through nvm, with pnpm 9.15.0 from corepack; the gate refuses
+  any other pnpm. CI and the Vercel build are Node 24 too (`apps/web` pins `24.x`). The
+  ambient `node` is too old for the tooling, and nvm's default alias is still 20.
 - **Scratch PostgreSQL** is pip `pgserver`, started and discarded by the gate.
 - **Protected files**: `scripts/assert-quality-guardrails.sh` fails any batch that edits
   the gate scripts, the CI workflow, the close-out workflow, `apps/web/package.json`,

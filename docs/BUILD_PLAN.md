@@ -177,42 +177,6 @@ ticked rows can collect here until someone moves them below.
   web half, so nothing reaches members until `/ship-prod`.** Depends on Batch 114, which
   shipped 2026-09-06; independent of Batches 112 and 113.
 
-- [ ] **Batch 127 — The web app is built and tested on a runtime that stopped receiving security fixes in April**
-  — specified from `docs/review/2026-09-13/04-performance-operations.md`, OPS-11 (HIGH,
-  live). Node 20 reached end-of-life on 2026-04-30 and is still what CI and the web build
-  use; the engines floor has never been raised. Python 3.12 is fine until late 2028.
-
-  Move CI, `scripts/ci-local.sh` and the Vercel build to Node 22 and raise the engines
-  floor. Fold in OPS-15's toolchain refresh and PIPE-09's pnpm pin if they come cheaply.
-
-  Verification: the full gate green on Node 22, locally and in CI; the deployed web app
-  serving the same bundle behaviour.
-
-  **Re-verified 2026-09-24: reproduces for testing, not for the production build.** CI's three
-  Node jobs, `scripts/ci-local.sh`, the root engines floor (`>=20.0.0`) and `.nvmrc` were all
-  Node 20. But the production Vercel project builds from `apps/web`, which set no engines,
-  and was configured for Node 24.x at launch (L4 record, 2026-08-03) — so production was most
-  likely built on 24 and tested on 20. Not confirmable that day: the Vercel CLI token
-  answered 403.
-
-  **Owner decision, 2026-09-24: Node 24, not 22.** It matches the production build's
-  configured runtime and is supported to April 2028, against 22's April 2027.
-  `apps/web/package.json` now pins `engines.node` to `24.x`, so the repository rather than
-  the dashboard decides the Vercel build's runtime. Node 24.21.0 was installed on the
-  owner's Mac through nvm (checksum verified) and pnpm 9.15.0 comes from corepack's cache.
-  PIPE-09 is folded in — the gate's install step refuses any pnpm but `packageManager`'s — and
-  OPS-15 is left out: Vite 5, ESLint 8, Tailwind 3 and Vitest 2 are each a major migration,
-  not a cheap refresh.
-
-  **Gate maintenance approved (owner, 2026-09-24).** This batch may change three protected
-  files and no others: `.github/workflows/ci.yml`, `scripts/ci-local.sh`, and
-  `apps/web/package.json` — the last because the production Vercel project builds from
-  `apps/web`, so that file's `engines` field is the only pin in the repository on the Vercel
-  build's Node version. Recorded in `scripts/assert-quality-guardrails.sh` by Batch 153.
-
-  Scope boundary: the toolchain. No application code changes. **Tooling-only (no deploy),
-  but it changes what every later batch is verified on, so it goes first in its group.**
-
 - [ ] **Batch 134 — A mis-settled pick can only be corrected by running a script against production**
   — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-A10 (HIGH, live). The
   manual settle endpoint refuses to re-settle anything already settled and its own docstring
@@ -4448,6 +4412,42 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: the override endpoint. No change to global display names.
   **API-carrying.**
+
+- [x] **Batch 127 — The web app is built and tested on a runtime that stopped receiving security fixes in April** ✅ 2026-09-24
+  — specified from `docs/review/2026-09-13/04-performance-operations.md`, OPS-11 (HIGH,
+  live). Node 20 reached end-of-life on 2026-04-30 and is still what CI and the web build
+  use; the engines floor has never been raised. Python 3.12 is fine until late 2028.
+
+  Move CI, `scripts/ci-local.sh` and the Vercel build to Node 22 and raise the engines
+  floor. Fold in OPS-15's toolchain refresh and PIPE-09's pnpm pin if they come cheaply.
+
+  Verification: the full gate green on Node 22, locally and in CI; the deployed web app
+  serving the same bundle behaviour.
+
+  **Re-verified 2026-09-24: reproduces for testing, not for the production build.** CI's three
+  Node jobs, `scripts/ci-local.sh`, the root engines floor (`>=20.0.0`) and `.nvmrc` were all
+  Node 20. But the production Vercel project builds from `apps/web`, which set no engines,
+  and was configured for Node 24.x at launch (L4 record, 2026-08-03) — so production was most
+  likely built on 24 and tested on 20. Not confirmable that day: the Vercel CLI token
+  answered 403.
+
+  **Owner decision, 2026-09-24: Node 24, not 22.** It matches the production build's
+  configured runtime and is supported to April 2028, against 22's April 2027.
+  `apps/web/package.json` now pins `engines.node` to `24.x`, so the repository rather than
+  the dashboard decides the Vercel build's runtime. Node 24.21.0 was installed on the
+  owner's Mac through nvm (checksum verified) and pnpm 9.15.0 comes from corepack's cache.
+  PIPE-09 is folded in — the gate's install step refuses any pnpm but `packageManager`'s — and
+  OPS-15 is left out: Vite 5, ESLint 8, Tailwind 3 and Vitest 2 are each a major migration,
+  not a cheap refresh.
+
+  **Gate maintenance approved (owner, 2026-09-24).** This batch may change three protected
+  files and no others: `.github/workflows/ci.yml`, `scripts/ci-local.sh`, and
+  `apps/web/package.json` — the last because the production Vercel project builds from
+  `apps/web`, so that file's `engines` field is the only pin in the repository on the Vercel
+  build's Node version. Recorded in `scripts/assert-quality-guardrails.sh` by Batch 153.
+
+  Scope boundary: the toolchain. No application code changes. **Tooling-only (no deploy),
+  but it changes what every later batch is verified on, so it goes first in its group.**
 
 - [x] **Batch 128 — Every shipment that carries a migration leaves nothing to roll back to** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/04-performance-operations.md`, OPS-12 (HIGH,

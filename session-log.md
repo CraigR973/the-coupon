@@ -7150,3 +7150,26 @@ Method notes worth keeping, because both would have produced a confident wrong a
   `git worktree prune`.
 
 **Next:** Batch 127. `/ship-prod` is owed for Batches 155 and 153.
+
+## Batch 127 — The web app is built and tested on a runtime that stopped receiving security fixes in April
+**Commits:** `c9d0ed3` · verified: `scripts/ci-local.sh` PASS (11 checks) on the first run,
+frontend on Node 24.21.0 / pnpm 9.15.0; 1,300 backend and 1,180 frontend tests passed,
+0 skipped
+
+### Key facts for future sessions
+- **Node 24, not 22, by owner decision (2026-09-24).** The production Vercel project was
+  already configured for 24.x and builds from `apps/web`; that package now pins
+  `engines.node: "24.x"`, so the repo decides the Vercel runtime. CI, `ci-local.sh`,
+  `.nvmrc`, `dev.sh`/`preview.sh` and the root floor (`>=24`) all follow.
+- **pnpm under Node 24 is corepack's shim** (`corepack enable pnpm`), resolving
+  `packageManager: pnpm@9.15.0` from the local corepack cache — no download. The gate's
+  install step now refuses any other pnpm and says how to fix it (PIPE-09).
+- **nvm's default alias is still 20** on this Mac; everything that matters selects 24
+  explicitly. The Railway and Vercel CLIs stay installed under Node 20's globals, which is
+  why the ship docs still name `v20.20.2` paths — those are CLI locations, not a runtime.
+- **OPS-15 not taken:** Vite 5, ESLint 8 (9 needs flat config), Tailwind 3 and Vitest 2 are
+  each a real migration.
+- Protected files changed under the owner's named exception: `ci.yml`, `ci-local.sh`,
+  `apps/web/package.json`. The 127 entry in the guardrail is inert now the row is ticked.
+
+**Next:** Batch 142. `/ship-prod` is owed for Batches 155 and 153.
