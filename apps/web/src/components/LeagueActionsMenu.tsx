@@ -31,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { keys } from '@/lib/queryKeys';
 
 interface LeagueActionsMenuProps {
   slug: string;
@@ -59,10 +60,14 @@ export function LeagueActionsMenu({
     try {
       await apiFetch(`/api/v1/leagues/${slug}/membership`, { method: 'DELETE' });
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['leagues', 'mine'] }),
-        queryClient.invalidateQueries({ queryKey: ['league', slug] }),
-        queryClient.invalidateQueries({ queryKey: ['league-members', slug] }),
-        queryClient.invalidateQueries({ queryKey: ['leaderboard', slug] }),
+        queryClient.invalidateQueries({ queryKey: keys.leagues.mine() }),
+        queryClient.invalidateQueries({ queryKey: keys.league.detail(slug) }),
+        queryClient.invalidateQueries({ queryKey: keys.league.members(slug) }),
+        // Batch 165. This line was `['leaderboard', slug]`, a key no query has ever been
+        // given — it cleared nothing, silently, and left a member looking at the table of
+        // a league they had just left. `standings.all` is a prefix of every season's
+        // entry, so one call clears them all.
+        queryClient.invalidateQueries({ queryKey: keys.standings.all(slug) }),
       ]);
       toast.success('Left the league');
       navigate('/leagues', { replace: true });

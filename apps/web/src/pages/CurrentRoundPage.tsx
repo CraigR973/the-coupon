@@ -5,7 +5,7 @@ import { ChevronDown } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
-import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
+import { type CountdownParts } from '../hooks/useCountdown';
 import { useGameweekHistory, useSelectedGameweekId } from '../hooks/useGameweekHistory';
 import { useOddsFormat } from '../hooks/useOddsFormat';
 import { useRouteLeague } from '../hooks/useRouteLeague';
@@ -43,6 +43,8 @@ import { EmptyState } from '../components/EmptyState';
 import { entriesForRound } from '../components/PickRow';
 import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '../lib/utils';
+import { useExpiry } from '@/hooks/useExpiry';
+import { Countdown } from '@/components/Countdown';
 
 const FAR_PAST = new Date(0).toISOString();
 
@@ -188,8 +190,12 @@ export function CurrentRoundPage() {
   const history = useGameweekHistory(slug, hasLeagues, slate?.gameweek_id);
   const navigate = useNavigate();
 
-  const countdown = useCountdown(slate?.locks_at_utc ?? FAR_PAST);
-  const openCountdown = useCountdown(slate?.picks_open_at_utc ?? FAR_PAST);
+  // Batch 165. These two used to be `useCountdown`, which ticks every second — so this
+  // whole screen, fixtures and roster and coupon included, re-rendered once a second to
+  // learn two booleans that change exactly once each. `useExpiry` sets one timeout to the
+  // boundary; the ticking text lives in a memoised `<Countdown>` below.
+  const lockPassed = useExpiry(slate?.locks_at_utc ?? FAR_PAST);
+  const openPassed = useExpiry(slate?.picks_open_at_utc ?? FAR_PAST);
   // Read before the editor because the editor needs it: only a member who did *not*
   // already hold a pick can have been the one who filled the coupon (Batch 108).
   const myPick = findMyPick(slate);
@@ -214,10 +220,10 @@ export function CurrentRoundPage() {
   // because it needs to flip live while a member watches, and because it decides whether a
   // pick can be submitted rather than what a badge says. Keep the two in step.
   const notOpenYet =
-    !!slate?.picks_open_at_utc && !openCountdown.expired && PICKABLE.has(slate.status);
+    !!slate?.picks_open_at_utc && !openPassed && PICKABLE.has(slate.status);
   // The deadline half of the same rule, kept apart from `notOpenYet` because the phase
   // needs to tell "too early" from "too late" and the selections do not.
-  const claimingShut = !slate || !PICKABLE.has(slate.status) || countdown.expired;
+  const claimingShut = !slate || !PICKABLE.has(slate.status) || lockPassed;
   const locked = claimingShut || notOpenYet;
   const groups = useMemo(() => groupByCompetition(slate?.fixtures ?? []), [slate?.fixtures]);
 
@@ -317,10 +323,10 @@ export function CurrentRoundPage() {
     : slate.status === 'settled'
       ? ''
       : notOpenYet
-        ? `Picks open in ${formatCountdown(openCountdown)}`
+        ? <>Picks open in <Countdown target={slate.picks_open_at_utc!} format={formatCountdown} /></>
         : claimingShut
           ? 'Picks are locked'
-          : `Picks lock in ${formatCountdown(countdown)}`;
+          : <>Picks lock in <Countdown target={slate.locks_at_utc} format={formatCountdown} /></>;
 
   const couponBlock = slate ? (
     <CouponSection

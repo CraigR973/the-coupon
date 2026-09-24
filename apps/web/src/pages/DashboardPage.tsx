@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Clock, Lock, Ticket, Trophy } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useCountdown, type CountdownParts } from '../hooks/useCountdown';
+import { type CountdownParts } from '../hooks/useCountdown';
 import { useCrossLeagueSummary } from '../hooks/useCrossLeagueSummary';
 import { useOddsFormat } from '../hooks/useOddsFormat';
 import type {
@@ -21,6 +21,8 @@ import { EmptyState } from '../components/EmptyState';
 import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '../lib/utils';
+import { useExpiry } from '@/hooks/useExpiry';
+import { Countdown } from '@/components/Countdown';
 
 const FAR_PAST = new Date(0).toISOString();
 
@@ -212,7 +214,7 @@ function HomeHero({
 }) {
   const leagueCount = summary?.leagues_count ?? 0;
   const action = homeActionFor(summary?.per_league ?? []);
-  const actionCountdown = useCountdown(action.kind === 'clear' ? FAR_PAST : action.at);
+  // Batch 165: only the digits tick, not this card.
 
   return (
     <section
@@ -285,7 +287,7 @@ function HomeHero({
                   <span>
                     {action.league}{' '}
                     {action.kind === 'pick' ? 'locks' : 'opens'} in{' '}
-                    {formatCountdown(actionCountdown)}
+                    <Countdown target={action.at} format={formatCountdown} />
                   </span>
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                 </Link>
@@ -350,18 +352,21 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
   const oddsFormat = useOddsFormat();
   const navigate = useNavigate();
   const round = entry.current_round;
-  const countdown = useCountdown(round?.locks_at_utc ?? FAR_PAST);
-  const openCountdown = useCountdown(round?.picks_open_at_utc ?? FAR_PAST);
+  // Batch 165. Three ticking clocks in one card, on a screen that renders one card per
+  // league — so a member in three leagues re-rendered nine subtrees a second to read
+  // three booleans. `useExpiry` fires once at each boundary instead.
+  const lockPassed = useExpiry(round?.locks_at_utc ?? FAR_PAST);
+  const openPassed = useExpiry(round?.picks_open_at_utc ?? FAR_PAST);
   // The *next* round's opening, which is a different instant to this round's: once a
   // round has settled or locked there is nothing left to count down to on it, and "when
   // does the next one open" is the question a member has on a Sunday.
-  const nextOpenCountdown = useCountdown(entry.next_opens_at_utc ?? FAR_PAST);
-  const nextOpens = !!entry.next_opens_at_utc && !nextOpenCountdown.expired;
+  const nextOpenPassed = useExpiry(entry.next_opens_at_utc ?? FAR_PAST);
+  const nextOpens = !!entry.next_opens_at_utc && !nextOpenPassed;
   // Same rule as the pick screen and the API: the stored instants decide, `status` only
   // rules out a round settlement has finished with.
   const notOpenYet =
-    !!round?.picks_open_at_utc && !openCountdown.expired && PICKABLE.has(round.status);
-  const claimingShut = !round || !PICKABLE.has(round.status) || countdown.expired;
+    !!round?.picks_open_at_utc && !openPassed && PICKABLE.has(round.status);
+  const claimingShut = !round || !PICKABLE.has(round.status) || lockPassed;
 
   const state = homeCardState({
     hasRound: !!round,
@@ -384,13 +389,13 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
   const clock =
     state === 'between_rounds'
       ? notOpenYet
-        ? `Opens in ${formatCountdown(openCountdown)}`
+        ? <>Opens in <Countdown target={round!.picks_open_at_utc!} format={formatCountdown} /></>
         : nextOpens
-          ? `Next opens in ${formatCountdown(nextOpenCountdown)}`
+          ? <>Next opens in <Countdown target={entry.next_opens_at_utc!} format={formatCountdown} /></>
           : null
       : state === 'round_in_progress'
         ? 'Locked'
-        : `Locks in ${formatCountdown(countdown)}`;
+        : <>Locks in <Countdown target={round!.locks_at_utc} format={formatCountdown} /></>;
 
   // The coupon has its own address per league now, so opening another league's
   // week is just going there: the destination binds the context, rather than this

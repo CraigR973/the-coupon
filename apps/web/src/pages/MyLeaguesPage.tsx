@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { getLastViewedLeague, sortLeaguesByLastViewed } from '@/lib/leagueRecency';
+import { keys } from '@/lib/queryKeys';
 
 function LeagueCard({
   league,
@@ -21,7 +22,9 @@ function LeagueCard({
   const { player } = useAuth();
 
   const { data: standings = [], isLoading: lbLoading } = useQuery<Standing[]>({
-    queryKey: ['standings', league.slug],
+    // `null` season: this card shows the table the API considers current, which is a
+    // different request from any named season and now says so (Batch 165).
+    queryKey: keys.standings.forSeason(league.slug, null),
     queryFn: () => apiFetch<Standing[]>(`/api/v1/leagues/${league.slug}/standings`),
     staleTime: 30_000,
   });

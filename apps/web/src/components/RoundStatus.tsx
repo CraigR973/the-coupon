@@ -3,6 +3,7 @@ import type { OddsFormat } from '../lib/types';
 import { formatOdds, type RoundPhase } from '../lib/coupon';
 import { Badge } from './ui/badge';
 import { cn } from '../lib/utils';
+import type { ReactNode } from 'react';
 
 /** The reader's own claim on this round, already reduced to words by the caller. */
 export interface MyClaim {
@@ -16,8 +17,14 @@ export interface MyClaim {
 
 export interface RoundStatusProps {
   phase: RoundPhase;
-  /** The live clock line — "Picks lock in 1h 59m". Empty when the round has no clock. */
-  clock: string;
+  /**
+   * The live clock line — "Picks lock in 1h 59m", or nothing when the round has no clock.
+   *
+   * A node rather than a string since Batch 165: the ticking part is a memoised
+   * `<Countdown>` the parent composes into the sentence, so that a tick re-renders this
+   * line and not the screen around it.
+   */
+  clock: ReactNode;
   pickedCount: number;
   memberCount: number;
   mine: MyClaim | null;

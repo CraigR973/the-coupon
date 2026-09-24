@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   clearApiCaches,
@@ -307,8 +307,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [lockedPlayer, queryClient]);
 
+  // Batch 165. The spread built a new object on every render of this provider, which
+  // wraps the entire app — so every `useAuth` consumer re-rendered whether or not
+  // anything about the session had changed. All five functions are already `useCallback`,
+  // so the only moving part is `state` itself, which is what a consumer actually cares
+  // about.
+  const value = useMemo(
+    () => ({ ...state, login, register, logout, updatePlayer, unlockStoredSession }),
+    [state, login, register, logout, updatePlayer, unlockStoredSession],
+  );
+
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, updatePlayer, unlockStoredSession }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

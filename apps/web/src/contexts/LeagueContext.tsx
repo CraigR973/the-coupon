@@ -81,18 +81,24 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
     [leagues, activeSlug],
   );
 
+  // Batch 165. A fresh object here re-renders every consumer on every render of this
+  // provider, whatever it actually contains — and this one wraps the whole authenticated
+  // tree. The fields are already memoised individually; this is the last step.
+  const value = useMemo(
+    () => ({
+      leagues,
+      isLoading,
+      refetch: refetchLeagues,
+      activeSlug,
+      activeLeagueName,
+      hasLeagues: leagues.length > 0,
+      selectLeague,
+    }),
+    [leagues, isLoading, refetchLeagues, activeSlug, activeLeagueName, selectLeague],
+  );
+
   return (
-    <LeagueContext.Provider
-      value={{
-        leagues,
-        isLoading,
-        refetch: refetchLeagues,
-        activeSlug,
-        activeLeagueName,
-        hasLeagues: leagues.length > 0,
-        selectLeague,
-      }}
-    >
+    <LeagueContext.Provider value={value}>
       {children}
     </LeagueContext.Provider>
   );

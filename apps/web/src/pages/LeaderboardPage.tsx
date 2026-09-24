@@ -18,6 +18,7 @@ import { SeasonStrip } from '../components/SeasonStrip';
 import { Button } from '../components/ui/button';
 import { buildStandingsShareText } from '../lib/share';
 import { cn } from '../lib/utils';
+import { keys } from '@/lib/queryKeys';
 
 export function LeaderboardPage() {
   const { slug } = useRouteLeague();
@@ -40,7 +41,7 @@ export function LeaderboardPage() {
   // and an empty list hides the strip, leaving the page as it was. The season is still
   // sent below — an API that does not know the parameter ignores it.
   const { data: seasons = [] } = useQuery<SeasonSummary[]>({
-    queryKey: ['seasons', slug],
+    queryKey: keys.league.seasons(slug),
     queryFn: () => apiFetch<SeasonSummary[]>(`/api/v1/leagues/${slug}/seasons`),
     staleTime: 5 * 60_000,
     retry: false,
@@ -51,7 +52,7 @@ export function LeaderboardPage() {
     isLoading,
     isError,
   } = useQuery<Standing[]>({
-    queryKey: ['standings', slug, season],
+    queryKey: keys.standings.forSeason(slug, season),
     queryFn: () =>
       apiFetch<Standing[]>(
         `/api/v1/leagues/${slug}/standings${season !== null ? `?season=${season}` : ''}`,
