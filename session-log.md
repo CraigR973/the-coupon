@@ -4713,9 +4713,37 @@ already moved a long way. That is a reason to re-measure, not a substitute for i
 
 ### What unblocks it
 One Lighthouse mobile run on the standings screen of a real league, median of three,
-against production after the pending shipment lands. Then either the finding is closed
-because the number came down, or the remaining blocking time has a named owner and the
-batch has something to act on.
+against production. Then either the finding is closed because the number came down, or the
+remaining blocking time has a named owner and the batch has something to act on.
+
+### A local measurement, taken 2026-09-24 — supporting, not conclusive
+Production's standings is behind a sign-in that is not mine to perform, so this was
+measured against a **locally seeded** Coupon instead: same client bundle, a league of 12
+members with 10 settled rounds, a throwaway Postgres, Playwright's Chromium at Lighthouse's
+mobile profile — 412x823, DPR 1.75, **CPU throttled 4x** by CDP.
+
+**Median total blocking time over three runs: 109 ms** (598 / 102 / 109). The 598 is the
+first cold load, dominated by a single 397 ms task; the warm runs sit near 100 ms with no
+task over 101 ms. Three CPU profiles agree the main thread is **58–70% idle** through the
+load.
+
+**This is not comparable to the review's 915 ms and must not be quoted as "915 → 109".**
+Different machine, and Lighthouse throttles the network as well as the CPU and measures TBT
+only between FCP and TTI. What it does support is that the current code shows no sign of a
+second-long block on this screen.
+
+**The largest named *application* cost is `useSlidingIndicator`** — 20–26 ms, 2.3–4.1% of
+samples, consistent across all three profiles. That is [[batch-164]]'s own tab-indicator
+hook, which reads `getBoundingClientRect` in a layout effect. Everything else identifiable
+is React internals under 10 ms. So if 166 does find work to do, that hook is the first
+place to look — and it arrived *after* the review measured the screen.
+
+Method notes worth keeping, because both would have produced a confident wrong answer:
+- A `PerformanceObserver` armed with `page.evaluate` before `goto` measures **nothing** —
+  the navigation replaces the document and takes the global with it. It reported TBT 0.
+  Use `addInitScript`, and assert the array exists rather than defaulting it to `[]`.
+- Logging in once per run trips the app's own durable login limit (5 per 15 minutes) on the
+  third run. Sign in once and reuse `storageState`.
 
 ## Phase 7 shipment — REFUSED BY RAILWAY, nothing shipped (2026-09-24)
 **Attempted commit:** `8d898b4f` (Batches 144, 145, 146, 128 + migration `026`)

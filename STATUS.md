@@ -1596,9 +1596,12 @@ recheck (the Supabase host is IPv6-only and this machine lost IPv6 mid-shipment)
 an hour earlier was refused by Railway at `SNAPSHOT_CODE` and shipped nothing.
 
 **Batch 166 is parked, unstarted.** Its verification requires a Lighthouse mobile run on the
-standings screen — behind authentication, on a real league — before any change is made, and
-the row warns that acting without it risks optimising the wrong thing. Batches 164 and 165
-removed two plausible causes of the 915 ms, so re-measuring may close it outright.
+standings screen — behind authentication, on a real league — before any change is made. A
+local stand-in measured 2026-09-24 (same bundle, seeded league, Chromium at 4x CPU throttle)
+puts median total blocking time at **109 ms** with the main thread 58–70% idle, which is
+supporting evidence that the 915 ms has gone but **not comparable** to a Lighthouse figure.
+The largest named application cost in three profiles is `useSlidingIndicator`, Batch 164's
+own tab-indicator hook, at 20–26 ms.
 
 **Batch 165 stopped the countdown re-rendering the screen, and named the cache keys**
 (`13e49b4`). The tick lives in a memoised `<Countdown>`; the pages use `useExpiry`, one
