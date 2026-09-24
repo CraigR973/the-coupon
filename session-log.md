@@ -7173,3 +7173,25 @@ frontend on Node 24.21.0 / pnpm 9.15.0; 1,300 backend and 1,180 frontend tests p
   `apps/web/package.json`. The 127 entry in the guardrail is inert now the row is ticked.
 
 **Next:** Batch 142. `/ship-prod` is owed for Batches 155 and 153.
+
+## Batch 142 — The cryptography pin has gone stale and web push has no timeout
+**Commits:** `9b99f41` · verified: `scripts/ci-local.sh` PASS (11 checks) on the second run;
+1,305 backend and 1,180 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **Gate failure, fixed on attempt 2:** the new hung-push test passed alone and failed in
+  the full suite. `configure_logging` sets `cache_logger_on_first_use=True`, so
+  `structlog.testing.capture_logs()` misses a module logger an earlier test already used.
+  Patch the module's `log` object instead — no test here had asserted on logs before.
+- **Every push carries `PUSH_SEND_TIMEOUT_SECONDS` (5).** pywebpush's own default is `None`,
+  which it hands to `requests` — unbounded. A timeout logs "push send timed out" and does
+  not count towards auto-disable. The test sends a real encrypted payload to a listening
+  socket that never replies; with the timeout removed it hung past 25s.
+- **Push endpoints must be on 443** (or no port) — the allowlist had named hosts only.
+- **`cryptography` stays 48.0.1** (owner, 2026-09-22). OSV on 2026-09-24 lists exactly the
+  three advisories `requirements.in` already documented as unreachable; their CVE/GHSA
+  numbers are now beside them. `requests` is declared at 2.34.2, the version pywebpush
+  already resolved; a fresh `uv pip compile` matches the lock below its header.
+- API-carrying: `/ship-prod` owed now for 155, 153 and 142 together.
+
+**Next:** Batch 95 — needs the owner's storage choice before any code.

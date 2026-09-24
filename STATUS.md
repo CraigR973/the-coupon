@@ -29,8 +29,9 @@ Checked 2026-09-24 unless a line says otherwise.
 
 ## Owed
 
-- **`/ship-prod` for Batches 155 and 153.** 155's boot-time rename notice now finds its
-  three profiles by id; 153 changed only a docstring. Before them production was in sync
+- **`/ship-prod` for Batches 155, 153 and 142.** 155's boot-time rename notice finds its
+  three profiles by id; 142 bounds every push by a 5-second timeout and refuses push
+  endpoints off port 443; 153 changed only a docstring. Before them production was in sync
   (drift check, 2026-09-24), so nothing else is waiting.
 - **The direct-database recheck skipped at the Phase 7 shipment.** RLS, the
   `anon`/`authenticated`/`PUBLIC` grants and Batch 146's two indexes were last confirmed
@@ -71,23 +72,21 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Twelve rows are open (2026-09-24); they are at the head of `docs/BUILD_PLAN.md`. The run
+Eleven rows are open (2026-09-24); they are at the head of `docs/BUILD_PLAN.md`. The run
 order agreed on 2026-09-24:
 
-1. **142** — web push has no timeout and its endpoint check ignores the port; the
-   `cryptography` pin is held at 48.0.1 by owner decision.
-2. **95** — no second copy of the scored history. Blocked on the owner items above.
-3. **134** — a mis-settled pick can only be corrected by a script against production.
-4. **136** — no self-service deletion or data export. UK GDPR questions go to the owner.
-5. **135** — nothing tells a member their round has settled.
-6. **148** — the rename notice has no channel but push.
-7. **115** — nothing learns until a member arrives. Once recorded here as superseded by
+1. **95** — no second copy of the scored history. Blocked on the owner items above.
+2. **134** — a mis-settled pick can only be corrected by a script against production.
+3. **136** — no self-service deletion or data export. UK GDPR questions go to the owner.
+4. **135** — nothing tells a member their round has settled.
+5. **148** — the rename notice has no channel but push.
+6. **115** — nothing learns until a member arrives. Once recorded here as superseded by
    Batch 119; re-verify before building.
-8. **150** — the first screen a new member sees.
-9. **149** — toasts, skeletons, and errors that look like empty states.
-10. **151** — one statistic drawn two ways; no type scale.
-11. **168** — two links under minimum target size; 200% zoom.
-12. **140** — the desktop layout is the phone layout stretched.
+7. **150** — the first screen a new member sees.
+8. **149** — toasts, skeletons, and errors that look like empty states.
+9. **151** — one statistic drawn two ways; no type scale.
+10. **168** — two links under minimum target size; 200% zoom.
+11. **140** — the desktop layout is the phone layout stretched.
 
 Known before starting:
 
@@ -100,8 +99,8 @@ Checked 2026-09-24.
 
 - **The gate is `scripts/ci-local.sh`**: eleven checks and no skips. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,300, frontend 1,180). 11 to 13 minutes on this Mac. Without a database the
-  backend suite is 780 passed and 520 skipped — not the gate.
+  (backend 1,305, frontend 1,180). 11 to 13 minutes on this Mac. Without a database the
+  backend suite was 780 passed and 520 skipped at 1,300 tests — not the gate.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
   `apps/api/requirements-dev.txt`: Python 3.12, FastAPI 0.141.1, ruff 0.5.4. app-starter's
   venv cannot import the suite.

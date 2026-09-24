@@ -246,36 +246,6 @@ ticked rows can collect here until someone moves them below.
   Scope boundary: responsive layout for those three screens and the shell width. No new
   components, no imagery, no token changes that could affect contrast. **Web-only.**
 
-- [ ] **Batch 142 — The cryptography pin has gone stale and web push has no timeout**
-  — specified from `docs/review/2026-09-13/01-security.md`, SEC-21 (LOW-MED) and SEC-23
-  (LOW), both live. A live OSV query over 900 pins found `cryptography==48.0.1` — the
-  version SEC-09 pinned as clean — now carrying three advisories, fixed in 49.0.0 and
-  50.0.0. None is reachable: the application never uses the library directly, only
-  transitively for VAPID signing. Separately `webpush()` is called with **no timeout**, so
-  eleven blocking sends on a request path can stall the worker if a push service hangs,
-  and the endpoint allowlist does not restrict the port.
-
-  Bump `cryptography` past the advisories and give `webpush()` an explicit timeout;
-  restrict the endpoint port while in there. **Owner decision, 2026-09-22: hold at 48.0.1.** 49.0.0 is where macOS wheels stop and
-  `scripts/ci-local.sh`'s `--only-binary` guard exists to catch exactly that, so the bump is
-  not taken. Instead **document the three advisories as unreachable** where the pin lives,
-  with the reasoning (the application never calls `cryptography` directly; the only path is
-  transitive VAPID signing), so the next dependency scan does not re-derive this from
-  scratch. The web-push timeout and port restriction are still this batch's work.
-
-  **Re-verified 2026-09-24: two of three parts reproduce.** `webpush()` was called with no
-  timeout, and pywebpush hands `None` straight to `requests`, so a hung push service held
-  the send indefinitely; and `_validate_push_endpoint` accepted an allowlisted host on port
-  8443 or 22. The third part had largely been done already: `requirements.in` has recorded
-  the same three advisories as unreachable since 2026-08-26 — OSV lists exactly those three
-  against 48.0.1 today — only without their CVE and GHSA numbers, which are now added.
-
-  Verification: the gate green on the chosen version; a test that a hanging push service
-  does not block the request beyond the timeout.
-
-  Scope boundary: the pin and the push call. No change to the VAPID flow.
-  **API-carrying.**
-
 - [ ] **Batch 148 — A renamed member with no push subscription can never be told**
   — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-A11 (MED, live).
   `rename_notice.py` delivers by web push only and writes its "told them" marker only when
@@ -4628,6 +4598,36 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: response headers only. No change to token storage — that is a larger
   question and is not this batch. **Web-only.**
+
+- [x] **Batch 142 — The cryptography pin has gone stale and web push has no timeout** ✅ 2026-09-24
+  — specified from `docs/review/2026-09-13/01-security.md`, SEC-21 (LOW-MED) and SEC-23
+  (LOW), both live. A live OSV query over 900 pins found `cryptography==48.0.1` — the
+  version SEC-09 pinned as clean — now carrying three advisories, fixed in 49.0.0 and
+  50.0.0. None is reachable: the application never uses the library directly, only
+  transitively for VAPID signing. Separately `webpush()` is called with **no timeout**, so
+  eleven blocking sends on a request path can stall the worker if a push service hangs,
+  and the endpoint allowlist does not restrict the port.
+
+  Bump `cryptography` past the advisories and give `webpush()` an explicit timeout;
+  restrict the endpoint port while in there. **Owner decision, 2026-09-22: hold at 48.0.1.** 49.0.0 is where macOS wheels stop and
+  `scripts/ci-local.sh`'s `--only-binary` guard exists to catch exactly that, so the bump is
+  not taken. Instead **document the three advisories as unreachable** where the pin lives,
+  with the reasoning (the application never calls `cryptography` directly; the only path is
+  transitive VAPID signing), so the next dependency scan does not re-derive this from
+  scratch. The web-push timeout and port restriction are still this batch's work.
+
+  **Re-verified 2026-09-24: two of three parts reproduce.** `webpush()` was called with no
+  timeout, and pywebpush hands `None` straight to `requests`, so a hung push service held
+  the send indefinitely; and `_validate_push_endpoint` accepted an allowlisted host on port
+  8443 or 22. The third part had largely been done already: `requirements.in` has recorded
+  the same three advisories as unreachable since 2026-08-26 — OSV lists exactly those three
+  against 48.0.1 today — only without their CVE and GHSA numbers, which are now added.
+
+  Verification: the gate green on the chosen version; a test that a hanging push service
+  does not block the request beyond the timeout.
+
+  Scope boundary: the pin and the push call. No change to the VAPID flow.
+  **API-carrying.**
 
 - [x] **Batch 143 — Logout leaves the last league on screen, and an invite to a deleted league still resolves** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/01-security.md`, SEC-25 and SEC-26 (both LOW,
