@@ -7127,3 +7127,26 @@ Method notes worth keeping, because both would have produced a confident wrong a
   the Vercel CLI token answers 403.
 
 **Next:** Batch 153. `/ship-prod` is still owed for Batch 155's API half.
+
+## Batch 153 — The instructions quote a gate that has not existed for a month, and the hook argues against the policy
+**Commits:** `eabe49d` · verified: `scripts/ci-local.sh` PASS (11 checks) on the first run;
+1,300 backend and 1,180 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **Measured 2026-09-24:** backend without a database 780 passed / 520 skipped; with one
+  1,300 / 0; three full gates took 13m09s, 11m10s and 10m38s. Every quoted figure is dated
+  now — rerun rather than trust one.
+- **The guardrail can now record an owner-approved exception**: `approved_gate_maintenance`
+  in `scripts/assert-quality-guardrails.sh` names a batch and the protected files it may
+  change; it applies only on that batch's own branch while its row is open. Entries: 153
+  (inert now it is ticked) and 127 (`ci.yml`, `ci-local.sh`, `apps/web/package.json`).
+  Never add one without the owner's approval in the row.
+- **Both stop hooks now say close-out is automatic** for a build batch with a green gate,
+  and that a launch phase still waits — matching `AGENTS.md`.
+- **The review's "fifteen queries" for `me.py` was already stale** (Batch 144 made it eleven,
+  twelve when a rank can move); the module docstring now defers to the function's count.
+  It is under `apps/api`, so close-out classed the batch API-only: no runtime change.
+- This Mac's git is **2.16** — no `git worktree remove`; delete the directory and
+  `git worktree prune`.
+
+**Next:** Batch 127. `/ship-prod` is owed for Batches 155 and 153.

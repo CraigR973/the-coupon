@@ -29,9 +29,9 @@ Checked 2026-09-24 unless a line says otherwise.
 
 ## Owed
 
-- **`/ship-prod` for Batch 155.** The boot-time rename notice now finds its three profiles
-  by id. The pre-push drift check on 2026-09-24 found production otherwise in sync, so
-  this is the only API change waiting.
+- **`/ship-prod` for Batches 155 and 153.** 155's boot-time rename notice now finds its
+  three profiles by id; 153 changed only a docstring. Before them production was in sync
+  (drift check, 2026-09-24), so nothing else is waiting.
 - **The direct-database recheck skipped at the Phase 7 shipment.** RLS, the
   `anon`/`authenticated`/`PUBLIC` grants and Batch 146's two indexes were last confirmed
   in full on 2026-09-23. Run it before the next shipment — inside the container over
@@ -71,32 +71,30 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Fourteen rows are open (2026-09-24); they are at the head of `docs/BUILD_PLAN.md`. The run
+Thirteen rows are open (2026-09-24); they are at the head of `docs/BUILD_PLAN.md`. The run
 order agreed on 2026-09-24:
 
-1. **153** — the instructions quote gate numbers a month old; the stop hooks contradict
-   automatic close-out.
-2. **127** — CI, the local gate and the web build still run Node 20, out of support since
+1. **127** — CI, the local gate and the web build still run Node 20, out of support since
    2026-04-30.
-3. **142** — web push has no timeout and its endpoint check ignores the port; the
+2. **142** — web push has no timeout and its endpoint check ignores the port; the
    `cryptography` pin is held at 48.0.1 by owner decision.
-4. **95** — no second copy of the scored history. Blocked on the owner items above.
-5. **134** — a mis-settled pick can only be corrected by a script against production.
-6. **136** — no self-service deletion or data export. UK GDPR questions go to the owner.
-7. **135** — nothing tells a member their round has settled.
-8. **148** — the rename notice has no channel but push.
-9. **115** — nothing learns until a member arrives. Once recorded here as superseded by
+3. **95** — no second copy of the scored history. Blocked on the owner items above.
+4. **134** — a mis-settled pick can only be corrected by a script against production.
+5. **136** — no self-service deletion or data export. UK GDPR questions go to the owner.
+6. **135** — nothing tells a member their round has settled.
+7. **148** — the rename notice has no channel but push.
+8. **115** — nothing learns until a member arrives. Once recorded here as superseded by
    Batch 119; re-verify before building.
-10. **150** — the first screen a new member sees.
-11. **149** — toasts, skeletons, and errors that look like empty states.
-12. **151** — one statistic drawn two ways; no type scale.
-13. **168** — two links under minimum target size; 200% zoom.
-14. **140** — the desktop layout is the phone layout stretched.
+9. **150** — the first screen a new member sees.
+10. **149** — toasts, skeletons, and errors that look like empty states.
+11. **151** — one statistic drawn two ways; no type scale.
+12. **168** — two links under minimum target size; 200% zoom.
+13. **140** — the desktop layout is the phone layout stretched.
 
 Known before starting:
 
-- **153 and 127 edit protected gate files.** The guardrail refuses that by design; the
-  owner approved a named one-off exception for those two batches only (2026-09-24).
+- **127 edits protected gate files.** The guardrail now carries the owner's named
+  exception for it (2026-09-24): `ci.yml`, `ci-local.sh` and `apps/web/package.json` only.
 - **136 and 148 change API and web**, so close-out refuses them until the owner
   explicitly schedules the matching `/ship-prod`.
 
@@ -106,7 +104,8 @@ Checked 2026-09-24.
 
 - **The gate is `scripts/ci-local.sh`**: eleven checks and no skips. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,300, frontend 1,180). About 13 minutes on this Mac.
+  (backend 1,300, frontend 1,180). 11 to 13 minutes on this Mac. Without a database the
+  backend suite is 780 passed and 520 skipped — not the gate.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
   `apps/api/requirements-dev.txt`: Python 3.12, FastAPI 0.141.1, ruff 0.5.4. app-starter's
   venv cannot import the suite.
@@ -115,7 +114,8 @@ Checked 2026-09-24.
 - **Scratch PostgreSQL** is pip `pgserver`, started and discarded by the gate.
 - **Protected files**: `scripts/assert-quality-guardrails.sh` fails any batch that edits
   the gate scripts, the CI workflow, the close-out workflow, `apps/web/package.json`,
-  `apps/api/requirements-dev.txt`, or the lint, type and build configuration.
+  `apps/api/requirements-dev.txt`, or the lint, type and build configuration — unless the
+  owner has named that batch and those files in the script, while its row is open.
 - **Production reads**: `railway ssh` with the explicit production selectors works; the
   direct IPv6 database connection does not (2026-09-24). The Railway CLI's default link is
   staging, and the Supabase MCP here is a different product — never read Coupon data

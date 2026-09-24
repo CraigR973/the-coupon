@@ -360,45 +360,6 @@ ticked rows can collect here until someone moves them below.
   Scope boundary: the statistic component and the type scale. Raising sizes only — no
   colour changes, so contrast cannot regress. **Web-only.**
 
-- [ ] **Batch 153 — The instructions quote a gate that has not existed for a month, and the hook argues against the policy**
-  — specified from `docs/review/2026-09-13/07-agent-pipeline.md`, PIPE-06 and PIPE-02 (MED,
-  documentation and live). "509 passed, 151 skipped" and "88 seconds" appear as present-day
-  fact in `AGENTS.md:123`, `batch-verify.md:21` and `:26`, and `phase-closeout.md:20`.
-  Measured on `2ce6f42`: **734 passed / 438 skipped** without a database and **1,172 passed
-  / 0 skipped** with one, in 4m48s — more than three times the quoted figure, which matters
-  because that figure is the argument for not skipping the database run. `batch-verify.md:18`
-  also undercounts the full gate as ten checks; it is eleven. Separately both stop hooks
-  print, on a clean feature branch, that close-out should run "only when the user asks",
-  contradicting `AGENTS.md:50-56` at the exact moment an agent is deciding.
-
-  Apply the corrections listed in `docs/review/2026-09-13/08-sequencing.md`, date the
-  numbers so the next drift is visible, and realign the hook text. **The hook change is
-  approved (owner, 2026-09-22)**: both stop hooks should say close-out is automatic here
-  and should not wait to be asked, matching `AGENTS.md`.
-
-  **Re-verified 2026-09-24: reproduces.** All six quotes stood, and both stop hooks still said
-  "only when the user asks". Measured the same day: without a database **780 passed, 520
-  skipped**; with one **1,300 passed, 0 skipped**; the whole gate 11m10s and 13m09s on two
-  runs. The review's "fifteen queries" for `me.py` had itself gone stale — Batch 144 brought
-  the read to eleven, twelve when a rank can move — so the module docstring now defers to the
-  function's measured count instead of quoting one. That docstring sits under `apps/api`, so
-  close-out classes this batch API-only; it changes nothing at runtime and rides with the
-  `/ship-prod` Batch 155 already owes.
-
-  **Owner decision, 2026-09-24: a named, one-off guardrail exception.** `phase-closeout.md` is
-  a protected file, so this batch could not pass its own gate, and nothing in the guardrail
-  could record an approval. `scripts/assert-quality-guardrails.sh` now lets a named batch
-  change named protected files, on its own branch and only while its row is open: **153**
-  (`phase-closeout.md` and the guardrail itself) and **127** (see its row). Rehearsed: an
-  unapproved protected edit still fails, 153's files fail on a 127 branch, and a ticked row
-  makes the entry inert.
-
-  Verification: the quoted numbers match a fresh run; the hook text and `AGENTS.md` say the
-  same thing.
-
-  Scope boundary: documentation and hook text. No workflow logic changes.
-  **Tooling-only (no deploy).**
-
 - [ ] **Batch 168 — Two links are under the minimum target size and 200% zoom gives a third of the screen to navigation**
   — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-19 and UX-20 (LOW,
   live). "Forgot PIN?" renders 316×**16** and "About & scoring rules" 358×**20**, both under
@@ -4756,6 +4717,45 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: the gate script and the close-out workflow. No change to what the checks
   themselves assert. **Tooling-only (no deploy).**
+
+- [x] **Batch 153 — The instructions quote a gate that has not existed for a month, and the hook argues against the policy** ✅ 2026-09-24
+  — specified from `docs/review/2026-09-13/07-agent-pipeline.md`, PIPE-06 and PIPE-02 (MED,
+  documentation and live). "509 passed, 151 skipped" and "88 seconds" appear as present-day
+  fact in `AGENTS.md:123`, `batch-verify.md:21` and `:26`, and `phase-closeout.md:20`.
+  Measured on `2ce6f42`: **734 passed / 438 skipped** without a database and **1,172 passed
+  / 0 skipped** with one, in 4m48s — more than three times the quoted figure, which matters
+  because that figure is the argument for not skipping the database run. `batch-verify.md:18`
+  also undercounts the full gate as ten checks; it is eleven. Separately both stop hooks
+  print, on a clean feature branch, that close-out should run "only when the user asks",
+  contradicting `AGENTS.md:50-56` at the exact moment an agent is deciding.
+
+  Apply the corrections listed in `docs/review/2026-09-13/08-sequencing.md`, date the
+  numbers so the next drift is visible, and realign the hook text. **The hook change is
+  approved (owner, 2026-09-22)**: both stop hooks should say close-out is automatic here
+  and should not wait to be asked, matching `AGENTS.md`.
+
+  **Re-verified 2026-09-24: reproduces.** All six quotes stood, and both stop hooks still said
+  "only when the user asks". Measured the same day: without a database **780 passed, 520
+  skipped**; with one **1,300 passed, 0 skipped**; the whole gate 11m10s and 13m09s on two
+  runs. The review's "fifteen queries" for `me.py` had itself gone stale — Batch 144 brought
+  the read to eleven, twelve when a rank can move — so the module docstring now defers to the
+  function's measured count instead of quoting one. That docstring sits under `apps/api`, so
+  close-out classes this batch API-only; it changes nothing at runtime and rides with the
+  `/ship-prod` Batch 155 already owes.
+
+  **Owner decision, 2026-09-24: a named, one-off guardrail exception.** `phase-closeout.md` is
+  a protected file, so this batch could not pass its own gate, and nothing in the guardrail
+  could record an approval. `scripts/assert-quality-guardrails.sh` now lets a named batch
+  change named protected files, on its own branch and only while its row is open: **153**
+  (`phase-closeout.md` and the guardrail itself) and **127** (see its row). Rehearsed: an
+  unapproved protected edit still fails, 153's files fail on a 127 branch, and a ticked row
+  makes the entry inert.
+
+  Verification: the quoted numbers match a fresh run; the hook text and `AGENTS.md` say the
+  same thing.
+
+  Scope boundary: documentation and hook text. No workflow logic changes.
+  **Tooling-only (no deploy).**
 
 - [x] **Batch 154 — Two documents cost 106k tokens to read and under 2% of one is current** ✅ 2026-09-24
   — specified from `docs/review/2026-09-13/07-agent-pipeline.md`, PIPE-07 (MED,
