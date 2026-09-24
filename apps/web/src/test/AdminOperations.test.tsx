@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AdminDashboardPage } from '@/pages/admin/DashboardPage';
-import { SyncPage } from '@/pages/admin/SyncPage';
-import { AdminResultsPage } from '@/pages/admin/ResultsPage';
+import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
+import { SyncPage } from '@/pages/admin/AdminSyncPage';
+import { AdminResultsPage } from '@/pages/admin/AdminResultsPage';
 import type { AdminDashboard, AdminPendingRound, AdminSyncJobs } from '@/lib/types';
 
 /**

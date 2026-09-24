@@ -70,25 +70,25 @@ const SetPinPage = lazyRoute(() => import('./pages/SetPinPage').then((m) => ({ d
 // Site admin (Batch 66). Lazy like everything else, and behind `requireAdmin` — a
 // member who is not a site admin never loads a byte of it.
 const AdminPlayersPage = lazyRoute(() =>
-  import('./pages/admin/PlayersPage').then((m) => ({ default: m.PlayersPage })),
+  import('./pages/admin/AdminPlayersPage').then((m) => ({ default: m.PlayersPage })),
 );
 const AdminInvitesPage = lazyRoute(() =>
-  import('./pages/admin/InvitesPage').then((m) => ({ default: m.InvitesPage })),
+  import('./pages/admin/AdminInvitesPage').then((m) => ({ default: m.InvitesPage })),
 );
 const AdminAllLeaguesPage = lazyRoute(() =>
-  import('./pages/admin/AllLeaguesPage').then((m) => ({ default: m.AllLeaguesPage })),
+  import('./pages/admin/AdminAllLeaguesPage').then((m) => ({ default: m.AllLeaguesPage })),
 );
 const AdminDashboardPage = lazyRoute(() =>
-  import('./pages/admin/DashboardPage').then((m) => ({ default: m.AdminDashboardPage })),
+  import('./pages/admin/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })),
 );
 const AdminCalendarPage = lazyRoute(() =>
-  import('./pages/admin/CalendarPage').then((m) => ({ default: m.CalendarPage })),
+  import('./pages/admin/AdminCalendarPage').then((m) => ({ default: m.CalendarPage })),
 );
 const AdminSyncPage = lazyRoute(() =>
-  import('./pages/admin/SyncPage').then((m) => ({ default: m.SyncPage })),
+  import('./pages/admin/AdminSyncPage').then((m) => ({ default: m.SyncPage })),
 );
 const AdminResultsPage = lazyRoute(() =>
-  import('./pages/admin/ResultsPage').then((m) => ({ default: m.AdminResultsPage })),
+  import('./pages/admin/AdminResultsPage').then((m) => ({ default: m.AdminResultsPage })),
 );
 
 const queryClient = new QueryClient({

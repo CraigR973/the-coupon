@@ -6,6 +6,7 @@ import { NetworkFirst } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 import { respectNoStore } from '@/lib/apiCachePolicy';
+import { isRoleGatedChunk } from '@/lib/precacheFilter';
 
 // vite-plugin-pwa replaces self.__WB_MANIFEST with the precache manifest at build time
 declare const self: ServiceWorkerGlobalScope & {
@@ -22,7 +23,15 @@ self.skipWaiting();
 clientsClaim();
 
 cleanupOutdatedCaches();
-precacheAndRoute(self.__WB_MANIFEST);
+
+// Batch 163. Everything the app emits was precached on install — 82 entries, 979 KiB —
+// which undid the route splitting and spent a member's data on two admin consoles they
+// cannot open. `isRoleGatedChunk` says which; the routes still load on demand.
+const manifest = self.__WB_MANIFEST.filter((entry) =>
+  !isRoleGatedChunk(typeof entry === 'string' ? entry : entry.url),
+);
+
+precacheAndRoute(manifest);
 
 // SPA navigation fallback — serve cached index.html for all non-API navigations
 registerRoute(

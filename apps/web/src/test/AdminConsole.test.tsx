@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { PlayersPage } from '@/pages/admin/PlayersPage';
+import { PlayersPage } from '@/pages/admin/AdminPlayersPage';
 import { SetPinPage } from '@/pages/SetPinPage';
 import type { AdminPlayer } from '@/lib/types';
 
