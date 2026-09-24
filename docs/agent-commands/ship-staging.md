@@ -76,7 +76,7 @@ environment variables; these override any ambient link. Write a pinned plan,
 review its redacted output, and require that it changes only the existing `api`
 service without deleting a resource or variable. Never pass `--show-values`,
 `--decrypt-variables`, or `--confirm-destructive`. Railway's TypeScript
-evaluator requires Node 22 or newer, independently of the web app's Node 20
+evaluator requires Node 22 or newer, independently of the web app's Node 24
 toolchain; require `nvm` to have a Node 22 release installed:
 
 ```bash

@@ -163,7 +163,7 @@ agrees; see `docs/agent-commands/batch-verify.md` for why that one is left alone
 Frontend:
 
 ```text
-PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH"
+PATH="$HOME/.nvm/versions/node/v24.21.0/bin:$PATH"
 pnpm --dir /Users/craigrobinson/the-coupon/apps/web <command>
 ```
 

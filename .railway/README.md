@@ -15,8 +15,8 @@ pnpm install --frozen-lockfile
 `RAILWAY_PROJECT_ID`, `RAILWAY_ENVIRONMENT_ID`, and `RAILWAY_SERVICE_ID` to the
 recorded target from `docs/agent-commands/ship-staging.md` or
 `docs/agent-commands/ship-prod.md`; never rely on the ambient repository link.
-The Railway CLI's TypeScript evaluator also requires Node 22 or newer even
-though the web application remains on Node 20.
+The Railway CLI's TypeScript evaluator also requires Node 22 or newer; the web
+application's own toolchain is Node 24.
 
 Do not run `railway config apply` as a batch step. The matching ship workflow
 reviews and applies a pinned, non-destructive plan immediately before the source

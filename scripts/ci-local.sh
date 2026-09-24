@@ -185,9 +185,23 @@ echo
 echo "node dependencies"
 if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
   # shellcheck source=/dev/null
-  . "$HOME/.nvm/nvm.sh" && nvm use 20 --silent
+  . "$HOME/.nvm/nvm.sh" && nvm use 24 --silent
 fi
-step "pnpm install --frozen-lockfile" "$ROOT" pnpm install --frozen-lockfile
+# CI installs exactly the pnpm that package.json's `packageManager` names (via
+# pnpm/action-setup), and a different pnpm can resolve the same lockfile differently.
+# So the install step refuses any other version rather than passing on a near miss.
+PNPM_PINNED="$(sed -nE 's/.*"packageManager": *"pnpm@([^"]+)".*/\1/p' "$ROOT/package.json")"
+pinned_pnpm_install() {
+  local have
+  have="$(pnpm --version 2>/dev/null)"
+  if [[ -z "$PNPM_PINNED" || "$have" != "$PNPM_PINNED" ]]; then
+    echo "pnpm is '${have:-missing}' but package.json pins '${PNPM_PINNED:-nothing}'."
+    echo "With Node 24 selected, run: corepack enable pnpm"
+    return 1
+  fi
+  pnpm install --frozen-lockfile
+}
+step "pnpm install --frozen-lockfile" "$ROOT" pinned_pnpm_install
 
 echo
 echo "deployment-config"

@@ -27,7 +27,7 @@ docs/           Build plan and agent workflows
 
 ## Local setup
 
-Requirements: Node 20, pnpm 9, Python 3.12, and PostgreSQL.
+Requirements: Node 24, pnpm 9.15.0, Python 3.12, and PostgreSQL.
 
 ```bash
 cp .env.example .env
@@ -48,7 +48,7 @@ export PYTHONPATH=/Users/craigrobinson/the-coupon/apps/api
 In another terminal:
 
 ```bash
-PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" \
+PATH="$HOME/.nvm/versions/node/v24.21.0/bin:$PATH" \
   pnpm --dir /Users/craigrobinson/the-coupon/apps/web dev
 ```
 

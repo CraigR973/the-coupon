@@ -71,13 +71,13 @@ the CI run that already checks it. If mypy ever fails in CI but passes locally,
 this is why.
 
 ```bash
-PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" \
+PATH="$HOME/.nvm/versions/node/v24.21.0/bin:$PATH" \
   pnpm --dir /Users/craigrobinson/the-coupon/apps/web lint
-PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" \
+PATH="$HOME/.nvm/versions/node/v24.21.0/bin:$PATH" \
   pnpm --dir /Users/craigrobinson/the-coupon/apps/web typecheck
-PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" \
+PATH="$HOME/.nvm/versions/node/v24.21.0/bin:$PATH" \
   pnpm --dir /Users/craigrobinson/the-coupon/apps/web build
-PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH" \
+PATH="$HOME/.nvm/versions/node/v24.21.0/bin:$PATH" \
   pnpm --dir /Users/craigrobinson/the-coupon/apps/web test
 ```
 

@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="/Users/craigrobinson/the-coupon"
 PY_TOOLS="/Users/craigrobinson/app-starter/apps/api/.venv/bin"
-NODE_PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH"
+NODE_PATH="$HOME/.nvm/versions/node/v24.21.0/bin:$PATH"
 BATCH="${1:-batch}"
 
 PYTHONPATH="$ROOT/apps/api" "$PY_TOOLS/ruff" check "$ROOT/apps/api"

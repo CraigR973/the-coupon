@@ -188,6 +188,22 @@ ticked rows can collect here until someone moves them below.
   Verification: the full gate green on Node 22, locally and in CI; the deployed web app
   serving the same bundle behaviour.
 
+  **Re-verified 2026-09-24: reproduces for testing, not for the production build.** CI's three
+  Node jobs, `scripts/ci-local.sh`, the root engines floor (`>=20.0.0`) and `.nvmrc` were all
+  Node 20. But the production Vercel project builds from `apps/web`, which set no engines,
+  and was configured for Node 24.x at launch (L4 record, 2026-08-03) — so production was most
+  likely built on 24 and tested on 20. Not confirmable that day: the Vercel CLI token
+  answered 403.
+
+  **Owner decision, 2026-09-24: Node 24, not 22.** It matches the production build's
+  configured runtime and is supported to April 2028, against 22's April 2027.
+  `apps/web/package.json` now pins `engines.node` to `24.x`, so the repository rather than
+  the dashboard decides the Vercel build's runtime. Node 24.21.0 was installed on the
+  owner's Mac through nvm (checksum verified) and pnpm 9.15.0 comes from corepack's cache.
+  PIPE-09 is folded in — the gate's install step refuses any pnpm but `packageManager`'s — and
+  OPS-15 is left out: Vite 5, ESLint 8, Tailwind 3 and Vitest 2 are each a major migration,
+  not a cheap refresh.
+
   **Gate maintenance approved (owner, 2026-09-24).** This batch may change three protected
   files and no others: `.github/workflows/ci.yml`, `scripts/ci-local.sh`, and
   `apps/web/package.json` — the last because the production Vercel project builds from
@@ -382,7 +398,7 @@ ticked rows can collect here until someone moves them below.
   settlement. Ruff check/format and strict mypy pass.
 - **Database:** `alembic upgrade head` succeeds on clean `pgserver` PostgreSQL;
   the baseline tables exist and no legacy tables exist.
-- **Frontend:** Node 20 production build, `tsc --noEmit`, and Vitest pass.
+- **Frontend:** Node 24 production build, `tsc --noEmit`, and Vitest pass.
 - **Browser end-to-end:** against a production preview, real scratch PostgreSQL,
   and `FakeBetfair`, seed a leaderboard and members; show the Saturday slate;
   submit two members' picks; show a third member blocked from a taken
