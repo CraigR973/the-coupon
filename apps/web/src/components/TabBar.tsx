@@ -1,6 +1,6 @@
-import { useState, useId, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { useSlidingIndicator } from '@/hooks/useSlidingIndicator';
 import {
   Home,
   Goal,
@@ -63,8 +63,28 @@ export function TabBar() {
   // `Dialog.Trigger`, and this sheet is driven by `open` rather than by one, so
   // without this Escape left focus on `<body>` and the next Tab restarted at the
   // top of the document — the account menu, a Radix dropdown, never had the bug.
-  const moreTriggerRef = useRef<HTMLButtonElement>(null);
-  const layoutId = useId();
+  // `| null` in the type parameter, not just the initial value: without it TypeScript
+  // infers a read-only `RefObject` and `setOverflowRefs` below cannot assign to it.
+  const moreTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  // Four primary tabs or five, depending on whether this member is in a league, plus
+  // More. Counted here rather than off `tabs` below because the indicator hook needs it
+  // before that list is built, and because the count is the only thing about the list
+  // that moves the indicator on its own.
+  const tabCount = primaryTabs(hasLeagues ? activeSlug : null).length + 1;
+
+  // Batch 164. The sliding indicator, which was a framer-motion `layoutId` on a span
+  // inside every tab. `pathname` is the dependency that matters — it is what changes
+  // which tab is current — with the tab count beside it because the bar shows four or
+  // five items depending on whether the member is in a league.
+  const indicator = useSlidingIndicator(pathname, tabCount);
+
+  // The More button can be both the active tab and the sheet's focus anchor, so it needs
+  // two refs on one element. A callback ref is the only way to give it both.
+  const setOverflowRefs = (node: HTMLButtonElement | null) => {
+    moreTriggerRef.current = node;
+    indicator.activeRef.current = node;
+  };
 
   // Guarantee the More sheet closes whenever the route changes, regardless of
   // how the navigation happened (sheet button, swipe-back, deep link).
@@ -138,19 +158,25 @@ export function TabBar() {
           'pb-safe',
         )}
       >
-        <ul className="flex items-stretch justify-around h-[60px]">
+        <ul
+          ref={indicator.containerRef as React.RefObject<HTMLUListElement>}
+          className="relative flex items-stretch justify-around h-[60px]"
+        >
+          {/* Batch 164: one measured indicator rather than a framer-motion `layoutId` on
+              each tab. `inset-x-3` used to inset it within the tab; here the tab's own
+              box is measured, so the inset is applied as a transform offset instead. */}
+          <span
+            aria-hidden
+            data-testid="tabbar-indicator"
+            data-measured={indicator.measured}
+            style={indicator.style}
+            className="sliding-indicator pointer-events-none absolute top-0 h-0.5 rounded-full bg-primary"
+          />
           {tabs.map((tab) => {
             const { to, label, Icon, isCurrent } = tab;
             const isOverflow = to === '#more';
             const content = (
               <>
-                {isCurrent && (
-                  <motion.span
-                    layoutId={layoutId}
-                    className="absolute inset-x-3 top-0 h-0.5 bg-primary rounded-full"
-                    transition={{ type: 'spring', stiffness: 360, damping: 32 }}
-                  />
-                )}
                 <Icon
                   className={cn(
                     'h-5 w-5 transition-colors',
@@ -176,11 +202,16 @@ export function TabBar() {
               <li key={label} className="contents">
                 {isOverflow ? (
                   <button
-                    ref={moreTriggerRef}
+                    ref={isCurrent ? setOverflowRefs : moreTriggerRef}
                     type="button"
                     onClick={() => setMoreOpen(true)}
                     aria-haspopup="dialog"
                     aria-expanded={moreOpen}
+                    // Batch 164. The indicator moved out of this button and into the bar,
+                    // so "More is the current tab" needed saying in the markup rather
+                    // than inferred from a coloured span inside it. `page` matches the
+                    // links: the page the reader is on is one of the ones behind here.
+                    aria-current={isCurrent ? 'page' : undefined}
                     className={baseClass}
                   >
                     {content}
@@ -188,6 +219,7 @@ export function TabBar() {
                 ) : (
                   <Link
                     to={to}
+                    ref={isCurrent ? (indicator.activeRef as React.Ref<HTMLAnchorElement>) : undefined}
                     className={baseClass}
                     aria-current={isCurrent ? 'page' : undefined}
                   >

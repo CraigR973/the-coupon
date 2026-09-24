@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { motion, useReducedMotionConfig } from 'framer-motion';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -28,11 +27,11 @@ export function ScoreInput({
   disabled = false,
   'aria-label': ariaLabel,
 }: ScoreInputProps) {
-  const prefersReducedMotion = useReducedMotionConfig();
   const num = value === '' ? null : Number(value);
 
-  // Bump a key each time the displayed digit *actually* changes so framer-motion
-  // re-mounts the digit span and replays the keyframe sequence.
+  // Bump a key each time the displayed digit *actually* changes, so React re-mounts the
+  // digit span and its CSS animation replays. A CSS animation only runs on mount, which
+  // is exactly the behaviour wanted here and is why the key exists.
   const [pulseKey, setPulseKey] = useState(0);
   const lastValueRef = useRef(value);
   useEffect(() => {
@@ -91,25 +90,26 @@ export function ScoreInput({
             disabled
               ? 'text-text-muted border-border cursor-not-allowed opacity-50'
               : 'text-text-primary border-border hover:border-primary/50',
-            // Hide the native digit so the animated span can paint it instead.
-            !prefersReducedMotion && 'text-transparent caret-text-primary',
+            // Hide the native digit so the painted span can show it instead.
+            'text-transparent caret-text-primary',
           )}
         />
-        {!prefersReducedMotion && (
-          <motion.span
-            key={pulseKey}
-            aria-hidden
-            initial={{ scale: 1 }}
-            animate={{ scale: pulseKey === 0 ? 1 : [1, 1.1, 1] }}
-            transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-            className={cn(
-              'pointer-events-none absolute inset-0 flex items-center justify-center font-mono text-3xl font-semibold tabular-nums leading-none',
-              disabled ? 'text-text-muted opacity-50' : 'text-text-primary',
-            )}
-          >
-            {value}
-          </motion.span>
-        )}
+        {/* Batch 164. Was a framer-motion span rendered only when motion was allowed,
+            with the native digit showing otherwise — two different renderings of the same
+            number. Now there is one: the span always paints, and `index.css` collapses
+            the pulse for anyone who asks for reduced motion. `pulseKey === 0` is the
+            first render, which must not pulse at a value the reader never saw change. */}
+        <span
+          key={pulseKey}
+          aria-hidden
+          className={cn(
+            'pointer-events-none absolute inset-0 flex items-center justify-center font-mono text-3xl font-semibold tabular-nums leading-none',
+            pulseKey > 0 && 'animate-value-pulse',
+            disabled ? 'text-text-muted opacity-50' : 'text-text-primary',
+          )}
+        >
+          {value}
+        </span>
       </div>
 
       {!disabled && (

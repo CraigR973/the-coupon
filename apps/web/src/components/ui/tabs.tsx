@@ -1,5 +1,5 @@
-import { type ReactNode, useId } from 'react';
-import { motion } from 'framer-motion';
+import { type ReactNode } from 'react';
+import { useSlidingIndicator } from '@/hooks/useSlidingIndicator';
 import { cn } from '@/lib/utils';
 
 export interface TabItem<T extends string = string> {
@@ -17,8 +17,12 @@ interface TabsProps<T extends string> {
 }
 
 /**
- * Lightweight roving-tab control. The active indicator uses a shared
- * framer-motion layoutId so it slides between tabs instead of cutting.
+ * Lightweight roving-tab control. The active indicator slides between tabs rather than
+ * cutting — a single measured element in the container, not one per tab.
+ *
+ * Batch 164 replaced framer-motion's `layoutId` here with `useSlidingIndicator`. The
+ * behaviour is the same; the ease is a CSS cubic-bezier rather than a spring, which on a
+ * 260ms slide of a few hundred pixels is not a difference anybody can see.
  */
 export function Tabs<T extends string>({
   items,
@@ -27,25 +31,42 @@ export function Tabs<T extends string>({
   className,
   variant = 'default',
 }: TabsProps<T>) {
-  const layoutId = useId();
   const isSegmented = variant === 'segmented';
+  const indicator = useSlidingIndicator(value, items.length, variant);
 
   return (
     <div
       role="tablist"
+      ref={indicator.containerRef as React.RefObject<HTMLDivElement>}
       className={cn(
-        'inline-flex items-center font-sans',
+        'relative inline-flex items-center font-sans',
         isSegmented
           ? 'rounded-md bg-surface p-1 gap-1 border border-border'
           : 'gap-1 border-b border-border',
         className,
       )}
     >
+      {/* One indicator for the control, positioned over the active tab. Behind the
+          buttons for the segmented variant, where it is a filled pill; the underline
+          variant draws it along the bottom edge. */}
+      <span
+        aria-hidden
+        data-testid="tab-indicator"
+        data-measured={indicator.measured}
+        style={indicator.style}
+        className={cn(
+          'sliding-indicator pointer-events-none absolute',
+          isSegmented
+            ? 'top-1 bottom-1 rounded-sm bg-surface-elevated'
+            : 'bottom-0 h-0.5 bg-primary',
+        )}
+      />
       {items.map((item) => {
         const isActive = item.value === value;
         return (
           <button
             key={item.value}
+            ref={isActive ? (indicator.activeRef as React.Ref<HTMLButtonElement>) : undefined}
             type="button"
             role="tab"
             aria-selected={isActive}
@@ -59,18 +80,6 @@ export function Tabs<T extends string>({
             )}
           >
             <span className="relative z-10">{item.label}</span>
-            {isActive && (
-              <motion.span
-                layoutId={layoutId}
-                className={cn(
-                  'absolute inset-x-0',
-                  isSegmented
-                    ? 'inset-0 rounded-sm bg-surface-elevated -z-0'
-                    : 'bottom-0 h-0.5 bg-primary',
-                )}
-                transition={{ type: 'spring', stiffness: 360, damping: 32 }}
-              />
-            )}
           </button>
         );
       })}

@@ -4,6 +4,11 @@
  *
  * JetBrains Mono 600 is the LCP element (wordmark on /login) — preloaded in
  * index.html so it is available before the first paint.
+ *
+ * Batch 164 removed JetBrains Mono **700**. Nothing in the app asked for a bold mono
+ * weight — the only reference to the file was its own `@font-face` — so a lazy browser
+ * never fetched it, but the service worker precached all 21.9 KB of it on install for
+ * every member. Three faces remain and all three are used.
  */
 
 /* Outfit 400 — body text */
@@ -42,17 +47,6 @@
     U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* JetBrains Mono 700 — bold mono labels */
-@font-face {
-  font-family: 'JetBrains Mono';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('/fonts/jetbrains-mono-700.woff2') format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
-    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
-    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
 
 @tailwind base;
 @tailwind components;
@@ -425,6 +419,66 @@
     animation: shimmer 1.8s ease-in-out infinite;
   }
 
+  /* ── Batch 164: what framer-motion used to do ─────────────────────────────
+     107 KB of JavaScript for five transitions, 62% of it unused on home. Each
+     one below is the CSS equivalent. They cost nothing at runtime and they obey
+     `prefers-reduced-motion` through the block at the bottom of this file rather
+     than through a hook each component had to remember to call. */
+
+  /* Route change. Enter only — see PageTransition.tsx for why the exit went. */
+  @keyframes page-enter {
+    from { opacity: 0; transform: translateX(var(--page-enter-x, 0)); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .animate-page-enter {
+    animation: page-enter 220ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  /* The tab indicator, which used to be a framer-motion `layoutId`. The element
+     is positioned by measured pixels (see useSlidingIndicator) and the slide is
+     this transition. `will-change` keeps it on its own layer on a phone. */
+  .sliding-indicator {
+    transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+                width 260ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform, width;
+  }
+  /* Before the first measurement there is nothing to slide *from*, and animating
+     out of the top-left corner is worse than appearing in place. */
+  .sliding-indicator[data-measured='false'] {
+    opacity: 0;
+    transition: none;
+  }
+
+  /* A label swapped for another, on the save button. */
+  @keyframes label-enter {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-label-enter {
+    animation: label-enter 180ms ease-out;
+  }
+
+  /* The save button's tick drawing itself, which was an animated `pathLength`.
+     `--check-length` is the path's measured length, set by the component. */
+  @keyframes draw-check {
+    from { stroke-dashoffset: var(--check-length, 24); }
+    to   { stroke-dashoffset: 0; }
+  }
+  .animate-draw-check {
+    stroke-dasharray: var(--check-length, 24);
+    animation: draw-check var(--check-duration, 320ms) ease-out forwards;
+  }
+
+  /* The score stepper's bump when a number changes. */
+  @keyframes value-pulse {
+    0%   { transform: scale(1); }
+    45%  { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+  .animate-value-pulse {
+    animation: value-pulse 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
   /* Press-down feedback for native feel */
   .press-down {
     transition: transform 80ms ease-out, opacity 80ms ease-out;
@@ -441,5 +495,14 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  /* Batch 164. Collapsing the duration is not enough on its own: an animation that
+     *starts* 16px to one side still shows a frame of displacement before it snaps.
+     Zeroing the offset means the route change is a plain cut, which is what a reader
+     asking for reduced motion wants. This replaces framer-motion's `useReducedMotion`,
+     which each component had to remember to call — and which `PageTransition` did and
+     `TabBar` did not. */
+  :root {
+    --page-enter-x: 0px;
   }
 }

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotionConfig } from 'framer-motion';
 import { Button, type ButtonProps } from './button';
 import { cn } from '@/lib/utils';
 
@@ -20,6 +19,10 @@ export interface SaveButtonProps extends Omit<ButtonProps, 'children'> {
 }
 
 const CHECK_DRAW_MS = 280;
+//: The `d` below is a 3-4-5 leg (5 units) plus a longer one (~10.6). Rounded up,
+//: because a dash longer than the path still hides it completely and a dash shorter
+//: than it would leave the tick visibly pre-drawn.
+const CHECK_PATH_LENGTH = 16;
 
 /**
  * Shared save CTA.
@@ -47,8 +50,6 @@ export function SaveButton({
   disabled,
   ...rest
 }: SaveButtonProps) {
-  const prefersReducedMotion = useReducedMotionConfig();
-
   // The check needs a fresh key each time we enter "saved" so the path
   // animation re-runs even when state transitions saved → idle → saved.
   const [checkKey, setCheckKey] = useState(0);
@@ -80,62 +81,33 @@ export function SaveButton({
         )}
       </span>
 
+      {/* Batch 164. Was an `AnimatePresence` crossfade; the key change remounts the span
+          and CSS animates it in. The outgoing label no longer slides away first — the two
+          were never both visible under `mode="wait"` anyway, so what changed is that the
+          swap takes 180ms rather than 360ms. The reduced-motion branch is gone with it:
+          `index.css` collapses the animation for everyone who asks, which is one rule
+          instead of a hook every component had to remember. */}
       <span className="absolute inset-0 flex items-center justify-center gap-1.5">
-        {prefersReducedMotion ? (
-          <SaveButtonLabel state={state} idleLabel={idleLabel} savingLabel={savingLabel} savedLabel={savedLabel} reduced />
-        ) : (
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.span
-              key={state}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.18 }}
-              className="inline-flex items-center gap-1.5"
-            >
-              {isSaved && (
-                <CheckMark key={checkKey} reducedMotion={prefersReducedMotion ?? false} />
-              )}
-              <span>
-                {isSaving ? savingLabel : isSaved ? savedLabel : idleLabel}
-              </span>
-            </motion.span>
-          </AnimatePresence>
-        )}
+        <span key={state} className="animate-label-enter inline-flex items-center gap-1.5">
+          {isSaved && <CheckMark key={checkKey} />}
+          <span>{isSaving ? savingLabel : isSaved ? savedLabel : idleLabel}</span>
+        </span>
       </span>
     </Button>
   );
 }
 
-function SaveButtonLabel({
-  state,
-  idleLabel,
-  savingLabel,
-  savedLabel,
-  reduced,
-}: {
-  state: SaveButtonState;
-  idleLabel: string;
-  savingLabel: string;
-  savedLabel: string;
-  reduced: boolean;
-}) {
-  if (state === 'saved') {
-    return (
-      <span className="inline-flex items-center gap-1.5">
-        <CheckMark reducedMotion={reduced} />
-        <span>{savedLabel}</span>
-      </span>
-    );
-  }
-  return <span>{state === 'saving' ? savingLabel : idleLabel}</span>;
-}
-
 /**
- * 16×16 check icon. Draws in via `pathLength: 0 → 1` over 280 ms unless
- * reduced motion is requested, in which case it renders fully drawn.
+ * 16×16 check icon, drawing itself in over 280 ms.
+ *
+ * Batch 164 replaced framer-motion's animated `pathLength` with the CSS technique it is
+ * built on: set `stroke-dasharray` to the path's length so the whole stroke is one dash,
+ * then animate `stroke-dashoffset` from that length to zero. `CHECK_PATH_LENGTH` is the
+ * measured length of the `d` below — a little over the 3-4-5 triangle's 5 units plus the
+ * long stroke's ~10.6 — and it only has to be *at least* the true length, so it is
+ * rounded up. Reduced motion is handled in `index.css` for everything at once.
  */
-function CheckMark({ reducedMotion }: { reducedMotion: boolean }) {
+function CheckMark() {
   return (
     <svg
       width={14}
@@ -149,11 +121,15 @@ function CheckMark({ reducedMotion }: { reducedMotion: boolean }) {
       aria-hidden
       className="shrink-0"
     >
-      <motion.path
+      <path
         d="M3 8.5 L6.5 12 L13 4.5"
-        initial={reducedMotion ? { pathLength: 1 } : { pathLength: 0 }}
-        animate={{ pathLength: 1 }}
-        transition={reducedMotion ? { duration: 0 } : { duration: CHECK_DRAW_MS / 1000, ease: 'easeOut' }}
+        className="animate-draw-check"
+        style={
+          {
+            '--check-length': CHECK_PATH_LENGTH,
+            '--check-duration': `${CHECK_DRAW_MS}ms`,
+          } as React.CSSProperties
+        }
       />
     </svg>
   );

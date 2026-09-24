@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import type { HTMLAttributes, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { TabBar } from '@/components/TabBar';
 
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
@@ -10,19 +10,6 @@ vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return { ...actual, useNavigate: () => navigate };
 });
-
-vi.mock('framer-motion', () => ({
-  motion: {
-    span: ({
-      children,
-      layoutId: _layoutId,
-      transition: _transition,
-      ...props
-    }: HTMLAttributes<HTMLSpanElement> & { layoutId?: string; transition?: unknown }) => (
-      <span {...props}>{children}</span>
-    ),
-  },
-}));
 
 const { auth } = vi.hoisted(() => ({
   auth: { player: { id: 'p1', displayName: 'Alice', role: 'player', timezone: 'UTC' } },
@@ -161,8 +148,27 @@ describe('TabBar mobile positioning', () => {
       </MemoryRouter>,
     );
 
+    // Batch 164 moved the active indicator out of the button and into the bar, where one
+    // measured element slides between tabs. So this asks the markup rather than looking
+    // for a coloured span inside the button — and `aria-current` is what a screen reader
+    // was relying on here all along, which the coloured span never told it.
     const more = screen.getByRole('button', { name: /more/i });
-    expect(more.querySelector('span')?.className).toContain('bg-primary');
+    expect(more.getAttribute('aria-current')).toBe('page');
+    expect(screen.getByTestId('tabbar-indicator')).toBeTruthy();
+  });
+
+  it('leaves More unmarked when the current page is one of its own tabs', () => {
+    // The other direction, which the old assertion could not make: a coloured span was
+    // only rendered when current, so its absence proved nothing about a different tab
+    // being current instead.
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <TabBar />
+      </MemoryRouter>,
+    );
+
+    const more = screen.getByRole('button', { name: /more/i });
+    expect(more.getAttribute('aria-current')).toBeNull();
   });
 });
 

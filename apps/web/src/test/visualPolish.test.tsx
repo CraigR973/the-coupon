@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { axe } from 'jest-axe';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/EmptyState';
@@ -140,7 +140,7 @@ describe('ErrorBoundary', () => {
 // ---------------------------------------------------------------------------
 
 describe('PageTransition', () => {
-  it('renders children inside a motion wrapper', () => {
+  it('renders children inside the animated wrapper', () => {
     render(
       <MemoryRouter initialEntries={['/']}>
         <PageTransition>
@@ -149,6 +149,34 @@ describe('PageTransition', () => {
       </MemoryRouter>,
     );
     expect(screen.getByText('hello')).toBeInTheDocument();
+    expect(screen.getByText('hello').parentElement?.className).toContain('animate-page-enter');
+  });
+
+  it('slides backward on a pop and forward on a push', () => {
+    // Batch 164: the direction used to be a framer-motion `x` prop and is now a CSS
+    // custom property. It is the one thing about this component that has a right and a
+    // wrong answer, so it is worth holding — a back navigation that slid forwards would
+    // look like the app had misunderstood the gesture.
+    //
+    // The *first* render is a POP, which surprised this test before it surprised anyone
+    // else: React Router classifies the initial entry that way, so a freshly opened app
+    // enters from the left. That is the existing behaviour, carried over unchanged.
+    function Pusher() {
+      const navigate = useNavigate();
+      return <button onClick={() => navigate('/next')}>go</button>;
+    }
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <PageTransition>
+          <Pusher />
+        </PageTransition>
+      </MemoryRouter>,
+    );
+    const wrapper = () => screen.getByText('go').parentElement as HTMLElement;
+    expect(wrapper().style.getPropertyValue('--page-enter-x')).toBe('-16px');
+
+    fireEvent.click(screen.getByText('go'));
+    expect(wrapper().style.getPropertyValue('--page-enter-x')).toBe('16px');
   });
 });
 

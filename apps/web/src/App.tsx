@@ -24,8 +24,9 @@ import { RegisterPage } from './pages/RegisterPage';
 import { JoinPage } from './pages/JoinPage';
 import { DEFAULT_LEAGUE_SLUG } from './lib/api';
 
-// Layout pulls in framer-motion via NavBar/OfflineBanner; lazy-loading it keeps
-// those deps out of the unauthenticated /login chunk.
+// Layout carries the whole authenticated shell; lazy-loading it keeps those deps out
+// of the unauthenticated /login chunk. (Batch 164 removed framer-motion, which used to
+// be the heaviest thing behind this line.)
 const Layout = lazyRoute(() => import('./components/Layout').then((m) => ({ default: m.Layout })));
 
 // Lazy-loaded routes: only login, register and join ship eagerly so the unauth entry
