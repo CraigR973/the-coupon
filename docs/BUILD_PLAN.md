@@ -164,41 +164,6 @@ ticked rows can collect here until someone moves them below.
 
   Scope boundary: one new trigger on the existing notification path. **API-carrying.**
 
-- [ ] **Batch 136 — A member cannot delete their account or get their data**
-  — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-B07 (MED-HIGH, live).
-  The only deletion is a site-admin soft delete that deliberately keeps the display name
-  reserved, so a departed member's real name stays on historic leaderboards permanently.
-  There is no self-service deletion and no export. Since Batch 74 the login identifier is a
-  real name, and the product is UK-facing.
-
-  Self-service deletion that anonymises the display name while preserving scoring history,
-  plus a data export of the member's own picks, points and profile.
-
-  **Owner decision, 2026-09-22: anonymise and keep history.** The member disappears from
-  view and their display name is freed for reuse, while their settled points still sum
-  into historic standings so past leagues stay coherent.
-
-  **Re-verified 2026-09-25: reproduces.** No self-service deletion or export existed; the
-  site-admin delete keeps the name and writes it into its own audit row. A member's name
-  also sat in per-league names, invite name hints, other audit payloads and login-throttle
-  keys (`login:<name>:<ip>`), and standings count only *active* memberships — so ending a
-  leaver's memberships would have taken their points out of past tables.
-
-  **Owner decisions, 2026-09-25:** erase **everything that names them**; show them as
-  **"Former member"**; **immediately, after re-entering the PIN**; **refused while they are
-  the only admin** of a league somebody else plays in. Memberships are therefore kept and
-  the profile marked deleted, as the site-admin delete does, and the stored name becomes
-  `Former member <8 hex>` — unique, as the column must be — which member-facing reads show
-  as "Former member". A site admin cannot delete themselves here; the About page says any
-  backup is kept for no more than 90 days.
-
-  Verification: a test that a deleted member's name is anonymised everywhere it renders
-  while their points still sum into historic standings; a test that the export contains the
-  member's own data and nobody else's.
-
-  Scope boundary: self-service deletion and export. No change to the site-admin delete.
-  **API + web.**
-
 - [ ] **Batch 140 — The desktop layout is the phone layout stretched**
   — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-01 (high impact).
   There is not one large-breakpoint utility in the application (45 small, 9 medium, zero
@@ -4558,6 +4523,41 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: correcting an already-settled pick. No change to ordinary settlement.
   **API-carrying.**
+
+- [x] **Batch 136 — A member cannot delete their account or get their data** ✅ 2026-09-25
+  — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-B07 (MED-HIGH, live).
+  The only deletion is a site-admin soft delete that deliberately keeps the display name
+  reserved, so a departed member's real name stays on historic leaderboards permanently.
+  There is no self-service deletion and no export. Since Batch 74 the login identifier is a
+  real name, and the product is UK-facing.
+
+  Self-service deletion that anonymises the display name while preserving scoring history,
+  plus a data export of the member's own picks, points and profile.
+
+  **Owner decision, 2026-09-22: anonymise and keep history.** The member disappears from
+  view and their display name is freed for reuse, while their settled points still sum
+  into historic standings so past leagues stay coherent.
+
+  **Re-verified 2026-09-25: reproduces.** No self-service deletion or export existed; the
+  site-admin delete keeps the name and writes it into its own audit row. A member's name
+  also sat in per-league names, invite name hints, other audit payloads and login-throttle
+  keys (`login:<name>:<ip>`), and standings count only *active* memberships — so ending a
+  leaver's memberships would have taken their points out of past tables.
+
+  **Owner decisions, 2026-09-25:** erase **everything that names them**; show them as
+  **"Former member"**; **immediately, after re-entering the PIN**; **refused while they are
+  the only admin** of a league somebody else plays in. Memberships are therefore kept and
+  the profile marked deleted, as the site-admin delete does, and the stored name becomes
+  `Former member <8 hex>` — unique, as the column must be — which member-facing reads show
+  as "Former member". A site admin cannot delete themselves here; the About page says any
+  backup is kept for no more than 90 days.
+
+  Verification: a test that a deleted member's name is anonymised everywhere it renders
+  while their points still sum into historic standings; a test that the export contains the
+  member's own data and nobody else's.
+
+  Scope boundary: self-service deletion and export. No change to the site-admin delete.
+  **API + web.**
 
 - [x] **Batch 137 — Four more public screens still render outside the app shell** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-12 (MED, live).

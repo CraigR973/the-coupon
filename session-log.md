@@ -7243,3 +7243,31 @@ frontend on Node 24.21.0 / pnpm 9.15.0; 1,300 backend and 1,180 frontend tests p
 
 **Next:** Batch 136 — needs owner decisions on erasure scope before any code.
 `/ship-prod` owed for 155, 153, 142, 95 and 134.
+
+## Batch 136 — A member cannot delete their account or get their data
+**Commits:** `baae8ed` · verified: `scripts/ci-local.sh` PASS (11 checks) on the second run;
+1,335 backend and 1,187 frontend tests passed, 0 skipped; browser-checked against a scratch
+database
+
+### Key facts for future sessions
+- **Owner decisions:** anonymise and keep history (2026-09-22); erase everything naming
+  them, show "Former member", immediately after the PIN, refused while sole admin of a
+  league others play in (2026-09-25). Site admins cannot self-delete.
+- **Memberships stay active on purpose** — standings count only active memberships, so
+  ending them would erase the leaver's points from past tables. `deleted_at`/`is_active`
+  on the profile is what hides them from rosters, reminders and round progress.
+- **The stored name is `Former member <8 hex>`**; `display_name.public_name(_sql)` shows it
+  as "Former member" on standings, results, coupon legs, "taken by", member lists, join
+  requests and the activity feed. An unmapped read shows the placeholder, never a name.
+  "Former member…" is reserved for registration and per-league names.
+- **A wrong PIN is 403, not 401**: `apiFetch` treats 401 as an expired session and signs
+  out. The Change PIN card still answers 401 — spun off as a separate task.
+- **Gate failure, fixed on attempt 2:** `viewport.test.ts` generates one check per source
+  file, so two new files meant +2 frontend tests beyond the 5 written (1,187, not 1,185) —
+  proved by a per-file count with the web changes stashed.
+- **Local browser check recipe:** a runner process holding pgserver + `tests.e2e_server`
+  on :8000 with `FRONTEND_ORIGIN=http://127.0.0.1:4173`, `VITE_API_URL` set at build (the
+  `.env.local` targets another product), then the `web-preview` launch config. Stop the
+  *runner's* PID, not its shell wrapper, or pgserver's postgres outlives its data dir.
+
+**Next:** `/ship-prod` (scheduled), then Batch 135.

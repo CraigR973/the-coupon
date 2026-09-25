@@ -29,11 +29,13 @@ Checked 2026-09-24 unless a line says otherwise.
 
 ## Owed
 
-- **`/ship-prod` for Batches 155, 153, 142, 95 and 134.** 155's boot-time rename notice
-  finds its three profiles by id; 142 bounds every push by a 5-second timeout and refuses
-  push endpoints off port 443; 95 adds the weekly off-site backup, which stays off after
-  the shipment until the owner switches it on; 134 adds the site-admin pick correction;
-  153 changed only a docstring. Before them
+- **`/ship-prod` for Batches 155, 153, 142, 95, 134 and 136 — scheduled by the owner on
+  2026-09-25 and run straight after 136's push**, because 136's web half (Settings → Your
+  data) calls routes only that shipment brings. 155's boot-time rename notice finds its
+  three profiles by id; 142 bounds every push by a 5-second timeout and refuses push
+  endpoints off port 443; 95 adds the weekly off-site backup, which stays off until the
+  owner switches it on; 134 adds the site-admin pick correction; 136 adds account deletion
+  and export; 153 changed only a docstring. None carries a migration. Before them
   production was in sync (drift check, 2026-09-24), so nothing else is waiting.
 - **The direct-database recheck skipped at the Phase 7 shipment.** RLS, the
   `anon`/`authenticated`/`PUBLIC` grants and Batch 146's two indexes were last confirmed
@@ -75,24 +77,23 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Nine rows are open (2026-09-25); they are at the head of `docs/BUILD_PLAN.md`. The run
+Eight rows are open (2026-09-25); they are at the head of `docs/BUILD_PLAN.md`. The run
 order agreed on 2026-09-24:
 
-1. **136** — no self-service deletion or data export. UK GDPR questions go to the owner.
-2. **135** — nothing tells a member their round has settled.
-3. **148** — the rename notice has no channel but push.
-4. **115** — nothing learns until a member arrives. Once recorded here as superseded by
+1. **135** — nothing tells a member their round has settled.
+2. **148** — the rename notice has no channel but push.
+3. **115** — nothing learns until a member arrives. Once recorded here as superseded by
    Batch 119; re-verify before building.
-5. **150** — the first screen a new member sees.
-6. **149** — toasts, skeletons, and errors that look like empty states.
-7. **151** — one statistic drawn two ways; no type scale.
-8. **168** — two links under minimum target size; 200% zoom.
-9. **140** — the desktop layout is the phone layout stretched.
+4. **150** — the first screen a new member sees.
+5. **149** — toasts, skeletons, and errors that look like empty states.
+6. **151** — one statistic drawn two ways; no type scale.
+7. **168** — two links under minimum target size; 200% zoom.
+8. **140** — the desktop layout is the phone layout stretched.
 
 Known before starting:
 
-- **136 and 148 change API and web**, so close-out refuses them until the owner
-  explicitly schedules the matching `/ship-prod`.
+- **148 changes API and web**, so close-out refuses it until the owner explicitly
+  schedules the matching `/ship-prod`.
 
 ## Toolchain
 
@@ -100,7 +101,7 @@ Checked 2026-09-24.
 
 - **The gate is `scripts/ci-local.sh`**: eleven checks and no skips. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,327, frontend 1,180). 11 to 13 minutes on this Mac, and 38 when macOS's storage scan loads it (2026-09-25). Without a database the
+  (backend 1,335, frontend 1,187). 11 to 13 minutes on this Mac, and 38 when macOS's storage scan loads it (2026-09-25). Without a database the
   backend suite was 780 passed and 520 skipped at 1,300 tests — not the gate.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
   `apps/api/requirements-dev.txt`: Python 3.12, FastAPI 0.141.1, ruff 0.5.4. app-starter's
