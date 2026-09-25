@@ -22,17 +22,18 @@ Checked 2026-09-24 unless a line says otherwise.
 | Football data | FotMob, no key |
 | Scheduler | on (`SCHEDULER_ENABLED=true`) |
 | Avatars | built and off (`AVATAR_STORAGE=none`) |
-| Backups | **none** — no managed backup and no PITR (Batch 95) |
+| Backups | **none yet** — the weekly off-site job is built and off (Batch 95, 2026-09-25) |
 
 `scripts/check-deploy-drift.sh` is the authority on what the API is running, never
 `git log`: shipments have gone unrecorded before.
 
 ## Owed
 
-- **`/ship-prod` for Batches 155, 153 and 142.** 155's boot-time rename notice finds its
-  three profiles by id; 142 bounds every push by a 5-second timeout and refuses push
-  endpoints off port 443; 153 changed only a docstring. Before them production was in sync
-  (drift check, 2026-09-24), so nothing else is waiting.
+- **`/ship-prod` for Batches 155, 153, 142 and 95.** 155's boot-time rename notice finds
+  its three profiles by id; 142 bounds every push by a 5-second timeout and refuses push
+  endpoints off port 443; 95 adds the weekly off-site backup, which stays off after the
+  shipment until the owner switches it on; 153 changed only a docstring. Before them
+  production was in sync (drift check, 2026-09-24), so nothing else is waiting.
 - **The direct-database recheck skipped at the Phase 7 shipment.** RLS, the
   `anon`/`authenticated`/`PUBLIC` grants and Batch 146's two indexes were last confirmed
   in full on 2026-09-23. Run it before the next shipment — inside the container over
@@ -50,10 +51,11 @@ These are not batches; nothing here will happen unless the owner does it or auth
 - **The season-calendar backfill.** Production's `season_calendars` table is empty
   (2026-09-24). `python -m src.backfill_season_calendar --dry-run`, review every move,
   then a separately authorised `--apply`; see `docs/backfills/2026-season-calendar.md`.
-- **Batch 95's two prerequisites:** a backup destination off the platform (S3, R2,
-  Backblaze) with credentials, and headroom on the Supabase egress quota whose consumer
-  was never identified (FEAT-A09; the quota was exceeded on 2026-08-25, last checked
-  2026-08-28).
+- **Switch on the weekly backup** — after the `/ship-prod` that carries Batch 95. Create
+  the EU-jurisdiction R2 bucket with a 30-day bucket lock and a 90-day expiry, a key
+  scoped to it, check Supabase egress headroom (FEAT-A09's consumer was never identified;
+  the quota was exceeded on 2026-08-25), seal the `BACKUP_*` variables and run it once by
+  hand. Steps: `docs/runbooks/backup-restore.md`. Until then production has no backup.
 - **The local agent configuration** (review finding PIPE-01, by hand, not a batch).
   `.claude/settings.local.json` still enables the Supabase MCP server — bound to a
   different product — with its write-capable query tool allowed, a blanket shell allow,
@@ -72,21 +74,20 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Eleven rows are open (2026-09-24); they are at the head of `docs/BUILD_PLAN.md`. The run
+Ten rows are open (2026-09-25); they are at the head of `docs/BUILD_PLAN.md`. The run
 order agreed on 2026-09-24:
 
-1. **95** — no second copy of the scored history. Blocked on the owner items above.
-2. **134** — a mis-settled pick can only be corrected by a script against production.
-3. **136** — no self-service deletion or data export. UK GDPR questions go to the owner.
-4. **135** — nothing tells a member their round has settled.
-5. **148** — the rename notice has no channel but push.
-6. **115** — nothing learns until a member arrives. Once recorded here as superseded by
+1. **134** — a mis-settled pick can only be corrected by a script against production.
+2. **136** — no self-service deletion or data export. UK GDPR questions go to the owner.
+3. **135** — nothing tells a member their round has settled.
+4. **148** — the rename notice has no channel but push.
+5. **115** — nothing learns until a member arrives. Once recorded here as superseded by
    Batch 119; re-verify before building.
-7. **150** — the first screen a new member sees.
-8. **149** — toasts, skeletons, and errors that look like empty states.
-9. **151** — one statistic drawn two ways; no type scale.
-10. **168** — two links under minimum target size; 200% zoom.
-11. **140** — the desktop layout is the phone layout stretched.
+6. **150** — the first screen a new member sees.
+7. **149** — toasts, skeletons, and errors that look like empty states.
+8. **151** — one statistic drawn two ways; no type scale.
+9. **168** — two links under minimum target size; 200% zoom.
+10. **140** — the desktop layout is the phone layout stretched.
 
 Known before starting:
 
@@ -99,7 +100,7 @@ Checked 2026-09-24.
 
 - **The gate is `scripts/ci-local.sh`**: eleven checks and no skips. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,305, frontend 1,180). 11 to 13 minutes on this Mac. Without a database the
+  (backend 1,321, frontend 1,180). 11 to 13 minutes on this Mac. Without a database the
   backend suite was 780 passed and 520 skipped at 1,300 tests — not the gate.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
   `apps/api/requirements-dev.txt`: Python 3.12, FastAPI 0.141.1, ruff 0.5.4. app-starter's

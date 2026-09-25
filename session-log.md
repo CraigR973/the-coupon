@@ -7195,3 +7195,29 @@ frontend on Node 24.21.0 / pnpm 9.15.0; 1,300 backend and 1,180 frontend tests p
 - API-carrying: `/ship-prod` owed now for 155, 153 and 142 together.
 
 **Next:** Batch 95 — needs the owner's storage choice before any code.
+
+## Batch 95 — The scored history of the game has no second copy
+**Commits:** `98de5d2` · verified: `scripts/ci-local.sh` PASS (11 checks) on the second run;
+1,321 backend and 1,180 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **Built switched off (owner, 2026-09-25): R2, EU jurisdiction, Mondays 04:00 London.**
+  `BACKUP_STORAGE=s3` plus the `BACKUP_S3_*` variables turn it on; nothing is scheduled
+  and no egress is spent until then. `docs/runbooks/backup-restore.md` has the owner's
+  switch-on steps and the restore command. Production has no backup until then.
+- **Order is the contract:** resolve target, list one key, then `pg_dump`, then upload.
+  Failure writes `backup_failed` and pushes site admins (1/day cooldown, durable bucket
+  `alert:backup-failed`); a half-configured switch also logs at boot.
+- **A `--schema=public` archive restores only with `pg_restore --clean --if-exists`** — it
+  carries `CREATE SCHEMA public`, which every new database already has. Found by the
+  rehearsal test; never point `--clean` at a database holding data.
+- **SigV4 is hand-rolled over httpx** (`services/backup_storage.py`), pinned to AWS's
+  `get-vanilla` vectors (fetched from botocore's copy of the suite). R2 has **no
+  write-only key** — the bucket lock is what protects old archives.
+- **Gate failure, fixed on attempt 2:** `test_run_scheduled.py` pins the exact set of
+  manually runnable jobs; adding `offsite-backup` meant adding it there (as Batch 119 did
+  for its job) and pinning it to `run_offsite_backup` in the neighbouring test.
+- pgserver ships PostgreSQL 16.2 client tools, so the rehearsal runs in CI too;
+  production's image has the 17 client.
+
+**Next:** Batch 134. `/ship-prod` owed for 155, 153, 142 and 95.

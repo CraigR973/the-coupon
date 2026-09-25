@@ -55,44 +55,6 @@ ticked rows can collect here until someone moves them below.
 
 ### Open batches
 
-- [ ] **Batch 95 — The scored history of the game has no second copy**
-  — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-A02 (HIGH); owner
-  decision 2026-08-27: **durable logical backups**, not managed PITR. `picks.odds_at_pick`,
-  `points_awarded` and `status` exist in exactly one place. Batch 75 removed the nightly
-  `pg_dump` because it wrote to `/tmp` on a service with no mounted volume — every dump
-  was lost on the next redeploy — and explicitly disclaimed being the fix.
-
-  Restore a scheduled logical backup, written to durable off-box storage rather than the
-  container filesystem. `scripts/agent/l3-logical-backup.py` and
-  `l3-restore-rehearsal.py` already exist and are the starting point; what they need is a
-  destination that survives a redeploy and a schedule that runs them.
-
-  **Two things to settle inside this batch.** The storage destination is an owner choice
-  (S3, R2, Backblaze — anything off-platform). And the dump pulls the whole database out
-  over Supabase egress, which is the same quota FEAT-A09 has an unattributed consumer on
-  — so this batch should not land before that investigation has at least established
-  headroom, or it risks re-triggering the `exceed_egress_quota` 402 that took avatar
-  storage down on 2026-08-25.
-
-  **Re-verified 2026-09-24: reproduces.** Supabase is on the Free plan (L4): no managed
-  backup and no PITR. Nothing is scheduled — Batch 75's removal stands, and the on-demand
-  `run_scheduled backup` still writes to `/tmp`. The production database is **17 MB**, so a
-  run moves about that much across Supabase's egress.
-
-  **Owner decisions, 2026-09-25:** **Cloudflare R2, EU jurisdiction**; **weekly, Monday
-  04:00 London**; **built switched off** — the owner provisions the bucket and key, seals
-  them into Railway, checks Supabase egress and switches it on, so nothing crosses egress
-  until then. R2 has no write-only key, contrary to what was first said to the owner that
-  day; a 30-day R2 bucket lock does that job instead (`docs/runbooks/backup-restore.md`).
-
-  Verification: a restore rehearsal against a scratch database proving the dump is
-  actually recoverable, not merely written; a test that the job's destination is
-  configured and reachable before the dump starts, so a misconfigured target fails loudly
-  rather than silently producing nothing.
-
-  Scope boundary: logical backup and restore rehearsal. Not managed PITR — that was
-  considered and set aside on 2026-08-27.
-
 - [ ] **Batch 115 — Nothing learns until a member arrives, and the budget certifies a round that no longer exists**
   **Superseded 2026-09-11 by Batch 119**, which found the cause of the silence this row only
   described and folds both its items in. Kept unchecked rather than struck: it was never
@@ -3245,6 +3207,44 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: read access to existing `AuditLog` rows. No change to what gets
   written or to the site-admin dashboard.
+
+- [x] **Batch 95 — The scored history of the game has no second copy** ✅ 2026-09-25
+  — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-A02 (HIGH); owner
+  decision 2026-08-27: **durable logical backups**, not managed PITR. `picks.odds_at_pick`,
+  `points_awarded` and `status` exist in exactly one place. Batch 75 removed the nightly
+  `pg_dump` because it wrote to `/tmp` on a service with no mounted volume — every dump
+  was lost on the next redeploy — and explicitly disclaimed being the fix.
+
+  Restore a scheduled logical backup, written to durable off-box storage rather than the
+  container filesystem. `scripts/agent/l3-logical-backup.py` and
+  `l3-restore-rehearsal.py` already exist and are the starting point; what they need is a
+  destination that survives a redeploy and a schedule that runs them.
+
+  **Two things to settle inside this batch.** The storage destination is an owner choice
+  (S3, R2, Backblaze — anything off-platform). And the dump pulls the whole database out
+  over Supabase egress, which is the same quota FEAT-A09 has an unattributed consumer on
+  — so this batch should not land before that investigation has at least established
+  headroom, or it risks re-triggering the `exceed_egress_quota` 402 that took avatar
+  storage down on 2026-08-25.
+
+  **Re-verified 2026-09-24: reproduces.** Supabase is on the Free plan (L4): no managed
+  backup and no PITR. Nothing is scheduled — Batch 75's removal stands, and the on-demand
+  `run_scheduled backup` still writes to `/tmp`. The production database is **17 MB**, so a
+  run moves about that much across Supabase's egress.
+
+  **Owner decisions, 2026-09-25:** **Cloudflare R2, EU jurisdiction**; **weekly, Monday
+  04:00 London**; **built switched off** — the owner provisions the bucket and key, seals
+  them into Railway, checks Supabase egress and switches it on, so nothing crosses egress
+  until then. R2 has no write-only key, contrary to what was first said to the owner that
+  day; a 30-day R2 bucket lock does that job instead (`docs/runbooks/backup-restore.md`).
+
+  Verification: a restore rehearsal against a scratch database proving the dump is
+  actually recoverable, not merely written; a test that the job's destination is
+  configured and reachable before the dump starts, so a misconfigured target fails loudly
+  rather than silently producing nothing.
+
+  Scope boundary: logical backup and restore rehearsal. Not managed PITR — that was
+  considered and set aside on 2026-08-27.
 
 - [x] **Batch 96 — "Season tables" that never start a new season** ✅ 2026-08-30
   — specified from `docs/review/2026-08-26/05-feature-gaps.md`, FEAT-B03 (MED); owner
