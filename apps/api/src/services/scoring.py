@@ -26,6 +26,7 @@ from pydantic import BaseModel
 from sqlalchemy import Select, case, func, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.display_name import public_name_sql
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.league import League
@@ -619,7 +620,9 @@ async def standings_by_league(
     # took part in — so it stays in ``picks_played`` — and a bet that was never struck,
     # so its price is not theirs to be credited with.
     priced = Pick.status.in_((PickStatus.won, PickStatus.lost))
-    display_name = func.coalesce(LeagueMembership.display_name_override, Profile.display_name)
+    display_name = public_name_sql(
+        func.coalesce(LeagueMembership.display_name_override, Profile.display_name)
+    )
     rows = await db.execute(
         select(
             LeagueMembership.league_id,
@@ -721,7 +724,9 @@ async def gameweek_results(db: AsyncSession, league_id: uuid.UUID) -> list[Gamew
     A settled round with no picks in this league (vacuously settled) still gets a row,
     with no winner and an empty coupon.
     """
-    display_name = func.coalesce(LeagueMembership.display_name_override, Profile.display_name)
+    display_name = public_name_sql(
+        func.coalesce(LeagueMembership.display_name_override, Profile.display_name)
+    )
     rows = await db.execute(
         select(
             Gameweek.id,

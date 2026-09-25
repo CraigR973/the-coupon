@@ -16,20 +16,25 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel
+import structlog
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import CurrentUser
+from src.auth import CurrentUser, verify_pin
 from src.database import get_db
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickStatus
+from src.models.profile import UserRole
 from src.rate_limit import limiter, per_user_key
 from src.schemas import UtcDatetime
+from src.services.account_erasure import SoleAdminError, erase_account, export_account
+from src.services.avatar_storage import AvatarStorage, avatar_storage
 from src.services.coupon import combined_odds
 from src.services.football_provider import season_for
 from src.services.gameweek import PICKABLE_STATES, current_round_order
@@ -37,6 +42,8 @@ from src.services.scoring import LONGSHOT_ODDS, FormRound, resolve_season, stand
 from src.services.season_calendar import SeasonLabels
 
 router = APIRouter(prefix="/api/v1/me", tags=["me"])
+
+log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 Db = Annotated[AsyncSession, Depends(get_db)]
 
@@ -577,3 +584,73 @@ async def _next_openings(
         )
     ).all()
     return {row.league_id: row.opens_at for row in rows}
+
+
+# ── Your data (Batch 136) ───────────────────────────────────────────────────────
+
+
+@router.get("/export")
+@limiter.limit("10/hour", key_func=per_user_key)
+async def export_my_data(request: Request, user: CurrentUser, db: Db) -> JSONResponse:
+    """Everything the product holds about the caller, as a JSON download.
+
+    Their profile, leagues, every pick with its price and result, their notification
+    settings and the devices signed in — and nothing about any other member. See
+    :func:`~src.services.account_erasure.export_account` for what is left out and why.
+    """
+    body = await export_account(db, user)
+    filename = f"the-coupon-my-data-{datetime.now(UTC):%Y-%m-%d}.json"
+    return JSONResponse(
+        body,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+class DeleteAccountRequest(BaseModel):
+    """The caller's PIN, again: deletion cannot be undone, so a session alone is not enough."""
+
+    pin: str = Field(min_length=4, max_length=4)
+
+
+@router.post("/delete", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("5/hour", key_func=per_user_key)
+async def delete_my_account(
+    request: Request,
+    body: DeleteAccountRequest,
+    user: CurrentUser,
+    db: Db,
+    storage: Annotated[AvatarStorage, Depends(avatar_storage)],
+) -> None:
+    """Delete the caller's account now. Their picks stay, anonymously; nothing else does.
+
+    **403, not 401, for a wrong PIN.** The web client reads any 401 as an expired session
+    and signs the member out after a refresh, which is the wrong answer to a typo on this
+    screen of all screens.
+
+    A site admin is refused: there is no undelete, and the site-admin console is the only
+    way to repair anything this product does, so the last person able to use it must not
+    be one click from losing it — the same rule the site-admin delete applies to itself.
+    """
+    if user.role == UserRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A site admin can't delete their own account here.",
+        )
+    if not verify_pin(body.pin, user.pin_hash):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="That PIN isn't right.")
+    try:
+        await erase_account(db, user, storage)
+    except SoleAdminError as refused:
+        leagues = ", ".join(refused.leagues)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"You're the only admin of {leagues}. Make another member an admin "
+                "first, so the league still has someone to run it."
+            ),
+        ) from None
+    await db.commit()
+    log.info("account erased by its member", player_id=str(user.id))

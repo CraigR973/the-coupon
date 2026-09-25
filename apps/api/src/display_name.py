@@ -12,8 +12,10 @@ aliases onto these.
 """
 
 import re
+import uuid
 
 from fastapi import HTTPException, status
+from sqlalchemy import ColumnElement, SQLColumnExpression, case, literal
 
 #: 2-32 rather than the column's 100. The name is the login identifier *and* what every
 #: leaderboard row, roster entry and push message renders, so the practical ceiling is
@@ -34,6 +36,38 @@ CHARSET_ERROR = (
     "and must start with a letter or number."
 )
 
+#: Batch 136. What a member who deleted their account is called wherever members see them.
+FORMER_MEMBER = "Former member"
+
+#: What is stored in their place: unique, as ``profiles.display_name`` must be, and naming
+#: nobody. Read paths map it to :data:`FORMER_MEMBER`; one that does not shows this, never
+#: the name — the overwrite is the privacy guarantee and the mapping is presentation.
+_PLACEHOLDER = re.compile(r"^Former member [0-9a-f]{8}$")
+_PLACEHOLDER_SQL = "^Former member [0-9a-f]{8}$"
+
+#: Nobody may take a name that would read as a deleted member's — on a leaderboard it
+#: would pass for them.
+RESERVED_PREFIX = FORMER_MEMBER.casefold()
+RESERVED_ERROR = "That name is reserved."
+
+
+def is_reserved(name: str) -> bool:
+    return name.casefold().startswith(RESERVED_PREFIX)
+
+
+def former_member_placeholder() -> str:
+    return f"{FORMER_MEMBER} {uuid.uuid4().hex[:8]}"
+
+
+def public_name(name: str) -> str:
+    """A name as members see it: a deleted member's placeholder reads "Former member"."""
+    return FORMER_MEMBER if _PLACEHOLDER.match(name) else name
+
+
+def public_name_sql(name: SQLColumnExpression[str]) -> ColumnElement[str]:
+    """:func:`public_name` inside a query, so a table's rows arrive already labelled."""
+    return case((name.op("~")(_PLACEHOLDER_SQL), literal(FORMER_MEMBER)), else_=name)
+
 
 def normalise_display_name(raw: str) -> str:
     """Trim, and collapse internal runs of whitespace to single spaces.
@@ -52,4 +86,8 @@ def validated_display_name(raw: str) -> str:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=LENGTH_ERROR)
     if not DISPLAY_NAME_RE.match(name):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=CHARSET_ERROR)
+    if is_reserved(name):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=RESERVED_ERROR
+        )
     return name

@@ -451,6 +451,11 @@ async def register(
                 "and must start with a letter or number."
             ),
         )
+    if display_name_rules.is_reserved(name):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=display_name_rules.RESERVED_ERROR,
+        )
     if is_weak_pin(body.pin):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

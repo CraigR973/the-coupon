@@ -17,6 +17,7 @@ from src.auth import CurrentUser, generate_join_code
 from src.config import settings
 from src.database import get_db
 from src.deps import OddsProviderDep, OptionalOddsProviderDep
+from src.display_name import public_name, public_name_sql
 from src.models.fixture import Fixture
 from src.models.gameweek import GameweekFixture
 from src.models.league import (
@@ -1125,7 +1126,7 @@ async def get_league(
         members_out = [
             MemberInfo(
                 id=str(row[1].id),
-                display_name=row[0].display_name_override or row[1].display_name,
+                display_name=public_name(row[0].display_name_override or row[1].display_name),
                 role=row[0].role.value,
                 joined_at=row[0].joined_at,
                 avatar_url=row[1].avatar_url,
@@ -1410,7 +1411,9 @@ async def league_audit_log(
     scope = _league_audit_scope(league)
     total = (await db.execute(select(func.count()).select_from(AuditLog).where(scope))).scalar_one()
 
-    actor = select(Profile.id, Profile.display_name).subquery()
+    actor = select(
+        Profile.id, public_name_sql(Profile.display_name).label("display_name")
+    ).subquery()
     rows = (
         await db.execute(
             select(AuditLog, actor.c.display_name)

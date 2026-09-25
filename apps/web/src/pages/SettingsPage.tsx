@@ -11,6 +11,7 @@ import { usePushSubscription } from '../hooks/usePushSubscription';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import { useClientConfig } from '../hooks/useClientConfig';
 import { AvatarUpload } from '../components/AvatarUpload';
+import { YourDataSection } from '../components/YourDataSection';
 import { Skeleton } from '../components/ui/skeleton';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -626,6 +627,10 @@ export function SettingsPage() {
 
       <SectionCard title="Install App">
         <InstallSection />
+      </SectionCard>
+
+      <SectionCard title="Your data">
+        <YourDataSection />
       </SectionCard>
 
       <Link

@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
+from src.display_name import public_name
 from src.models.league_join_request import JoinRequestStatus, LeagueJoinRequest
 from src.models.notification import ActionType
 from src.models.profile import Profile
@@ -74,7 +75,7 @@ async def list_join_requests(
         JoinRequestResponse(
             id=str(row[0].id),
             player_id=str(row[0].player_id),
-            display_name=row[1].display_name,
+            display_name=public_name(row[1].display_name),
             status=row[0].status.value,
             requested_at=row[0].requested_at,
             decided_at=row[0].decided_at,

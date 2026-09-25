@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser, generate_join_code, generate_opaque_token
 from src.database import get_db
-from src.display_name import validated_display_name
+from src.display_name import public_name, validated_display_name
 from src.models.invite import Invite
 from src.models.league import League, LeaguePrivacy
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
@@ -207,7 +207,7 @@ async def list_members(
     return [
         MemberInfo(
             id=str(row[1].id),
-            display_name=row[0].display_name_override or row[1].display_name,
+            display_name=public_name(row[0].display_name_override or row[1].display_name),
             role=row[0].role.value,
             joined_at=row[0].joined_at,
             avatar_url=row[1].avatar_url,

@@ -29,6 +29,7 @@ from src.auth import CurrentUser
 from src.config import settings
 from src.database import get_db
 from src.deps import LeagueMemberDep, OddsProviderDep
+from src.display_name import public_name_sql
 from src.models.fixture import Fixture
 from src.models.gameweek import GameweekFixture
 from src.models.league import PickMarket, PickScope
@@ -334,7 +335,7 @@ _TakenMap = dict[tuple[str, str, str], _Holder]
 
 async def _taken_selections(db: AsyncSession, league_id: object, gameweek_id: object) -> _TakenMap:
     result = await db.execute(
-        select(Pick, Profile.display_name)
+        select(Pick, public_name_sql(Profile.display_name))
         .join(Profile, Profile.id == Pick.player_id)
         .where(Pick.league_id == league_id, Pick.gameweek_id == gameweek_id)
     )

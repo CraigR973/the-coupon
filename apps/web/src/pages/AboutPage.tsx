@@ -77,6 +77,27 @@ export function AboutPage() {
           </tbody>
         </table>
       </Section>
+
+      <Section title="Your data">
+        <ul className="space-y-2 text-sm font-sans leading-snug text-text-secondary">
+          <li>
+            <strong className="text-text-primary">What's kept.</strong> Your display name, your PIN
+            (only as a one-way hash), your leagues and picks, your notification settings and the
+            devices you sign in on.
+          </li>
+          <li>
+            <strong className="text-text-primary">Take a copy or leave.</strong> Settings lets you
+            download all of it, or delete your account. Deleting removes your name and details at
+            once; your past picks stay in each league's tables as "Former member", so everyone
+            else's standings still add up.
+          </li>
+          <li>
+            <strong className="text-text-primary">Backups.</strong> Any backup of the database is
+            kept for no more than 90 days, so details you delete can remain in a backup until it
+            expires.
+          </li>
+        </ul>
+      </Section>
     </div>
   );
 }

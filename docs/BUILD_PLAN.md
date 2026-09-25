@@ -178,6 +178,20 @@ ticked rows can collect here until someone moves them below.
   view and their display name is freed for reuse, while their settled points still sum
   into historic standings so past leagues stay coherent.
 
+  **Re-verified 2026-09-25: reproduces.** No self-service deletion or export existed; the
+  site-admin delete keeps the name and writes it into its own audit row. A member's name
+  also sat in per-league names, invite name hints, other audit payloads and login-throttle
+  keys (`login:<name>:<ip>`), and standings count only *active* memberships — so ending a
+  leaver's memberships would have taken their points out of past tables.
+
+  **Owner decisions, 2026-09-25:** erase **everything that names them**; show them as
+  **"Former member"**; **immediately, after re-entering the PIN**; **refused while they are
+  the only admin** of a league somebody else plays in. Memberships are therefore kept and
+  the profile marked deleted, as the site-admin delete does, and the stored name becomes
+  `Former member <8 hex>` — unique, as the column must be — which member-facing reads show
+  as "Former member". A site admin cannot delete themselves here; the About page says any
+  backup is kept for no more than 90 days.
+
   Verification: a test that a deleted member's name is anonymised everywhere it renders
   while their points still sum into historic standings; a test that the export contains the
   member's own data and nobody else's.

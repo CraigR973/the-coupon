@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.display_name import public_name_sql
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.pick import Pick, PickStatus
@@ -108,7 +109,7 @@ async def build_coupon(db: AsyncSession, league_id: uuid.UUID, gameweek: Gamewee
     Only when settled. An unsettled round is still moving, and a partial score printed
     beside a pending pick would read as final; live scores are Batch 72.
     """
-    display_name = Profile.display_name.label("player_name")
+    display_name = public_name_sql(Profile.display_name).label("player_name")
     result = await db.execute(
         select(Pick, Fixture, display_name)
         .join(Fixture, Fixture.id == Pick.fixture_id)
