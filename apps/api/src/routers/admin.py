@@ -66,7 +66,7 @@ from src.services.football_provider import current_season
 from src.services.gameweek import PICKABLE_STATES
 from src.services.notification_triggers import settle_completion_after_roster_change
 from src.services.odds_session import odds_session
-from src.services.scoring import settle_gameweek
+from src.services.scoring import resolve_pick, settle_gameweek
 from src.services.season_calendar import (
     declare_extra_week,
     listed_weeks,
@@ -1305,3 +1305,134 @@ async def settle_manually(
         picks_resolved=resolved,
         settled=final_status is GameweekStatus.settled,
     )
+
+
+class PickCorrection(BaseModel):
+    """The true result of a settled pick's fixture, and why it is being corrected. Batch 134.
+
+    A **score** or a void, as manual settlement takes, never a verdict. The pick is
+    re-scored by :func:`~src.services.scoring.resolve_pick`, the one scoring rule every
+    settlement already goes through, so a corrected pick and a provider-settled one cannot
+    disagree about what the same result is worth. The reason is required because this
+    rewrites a week members have already seen.
+    """
+
+    home_goals: int | None = Field(default=None, ge=0, le=99)
+    away_goals: int | None = Field(default=None, ge=0, le=99)
+    void: bool = False
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class PickCorrectionResult(BaseModel):
+    pick_id: str
+    #: False when the pick already carried this result: the correction is idempotent, and
+    #: a repeat writes nothing — not even an audit row.
+    changed: bool
+    status_before: str
+    points_before: int | None
+    status: str
+    points: int | None
+
+
+@router.post("/picks/{pick_id}/correct", response_model=PickCorrectionResult)
+@limiter.limit("20/hour", key_func=per_user_key)
+async def correct_pick(
+    request: Request,
+    pick_id: uuid.UUID,
+    body: PickCorrection,
+    admin: AdminUser,
+    db: Db,
+) -> PickCorrectionResult:
+    """Re-settle one already-settled pick from its fixture's true result. Batch 134.
+
+    Until this existed a mis-settled pick could only be put right by a script against
+    production, which is how Batch 68's history was written in. :func:`settle_manually`
+    deliberately refuses a settled round, and the refusal stands: settling is for what is
+    still pending; *this* is the separate, audited act of changing what a member scored.
+
+    **Nothing else needs recomputing.** Standings, form and every season figure are read
+    from ``picks`` on each request, never stored, so the corrected row is the whole change
+    and the next read of any table reflects it.
+
+    Site admins only, one pick at a time, and the row is locked while it is rewritten so
+    two admins correcting the same pick cannot interleave. The audit row records the result
+    that was entered, both states and the reason. It is ``league_updated`` against
+    ``picks``, as manual settlement records itself against ``gameweeks``: adding an
+    ``ActionType`` is an ``ALTER TYPE`` that cannot be undone.
+    """
+    pick = (
+        await db.execute(select(Pick).where(Pick.id == pick_id).with_for_update())
+    ).scalar_one_or_none()
+    if pick is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pick not found")
+    if pick.status == PickStatus.pending:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="That pick has not settled yet. Settle its round instead.",
+        )
+    fixture = await db.get(Fixture, pick.fixture_id)
+    if fixture is None:  # pragma: no cover — the foreign key guarantees it
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixture not found")
+
+    if body.void:
+        settlement = voided_settlement(fixture.provider_event_id)
+        entered: dict[str, object] = {"void": True}
+    elif body.home_goals is None or body.away_goals is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="A correction needs both scores, or void.",
+        )
+    else:
+        settlement = settlement_from_score(
+            fixture.provider_event_id, body.home_goals, body.away_goals
+        )
+        entered = {"home_goals": body.home_goals, "away_goals": body.away_goals}
+
+    resolution = resolve_pick(pick.market, pick.outcome, pick.odds_at_pick, settlement)
+    if resolution is None:  # pragma: no cover — a score or a void settles every market
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="That result does not settle this pick's market.",
+        )
+
+    before = (pick.status, pick.points_awarded)
+    result = PickCorrectionResult(
+        pick_id=str(pick.id),
+        changed=(resolution.status, resolution.points) != before,
+        status_before=before[0].value,
+        points_before=before[1],
+        status=resolution.status.value,
+        points=resolution.points,
+    )
+    if not result.changed:
+        await db.rollback()  # release the row lock; nothing to write
+        return result
+
+    pick.status = resolution.status
+    pick.points_awarded = resolution.points
+    db.add(
+        _audit(
+            admin,
+            ActionType.league_updated,
+            "picks",
+            pick.id,
+            {
+                "action": "pick_corrected",
+                "league_id": str(pick.league_id),
+                "gameweek_id": str(pick.gameweek_id),
+                "result": entered,
+                "before": {"status": result.status_before, "points": result.points_before},
+                "after": {"status": result.status, "points": result.points},
+                "reason": body.reason,
+            },
+        )
+    )
+    await db.commit()
+    log.info(
+        "pick corrected",
+        pick_id=str(pick_id),
+        admin_id=str(admin.id),
+        status_before=result.status_before,
+        status=result.status,
+    )
+    return result

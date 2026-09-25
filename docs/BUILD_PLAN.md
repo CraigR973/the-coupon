@@ -160,6 +160,12 @@ ticked rows can collect here until someone moves them below.
   An audited, site-admin-only correction that re-settles one pick and recomputes the
   affected standings, writing an audit row.
 
+  **Re-verified 2026-09-25: reproduces.** The admin router's only settlement route,
+  `POST /admin/results/{gameweek_id}/settle`, refuses a settled round with 409 and touches
+  only pending picks; no route rewrites a settled pick. Standings are computed from `picks`
+  on every read — the stored `standings` table is football league tables — so the pick row
+  is the whole correction.
+
   Verification: a test that correcting a settled pick updates points and standings and
   writes an audit row; a test that a non-site-admin is refused; a test that the correction
   is idempotent.
