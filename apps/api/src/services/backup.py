@@ -107,6 +107,54 @@ async def create_backup(backup_dir: str, database_url: str) -> BackupInfo:
     return BackupInfo(filename=filename, size_bytes=size, created_at=now)
 
 
+#: The weekly archive's object key: ``<prefix>the-coupon-20260928T030000Z.dump``. A UTC
+#: timestamp to the second, so no run can overwrite another — which matters, because the
+#: owner's bucket lock refuses overwrites anyway and a collision would fail the upload.
+def archive_key(prefix: str, created_at: datetime) -> str:
+    return f"{prefix}the-coupon-{created_at.astimezone(UTC).strftime('%Y%m%dT%H%M%SZ')}.dump"
+
+
+async def create_archive(database_url: str, destination: Path) -> int:
+    """``pg_dump`` the application schema into ``destination``; return its size. Batch 95.
+
+    **Custom format, the ``public`` schema, ownership stripped.** Custom (``-Fc``) is
+    compressed and is what ``pg_restore`` reads, including ``--list``, which inspects an
+    archive without a database. ``public`` is where every table, sequence and enum this
+    application owns lives; the rest of a Supabase database is Supabase's own and would
+    collide with the schemas a fresh project already has. Owners differ between projects,
+    so they are left out, but grants and row-level-security policies are kept: restoring
+    into Supabase has to bring the Data API lockdown back with the data.
+
+    The password travels in ``PGPASSWORD``, never on the command line, as
+    :func:`create_backup` does.
+    """
+    env = os.environ.copy()
+    password = _pg_password(database_url)
+    if password is not None:
+        env["PGPASSWORD"] = password
+
+    proc = await asyncio.create_subprocess_exec(
+        "pg_dump",
+        "--no-password",
+        "--format=custom",
+        "--schema=public",
+        "--no-owner",
+        "--file",
+        str(destination),
+        _pg_dsn(database_url),
+        env=env,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        destination.unlink(missing_ok=True)
+        raise RuntimeError(f"pg_dump failed: {stderr.decode().strip()}")
+    size = destination.stat().st_size
+    log.info("backup archive created", size_bytes=size)
+    return size
+
+
 def list_backups(backup_dir: str) -> list[BackupInfo]:
     path = Path(backup_dir)
     if not path.exists():

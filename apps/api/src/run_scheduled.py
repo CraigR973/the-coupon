@@ -14,7 +14,8 @@ Usage:
     python -m src.run_scheduled <job>
 
 Jobs:
-    backup         database backup
+    backup         database backup, to this container's /tmp
+    offsite-backup the weekly off-site backup, now (Batch 95; needs BACKUP_STORAGE=s3)
     discover-full-catalogue  weekly walk of every competition this deployment plays
     refresh-slate  refresh the upcoming Saturday's slate + fixtures from the odds provider
     warm-odds      learn which of the imminent card's fixtures the bookmaker prices
@@ -39,6 +40,7 @@ from src.scheduler import (
     run_discover_full_catalogue,
     run_live_scores,
     run_lock_gameweeks,
+    run_offsite_backup,
     run_open_gameweeks,
     run_pick_reminders,
     run_refresh_slate,
@@ -50,6 +52,7 @@ from src.scheduler import (
 
 JOBS: dict[str, Callable[[], Awaitable[bool]]] = {
     "backup": run_scheduled_backup,
+    "offsite-backup": run_offsite_backup,
     "discover-fixtures": run_discover_fixtures,
     "discover-full-catalogue": run_discover_full_catalogue,
     "refresh-slate": run_refresh_slate,

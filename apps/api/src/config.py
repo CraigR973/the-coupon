@@ -318,6 +318,20 @@ class Settings(BaseSettings):
 
     # Backup
     backup_dir: str = "/tmp/the_coupon_backups"
+    # The weekly off-site backup (Batch 95): "none" or "s3", meaning any S3-compatible
+    # store. The owner chose Cloudflare R2 in the EU jurisdiction on 2026-09-25. Off by
+    # default, like avatars: nothing is scheduled and nothing crosses Supabase's egress until
+    # the owner has provisioned a bucket and switched it on — docs/runbooks/backup-restore.md.
+    backup_storage: str = "none"
+    # https://<account_id>.eu.r2.cloudflarestorage.com for an EU-jurisdiction R2 bucket.
+    backup_s3_endpoint: str = ""
+    backup_s3_bucket: str = ""
+    # R2 signs with the region "auto"; any other S3-compatible store names its own.
+    backup_s3_region: str = "auto"
+    backup_s3_access_key_id: str = ""
+    backup_s3_secret_access_key: str = ""
+    # Object keys start with this, so one bucket could hold more than one environment.
+    backup_s3_prefix: str = "production/"
 
     # Background scheduler (APScheduler) — disable in tests / one-off scripts.
     scheduler_enabled: bool = True
@@ -372,6 +386,8 @@ class Settings(BaseSettings):
             self.bf_app_key,
             self.bf_pass,
             self.supabase_service_key,
+            self.backup_s3_access_key_id,
+            self.backup_s3_secret_access_key,
         )
         unique = {value for value in candidates if len(value) >= _MIN_REDACTABLE_SECRET}
         return tuple(sorted(unique, key=len, reverse=True))

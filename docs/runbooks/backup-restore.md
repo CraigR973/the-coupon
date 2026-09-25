@@ -1,22 +1,78 @@
 # Backup And Restore Runbook
 
-Supabase managed backups/PITR are the production backup source of record. The
-old application `/tmp` backups are not durable enough for launch recovery.
+**Production's only backup is the weekly off-site archive (Batch 95), and it is off until
+the owner switches it on.** Supabase is on the Free plan: no managed backup and no PITR.
+Batch 75 removed the old nightly dump because it wrote to `/tmp` and died with every
+redeploy. The owner's choices on 2026-09-25: Cloudflare R2, EU jurisdiction, every
+Monday at 04:00 London, built switched off.
 
-## Backup Checks
+## What the job does
 
-1. Confirm managed backups or PITR are enabled for the target Supabase project.
-2. Confirm the retention window with the owner before production launch.
-3. Record the latest successful backup timestamp before first Saturday.
+`run_offsite_backup` (in `apps/api/src/scheduler.py`), in this order:
 
-## Restore Rehearsal
+1. Resolves the target from the `BACKUP_*` variables, and fails naming any missing one.
+2. Lists one key in the bucket, proving endpoint, key, bucket and clock before the
+   database is read.
+3. `pg_dump --format=custom --schema=public --no-owner` into a temporary directory. Grants
+   and row-level-security policies stay in, so a Supabase restore brings the Data API
+   lockdown back with the data.
+4. Uploads `production/the-coupon-<UTC timestamp>.dump`, declaring its SHA-256 so R2
+   refuses a corrupted body.
 
-1. Restore into a disposable database, never over staging or production.
-2. Apply any pending migrations to head.
-3. Run `/api/v1/health/ready` against the restored database.
-4. Verify login, league membership, picks, standings, and combined coupon with
-   test credentials.
-5. Destroy the disposable database after evidence is recorded.
+A failure writes `backup_failed` to the audit log and pushes "The weekly backup failed" to
+every site admin, at most once a day. Each run moves about the database's size across
+Supabase's egress: 17 MB on 2026-09-24.
+
+## Switching it on (owner)
+
+Only after the `/ship-prod` that carries Batch 95; before that the variables do nothing.
+
+1. **Bucket.** Cloudflare dashboard, R2, Create bucket, Location: Specify jurisdiction,
+   **EU**. The jurisdiction cannot be changed afterwards. Suggested name:
+   `the-coupon-backups`.
+2. **Bucket lock.** The bucket's Settings, Bucket lock rules, Add rule: prefix
+   `production/`, retention **30 days**. R2 has no write-only key, so this is what stops a
+   leaked key deleting or overwriting a recent backup.
+3. **Lifecycle.** Settings, Object lifecycle rules: delete objects under `production/`
+   after **90 days**, about twelve weekly archives. It must be longer than the lock.
+4. **Key.** R2, Manage API tokens, Create: permission **Object Read & Write**, applied to
+   that one bucket only. Note the Access Key ID and the Secret Access Key; the secret is
+   shown once.
+5. **Egress.** Supabase organisation, Usage: confirm egress has headroom. The consumer
+   that exceeded the quota on 2026-08-25 was never identified (FEAT-A09).
+6. **Railway, production `api` service.** Set, with the secret sealed:
+   `BACKUP_S3_ENDPOINT=https://<account_id>.eu.r2.cloudflarestorage.com`,
+   `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, and last
+   `BACKUP_STORAGE=s3`. `BACKUP_S3_REGION` defaults to `auto` and `BACKUP_S3_PREFIX` to
+   `production/`.
+7. **Check.** The boot log must not say `offsite backup is switched on but misconfigured`.
+   Then run it once rather than waiting for Monday, from `/app/apps/api` inside the
+   container over `railway ssh`:
+   `/opt/venv/bin/python -m src.run_scheduled offsite-backup`. The archive should appear
+   in the bucket.
+
+## Restoring
+
+Into a **new, empty** database only — a new Supabase project in London, say. The command
+drops and recreates the `public` schema, because the archive carries `CREATE SCHEMA
+public` and every new database already has one.
+
+1. Download the newest `production/the-coupon-*.dump` from the bucket.
+2. Check it reads: `pg_restore --list the-coupon-<ts>.dump` must list
+   `TABLE DATA public picks`.
+3. Restore with a `pg_restore` of at least the dump's major version (production's image
+   has 17):
+
+   ```bash
+   pg_restore --clean --if-exists --no-owner --exit-on-error \
+     --dbname "<new database DSN>" the-coupon-<ts>.dump
+   ```
+
+4. Confirm `alembic_version` matches the head of the image you will run, point
+   `DATABASE_URL` at the new database, deploy, and check `/api/v1/health/ready`.
+
+`tests/test_offsite_backup.py` rehearses exactly this restore on every gate run: a settled
+week is archived, restored into an empty database and compared table by table.
 
 ## Free-plan staging rehearsal
 
@@ -55,5 +111,5 @@ Then run:
   scripts/agent/l3-restore-rehearsal.py --input <mode-0600-path>
 ```
 
-This staging-only export does not replace the managed-backup/PITR requirement
-for production.
+This staging-only export is a rehearsal tool, not production's backup; production's is
+the weekly off-site archive above.

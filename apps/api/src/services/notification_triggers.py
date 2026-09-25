@@ -201,6 +201,43 @@ async def notify_discovery_silence(session: AsyncSession, health: DiscoveryHealt
     return True
 
 
+#: How often a failed off-site backup may reach a phone. Batch 95.
+#:
+#: The job runs once a week, so this bounds a manual rerun loop rather than the schedule —
+#: a person retrying ``python -m src.run_scheduled offsite-backup`` while fixing the target
+#: should not be paged on every attempt.
+BACKUP_FAILED_ALERT_LIMIT = "1/day"
+
+#: The durable cooldown bucket, for the reason Batch 129 gives above: it survives a
+#: redeploy, and it needs no ``ActionType`` migration.
+BACKUP_FAILED_ALERT_KEY = "alert:backup-failed"
+
+
+async def notify_backup_failed(session: AsyncSession, reason: str) -> bool:
+    """Push a failed off-site backup to the site admins. Batch 95.
+
+    Returns whether anything was sent; ``False`` means the cooldown held it back.
+
+    The job also writes ``backup_failed`` to the audit log, as the on-demand backup always
+    has, but an audit row and a log line both wait for somebody to look — and a weekly
+    backup that fails quietly is one nobody learns about until the day they need it.
+    """
+    if not await consume_durable_limit(session, BACKUP_FAILED_ALERT_KEY, BACKUP_FAILED_ALERT_LIMIT):
+        return False
+    detail = reason if len(reason) <= 180 else reason[:177] + "..."
+    for admin in await _admin_players(session):
+        await send_notification(
+            session,
+            admin.id,
+            "The weekly backup failed",
+            detail,
+            data={"type": "backup_failed", "url": "/admin"},
+            tag="backup-failed",
+            timezone_name=admin.timezone,
+        )
+    return True
+
+
 def _lock_label(locks_at_utc: datetime, timezone_name: str) -> str:
     """The deadline on the member's own clock, as ``Sat 14:30``.
 

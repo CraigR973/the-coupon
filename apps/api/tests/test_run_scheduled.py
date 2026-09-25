@@ -13,6 +13,7 @@ from src import run_scheduled, scheduler
 def test_jobs_cover_expected_names() -> None:
     assert set(run_scheduled.JOBS) == {
         "backup",
+        "offsite-backup",
         "discover-fixtures",
         "discover-full-catalogue",
         "refresh-slate",
@@ -29,6 +30,7 @@ def test_jobs_cover_expected_names() -> None:
 
 def test_jobs_map_to_the_same_scheduler_coroutines() -> None:
     assert run_scheduled.JOBS["backup"] is scheduler.run_scheduled_backup
+    assert run_scheduled.JOBS["offsite-backup"] is scheduler.run_offsite_backup
     assert run_scheduled.JOBS["discover-fixtures"] is scheduler.run_discover_fixtures
     assert run_scheduled.JOBS["refresh-slate"] is scheduler.run_refresh_slate
     assert run_scheduled.JOBS["remind"] is scheduler.run_pick_reminders

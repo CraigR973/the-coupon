@@ -16,8 +16,10 @@ in-process scheduler can't be relied on (see docs/runbooks/scheduled-jobs-cron.m
 
 from __future__ import annotations
 
+import tempfile
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 
 import structlog
 from apscheduler.schedulers.asyncio import (  # type: ignore[import-untyped,unused-ignore]
@@ -31,7 +33,12 @@ from src.models.league import League
 from src.models.notification import ActionType, ActorType, AuditLog
 from src.models.rate_limit import RateLimitCounter
 from src.models.refresh_token import RefreshToken
-from src.services.backup import create_backup
+from src.services.backup import archive_key, create_archive, create_backup
+from src.services.backup_storage import (
+    BackupTargetError,
+    S3BackupStore,
+    backup_target_from_settings,
+)
 from src.services.discovery_health import discovery_health
 from src.services.football_data import backfill_season, season_or_default, sync_football_data
 from src.services.football_session import football_session
@@ -50,6 +57,7 @@ from src.services.gameweek import (
 )
 from src.services.live_scores import poll_live_scores
 from src.services.notification_triggers import (
+    notify_backup_failed,
     notify_discovery_silence,
     notify_football_provider_trouble,
     notify_picks_open,
@@ -97,9 +105,8 @@ async def run_scheduled_backup() -> bool:
     Railway and the database on Supabase, so the whole thing crossed the public internet as
     metered egress to write a file the next deploy destroyed.
 
-    ``docs/runbooks/backup-restore.md:3`` had already settled what it was worth: Supabase's
-    managed backups and PITR are the production source of record, and these were "not
-    durable enough for launch recovery".
+    The runbook had already called these "not durable enough for launch recovery". The
+    durable copy is :func:`run_offsite_backup` (Batch 95), weekly, off the platform.
 
     The capability stays because it is genuinely useful *deliberately* — before a risky
     migration, say — and costs nothing on the days nobody runs it. It still raises
@@ -123,6 +130,53 @@ async def run_scheduled_backup() -> bool:
                     changes={"error": reason},
                 )
             )
+            await session.commit()
+        return False
+
+
+async def run_offsite_backup() -> bool:
+    """The weekly off-site backup (Batch 95): Monday 04:00 London, once switched on.
+
+    **In this order, and the order is the point.** The target is resolved from settings and
+    proved reachable before ``pg_dump`` starts, so a misconfigured or unreachable bucket
+    fails in seconds, naming what is wrong, instead of reading the whole database across
+    Supabase's metered egress to put it nowhere. Only then is the archive made, in a
+    temporary directory that is gone when this returns, and uploaded with its SHA-256
+    declared so the store rejects a corrupted body.
+
+    **Failure is loud.** ``backup_failed`` on the audit log, as the on-demand backup has
+    always written, and a push to the site admins — because an audit row waits for someone
+    to look, and a weekly backup that fails quietly is found out on the day it is needed.
+
+    Run it by hand with ``python -m src.run_scheduled offsite-backup``.
+    """
+    try:
+        target = backup_target_from_settings(settings)
+        store = S3BackupStore(target)
+        await store.check_reachable()
+        created_at = datetime.now(UTC)
+        key = archive_key(target.prefix, created_at)
+        with tempfile.TemporaryDirectory(prefix="coupon-backup-") as workdir:
+            archive = Path(workdir) / "the-coupon.dump"
+            size = await create_archive(settings.database_url, archive)
+            await store.put(key, archive.read_bytes())
+        log.info("offsite backup complete", key=key, size_bytes=size)
+        return True
+    except Exception as exc:
+        reason = str(exc)[:500] or type(exc).__name__
+        log.exception("offsite backup failed", reason=reason)
+        async with AsyncSessionLocal() as session:
+            session.add(
+                AuditLog(
+                    actor_id=None,
+                    actor_type=ActorType.system,
+                    action_type=ActionType.backup_failed,
+                    target_table="",
+                    target_id=None,
+                    changes={"error": reason, "offsite": True},
+                )
+            )
+            await notify_backup_failed(session, reason)
             await session.commit()
         return False
 
@@ -825,11 +879,10 @@ def create_scheduler() -> AsyncIOScheduler:
         # 04:30 UTC: a quiet hour, and comfortably before the 06:00 London jobs below.
         #
         # Batch 58 chose it to land *after* the 03:00 `pg_dump`, so a pruned row was still
-        # in last night's copy. Batch 75 deleted that job and the reason survives it
-        # unchanged: `docs/runbooks/backup-restore.md` names Supabase's managed backups and
-        # PITR as the source of record, and those run whatever this scheduler does. The
-        # property was never coming from the dump — PITR recovers a row deleted at 04:30
-        # to any second before it, which the dump could not do.
+        # in last night's copy. Batch 75 deleted that job, and there is no PITR to stand in
+        # for it — Supabase's Free plan has none. Nothing is lost by the hour: a refresh
+        # token pruned here was already expired, and the weekly off-site archive (Batch 95)
+        # is taken on Mondays at 04:00 London, before this runs.
         minute=30,
         id="prune_refresh_tokens",
         replace_existing=True,
@@ -997,4 +1050,29 @@ def create_scheduler() -> AsyncIOScheduler:
         coalesce=True,
         max_instances=1,
     )
+    # Batch 95. Registered only once the owner has switched it on, so a deployment without
+    # a bucket schedules nothing and spends no egress. Monday 04:00 London is the owner's
+    # choice (2026-09-25): clear of Sunday's 04:00 catalogue walk and of the 06:00 jobs, and
+    # after the weekend's rounds have settled. A misfire grace of an hour, because a weekly
+    # job that misses its second loses a week.
+    if settings.backup_storage != "none":
+        try:
+            backup_target_from_settings(settings)
+        except BackupTargetError as exc:
+            # Said at boot as well as on Monday: a typo in a variable should surface on the
+            # deploy that introduced it, not six days later.
+            log.error("offsite backup is switched on but misconfigured", reason=str(exc))
+        scheduler.add_job(
+            run_offsite_backup,
+            trigger="cron",
+            day_of_week="mon",
+            hour=4,
+            minute=0,
+            timezone="Europe/London",
+            id="offsite_backup",
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+            misfire_grace_time=3600,
+        )
     return scheduler

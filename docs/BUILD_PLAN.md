@@ -74,6 +74,17 @@ ticked rows can collect here until someone moves them below.
   headroom, or it risks re-triggering the `exceed_egress_quota` 402 that took avatar
   storage down on 2026-08-25.
 
+  **Re-verified 2026-09-24: reproduces.** Supabase is on the Free plan (L4): no managed
+  backup and no PITR. Nothing is scheduled — Batch 75's removal stands, and the on-demand
+  `run_scheduled backup` still writes to `/tmp`. The production database is **17 MB**, so a
+  run moves about that much across Supabase's egress.
+
+  **Owner decisions, 2026-09-25:** **Cloudflare R2, EU jurisdiction**; **weekly, Monday
+  04:00 London**; **built switched off** — the owner provisions the bucket and key, seals
+  them into Railway, checks Supabase egress and switches it on, so nothing crosses egress
+  until then. R2 has no write-only key, contrary to what was first said to the owner that
+  day; a 30-day R2 bucket lock does that job instead (`docs/runbooks/backup-restore.md`).
+
   Verification: a restore rehearsal against a scratch database proving the dump is
   actually recoverable, not merely written; a test that the job's destination is
   configured and reachable before the dump starts, so a misconfigured target fails loudly

@@ -118,9 +118,8 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
         assert live.max_instances == 1
 
         # Batch 58 put this after the 03:00 backup; Batch 75 deleted that job and the hour
-        # stayed, because Supabase's managed backups and PITR are what actually hold the
-        # property (`docs/runbooks/backup-restore.md`) and 04:30 UTC is still a quiet hour
-        # before the 06:00 London jobs.
+        # stayed: 04:30 UTC is still a quiet hour before the 06:00 London jobs, and a pruned
+        # token was already expired, so no backup needed to hold it.
         prune = scheduler.get_job("prune_refresh_tokens")
         assert prune is not None
         assert str(prune.trigger) == "cron[hour='4', minute='30']"
