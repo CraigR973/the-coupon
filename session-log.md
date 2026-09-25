@@ -7221,3 +7221,25 @@ frontend on Node 24.21.0 / pnpm 9.15.0; 1,300 backend and 1,180 frontend tests p
   production's image has the 17 client.
 
 **Next:** Batch 134. `/ship-prod` owed for 155, 153, 142 and 95.
+
+## Batch 134 — A mis-settled pick can only be corrected by running a script against production
+**Commits:** `9731b4a` · verified: `scripts/ci-local.sh` PASS (11 checks) on the first run;
+1,327 backend and 1,180 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **`POST /api/v1/admin/picks/{pick_id}/correct`** — site admins only; body is the true
+  score or `void` plus a required `reason`. It re-scores one settled pick through
+  `resolve_pick`, so there is still one scoring rule. A pending pick is refused (409): that
+  is settlement's job. There is no screen for it yet — API only, as the row specified.
+- **Standings need no recompute**: every table reads `picks` per request. The stored
+  `standings` table is *football* league tables, not the member leaderboard.
+- **Idempotent**: an unchanged result returns `changed: false` and writes no audit row.
+  A change writes `league_updated` against `picks` with `action: pick_corrected`, both
+  states, the result entered and the reason — no new `ActionType`, since `ALTER TYPE ...
+  ADD VALUE` cannot be undone.
+- **The gate took 38 minutes** (normally 11-13): macOS's storage-management processes
+  pushed the load average to 58. Slow is not failing — check `uptime` before suspecting a
+  hang; every Postgres backend was idle and the run was progressing.
+
+**Next:** Batch 136 — needs owner decisions on erasure scope before any code.
+`/ship-prod` owed for 155, 153, 142, 95 and 134.

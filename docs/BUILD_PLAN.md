@@ -150,29 +150,6 @@ ticked rows can collect here until someone moves them below.
   web half, so nothing reaches members until `/ship-prod`.** Depends on Batch 114, which
   shipped 2026-09-06; independent of Batches 112 and 113.
 
-- [ ] **Batch 134 — A mis-settled pick can only be corrected by running a script against production**
-  — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-A10 (HIGH, live). The
-  manual settle endpoint refuses to re-settle anything already settled and its own docstring
-  says a genuine override "means correcting the pick, which is a different act and is not
-  this endpoint". No correction route exists. This has already been needed once and was done
-  with a bespoke one-off script explicitly scoped as not a general import path.
-
-  An audited, site-admin-only correction that re-settles one pick and recomputes the
-  affected standings, writing an audit row.
-
-  **Re-verified 2026-09-25: reproduces.** The admin router's only settlement route,
-  `POST /admin/results/{gameweek_id}/settle`, refuses a settled round with 409 and touches
-  only pending picks; no route rewrites a settled pick. Standings are computed from `picks`
-  on every read — the stored `standings` table is football league tables — so the pick row
-  is the whole correction.
-
-  Verification: a test that correcting a settled pick updates points and standings and
-  writes an audit row; a test that a non-site-admin is refused; a test that the correction
-  is idempotent.
-
-  Scope boundary: correcting an already-settled pick. No change to ordinary settlement.
-  **API-carrying.**
-
 - [ ] **Batch 135 — Nothing tells a member their round has been settled**
   — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-B08 (MED, live). Five
   notification triggers exist — member joined, provider trouble, the pick reminder, picks
@@ -4544,6 +4521,29 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: discovery's cost control. No change to the competition trim or the
   cadence. **API-carrying.**
+
+- [x] **Batch 134 — A mis-settled pick can only be corrected by running a script against production** ✅ 2026-09-25
+  — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-A10 (HIGH, live). The
+  manual settle endpoint refuses to re-settle anything already settled and its own docstring
+  says a genuine override "means correcting the pick, which is a different act and is not
+  this endpoint". No correction route exists. This has already been needed once and was done
+  with a bespoke one-off script explicitly scoped as not a general import path.
+
+  An audited, site-admin-only correction that re-settles one pick and recomputes the
+  affected standings, writing an audit row.
+
+  **Re-verified 2026-09-25: reproduces.** The admin router's only settlement route,
+  `POST /admin/results/{gameweek_id}/settle`, refuses a settled round with 409 and touches
+  only pending picks; no route rewrites a settled pick. Standings are computed from `picks`
+  on every read — the stored `standings` table is football league tables — so the pick row
+  is the whole correction.
+
+  Verification: a test that correcting a settled pick updates points and standings and
+  writes an audit row; a test that a non-site-admin is refused; a test that the correction
+  is idempotent.
+
+  Scope boundary: correcting an already-settled pick. No change to ordinary settlement.
+  **API-carrying.**
 
 - [x] **Batch 137 — Four more public screens still render outside the app shell** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-12 (MED, live).
