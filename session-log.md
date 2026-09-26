@@ -7271,3 +7271,22 @@ database
   *runner's* PID, not its shell wrapper, or pgserver's postgres outlives its data dir.
 
 **Next:** `/ship-prod` (scheduled), then Batch 135.
+
+## Shipment — 2026-09-26, `b3836f97` (Batches 155, 153, 142, 95, 134, 136; no migration)
+**Railway:** `f75f5de9-0df6-4523-916d-21f6cb660830` `SUCCESS` · rollback baseline
+`6d3633bf-…` (plain — nothing migrated) · Vercel `dpl_2FzrjD2DpWJwuQRRbbURkGoffKBJ`
+(`b3836f97`, no-op) · drift **in sync** · CI run `36237604539` green
+
+### Key facts for future sessions
+- **Ordering for an API+web batch:** gate on the exact commit *before* the push, then push,
+  then ship straight away. The web half led its routes by about ten minutes — mostly the IaC
+  redeploy, which must reach `SUCCESS` before `railway up`.
+- **The owed Phase 7 database recheck is done** (read-only, over `railway ssh`): 21/21 RLS
+  forced, no public-role grants, no `USAGE`, both `026` indexes present.
+- **Vercel CLI:** Node 20 on `PATH` or it crashes on the ambient Node 14 (`Unexpected
+  reserved word`); the token in `auth.json` is short-lived — `vercel whoami` refreshes it.
+  The owner renewed the login on 2026-09-25.
+- Batch 95's backup shipped **off**: no `BACKUP_*` variables in production. The owner's
+  switch-on steps are in `docs/runbooks/backup-restore.md`.
+
+**Next:** Batch 135.

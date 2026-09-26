@@ -9,52 +9,42 @@ paragraph beneath it. A batch's story belongs in its `session-log.md` entry, not
 
 ## Live
 
-Checked 2026-09-24 unless a line says otherwise.
+Checked 2026-09-26 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `13431987` at migration `026` |
-| API deployment | Railway `8701d8c3-7102-4fa5-a108-515bd762937e`, one replica, `europe-west4` |
-| Web | `the-coupon-production.vercel.app`; Vercel builds `main` on every push |
-| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables (2026-09-23) |
-| League data | 1 live league, 13 active accounts, 7 active push subscriptions |
+| API | `api-production-109b1.up.railway.app` serves `b3836f97` at migration `026` |
+| API deployment | Railway `f75f5de9-0df6-4523-916d-21f6cb660830`, one replica, `europe-west4` |
+| Web | `the-coupon-production.vercel.app`, `b3836f97`; Vercel builds `main` on every push |
+| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
+| League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
 | Football data | FotMob, no key |
 | Scheduler | on (`SCHEDULER_ENABLED=true`) |
 | Avatars | built and off (`AVATAR_STORAGE=none`) |
-| Backups | **none yet** — the weekly off-site job is built and off (Batch 95, 2026-09-25) |
+| Backups | **none yet** — the weekly off-site job is live and switched off (Batch 95) |
 
 `scripts/check-deploy-drift.sh` is the authority on what the API is running, never
 `git log`: shipments have gone unrecorded before.
 
 ## Owed
 
-- **`/ship-prod` for Batches 155, 153, 142, 95, 134 and 136 — scheduled by the owner on
-  2026-09-25 and run straight after 136's push**, because 136's web half (Settings → Your
-  data) calls routes only that shipment brings. 155's boot-time rename notice finds its
-  three profiles by id; 142 bounds every push by a 5-second timeout and refuses push
-  endpoints off port 443; 95 adds the weekly off-site backup, which stays off until the
-  owner switches it on; 134 adds the site-admin pick correction; 136 adds account deletion
-  and export; 153 changed only a docstring. None carries a migration. Before them
-  production was in sync (drift check, 2026-09-24), so nothing else is waiting.
-- **The direct-database recheck skipped at the Phase 7 shipment.** RLS, the
-  `anon`/`authenticated`/`PUBLIC` grants and Batch 146's two indexes were last confirmed
-  in full on 2026-09-23. Run it before the next shipment — inside the container over
-  `railway ssh`, since the database host does not resolve from this Mac (2026-09-24).
-- **Rollback needs the runbook.** Phase 7 applied `026`, so the previous deployment
-  (`673b9f15-4c81-492d-a498-290fc306de90`) is a target only through
-  `docs/runbooks/migration-026-recovery.md`, not a plain redeploy.
+- **No `/ship-prod` is owed.** Batches 155, 153, 142, 95, 134 and 136 shipped on 2026-09-26
+  as Railway `f75f5de9` (`b3836f97`); the drift check reports **in sync**. The
+  direct-database recheck owed since Phase 7 was done in that shipment: 21 of 21 tables
+  with RLS forced, no grants to `anon`, `authenticated` or `PUBLIC`.
+- **Rollback is a plain redeploy.** That shipment applied no migration, so its baseline —
+  Railway `6d3633bf-4a89-4b9e-bbc8-f59fbcfa946c`, the previous image — boots against the
+  database as it stands. Vercel's baseline is `dpl_ucKjQQDxtqEY1daxAm63WkjEi7dy`.
 
 ## Waiting on the owner
 
 These are not batches; nothing here will happen unless the owner does it or authorises it.
 
-- **Renew the Vercel CLI token** (`vercel login`). Its API answered 403 on 2026-09-24, so
-  the commit a web deployment carries cannot be confirmed from here.
 - **The season-calendar backfill.** Production's `season_calendars` table is empty
   (2026-09-24). `python -m src.backfill_season_calendar --dry-run`, review every move,
   then a separately authorised `--apply`; see `docs/backfills/2026-season-calendar.md`.
-- **Switch on the weekly backup** — after the `/ship-prod` that carries Batch 95. Create
+- **Switch on the weekly backup** — Batch 95 is live and off (2026-09-26). Create
   the EU-jurisdiction R2 bucket with a 30-day bucket lock and a 90-day expiry, a key
   scoped to it, check Supabase egress headroom (FEAT-A09's consumer was never identified;
   the quota was exceeded on 2026-08-25), seal the `BACKUP_*` variables and run it once by
@@ -115,8 +105,11 @@ Checked 2026-09-24.
   `apps/api/requirements-dev.txt`, or the lint, type and build configuration — unless the
   owner has named that batch and those files in the script, while its row is open.
 - **Production reads**: `railway ssh` with the explicit production selectors works; the
-  direct IPv6 database connection does not (2026-09-24). The Railway CLI's default link is
+  direct IPv6 database connection does not (2026-09-26). The Railway CLI's default link is
   staging, and the Supabase MCP here is a different product — never read Coupon data
   through it.
+- **Vercel CLI**: run it with Node 20 first on `PATH` (the ambient `node` is 14 and cannot
+  load it). Its stored token is short-lived and refreshed by any `vercel` command, so run
+  `vercel whoami` before reading it for a REST call (2026-09-26).
 - **Deploys**: the web app ships on every push to `main`; the API ships only through
   `/ship-prod`.
