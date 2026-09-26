@@ -29,6 +29,7 @@ from sqlalchemy import and_, delete, or_, text
 
 from src.config import settings
 from src.database import AsyncSessionLocal
+from src.models.gameweek import GameweekStatus
 from src.models.league import League
 from src.models.notification import ActionType, ActorType, AuditLog
 from src.models.rate_limit import RateLimitCounter
@@ -57,6 +58,7 @@ from src.services.gameweek import (
 )
 from src.services.live_scores import poll_live_scores
 from src.services.notification_triggers import (
+    announce_round_settled,
     notify_backup_failed,
     notify_discovery_silence,
     notify_football_provider_trouble,
@@ -665,6 +667,9 @@ async def run_settle_gameweeks() -> bool:
     Exchange, because a result is derived from a published score rather than pushed by a
     settlement feed. Standings are then recomputed per participating league and logged
     (they are read on demand — this surfaces the outcome).
+
+    A round that finished settling in this run is then announced to its league, once and
+    after the commit (Batch 135); ``announce_round_settled`` says why that cannot repeat.
     """
     try:
         provider = await odds_session.acquire()
@@ -674,6 +679,9 @@ async def run_settle_gameweeks() -> bool:
             # Keyed over every settleable round, so the log still names the rounds this
             # run considered and not only the ones that moved.
             resolved_by_gameweek = {str(g.id): resolved.get(g.id, 0) for g in gameweeks}
+            # Every round here was unsettled when it was selected, so one that is settled
+            # now flipped in this run — the one moment its league is told about (Batch 135).
+            newly_settled = [g.id for g in gameweeks if g.status is GameweekStatus.settled]
             await session.commit()
 
             # A round belongs to one league since Batch 14, so its league is the
@@ -689,8 +697,12 @@ async def run_settle_gameweeks() -> bool:
                     leader_present=leader is not None,
                     leader_points=leader.total_points if leader else None,
                 )
+
+            # After the commit, so nobody is told about points a failed commit took back.
+            # Each announcement commits or discards itself and never raises.
+            told = {str(gid): await announce_round_settled(session, gid) for gid in newly_settled}
         if resolved_by_gameweek:
-            log.info("gameweeks settled", resolved=resolved_by_gameweek)
+            log.info("gameweeks settled", resolved=resolved_by_gameweek, notified=told)
         return True
     except Exception:
         log.exception("settle failed")

@@ -64,7 +64,10 @@ from src.services.credentials import (
 from src.services.discovery_health import discovery_health
 from src.services.football_provider import current_season
 from src.services.gameweek import PICKABLE_STATES
-from src.services.notification_triggers import settle_completion_after_roster_change
+from src.services.notification_triggers import (
+    announce_round_settled,
+    settle_completion_after_roster_change,
+)
 from src.services.odds_session import odds_session
 from src.services.scoring import resolve_pick, settle_gameweek
 from src.services.season_calendar import (
@@ -1233,6 +1236,10 @@ async def settle_manually(
 
     Spends nothing upstream — the admin supplied the results — so it is not charged to the
     provider budget.
+
+    A round this call finishes is announced to its league exactly as the evening sweep
+    announces one (Batch 135): a round an admin settled is no less settled, and its
+    members are owed the same message.
     """
     gameweek = (
         await db.execute(select(Gameweek).where(Gameweek.id == gameweek_id))
@@ -1300,6 +1307,10 @@ async def settle_manually(
         picks_resolved=resolved,
         settled=final_status is GameweekStatus.settled,
     )
+    if final_status is GameweekStatus.settled:
+        # Last, after the commit and the log: it commits or discards its own work, never
+        # raises, and nothing below reads a row it could have expired.
+        await announce_round_settled(db, gameweek_id)
     return ManualResultsResponse(
         gameweek_id=str(gameweek_id),
         picks_resolved=resolved,

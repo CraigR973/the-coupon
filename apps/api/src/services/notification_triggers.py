@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -17,9 +17,11 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek
 from src.models.gameweek_completion import GameweekCompletion
 from src.models.notification import ActionType, ActorType, AuditLog
+from src.models.pick import Pick, PickStatus
 from src.models.profile import Profile, UserRole
 from src.rate_limit import consume_durable_limit
 from src.services.discovery_health import DiscoveryHealth
@@ -31,6 +33,7 @@ from src.services.round_completion import (
     complete_rounds_after_roster_change,
     mark_delivered,
 )
+from src.services.season_calendar import labels_for_gameweeks
 from src.services.selection_text import selection_summary
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -528,3 +531,134 @@ async def announce_all_picked(session: AsyncSession, gameweek: Gameweek) -> int 
 
     mark_delivered(completion)
     return told
+
+
+# ── The round has settled (Batch 135) ─────────────────────────────────────────
+
+
+def round_name(season_week: str | None, number: int | None, starts_on: date) -> str:
+    """What a round is called, as the round screen calls it — ``roundName`` in
+    ``lib/coupon.ts``.
+
+    The season's week label first, then the league's own number, then the date, so the
+    message names the round the way the screen it opens on does. Every production round
+    carries a number, so the date is a fallback nobody should normally read.
+    """
+    if season_week:
+        return f"Gameweek {season_week}"
+    if number is not None:
+        return f"Gameweek {number}"
+    return f"The round of {starts_on:%a} {starts_on.day} {starts_on:%b %Y}"
+
+
+def _settled_body(round_label: str, held: tuple[Pick, Fixture] | None) -> str:
+    """``Gameweek 12 has settled. Your pick, Arsenal (v Chelsea) @ 1.80, won 18 points.``
+
+    The member's own result and nobody else's. The selection is named in the coupon's
+    words (Batch 116) and priced at the frozen ``odds_at_pick`` the points were scored
+    against, so the line agrees with the badge on the screen it opens.
+
+    A member with no pick is still told, and told plainly: the table they sit in has
+    moved, and "you had no pick" is their result for the week.
+    """
+    opening = f"{round_label} has settled."
+    if held is None:
+        return f"{opening} You had no pick this round."
+    pick, fixture = held
+    named = selection_summary(pick.market, pick.outcome, fixture.home, fixture.away)
+    if pick.status is PickStatus.won:
+        return (
+            f"{opening} Your pick, {named} @ {pick.odds_at_pick:.2f}, "
+            f"won {pick.points_awarded} points."
+        )
+    if pick.status is PickStatus.lost:
+        return f"{opening} Your pick, {named} @ {pick.odds_at_pick:.2f}, lost."
+    if pick.status is PickStatus.void:
+        return f"{opening} Your pick, {named}, was void — no points."
+    # A round flips to settled only once nothing in it is pending, and a correction
+    # (Batch 134) never writes pending back.
+    return opening  # pragma: no cover
+
+
+async def notify_round_settled(session: AsyncSession, gameweek: Gameweek) -> int:
+    """Tell a league its round has settled, and each member what their pick did.
+
+    Until Batch 135 nothing did: the weekly loop's payoff — points landing, the table
+    moving — was the one moment the product never mentioned, and a member found out by
+    opening the app. Returns how many members were targeted; the caller commits.
+
+    Recipients are :func:`~src.services.gameweek.notification_targets`, the rule every
+    league trigger shares — active, unmuted members of this round's league — and the
+    league is passed through so ``send_notification``'s mute gate is the authority, as
+    it is for every other message about a league.
+
+    The ``tag`` collapses per ``(league, round)``, so a repeat would replace the entry in
+    the tray rather than stack on it. :func:`announce_round_settled` is what keeps it from
+    being sent twice; the tag is only what a repeat would look like if it ever were.
+    """
+    targets = await notification_targets(session, gameweek)
+    if not targets:
+        return 0
+    rows = await session.execute(
+        select(Pick, Fixture)
+        .join(Fixture, Fixture.id == Pick.fixture_id)
+        .where(Pick.gameweek_id == gameweek.id)
+    )
+    held = {pick.player_id: (pick, fixture) for pick, fixture in rows.tuples().all()}
+    labels = await labels_for_gameweeks(session, [gameweek])
+    label = round_name(labels.get(gameweek.id), gameweek.number, gameweek.starts_on)
+
+    told = 0
+    for member in targets:
+        player_id = uuid.UUID(member.player_id)
+        await send_notification(
+            session,
+            player_id,
+            member.league_name,
+            _settled_body(label, held.get(player_id)),
+            data={
+                "type": "round_settled",
+                "league_id": member.league_id,
+                "url": coupon_section_url(member.league_slug, gameweek.id),
+            },
+            tag=f"round-settled-{member.league_id}-{gameweek.id}",
+            timezone_name=member.timezone,
+            league_id=uuid.UUID(member.league_id),
+        )
+        told += 1
+    return told
+
+
+async def announce_round_settled(session: AsyncSession, gameweek_id: uuid.UUID) -> int:
+    """Announce a round whose settlement has just committed. Batch 135.
+
+    Both ways a round settles call this — the evening sweep and an admin's hand-entered
+    results — and only for a round that flipped to ``settled`` in that same call.
+
+    **Once, and after the points.** A round becomes settled exactly once:
+    ``settle_gameweek`` flips it only while it is not already settled, the sweep never
+    selects a settled round, hand entry refuses one, and nothing moves a round back. So
+    announcing the flip *after* it has committed cannot repeat, and nobody is told about
+    points that a failed commit then took away. The price is the other direction: if the
+    process dies between the commit and the last send, the rest of that league is not
+    told. That was chosen over a durable outbox, which would need a migration, because a
+    missed message costs a member nothing the app does not already show them.
+
+    Returns how many members were told. Commits its own work and swallows its own
+    failures, like :func:`settle_completion_after_roster_change`: the settlement has
+    already committed, and a dead push service must not turn it into a failed sweep or an
+    admin's 500. Takes the round's id rather than the row because a failure here rolls
+    the session back, which expires every instance on it, and the sweep announces its
+    other rounds on the same session.
+    """
+    try:
+        gameweek = await session.get(Gameweek, gameweek_id)
+        if gameweek is None:  # pragma: no cover — it committed a moment ago
+            return 0
+        told = await notify_round_settled(session, gameweek)
+        await session.commit()
+        return told
+    except Exception:
+        log.exception("round settlement announcement failed", gameweek_id=str(gameweek_id))
+        await session.rollback()
+        return 0
