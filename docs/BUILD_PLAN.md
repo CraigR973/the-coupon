@@ -150,20 +150,6 @@ ticked rows can collect here until someone moves them below.
   web half, so nothing reaches members until `/ship-prod`.** Depends on Batch 114, which
   shipped 2026-09-06; independent of Batches 112 and 113.
 
-- [ ] **Batch 135 — Nothing tells a member their round has been settled**
-  — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-B08 (MED, live). Five
-  notification triggers exist — member joined, provider trouble, the pick reminder, picks
-  opening, and a pick being made including the all-picked hand-off. None fires when a round
-  settles, so the weekly loop's payoff is the one moment the product never mentions.
-
-  A settlement notification per league, gated by the existing per-league mute, naming the
-  member's own result.
-
-  Verification: a test that settling a round sends one notification per eligible member; a
-  test that a muted league sends none; a test that re-settling does not re-send.
-
-  Scope boundary: one new trigger on the existing notification path. **API-carrying.**
-
 - [ ] **Batch 140 — The desktop layout is the phone layout stretched**
   — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-01 (high impact).
   There is not one large-breakpoint utility in the application (45 small, 9 medium, zero
@@ -4523,6 +4509,33 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: correcting an already-settled pick. No change to ordinary settlement.
   **API-carrying.**
+
+- [x] **Batch 135 — Nothing tells a member their round has been settled** ✅ 2026-09-26
+  — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-B08 (MED, live). Five
+  notification triggers exist — member joined, provider trouble, the pick reminder, picks
+  opening, and a pick being made including the all-picked hand-off. None fires when a round
+  settles, so the weekly loop's payoff is the one moment the product never mentions.
+
+  A settlement notification per league, gated by the existing per-league mute, naming the
+  member's own result.
+
+  **Re-verified 2026-09-26: reproduces.** Neither settle path sent anything — the evening
+  sweep and an admin's hand-entered results both commit and return. Six tests written
+  before any code failed on the unchanged code: a four-member round settled and 0 messages
+  went out.
+
+  **Built:** every active, unmuted member of the round's league is told what their own
+  pick did, in the coupon's words — won and its points, lost, void, or no pick at all.
+  Both settle paths announce, after the settlement commits and only for a round that
+  settled in that call. A round settles once and nothing moves it back, so that is the
+  once-only marker and no migration was needed; the price is that a crash mid-send leaves
+  the rest of that league untold. The August backfill, which also settles, announces
+  nothing.
+
+  Verification: a test that settling a round sends one notification per eligible member; a
+  test that a muted league sends none; a test that re-settling does not re-send.
+
+  Scope boundary: one new trigger on the existing notification path. **API-carrying.**
 
 - [x] **Batch 136 — A member cannot delete their account or get their data** ✅ 2026-09-25
   — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-B07 (MED-HIGH, live).

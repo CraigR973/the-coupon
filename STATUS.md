@@ -29,10 +29,11 @@ Checked 2026-09-26 unless a line says otherwise.
 
 ## Owed
 
-- **No `/ship-prod` is owed.** Batches 155, 153, 142, 95, 134 and 136 shipped on 2026-09-26
-  as Railway `f75f5de9` (`b3836f97`); the drift check reports **in sync**. The
-  direct-database recheck owed since Phase 7 was done in that shipment: 21 of 21 tables
-  with RLS forced, no grants to `anon`, `authenticated` or `PUBLIC`.
+- **`/ship-prod` is owed for Batch 135** (closed 2026-09-26): production runs `b3836f97`,
+  which settles rounds without telling anyone. The last shipment — Batches 155, 153, 142,
+  95, 134 and 136, as Railway `f75f5de9` on 2026-09-26 — included the direct-database
+  recheck owed since Phase 7: 21 of 21 tables with RLS forced, no grants to `anon`,
+  `authenticated` or `PUBLIC`.
 - **Rollback is a plain redeploy.** That shipment applied no migration, so its baseline —
   Railway `6d3633bf-4a89-4b9e-bbc8-f59fbcfa946c`, the previous image — boots against the
   database as it stands. Vercel's baseline is `dpl_ucKjQQDxtqEY1daxAm63WkjEi7dy`.
@@ -67,18 +68,17 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Eight rows are open (2026-09-25); they are at the head of `docs/BUILD_PLAN.md`. The run
+Seven rows are open (2026-09-26); they are at the head of `docs/BUILD_PLAN.md`. The run
 order agreed on 2026-09-24:
 
-1. **135** — nothing tells a member their round has settled.
-2. **148** — the rename notice has no channel but push.
-3. **115** — nothing learns until a member arrives. Once recorded here as superseded by
+1. **148** — the rename notice has no channel but push.
+2. **115** — nothing learns until a member arrives. Once recorded here as superseded by
    Batch 119; re-verify before building.
-4. **150** — the first screen a new member sees.
-5. **149** — toasts, skeletons, and errors that look like empty states.
-6. **151** — one statistic drawn two ways; no type scale.
-7. **168** — two links under minimum target size; 200% zoom.
-8. **140** — the desktop layout is the phone layout stretched.
+3. **150** — the first screen a new member sees.
+4. **149** — toasts, skeletons, and errors that look like empty states.
+5. **151** — one statistic drawn two ways; no type scale.
+6. **168** — two links under minimum target size; 200% zoom.
+7. **140** — the desktop layout is the phone layout stretched.
 
 Known before starting:
 
@@ -91,7 +91,7 @@ Checked 2026-09-24.
 
 - **The gate is `scripts/ci-local.sh`**: eleven checks and no skips. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,335, frontend 1,187). 11 to 13 minutes on this Mac, and 38 when macOS's storage scan loads it (2026-09-25). Without a database the
+  (backend 1,342, frontend 1,187). 11 to 13 minutes on this Mac, and 38 when macOS's storage scan loads it (2026-09-25). Without a database the
   backend suite was 780 passed and 520 skipped at 1,300 tests — not the gate.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
   `apps/api/requirements-dev.txt`: Python 3.12, FastAPI 0.141.1, ruff 0.5.4. app-starter's

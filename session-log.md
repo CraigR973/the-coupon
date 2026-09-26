@@ -7290,3 +7290,28 @@ database
   switch-on steps are in `docs/runbooks/backup-restore.md`.
 
 **Next:** Batch 135.
+
+## Batch 135 — Nothing tells a member their round has been settled
+**Commits:** `fbf78e4` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,342 backend and
+1,187 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **Reproduced first:** six new tests failed on the unchanged code — a four-member round
+  settled and 0 messages went out. Neither the evening sweep nor hand-entered results
+  sent anything.
+- **Once, after the commit:** `announce_round_settled` runs only for a round that flipped
+  to settled in that same call, after the commit. A round settles once and never moves
+  back, so no marker column was needed. A crash mid-send leaves the rest of that league
+  untold — chosen over a migration-backed outbox.
+- **Who and what:** every active, unmuted member (the shared `notification_targets` rule),
+  including members with no pick ("You had no pick this round."); the league's name as the
+  title; the round named as the round screen names it (season week, then number, then
+  date); a tap opens that round's coupon section. Tag `round-settled-<league>-<round>`.
+- **Failure-isolated:** the announcement commits or discards its own work and never
+  raises, so a dead push service leaves the sweep reporting success and the admin a 200.
+- **Order-dependent slate tests, not new:** three `test_scheduler_jobs.py` slate tests
+  fail when a test that commits fixtures runs just before them, because `refresh_slate`
+  narrows to every competition ever pooled. `test_admin_operations.py` triggers it too;
+  the gate passes on file order. Spun off as a separate task.
+
+**Next:** `/ship-prod` for 135 once the owner schedules it; then Batch 148.
