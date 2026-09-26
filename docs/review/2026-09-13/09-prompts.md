@@ -220,6 +220,16 @@ starting it** — its 915 ms may be mostly 164 and 165.
 **95 is still blocked** on the storage-egress attribution, which is an owner
 action and not a batch. 168 pairs with 140 — verify them together at 200% zoom.
 
+**The last five were regrouped on 2026-09-27** (owner decision): 140, 149, 150,
+151 and 168 now run as one command, in a different order —
+
+```text
+/group-start Z
+```
+
+which is 151 → 140 → 168 → 150 → 149. The reasons are under Group Z in
+`08-sequencing.md`. Everything earlier in this phase is closed.
+
 ## Two things that are not batches
 
 - **Rescope the local agent database configuration** (PIPE-01) — a file on the

@@ -55,10 +55,18 @@ ticked rows can collect here until someone moves them below.
 
 ### Open batches
 
-- [ ] **Batch 115 — Nothing learns until a member arrives, and the budget certifies a round that no longer exists**
-  **Superseded 2026-09-11 by Batch 119**, which found the cause of the silence this row only
-  described and folds both its items in. Kept unchecked rather than struck: it was never
-  built, and the reasoning below is still the reasoning 116 carries out.
+- [ ] **Batch 115 — The budget certifies a round that no longer exists**
+  **Rescoped 2026-09-27 (owner decision): item 2 below, and nothing else.** This row was
+  recorded on 2026-09-11 as superseded by Batch 119, folding both its items in, but 119's own
+  row carried only item 1. That half shipped with it: the warm pass is
+  `services/odds_warm.py`, run by the scheduler over the horizon `odds_warm_horizon_weeks`
+  sets (default 1). Item 2 never did — `tests/test_request_budget.py` still declares
+  `OBSERVED_LARGEST_ROUND = 202` and `OBSERVED_UNPRICED = 103` by hand, and its tripwire
+  compares the database against that literal (checked 2026-09-27). So item 1, its open
+  decision and its verification lines are done; the title has dropped their half, which was
+  "Nothing learns until a member arrives". The change is to tests, but
+  `scripts/check-deploy-drift.sh` counts anything under `apps/api` as reaching the image, so
+  a `/ship-prod` follows close-out even when no runtime code moves.
   Specified 2026-09-06 from the `/ship-prod` of Batch 114, which closed the outage and left
   two things measurably open. Both are about the same thing: the deployment now *can* learn
   which fixtures a bookmaker prices, and nothing makes it learn at a useful moment or feeds

@@ -67,22 +67,22 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Seven rows are open (2026-09-26); they are at the head of `docs/BUILD_PLAN.md`. The run
+Seven rows are open (2026-09-27); they are at the head of `docs/BUILD_PLAN.md`. The owner
+grouped them on 2026-09-27 by what each group needs from the owner, replacing the run
 order agreed on 2026-09-24:
 
-1. **148** — the rename notice has no channel but push.
-2. **115** — nothing learns until a member arrives. Once recorded here as superseded by
-   Batch 119; re-verify before building.
-3. **150** — the first screen a new member sees.
-4. **149** — toasts, skeletons, and errors that look like empty states.
-5. **151** — one statistic drawn two ways; no type scale.
-6. **168** — two links under minimum target size; 200% zoom.
-7. **140** — the desktop layout is the phone layout stretched.
+1. **`/group-start V` — 148**, the rename notice has no channel but push. API + web, so
+   close-out refuses it until the owner explicitly schedules the matching `/ship-prod`.
+2. **`/batch-start 115`** — the budget suite trusts a round size typed in by hand.
+   Rescoped on 2026-09-27 to that half alone; the warm pass it also asked for shipped with
+   Batch 119. It changes tests, but the drift check counts anything under `apps/api`, so
+   a `/ship-prod` follows it. Its rerun can end in a money decision — a bigger odds plan —
+   if the largest round no longer fits the hourly allowance.
+3. **`/group-start Z` — 151 → 140 → 168 → 150 → 149**, the rest of the visual pass.
+   Web-only with no stops: each reaches members on its own close-out push. The order and
+   its reasons are under Group Z in `docs/review/2026-09-13/08-sequencing.md`.
 
-Known before starting:
-
-- **148 changes API and web**, so close-out refuses it until the owner explicitly
-  schedules the matching `/ship-prod`.
+115 and Group Z do not depend on each other, so either can go second.
 
 ## Toolchain
 

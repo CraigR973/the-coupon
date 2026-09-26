@@ -118,6 +118,8 @@ Everything here reaches members on its own close-out push.
 same member moment, one fixing the response and the other how it reads. 140 is
 the largest piece of visual work in the review and should be taken on its own.
 
+**140 moved to Group Z on 2026-09-27** (owner decision), to run straight before 168.
+
 ## Group T — Security hardening · Batches 141, 142, 143 · **web + API** → `/ship-prod` at the end
 
 | batch | finding |
@@ -162,6 +164,9 @@ makes it worth doing now rather than next year.
 
 151 raises font sizes and unifies a component; it touches the most files of the
 three, so it goes last.
+
+**Replaced by Group Z on 2026-09-27** (owner decision). All three batches moved
+into it, and Z runs 151 first rather than last — see Group Z for why.
 
 ## Group X — The pipeline · Batches 152, 153, 154, 155 · **tooling-only, deploys nothing**
 
@@ -227,7 +232,38 @@ Its 915 ms may be mostly 164 and 165; chasing it first risks optimising the
 wrong thing.
 
 **168 pairs with Batch 140** — both concern what the layout does at desktop
-widths and under zoom.
+widths and under zoom. **168 moved to Group Z on 2026-09-27** (owner decision) to
+run straight after 140.
+
+## Group Z — The rest of the visual pass · Batches 151, 140, 168, 150, 149 · **web-only** → no shipment owed
+
+Recorded 2026-09-27 (owner decision). Everything left of Groups S, W and Y, in one
+web-only run: each batch reaches members on its own close-out push, and there is
+no deployment checkpoint. It runs at **Standard · high**, the strictest of its
+five rows in `09-prompts.md`.
+
+| batch | finding |
+| --- | --- |
+| 151 | DES-08, DES-09 — one statistic component, and a type scale |
+| 140 | DES-01 a real desktop layout |
+| 168 | UX-19/20 target sizes and zoom chrome |
+| 150 | DES-07 first-run home |
+| 149 | DES-04, DES-05, DES-06 — toasts, skeletons, error states |
+
+**151 first, reversing Group W.** W put 151 last because it touches the most
+files. Batches run one at a time from a clean `main`, so there is no conflict
+for that to avoid, and running it last costs something: 149 shapes its skeletons
+to the content they stand in for, 151 then resizes that content, and 151's own
+verification never looks at a skeleton. Taken first, it sets the sizes every
+later batch is built and measured against.
+
+**140, then 168 straight after.** 168's zoom half follows from 140's breakpoints,
+and its row says to verify the two together at 200% zoom.
+
+**149 last.** Where a toast sits depends on which navigation shows at which
+width, and its skeletons follow the layout; 140 and 168 change both.
+
+150 depends only on 151, so it could sit anywhere after it.
 
 ## Held back deliberately
 
