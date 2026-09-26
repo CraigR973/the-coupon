@@ -3325,3 +3325,44 @@ switched off and waits for the owner to provision R2 (`docs/runbooks/backup-rest
 The Vercel CLI now keeps a short-lived access token beside a refresh token in `auth.json`:
 the raw token answers `403` once it has aged, while any `vercel` command refreshes it. Run
 one (`vercel whoami`) before reading the token for a REST call.
+
+### 2026-09-26 — `fccbfa90`, Batch 135 (no migration)
+
+Scheduled by the owner at about 17:10 BST so that it would be live before the 18:00 settle
+sweep: production's Gameweek 8 had locked at 14:30 with 12 picks, all pending, so it was
+due to settle tonight — on the old image, telling nobody. API only. The gate ran green on
+the exact commit from a clean checkout (11 checks, 1,342 backend and 1,187 frontend tests,
+0 skipped), and GitHub Actions run `36254265849` exists for the commit and passed.
+
+Preflight: Railway targets confirmed by name under the recorded IDs (`the-coupon-production`
+/ `production` / `api`), `railwayConfigFile` **null**, 13 of 13 required variables present by
+name, no `BACKUP_*` variables; Vercel production holds encrypted production-scoped
+`VITE_API_URL` and `VITE_VAPID_PUBLIC_KEY`; `scripts/check-migration-recovery.sh` **PASS —
+this shipment applies no migration (production at 026)**. IaC `config plan` reported the
+usual `0 to add, 2 to change, 0 to destroy` against the `api` service only, the same four
+fields; applied, which started redeploy `cf8b924e-8952-41b6-97c6-dbfce02412c3` of the previous
+image, polled to `SUCCESS` before the upload. `config apply` printed no deployment id this
+time; the redeploy appears in `deployment list` with reason `redeploy`.
+
+Railway `cf8b924e-8952-41b6-97c6-dbfce02412c3` (IaC redeploy of `f75f5de9`) is this
+shipment's **rollback baseline**, and a plain one: nothing was migrated. Vercel's baseline is
+`dpl_JQv72Dzik7xHBUyzSsyqtATt377g` (`fccbfa90`); the web app did not change.
+
+Railway `dbe274e8-b15a-4c06-a4a2-3de5997cad92`, `SUCCESS` at 17:28 BST. `/health` `200`,
+`sha fccbfa90`, `migration 026`; `/health/ready` `200`, `db: ok`, `026`. Manifest: one
+replica in `europe-west4-drams3a`, sleep off, restart `ON_FAILURE`, healthcheck
+`/api/v1/health/ready` at 300s, 0.25 vCPU / 500 MB, IPv6 egress on, `NIXPACKS` with
+`/nixpacks.toml`. Bounded log snapshot: 46 lines, zero errors, clean on all five leak
+patterns; alembic, uvicorn and the scheduler all started.
+
+Vercel was a no-op: the GitHub auto-deploy `dpl_JQv72Dzik7xHBUyzSsyqtATt377g` held the stable
+alias, `READY`, `githubCommitSha fccbfa90`.
+
+Post-deploy smoke: web root, `/leagues/discover` and `/settings` all `200` on one SPA asset,
+carrying CSP, `X-Frame-Options`, HSTS, nosniff, referrer and permissions policies. CORS
+preflight `200` from the stable origin with credentials; a foreign origin refused `400` with
+no `Access-Control-Allow-Origin`. `scripts/check-deploy-drift.sh`: **in sync**. Read-only
+database recheck over `railway ssh`: 21 of 21 public tables with RLS enabled and forced, zero
+table grants to `anon`, `authenticated` or `PUBLIC`, no `USAGE`, head `026`.
+
+Backup/restore-point identity: **none yet** — Batch 95's backup is still switched off.

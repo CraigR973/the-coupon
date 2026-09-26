@@ -13,9 +13,9 @@ Checked 2026-09-26 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `b3836f97` at migration `026` |
-| API deployment | Railway `f75f5de9-0df6-4523-916d-21f6cb660830`, one replica, `europe-west4` |
-| Web | `the-coupon-production.vercel.app`, `b3836f97`; Vercel builds `main` on every push |
+| API | `api-production-109b1.up.railway.app` serves `fccbfa90` at migration `026` |
+| API deployment | Railway `dbe274e8-b15a-4c06-a4a2-3de5997cad92`, one replica, `europe-west4` |
+| Web | `the-coupon-production.vercel.app`, `fccbfa90`; Vercel builds `main` on every push |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -29,14 +29,13 @@ Checked 2026-09-26 unless a line says otherwise.
 
 ## Owed
 
-- **`/ship-prod` is owed for Batch 135** (closed 2026-09-26): production runs `b3836f97`,
-  which settles rounds without telling anyone. The last shipment — Batches 155, 153, 142,
-  95, 134 and 136, as Railway `f75f5de9` on 2026-09-26 — included the direct-database
-  recheck owed since Phase 7: 21 of 21 tables with RLS forced, no grants to `anon`,
-  `authenticated` or `PUBLIC`.
+- **No `/ship-prod` is owed.** Batch 135 shipped on 2026-09-26 at 17:28 BST as Railway
+  `dbe274e8` (`fccbfa90`), ahead of that evening's settle sweep; the drift check reports
+  **in sync**, and a read-only recheck found 21 of 21 tables with RLS forced and no grants
+  to `anon`, `authenticated` or `PUBLIC`.
 - **Rollback is a plain redeploy.** That shipment applied no migration, so its baseline —
-  Railway `6d3633bf-4a89-4b9e-bbc8-f59fbcfa946c`, the previous image — boots against the
-  database as it stands. Vercel's baseline is `dpl_ucKjQQDxtqEY1daxAm63WkjEi7dy`.
+  Railway `cf8b924e-8952-41b6-97c6-dbfce02412c3`, the previous image — boots against the
+  database as it stands. Vercel's baseline is `dpl_JQv72Dzik7xHBUyzSsyqtATt377g`.
 
 ## Waiting on the owner
 

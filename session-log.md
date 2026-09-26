@@ -7315,3 +7315,17 @@ database
   the gate passes on file order. Spun off as a separate task.
 
 **Next:** `/ship-prod` for 135 once the owner schedules it; then Batch 148.
+
+## Shipment — 2026-09-26, `fccbfa90` (Batch 135; no migration)
+**Railway:** `dbe274e8-b15a-4c06-a4a2-3de5997cad92` `SUCCESS` · rollback baseline
+`cf8b924e-…` (plain — nothing migrated) · Vercel no-op (`dpl_JQv72Dzik7xHBUyzSsyqtATt377g`,
+`fccbfa90`) · drift **in sync** · CI run `36254265849` green
+
+### Key facts for future sessions
+- **Timed to a live round:** Gameweek 8 locked at 14:30 BST with 12 picks, all pending, so
+  it was due to settle from the 18:00 sweep. Live at 17:28 BST, so that sweep runs the new
+  code; a round that settles on the old image is never announced.
+- `config apply` printed no deployment id this time; the IaC redeploy (`cf8b924e`) showed
+  in `deployment list` with reason `redeploy` and reached `SUCCESS` within a minute.
+
+**Next:** check the 18:00 sweep announced Gameweek 8; then Batch 148.
