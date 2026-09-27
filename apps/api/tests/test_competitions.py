@@ -7,9 +7,9 @@ exists to stop repeating: ``UK_COMPETITIONS = 30``, ``REQUESTS_PER_SLATE_WALK = 
 ``LAUNCH_SATURDAY_FIXTURES = 131`` were all true the day they were written.
 
 The catalogue below is the live one, measured with ``fetch_competitions`` against
-odds-api.io on 2026-09-12 — 67 UK competitions — and the pool is the 33 that had ever put
-a fixture onto a round in production on the same date. Both are fixed here so the rules can
-be asserted against the real vocabulary without a provider request.
+odds-api.io on 2026-09-12 — 67 UK competitions — and the pool is the 36 that had ever put
+a fixture onto a round in production when remeasured on 2026-09-27. Both are fixed here so
+the rules can be asserted against the real vocabulary without a provider request.
 """
 
 from __future__ import annotations
@@ -93,11 +93,12 @@ LIVE_CATALOGUE: tuple[str, ...] = (
     "wales-welsh-cup",
 )
 
-#: The competitions that had ever carried a fixture onto a round in production, same date.
-#: This is the set the *daily* walk is narrowed to, on top of the trim.
+#: The competitions that had ever carried a fixture onto a round in production on
+#: 2026-09-27. This is the set the *daily* walk is narrowed to, on top of the trim.
 LIVE_POOL: tuple[str, ...] = (
     "england-championship",
     "england-efl-cup",
+    "england-efl-trophy-southern-group-d",
     "england-fa-cup",
     "england-league-one",
     "england-league-two",
@@ -118,6 +119,7 @@ LIVE_POOL: tuple[str, ...] = (
     "england-amateur-u21-professional-development-league",
     "northern-ireland-championship-1",
     "northern-ireland-premiership",
+    "scotland-challenge-cup",
     "scotland-championship",
     "scotland-highland-league",
     "scotland-league-cup",
@@ -129,6 +131,7 @@ LIVE_POOL: tuple[str, ...] = (
     "wales-cymru-championship-north",
     "wales-cymru-championship-south",
     "wales-cymru-premier",
+    "wales-welsh-cup",
 )
 
 
@@ -139,17 +142,17 @@ def test_the_measurements_describe_the_catalogue_they_were_taken_from() -> None:
     assert len(played(LIVE_POOL)) == MEASURED_DAILY_WALK
 
 
-def test_the_trim_removes_thirteen_of_the_thirty_three_the_pool_holds() -> None:
+def test_the_trim_removes_thirteen_of_the_thirty_six_the_pool_holds() -> None:
     """The owner's decision, measured against the pool it was taken against.
 
-    Thirteen removed and twenty kept — eleven ``england-amateur-*`` divisions including the
+    Thirteen removed and twenty-three kept — eleven ``england-amateur-*`` divisions including the
     FA Trophy, and both Northern Ireland divisions. Stated as counts *and* as the removed
     set, because "thirteen" alone would pass for the wrong thirteen.
     """
     dropped = [slug for slug in LIVE_POOL if not is_played(slug)]
-    assert len(LIVE_POOL) == 33
+    assert len(LIVE_POOL) == 36
     assert len(dropped) == 13
-    assert len(played(LIVE_POOL)) == 20
+    assert len(played(LIVE_POOL)) == 23
     assert set(dropped) == {
         "england-amateur-fa-trophy",
         "england-amateur-isthmian-league-premier-division",

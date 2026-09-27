@@ -11,8 +11,8 @@ purpose because only one of them is a product decision:
 
 * **the trim, here** — the deployment stops *playing* competitions nobody wants to pick.
   It is member-visible: the card shrinks, and it is meant to. Measured against the
-  fixture pool on 2026-09-12, of the 33 competitions that have ever carried a fixture
-  onto a round this removes **13** and keeps **20**.
+  fixture pool on 2026-09-27, of the 36 competitions that have ever carried a fixture
+  onto a round this removes **13** and keeps **23**.
 * **the never-used skip** (:func:`~src.services.gameweek.pooled_competition_ids`) — the
   daily run stops walking competitions that have never once put a fixture on a round.
   That one is invisible: those competitions return nothing whether they are asked or not,
@@ -58,10 +58,11 @@ _ENGLAND_AMATEUR_PREFIX = "england-amateur-"
 _NATIONAL_LEAGUE_DIVISION = re.compile(r"^national-league(-north|-south)?$")
 
 
-#: What the provider carries and what this deployment plays of it, **measured live with
-#: ``fetch_competitions`` on 2026-09-12** — 67 UK competitions in the catalogue, 41 of them
-#: played after the trim, and 20 of *those* that have ever put a fixture in the pool and so
-#: are what a daily walk actually costs.
+#: What the provider carries and what this deployment plays of it: **measured live with
+#: ``fetch_competitions`` on 2026-09-12**, 67 UK competitions are in the catalogue and 41
+#: are played after the trim; **remeasured from the production fixture pool on
+#: 2026-09-27**, 23 of those have ever put a fixture in the pool and so are what a daily
+#: walk actually costs.
 #:
 #: Measurements with a date against them, not design constants. That distinction is the
 #: whole of Batch 119: ``UK_COMPETITIONS = 30`` in the budget suite and
@@ -75,7 +76,7 @@ _NATIONAL_LEAGUE_DIVISION = re.compile(r"^national-league(-north|-south)?$")
 #: turn red when reality outgrows them.
 MEASURED_UK_CATALOGUE = 67
 MEASURED_PLAYED_CATALOGUE = 41
-MEASURED_DAILY_WALK = 20
+MEASURED_DAILY_WALK = 23
 
 
 def is_played(competition_id: str) -> bool:
