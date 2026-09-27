@@ -9,13 +9,13 @@ paragraph beneath it. A batch's story belongs in its `session-log.md` entry, not
 
 ## Live
 
-Checked 2026-09-26 unless a line says otherwise.
+Checked 2026-09-27 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `fccbfa90` at migration `026` |
-| API deployment | Railway `dbe274e8-b15a-4c06-a4a2-3de5997cad92`, one replica, `europe-west4` |
-| Web | `the-coupon-production.vercel.app`, `fccbfa90`; Vercel builds `main` on every push |
+| API | `api-production-109b1.up.railway.app` serves `c671ccf9` at migration `026` |
+| API deployment | Railway `07af30bc-5395-4f88-a75a-3f0957921928`, one replica, `europe-west4` |
+| Web | `the-coupon-production.vercel.app`, `c671ccf9`; Vercel builds `main` on every push |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -29,12 +29,14 @@ Checked 2026-09-26 unless a line says otherwise.
 
 ## Owed
 
-- **`/ship-prod` is owed for Batch 148, scheduled by the owner on 2026-09-27.** Its web
-  half reaches members on the close-out push and renders nothing until the API serves
-  `/api/v1/me/rename-notice`, which 404s until then. No migration.
-- **Rollback is a plain redeploy.** The API still runs Batch 135's shipment — Railway
-  `dbe274e8` (`fccbfa90`, 2026-09-26, no migration) — so that image is the baseline 148's
-  shipment rolls back to. Vercel's baseline is `dpl_JQv72Dzik7xHBUyzSsyqtATt377g`.
+- **No `/ship-prod` is owed.** Batch 148 shipped on 2026-09-27 at 09:42 BST as Railway
+  `07af30bc` (`c671ccf9`); the drift check reports **in sync**, and a read-only recheck
+  found 21 of 21 tables with RLS forced and no grants to `anon`, `authenticated` or
+  `PUBLIC`.
+- **Rollback is a plain redeploy.** That shipment applied no migration, so its baseline —
+  Railway `d295c44a-ea26-4575-9bb7-469f2e6d8cf1`, the previous image — boots against the
+  database as it stands, and rolling the API back alone hides Batch 148's dialog. Vercel's
+  last build without the dialog is `dpl_8mU9qpVZ6pqZQXErPHHH8Rp9uqpe`.
 
 ## Waiting on the owner
 
@@ -57,11 +59,12 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Members
 
-- **Member B has not been told their sign-in name changed** (2026-09-27). Batch 74 renamed
-  the owner and members A and B on 2026-08-26; the boot-time push reached the other two.
-  Member B has no push subscription, but five live sessions, the latest issued on
-  2026-09-26 — so Batch 148's in-app notice reaches them on their next open once
-  `/ship-prod` runs. The API logs `rename notice seen in the app` when it does.
+- **Member B has not been told their sign-in name changed** (2026-09-27, 10:45 BST). Batch
+  74 renamed the owner and members A and B on 2026-08-26; the boot-time push reached the
+  other two on 2026-08-30. Member B has no push subscription, but five live sessions, the
+  latest issued 2026-09-26 06:11 UTC. Batch 148's in-app notice has been live since 09:42
+  BST, so it reaches them on their next open; the API logs `rename notice seen in the app`
+  when it does, and production then holds the third `display_name_changed` row.
 - A rename releases the old sign-in name outright, so nothing reserves the three names
   Batch 74 released.
 
@@ -71,7 +74,7 @@ Six rows are open (2026-09-27); they are at the head of `docs/BUILD_PLAN.md`. Th
 grouped them on 2026-09-27 by what each group needs from the owner, replacing the run
 order agreed on 2026-09-24:
 
-1. ~~**`/group-start V` — 148**~~ — closed out 2026-09-27; its `/ship-prod` is owed, above.
+1. ~~**`/group-start V` — 148**~~ — closed out and shipped 2026-09-27.
 2. **`/batch-start 115`** — the budget suite trusts a round size typed in by hand.
    Rescoped on 2026-09-27 to that half alone; the warm pass it also asked for shipped with
    Batch 119. It changes tests, but the drift check counts anything under `apps/api`, so
@@ -102,10 +105,11 @@ Checked 2026-09-24.
   the gate scripts, the CI workflow, the close-out workflow, `apps/web/package.json`,
   `apps/api/requirements-dev.txt`, or the lint, type and build configuration — unless the
   owner has named that batch and those files in the script, while its row is open.
-- **Production reads**: `railway ssh` with the explicit production selectors works; the
-  direct IPv6 database connection does not (2026-09-26). The Railway CLI's default link is
-  staging, and the Supabase MCP here is a different product — never read Coupon data
-  through it.
+- **Production reads**: the direct IPv6 database connection works — `railway run` with the
+  explicit production selectors, then a local asyncpg script (2026-09-27); `railway ssh`
+  worked on 2026-09-26. Both routes have flipped before, so probe rather than trust this
+  line. The Railway CLI's default link is staging, and the Supabase MCP here is a
+  different product — never read Coupon data through it.
 - **Vercel CLI**: run it with Node 20 first on `PATH` (the ambient `node` is 14 and cannot
   load it). Its stored token is short-lived and refreshed by any `vercel` command, so run
   `vercel whoami` before reading it for a REST call (2026-09-26).

@@ -7354,3 +7354,23 @@ frontend 1,197 — plus a local browser run of the dialog against a scratch API
   hook, both routes, the dialog and `services/rename_notice.py`.
 
 **Next:** `/ship-prod` for 148 (scheduled by the owner 2026-09-27); then Batch 115.
+
+## Shipment — 2026-09-27, `c671ccf9` (Batch 148; no migration)
+**Railway:** `07af30bc-5395-4f88-a75a-3f0957921928` `SUCCESS` · rollback baseline
+`d295c44a-…` (plain — nothing migrated) · Vercel no-op (`dpl_8dMZXBdnSJuxUerq8aDaCzATVzhs`,
+`c671ccf9`) · drift **in sync** · CI run `36304350112` green · gate 11 checks, backend
+1,349, frontend 1,197
+
+### Key facts for future sessions
+- **Recorded an hour late, by a second session.** The shipping session verified everything,
+  then hit its spend limit before writing the record. When `STATUS.md` says a shipment is
+  owed, read `deployment list` and `/health` before starting one: this one was already live.
+- **The route brackets the image.** Unauthenticated `GET /api/v1/me/rename-notice` answers
+  `401` from `c671ccf9` onwards; an unknown path answers `404`.
+- **Member B was still untold at 10:45 BST**, an hour after go-live: no push subscription,
+  latest session issued 2026-09-26 06:11 UTC. Production holds 2 of the 3
+  `display_name_changed` rows; the third is the signal to delete the whole mechanism.
+- `config apply` again printed no deployment id; its redeploy `d295c44a` reached `SUCCESS`
+  with reason `redeploy`, as on 2026-09-26.
+
+**Next:** watch for `rename notice seen in the app` in the API logs; then Batch 115.

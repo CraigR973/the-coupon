@@ -3366,3 +3366,55 @@ database recheck over `railway ssh`: 21 of 21 public tables with RLS enabled and
 table grants to `anon`, `authenticated` or `PUBLIC`, no `USAGE`, head `026`.
 
 Backup/restore-point identity: **none yet** — Batch 95's backup is still switched off.
+
+### 2026-09-27 — `c671ccf9`, Batch 148 (no migration)
+
+Scheduled by the owner at close-out, which the safety guard required: Batch 148 is API +
+web, so the close-out push released its web half — a dialog telling a renamed member their
+sign-in name changed — before the API could serve it. The dialog renders nothing until
+`/api/v1/me/rename-notice` exists. The gate ran green on the exact commit from a clean
+checkout (11 checks, 1,349 backend and 1,197 frontend tests, 0 skipped), and GitHub Actions
+run `36304350112` exists for the commit and passed.
+
+Preflight: Railway targets confirmed by name under the recorded IDs (`the-coupon-production`
+/ `production` / `api`), `railwayConfigFile` **null**, 13 of 13 required variables present by
+name, no `BACKUP_*` variables; Vercel production holds encrypted production-scoped
+`VITE_API_URL` and `VITE_VAPID_PUBLIC_KEY`; `scripts/check-migration-recovery.sh` **PASS —
+this shipment applies no migration (production at 026)**. IaC `config plan` reported the
+usual `0 to add, 2 to change, 0 to destroy` against the `api` service only, the same four
+fields; applied, which started redeploy `d295c44a-ea26-4575-9bb7-469f2e6d8cf1` of the previous
+image, polled to `SUCCESS` before the upload. `config apply` again printed no deployment id.
+
+Railway `d295c44a-ea26-4575-9bb7-469f2e6d8cf1` (IaC redeploy of `dbe274e8`) is this
+shipment's **rollback baseline**, and a plain one: nothing was migrated. Vercel production
+was already `dpl_8dMZXBdnSJuxUerq8aDaCzATVzhs` (`c671ccf9`), the close-out push, which
+carries the dialog; the last build without it is `dpl_8mU9qpVZ6pqZQXErPHHH8Rp9uqpe`
+(`5b74d65a`). Rolling the API back alone is enough to hide the dialog.
+
+Railway `07af30bc-5395-4f88-a75a-3f0957921928`, `SUCCESS` at 09:42 BST, 80 seconds after the
+upload. `/health` `200`, `sha c671ccf9`, `migration 026`; `/health/ready` `200`, `db: ok`,
+`026`. An unauthenticated `GET /api/v1/me/rename-notice` answers `401`, where an unknown path
+answers `404`, so the route is live. Manifest: one replica in `europe-west4-drams3a`, sleep
+off, restart `ON_FAILURE`, healthcheck `/api/v1/health/ready` at 300s, 0.25 vCPU / 500 MB,
+IPv6 egress on, `NIXPACKS` with `/nixpacks.toml`. Bounded log snapshot: 44 lines, zero
+errors, clean on all five leak patterns; alembic, uvicorn, the scheduler and the boot-time
+rename-notice task all ran. A rescan after the smoke read 49 lines with the same result.
+
+Vercel was a no-op: the GitHub auto-deploy `dpl_8dMZXBdnSJuxUerq8aDaCzATVzhs` held the stable
+alias, `READY`, `githubCommitSha c671ccf9`.
+
+Post-deploy smoke: web root, `/leagues/discover` and `/settings` all `200` on one SPA asset,
+carrying CSP, `X-Frame-Options`, HSTS, nosniff, referrer and permissions policies. CORS
+preflight `200` from the stable origin with credentials; a foreign origin refused `400` with
+no `Access-Control-Allow-Origin`. `scripts/check-deploy-drift.sh`: **in sync**. Read-only
+database recheck through `railway run` and a direct asyncpg connection: 21 of 21 public
+tables with RLS enabled and forced, zero table grants to `anon`, `authenticated` or `PUBLIC`,
+no `USAGE`, head `026`.
+
+**Recorded an hour late.** The shipping session hit its spend limit after these checks and
+before writing this record. A second session wrote it at about 10:45 BST from that
+session's transcript, after its own read-only recheck: `/health` still `c671ccf9` at `026`,
+drift **in sync**, the stable alias still on `dpl_8dMZXBdnSJuxUerq8aDaCzATVzhs`, and run
+`36304350112` `success` on `c671ccf9`.
+
+Backup/restore-point identity: **none yet** — Batch 95's backup is still switched off.
