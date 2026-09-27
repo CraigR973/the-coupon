@@ -7329,3 +7329,28 @@ database
   in `deployment list` with reason `redeploy` and reached `SUCCESS` within a minute.
 
 **Next:** check the 18:00 sweep announced Gameweek 8; then Batch 148.
+
+## Batch 148 — A renamed member with no push subscription can never be told
+**Commits:** `c5be640` · verified: `scripts/ci-local.sh` PASS (11 checks) — backend 1,349,
+frontend 1,197 — plus a local browser run of the dialog against a scratch API
+
+### Key facts for future sessions
+- **Two channels, one marker.** `GET /api/v1/me/rename-notice` returns
+  `{notice: {title, body} | null}`; `POST /api/v1/me/rename-notice/seen` writes the same
+  `display_name_changed` audit row the push writes, with `changes.channel = "in_app"` and
+  the member as actor, under the boot task's advisory lock. Whichever reaches them first
+  stops the other.
+- **Shown on any signed-in load, not only at sign-in.** Refresh tokens rotate on a sliding
+  30 days, so an active member may never sign in again. `RenameNotice` mounts in `Layout`
+  (behind `ProtectedRoute`, never under the PIN gate); any way of closing it counts as seen.
+- **Member B is reachable.** Read-only production check, 2026-09-27: `39faae39` untold, no
+  push subscription, five live sessions, the latest issued 2026-09-26 06:11 UTC.
+- **Safe web-first:** until `/ship-prod` the route 404s and the dialog renders nothing
+  (tested), so the split-half push cannot break a screen.
+- **Gate run 1 failed the web count** — 1,197 against the 1,195 recorded, because
+  `viewport.test.ts` adds one test per `.tsx` file and the batch added two. Raised; run 2
+  green.
+- **It can all go** once production holds three `display_name_changed` rows: the boot
+  hook, both routes, the dialog and `services/rename_notice.py`.
+
+**Next:** `/ship-prod` for 148 (scheduled by the owner 2026-09-27); then Batch 115.

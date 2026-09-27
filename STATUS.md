@@ -29,13 +29,12 @@ Checked 2026-09-26 unless a line says otherwise.
 
 ## Owed
 
-- **No `/ship-prod` is owed.** Batch 135 shipped on 2026-09-26 at 17:28 BST as Railway
-  `dbe274e8` (`fccbfa90`), ahead of that evening's settle sweep; the drift check reports
-  **in sync**, and a read-only recheck found 21 of 21 tables with RLS forced and no grants
-  to `anon`, `authenticated` or `PUBLIC`.
-- **Rollback is a plain redeploy.** That shipment applied no migration, so its baseline —
-  Railway `cf8b924e-8952-41b6-97c6-dbfce02412c3`, the previous image — boots against the
-  database as it stands. Vercel's baseline is `dpl_JQv72Dzik7xHBUyzSsyqtATt377g`.
+- **`/ship-prod` is owed for Batch 148, scheduled by the owner on 2026-09-27.** Its web
+  half reaches members on the close-out push and renders nothing until the API serves
+  `/api/v1/me/rename-notice`, which 404s until then. No migration.
+- **Rollback is a plain redeploy.** The API still runs Batch 135's shipment — Railway
+  `dbe274e8` (`fccbfa90`, 2026-09-26, no migration) — so that image is the baseline 148's
+  shipment rolls back to. Vercel's baseline is `dpl_JQv72Dzik7xHBUyzSsyqtATt377g`.
 
 ## Waiting on the owner
 
@@ -58,21 +57,21 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Members
 
-- **Member B has not been told their sign-in name changed** (2026-09-24). Batch 74 renamed
-  the owner and members A and B on 2026-08-26; the boot-time notice reached the other two.
-  Member B has no push subscription, so every boot retries and nothing arrives — Batch
-  148's case.
+- **Member B has not been told their sign-in name changed** (2026-09-27). Batch 74 renamed
+  the owner and members A and B on 2026-08-26; the boot-time push reached the other two.
+  Member B has no push subscription, but five live sessions, the latest issued on
+  2026-09-26 — so Batch 148's in-app notice reaches them on their next open once
+  `/ship-prod` runs. The API logs `rename notice seen in the app` when it does.
 - A rename releases the old sign-in name outright, so nothing reserves the three names
   Batch 74 released.
 
 ## Open batches
 
-Seven rows are open (2026-09-27); they are at the head of `docs/BUILD_PLAN.md`. The owner
+Six rows are open (2026-09-27); they are at the head of `docs/BUILD_PLAN.md`. The owner
 grouped them on 2026-09-27 by what each group needs from the owner, replacing the run
 order agreed on 2026-09-24:
 
-1. **`/group-start V` — 148**, the rename notice has no channel but push. API + web, so
-   close-out refuses it until the owner explicitly schedules the matching `/ship-prod`.
+1. ~~**`/group-start V` — 148**~~ — closed out 2026-09-27; its `/ship-prod` is owed, above.
 2. **`/batch-start 115`** — the budget suite trusts a round size typed in by hand.
    Rescoped on 2026-09-27 to that half alone; the warm pass it also asked for shipped with
    Batch 119. It changes tests, but the drift check counts anything under `apps/api`, so

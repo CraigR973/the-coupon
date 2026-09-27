@@ -175,7 +175,7 @@ ticked rows can collect here until someone moves them below.
   Scope boundary: responsive layout for those three screens and the shell width. No new
   components, no imagery, no token changes that could affect contrast. **Web-only.**
 
-- [ ] **Batch 148 — A renamed member with no push subscription can never be told**
+- [x] **Batch 148 — A renamed member with no push subscription can never be told** ✅ 2026-09-27
   — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-A11 (MED, live).
   `rename_notice.py` delivers by web push only and writes its "told them" marker only when
   a push is actually delivered, so a member with no active subscription is retried on every
