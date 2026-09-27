@@ -38,6 +38,11 @@ from src.services.avatar_storage import AvatarStorage, avatar_storage
 from src.services.coupon import combined_odds
 from src.services.football_provider import season_for
 from src.services.gameweek import PICKABLE_STATES, current_round_order
+from src.services.rename_notice import (
+    NOTICE_TITLE,
+    acknowledge_in_app_notice,
+    pending_in_app_notice,
+)
 from src.services.scoring import LONGSHOT_ODDS, FormRound, resolve_season, standings_by_league
 from src.services.season_calendar import SeasonLabels
 
@@ -654,3 +659,36 @@ async def delete_my_account(
         ) from None
     await db.commit()
     log.info("account erased by its member", player_id=str(user.id))
+
+
+# ── The rename notice (Batch 148) ───────────────────────────────────────────────
+
+
+class RenameNoticeOut(BaseModel):
+    title: str
+    body: str
+
+
+class RenameNoticeState(BaseModel):
+    """``notice`` is null for everyone but the members Batch 74 renamed, until they are told."""
+
+    notice: RenameNoticeOut | None
+
+
+@router.get("/rename-notice", response_model=RenameNoticeState)
+async def get_rename_notice(user: CurrentUser, db: Db) -> RenameNoticeState:
+    """Batch 93's notice, for a member push could not reach. See ``services/rename_notice``."""
+    body = await pending_in_app_notice(db, user)
+    if body is None:
+        return RenameNoticeState(notice=None)
+    return RenameNoticeState(notice=RenameNoticeOut(title=NOTICE_TITLE, body=body))
+
+
+@router.post("/rename-notice/seen", status_code=status.HTTP_204_NO_CONTENT)
+async def acknowledge_rename_notice(user: CurrentUser, db: Db) -> None:
+    """The member dismissed the notice, which counts as telling them; push stops trying.
+
+    Idempotent: a second call, or a call from any other member, changes nothing.
+    """
+    if await acknowledge_in_app_notice(db, user):
+        await db.commit()

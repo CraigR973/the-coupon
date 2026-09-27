@@ -20,10 +20,22 @@ requirement asks for, not a violation of it. It also means this task keeps runni
 all three are reached, which is why it is cheap: three indexed lookups against
 ``audit_log`` and ``profiles``.
 
+**A second channel, in the app (Batch 148).** Push alone left a gap no retry could close:
+one of the three has no subscription, so every boot tried again and nothing ever arrived.
+The fallback is the app itself. ``GET /api/v1/me/rename-notice`` hands a member the same
+title and copy while they are one of the three and untold; the web app shows it in a dialog
+on the next load with a session, and dismissing it calls ``POST /api/v1/me/rename-notice/seen``,
+which writes the same marker the push path writes. Seeing it counts as being told, so
+whichever channel reaches them first is the only one that does — a pushed member is never
+shown the dialog, and a member who dismissed it is never pushed. It reaches only a member
+who can open the app: someone whose session has lapsed must sign in with the new name
+first, which is the thing they have not been told.
+
 **Expected lifetime.** This is a one-off for three already-affected accounts, not a
 "display name changed" feature — renaming a fourth member would need its own decision about
 notifying them. Once production holds three ``display_name_changed`` rows, the call in
-``main.lifespan`` and this module can go.
+``main.lifespan``, the two ``/me/rename-notice`` routes, the web dialog and this module can
+go.
 
 **Identified by profile id, not by name (Batch 155).** This module used to carry all six
 names, old and new. The repository is public and a display name is half of a member's
@@ -144,3 +156,42 @@ async def send_rename_notices(session: AsyncSession) -> dict[str, int]:
         log.info("rename notice delivered", player_id=str(profile.id), pushes=sent)
 
     return sent_by_id
+
+
+async def pending_in_app_notice(session: AsyncSession, profile: Profile) -> str | None:
+    """The copy to show ``profile`` in the app, or ``None`` when there is nothing to tell.
+
+    Anyone outside the three answers from the id alone, without touching the database —
+    this is read on every app load, by every member.
+    """
+    if profile.id not in RENAMED_PROFILE_IDS:
+        return None
+    if await _already_told(session, profile.id):
+        return None
+    return notice_body(profile.display_name)
+
+
+async def acknowledge_in_app_notice(session: AsyncSession, profile: Profile) -> bool:
+    """Record that ``profile`` has seen the notice in the app. True if this wrote the marker.
+
+    Takes the boot task's lock, so a push landing at the same moment, or the dialog being
+    dismissed in two tabs, still leaves one marker rather than two.
+    """
+    if profile.id not in RENAMED_PROFILE_IDS:
+        return False
+    await session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": _ADVISORY_LOCK_KEY})
+    if await _already_told(session, profile.id):
+        return False
+
+    session.add(
+        AuditLog(
+            actor_id=profile.id,
+            actor_type=ActorType.player,
+            action_type=ActionType.display_name_changed,
+            target_table="profiles",
+            target_id=profile.id,
+            changes={"new": profile.display_name, "channel": "in_app"},
+        )
+    )
+    log.info("rename notice seen in the app", player_id=str(profile.id))
+    return True

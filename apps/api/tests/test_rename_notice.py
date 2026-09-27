@@ -4,7 +4,11 @@ The hard part is not sending it. It is sending it *once*, from a task that runs 
 boot, to three accounts identified by id in a database where they may not exist at all —
 and not marking someone as told when nothing actually reached them.
 
-Postgres-backed; each test rolls back.
+Batch 148 added the second channel — the app itself, for a member push cannot reach — and
+:class:`TestInTheApp` covers it.
+
+Postgres-backed; each test rolls back, except :class:`TestInTheApp`, whose requests run in
+their own sessions and so commit, and which deletes what it wrote.
 """
 
 from __future__ import annotations
@@ -18,13 +22,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import hash_pin
+from src.auth import create_access_token, hash_pin
 from src.config import settings
 from src.database import AsyncSessionLocal
-from src.models.notification import ActionType, AuditLog, PushSubscription
+from src.main import app
+from src.models.notification import ActionType, ActorType, AuditLog, PushSubscription
 from src.models.profile import Profile
 from src.services.rename_notice import (
     NOTICE_TITLE,
@@ -231,3 +237,181 @@ class TestTheBootHook:
         from src import main
 
         assert "_send_pending_rename_notices" in inspect.getsource(main.lifespan)
+
+
+NOTICE_URL = "/api/v1/me/rename-notice"
+
+
+@pytest_asyncio.fixture
+async def client() -> AsyncIterator[AsyncClient]:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        yield c
+
+
+@pytest_asyncio.fixture
+async def made() -> AsyncIterator[list[Profile]]:
+    """The members a test commits, and afterwards everything written about them.
+
+    A request opens its own session, so these rows must be committed to be seen at all —
+    and then removed, because :func:`_markers` counts every marker in the database and the
+    rolled-back tests above expect to find only their own.
+    """
+    people: list[Profile] = []
+    yield people
+    ids = [person.id for person in people]
+    if ids:
+        async with AsyncSessionLocal() as db:
+            await db.execute(delete(AuditLog).where(AuditLog.target_id.in_(ids)))
+            await db.execute(delete(Profile).where(Profile.id.in_(ids)))
+            await db.commit()
+
+
+async def _committed_member(made: list[Profile], *, subscribed: bool = False) -> Profile:
+    async with AsyncSessionLocal() as db:
+        person = await _renamed_profile(db, uuid.uuid4(), subscribed=subscribed)
+        await db.commit()
+        await db.refresh(person)
+    made.append(person)
+    return person
+
+
+@contextmanager
+def _renamed(*people: Profile) -> Iterator[None]:
+    """Stand these committed members in for the three production ids."""
+    with patch(
+        "src.services.rename_notice.RENAMED_PROFILE_IDS", tuple(person.id for person in people)
+    ):
+        yield
+
+
+def _auth(person: Profile) -> dict[str, str]:
+    return {"Authorization": f"Bearer {create_access_token(person.id, person.role)}"}
+
+
+async def _markers_for(person: Profile) -> list[AuditLog]:
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(AuditLog).where(
+                AuditLog.action_type == ActionType.display_name_changed,
+                AuditLog.target_id == person.id,
+            )
+        )
+        return list(result.scalars().all())
+
+
+async def _run_the_boot_task() -> dict[str, int]:
+    async with AsyncSessionLocal() as db:
+        sent = await send_rename_notices(db)
+        await db.commit()
+    return sent
+
+
+class TestInTheApp:
+    """Batch 148: the app is the channel for a member push cannot reach."""
+
+    async def test_a_member_push_cannot_reach_is_shown_it_in_the_app(
+        self, client: AsyncClient, made: list[Profile]
+    ) -> None:
+        person = await _committed_member(made, subscribed=False)
+
+        with _renamed(person), push_enabled() as push:
+            sent = await _run_the_boot_task()
+            response = await client.get(NOTICE_URL, headers=_auth(person))
+
+        assert push.call_count == 0
+        assert sent == {str(person.id): 0}
+        assert response.status_code == 200
+        assert response.json() == {
+            "notice": {"title": NOTICE_TITLE, "body": notice_body(person.display_name)}
+        }
+        assert await _markers_for(person) == [], "handing it out is not the same as it being seen"
+
+    async def test_it_is_shown_once_and_seeing_it_writes_the_marker(
+        self, client: AsyncClient, made: list[Profile]
+    ) -> None:
+        person = await _committed_member(made, subscribed=False)
+
+        with _renamed(person):
+            shown = await client.get(NOTICE_URL, headers=_auth(person))
+            seen = await client.post(f"{NOTICE_URL}/seen", headers=_auth(person))
+            next_load = await client.get(NOTICE_URL, headers=_auth(person))
+
+        assert shown.json()["notice"] is not None
+        assert seen.status_code == 204
+        assert next_load.status_code == 200
+        assert next_load.json() == {"notice": None}
+        [marker] = await _markers_for(person)
+        assert marker.target_table == "profiles"
+        assert marker.changes == {"new": person.display_name, "channel": "in_app"}
+        assert marker.actor_id == person.id
+        assert marker.actor_type == ActorType.player
+
+    async def test_a_member_the_push_reached_is_not_shown_it(
+        self, client: AsyncClient, made: list[Profile]
+    ) -> None:
+        person = await _committed_member(made, subscribed=True)
+
+        with _renamed(person), push_enabled() as push:
+            await _run_the_boot_task()
+            response = await client.get(NOTICE_URL, headers=_auth(person))
+
+        assert push.call_count == 1
+        assert response.json() == {"notice": None}
+        assert len(await _markers_for(person)) == 1
+
+    async def test_once_seen_in_the_app_push_stops_trying(
+        self, client: AsyncClient, made: list[Profile]
+    ) -> None:
+        # The other direction: a member who read the dialog and subscribes afterwards must
+        # not then be pushed what they have already read.
+        person = await _committed_member(made, subscribed=False)
+
+        with _renamed(person):
+            await client.post(f"{NOTICE_URL}/seen", headers=_auth(person))
+            async with AsyncSessionLocal() as db:
+                db.add(
+                    PushSubscription(
+                        user_id=person.id,
+                        subscription={"endpoint": "https://example.test/after", "keys": {}},
+                        is_active=True,
+                    )
+                )
+                await db.commit()
+            with push_enabled() as push:
+                sent = await _run_the_boot_task()
+
+        assert push.call_count == 0
+        assert sent == {}
+        assert len(await _markers_for(person)) == 1
+
+    async def test_dismissing_it_twice_leaves_one_marker(
+        self, client: AsyncClient, made: list[Profile]
+    ) -> None:
+        # Two tabs, or a double tap before the dialog closes.
+        person = await _committed_member(made)
+
+        with _renamed(person):
+            first = await client.post(f"{NOTICE_URL}/seen", headers=_auth(person))
+            second = await client.post(f"{NOTICE_URL}/seen", headers=_auth(person))
+
+        assert first.status_code == 204
+        assert second.status_code == 204
+        assert len(await _markers_for(person)) == 1
+
+    async def test_everyone_else_is_shown_nothing_and_marked_nothing(
+        self, client: AsyncClient, made: list[Profile]
+    ) -> None:
+        renamed = await _committed_member(made)
+        everyone_else = await _committed_member(made)
+
+        with _renamed(renamed):
+            shown = await client.get(NOTICE_URL, headers=_auth(everyone_else))
+            seen = await client.post(f"{NOTICE_URL}/seen", headers=_auth(everyone_else))
+
+        assert shown.json() == {"notice": None}
+        assert seen.status_code == 204
+        assert await _markers_for(everyone_else) == []
+
+    async def test_it_needs_a_session(self, client: AsyncClient) -> None:
+        assert (await client.get(NOTICE_URL)).status_code == 401
+        assert (await client.post(f"{NOTICE_URL}/seen")).status_code == 401

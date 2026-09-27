@@ -4,6 +4,7 @@ import { TabBar } from './TabBar';
 import { OfflineBanner } from './OfflineBanner';
 import { ErrorBoundary } from './ErrorBoundary';
 import { PageTransition } from './PageTransition';
+import { RenameNotice } from './RenameNotice';
 
 export function Layout() {
   const location = useLocation();
@@ -19,6 +20,7 @@ export function Layout() {
         </ErrorBoundary>
       </main>
       <TabBar />
+      <RenameNotice />
     </div>
   );
 }

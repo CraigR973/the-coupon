@@ -687,6 +687,15 @@ export interface CrossLeagueSummary {
   per_league: PerLeagueSummary[];
 }
 
+/**
+ * `GET /api/v1/me/rename-notice` (Batch 148): the notice Batch 93 pushes to the members
+ * Batch 74 renamed, for the one push cannot reach. `notice` is null for everyone else,
+ * and for them too once either channel has told them.
+ */
+export interface RenameNoticeState {
+  notice: { title: string; body: string } | null;
+}
+
 // ---------------------------------------------------------------------------
 // Leagues (the social "leaderboard" layer — kept from the shared spine).
 // ---------------------------------------------------------------------------
