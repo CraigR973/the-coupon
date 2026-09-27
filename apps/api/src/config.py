@@ -93,32 +93,33 @@ class Settings(BaseSettings):
     # the request path, so these are the only thing standing between the pick page and the
     # free plan's 100 requests/hour and 500/day.
     #
-    # The arithmetic, using the measured launch Saturday: 131 qualifying fixtures batched
-    # ten at a time is 14 requests per full sweep, so browsing costs `14 * 3600 / ttl` per
-    # hour of continuous refreshing. At 300s that is 168/hour — over budget. At 900s it is
-    # 56/hour.
+    # The arithmetic uses the largest round production has held: 264 fixtures, 89 of them
+    # marked unpriced after the scheduled warm pass, leaving 175 priced fixtures batched
+    # into 18 requests per sweep. Batch 115 made the budget suite derive that pair from
+    # PostgreSQL instead of trusting the earlier 202 / 103 measurement typed in here.
     #
     # Batch 11 made the ceiling a function of how close lock is, because the two things a
     # price is used for want different freshness. Browsing the card tolerates a stale-ish
     # price; the price *frozen onto a pick* does not — and buying that freshness for the
     # one fixture being picked costs a single request instead of a sweep:
     #
-    #   lock > 24h away   -> `odds_cache_ttl_seconds`      7200s ->  7/hour
-    #   lock 6-24h away   -> half of it                    3600s -> 14/hour
-    #   lock < 6h away    -> `odds_cache_near_ttl_seconds` 1800s -> 28/hour
+    #   lock > 24h away   -> `odds_cache_ttl_seconds`     14400s ->  5/hour
+    #   lock 6-24h away   -> half of it                    7200s ->  9/hour
+    #   lock < 6h away    -> `odds_cache_near_ttl_seconds` 3600s -> 18/hour
     #   submitting a pick -> `odds_cache_pick_ttl_seconds`   60s -> 1 request per fixture
     #
-    # The **daily** cap is what sets these, not the hourly one. 500/day minus the ~60 the
-    # discovery job spends leaves 440 for odds, or 31 sweeps. A fully saturated day —
-    # someone refreshing continuously for 24 hours — is 18 sweeps at the loose tiers plus
-    # 12 in the final six hours: 30 sweeps, 420 requests, 480 with discovery. The tightest
-    # hour is then 28/hour against a 100/hour allowance, so there is room to tighten the
-    # near tier if the daily budget ever grows; there is none to tighten it today.
+    # The **daily** cap sets these, not the hourly one. At the measured 264 / 89 shape, a
+    # fully saturated day costs 252 browsing requests. Discovery, the weekly catalogue
+    # release and one cold warm pass bring that to 400; the whole manual admin allowance
+    # brings it to 460 of 500. The final hour costs 18 browsing requests, leaving the
+    # fifty-request pick reserve intact. Browsed prices trade freshness for that margin;
+    # the one price frozen onto a pick is still re-fetched at the 60-second tier and a
+    # movement is refused explicitly rather than silently scored.
     #
     # `tests/test_request_budget.py` asserts this arithmetic against a real cache rather
     # than trusting this comment.
-    odds_cache_ttl_seconds: int = 7200
-    odds_cache_near_ttl_seconds: int = 1800
+    odds_cache_ttl_seconds: int = 14400
+    odds_cache_near_ttl_seconds: int = 3600
     odds_cache_pick_ttl_seconds: int = 60
 
     # ── What the absence of a price costs (Batch 114) ───────────────────────────

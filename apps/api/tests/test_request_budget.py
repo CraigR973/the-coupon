@@ -16,9 +16,9 @@ here passed, because the round it budgeted for was a hardcoded
 Set it to 202 and five of these tests fail: the saturated day, both slate-fetch limits,
 one member changing their mind, and a league's whole pick allowance.
 
-So the round is no longer declared here. :data:`OBSERVED_LARGEST_ROUND` is a *measurement*
-with a date against it, :func:`test_the_budget_covers_the_largest_round_the_database_holds`
-turns red when a real card outgrows it, and the sweeps below are driven through the same
+So the round is no longer declared here. The suite reads its largest round and unpriced
+share from PostgreSQL, keeping :data:`RECORDED_ROUND_FLOOR` only for a database with no
+rounds and for runs with no database at all. The sweeps below are driven through the same
 ``askable`` / ``record_observations`` loop the pick screen runs — so what they count is the
 requests the shipped code would actually send, filter and all, rather than a model of it.
 """
@@ -27,8 +27,10 @@ from __future__ import annotations
 
 import math
 import os
+import uuid
 from collections.abc import AsyncIterator
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 
 import pytest
 import pytest_asyncio
@@ -38,7 +40,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.database import AsyncSessionLocal
 from src.models.fixture import Fixture
-from src.models.gameweek import GameweekFixture
+from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
+from src.models.league import League
+from src.models.profile import Profile
 from src.services.competitions import (
     MEASURED_DAILY_WALK,
     MEASURED_PLAYED_CATALOGUE,
@@ -54,20 +58,35 @@ from tests.test_odds_pricing import _fixture
 HOURLY_LIMIT = 100
 DAILY_LIMIT = 500
 
-#: The largest round the deployment has been observed to hold, and how much of it the
-#: bookmaker prices. Measured against production on 2026-09-05 — 2-1 Hibs's open round,
-#: the one that exhausted the plan: **202 fixtures, 103 of them ``england-fa-cup``**
-#: qualifying ties, non-league from AFC Portchester down, and the sweep log read
-#: ``fixtures=202 priced=99``. Bet365 priced not one of the 103.
+
+@dataclass(frozen=True)
+class RoundShape:
+    """One real round's total and the subset learned to be unpriced."""
+
+    total: int
+    unpriced: int
+
+    def __post_init__(self) -> None:
+        if self.total <= 0:
+            raise ValueError("a budgeted round must hold at least one fixture")
+        if not 0 <= self.unpriced <= self.total:
+            raise ValueError("unpriced fixtures must be a subset of the round")
+
+    @property
+    def priced(self) -> int:
+        """Fixtures not marked unpriced, conservatively costed as priced."""
+        return self.total - self.unpriced
+
+
+#: The fallback and floor when PostgreSQL has no round to measure. Read from production on
+#: 2026-09-27 at 09:55 UTC after the scheduled marker warm pass: the largest round held 264
+#: fixtures and 89 carried the durable unpriced marker. The other 175 are conservatively
+#: costed as priced; a priced fixture deliberately carries no positive marker.
 #:
-#: A measurement, not a design constant. The number that made this module lie was
-#: ``LAUNCH_SATURDAY_FIXTURES = 131`` — a real measurement too, of a Saturday that stopped
-#: being the biggest one. What keeps this one honest is not its value but
-#: `test_the_budget_covers_the_largest_round_the_database_holds`, which fails when a card
-#: outgrows it, so a round that grows turns the suite red rather than surprising a member.
-OBSERVED_LARGEST_ROUND = 202
-OBSERVED_UNPRICED = 103
-OBSERVED_PRICED = OBSERVED_LARGEST_ROUND - OBSERVED_UNPRICED
+#: This is not the trusted input when the database holds a larger round. The selector below
+#: keeps the pair coupled to one round, chooses the least-unpriced one when totals tie, and
+#: only uses this dated pair to stop an empty or test-seeded database shrinking the budget.
+RECORDED_ROUND_FLOOR = RoundShape(total=264, unpriced=89)
 
 #: What a walk of the competition catalogue costs, measured live with ``fetch_competitions``
 #: on 2026-09-12 and held in one place (:mod:`src.services.competitions`) so this module and
@@ -96,19 +115,21 @@ EVENTS_PER_ODDS_REQUEST = 10
 
 # Mirrors the defaults in `Settings`; asserted against them below so the two cannot
 # drift apart silently.
-FAR_TTL = 7200.0
-NEAR_TTL = 1800.0
+FAR_TTL = 14400.0
+NEAR_TTL = 3600.0
 PICK_TTL = 60.0
-
-#: Event ids for the priced part of that round — the ones a pick can be taken on, and so
-#: the ones every per-fixture assertion below indexes into.
-SLATE = [f"ev{i}" for i in range(OBSERVED_PRICED)]
-#: And the ties the bookmaker prices nothing on, which the card learns to stop asking about.
-UNPRICED_SLATE = [f"cup{i}" for i in range(OBSERVED_UNPRICED)]
 
 #: A wall clock for the marker, beside the monotonic one the cache runs on. The two advance
 #: together — `_card_load` is the only thing that moves either.
 EPOCH = datetime(2026, 9, 5, 0, 0)
+
+
+def _priced_event_ids(shape: RoundShape) -> list[str]:
+    return [f"ev{i}" for i in range(shape.priced)]
+
+
+def _unpriced_event_ids(shape: RoundShape) -> list[str]:
+    return [f"unpriced{i}" for i in range(shape.unpriced)]
 
 
 def _sweeps(inner: _CountingProvider) -> int:
@@ -116,12 +137,12 @@ def _sweeps(inner: _CountingProvider) -> int:
     return sum(math.ceil(len(call) / EVENTS_PER_ODDS_REQUEST) for call in inner.odds_calls)
 
 
-def _cache(clock: _Clock) -> tuple[CachingOddsProvider, _CountingProvider]:
-    inner = _CountingProvider(priced=set(SLATE))
+def _cache(clock: _Clock, shape: RoundShape) -> tuple[CachingOddsProvider, _CountingProvider]:
+    inner = _CountingProvider(priced=set(_priced_event_ids(shape)))
     return CachingOddsProvider(inner, ttl_seconds=FAR_TTL, clock=clock), inner
 
 
-def _round_fixtures(*, learned: bool = True) -> list:
+def _round_fixtures(shape: RoundShape, *, learned: bool = True) -> list:
     """The production round as unattached ORM rows.
 
     ``learned`` is the state the *database* is in, and it is the realistic one: a round is
@@ -133,14 +154,14 @@ def _round_fixtures(*, learned: bool = True) -> list:
 
     ``learned=False`` is the genuinely cold card — a brand-new round, once.
     """
-    priced = [_fixture(event_id) for event_id in SLATE]
+    priced = [_fixture(event_id) for event_id in _priced_event_ids(shape)]
     unpriced = [
         _fixture(
             event_id,
             unpriced_since=EPOCH if learned else None,
             checked_at=EPOCH if learned else None,
         )
-        for event_id in UNPRICED_SLATE
+        for event_id in _unpriced_event_ids(shape)
     ]
     return priced + unpriced
 
@@ -150,9 +171,8 @@ async def _card_load(
 ) -> None:
     """One pick-screen load, through the same two rules the router runs.
 
-    Deliberately the whole loop rather than a bare ``fetch_odds``: the saving this batch
-    buys is that the second sweep asks about 99 fixtures instead of 202, and it only shows
-    up if the marker is being written between the two.
+    Deliberately the whole loop rather than a bare ``fetch_odds``: the saving only shows
+    up if the marker is written between the cold sweep and the next priced-only one.
     """
     now = EPOCH + timedelta(seconds=clock.now)
     asked = askable(fixtures, now, recheck_seconds=settings.odds_unpriced_recheck_seconds)
@@ -177,19 +197,26 @@ async def _browse_for(
         clock.advance(every_seconds)
 
 
-async def _tightest_browsing_hour() -> int:
+async def _tightest_browsing_hour(shape: RoundShape) -> int:
     """Fifteen members hammering the page every twenty seconds for the final hour."""
     clock = _Clock()
-    cache, inner = _cache(clock)
-    await _browse_for(cache, clock, _round_fixtures(), hours=1, max_age=NEAR_TTL, every_seconds=20)
+    cache, inner = _cache(clock, shape)
+    await _browse_for(
+        cache,
+        clock,
+        _round_fixtures(shape),
+        hours=1,
+        max_age=NEAR_TTL,
+        every_seconds=20,
+    )
     return _sweeps(inner)
 
 
-async def _saturated_day_of_browsing() -> int:
+async def _saturated_day_of_browsing(shape: RoundShape) -> int:
     """A full 24 hours of someone refreshing continuously, through every tier."""
     clock = _Clock()
-    cache, inner = _cache(clock)
-    fixtures = _round_fixtures()
+    cache, inner = _cache(clock, shape)
+    fixtures = _round_fixtures(shape)
     # Lock more than a day out: the loosest ceiling.
     await _browse_for(cache, clock, fixtures, hours=12, max_age=FAR_TTL, every_seconds=60)
     # The day before and match morning.
@@ -222,27 +249,57 @@ def _weekly_full_catalogue_walk() -> int:
     return FULL_CATALOGUE_COMPETITIONS
 
 
-def _warm_pass() -> int:
+def _warm_pass(shape: RoundShape) -> int:
     """What the marker-warming pass spends on a cold round of the size budgeted for.
 
     The worst case and the rarest: a round the deployment has never swept. Every pass after
     it asks only about the priced subset, and a round already learned inside its re-check
     window costs nothing at all.
     """
-    return math.ceil(OBSERVED_LARGEST_ROUND / EVENTS_PER_ODDS_REQUEST)
+    return math.ceil(shape.total / EVENTS_PER_ODDS_REQUEST)
 
 
-# ── The round the budget is sized on (Batch 114) ─────────────────────────────
+# ── The round the budget is sized on (Batches 114 and 115) ───────────────────
+
+
+async def _database_round_shape(db: AsyncSession) -> RoundShape | None:
+    """The largest stored round and its own unpriced share, kept as one pair."""
+    total = func.count(GameweekFixture.fixture_id)
+    unpriced = func.count().filter(Fixture.odds_unpriced_since_utc.is_not(None))
+    row = (
+        await db.execute(
+            select(
+                total.label("total"),
+                unpriced.label("unpriced"),
+            )
+            .select_from(GameweekFixture)
+            .join(Fixture, Fixture.id == GameweekFixture.fixture_id)
+            .group_by(GameweekFixture.gameweek_id)
+            # A same-size round with fewer unpriced fixtures costs more to sweep.
+            .order_by(total.desc(), unpriced.asc(), GameweekFixture.gameweek_id.asc())
+            .limit(1)
+        )
+    ).one_or_none()
+    if row is None:
+        return None
+    return RoundShape(total=int(row.total), unpriced=int(row.unpriced))
+
+
+def _certified_round_shape(database_shape: RoundShape | None) -> RoundShape:
+    """Use live database evidence without letting an empty scratch DB shrink the floor."""
+    if database_shape is None:
+        return RECORDED_ROUND_FLOOR
+    return max(RECORDED_ROUND_FLOOR, database_shape, key=lambda shape: (shape.total, shape.priced))
 
 
 @pytest_asyncio.fixture
 async def session() -> AsyncIterator[AsyncSession]:
-    """A read-only session for the one test here that needs the database.
+    """A rolled-back session for the seeded derivation test.
 
     Local rather than in `conftest` because this module is otherwise pure arithmetic and
     must keep running without a database — the budget it asserts is a property of the
-    code, and losing every one of these tests on a laptop with no PostgreSQL would be a
-    poor trade for one tripwire.
+    code. The seed is isolated inside this transaction and never relies on rows another
+    test happened to commit first.
     """
     async with AsyncSessionLocal() as db:
         try:
@@ -251,53 +308,97 @@ async def session() -> AsyncIterator[AsyncSession]:
             await db.rollback()
 
 
+@pytest_asyncio.fixture
+async def round_shape() -> RoundShape:
+    """The production-shaped input every budget simulation shares."""
+    if not os.environ.get("DATABASE_URL"):
+        return RECORDED_ROUND_FLOOR
+    async with AsyncSessionLocal() as db:
+        return _certified_round_shape(await _database_round_shape(db))
+
+
+def test_round_shape_falls_back_to_the_recorded_pair_without_a_database_round() -> None:
+    assert _certified_round_shape(None) == RECORDED_ROUND_FLOOR
+    assert (
+        _certified_round_shape(
+            RoundShape(
+                total=RECORDED_ROUND_FLOOR.total - 1,
+                unpriced=0,
+            )
+        )
+        == RECORDED_ROUND_FLOOR
+    ), "scratch rows must not shrink the production floor"
+
+
 @pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
 )
-async def test_the_budget_covers_the_largest_round_the_database_holds(
+async def test_round_shape_derives_both_figures_from_a_seeded_database(
     session: AsyncSession,
 ) -> None:
-    """The tripwire that `LAUNCH_SATURDAY_FIXTURES = 131` could never be.
-
-    That constant was a real measurement of a real Saturday. What made it dangerous was
-    that nothing re-took it: the deployment's biggest round grew to 202 and the number
-    stayed 131, so this module went on certifying a budget for a card that no longer
-    existed while members were refused picks against the one that did.
-
-    Reading the database is what closes that loop. A round that outgrows the measurement
-    fails here — visibly, on the gate, before a match morning — instead of surprising a
-    member.
-    """
-    biggest = (
-        await session.execute(
-            select(func.count())
-            .select_from(GameweekFixture)
-            .group_by(GameweekFixture.gameweek_id)
-            .order_by(func.count().desc())
-            .limit(1)
+    """A round larger than the floor drives both total and unpriced budget inputs."""
+    existing = await _database_round_shape(session)
+    target_total = (
+        max(
+            RECORDED_ROUND_FLOOR.total,
+            existing.total if existing is not None else 0,
         )
-    ).scalar()
-
-    if biggest is None:
-        pytest.skip("no rounds in this database to measure")
-    assert biggest <= OBSERVED_LARGEST_ROUND, (
-        f"a round holds {biggest} fixtures, past the {OBSERVED_LARGEST_ROUND} this module "
-        f"budgets for — re-measure OBSERVED_LARGEST_ROUND and OBSERVED_UNPRICED against "
-        f"production, then re-run this suite and fix whatever it turns red"
+        + 1
     )
+    target_unpriced = target_total // 3
+    tag = uuid.uuid4().hex
+
+    owner = Profile(display_name=f"budget-owner-{tag}", pin_hash=None)
+    session.add(owner)
+    await session.flush()
+    league = League(slug=f"budget-{tag}", name=f"Budget {tag}", created_by=owner.id)
+    session.add(league)
+    await session.flush()
+    gameweek = Gameweek(
+        league_id=league.id,
+        starts_on=date(2036, 9, 6),
+        status=GameweekStatus.open,
+        locks_at_utc=datetime(2036, 9, 6, 14, 30),
+    )
+    session.add(gameweek)
+    await session.flush()
+
+    fixtures = [
+        Fixture(
+            provider_event_id=f"budget-{tag}-{index}",
+            home=f"Home {index}",
+            away=f"Away {index}",
+            kickoff_utc=datetime(2036, 9, 6, 15, 0) + timedelta(minutes=index),
+            competition="Budget competition",
+            competition_id=f"budget-competition-{index % 3}",
+            odds_unpriced_since_utc=EPOCH if index < target_unpriced else None,
+            odds_checked_at_utc=EPOCH if index < target_unpriced else None,
+        )
+        for index in range(target_total)
+    ]
+    session.add_all(fixtures)
+    await session.flush()
+    session.add_all(
+        GameweekFixture(gameweek_id=gameweek.id, fixture_id=fixture.id) for fixture in fixtures
+    )
+    await session.flush()
+
+    expected = RoundShape(total=target_total, unpriced=target_unpriced)
+    assert await _database_round_shape(session) == expected
+    assert _certified_round_shape(await _database_round_shape(session)) == expected
 
 
-async def test_the_production_shape_costs_ten_requests_a_sweep_not_twenty_one() -> None:
+async def test_the_derived_shape_costs_only_its_priced_subset_after_learning(
+    round_shape: RoundShape,
+) -> None:
     """The saving, measured end to end rather than argued.
 
-    The first load of a cold card pays for all 202, because the deployment has not learned
-    anything yet. Every load after it pays for the 99 the bookmaker prices — which is what
-    lets the near tier stay where it is instead of spending 42 requests an hour on a plan
-    with 100.
+    The first load of a cold card pays for the whole derived round. Every load after it
+    pays only for the subset not marked unpriced.
     """
     clock = _Clock()
-    cache, inner = _cache(clock)
-    fixtures = _round_fixtures(learned=False)
+    cache, inner = _cache(clock, round_shape)
+    fixtures = _round_fixtures(round_shape, learned=False)
 
     await _card_load(cache, fixtures, clock, max_age=NEAR_TTL)
     first = _sweeps(inner)
@@ -305,48 +406,55 @@ async def test_the_production_shape_costs_ten_requests_a_sweep_not_twenty_one() 
     await _card_load(cache, fixtures, clock, max_age=NEAR_TTL)
     second = _sweeps(inner) - first
 
-    assert first == 21, "the cold card costs what the whole round costs"
-    assert second == 10, f"the second sweep cost {second} requests, not ten"
+    assert first == math.ceil(round_shape.total / EVENTS_PER_ODDS_REQUEST)
+    assert second == math.ceil(round_shape.priced / EVENTS_PER_ODDS_REQUEST)
 
 
-async def test_the_unpriced_ties_are_re_asked_once_a_recheck_and_no_oftener() -> None:
+async def test_the_unpriced_ties_are_re_asked_once_a_recheck_and_no_oftener(
+    round_shape: RoundShape,
+) -> None:
     """The bound that stops the saving becoming a fixture hidden for good."""
+    shape = round_shape if round_shape.unpriced else RoundShape(total=round_shape.total, unpriced=1)
     clock = _Clock()
-    cache, inner = _cache(clock)
-    fixtures = _round_fixtures()
+    cache, inner = _cache(clock, shape)
+    fixtures = _round_fixtures(shape)
     recheck = settings.odds_unpriced_recheck_seconds
 
     # A full day of match-morning browsing at the tightest tier.
     await _browse_for(cache, clock, fixtures, hours=24, max_age=NEAR_TTL, every_seconds=NEAR_TTL)
 
-    cup_asks = sum(1 for call in inner.odds_calls if "cup0" in call)
+    unpriced_asks = sum(1 for call in inner.odds_calls if "unpriced0" in call)
     windows = 24 * 3600 // recheck
     sweeps = len(inner.odds_calls)
-    assert 1 <= cup_asks <= windows, (
-        f"the unpriced ties were asked about {cup_asks} times in 24 hours, against {sweeps} "
+    assert 1 <= unpriced_asks <= windows, (
+        f"the unpriced ties were asked about {unpriced_asks} times in 24 hours, against {sweeps} "
         f"sweeps and {windows} re-check windows — one per window is the bound, and never "
         f"zero, because a bookmaker that opens a market late has to be found"
     )
 
 
-async def test_saturated_browsing_near_lock_stays_inside_the_hourly_limit() -> None:
+async def test_saturated_browsing_near_lock_stays_inside_the_hourly_limit(
+    round_shape: RoundShape,
+) -> None:
     """The worst hour is the one before lock, with everyone refreshing constantly."""
-    assert await _tightest_browsing_hour() <= HOURLY_LIMIT
+    assert await _tightest_browsing_hour(round_shape) <= HOURLY_LIMIT
 
 
-async def test_a_saturated_day_of_browsing_stays_inside_the_daily_limit() -> None:
+async def test_a_saturated_day_of_browsing_stays_inside_the_daily_limit(
+    round_shape: RoundShape,
+) -> None:
     """A full 24 hours of someone refreshing continuously, through every tier.
 
     This is the worst case the design has to survive, not the expected one: fifteen
     friends do not refresh a coupon for a day without pause. If this passes, real
     traffic cannot exhaust the quota.
     """
-    browsing = await _saturated_day_of_browsing()
+    browsing = await _saturated_day_of_browsing(round_shape)
     discovery = _daily_discovery()
     # The worst *day*: the Sunday the full-catalogue walk also runs, and a round so new
     # the warm pass pays for all of it.
     weekly = _weekly_full_catalogue_walk()
-    warm = _warm_pass()
+    warm = _warm_pass(round_shape)
     total = browsing + discovery + weekly + warm
     why = (
         f"browsing {browsing} + discovery {discovery} + full-catalogue walk {weekly} + "
@@ -367,21 +475,30 @@ def upcoming_saturdays_for_budget() -> list[object]:
     )
 
 
-async def test_freezing_every_members_pick_costs_one_request_each() -> None:
+async def test_freezing_every_members_pick_costs_one_request_each(
+    round_shape: RoundShape,
+) -> None:
     """The submit path buys freshness the browse path cannot afford — per fixture.
 
     Fifteen members freezing a price is fifteen single-event requests, not fifteen
     sweeps of the card. That asymmetry is the whole reason ``max_age_seconds`` exists.
     """
     clock = _Clock()
-    cache, inner = _cache(clock)
+    cache, inner = _cache(clock, round_shape)
+    priced_event_ids = _priced_event_ids(round_shape)
+    assert len(priced_event_ids) >= 15, "the measured round must carry a full league's picks"
 
-    await _card_load(cache, _round_fixtures(), clock, max_age=NEAR_TTL)  # one sweep to browse
+    await _card_load(
+        cache,
+        _round_fixtures(round_shape),
+        clock,
+        max_age=NEAR_TTL,
+    )  # one sweep to browse
     sweeps_after_browse = _sweeps(inner)
 
     for member in range(15):
         clock.advance(120)  # each member takes a couple of minutes to choose
-        await cache.fetch_odds([SLATE[member]], max_age_seconds=PICK_TTL)
+        await cache.fetch_odds([priced_event_ids[member]], max_age_seconds=PICK_TTL)
 
     assert _sweeps(inner) - sweeps_after_browse == 15
 
@@ -526,14 +643,18 @@ def test_the_slate_fetch_limit_is_bounded_by_the_day_as_well_as_the_hour() -> No
     assert set(_slate_fetch_limits()) == {"hour", "day"}
 
 
-async def test_the_slate_fetch_limit_fits_what_the_hour_leaves_spare() -> None:
+async def test_the_slate_fetch_limit_fits_what_the_hour_leaves_spare(
+    round_shape: RoundShape,
+) -> None:
     """The bucket's whole allowance must fit beside the peak browsing hour."""
-    spare = HOURLY_LIMIT - await _tightest_browsing_hour()
+    spare = HOURLY_LIMIT - await _tightest_browsing_hour(round_shape)
     spend = _slate_fetch_limits()["hour"] * SLATE_WALK_REQUESTS
     assert spend <= spare, f"{spend} admin-triggered requests an hour against {spare} spare"
 
 
-async def test_the_slate_fetch_limit_fits_what_the_day_leaves_spare() -> None:
+async def test_the_slate_fetch_limit_fits_what_the_day_leaves_spare(
+    round_shape: RoundShape,
+) -> None:
     """And beside a fully saturated day of browsing plus the discovery run.
 
     This is the arithmetic the ad-hoc endpoint got wrong before Batch 57: at ``6/hour`` an
@@ -541,8 +662,8 @@ async def test_the_slate_fetch_limit_fits_what_the_day_leaves_spare() -> None:
     silent — picks stay ``pending`` and the week never finishes. That endpoint is gone, and
     the bound it taught the bucket is what the surviving two spenders inherit.
     """
-    scheduled = _daily_discovery() + _weekly_full_catalogue_walk() + _warm_pass()
-    spare = DAILY_LIMIT - await _saturated_day_of_browsing() - scheduled
+    scheduled = _daily_discovery() + _weekly_full_catalogue_walk() + _warm_pass(round_shape)
+    spare = DAILY_LIMIT - await _saturated_day_of_browsing(round_shape) - scheduled
     spend = _slate_fetch_limits()["day"] * SLATE_WALK_REQUESTS
     assert spend <= spare, f"{spend} admin-triggered requests a day against {spare} spare"
 
@@ -592,7 +713,9 @@ def _pick_submit_limits() -> dict[str, int]:
     return {item.GRANULARITY.name: item.amount for item in parse_many(PICK_SUBMIT_LIMIT)}
 
 
-async def test_one_member_cannot_exhaust_the_plan_by_changing_their_mind() -> None:
+async def test_one_member_cannot_exhaust_the_plan_by_changing_their_mind(
+    round_shape: RoundShape,
+) -> None:
     """No single member's whole allowance may outspend what the hour leaves.
 
     This is the property that failed. At the previous ``60/hour`` one member could spend
@@ -602,7 +725,7 @@ async def test_one_member_cannot_exhaust_the_plan_by_changing_their_mind() -> No
     """
     spare = (
         HOURLY_LIMIT
-        - await _tightest_browsing_hour()
+        - await _tightest_browsing_hour(round_shape)
         - _slate_fetch_limits()["hour"] * (SLATE_WALK_REQUESTS)
     )
     spend = _pick_submit_limits()["hour"]
@@ -674,7 +797,9 @@ def test_the_aggregate_pick_bound_is_capped_by_the_day_as_well_as_the_hour() -> 
     assert _pick_shared_limits()["day"] < _pick_shared_limits()["hour"] * 24
 
 
-async def test_a_leagues_whole_pick_allowance_fits_what_the_hour_leaves_spare() -> None:
+async def test_a_leagues_whole_pick_allowance_fits_what_the_hour_leaves_spare(
+    round_shape: RoundShape,
+) -> None:
     """Peak browsing plus a league picking flat out must still fit the hour.
 
     Browsing is the fixed cost and does not grow with membership — the slate cache
@@ -687,12 +812,14 @@ async def test_a_leagues_whole_pick_allowance_fits_what_the_hour_leaves_spare() 
     submitting picks would refuse real claims to protect a press that is not happening —
     rounds are built days ahead, the pick peak is the hour before lock.
     """
-    spare = HOURLY_LIMIT - await _tightest_browsing_hour()
+    spare = HOURLY_LIMIT - await _tightest_browsing_hour(round_shape)
     spend = _pick_shared_limits()["hour"]
     assert spend <= spare, f"{spend} pick requests an hour against {spare} spare"
 
 
-async def test_a_leagues_whole_pick_allowance_fits_what_the_day_leaves_spare() -> None:
+async def test_a_leagues_whole_pick_allowance_fits_what_the_day_leaves_spare(
+    round_shape: RoundShape,
+) -> None:
     """And beside a fully saturated day of browsing plus the scheduled discovery run.
 
     The margin here is the thinnest in this module, and that is honest rather than
@@ -700,7 +827,7 @@ async def test_a_leagues_whole_pick_allowance_fits_what_the_day_leaves_spare() -
     without pause, which the module already calls the case the design has to survive
     rather than the one it expects.
     """
-    spare = DAILY_LIMIT - await _saturated_day_of_browsing() - _daily_discovery()
+    spare = DAILY_LIMIT - await _saturated_day_of_browsing(round_shape) - _daily_discovery()
     spend = _pick_shared_limits()["day"]
     assert spend <= spare, f"{spend} pick requests a day against {spare} spare"
 
@@ -717,7 +844,9 @@ def test_the_aggregate_bound_still_lets_a_full_league_take_its_picks() -> None:
     assert _pick_shared_limits()["hour"] >= LEAGUE_MAX_MEMBERS
 
 
-async def test_the_per_league_bound_alone_covers_only_a_league_or_two() -> None:
+async def test_the_per_league_bound_alone_covers_only_a_league_or_two(
+    round_shape: RoundShape,
+) -> None:
     """The residual Batch 161 closed, kept as the reason it had to be closed.
 
     The per-league bucket is keyed on the league (``picks._league_budget_key``), so on
@@ -731,7 +860,7 @@ async def test_the_per_league_bound_alone_covers_only_a_league_or_two() -> None:
     stays as the tripwire on the numbers: it says how many leagues the per-league figure
     covers on its own, so a change to either the limit or the plan comes back through here.
     """
-    peak_browsing = await _tightest_browsing_hour()
+    peak_browsing = await _tightest_browsing_hour(round_shape)
     concurrent_leagues_covered = (HOURLY_LIMIT - peak_browsing) // _pick_shared_limits()["hour"]
     assert (
         concurrent_leagues_covered >= 1
@@ -840,21 +969,25 @@ def test_no_number_of_leagues_can_exceed_the_installation_plan_across_a_day(
     assert bounded <= DAILY_LIMIT
 
 
-async def test_the_installation_allowance_is_what_the_hour_actually_leaves_spare() -> None:
+async def test_the_installation_allowance_is_what_the_hour_actually_leaves_spare(
+    round_shape: RoundShape,
+) -> None:
     """The number is derived, not chosen.
 
     Peak browsing is the fixed cost and does not grow with the number of leagues any more
     than it grows with membership — the slate cache collapses every reader into one sweep
     — so what browsing leaves is what the deployment's pick path may spend.
     """
-    spare = HOURLY_LIMIT - await _tightest_browsing_hour()
+    spare = HOURLY_LIMIT - await _tightest_browsing_hour(round_shape)
     assert (
         _pick_installation_limits()["hour"] <= spare
     ), f"{_pick_installation_limits()['hour']} pick requests an hour against {spare} spare"
 
 
-async def test_the_installation_allowance_fits_the_day_beside_browsing_and_discovery() -> None:
-    spare = DAILY_LIMIT - await _saturated_day_of_browsing() - _daily_discovery()
+async def test_the_installation_allowance_fits_the_day_beside_browsing_and_discovery(
+    round_shape: RoundShape,
+) -> None:
+    spare = DAILY_LIMIT - await _saturated_day_of_browsing(round_shape) - _daily_discovery()
     assert _pick_installation_limits()["day"] <= spare
 
 

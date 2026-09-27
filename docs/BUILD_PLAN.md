@@ -64,9 +64,11 @@ ticked rows can collect here until someone moves them below.
   `OBSERVED_LARGEST_ROUND = 202` and `OBSERVED_UNPRICED = 103` by hand, and its tripwire
   compares the database against that literal (checked 2026-09-27). So item 1, its open
   decision and its verification lines are done; the title has dropped their half, which was
-  "Nothing learns until a member arrives". The change is to tests, but
-  `scripts/check-deploy-drift.sh` counts anything under `apps/api` as reaching the image, so
-  a `/ship-prod` follows close-out even when no runtime code moves.
+  "Nothing learns until a member arrives". The primary change is to tests. The live
+  measurement made the certified budget red, so the owner also approved the item 2 lever
+  on 2026-09-27: browse TTLs move from 2h / 1h / 30m to 4h / 2h / 1h, while the 60-second
+  pick tier stays fixed. `scripts/check-deploy-drift.sh` counts anything under `apps/api`
+  as reaching the image, so a `/ship-prod` follows close-out.
   Specified 2026-09-06 from the `/ship-prod` of Batch 114, which closed the outage and left
   two things measurably open. Both are about the same thing: the deployment now *can* learn
   which fixtures a bookmaker prices, and nothing makes it learn at a useful moment or feeds
@@ -140,6 +142,9 @@ ticked rows can collect here until someone moves them below.
   that broke — and said to take that number from the counters rather than from the paragraph.
   The counters shipped; they have no production data through them yet, and item 1 is what will
   give them some. Deciding it here would be taking the number from the paragraph after all.
+  The 2026-09-27 decision goes the other way: the derived 264 / 89 shape cannot satisfy the
+  free plan at the old ceilings, so browsing deliberately loosens to 4h / 2h / 1h. Pick
+  submission remains on its separate 60-second ceiling and still refuses `PRICE_MOVED`.
 
   Verification: the scheduled pass writing the marker with no member involved, and a member's
   first card load afterwards costing the priced subset rather than the whole round; the pass
@@ -154,8 +159,9 @@ ticked rows can collect here until someone moves them below.
 
   Scope boundary: when and by what the marker is learned, and where the budget suite gets its
   figures. No change to what the marker *means*, to the card filter, to `PRICE_MOVED`, to the
-  `429` cooldown, or to the reserve. No change to the TTL tiers themselves. **API only — no
-  web half, so nothing reaches members until `/ship-prod`.** Depends on Batch 114, which
+  `429` cooldown, or to the reserve. The only runtime change is the owner-approved browse TTL
+  move from 2h / 1h / 30m to 4h / 2h / 1h; the 60-second pick tier does not move. **API only
+  — no web half, so nothing reaches members until `/ship-prod`.** Depends on Batch 114, which
   shipped 2026-09-06; independent of Batches 112 and 113.
 
 - [ ] **Batch 140 — The desktop layout is the phone layout stretched**
