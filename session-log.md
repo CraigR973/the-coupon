@@ -7398,3 +7398,26 @@ and 1,197 frontend tests passed, 0 skipped
   ahead of the deployed API and therefore safe. No migration; `/ship-prod` is owed.
 
 **Next:** `/ship-prod` for Batch 115; then `/group-start Z`.
+
+## Fix — Production daily-walk measurement
+**Commits:** `99b5fc9` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,350 backend
+and 1,197 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **The production pool grew, not the catalogue.** A read-only check on 2026-09-27 found
+  36 pooled competitions and 23 that survive the product trim: the previous 20 plus the
+  EFL Trophy southern group D, Scottish Challenge Cup and Welsh Cup.
+- **The product filter did not change.** The frozen production vocabulary now proves that
+  the same 13 unwanted competitions are still removed; only the measured daily-walk input
+  moved from 20 to 23.
+- **Certified margin:** saturated browsing 252 + daily discovery 92 + weekly discovery 41
+  + marker warming 27 + the full manual allowance 69 = 481 of 500 requests/day, leaving
+  19. The peak hour is 74 of 100 including a full-league pick burst.
+- **Production-shaped acceptance passed before this push:** 50 read-only tests passed
+  against production; only the transaction-backed seed test was deselected. The earlier
+  post-close-out run had correctly failed at 23 actual versus 20 recorded.
+- **Close-out safety:** API-only; before this fix, the deployed API was already one
+  API-bearing commit behind `origin/main` because Batch 115 had not shipped. No migration;
+  one `/ship-prod` ships Batch 115 and this fix together.
+
+**Next:** `/ship-prod` for Batch 115 and this fix; then `/group-start Z`.

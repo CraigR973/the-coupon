@@ -29,10 +29,11 @@ Checked 2026-09-27 unless a line says otherwise.
 
 ## Owed
 
-- **`/ship-prod` is owed for Batch 115.** Its API-only close-out changes no schema: the
-  request-budget suite now derives the largest round from PostgreSQL, and browsed odds
-  loosen from 2h / 1h / 30m to 4h / 2h / 1h so the measured production shape fits the
-  free plan. Production remains Railway `07af30bc` (`c671ccf9`) at migration `026`.
+- **`/ship-prod` is owed for Batch 115 and its production-measurement fix.** The API-only
+  changes add no schema: the request-budget suite now derives the largest round from
+  PostgreSQL, browsed odds loosen from 2h / 1h / 30m to 4h / 2h / 1h, and the daily walk
+  is remeasured at 23 played competitions. The certified worst day is 481 of 500 requests.
+  Production remains Railway `07af30bc` (`c671ccf9`) at migration `026`.
 - **Rollback is a plain redeploy.** That shipment applied no migration, so its baseline —
   Railway `d295c44a-ea26-4575-9bb7-469f2e6d8cf1`, the previous image — boots against the
   database as it stands, and rolling the API back alone hides Batch 148's dialog. Vercel's
