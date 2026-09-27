@@ -3418,3 +3418,48 @@ drift **in sync**, the stable alias still on `dpl_8dMZXBdnSJuxUerq8aDaCzATVzhs`,
 `36304350112` `success` on `c671ccf9`.
 
 Backup/restore-point identity: **none yet** — Batch 95's backup is still switched off.
+
+### 2026-09-27 — `b08a47f3`, Batch 115 and its measurement fix (no migration)
+
+API only. Batch 115 replaced the request-budget suite's typed round size with the largest
+stored production round and lengthened only the browse cache tiers; its prerequisite fix
+remeasured the production fixture pool at 36 competitions, 23 after the unchanged product
+trim. The exact clean commit passed the local gate (11 checks, 1,350 backend and 1,197
+frontend tests, 0 skipped), and GitHub Actions run `36314373806` exists for the commit and
+passed.
+
+Preflight: Supabase `pugujiiojitstkilphrz` was `ACTIVE_HEALTHY` in London; Railway targets
+matched the recorded project, environment, service and domain, `railwayConfigFile` was
+null, and all 13 required variables were present by name with no `BACKUP_*` variables.
+Vercel production held encrypted production-scoped `VITE_API_URL` and
+`VITE_VAPID_PUBLIC_KEY`. `scripts/check-migration-recovery.sh` passed: production and the
+repository were both at `026`, so this shipment applied no migration.
+
+The pinned IaC plan reported 0 to add, 2 to change and 0 to destroy against the existing
+`api` service only. Applying it started redeploy
+`e77dde8f-9bf3-4c6c-9080-addf52504307` of `c671ccf9`; it reached `SUCCESS` before the source
+upload and is this shipment's plain rollback baseline. Nothing migrated, so that image
+boots against the database as it stands.
+
+Railway `86f9ba84-b72d-4791-80ab-c3730ccd9032`, `SUCCESS`. `/health` returned `200`, SHA
+`b08a47f3` and migration `026`; `/health/ready` returned `200`, `db: ok` and `026`.
+Manifest: one replica in `europe-west4-drams3a`, sleep off, restart `ON_FAILURE`, healthcheck
+`/api/v1/health/ready` at 300 seconds, 0.25 vCPU / 500 MB and IPv6 egress on. The final
+bounded Railway snapshot held 49 lines with zero startup or migration errors and no hit on
+the five credential/member-data leak patterns. Railway labels six normal Alembic/Uvicorn
+stderr lines as error-level; all six classified to those two startup components.
+
+Vercel was a no-op: GitHub had already deployed `b08a47f3` as
+`dpl_3robg45FXRnNWsmETNvrs1dagtL6`, `READY`, and the stable alias pointed to it. Its static
+deployment produced no runtime log lines.
+
+Post-deploy smoke: web root, `/leagues/discover` and `/settings` all returned `200` with one
+SPA asset and retained CSP, `X-Frame-Options: DENY`, HSTS, nosniff, referrer, permissions
+and cache headers. Exact-origin CORS returned `200` with credentials; a foreign origin was
+refused with `400` and no `Access-Control-Allow-Origin`. Readiness remained green after the
+web check, and `scripts/check-deploy-drift.sh` reported **in sync**. A read-only production
+transaction found RLS enabled and forced on 21 of 21 public tables, no table grants or
+effective privileges for `anon`, `authenticated` or `PUBLIC`, no schema grants, and head
+`026`.
+
+Backup/restore-point identity: **none yet** — Batch 95's backup is still switched off.

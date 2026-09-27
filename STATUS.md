@@ -13,9 +13,9 @@ Checked 2026-09-27 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `c671ccf9` at migration `026` |
-| API deployment | Railway `07af30bc-5395-4f88-a75a-3f0957921928`, one replica, `europe-west4` |
-| Web | `the-coupon-production.vercel.app`, `c671ccf9`; Vercel builds `main` on every push |
+| API | `api-production-109b1.up.railway.app` serves `b08a47f3` at migration `026` |
+| API deployment | Railway `86f9ba84-b72d-4791-80ab-c3730ccd9032`, one replica, `europe-west4` |
+| Web | `the-coupon-production.vercel.app`, `b08a47f3`; Vercel builds `main` on every push |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -29,15 +29,13 @@ Checked 2026-09-27 unless a line says otherwise.
 
 ## Owed
 
-- **`/ship-prod` is owed for Batch 115 and its production-measurement fix.** The API-only
-  changes add no schema: the request-budget suite now derives the largest round from
-  PostgreSQL, browsed odds loosen from 2h / 1h / 30m to 4h / 2h / 1h, and the daily walk
-  is remeasured at 23 played competitions. The certified worst day is 481 of 500 requests.
-  Production remains Railway `07af30bc` (`c671ccf9`) at migration `026`.
-- **Rollback is a plain redeploy.** That shipment applied no migration, so its baseline —
-  Railway `d295c44a-ea26-4575-9bb7-469f2e6d8cf1`, the previous image — boots against the
-  database as it stands, and rolling the API back alone hides Batch 148's dialog. Vercel's
-  last build without the dialog is `dpl_8mU9qpVZ6pqZQXErPHHH8Rp9uqpe`.
+- **No `/ship-prod` is owed.** Batch 115 and its 23-competition measurement fix shipped on
+  2026-09-27 as Railway `86f9ba84` (`b08a47f3`); the drift check reports **in sync**, and
+  the certified worst day is 481 of 500 provider requests.
+- **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
+  Railway `e77dde8f-9bf3-4c6c-9080-addf52504307`, the previous `c671ccf9` image — boots
+  against the database as it stands. Vercel was already on `b08a47f3` at
+  `dpl_3robg45FXRnNWsmETNvrs1dagtL6`, so the web app did not move during `/ship-prod`.
 
 ## Waiting on the owner
 

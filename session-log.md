@@ -7421,3 +7421,26 @@ and 1,197 frontend tests passed, 0 skipped
   one `/ship-prod` ships Batch 115 and this fix together.
 
 **Next:** `/ship-prod` for Batch 115 and this fix; then `/group-start Z`.
+
+## Shipment — 2026-09-27, `b08a47f3` (Batch 115 + measurement fix; no migration)
+**Railway:** `86f9ba84-b72d-4791-80ab-c3730ccd9032` `SUCCESS` · rollback baseline
+`e77dde8f-…` (plain — nothing migrated) · Vercel no-op
+(`dpl_3robg45FXRnNWsmETNvrs1dagtL6`, `b08a47f3`) · drift **in sync** · CI run
+`36314373806` green · gate 11 checks, backend 1,350, frontend 1,197
+
+### Key facts for future sessions
+- **The live budget is the certified one.** Production now derives the largest round from
+  PostgreSQL, uses 4h / 2h / 1h browse TTLs, and budgets the 23-competition daily walk at
+  481 of 500 requests with 19 spare. The 60-second pick tier is unchanged.
+- **No schema or product-filter change.** Image and database both report migration `026`;
+  the same 13 unwanted competitions are excluded.
+- **Production proof:** `/health` and readiness returned `200` for `b08a47f3`, the stable
+  web routes served one SPA with the committed headers, exact-origin CORS passed, and the
+  foreign origin was refused.
+- **Security proof:** a read-only production transaction found forced RLS on 21 of 21
+  tables and no table or schema grants to `anon`, `authenticated` or `PUBLIC`. The final
+  49-line Railway snapshot contained no startup, migration or leak-pattern finding.
+- **IaC:** the pinned plan was the usual 0 add / 2 change / 0 destroy; its redeploy
+  `e77dde8f` reached `SUCCESS` before the source upload and is the rollback baseline.
+
+**Next:** `/group-start Z`.
