@@ -29,10 +29,10 @@ Checked 2026-09-27 unless a line says otherwise.
 
 ## Owed
 
-- **No `/ship-prod` is owed.** Batch 148 shipped on 2026-09-27 at 09:42 BST as Railway
-  `07af30bc` (`c671ccf9`); the drift check reports **in sync**, and a read-only recheck
-  found 21 of 21 tables with RLS forced and no grants to `anon`, `authenticated` or
-  `PUBLIC`.
+- **`/ship-prod` is owed for Batch 115.** Its API-only close-out changes no schema: the
+  request-budget suite now derives the largest round from PostgreSQL, and browsed odds
+  loosen from 2h / 1h / 30m to 4h / 2h / 1h so the measured production shape fits the
+  free plan. Production remains Railway `07af30bc` (`c671ccf9`) at migration `026`.
 - **Rollback is a plain redeploy.** That shipment applied no migration, so its baseline —
   Railway `d295c44a-ea26-4575-9bb7-469f2e6d8cf1`, the previous image — boots against the
   database as it stands, and rolling the API back alone hides Batch 148's dialog. Vercel's
@@ -70,21 +70,11 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Six rows are open (2026-09-27); they are at the head of `docs/BUILD_PLAN.md`. The owner
-grouped them on 2026-09-27 by what each group needs from the owner, replacing the run
-order agreed on 2026-09-24:
+Five rows are open (2026-09-27); they are at the head of `docs/BUILD_PLAN.md`:
 
-1. ~~**`/group-start V` — 148**~~ — closed out and shipped 2026-09-27.
-2. **`/batch-start 115`** — the budget suite trusts a round size typed in by hand.
-   Rescoped on 2026-09-27 to that half alone; the warm pass it also asked for shipped with
-   Batch 119. It changes tests, but the drift check counts anything under `apps/api`, so
-   a `/ship-prod` follows it. Its rerun can end in a money decision — a bigger odds plan —
-   if the largest round no longer fits the hourly allowance.
-3. **`/group-start Z` — 151 → 140 → 168 → 150 → 149**, the rest of the visual pass.
+1. **`/group-start Z` — 151 → 140 → 168 → 150 → 149**, the rest of the visual pass.
    Web-only with no stops: each reaches members on its own close-out push. The order and
    its reasons are under Group Z in `docs/review/2026-09-13/08-sequencing.md`.
-
-115 and Group Z do not depend on each other, so either can go second.
 
 ## Toolchain
 
@@ -93,7 +83,8 @@ Checked 2026-09-24.
 - **The gate is `scripts/ci-local.sh`**: eleven checks and no skips. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
   (backend 1,342, frontend 1,187). 11 to 13 minutes on this Mac, and 38 when macOS's storage scan loads it (2026-09-25). Without a database the
-  backend suite was 780 passed and 520 skipped at 1,300 tests — not the gate.
+  backend suite was 780 passed and 520 skipped at 1,300 tests — not the gate. Current
+  ratchets are 1,350 backend and 1,197 frontend tests.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
   `apps/api/requirements-dev.txt`: Python 3.12, FastAPI 0.141.1, ruff 0.5.4. app-starter's
   venv cannot import the suite.

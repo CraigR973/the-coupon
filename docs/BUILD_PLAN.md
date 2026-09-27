@@ -55,7 +55,7 @@ ticked rows can collect here until someone moves them below.
 
 ### Open batches
 
-- [ ] **Batch 115 — The budget certifies a round that no longer exists**
+- [x] **Batch 115 — The budget certifies a round that no longer exists** ✅ 2026-09-27
   **Rescoped 2026-09-27 (owner decision): item 2 below, and nothing else.** This row was
   recorded on 2026-09-11 as superseded by Batch 119, folding both its items in, but 119's own
   row carried only item 1. That half shipped with it: the warm pass is

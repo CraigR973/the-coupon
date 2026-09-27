@@ -7374,3 +7374,27 @@ frontend 1,197 — plus a local browser run of the dialog against a scratch API
   with reason `redeploy`, as on 2026-09-26.
 
 **Next:** watch for `rename notice seen in the app` in the API logs; then Batch 115.
+
+## Batch 115 — The budget certifies a round that no longer exists
+**Commits:** `828f42d` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,350 backend
+and 1,197 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **Production measured 2026-09-27 09:55 UTC:** the largest stored round held 264 fixtures;
+  89 carried the durable unpriced marker, so the other 175 are conservatively budgeted as
+  priced. The read used a read-only transaction and made no provider call.
+- **The database now supplies the certification pair.** The suite selects the largest
+  round with its own unpriced share, chooses the least-unpriced shape on a size tie, and
+  falls back to the dated 264 / 89 floor only when PostgreSQL has nothing larger.
+- **The free plan fits without shrinking the product horizon.** Browsing is now 4h / 2h /
+  1h; the 60-second pick tier, two-week discovery horizon, one-week warm horizon, marker,
+  `429` cooldown and fifty-request reserve are unchanged.
+- **Certified margin:** saturated browsing 252 + scheduled work 148 + the full manual
+  admin allowance 60 = 460 of 500 requests/day. Peak browsing is 18/hour; a pick still
+  re-prices one fixture and refuses `PRICE_MOVED` rather than silently freezing a change.
+- **Focused check failure, fixed before the gate:** pinned Ruff reported the edited budget
+  test needed formatting; the pinned formatter repaired it. The full gate passed first run.
+- **Close-out safety:** API-only; the pre-push drift was one documentation-only commit
+  ahead of the deployed API and therefore safe. No migration; `/ship-prod` is owed.
+
+**Next:** `/ship-prod` for Batch 115; then `/group-start Z`.
