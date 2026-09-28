@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 
 const API = process.env.COUPON_E2E_API_URL ?? 'http://127.0.0.1:8000';
 const ARTIFACT_DIR =
@@ -47,6 +47,14 @@ async function expectNoAxeViolations(page: Page): Promise<void> {
   expect(violations).toEqual([]);
 }
 
+async function expectDesktopColumns(left: Locator, right: Locator): Promise<void> {
+  const [leftBox, rightBox] = await Promise.all([left.boundingBox(), right.boundingBox()]);
+  expect(leftBox).not.toBeNull();
+  expect(rightBox).not.toBeNull();
+  expect(leftBox!.x).toBeLessThan(rightBox!.x);
+  expect(Math.abs(leftBox!.y - rightBox!.y)).toBeLessThanOrEqual(12);
+}
+
 async function login(browser: Browser, displayName: string): Promise<Page> {
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -76,7 +84,7 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   request,
 }) => {
   // This is the retained full product journey: three members, two themes, live axe
-  // scans and 18 screenshots against the production bundle. Its individual waits
+  // scans and responsive screenshots against the production bundle. Its individual waits
   // keep the normal short failure signal; the journey itself needs headroom on a
   // loaded local machine.
   test.setTimeout(120_000);
@@ -236,6 +244,54 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
       path: join(ARTIFACT_DIR, `batch-113-season-week-${theme}-390x844.png`),
     });
   }
+
+  // Batch 140. Desktop is a supported way to play: the round's two working surfaces sit
+  // together, and the season lists use the width rather than leaving phone-sized rows in
+  // an empty frame. The mobile checks above deliberately run first and remain stacked.
+  await alice.setViewportSize({ width: 1280, height: 800 });
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(alice, theme);
+    await expectDesktopColumns(
+      alice.getByTestId('coupon-section'),
+      alice.getByTestId('slate-section'),
+    );
+    await expectNoAxeViolations(alice);
+    await expectNoColourContrastViolations(alice);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-140-round-${theme}-1280x800.png`),
+    });
+  }
+
+  await alice.goto('/leagues/the-coupon/leaderboard');
+  const standings = alice.getByTestId('standings');
+  await expect(standings).toContainText('Bob');
+  await expect(standings.locator('> li')).toHaveCount(3);
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(alice, theme);
+    await expectDesktopColumns(standings.locator('> li').first(), standings.locator('> li').nth(1));
+    await expectNoAxeViolations(alice);
+    await expectNoColourContrastViolations(alice);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-140-standings-${theme}-1280x800.png`),
+    });
+  }
+
+  await alice.goto('/leagues/the-coupon/predictions/results');
+  const results = alice.getByTestId('results-list');
+  await expect(results).toContainText('Bob');
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(alice, theme);
+    const columns = await results.evaluate(
+      (node) => getComputedStyle(node).gridTemplateColumns.trim().split(/\s+/).length,
+    );
+    expect(columns).toBe(2);
+    await expectNoAxeViolations(alice);
+    await expectNoColourContrastViolations(alice);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-140-season-${theme}-1280x800.png`),
+    });
+  }
+  await alice.setViewportSize({ width: 390, height: 844 });
 
   // Batch 26: home and My profile answer for every league the member plays, not
   // for whichever one happens to be bound.

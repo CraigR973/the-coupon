@@ -159,7 +159,7 @@ export function LeaderboardPage() {
               — with what each one scored.
             </p>
           )}
-          <ol className="mt-2 flex flex-col gap-2" data-testid="standings">
+          <ol className="mt-2 flex flex-col gap-2 lg:grid lg:grid-cols-2" data-testid="standings">
             {standings.map((s) => {
               const isMe = s.player_id === player?.id;
               return (

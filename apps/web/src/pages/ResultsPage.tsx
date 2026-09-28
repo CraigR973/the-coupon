@@ -99,7 +99,7 @@ export function ResultsPage() {
       )}
 
       {results.length > 0 && (
-        <ol className="flex flex-col gap-2" data-testid="results-list">
+        <ol className="flex flex-col gap-2 lg:grid lg:grid-cols-2" data-testid="results-list">
           {results.map((result) => (
             <li key={result.gameweek_id} id={`gw-${result.gameweek_id}`}>
               <button

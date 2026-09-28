@@ -111,7 +111,7 @@ export function TopBar() {
         'pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-safe',
       )}
     >
-      <div className="max-w-6xl mx-auto px-4 h-16 md:h-14 flex items-center gap-4">
+      <div className="max-w-7xl mx-auto px-4 h-16 md:h-14 flex items-center gap-4">
         {/* ── Mobile layout (< md): toggle | centred brand | avatar ── */}
         <div className="relative flex md:hidden items-center w-full justify-between">
           {themeToggle}

@@ -472,9 +472,9 @@ export function CurrentRoundPage() {
           — so for the whole window a member could act in, the thing the game builds toward
           was below a fixture list sized for a hundred rows. Its legs fold away, which is
           what stops leading with it pushing the slate down by the league's membership. */}
-      <div className="flex flex-col gap-6">
-        {couponBlock}
-        {slateBlock}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-2">
+        <div className="min-w-0">{couponBlock}</div>
+        <div className="min-w-0">{slateBlock}</div>
       </div>
     </div>
   );
