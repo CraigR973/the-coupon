@@ -199,7 +199,7 @@ ticked rows can collect here until someone moves them below.
   Scope boundary: the rename notice's delivery channels. No general display-name-changed
   system. **API + web.**
 
-- [ ] **Batch 149 — Toasts collide with the tab bar, skeletons do not match what replaces them, and errors look like empty states**
+- [x] **Batch 149 — Toasts collide with the tab bar, skeletons do not match what replaces them, and errors look like empty states** ✅ 2026-09-28
   — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-04, DES-05 and DES-06
   (med impact, live). The toaster is anchored bottom-right with no offset for the 60px tab
   bar or the safe area, so on a phone a toast lands on the navigation. Loading states are

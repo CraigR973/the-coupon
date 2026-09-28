@@ -69,11 +69,8 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-One row is open (2026-09-28); it is at the head of `docs/BUILD_PLAN.md`:
-
-1. **`/group-start Z` — 149**, the final visual-pass batch.
-   Web-only with no stops: each reaches members on its own close-out push. The order and
-   its reasons are under Group Z in `docs/review/2026-09-13/08-sequencing.md`.
+No build batches are open (2026-09-28). Group Z's five web-only visual-pass batches are
+closed out; Vercel will build the final Batch 149 push from `main`.
 
 ## Toolchain
 
@@ -81,9 +78,9 @@ Checked 2026-09-24.
 
 - **The gate is `scripts/ci-local.sh`**: eleven checks and no skips. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,342, frontend 1,187). 11 to 13 minutes on this Mac, and 38 when macOS's storage scan loads it (2026-09-25). Without a database the
+  (backend 1,350, frontend 1,204). 11 to 13 minutes on this Mac, and 38 when macOS's storage scan loads it (2026-09-25). Without a database the
   backend suite was 780 passed and 520 skipped at 1,300 tests — not the gate. Current
-  ratchets are 1,350 backend and 1,199 frontend tests.
+  ratchets are 1,350 backend and 1,204 frontend tests.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
   `apps/api/requirements-dev.txt`: Python 3.12, FastAPI 0.141.1, ruff 0.5.4. app-starter's
   venv cannot import the suite.

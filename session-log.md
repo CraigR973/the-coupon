@@ -7497,3 +7497,17 @@ and 1,199 frontend tests passed, 0 skipped; production-bundle coupon journey pas
 - **Close-out safety:** web-only; pre-push drift held eight web/documentation commits, migration `026` unchanged, so no `/ship-prod` is owed.
 
 **Next:** Batch 149 — the final Group Z visual-pass batch.
+
+## Batch 149 — Toasts collide with the tab bar, skeletons do not match what replaces them, and errors look like empty states
+**Commits:** `aa28601` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,350 backend
+and 1,204 frontend tests passed, 0 skipped; production-bundle deep-link smoke passed.
+
+### Key facts for future sessions
+- **Phone toasts clear navigation.** The visible Sonner stack now rises by the tab bar, safe-area inset and 16px through 639px, including Sonner's 600–639px breakpoint gap; the existing assertive/polite announcements stay unchanged.
+- **Loading keeps its destination's shape.** Shared placeholders use the existing reduced-motion-safe shimmer, and Home uses card-shaped placeholders instead of anonymous full-width bars.
+- **Request failures are actionable.** Dashboard, Season, Standings, Career, Team Season and Football now use a distinct alert treatment with an in-place retry; successful empty states retain their neutral dashed treatment.
+- **390px evidence:** dark and light browser captures prove a toast ends above the primary tab bar, loading cards hold their shape, and a failed Home request is visually distinct, axe-clean and resolves through Retry.
+- **Gate failures, fixed:** the first gate correctly rejected the frontend count rise from 1,199 to 1,204, so the ratchet was raised and the entire gate rerun. The second full frontend run timed out in two unrelated existing tests; both passed in an untouched `main` checkout and the third full run passed all 1,204 tests.
+- **Close-out safety:** web-only; pre-push drift held ten prior web/documentation commits, migration `026` unchanged, so no `/ship-prod` is owed.
+
+**Next:** Group Z is complete; Vercel builds this close-out push from `main`.
