@@ -423,9 +423,14 @@
      mobile layout at 600px. Set both offsets so a toast always clears the bar. */
   @media (max-width: 639px) {
     .coupon-toaster[data-sonner-toaster] {
-      --offset-bottom: calc(var(--tabbar-height) + var(--safe-bottom) + 1rem);
-      --mobile-offset-bottom: calc(var(--tabbar-height) + var(--safe-bottom) + 1rem);
+      --offset-bottom: calc(var(--tabbar-height) + var(--safe-bottom) + 1rem) !important;
     }
+  }
+
+  /* Sonner's stock rich-colour text misses normal-text contrast on several pale
+     light surfaces. The icon, border and background still convey the toast type. */
+  .coupon-toaster [data-rich-colors='true'][data-sonner-toast] [data-title] {
+    color: var(--text-primary) !important;
   }
 
   /* ── Batch 164: what framer-motion used to do ─────────────────────────────

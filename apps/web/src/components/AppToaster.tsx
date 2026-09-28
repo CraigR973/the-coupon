@@ -42,6 +42,7 @@ export function AppToaster() {
         richColors
         closeButton
         className="coupon-toaster"
+        mobileOffset={{ bottom: 'calc(var(--tabbar-height) + var(--safe-bottom) + 1rem)' }}
       />
       {/* `role="alert"` is assertive by definition, and carrying it on the element
           that is always present — rather than on the message — is what makes an

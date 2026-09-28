@@ -185,7 +185,12 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
     ]);
     expect(toastBox).not.toBeNull();
     expect(tabBarBox).not.toBeNull();
-    expect(toastBox!.y + toastBox!.height).toBeLessThanOrEqual(tabBarBox!.y);
+    await expect
+      .poll(async () => {
+        const settledBox = await toast.boundingBox();
+        return settledBox ? settledBox.y + settledBox.height : Number.POSITIVE_INFINITY;
+      })
+      .toBeLessThanOrEqual(tabBarBox!.y);
     await expectNoColourContrastViolations(alice);
     await alice.screenshot({
       path: join(ARTIFACT_DIR, `batch-149-toast-clear-${theme}-390x844.png`),
@@ -519,7 +524,11 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   });
   const holdSummary = async (route: Route) => {
     await summaryHeld;
-    await route.continue();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '{"total_points":0,"picks_played":0,"picks_won":0,"win_rate_pct":null,"leagues_count":0,"per_league":[]}',
+    }).catch(() => undefined);
   };
   await firstRun.route('**/api/v1/me/cross-league-summary', holdSummary);
   await firstRun.reload();
