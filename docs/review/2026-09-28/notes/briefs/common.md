@@ -104,7 +104,8 @@ its notes. Read this whole file, then your lens brief, then start.
 
 - All working notes go in your lens's notes dir under
   `docs/review/2026-09-28/notes/` — scripts, command output, probe transcripts,
-  measurements. Never in /tmp or the scratchpad.
+  measurements. Never in /tmp or the scratchpad. **`*.log` is gitignored in this
+  repo — save command output as `.txt`**, or it will never be committed.
 - Keep `<your notes dir>/progress.md` current: what is done, what is in flight,
   the exact next step. If you are interrupted, a fresh session must be able to
   continue from it alone.
