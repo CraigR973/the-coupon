@@ -61,7 +61,13 @@ async function login(browser: Browser, displayName: string): Promise<Page> {
   await expect(page.getByRole('heading', { name: "This week's coupon" })).toBeVisible();
   await expect(page.getByTestId('competition-10932509')).toBeVisible();
   await expect(page.getByTestId('competition-10932510')).toBeVisible();
-  await expect(page.locator('[data-testid^="pick-card-"]')).toHaveCount(0);
+  // Batch 139 deliberately opens the first ordered competition, so a member sees a
+  // fixture and price immediately rather than a screen of closed headings. Keep the
+  // browser flow tied to that contract: the seeded slate has one card in that first
+  // group and none in the still-collapsed second group.
+  const firstCompetition = page.getByTestId('competition-10932509');
+  await expect(firstCompetition.locator('[data-testid^="pick-card-"]')).toHaveCount(1);
+  await expect(page.locator('[data-testid^="pick-card-"]')).toHaveCount(1);
   return page;
 }
 
@@ -69,13 +75,17 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   browser,
   request,
 }) => {
+  // This is the retained full product journey: three members, two themes, live axe
+  // scans and 18 screenshots against the production bundle. Its individual waits
+  // keep the normal short failure signal; the journey itself needs headroom on a
+  // loaded local machine.
+  test.setTimeout(120_000);
   mkdirSync(ARTIFACT_DIR, { recursive: true });
 
   const seeded = await request.post(`${API}/__e2e/seed`);
   expect(seeded.ok(), await seeded.text()).toBeTruthy();
 
   const alice = await login(browser, 'Alice');
-  await alice.getByTestId('competition-10932509').getByRole('button').click();
   await alice.getByRole('button', { name: /Arsenal.*1\.90.*win 19 pts/i }).click();
   await expect(alice.getByTestId('my-pick-summary')).toContainText('Arsenal');
 
@@ -85,7 +95,6 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   await expect(bob.getByTestId('my-pick-summary')).toContainText('Forfar Athletic');
 
   const carol = await login(browser, 'Carol');
-  await carol.getByTestId('competition-10932509').getByRole('button').click();
   const takenArsenal = carol.getByRole('button', { name: /Arsenal.*taken by Alice/i });
   await expect(takenArsenal).toBeDisabled();
 
@@ -337,9 +346,9 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   const careerLeagues = alice.getByTestId('career-leagues').locator('> li');
   await expect(careerLeagues).toHaveCount(2);
   await expect(careerLeagues.first()).toContainText('#2 of 3');
-  // Rank only averages over leagues big enough to rank against — the new
-  // one-member league is excluded and the page says so.
-  await expect(alice.getByText(/Averaged over 1 of your 2 leagues/)).toBeVisible();
+  // Batch 157 removed averaged rank: league sizes make it a misleading figure.
+  // The profile keeps only the meaningful per-league ranks and says why.
+  await expect(alice.getByText(/Rank does not average across them/)).toBeVisible();
   await expect(alice.getByTestId('career-league-work-league')).toBeVisible();
   await alice.screenshot({ path: join(ARTIFACT_DIR, 'career-profile.png'), fullPage: true });
 
