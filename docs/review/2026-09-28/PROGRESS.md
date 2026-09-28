@@ -12,8 +12,8 @@ Branch `chore/review-2026-09-28`, cut from `main` at `eb18bcb`. Never push, merg
 | `date` checked | done | Mon 28 Sep 2026 22:40 BST |
 | branch + `00-prompt.md` committed | done | `f45f128` |
 | drift check | done | API `b08a47f3` at migration 026; `main` `eb18bcb` is 14 commits ahead, none reach the API image → **in sync**, exit 0 |
-| full gate | running | `notes/baseline-ci-full.log` |
-| `SKIP_PROD_BUNDLE=1` gate | todo | `notes/baseline-ci-skip.log` |
+| full gate | **PASS, 11 checks, 11m18s** — backend 1,350 / 0 skipped, frontend 1,204 / 0 skipped, both equal to the ratchets | `notes/baseline-ci-full.log` |
+| `SKIP_PROD_BUNDLE=1` gate | running (started 22:57) | `notes/baseline-ci-skip.log` |
 | shared harness | smoke-tested 22:47 (API health, HTTP login, bundle build, Chromium sign-in) | `notes/harness/stack.py`, `notes/harness/web.sh` |
 | lens briefs | written | `notes/briefs/common.md` + one per lens |
 
@@ -21,8 +21,8 @@ Branch `chore/review-2026-09-28`, cut from `main` at `eb18bcb`. Never push, merg
 
 | lens | state | notes dir | next step |
 | --- | --- | --- | --- |
-| 01 security | todo | `notes/01-security/` | |
-| 02 correctness | todo | `notes/02-correctness/` | |
+| 01 security | running (subagent, launched 22:57) | `notes/01-security/` | |
+| 02 correctness | running (subagent, launched 22:57) | `notes/02-correctness/` | |
 | 03 UX / a11y | todo | `notes/03-ux/` | |
 | 04 performance / ops | todo | `notes/04-perf/` | |
 | 05 feature gaps | running (subagent, launched 22:53) | `notes/05-features/` | |

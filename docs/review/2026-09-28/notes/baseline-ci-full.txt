@@ -1,0 +1,31 @@
+quality guardrails: PASS — gate and lint/type configuration unchanged
+quality guardrails: expected tests — backend 1350 · frontend 1204
+python 3.12.13 · fastapi 0.141.1 · starlette 1.6.0 · ruff 0.5.4
+
+backend
+  ruff check                          PASS
+  ruff format --check                 PASS
+  mypy src                            PASS
+  alembic upgrade head + pytest       PASS (1350 tests, 0 skipped)
+
+node dependencies
+  pnpm install --frozen-lockfile      PASS
+
+deployment-config
+  railway/nixpacks/vercel assertions  PASS
+
+frontend
+  lint                                PASS
+  typecheck                           PASS
+  test                                PASS (1204 tests, 0 skipped)
+  build                               PASS
+
+prod-bundle
+  playwright deep-link smoke          PASS
+
+ci-local: PASS (11 checks)
+
+real	11m18.229s
+user	8m50.794s
+sys	0m46.536s
+exit=0
