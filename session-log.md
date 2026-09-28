@@ -7508,6 +7508,7 @@ and 1,204 frontend tests passed, 0 skipped; production-bundle deep-link smoke pa
 - **Request failures are actionable.** Dashboard, Season, Standings, Career, Team Season and Football now use a distinct alert treatment with an in-place retry; successful empty states retain their neutral dashed treatment.
 - **390px evidence:** dark and light browser captures prove a toast ends above the primary tab bar, loading cards hold their shape, and a failed Home request is visually distinct, axe-clean and resolves through Retry.
 - **Gate failures, fixed:** the first gate correctly rejected the frontend count rise from 1,199 to 1,204, so the ratchet was raised and the entire gate rerun. The second full frontend run timed out in two unrelated existing tests; both passed in an untouched `main` checkout and the third full run passed all 1,204 tests.
+- **Post-close-out browser correction:** the first seeded 390px run found Sonner's inline offset winning over the CSS, and its rich-colour toast title missing contrast. `4121cf0` supplies the mobile offset directly, clears the 600–639px gap, uses high-contrast toast titles, and waits for the entry transition before geometry measurement. The seeded journey then passed in 57.8 seconds; its subsequent complete gate passed all 11 checks.
 - **Close-out safety:** web-only; pre-push drift held ten prior web/documentation commits, migration `026` unchanged, so no `/ship-prod` is owed.
 
 **Next:** Group Z is complete; Vercel builds this close-out push from `main`.
