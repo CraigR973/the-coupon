@@ -38,7 +38,7 @@ export function VoidDenominatorNote({ shape }: { shape: PickShape }) {
   const priced = shape.picks_priced ?? 0;
   if (played === priced) return null;
   return (
-    <p className="mt-1 font-sans text-[11px] text-text-muted">
+    <p className="mt-1 font-sans text-caption text-text-muted">
       Odds figures cover the {priced} pick{priced === 1 ? '' : 's'} that ran; {played - priced}{' '}
       void {played - priced === 1 ? 'pick counts' : 'picks count'} as played but is not priced.
     </p>
@@ -89,7 +89,7 @@ export function PickShapeGrid({ shape }: { shape: Standing | PickShape }) {
 function Figure({ label, value }: { label: string; value: string | number | undefined }) {
   return (
     <div>
-      <dt className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">{label}</dt>
+      <dt className="font-mono text-caption uppercase tracking-[0.2em] text-text-muted">{label}</dt>
       <dd className="font-mono text-sm tabular-nums text-text-primary">{value ?? '—'}</dd>
     </div>
   );

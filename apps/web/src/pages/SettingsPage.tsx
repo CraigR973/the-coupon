@@ -577,7 +577,7 @@ function OddsFormatSection() {
               )}
             >
               {label}
-              <span className="font-mono text-[10px] tabular-nums text-text-muted">{sample}</span>
+              <span className="font-mono text-caption tabular-nums text-text-muted">{sample}</span>
             </button>
           );
         })}

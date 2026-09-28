@@ -81,6 +81,11 @@ export default {
         display: ['Outfit', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
       },
+      // Batch 151: no interface text sits below this named 12px / 16px
+      // caption step. Components use it instead of arbitrary 9–11px values.
+      fontSize: {
+        caption: ['0.75rem', { lineHeight: '1rem' }],
+      },
       borderRadius: {
         xs: 'var(--radius-xs)',
         sm: 'var(--radius-sm)',

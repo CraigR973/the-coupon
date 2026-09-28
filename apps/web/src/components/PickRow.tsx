@@ -301,7 +301,7 @@ export function PickRow({
           <Badge variant={STATUS_VARIANT[entry.status]}>{pickStatusLabel(entry.status)}</Badge>
         )}
         {settled && entry.points_awarded != null && (
-          <span className="font-mono text-[11px] tabular-nums text-text-muted">
+          <span className="font-mono text-caption tabular-nums text-text-muted">
             {entry.points_awarded} pts
           </span>
         )}

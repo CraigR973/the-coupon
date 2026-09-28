@@ -76,7 +76,7 @@ export function PickFormLine({ form, player, className }: PickFormLineProps) {
         <span key={round.gameweek_id} aria-hidden className="flex w-5 flex-col items-center gap-0.5">
           <span
             className={cn(
-              'inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border font-mono text-[9px] font-semibold leading-none',
+              'inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border font-mono text-caption font-semibold leading-none',
               PIP[round.status],
             )}
           >
@@ -84,7 +84,7 @@ export function PickFormLine({ form, player, className }: PickFormLineProps) {
           </span>
           {/* Blank rather than `0` under a round that scored nothing: five zeroes down a
               leaderboard is a column of noise, and the pip has already said what happened. */}
-          <span className="font-mono text-[9px] leading-none tabular-nums text-text-muted">
+          <span className="font-mono text-caption leading-none tabular-nums text-text-muted">
             {round.points > 0 ? round.points : ''}
           </span>
         </span>

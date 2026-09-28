@@ -301,6 +301,21 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
     });
   }
 
+  // Batch 151: the shared statistic component must stay legible and accessible on the
+  // desktop surface as well as the phone hero. The review's 1280 captures are the before
+  // evidence; these are the matching after captures from the production bundle.
+  await alice.setViewportSize({ width: 1280, height: 800 });
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(alice, theme);
+    await expect(alice.getByTestId('home-season-summary')).toContainText('19');
+    await expectNoAxeViolations(alice);
+    await expectNoColourContrastViolations(alice);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-151-home-${theme}-1280x800.png`),
+    });
+  }
+  await alice.setViewportSize({ width: 390, height: 844 });
+
   const created = await alice.evaluate(async (api) => {
     const token = localStorage.getItem('coupon_access');
     const response = await fetch(`${api}/api/v1/leagues`, {

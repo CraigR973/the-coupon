@@ -82,7 +82,7 @@ export function Brand({
     return (
       <span
         className={cn(
-          'inline-flex items-center gap-2 font-mono font-semibold uppercase tracking-[0.2em] text-[11px] leading-none text-wordmark-h whitespace-nowrap select-none',
+          'inline-flex items-center gap-2 font-mono font-semibold uppercase tracking-[0.2em] text-caption leading-none text-wordmark-h whitespace-nowrap select-none',
           className,
         )}
         aria-hidden={decorative ? true : undefined}

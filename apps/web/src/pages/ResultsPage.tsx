@@ -140,7 +140,7 @@ export function ResultsPage() {
                     {result.winner_points} pts
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="font-mono text-[10px] tabular-nums text-text-muted">
+                    <span className="font-mono text-caption tabular-nums text-text-muted">
                       {formatOdds(result.combined_odds, oddsFormat)}
                     </span>
                     {result.all_won !== null && (

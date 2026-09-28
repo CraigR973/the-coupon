@@ -6,15 +6,48 @@
  * same member, and a member who has just tapped through from one to the other
  * should not have to re-learn the layout.
  */
-export function StatCard({ label, value }: { label: string; value: string | number }) {
+import { cn } from '../lib/utils';
+
+interface StatCardProps {
+  label: string;
+  value: string | number;
+  compact?: boolean;
+  definition?: boolean;
+  className?: string;
+  valueClassName?: string;
+}
+
+export function StatCard({
+  label,
+  value,
+  compact = false,
+  definition = false,
+  className,
+  valueClassName,
+}: StatCardProps) {
+  const Label = definition ? 'dt' : 'span';
+  const Value = definition ? 'dd' : 'span';
+
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4">
-      <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-text-muted">
+    <div
+      className={cn(
+        'flex flex-col rounded-lg border border-border bg-surface',
+        compact ? 'gap-1 px-3 py-2.5' : 'gap-2 p-4',
+        className,
+      )}
+    >
+      <Label className="truncate font-mono text-caption uppercase tracking-[0.25em] text-text-muted">
         {label}
-      </span>
-      <span className="font-mono text-2xl font-semibold leading-none tabular-nums text-primary">
+      </Label>
+      <Value
+        className={cn(
+          'font-mono font-semibold leading-none tabular-nums',
+          compact ? 'text-xl' : 'text-2xl',
+          valueClassName ?? 'text-primary',
+        )}
+      >
         {value}
-      </span>
+      </Value>
     </div>
   );
 }

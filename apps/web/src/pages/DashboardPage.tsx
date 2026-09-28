@@ -18,6 +18,7 @@ import { predictionsPath } from '../lib/leagues';
 import { formatCalendarDate, formatInstant, parseInstant } from '../lib/time';
 import { PickFormLine } from '../components/PickFormLine';
 import { EmptyState } from '../components/EmptyState';
+import { StatCard } from '../components/StatCard';
 import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '../lib/utils';
@@ -180,7 +181,7 @@ export function DashboardPage() {
             >
               Your leagues
             </h2>
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+            <p className="font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
               {leagues.length} in play
             </p>
           </div>
@@ -248,7 +249,7 @@ function HomeHero({
       />
 
       <div className="relative">
-        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-primary">
+        <p className="font-mono text-caption uppercase tracking-[0.3em] text-primary">
           The Coupon · Your season
         </p>
         <h1
@@ -308,29 +309,34 @@ function HomeHero({
             aria-label="Your season at a glance"
             data-testid="home-season-summary"
           >
-            <HeroStat label="Points" value={summary.total_points} />
-            <HeroStat label="Picks won" value={`${summary.picks_won}/${summary.picks_played}`} />
-            <HeroStat
+            <StatCard
+              compact
+              definition
+              className="bg-surface-elevated"
+              label="Points"
+              value={summary.total_points}
+              valueClassName="text-text-primary"
+            />
+            <StatCard
+              compact
+              definition
+              className="bg-surface-elevated"
+              label="Picks won"
+              value={`${summary.picks_won}/${summary.picks_played}`}
+              valueClassName="text-text-primary"
+            />
+            <StatCard
+              compact
+              definition
+              className="bg-surface-elevated"
               label="Win rate"
               value={summary.win_rate_pct === null ? '—' : `${summary.win_rate_pct}%`}
+              valueClassName="text-text-primary"
             />
           </dl>
         ) : null}
       </div>
     </section>
-  );
-}
-
-function HeroStat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg border border-border bg-surface-elevated px-3 py-2.5">
-      <dt className="truncate font-mono text-[9px] uppercase tracking-[0.16em] text-text-muted">
-        {label}
-      </dt>
-      <dd className="mt-1 font-mono text-xl font-semibold leading-none tabular-nums text-text-primary">
-        {value}
-      </dd>
-    </div>
   );
 }
 
@@ -426,7 +432,7 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
             to the next round's opening, and `Last result` below already names that one. */}
         {namesRound && round && (
           <p
-            className="mb-2 truncate font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted"
+            className="mb-2 truncate font-mono text-caption uppercase tracking-[0.2em] text-text-muted"
             data-testid={`home-round-${entry.slug}`}
           >
             {roundName(
@@ -496,7 +502,7 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
         to={`/leagues/${entry.slug}/leaderboard`}
         className="flex items-center justify-between gap-3 rounded-b-xl border-t border-border px-5 py-3.5 transition-colors hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow"
       >
-        <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted sm:text-xs">
+        <span className="flex items-center gap-2 font-mono text-caption uppercase tracking-[0.2em] text-text-muted sm:text-xs">
           <Trophy className="h-4 w-4 text-primary" aria-hidden />
           Standings
         </span>
@@ -611,7 +617,7 @@ function LastResultPanel({ round, form }: { round: LastRoundView; form?: FormRou
   return (
     <div className="border-t border-border px-5 py-4" data-testid="last-result">
       <div className="flex items-center justify-between gap-3">
-        <p className="truncate font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+        <p className="truncate font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
           Last result · {round.label}
         </p>
         {movement != null && movement !== 0 && (

@@ -186,7 +186,7 @@ export function TabBar() {
                 />
                 <span
                   className={cn(
-                    'text-[10px] font-medium tracking-tight font-sans',
+                    'text-caption font-medium tracking-tight font-sans',
                     isCurrent ? 'text-primary' : 'text-text-muted',
                   )}
                 >

@@ -143,7 +143,7 @@ export function AdminDashboardPage() {
                     />
                   </div>
                   {!data.odds_budget.live && (
-                    <p className="mt-2 font-sans text-[11px] text-text-muted">
+                    <p className="mt-2 font-sans text-caption text-text-muted">
                       No provider session yet — nothing has been spent since this API
                       process started.
                     </p>
@@ -171,7 +171,7 @@ export function AdminDashboardPage() {
                 {data.scheduler.jobs.length > 0 && (
                   <ul className="mt-2 space-y-0.5">
                     {data.scheduler.jobs.map((job) => (
-                      <li key={job.id} className="font-mono text-[11px] text-text-muted">
+                      <li key={job.id} className="font-mono text-caption text-text-muted">
                         {job.id} · {job.next_run_utc ? when(job.next_run_utc) : 'idle'}
                       </li>
                     ))}
@@ -207,9 +207,9 @@ function Stat({ label, value, hint }: { label: string; value: number; hint?: str
   return (
     <Card>
       <CardContent className="p-3">
-        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">{label}</p>
+        <p className="font-mono text-caption uppercase tracking-[0.2em] text-text-muted">{label}</p>
         <p className="mt-1 text-2xl font-semibold tabular-nums text-text-primary">{value}</p>
-        {hint && <p className="font-sans text-[11px] text-text-muted">{hint}</p>}
+        {hint && <p className="font-sans text-caption text-text-muted">{hint}</p>}
       </CardContent>
     </Card>
   );
@@ -230,7 +230,7 @@ function Meter({ label, used, limit }: { label: string; used: number; limit: num
     fraction >= 0.75 ? 'bg-error' : fraction >= 0.5 ? 'bg-warning' : 'bg-success';
   return (
     <div>
-      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">{label}</p>
+      <p className="font-mono text-caption uppercase tracking-[0.2em] text-text-muted">{label}</p>
       <p className="mt-1 font-sans text-sm tabular-nums text-text-primary">
         {used} <span className="text-text-muted">/ {limit || '—'}</span>
       </p>
@@ -248,7 +248,7 @@ function Meter({ label, used, limit }: { label: string; used: number; limit: num
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="mb-2 font-mono text-[10px] uppercase tracking-[0.25em] text-text-muted">
+      <h2 className="mb-2 font-mono text-caption uppercase tracking-[0.25em] text-text-muted">
         {title}
       </h2>
       {children}

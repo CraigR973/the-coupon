@@ -64,14 +64,14 @@ export function LeagueSwitchStrip({ currentSlug, className }: Props) {
       data-testid="league-switch-strip"
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] font-mono uppercase tracking-[0.24em] text-text-primary">
+        <p className="text-caption font-mono uppercase tracking-[0.24em] text-text-primary">
           Your leagues
         </p>
         {/* Surface-neutral on purpose: the strip sits on the coupon and the results as
             well as the standings, and since Batch 34 a tap keeps the reader on whichever
             of those they are reading. It came off the football tables in Batch 51, where
             an untied screen left it a control that changed nothing. */}
-        <span className="rounded-full border border-border/80 bg-surface px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted">
+        <span className="rounded-full border border-border/80 bg-surface px-2 py-0.5 text-caption font-mono uppercase tracking-[0.18em] text-text-muted">
           Tap to switch
         </span>
       </div>

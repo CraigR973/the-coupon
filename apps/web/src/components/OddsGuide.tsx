@@ -61,8 +61,8 @@ export function OddsGuide({ storageKey = DEFAULT_STORAGE_KEY, defaultOpen = fals
         className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow"
       >
         <div className="flex items-center gap-2">
-          <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-text-muted">How scoring works</p>
-          <span className="inline-block rounded bg-primary/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-4 text-primary">
+          <p className="font-mono text-caption uppercase tracking-[0.25em] text-text-muted">How scoring works</p>
+          <span className="inline-block rounded bg-primary/15 px-1.5 py-0.5 font-mono text-caption font-semibold leading-4 text-primary">
             win = odds × 10
           </span>
         </div>
@@ -98,19 +98,19 @@ export function OddsGuide({ storageKey = DEFAULT_STORAGE_KEY, defaultOpen = fals
           </ul>
 
           <div className="px-4 pb-4">
-            <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+            <p className="mb-2 font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
               If your pick wins
             </p>
             <table className="w-full border-collapse text-xs font-sans" aria-label="Odds to points examples">
               <thead>
                 <tr className="border-b border-border">
-                  <th scope="col" className="py-1 text-left text-[10px] font-medium uppercase tracking-wider text-text-muted">
+                  <th scope="col" className="py-1 text-left text-caption font-medium uppercase tracking-wider text-text-muted">
                     Odds
                   </th>
-                  <th scope="col" className="py-1 text-left text-[10px] font-medium uppercase tracking-wider text-text-muted">
+                  <th scope="col" className="py-1 text-left text-caption font-medium uppercase tracking-wider text-text-muted">
                     Example
                   </th>
-                  <th scope="col" className="w-16 py-1 text-right text-[10px] font-medium uppercase tracking-wider text-text-muted">
+                  <th scope="col" className="w-16 py-1 text-right text-caption font-medium uppercase tracking-wider text-text-muted">
                     Points
                   </th>
                 </tr>
@@ -119,9 +119,9 @@ export function OddsGuide({ storageKey = DEFAULT_STORAGE_KEY, defaultOpen = fals
                 {EXAMPLES.map((ex) => (
                   <tr key={ex.odds} className="border-b border-border/30">
                     <td className="py-1.5 font-mono text-text-primary tabular-nums">{ex.odds.toFixed(2)}</td>
-                    <td className="py-1.5 text-[11px] text-text-muted">{ex.note}</td>
+                    <td className="py-1.5 text-caption text-text-muted">{ex.note}</td>
                     <td className="py-1.5 text-right">
-                      <span className="inline-block rounded-full bg-primary/15 px-1.5 py-0.5 font-mono text-[11px] font-semibold leading-4 text-primary">
+                      <span className="inline-block rounded-full bg-primary/15 px-1.5 py-0.5 font-mono text-caption font-semibold leading-4 text-primary">
                         {potentialPoints(ex.odds)}
                       </span>
                     </td>

@@ -256,14 +256,14 @@ function ResultsView({ results, timezone, requestedDate, onSelectDay }: ResultsV
       <section>
         {/* The full day, year included. The strip's chips are abbreviated to fit a row
             of them, so this is the only place that says which season is on screen. */}
-        <h2 className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+        <h2 className="mb-2 font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
           {day.label}
         </h2>
         <div className="flex flex-col gap-3">
           {competitions.map((group) => (
             <div key={group.competition_id}>
               {competitions.length > 1 && (
-                <h3 className="mb-1 truncate font-mono text-[10px] uppercase tracking-[0.15em] text-text-muted">
+                <h3 className="mb-1 truncate font-mono text-caption uppercase tracking-[0.15em] text-text-muted">
                   {group.competition}
                 </h3>
               )}
@@ -281,7 +281,7 @@ function ResultsView({ results, timezone, requestedDate, onSelectDay }: ResultsV
                         <span className="font-medium">{result.away}</span>
                       </p>
                       {competitions.length === 1 && (
-                        <p className="truncate font-mono text-[10px] uppercase tracking-[0.15em] text-text-muted">
+                        <p className="truncate font-mono text-caption uppercase tracking-[0.15em] text-text-muted">
                           {result.competition}
                         </p>
                       )}

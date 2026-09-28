@@ -43,7 +43,7 @@ export function GameweekNav({ history }: GameweekNavProps) {
       </NavButton>
 
       <div className="flex min-w-0 flex-col items-center gap-0.5">
-        <span className="truncate font-mono text-[11px] uppercase tracking-[0.2em] text-text-primary">
+        <span className="truncate font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
           {roundName(
             current.number,
             formatCalendarDate(current.starts_on, 'EEE d MMM yyyy'),
@@ -57,7 +57,7 @@ export function GameweekNav({ history }: GameweekNavProps) {
               *members*. Both read as one fraction of one thing and they were fractions of
               different things. The count members actually ask for is the roster's, so this
               one stops pretending to be a ratio and says what it counts. */}
-          <span className="font-mono text-[10px] tabular-nums text-text-muted">
+          <span className="font-mono text-caption tabular-nums text-text-muted">
             {current.pick_count} {current.pick_count === 1 ? 'pick' : 'picks'}
           </span>
         </span>
@@ -68,7 +68,7 @@ export function GameweekNav({ history }: GameweekNavProps) {
           <button
             type="button"
             onClick={() => select(undefined)}
-            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 font-mono text-[10px] uppercase tracking-[0.15em] text-text-muted tap-target press-down hover:text-text-primary focus-visible:outline-none focus-visible:shadow-glow"
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 font-mono text-caption uppercase tracking-[0.15em] text-text-muted tap-target press-down hover:text-text-primary focus-visible:outline-none focus-visible:shadow-glow"
             data-testid="gameweek-latest"
           >
             <History className="h-3 w-3" aria-hidden />

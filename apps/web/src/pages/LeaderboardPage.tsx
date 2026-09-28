@@ -154,7 +154,7 @@ export function LeaderboardPage() {
               that must not be mistaken for a defeat — a void fixture never ran. Said once
               for the table, like the denominator note above it. */}
           {standings.some((s) => (s.recent_form?.length ?? 0) > 0) && (
-            <p className="mt-1 font-sans text-[11px] text-text-muted">
+            <p className="mt-1 font-sans text-caption text-text-muted">
               Form covers the last five settled rounds, oldest first — W won, L lost, V void
               — with what each one scored.
             </p>
@@ -203,7 +203,7 @@ export function LeaderboardPage() {
                       <p className="font-mono text-lg font-semibold tabular-nums text-text-primary">
                         {s.total_points}
                       </p>
-                      <p className="font-mono text-[10px] uppercase tracking-wider text-text-muted">
+                      <p className="font-mono text-caption uppercase tracking-wider text-text-muted">
                         pts
                       </p>
                     </div>

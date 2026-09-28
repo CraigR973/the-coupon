@@ -42,10 +42,10 @@ export function SeasonStrip({ seasons, selected, onSelect, className }: Props) {
       data-testid="season-strip"
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] font-mono uppercase tracking-[0.24em] text-text-primary">
+        <p className="text-caption font-mono uppercase tracking-[0.24em] text-text-primary">
           Season
         </p>
-        <span className="rounded-full border border-border/80 bg-surface px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted">
+        <span className="rounded-full border border-border/80 bg-surface px-2 py-0.5 text-caption font-mono uppercase tracking-[0.18em] text-text-muted">
           Past seasons
         </span>
       </div>
@@ -83,7 +83,7 @@ export function SeasonStrip({ seasons, selected, onSelect, className }: Props) {
                      dimming was not being measured against what it actually sat on. */
                   <span
                     className={cn(
-                      'font-mono text-[10px] uppercase tracking-wider',
+                      'font-mono text-caption uppercase tracking-wider',
                       isSelected ? 'text-text-secondary' : 'text-text-muted',
                     )}
                   >
@@ -99,7 +99,7 @@ export function SeasonStrip({ seasons, selected, onSelect, className }: Props) {
         /* Said here rather than left to the member to infer from the year: a table that
            cannot change again reads exactly like a live one, and the difference matters
            most to whoever is at the top of it. */
-        <p className="font-sans text-[11px] text-text-muted">
+        <p className="font-sans text-caption text-text-muted">
           A completed season. {current ? `Tap ${current.label} for the table being played.` : ''}
         </p>
       )}

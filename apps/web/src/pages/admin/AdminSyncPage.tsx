@@ -104,7 +104,7 @@ export function SyncPage() {
                     )}
                   </div>
                   <p className="mt-1 font-sans text-xs text-text-secondary">{job.summary}</p>
-                  <p className="mt-0.5 font-mono text-[11px] text-text-muted">
+                  <p className="mt-0.5 font-mono text-caption text-text-muted">
                     Next scheduled: {when(job.next_run_utc)}
                   </p>
                   <div className="mt-3">

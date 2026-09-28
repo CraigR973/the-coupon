@@ -77,7 +77,7 @@ export function TeamSeasonPage() {
       {competition && (
         <Link
           to={backTo}
-          className="mb-4 inline-flex items-center gap-1 rounded-md px-1 py-1 font-mono text-[10px] uppercase tracking-[0.15em] text-text-muted tap-target press-down hover:text-text-primary focus-visible:outline-none focus-visible:shadow-glow"
+          className="mb-4 inline-flex items-center gap-1 rounded-md px-1 py-1 font-mono text-caption uppercase tracking-[0.15em] text-text-muted tap-target press-down hover:text-text-primary focus-visible:outline-none focus-visible:shadow-glow"
           data-testid="back-to-table"
         >
           <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
@@ -156,7 +156,7 @@ function MatchSection({
 }) {
   return (
     <section data-testid={testId}>
-      <h2 className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+      <h2 className="mb-2 font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
         {heading}
       </h2>
       <ul className="overflow-hidden rounded-lg border border-border bg-surface">
@@ -204,7 +204,7 @@ function MatchRow({
       data-testid={`team-match-${match.match_id}`}
       data-next={isNext ? 'true' : undefined}
     >
-      <div className="w-16 shrink-0 font-mono text-[10px] uppercase tracking-wide text-text-muted">
+      <div className="w-16 shrink-0 font-mono text-caption uppercase tracking-wide text-text-muted">
         <span className="block">{kickoff}</span>
         {/* No `opacity-70` here. `--text-muted` is tuned to exactly AA on the surface
             tiers, so dimming it further put the kick-off time at 2.83:1 in light —
@@ -212,7 +212,7 @@ function MatchRow({
         {!played && <span className="block">{time}</span>}
       </div>
 
-      <span aria-hidden className="w-3 shrink-0 font-mono text-[10px] font-semibold text-text-muted">
+      <span aria-hidden className="w-3 shrink-0 font-mono text-caption font-semibold text-text-muted">
         {match.home ? 'H' : 'A'}
       </span>
       <span className="sr-only">{match.home ? 'home to' : 'away to'}</span>
@@ -229,7 +229,7 @@ function MatchRow({
             {stateLabel && (
               <span
                 className={cn(
-                  'font-mono text-[10px] uppercase tracking-[0.15em]',
+                  'font-mono text-caption uppercase tracking-[0.15em]',
                   match.state === 'live' ? 'text-primary' : 'text-text-muted',
                 )}
               >
@@ -264,7 +264,7 @@ function MatchRow({
         <span
           aria-hidden
           className={cn(
-            'w-3 shrink-0 text-center font-mono text-[10px] font-semibold',
+            'w-3 shrink-0 text-center font-mono text-caption font-semibold',
             match.result === 'W'
               ? 'text-success'
               : match.result === 'L'

@@ -74,7 +74,7 @@ export function FormLine({
       key={`${result}-${index}`}
       aria-hidden
       className={cn(
-        'inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border font-mono text-[9px] font-semibold leading-none',
+        'inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border font-mono text-caption font-semibold leading-none',
         RESULT_STYLES[result],
       )}
     >
@@ -160,12 +160,12 @@ export function FormMatches({ matches, team, timezone, id, className }: FormMatc
           className="flex items-center gap-2 border-b border-border/40 py-1 text-xs font-sans last:border-0"
           data-testid={`form-match-${match.match_id}`}
         >
-          <span className="w-14 shrink-0 font-mono text-[10px] uppercase tracking-wide text-text-muted">
+          <span className="w-14 shrink-0 font-mono text-caption uppercase tracking-wide text-text-muted">
             {formatInstant(match.kickoff_utc, timezone, 'd MMM') ?? ''}
           </span>
           <span
             aria-hidden
-            className="w-3 shrink-0 font-mono text-[10px] font-semibold text-text-muted"
+            className="w-3 shrink-0 font-mono text-caption font-semibold text-text-muted"
           >
             {match.home ? 'H' : 'A'}
           </span>

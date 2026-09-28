@@ -148,7 +148,7 @@ export function ResultDayCarousel({ days, selected, onSelect }: Props) {
                   <span
                     aria-hidden
                     className={cn(
-                      'font-mono text-[10px] tabular-nums',
+                      'font-mono text-caption tabular-nums',
                       isSelected ? 'text-text-secondary' : 'text-text-muted',
                     )}
                   >

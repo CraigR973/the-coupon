@@ -80,7 +80,7 @@ export function InvitesPage() {
                     {invite.display_name_hint && ` · for ${invite.display_name_hint}`}
                     {invite.claimed_by_name && ` · claimed by ${invite.claimed_by_name}`}
                   </p>
-                  <p className="mt-1 font-mono text-[11px] text-text-muted break-all">
+                  <p className="mt-1 font-mono text-caption text-text-muted break-all">
                     /join/{invite.token}
                   </p>
 

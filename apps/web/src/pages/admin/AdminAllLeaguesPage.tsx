@@ -88,7 +88,7 @@ export function AllLeaguesPage() {
                     {league.member_count} of {league.max_members} members · /{league.slug}
                   </p>
                   {league.join_code && (
-                    <p className="mt-1 font-mono text-[11px] tracking-widest text-text-muted">
+                    <p className="mt-1 font-mono text-caption tracking-widest text-text-muted">
                       {league.join_code}
                     </p>
                   )}

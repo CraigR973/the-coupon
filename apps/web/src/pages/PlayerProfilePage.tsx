@@ -120,7 +120,7 @@ export function PlayerProfilePage() {
           </h2>
           <Link
             to={predictionsPath(slug, '/results')}
-            className="shrink-0 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted hover:text-text-primary"
+            className="shrink-0 font-mono text-caption uppercase tracking-[0.2em] text-text-muted hover:text-text-primary"
           >
             How each week went →
           </Link>
@@ -181,7 +181,7 @@ function HistoryRow({
           {pick.points_awarded ?? 0} pts
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="font-mono text-[10px] tabular-nums text-text-muted">
+          <span className="font-mono text-caption tabular-nums text-text-muted">
             {formatOdds(pick.odds, oddsFormat)}
           </span>
           <Badge variant={STATUS_VARIANT[pick.status]}>{pickStatusLabel(pick.status)}</Badge>

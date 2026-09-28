@@ -26,7 +26,7 @@ export function IosSafariOverlay() {
         <div className="rounded-2xl bg-surface border border-border shadow-sheet px-6 pt-6 pb-8">
 
           {/* Heading */}
-          <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-text-muted mb-1">
+          <p className="font-mono text-caption tracking-[0.3em] uppercase text-text-muted mb-1">
             Required
           </p>
           <h2

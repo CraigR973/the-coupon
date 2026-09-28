@@ -55,11 +55,11 @@ export function LeagueTableCard({
         aria-expanded={open}
         className="mb-2 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-none focus-visible:shadow-glow"
       >
-        <span className="min-w-0 truncate font-mono text-[11px] uppercase tracking-[0.2em] text-text-primary">
+        <span className="min-w-0 truncate font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
           {table.competition}
         </span>
         <span className="flex shrink-0 items-center gap-2">
-          <span className="font-mono text-[10px] tabular-nums text-text-muted">
+          <span className="font-mono text-caption tabular-nums text-text-muted">
             {table.rows.length}
           </span>
           <ChevronDown
@@ -81,7 +81,7 @@ export function LeagueTableCard({
                 {(table.season + 1) % 100}
               </caption>
               <thead>
-                <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.15em] text-text-muted">
+                <tr className="border-b border-border font-mono text-caption uppercase tracking-[0.15em] text-text-muted">
                   <th
                     scope="col"
                     className="w-8 py-2 pl-3 text-right font-normal"
@@ -168,7 +168,7 @@ export function LeagueTableCard({
             </table>
           </div>
           {table.updated_at && (
-            <p className="border-t border-border px-3 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+            <p className="border-t border-border px-3 py-2 font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
               As of {formatInstant(table.updated_at, timezone, "d MMM, HH:mm")}
             </p>
           )}
