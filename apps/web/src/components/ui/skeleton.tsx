@@ -9,7 +9,7 @@ const Skeleton = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivEl
       aria-busy="true"
       aria-label="Loading"
       className={cn(
-        'animate-pulse rounded-md bg-surface-elevated motion-reduce:animate-none',
+        'animate-shimmer rounded-md bg-surface-elevated motion-reduce:animate-none',
         className,
       )}
       {...props}

@@ -36,7 +36,13 @@ export function AppToaster() {
 
   return (
     <>
-      <Toaster ref={region} position="bottom-right" richColors closeButton />
+      <Toaster
+        ref={region}
+        position="bottom-right"
+        richColors
+        closeButton
+        className="coupon-toaster"
+      />
       {/* `role="alert"` is assertive by definition, and carrying it on the element
           that is always present — rather than on the message — is what makes an
           insertion into it an announcement. */}

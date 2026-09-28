@@ -12,6 +12,7 @@ import { PageHeader } from '../components/PageHeader';
 import { CouponSubNav } from '../components/CouponSubNav';
 import { LeagueSwitchStrip } from '../components/LeagueSwitchStrip';
 import { EmptyState } from '../components/EmptyState';
+import { QueryErrorState } from '../components/QueryErrorState';
 import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 
@@ -40,6 +41,7 @@ export function ResultsPage() {
     isLoading,
     isError,
     error,
+    refetch,
   } = useQuery<GameweekResult[]>({
     queryKey: ['results', slug],
     queryFn: () => apiFetch<GameweekResult[]>(`/api/v1/leagues/${slug}/results`),
@@ -85,9 +87,10 @@ export function ResultsPage() {
       )}
 
       {isError && (
-        <EmptyState
+        <QueryErrorState
           title="Couldn't load results"
           description={error instanceof Error ? error.message : 'Please try again shortly.'}
+          onRetry={() => void refetch()}
         />
       )}
 

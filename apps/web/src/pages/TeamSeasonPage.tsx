@@ -9,6 +9,7 @@ import { formatInstant } from '../lib/time';
 import { seasonLabel, splitSeason, tablePathFor } from '../lib/teamSeason';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
+import { QueryErrorState } from '../components/QueryErrorState';
 import { Skeleton } from '../components/ui/skeleton';
 import { Badge } from '../components/ui/badge';
 import { cn } from '../lib/utils';
@@ -100,11 +101,12 @@ export function TeamSeasonPage() {
       )}
 
       {competition && query.isError && (
-        <EmptyState
+        <QueryErrorState
           title="Couldn't load this season"
           description={
             query.error instanceof Error ? query.error.message : 'Please try again shortly.'
           }
+          onRetry={() => void query.refetch()}
         />
       )}
 

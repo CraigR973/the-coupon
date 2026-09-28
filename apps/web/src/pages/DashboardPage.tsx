@@ -18,6 +18,7 @@ import { predictionsPath } from '../lib/leagues';
 import { formatCalendarDate, formatInstant, parseInstant } from '../lib/time';
 import { PickFormLine } from '../components/PickFormLine';
 import { EmptyState } from '../components/EmptyState';
+import { QueryErrorState } from '../components/QueryErrorState';
 import { StatCard } from '../components/StatCard';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -134,7 +135,7 @@ function homeActionFor(leagues: PerLeagueSummary[], now = Date.now()): HomeActio
 export function DashboardPage() {
   const { player } = useAuth();
 
-  const { data, isLoading, isError } = useCrossLeagueSummary();
+  const { data, isLoading, isError, refetch } = useCrossLeagueSummary();
   const leagues = data?.per_league ?? [];
 
   return (
@@ -147,15 +148,16 @@ export function DashboardPage() {
 
       {isLoading && (
         <div className="flex flex-col gap-5" aria-label="Loading your leagues">
-          <Skeleton className="h-[172px] w-full rounded-xl" />
-          <Skeleton className="h-[172px] w-full rounded-xl" />
+          <HomeLeagueLoadingCard />
+          <HomeLeagueLoadingCard />
         </div>
       )}
 
       {isError && (
-        <EmptyState
+        <QueryErrorState
           title="Couldn't load your leagues"
           description="Please try again shortly."
+          onRetry={() => void refetch()}
         />
       )}
 
@@ -185,6 +187,25 @@ export function DashboardPage() {
           </ul>
         </section>
       )}
+    </div>
+  );
+}
+
+function HomeLeagueLoadingCard() {
+  return (
+    <div
+      className="rounded-xl border border-border bg-surface p-5 shadow-sm"
+      data-testid="home-league-loading-card"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1 space-y-2">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-6 w-2/3 max-w-56" />
+        </div>
+        <Skeleton className="h-7 w-16 rounded-full" />
+      </div>
+      <Skeleton className="mt-5 h-4 w-full max-w-md" />
+      <Skeleton className="mt-3 h-11 w-full rounded-md" />
     </div>
   );
 }

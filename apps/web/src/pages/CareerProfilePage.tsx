@@ -5,6 +5,7 @@ import { useCrossLeagueSummary } from '../hooks/useCrossLeagueSummary';
 import type { PerLeagueSummary } from '../lib/types';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
+import { QueryErrorState } from '../components/QueryErrorState';
 import { StatCard } from '../components/StatCard';
 import { PickShapeGrid, PickShapeLine, hasPickShape } from '../components/PickShapeLine';
 import { Avatar } from '../components/ui/avatar';
@@ -26,7 +27,7 @@ import { Skeleton } from '../components/ui/skeleton';
 export function CareerProfilePage() {
   const { player } = useAuth();
 
-  const { data, isLoading, isError } = useCrossLeagueSummary();
+  const { data, isLoading, isError, refetch } = useCrossLeagueSummary();
 
   if (isLoading) {
     return (
@@ -43,9 +44,10 @@ export function CareerProfilePage() {
 
   if (isError || !data) {
     return (
-      <EmptyState
+      <QueryErrorState
         title="Couldn't load your record"
         description="Please try again shortly."
+        onRetry={() => void refetch()}
       />
     );
   }

@@ -10,6 +10,7 @@ import { PickShapeLine, VoidDenominatorNote, hasPickShape } from '../components/
 import { PickFormLine } from '../components/PickFormLine';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
+import { QueryErrorState } from '../components/QueryErrorState';
 import { Skeleton } from '../components/ui/skeleton';
 import { Avatar } from '../components/ui/avatar';
 import { LeagueSwitchStrip } from '../components/LeagueSwitchStrip';
@@ -51,6 +52,7 @@ export function LeaderboardPage() {
     data: standings = [],
     isLoading,
     isError,
+    refetch,
   } = useQuery<Standing[]>({
     queryKey: keys.standings.forSeason(slug, season),
     queryFn: () =>
@@ -116,7 +118,11 @@ export function LeaderboardPage() {
       )}
 
       {isError && (
-        <EmptyState title="Couldn’t load standings" description="Check your connection and try again." />
+        <QueryErrorState
+          title="Couldn’t load standings"
+          description="Check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       )}
 
       {!isLoading && !isError && standings.length === 0 && (

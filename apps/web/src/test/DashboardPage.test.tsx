@@ -188,6 +188,29 @@ describe('DashboardPage', () => {
     expect(summary.textContent).toContain('Win rate60%');
   });
 
+  it('keeps a failed home request distinct from no leagues and retries it', async () => {
+    let summary: CrossLeagueSummary | null = null;
+    vi.stubGlobal('fetch', (url: string) => {
+      if (String(url).includes('/me/cross-league-summary')) {
+        return summary === null
+          ? Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) })
+          : Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(summary) });
+      }
+      if (String(url).includes('/leagues/mine')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(LEAGUES) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+
+    renderPage();
+    expect(await screen.findByTestId('query-error-state')).toHaveTextContent("Couldn't load your leagues");
+    expect(screen.queryByText("You're not in a league yet")).not.toBeInTheDocument();
+
+    summary = SUMMARY;
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByTestId('home-season-summary')).toBeInTheDocument();
+  });
+
   it('puts the soonest independent league deadline in the hero', async () => {
     stubFetch({
       ...SUMMARY,

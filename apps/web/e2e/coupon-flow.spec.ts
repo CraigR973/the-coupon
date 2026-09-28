@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page, type Route } from '@playwright/test';
 
 const API = process.env.COUPON_E2E_API_URL ?? 'http://127.0.0.1:8000';
 const ARTIFACT_DIR =
@@ -176,7 +176,20 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
     await setTheme(alice, theme);
     await expect(alice.getByTestId('standings')).toContainText('Bob');
     await expect(alice.getByRole('button', { name: 'Copy standings' })).toBeVisible();
+    await alice.getByRole('button', { name: 'Copy standings' }).click();
+    const toast = alice.locator('[data-sonner-toast]').last();
+    await expect(toast).toBeVisible();
+    const [toastBox, tabBarBox] = await Promise.all([
+      toast.boundingBox(),
+      alice.getByRole('navigation', { name: 'Primary' }).boundingBox(),
+    ]);
+    expect(toastBox).not.toBeNull();
+    expect(tabBarBox).not.toBeNull();
+    expect(toastBox!.y + toastBox!.height).toBeLessThanOrEqual(tabBarBox!.y);
     await expectNoColourContrastViolations(alice);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-149-toast-clear-${theme}-390x844.png`),
+    });
     await alice.screenshot({
       path: join(ARTIFACT_DIR, `batch-98-standings-${theme}-390x844.png`),
     });
@@ -497,5 +510,41 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
       path: join(ARTIFACT_DIR, `batch-150-first-run-${theme}-390x844.png`),
     });
   }
+
+  // Batch 149. Loading retains the destination's card shape, while a failed request is
+  // visibly different from the successful no-league state and can be retried in place.
+  let releaseSummary!: () => void;
+  const summaryHeld = new Promise<void>((resolve) => {
+    releaseSummary = resolve;
+  });
+  const holdSummary = async (route: Route) => {
+    await summaryHeld;
+    await route.continue();
+  };
+  await firstRun.route('**/api/v1/me/cross-league-summary', holdSummary);
+  await firstRun.reload();
+  await expect(firstRun.getByTestId('home-league-loading-card').first()).toBeVisible();
+  await firstRun.screenshot({
+    path: join(ARTIFACT_DIR, 'batch-149-home-loading-light-390x844.png'),
+  });
+  releaseSummary();
+  await firstRun.unroute('**/api/v1/me/cross-league-summary', holdSummary);
+  await expect(firstRun.getByTestId('home-first-league')).toBeVisible();
+
+  const failSummary = (route: Route) =>
+    route.fulfill({ status: 500, contentType: 'application/json', body: '{"detail":"Unavailable"}' });
+  await firstRun.route('**/api/v1/me/cross-league-summary', failSummary);
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(firstRun, theme);
+    await expect(firstRun.getByTestId('query-error-state')).toBeVisible();
+    await expect(firstRun.getByRole('button', { name: 'Try again' })).toBeVisible();
+    await expectNoAxeViolations(firstRun);
+    await firstRun.screenshot({
+      path: join(ARTIFACT_DIR, `batch-149-home-error-${theme}-390x844.png`),
+    });
+  }
+  await firstRun.unroute('**/api/v1/me/cross-league-summary', failSummary);
+  await firstRun.getByRole('button', { name: 'Try again' }).click();
+  await expect(firstRun.getByTestId('home-first-league')).toBeVisible();
   await firstRunContext.close();
 });

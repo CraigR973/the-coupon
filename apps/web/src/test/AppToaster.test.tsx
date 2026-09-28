@@ -73,4 +73,14 @@ describe('AppToaster', () => {
     expect(region, 'sonner’s live region').not.toBeNull();
     expect(region?.getAttribute('aria-live')).toBe('off');
   });
+
+  it('marks the visible stack for the mobile tab-bar clearance rule', async () => {
+    render(<AppToaster />);
+    act(() => toast.info('Saved'));
+    await waitFor(() =>
+      expect(document.querySelector('[data-sonner-toaster]')?.className).toContain(
+        'coupon-toaster',
+      ),
+    );
+  });
 });

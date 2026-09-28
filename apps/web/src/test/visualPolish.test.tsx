@@ -4,6 +4,7 @@ import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { axe } from 'jest-axe';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/EmptyState';
+import { QueryErrorState } from '@/components/QueryErrorState';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PageTransition } from '@/components/PageTransition';
 import { PageHeader } from '@/components/PageHeader';
@@ -31,7 +32,30 @@ describe('Skeleton', () => {
     render(<Skeleton className="custom-marker" />);
     const node = screen.getByRole('status');
     expect(node.className).toContain('custom-marker');
-    expect(node.className).toContain('animate-pulse');
+    expect(node.className).toContain('animate-shimmer');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Query error state
+// ---------------------------------------------------------------------------
+
+describe('QueryErrorState', () => {
+  it('is an alert with an explicit retry, rather than an empty result', () => {
+    const retry = vi.fn();
+    render(
+      <QueryErrorState title="Couldn’t load standings" description="Check your connection." onRetry={retry} />,
+    );
+    expect(screen.getByRole('alert')).toHaveAttribute('data-testid', 'query-error-state');
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it('has no axe violations', async () => {
+    const { container } = render(
+      <QueryErrorState title="Couldn’t load standings" description="Check your connection." onRetry={() => {}} />,
+    );
+    expect(await axe(container, AXE_CONFIG)).toHaveNoViolations();
   });
 });
 

@@ -419,6 +419,15 @@
     animation: shimmer 1.8s ease-in-out infinite;
   }
 
+  /* The tab bar remains visible through 639px, while Sonner changes its own
+     mobile layout at 600px. Set both offsets so a toast always clears the bar. */
+  @media (max-width: 639px) {
+    .coupon-toaster[data-sonner-toaster] {
+      --offset-bottom: calc(var(--tabbar-height) + var(--safe-bottom) + 1rem);
+      --mobile-offset-bottom: calc(var(--tabbar-height) + var(--safe-bottom) + 1rem);
+    }
+  }
+
   /* ── Batch 164: what framer-motion used to do ─────────────────────────────
      107 KB of JavaScript for five transitions, 62% of it unused on home. Each
      one below is the CSS equivalent. They cost nothing at runtime and they obey

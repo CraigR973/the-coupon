@@ -10,6 +10,7 @@ import { PageHeader } from '../components/PageHeader';
 import { LeagueTableCard } from '../components/LeagueTableCard';
 import { ResultDayCarousel } from '../components/ResultDayCarousel';
 import { EmptyState } from '../components/EmptyState';
+import { QueryErrorState } from '../components/QueryErrorState';
 import { Skeleton } from '../components/ui/skeleton';
 import { Tabs } from '../components/ui/tabs';
 
@@ -131,11 +132,12 @@ export function FootballPage() {
       )}
 
       {active.isError && (
-        <EmptyState
+        <QueryErrorState
           title="Couldn't load the football data"
           description={
             active.error instanceof Error ? active.error.message : 'Please try again shortly.'
           }
+          onRetry={() => void active.refetch()}
         />
       )}
 
