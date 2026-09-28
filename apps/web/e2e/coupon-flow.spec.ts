@@ -291,6 +291,44 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
       path: join(ARTIFACT_DIR, `batch-140-season-${theme}-1280x800.png`),
     });
   }
+
+  // Batch 168. A 1280px display at 200% browser zoom produces a 640px CSS viewport.
+  // The desktop bar must still be the compact 56px chrome there, without duplicating
+  // its destinations in the mobile tab bar.
+  await alice.setViewportSize({ width: 640, height: 450 });
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(alice, theme);
+    await expect(alice.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+    await expect(alice.locator('nav[aria-label="Primary"]')).toBeHidden();
+    const header = await alice.locator('header').boundingBox();
+    expect(header).not.toBeNull();
+    // The 56px desktop bar carries its one-pixel safe-area/border allowance in the
+    // production bundle, so its rendered box is 57px rather than the mobile bar's 142px.
+    expect(header!.height).toBeLessThanOrEqual(57);
+    await expectNoAxeViolations(alice);
+    await expectNoColourContrastViolations(alice);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-168-zoom-${theme}-640x450.png`),
+    });
+  }
+
+  await alice.goto('/settings');
+  const aboutLink = alice.getByRole('link', { name: 'About & scoring rules' });
+  await expect(aboutLink).toBeVisible();
+  const aboutBox = await aboutLink.boundingBox();
+  expect(aboutBox).not.toBeNull();
+  expect(aboutBox!.height).toBeGreaterThanOrEqual(24);
+
+  const loginContext = await browser.newContext();
+  const loginPage = await loginContext.newPage();
+  await loginPage.goto('/login');
+  const forgotPin = loginPage.getByRole('link', { name: 'Forgot PIN?' });
+  await expect(forgotPin).toBeVisible();
+  const forgotPinBox = await forgotPin.boundingBox();
+  expect(forgotPinBox).not.toBeNull();
+  expect(forgotPinBox!.height).toBeGreaterThanOrEqual(24);
+  await loginContext.close();
+
   await alice.setViewportSize({ width: 390, height: 844 });
 
   // Batch 26: home and My profile answer for every league the member plays, not

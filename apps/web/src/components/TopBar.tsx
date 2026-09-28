@@ -108,12 +108,12 @@ export function TopBar() {
       className={cn(
         'sticky top-0 z-header',
         'bg-surface/90 backdrop-blur-md border-b border-border',
-        'pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-safe',
+        'pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:pt-safe',
       )}
     >
-      <div className="max-w-7xl mx-auto px-4 h-16 md:h-14 flex items-center gap-4">
-        {/* ── Mobile layout (< md): toggle | centred brand | avatar ── */}
-        <div className="relative flex md:hidden items-center w-full justify-between">
+      <div className="max-w-7xl mx-auto px-4 h-16 sm:h-14 flex items-center gap-4">
+        {/* ── Mobile layout (< sm): toggle | centred brand | avatar ── */}
+        <div className="relative flex sm:hidden items-center w-full justify-between">
           {themeToggle}
           <NavLink
             to="/"
@@ -125,12 +125,12 @@ export function TopBar() {
           {avatarMenu}
         </div>
 
-        {/* ── Desktop layout (md+): brand | nav | toggle + badge + avatar ── */}
-        <NavLink to="/" aria-label="Home" className="press-down hidden md:block shrink-0">
+        {/* ── Desktop layout (sm+): brand | nav | toggle + badge + avatar ── */}
+        <NavLink to="/" aria-label="Home" className="press-down hidden sm:block shrink-0">
           <Brand variant="compact" size={46} />
         </NavLink>
 
-        <nav aria-label="Main navigation" className="hidden md:flex items-center gap-1 flex-1">
+        <nav aria-label="Main navigation" className="hidden sm:flex items-center gap-1 flex-1">
           {navItems.map((item) => (
             <Link
               key={item.label}
@@ -149,7 +149,7 @@ export function TopBar() {
           ))}
         </nav>
 
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden sm:flex items-center gap-3">
           {themeToggle}
           {avatarMenu}
         </div>

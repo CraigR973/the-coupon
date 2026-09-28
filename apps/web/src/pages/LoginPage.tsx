@@ -101,7 +101,7 @@ export function LoginPage() {
               </Button>
 
               <div className="space-y-2 text-center">
-                <Link to="/forgot-pin" className="block text-xs font-sans text-text-muted hover:text-text-primary transition-colors">
+                <Link to="/forgot-pin" className="flex min-h-6 items-center justify-center text-xs font-sans text-text-muted hover:text-text-primary transition-colors">
                   Forgot PIN?
                 </Link>
                 <p className="text-xs font-sans text-text-muted">

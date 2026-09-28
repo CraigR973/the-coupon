@@ -635,7 +635,7 @@ export function SettingsPage() {
 
       <Link
         to="/about"
-        className="flex items-center gap-2 text-sm font-sans text-text-muted hover:text-text-primary transition-colors group"
+        className="flex min-h-6 items-center gap-2 text-sm font-sans text-text-muted hover:text-text-primary transition-colors group"
       >
         <Info size={14} className="group-hover:text-primary transition-colors" aria-hidden />
         About &amp; scoring rules
