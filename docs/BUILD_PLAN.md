@@ -164,7 +164,7 @@ ticked rows can collect here until someone moves them below.
   — no web half, so nothing reaches members until `/ship-prod`.** Depends on Batch 114, which
   shipped 2026-09-06; independent of Batches 112 and 113.
 
-- [ ] **Batch 140 — The desktop layout is the phone layout stretched**
+- [x] **Batch 140 — The desktop layout is the phone layout stretched** ✅ 2026-09-28
   — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-01 (high impact).
   There is not one large-breakpoint utility in the application (45 small, 9 medium, zero
   large or extra-large) and the shell pins the same maximum width at every viewport; the

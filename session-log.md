@@ -7457,3 +7457,17 @@ and 1,199 frontend tests passed, 0 skipped; production-bundle coupon journey pas
 - **Close-out safety:** web-only; pre-push API drift was two web-only commits, migration `026` unchanged, so no `/ship-prod` is owed.
 
 **Next:** Batch 140 — responsive desktop chrome and target-size follow-up.
+
+## Batch 140 — The desktop layout is the phone layout stretched
+**Commits:** `b6e0865` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,350 backend
+and 1,199 frontend tests passed, 0 skipped; production-bundle coupon journey passed at 390×844 and 1280×800 in both themes
+
+### Key facts for future sessions
+- **Aligned desktop shell.** The main content and top bar share `max-w-7xl`, so a laptop gains usable width without misaligning its chrome.
+- **Working surfaces, not a stretched phone.** At `lg`, Current Round keeps its semantic mobile order but lays coupon and slate side by side; standings and Season lists become two columns. All three remain the same single column at 390px.
+- **No token or contract drift.** Routes, queries, components, colours and mobile DOM order are unchanged; `min-w-0` prevents the grid tracks from creating horizontal overflow on long content.
+- **Browser proof:** the e2e journey measured side-by-side round and standings geometry, the Season grid, and axe-core plus colour contrast at both desktop themes; it retained the existing 390px overflow checks and screenshots.
+- **One test expectation fixed:** the first browser run expected Alice on the seeded Season result; Bob correctly wins it. The assertion changed to Bob, and the unchanged product journey passed.
+- **Close-out safety:** web-only; pre-push API drift was four web-only commits, migration `026` unchanged, so no `/ship-prod` is owed.
+
+**Next:** Batch 168 — target sizes and 200% zoom, paired with these desktop breakpoints.
