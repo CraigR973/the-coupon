@@ -9,13 +9,13 @@ paragraph beneath it. A batch's story belongs in its `session-log.md` entry, not
 
 ## Live
 
-Checked 2026-09-27 unless a line says otherwise.
+Checked 2026-09-28 unless a line says otherwise.
 
 | | |
 | --- | --- |
 | API | `api-production-109b1.up.railway.app` serves `b08a47f3` at migration `026` |
 | API deployment | Railway `86f9ba84-b72d-4791-80ab-c3730ccd9032`, one replica, `europe-west4` |
-| Web | `the-coupon-production.vercel.app`, `b08a47f3`; Vercel builds `main` on every push |
+| Web | `the-coupon-production.vercel.app`, last live-verified at `b08a47f3` (2026-09-27); Vercel builds `main` on every push |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -69,9 +69,9 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Five rows are open (2026-09-27); they are at the head of `docs/BUILD_PLAN.md`:
+Four rows are open (2026-09-28); they are at the head of `docs/BUILD_PLAN.md`:
 
-1. **`/group-start Z` — 151 → 140 → 168 → 150 → 149**, the rest of the visual pass.
+1. **`/group-start Z` — 140 → 168 → 150 → 149**, the rest of the visual pass.
    Web-only with no stops: each reaches members on its own close-out push. The order and
    its reasons are under Group Z in `docs/review/2026-09-13/08-sequencing.md`.
 
@@ -83,7 +83,7 @@ Checked 2026-09-24.
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
   (backend 1,342, frontend 1,187). 11 to 13 minutes on this Mac, and 38 when macOS's storage scan loads it (2026-09-25). Without a database the
   backend suite was 780 passed and 520 skipped at 1,300 tests — not the gate. Current
-  ratchets are 1,350 backend and 1,197 frontend tests.
+  ratchets are 1,350 backend and 1,199 frontend tests.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
   `apps/api/requirements-dev.txt`: Python 3.12, FastAPI 0.141.1, ruff 0.5.4. app-starter's
   venv cannot import the suite.

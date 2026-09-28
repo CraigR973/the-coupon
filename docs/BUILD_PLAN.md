@@ -234,7 +234,7 @@ ticked rows can collect here until someone moves them below.
   Scope boundary: the no-league home state. No change to the populated home.
   **Web-only.**
 
-- [ ] **Batch 151 — The same statistic is drawn two ways, and there is no type scale**
+- [x] **Batch 151 — The same statistic is drawn two ways, and there is no type scale** ✅ 2026-09-28
   — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-08 and DES-09 (med
   impact, live). The hero statistic and the card statistic are the same object rendered
   five different ways, including different colours for the figure itself. And

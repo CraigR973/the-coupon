@@ -7444,3 +7444,16 @@ and 1,197 frontend tests passed, 0 skipped
   `e77dde8f` reached `SUCCESS` before the source upload and is the rollback baseline.
 
 **Next:** `/group-start Z`.
+
+## Batch 151 — The same statistic is drawn two ways, and there is no type scale
+**Commits:** `66acf8b` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,350 backend
+and 1,199 frontend tests passed, 0 skipped; production-bundle coupon journey passed in both themes at 390×844 and 1280×800
+
+### Key facts for future sessions
+- **One statistic component.** The populated home hero and player-profile cards now use `StatCard`; the hero retains its existing elevated surface and figure ink token.
+- **A real minimum.** Tailwind names a 12px/16px `caption` step, and a source guard refuses arbitrary 9–11px interface text. The visual pass raised 84 affected nodes; no colour token changed.
+- **Real browser proof.** The full three-member production-bundle journey includes dark and light desktop home captures plus axe-core and colour-contrast scans; it passed after the e2e baseline repair landed.
+- **Gate run 1 failed only the ratchet.** Two new scale tests made 1,199 frontend tests against the recorded 1,197; the floor rose to 1,199 and run 2 passed. No test or assertion was weakened.
+- **Close-out safety:** web-only; pre-push API drift was two web-only commits, migration `026` unchanged, so no `/ship-prod` is owed.
+
+**Next:** Batch 140 — responsive desktop chrome and target-size follow-up.
