@@ -7484,3 +7484,16 @@ and 1,199 frontend tests passed, 0 skipped; production-bundle coupon journey pas
 - **Close-out safety:** web-only; the pre-push drift held six web/documentation commits, migration `026` unchanged, so no `/ship-prod` is owed.
 
 **Next:** Batch 150 — continue Group Z's visual pass.
+
+## Batch 150 — The first screen a new member sees stops at 58% and its only action is a text link
+**Commits:** `afea45f` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,350 backend
+and 1,199 frontend tests passed, 0 skipped; production-bundle coupon journey passed in both themes at 390×844
+
+### Key facts for future sessions
+- **First-run has a route forward.** A member with no league keeps the existing hero, then sees a full-width “Find a league” primary action and an outlined “Join by code” alternative.
+- **The fold holds real next-step content.** A three-step, mobile-stacked first-round panel explains finding a group, making one pick and seeing the result; populated home, its cards and its data query are unchanged.
+- **Production-shaped proof:** the browser journey registered a new no-league member, measured the 44px discovery target and confirmed the first-run content reaches the 390×844 fold in dark and light with clean axe scans.
+- **Browser-fixture failures, fixed:** single-cell PIN inputs rejected a multi-digit fill; the disposable `1234` registration PIN was correctly refused as common; and a reused scratch database retained rate-limit state. The final run entered each cell with a non-common PIN against a clean database and passed.
+- **Close-out safety:** web-only; pre-push drift held eight web/documentation commits, migration `026` unchanged, so no `/ship-prod` is owed.
+
+**Next:** Batch 149 — the final Group Z visual-pass batch.

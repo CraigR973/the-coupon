@@ -217,7 +217,7 @@ ticked rows can collect here until someone moves them below.
 
   Scope boundary: these three presentational concerns. No data-layer changes. **Web-only.**
 
-- [ ] **Batch 150 — The first screen a new member sees stops at 58% and its only action is a text link**
+- [x] **Batch 150 — The first screen a new member sees stops at 58% and its only action is a text link** ✅ 2026-09-28
   — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-07 (med impact,
   live). Batch 97 made home fill the viewport — measured at 81% of 844px with the full-page
   height equal to the viewport — but only for the state where a member already has a
