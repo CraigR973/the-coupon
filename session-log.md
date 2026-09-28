@@ -7471,3 +7471,16 @@ and 1,199 frontend tests passed, 0 skipped; production-bundle coupon journey pas
 - **Close-out safety:** web-only; pre-push API drift was four web-only commits, migration `026` unchanged, so no `/ship-prod` is owed.
 
 **Next:** Batch 168 — target sizes and 200% zoom, paired with these desktop breakpoints.
+
+## Batch 168 — Two links are under the minimum target size and 200% zoom gives a third of the screen to navigation
+**Commits:** `d827cdf` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,350 backend
+and 1,199 frontend tests passed, 0 skipped; production-bundle coupon journey passed in both themes at 640×450
+
+### Key facts for future sessions
+- **Two measured targets.** “Forgot PIN?” and “About & scoring rules” now have a 24px minimum height; “Create account” remains inline text and unchanged.
+- **Zoom preserves desktop chrome.** Only the shell changes from the `md` to `sm` breakpoint: a 640px CSS viewport keeps the main navigation, hides the duplicate tab bar, and renders a 57px header including its safe-area/border allowance.
+- **No wider responsive change.** Content breakpoints, token sizes, routes and the account-name breakpoint remain unchanged.
+- **Browser proof:** the production bundle measured both link targets, checked dark and light 640×450 zoom layouts, and passed axe-core and colour-contrast scans.
+- **Close-out safety:** web-only; the pre-push drift held six web/documentation commits, migration `026` unchanged, so no `/ship-prod` is owed.
+
+**Next:** Batch 150 — continue Group Z's visual pass.

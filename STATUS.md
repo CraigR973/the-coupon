@@ -69,9 +69,9 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Three rows are open (2026-09-28); they are at the head of `docs/BUILD_PLAN.md`:
+Two rows are open (2026-09-28); they are at the head of `docs/BUILD_PLAN.md`:
 
-1. **`/group-start Z` — 168 → 150 → 149**, the rest of the visual pass.
+1. **`/group-start Z` — 150 → 149**, the rest of the visual pass.
    Web-only with no stops: each reaches members on its own close-out push. The order and
    its reasons are under Group Z in `docs/review/2026-09-13/08-sequencing.md`.
 

@@ -252,7 +252,7 @@ ticked rows can collect here until someone moves them below.
   Scope boundary: the statistic component and the type scale. Raising sizes only — no
   colour changes, so contrast cannot regress. **Web-only.**
 
-- [ ] **Batch 168 — Two links are under the minimum target size and 200% zoom gives a third of the screen to navigation**
+- [x] **Batch 168 — Two links are under the minimum target size and 200% zoom gives a third of the screen to navigation** ✅ 2026-09-28
   — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-19 and UX-20 (LOW,
   live). "Forgot PIN?" renders 316×**16** and "About & scoring rules" 358×**20**, both under
   the 24px minimum of WCAG 2.2 SC 2.5.8 ("Create account" is inline text and exempt). At 200%
