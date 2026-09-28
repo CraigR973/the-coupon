@@ -20,6 +20,7 @@ import { PickFormLine } from '../components/PickFormLine';
 import { EmptyState } from '../components/EmptyState';
 import { StatCard } from '../components/StatCard';
 import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
 import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '../lib/utils';
 import { useExpiry } from '@/hooks/useExpiry';
@@ -159,17 +160,7 @@ export function DashboardPage() {
       )}
 
       {!isLoading && !isError && leagues.length === 0 && (
-        <EmptyState
-          title="You're not in a league yet"
-          description={
-            <>
-              Join one to start picking.{' '}
-              <Link to="/leagues/discover" className="text-primary underline underline-offset-2">
-                Find a league
-              </Link>
-            </>
-          }
-        />
+        <FirstLeaguePrompt />
       )}
 
       {leagues.length > 0 && (
@@ -195,6 +186,67 @@ export function DashboardPage() {
         </section>
       )}
     </div>
+  );
+}
+
+/**
+ * A first-run member has no league card to make the home screen useful yet. The prompt
+ * gives that state its own primary action and explains the path without borrowing any
+ * of the populated home's stats, deadlines, or cross-league data.
+ */
+function FirstLeaguePrompt() {
+  return (
+    <section
+      className="space-y-5"
+      aria-labelledby="home-first-league-heading"
+      data-testid="home-first-league"
+    >
+      <EmptyState
+        icon={<Trophy />}
+        title="You're not in a league yet"
+        description="Find a league to follow its picks, results and standings from here."
+        className="border-solid bg-surface px-5 py-8 shadow-sm"
+        action={
+          <div className="flex w-full max-w-sm flex-col gap-3">
+            <Button asChild size="lg" className="w-full">
+              <Link to="/leagues/discover">
+                Find a league
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <Link to="/leagues/join">Join by code</Link>
+            </Button>
+          </div>
+        }
+      />
+
+      <div className="rounded-xl border border-border bg-surface p-5 shadow-sm">
+        <p className="font-mono text-caption uppercase tracking-[0.2em] text-primary">
+          Your first round
+        </p>
+        <h2
+          id="home-first-league-heading"
+          className="mt-2 font-sans text-lg font-semibold tracking-tight text-text-primary"
+        >
+          Everything starts with a league
+        </h2>
+        <ol className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="How a Coupon league works">
+          <li className="rounded-lg border border-border bg-surface-elevated px-3 py-3">
+            <span className="font-mono text-caption text-primary">01</span>
+            <p className="mt-1 font-sans text-sm font-semibold text-text-primary">Find your group</p>
+          </li>
+          <li className="rounded-lg border border-border bg-surface-elevated px-3 py-3">
+            <span className="font-mono text-caption text-primary">02</span>
+            <p className="mt-1 font-sans text-sm font-semibold text-text-primary">Make one pick</p>
+          </li>
+          <li className="rounded-lg border border-border bg-surface-elevated px-3 py-3">
+            <span className="font-mono text-caption text-primary">03</span>
+            <p className="mt-1 font-sans text-sm font-semibold text-text-primary">See the result</p>
+          </li>
+        </ol>
+      </div>
+    </section>
   );
 }
 

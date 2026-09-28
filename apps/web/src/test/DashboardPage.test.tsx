@@ -329,7 +329,7 @@ describe('DashboardPage', () => {
     expect(card.textContent).toContain('No coupon published yet');
   });
 
-  it('points a member with no leagues at the discovery page', async () => {
+  it('gives a member with no leagues a button-weight route into discovery', async () => {
     stubFetch({
       total_points: 0,
       picks_played: 0,
@@ -341,9 +341,15 @@ describe('DashboardPage', () => {
     renderPage();
     expect(await screen.findByText("You're not in a league yet")).toBeTruthy();
     expect(screen.queryByTestId('home-season-summary')).toBeNull();
-    expect(screen.getByRole('link', { name: /find a league/i }).getAttribute('href')).toBe(
+    const discovery = screen.getByRole('link', { name: /find a league/i });
+    expect(discovery.getAttribute('href')).toBe(
       '/leagues/discover',
     );
+    expect(discovery.className).toContain('bg-primary');
+    expect(screen.getByRole('link', { name: /join by code/i }).getAttribute('href')).toBe(
+      '/leagues/join',
+    );
+    expect(screen.getByText('Everything starts with a league')).toBeTruthy();
   });
 });
 

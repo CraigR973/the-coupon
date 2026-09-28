@@ -465,4 +465,37 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   await alice.getByTestId('career-league-the-coupon').click();
   await expect(alice.getByTestId('profile-stats')).toContainText('19');
   await expect(alice.getByTestId('profile-history')).toContainText('Arsenal');
+
+  // Batch 150. Registration creates an account but deliberately joins no league. That
+  // makes it the production-shaped route into the first-run home state rather than an
+  // e2e-only fixture with a different membership contract.
+  const firstRunContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const firstRun = await firstRunContext.newPage();
+  await firstRun.goto('/register');
+  await firstRun.getByLabel('Display name').fill('Nora');
+  for (const [index, digit] of [...'4826'].entries()) {
+    await firstRun.getByLabel(`Choose a PIN digit ${index + 1}`).fill(digit);
+    await firstRun.getByLabel(`Confirm PIN digit ${index + 1}`).fill(digit);
+  }
+  await firstRun.getByRole('button', { name: 'Create account' }).click();
+  await expect(firstRun).toHaveURL('/');
+  const firstLeague = firstRun.getByTestId('home-first-league');
+  await expect(firstLeague).toBeVisible();
+  const discovery = firstRun.getByRole('link', { name: 'Find a league' });
+  await expect(discovery).toHaveAttribute('href', '/leagues/discover');
+  const discoveryBox = await discovery.boundingBox();
+  expect(discoveryBox).not.toBeNull();
+  expect(discoveryBox!.height).toBeGreaterThanOrEqual(44);
+  const firstLeagueBox = await firstLeague.boundingBox();
+  expect(firstLeagueBox).not.toBeNull();
+  expect(firstLeagueBox!.y + firstLeagueBox!.height).toBeGreaterThanOrEqual(844);
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(firstRun, theme);
+    await expect(firstRun.getByRole('link', { name: 'Find a league' })).toBeVisible();
+    await expectNoAxeViolations(firstRun);
+    await firstRun.screenshot({
+      path: join(ARTIFACT_DIR, `batch-150-first-run-${theme}-390x844.png`),
+    });
+  }
+  await firstRunContext.close();
 });
