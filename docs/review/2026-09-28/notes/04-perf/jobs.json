@@ -1,0 +1,288 @@
+{
+ "uptime": "23:47  up 14 days, 14:46, 1 user, load averages: 6.26 5.96 9.35",
+ "table": {
+  "jobs": [
+   {
+    "id": "connection_warmup",
+    "trigger": "interval[0:10:00]",
+    "misfire_grace_time": 1,
+    "coalesce": true,
+    "max_instances": 1
+   },
+   {
+    "id": "live_scores",
+    "trigger": "cron[minute='*/10']",
+    "misfire_grace_time": 1,
+    "coalesce": true,
+    "max_instances": 1
+   },
+   {
+    "id": "lock_gameweeks",
+    "trigger": "cron[minute='0']",
+    "misfire_grace_time": 1,
+    "coalesce": true,
+    "max_instances": 1
+   },
+   {
+    "id": "open_gameweeks",
+    "trigger": "cron[minute='1']",
+    "misfire_grace_time": 1,
+    "coalesce": true,
+    "max_instances": 1
+   },
+   {
+    "id": "pick_reminders",
+    "trigger": "cron[minute='15']",
+    "misfire_grace_time": 1,
+    "coalesce": true,
+    "max_instances": 1
+   },
+   {
+    "id": "prune_refresh_tokens",
+    "trigger": "cron[hour='4', minute='30']",
+    "misfire_grace_time": 1,
+    "coalesce": true,
+    "max_instances": 1
+   },
+   {
+    "id": "prune_rate_limit_counters",
+    "trigger": "cron[hour='4', minute='35']",
+    "misfire_grace_time": 1,
+    "coalesce": true,
+    "max_instances": 1
+   },
+   {
+    "id": "discover_fixtures",
+    "trigger": "cron[hour='6', minute='0']",
+    "misfire_grace_time": 1,
+    "coalesce": true,
+    "max_instances": 1
+   },
+   {
+    "id": "sync_football_data",
+    "trigger": "cron[hour='6', minute='30']",
+    "misfire_grace_time": 1,
+    "coalesce": true,
+    "max_instances": 1
+   },
+   {
+    "id": "warm_odds_marker",
+    "trigger": "cron[hour='7', minute='0']",
+    "misfire_grace_time": 1,
+    "coalesce": true,
+    "max_instances": 1
+   },
+   {
+    "id": "refresh_slate",
+    "trigger": "cron[hour='9,11', minute='0']",
+    "misfire_grace_time": 1,
+    "coalesce": true,
+    "max_instances": 1
+   },
+   {
+    "id": "settle_gameweeks",
+    "trigger": "cron[hour='18,20,22', minute='0']",
+    "misfire_grace_time": 1,
+    "coalesce": true,
+    "max_instances": 1
+   },
+   {
+    "id": "discover_full_catalogue",
+    "trigger": "cron[day_of_week='sun', hour='4', minute='0']",
+    "misfire_grace_time": 1,
+    "coalesce": true,
+    "max_instances": 1
+   }
+  ],
+  "saturday_minutes_with_2plus_jobs": {
+   "00:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "01:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "02:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "03:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "04:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "05:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "05:30": [
+    "live_scores",
+    "prune_refresh_tokens"
+   ],
+   "06:00": [
+    "live_scores",
+    "lock_gameweeks",
+    "discover_fixtures"
+   ],
+   "06:30": [
+    "live_scores",
+    "sync_football_data"
+   ],
+   "07:00": [
+    "live_scores",
+    "lock_gameweeks",
+    "warm_odds_marker"
+   ],
+   "08:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "09:00": [
+    "live_scores",
+    "lock_gameweeks",
+    "refresh_slate"
+   ],
+   "10:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "11:00": [
+    "live_scores",
+    "lock_gameweeks",
+    "refresh_slate"
+   ],
+   "12:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "13:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "14:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "15:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "16:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "17:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "18:00": [
+    "live_scores",
+    "lock_gameweeks",
+    "settle_gameweeks"
+   ],
+   "19:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "20:00": [
+    "live_scores",
+    "lock_gameweeks",
+    "settle_gameweeks"
+   ],
+   "21:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ],
+   "22:00": [
+    "live_scores",
+    "lock_gameweeks",
+    "settle_gameweeks"
+   ],
+   "23:00": [
+    "live_scores",
+    "lock_gameweeks"
+   ]
+  },
+  "jobs_without_misfire_grace": [
+   "connection_warmup",
+   "live_scores",
+   "lock_gameweeks",
+   "open_gameweeks",
+   "pick_reminders",
+   "prune_refresh_tokens",
+   "prune_rate_limit_counters",
+   "discover_fixtures",
+   "sync_football_data",
+   "warm_odds_marker",
+   "refresh_slate",
+   "settle_gameweeks",
+   "discover_full_catalogue"
+  ]
+ },
+ "costs_at_stress_shape": {
+  "run_lock_gameweeks": {
+   "ok": true,
+   "stmts": 2,
+   "ms": 303.5
+  },
+  "run_open_gameweeks": {
+   "ok": true,
+   "stmts": 1,
+   "ms": 5.9
+  },
+  "run_settle_gameweeks": {
+   "ok": true,
+   "stmts": 32,
+   "ms": 1046.2
+  },
+  "run_pick_reminders": {
+   "ok": true,
+   "stmts": 1,
+   "ms": 4.8
+  },
+  "run_warm_odds_marker": {
+   "ok": true,
+   "stmts": 1,
+   "ms": 5.4
+  },
+  "run_discover_fixtures": {
+   "ok": true,
+   "stmts": 19,
+   "ms": 87.5
+  },
+  "run_refresh_slate": {
+   "ok": true,
+   "stmts": 16,
+   "ms": 26.3
+  },
+  "run_live_scores": {
+   "ok": true,
+   "stmts": 0,
+   "ms": 0.0
+  },
+  "run_sync_football_data": {
+   "ok": true,
+   "stmts": 0,
+   "ms": 0.1
+  },
+  "run_prune_refresh_tokens": {
+   "ok": true,
+   "stmts": 1,
+   "ms": 4.1
+  },
+  "run_prune_rate_limit_counters": {
+   "ok": true,
+   "stmts": 1,
+   "ms": 10.4
+  },
+  "run_connection_warmup": {
+   "ok": true,
+   "stmts": 1,
+   "ms": 2.9
+  }
+ }
+}

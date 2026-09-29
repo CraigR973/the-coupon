@@ -146,6 +146,10 @@ leaves out (see Doc corrections).
 | PERF-16 | 165 | **held for the standings key; factory partial** | `queryKeys.standings.forSeason` keys `'current'` apart from a named season; 42 inline `queryKey: [...]` literals remain outside the factory |
 | PERF-17 | 164 | **not fixed** | cold `/login` still downloads **three font files, 48.8 KiB, one preloaded** (`jetbrains-mono-600`, `outfit-400`, `outfit-600`) — the same payload as 13 Sep. Batch 164 removed a fourth file from the app, not from the sign-in screen (`browser-run1.json`) |
 | PERF-10 | 162 | **held** | real uvicorn on :8141, every webpush replaced by a 179 ms sleep in the executor (the per-send time implied by 49 sends in 8,759 ms): a pick in the **50-member league answered in 63 ms**, its fan-out finished 9.5 s later; in the 12-member league 213 ms, fan-out 2.2 s later. Each eligible member got **exactly one** send, the picker none (`push-fanout.json`). But see PERF-20 |
+| PERF-09 | 161 | **held** | the real limiter, charged in the route's order (league bucket, then installation): 1, 2, 5 and 20 leagues × 60 attempts each allow **50 provider-spending submissions in the hour in every case** (was 50 × leagues). `pick-buckets.txt`. The price is PERF-23 |
+| PERF-02 | owner decision (one worker; move the scheduler out before ~10 leagues) | **unchanged, as decided** | still one uvicorn process with the scheduler inside it (`nixpacks.toml` start command, `main.py` lifespan); one live league. Concurrency re-timing *pending a quiet machine* |
+| OPS-17 | none | **not fixed** | `create_scheduler()` started paused: all **13** registered jobs have `misfire_grace_time = 1`; only the switched-off `offsite_backup` sets 3,600 (`jobs.json`). Re-driven: the real `lock_gameweeks` job, due while the loop was busy 0.5 s, ran; busy 1.5 s, it was **dropped** — "was missed by 0:00:01.4" (`misfire-demo.txt`) |
+| OPS-18 | none | **not fixed** | on a Saturday **every hour** at :00 runs `lock_gameweeks` + `live_scores`, and 06:00, 07:00, 09:00, 11:00, 18:00, 20:00 and 22:00 add discovery, the warm pass, the refresh or settle — three jobs in one second. `coalesce=True, max_instances=1` still drops an overrun. At the stress shape with an instant provider the costliest are settle (32 statements, ~1.0 s at load 6) and discovery (19, 88 ms); the rest are 1-2 statements (`jobs.json`) |
 | PERF-03 | 145 | **held locally; not checkable in production read-only** | 264-fixture slate 299,134 B → 15,202 B with `content-encoding: gzip`, `vary: Accept-Encoding`; responses under 4 KB deliberately uncompressed. Production's only public API responses (`/health`, 82 B) sit below the floor, so no header could prove it (`prod-health-headers.txt`) |
 
 ## Register
@@ -155,6 +159,7 @@ leaves out (see Doc corrections).
 | PERF-19 | HIGH | live | verified | A league of 40-50 members breaks its home screen and results once the combined odds pass about 10^26 |
 | PERF-20 | MED | live | verified | Each background fan-out holds a pooled connection for its whole run: a burst of picks in a big league exhausts the pool, fails picks with 500 and silently drops alerts |
 | PERF-21 | MED | live | verified | The slate refresh has no budget: five league windows spend 118 requests in each refresh hour |
+| PERF-23 | MED | live | verified (hour) | The installation pick bucket caps the whole deployment at 50 submissions an hour and 100 a day, counting changes of mind |
 | PERF-22 | LOW | live | verified | framer-motion is still a declared dependency though nothing imports it |
 | PERF-18 | MED | live | verified | The slate makes two queries per competition on the card — 56 statements at production's 23 competitions |
 
@@ -191,12 +196,12 @@ displayed price and flag it), and add a 50-leg test at realistic prices.
 ## PERF-20 · MED · live · verified — the fan-out holds a connection; a burst exhausts the pool
 
 Batch 162 moved the pick alert after the response, into `_announce_after_response`
-(`routers/picks.py:490-560`). That function opens one session and keeps it across every
+(`routers/picks.py:492-553`). That function opens one session and keeps it across every
 send — `send_notification` reads the member's mute, preferences and subscriptions on it,
 then awaits the webpush in the executor, member after member — so each fan-out holds a
 pooled connection for its whole duration: ~9 s at 50 members. Batch 146 sized the pool
 at 5 + 5 on the reasoning that ten is "more than the scheduler and a Saturday-morning
-league can occupy at once" (`database.py`); ten fan-outs in flight is exactly ten.
+league can occupy at once" (`database.py:13`); ten fan-outs in flight is exactly ten.
 
 Measured over real HTTP (`push_fanout.py`, `push-fanout-errors.txt`): **12 members of
 the 50-member league submitting at once** → 10 answered 201, **2 answered 500 after
@@ -246,6 +251,32 @@ Saturday morning can be refused a price for five minutes, twice.
 **Fix:** give the refresh job the same `request_budget` discovery has (or a share of one
 hour between them), and price the walk at the played intersection rather than the raw
 pool (CORR-24).
+
+## PERF-23 · MED · live · verified (hourly; daily by configuration) — one bucket for every league's picks
+
+Batch 161 closed PERF-09 by charging a shared installation bucket beneath the per-league
+one, and both are `50/hour;100/day` (`routers/picks.py:118`, `:138`). Measured with the
+real limiter: however many leagues there are, **50 submissions an hour get through, in
+total** (`pick-buckets.txt`). The bucket counts *submissions*, not provider requests —
+by design it over-counts a re-pick — and a member changing their mind is a submission.
+
+So the deployment, not the league, now has room for one full league per hour and 100
+submissions per day. Two 25-member leagues locking at 14:30, or production's shape of
+five leagues and ~40 members each picking once and changing once on a Saturday, reach
+the ceiling, and the next member is refused with `PICKS_BUSY`. The suite asserts
+exactly this capacity (`test_the_installation_bucket_still_lets_a_full_league_take_its_picks`
+checks one league) and nothing checks two. The measured Saturday at one window spends
+289 of 500, so the day has room the bucket does not grant.
+
+Not reachable today (one league of 13). Rated MED because it refuses genuine picks, with
+a message, at a size the product is designed for.
+
+**Member impact:** as the deployment grows past one busy league, members are refused
+their pick at the deadline for a budget that is not actually spent.
+
+**Fix:** charge the installation bucket only when the pick path actually goes upstream
+(the cache knows whether the 60-second price was a hit), and size its day from what the
+measured day leaves spare rather than a round 100.
 
 ## PERF-22 · LOW · live · verified — a removed library is still installed
 

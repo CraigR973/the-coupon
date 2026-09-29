@@ -1,0 +1,5 @@
+league limit 50/hour;100/day, installation limit 50/hour;100/day
+ 1 leagues x 60 attempts: 50 provider-spending submissions allowed in the hour
+ 2 leagues x 60 attempts: 50 provider-spending submissions allowed in the hour
+ 5 leagues x 60 attempts: 50 provider-spending submissions allowed in the hour
+20 leagues x 60 attempts: 50 provider-spending submissions allowed in the hour
