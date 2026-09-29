@@ -1,0 +1,130 @@
+fc77313 09-22 10:19 docs: forward recovery plan for migration 025 (ship-prod step 1.7)
+2aa02c5 09-22 10:20 docs: owner approves the migration 025 forward recovery plan
+f50f82c 09-20 12:57 docs: full-application review 2026-09-13 — specify Batches 120-140
+f4d9309 09-20 13:16 docs: reconcile the 2026-09-13 review against the code, specify Batches 141-155
+1c1309e 09-22 10:04 docs: record the owner's 2026-09-22 decisions on the review, specify Batches 156-157
+e0f1e6d 09-22 11:27 docs: complete the three interrupted review passes, specify Batches 158-168
+e740e4d 09-22 11:47 docs: record model and effort for Batches 120-168, extend /group-start to N-Y
+5cefff3 09-22 12:27 chore: harden the delivery gate
+c7a50bb 09-22 12:30 docs: close out Batch 152 — tick BUILD_PLAN + session log
+c822e69 09-22 12:59 fix: preserve simultaneous claim conflicts
+a689a57 09-22 13:00 docs: close out Batch 120 — tick BUILD_PLAN + session log
+be387da 09-22 16:32 fix: prevent stray rounds from scoring
+48b6627 09-22 16:33 docs: close out Batch 121 — tick BUILD_PLAN + session log
+30fe08b 09-22 16:45 fix: protect privileged PIN resets
+0ff3e8c 09-22 16:47 docs: close out Batch 122 — tick BUILD_PLAN + session log
+d1b9ee9 09-22 20:22 fix: stabilise delivery gate timing
+7ef953d 09-22 20:36 fix: expose preview readiness in CI
+89217f8 09-22 22:09 fix: tolerate coloured preview readiness
+fa922f8 09-22 23:50 fix: make keyboard focus visible
+8007331 09-22 23:51 docs: close out Batch 158 — tick BUILD_PLAN + session log
+8ed2740 09-23 01:04 fix: put every public screen in a landmark
+8f2b9b3 09-23 01:04 docs: close out Batch 137 — tick BUILD_PLAN + session log
+6794111 09-23 01:18 fix: stop dimming tuned text with opacity
+6c6c18d 09-23 01:18 docs: close out Batch 138 — tick BUILD_PLAN + session log
+7d0e56b 09-23 01:34 feat: open the round on a fixture, and answer refusals in kind
+0fda43a 09-23 01:34 docs: close out Batch 139 — tick BUILD_PLAN + session log
+597905d 09-23 01:49 fix: three keyboard and reflow defects the sweep cannot see
+38eb73f 09-23 01:50 docs: close out Batch 167 — tick BUILD_PLAN + session log
+37c6e40 09-23 02:18 fix: do not let a griefing lock cost a member their session
+f5136b1 09-23 02:18 docs: close out Batch 123 — tick BUILD_PLAN + session log
+da8a13d 09-23 02:39 fix: stop the join code walking past removal and approval
+4b84b19 09-23 02:39 docs: close out Batch 124 — tick BUILD_PLAN + session log
+623f9b7 09-23 02:57 fix: make oversight a read, not a licence to play
+8366206 09-23 02:57 docs: close out Batch 125 — tick BUILD_PLAN + session log
+ae187ea 09-23 03:09 fix: make a member's name theirs within a league
+07e77ce 09-23 03:10 docs: close out Batch 126 — tick BUILD_PLAN + session log
+591d0c2 09-23 03:29 feat: give the web app a Content-Security-Policy
+df32eaa 09-23 03:29 docs: close out Batch 141 — tick BUILD_PLAN + session log
+5c02dcd 09-23 03:40 fix: forget the league on logout, and refuse an invite to a deleted one
+ac54a71 09-23 03:41 docs: close out Batch 143 — tick BUILD_PLAN + session log
+d1d4b60 09-23 06:12 fix: narrow the match-day refresh to the pooled competitions
+777f44c 09-23 06:12 docs: close out Batch 159 — tick BUILD_PLAN + session log
+8b1aa0d 09-23 06:24 fix: charge every provider entry point to the plan counter
+a3ed0d9 09-23 06:25 docs: close out Batch 160 — tick BUILD_PLAN + session log
+39b299f 09-23 06:45 fix: bound the pick path by what the deployment has left
+7688394 09-23 06:45 docs: close out Batch 161 — tick BUILD_PLAN + session log
+a498e2a 09-23 07:03 fix: give discovery a budget, and spend it across windows
+bbafa2a 09-23 07:03 docs: close out Batch 133 — tick BUILD_PLAN + session log
+c36beb4 09-23 07:17 perf: answer the member before telling the league
+6c446fe 09-23 07:17 docs: close out Batch 162 — tick BUILD_PLAN + session log
+2179fb5 09-23 07:55 fix: push the discovery-silence alarm, not just log it
+d9238e8 09-23 07:55 docs: close out Batch 129 — tick BUILD_PLAN + session log
+665e266 09-23 08:06 fix: do not lose the pick reminder to the fall-back hour
+ec5d922 09-23 08:07 docs: close out Batch 147 — tick BUILD_PLAN + session log
+092ff38 09-23 11:28 fix: complete a round when the roster change fills it
+21184b6 09-23 11:28 docs: close out Batch 130 — tick BUILD_PLAN + session log
+8eff2bb 09-23 11:43 fix: divide win rate by the picks that actually ran
+56651b8 09-23 11:43 docs: close out Batch 131 — tick BUILD_PLAN + session log
+efdfdeb 09-23 16:30 fix: guard the two calendar rules a declaration can break
+cf48eb2 09-23 16:31 docs: close out Batch 132 — tick BUILD_PLAN + session log
+46b8d29 09-23 16:48 fix: leave a voided leg out of the combined coupon
+1e1df7a 09-23 16:49 docs: close out Batch 156 — tick BUILD_PLAN + session log
+e8b5fe4 09-23 17:15 fix: stop averaging rank across leagues of different sizes
+42e79d8 09-23 17:16 docs: close out Batch 157 — tick BUILD_PLAN + session log
+0dcf593 09-23 17:40 docs: record the 2026-09-23 overnight shipments and current rollback baselines
+2f7d742 09-23 21:52 fix: stop four round-population tests asserting on the day of the week
+d9328b0 09-23 21:52 docs: close out the round-population clock fix
+1bfe512 09-23 22:02 perf: label the summary's rounds once, off a projection
+9a1467e 09-23 22:02 docs: close out Batch 144 — tick BUILD_PLAN + session log
+f929c3d 09-23 22:53 perf: compress the Saturday slate on its way down a phone
+959e5ef 09-23 22:53 docs: close out Batch 145 — tick BUILD_PLAN + session log
+00d609e 09-23 23:09 feat: refuse a shipment that migrates with nothing written down
+bf97763 09-23 23:09 docs: close out Batch 128 — tick BUILD_PLAN + session log
+ee3d196 09-24 02:22 perf: index the two reads that sweep rounds, and right-size the pool
+ed12b17 09-24 02:22 docs: close out Batch 146 — tick BUILD_PLAN + session log
+ba3f580 09-24 02:36 perf: stop precaching two admin consoles most members cannot open
+24f7a54 09-24 02:36 docs: close out Batch 163 — tick BUILD_PLAN + session log
+7e37b9b 09-24 03:13 perf: replace framer-motion with CSS, and drop a font nothing asked for
+0b7d443 09-24 03:13 docs: close out Batch 164 — tick BUILD_PLAN + session log
+13e49b4 09-24 03:47 perf: stop the countdown re-rendering the screen, and name the cache keys
+11ccc9a 09-24 03:48 docs: close out Batch 165 — tick BUILD_PLAN + session log
+fb054b2 09-24 03:48 docs: park Batch 166 — its measurement needs an authenticated session
+8d898b4 09-24 08:01 docs: owner approves the migration 026 forward recovery plan
+1343198 09-24 08:26 docs: record the refused 2026-09-24 shipment and the verified restore
+27be183 09-24 09:09 docs: record the 2026-09-24 shipment of Phase 7 (migration 026)
+b79364d 09-24 09:12 docs: confirm Batch 145's compression is live in production
+a9e8c54 09-24 09:22 docs: record a local blocking-time measurement for Batch 166
+e37472e 09-24 15:17 docs: close Batch 166 — re-measurement shows 164 and 165 resolved it
+ca62213 09-24 16:21 fix: take members' names out of the public repository (Batch 155)
+441926b 09-24 21:49 docs: close out Batch 155 — tick BUILD_PLAN + session log
+524e7ba 09-24 22:08 docs: cut STATUS.md to one page and put open rows first (Batch 154)
+538cf24 09-24 22:09 docs: close out Batch 154 — tick BUILD_PLAN + session log
+eabe49d 09-24 22:25 docs: correct the gate numbers and realign the stop hooks (Batch 153)
+b066b45 09-24 22:25 docs: close out Batch 153 — tick BUILD_PLAN + session log
+c9d0ed3 09-24 22:49 chore: move CI, the gate and the web build to Node 24 (Batch 127)
+22d4887 09-24 22:50 docs: close out Batch 127 — tick BUILD_PLAN + session log
+9b99f41 09-24 23:25 fix: bound every web push by a timeout and refuse odd push ports (Batch 142)
+06992f0 09-24 23:26 docs: close out Batch 142 — tick BUILD_PLAN + session log
+98de5d2 09-25 09:45 feat: a weekly off-site backup of the scored history, switched off until provisioned (Batch 95)
+6bad49e 09-25 09:45 docs: close out Batch 95 — tick BUILD_PLAN + session log
+9731b4a 09-25 10:27 feat: let a site admin correct a settled pick through the API (Batch 134)
+f60b1a0 09-25 10:28 docs: close out Batch 134 — tick BUILD_PLAN + session log
+baae8ed 09-25 16:48 feat: let a member delete their account or download their data (Batch 136)
+b3836f9 09-25 16:48 docs: close out Batch 136 — tick BUILD_PLAN + session log
+7cf4925 09-26 12:12 docs: record the 2026-09-26 shipment of Batches 155, 153, 142, 95, 134 and 136
+fbf78e4 09-26 17:06 feat: tell members when their round settles, and what their pick did (Batch 135)
+fccbfa9 09-26 17:06 docs: close out Batch 135 — tick BUILD_PLAN + session log
+8a3752d 09-26 17:30 docs: record the 2026-09-26 shipment of Batch 135
+5b74d65 09-27 00:44 docs: group the seven open batches and rescope Batch 115
+c5be640 09-27 08:49 feat: tell a renamed member in the app when push cannot reach them (Batch 148)
+c671ccf 09-27 08:50 docs: close out Batch 148 — tick BUILD_PLAN + session log
+4de13d0 09-27 10:36 docs: record the 2026-09-27 shipment of Batch 148
+828f42d 09-27 11:34 fix: certify request budget from stored rounds
+c7696e7 09-27 11:35 docs: close out Batch 115 — tick BUILD_PLAN + session log
+99b5fc9 09-27 12:00 fix: remeasure production competition walk
+b08a47f 09-27 12:00 docs: record production walk measurement fix
+3a14cec 09-27 18:34 docs: record the 2026-09-27 shipment of Batch 115
+83facaf 09-28 09:06 fix(e2e): align coupon flow with current round contracts
+66acf8b 09-28 13:05 feat(web): unify statistic type scale
+f75eb1f 09-28 13:06 docs: close out Batch 151 — tick BUILD_PLAN + session log
+b6e0865 09-28 13:34 feat(web): add desktop two-column layouts
+01e0f5e 09-28 13:34 docs: close out Batch 140 — tick BUILD_PLAN + session log
+d827cdf 09-28 14:02 fix(web): restore targets and zoom navigation
+4a4f550 09-28 14:03 docs: close out Batch 168 — tick BUILD_PLAN + session log
+afea45f 09-28 14:24 feat(web): complete first-run home
+7a1a7c7 09-28 14:24 docs: close out Batch 150 — tick BUILD_PLAN + session log
+aa28601 09-28 20:53 fix(web): distinguish failures from empty states
+cb51644 09-28 20:54 docs: close out Batch 149 — tick BUILD_PLAN + session log
+4121cf0 09-28 21:17 fix(web): keep mobile toasts above navigation
+eb18bcb 09-28 21:18 docs: record Batch 149 toast correction

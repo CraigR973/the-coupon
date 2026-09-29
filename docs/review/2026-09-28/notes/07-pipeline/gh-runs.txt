@@ -1,0 +1,72 @@
+2026-09-28T20:18:16Z	eb18bcb	main	push	Quality	completed	success	docs: record Batch 149 toast correction
+2026-09-28T19:54:39Z	cb51644	main	push	Quality	completed	success	docs: close out Batch 149 — tick BUILD_PLAN + session log
+2026-09-28T13:24:50Z	7a1a7c7	main	push	Quality	completed	success	docs: close out Batch 150 — tick BUILD_PLAN + session log
+2026-09-28T13:03:42Z	4a4f550	main	push	Quality	completed	success	docs: close out Batch 168 — tick BUILD_PLAN + session log
+2026-09-28T12:35:06Z	01e0f5e	main	push	Quality	completed	success	docs: close out Batch 140 — tick BUILD_PLAN + session log
+2026-09-28T12:06:40Z	f75eb1f	main	push	Quality	completed	success	docs: close out Batch 151 — tick BUILD_PLAN + session log
+2026-09-28T08:06:33Z	83facaf	main	push	Quality	completed	success	fix(e2e): align coupon flow with current round contracts
+2026-09-27T17:34:57Z	3a14cec	main	push	Quality	completed	success	docs: record the 2026-09-27 shipment of Batch 115
+2026-09-27T11:01:04Z	b08a47f	main	push	Quality	completed	success	docs: record production walk measurement fix
+2026-09-27T10:35:52Z	c7696e7	main	push	Quality	completed	success	docs: close out Batch 115 — tick BUILD_PLAN + session log
+2026-09-27T09:36:50Z	4de13d0	main	push	Quality	completed	success	docs: record the 2026-09-27 shipment of Batch 148
+2026-09-27T07:50:40Z	c671ccf	main	push	Quality	completed	success	docs: close out Batch 148 — tick BUILD_PLAN + session log
+2026-09-26T23:44:13Z	5b74d65	main	push	Quality	completed	success	docs: group the seven open batches and rescope Batch 115
+2026-09-26T16:30:39Z	8a3752d	main	push	Quality	completed	success	docs: record the 2026-09-26 shipment of Batch 135
+2026-09-26T16:06:25Z	fccbfa9	main	push	Quality	completed	success	docs: close out Batch 135 — tick BUILD_PLAN + session log
+2026-09-26T11:13:02Z	7cf4925	main	push	Quality	completed	success	docs: record the 2026-09-26 shipment of Batches 155, 153, 142, 95, 13…
+2026-09-26T11:02:48Z	b3836f9	main	push	Quality	completed	success	docs: close out Batch 136 — tick BUILD_PLAN + session log
+2026-09-25T09:28:28Z	f60b1a0	main	push	Quality	completed	success	docs: close out Batch 134 — tick BUILD_PLAN + session log
+2026-09-25T08:46:04Z	6bad49e	main	push	Quality	completed	success	docs: close out Batch 95 — tick BUILD_PLAN + session log
+2026-09-24T22:26:21Z	06992f0	main	push	Quality	completed	success	docs: close out Batch 142 — tick BUILD_PLAN + session log
+2026-09-24T21:50:30Z	22d4887	main	push	Quality	completed	success	docs: close out Batch 127 — tick BUILD_PLAN + session log
+2026-09-24T21:25:57Z	b066b45	main	push	Quality	completed	success	docs: close out Batch 153 — tick BUILD_PLAN + session log
+2026-09-24T21:09:21Z	538cf24	main	push	Quality	completed	success	docs: close out Batch 154 — tick BUILD_PLAN + session log
+2026-09-24T20:49:30Z	441926b	main	push	Quality	completed	success	docs: close out Batch 155 — tick BUILD_PLAN + session log
+2026-09-24T14:19:05Z	e37472e	main	push	Quality	completed	success	docs: close Batch 166 — re-measurement shows 164 and 165 resolved it
+2026-09-24T08:22:30Z	a9e8c54	main	push	Quality	completed	success	docs: record a local blocking-time measurement for Batch 166
+2026-09-24T08:12:29Z	b79364d	main	push	Quality	completed	success	docs: confirm Batch 145's compression is live in production
+2026-09-24T08:09:28Z	27be183	main	push	Quality	completed	success	docs: record the 2026-09-24 shipment of Phase 7 (migration 026)
+2026-09-24T07:26:56Z	1343198	main	push	Quality	completed	success	docs: record the refused 2026-09-24 shipment and the verified restore
+2026-09-24T07:01:21Z	8d898b4	main	push	Quality	completed	success	docs: owner approves the migration 026 forward recovery plan
+2026-09-24T02:48:43Z	fb054b2	main	push	Quality	completed	success	docs: park Batch 166 — its measurement needs an authenticated session
+2026-09-24T02:48:10Z	11ccc9a	main	push	Quality	completed	success	docs: close out Batch 165 — tick BUILD_PLAN + session log
+2026-09-24T02:14:00Z	0b7d443	main	push	Quality	completed	success	docs: close out Batch 164 — tick BUILD_PLAN + session log
+2026-09-24T01:36:42Z	24f7a54	main	push	Quality	completed	success	docs: close out Batch 163 — tick BUILD_PLAN + session log
+2026-09-24T01:22:35Z	ed12b17	main	push	Quality	completed	success	docs: close out Batch 146 — tick BUILD_PLAN + session log
+2026-09-23T22:09:31Z	bf97763	main	push	Quality	completed	failure	docs: close out Batch 128 — tick BUILD_PLAN + session log
+2026-09-23T21:53:32Z	959e5ef	main	push	Quality	completed	success	docs: close out Batch 145 — tick BUILD_PLAN + session log
+2026-09-23T21:02:39Z	9a1467e	main	push	Quality	completed	success	docs: close out Batch 144 — tick BUILD_PLAN + session log
+2026-09-23T20:52:54Z	d9328b0	main	push	Quality	completed	success	docs: close out the round-population clock fix
+2026-09-23T16:40:22Z	0dcf593	main	push	Quality	completed	success	docs: record the 2026-09-23 overnight shipments and current rollback …
+2026-09-23T16:16:16Z	42e79d8	main	push	Quality	completed	success	docs: close out Batch 157 — tick BUILD_PLAN + session log
+2026-09-23T15:49:19Z	1e1df7a	main	push	Quality	completed	success	docs: close out Batch 156 — tick BUILD_PLAN + session log
+2026-09-23T15:31:20Z	cf48eb2	main	push	Quality	completed	success	docs: close out Batch 132 — tick BUILD_PLAN + session log
+2026-09-23T10:43:41Z	56651b8	main	push	Quality	completed	success	docs: close out Batch 131 — tick BUILD_PLAN + session log
+2026-09-23T10:28:49Z	21184b6	main	push	Quality	completed	success	docs: close out Batch 130 — tick BUILD_PLAN + session log
+2026-09-23T07:07:15Z	ec5d922	main	push	Quality	completed	success	docs: close out Batch 147 — tick BUILD_PLAN + session log
+2026-09-23T06:55:49Z	d9238e8	main	push	Quality	completed	success	docs: close out Batch 129 — tick BUILD_PLAN + session log
+2026-09-23T06:17:59Z	6c446fe	main	push	Quality	completed	success	docs: close out Batch 162 — tick BUILD_PLAN + session log
+2026-09-23T06:03:52Z	bbafa2a	main	push	Quality	completed	success	docs: close out Batch 133 — tick BUILD_PLAN + session log
+2026-09-23T05:45:43Z	7688394	main	push	Quality	completed	success	docs: close out Batch 161 — tick BUILD_PLAN + session log
+2026-09-23T05:25:11Z	a3ed0d9	main	push	Quality	completed	success	docs: close out Batch 160 — tick BUILD_PLAN + session log
+2026-09-23T05:12:53Z	777f44c	main	push	Quality	completed	success	docs: close out Batch 159 — tick BUILD_PLAN + session log
+2026-09-23T02:41:17Z	ac54a71	main	push	Quality	completed	failure	docs: close out Batch 143 — tick BUILD_PLAN + session log
+2026-09-23T02:29:25Z	df32eaa	main	push	Quality	completed	success	docs: close out Batch 141 — tick BUILD_PLAN + session log
+2026-09-23T02:10:07Z	07e77ce	main	push	Quality	completed	success	docs: close out Batch 126 — tick BUILD_PLAN + session log
+2026-09-23T01:57:45Z	8366206	main	push	Quality	completed	success	docs: close out Batch 125 — tick BUILD_PLAN + session log
+2026-09-23T01:39:54Z	4b84b19	main	push	Quality	completed	success	docs: close out Batch 124 — tick BUILD_PLAN + session log
+2026-09-23T01:18:57Z	f5136b1	main	push	Quality	completed	success	docs: close out Batch 123 — tick BUILD_PLAN + session log
+2026-09-23T00:50:09Z	38eb73f	main	push	Quality	completed	success	docs: close out Batch 167 — tick BUILD_PLAN + session log
+2026-09-23T00:34:57Z	0fda43a	main	push	Quality	completed	success	docs: close out Batch 139 — tick BUILD_PLAN + session log
+2026-09-23T00:18:37Z	6c6c18d	main	push	Quality	completed	success	docs: close out Batch 138 — tick BUILD_PLAN + session log
+2026-09-23T00:04:49Z	8f2b9b3	main	push	Quality	completed	success	docs: close out Batch 137 — tick BUILD_PLAN + session log
+2026-09-22T22:51:36Z	8007331	main	push	Quality	completed	success	docs: close out Batch 158 — tick BUILD_PLAN + session log
+2026-09-22T21:17:31Z	89217f8	main	push	Quality	completed	success	fix: tolerate coloured preview readiness
+2026-09-22T21:06:03Z	7ef953d	main	push	Quality	completed	failure	fix: expose preview readiness in CI
+2026-09-22T19:30:46Z	d1b9ee9	main	push	Quality	completed	failure	fix: stabilise delivery gate timing
+2026-09-22T15:47:13Z	0ff3e8c	main	push	Quality	completed	failure	docs: close out Batch 122 — tick BUILD_PLAN + session log
+2026-09-22T15:33:41Z	48b6627	main	push	Quality	completed	failure	docs: close out Batch 121 — tick BUILD_PLAN + session log
+2026-09-22T12:00:52Z	a689a57	main	push	Quality	completed	failure	docs: close out Batch 120 — tick BUILD_PLAN + session log
+2026-09-22T11:30:27Z	c7a50bb	main	push	Quality	completed	failure	docs: close out Batch 152 — tick BUILD_PLAN + session log
+2026-09-22T10:50:06Z	e740e4d	main	push	Quality	completed	success	docs: record model and effort for Batches 120-168, extend /group-star…
+2026-09-22T09:20:54Z	2aa02c5	main	push	Quality	completed	success	docs: owner approves the migration 025 forward recovery plan

@@ -1,0 +1,27 @@
+######## run 35811345686
+2026-09-23T02:42:03.9812473Z All checks passed!
+2026-09-23T02:48:01.1738571Z             assert response.status_code == 401, response.text
+2026-09-23T02:48:01.1740634Z >       assert refused.status_code == 429, refused.text
+2026-09-23T02:48:01.1741125Z E       AssertionError: {"detail":"Invalid credentials"}
+2026-09-23T02:48:01.1741553Z E       assert 401 == 429
+2026-09-23T02:48:01.1742493Z tests/test_durable_rate_limit.py:305: AssertionError
+2026-09-23T02:48:01.1763378Z FAILED tests/test_durable_rate_limit.py::test_an_unknown_name_is_charged_even_though_the_handler_commits_nothing - AssertionError: {"detail":"Invalid credentials"}
+2026-09-23T02:48:01.1764354Z assert 401 == 429
+2026-09-23T02:48:01.1765474Z ============ 1 failed, 1209 passed, 7 warnings in 329.63s (0:05:29) ============
+2026-09-23T02:48:02.5412619Z  2026-09-23 02:44:55.172 UTC [119] STATEMENT:  INSERT INTO profiles (display_name, pin_hash, role, timezone, odds_format, avatar_url, is_active, locked_until, deleted_at, id, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::player_role, $4::VARCHAR, $5::odds_format, $6::VARCHAR, $7::BOOLEAN, $8::TIMESTAMP WITHOUT TIME ZONE, $9::TIMESTAMP WITHOUT TIME ZONE, $10::UUID, $11::TIMESTAMP WITHOUT TIME ZONE) RETURNING profiles.failed_login_count, profiles.updated_at
+######## run 35926733924
+2026-09-23T22:10:24.6608197Z All checks passed!
+2026-09-23T22:17:05.5160542Z E   asyncpg.exceptions.UniqueViolationError: duplicate key value violates unique constraint "uq_leagues_join_code"
+2026-09-23T22:17:05.5163095Z asyncpg/protocol/protocol.pyx:207: UniqueViolationError
+2026-09-23T22:17:05.5287048Z error = UniqueViolationError('duplicate key value violates unique constraint "uq_leagues_join_code"')
+2026-09-23T22:17:05.5291739Z         if not isinstance(error, AsyncAdapt_asyncpg_dbapi.Error):
+2026-09-23T22:17:05.5303111Z E                   sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.IntegrityError: <class 'asyncpg.exceptions.UniqueViolationError'>: duplicate key value violates unique constraint "uq_leagues_join_code"
+2026-09-23T22:17:05.5306856Z /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:784: IntegrityError
+2026-09-23T22:17:05.5313975Z         """The rule is spelled twice and the two spellings are asserted against each other.
+2026-09-23T22:17:05.5396245Z error = UniqueViolationError('duplicate key value violates unique constraint "uq_leagues_join_code"')
+2026-09-23T22:17:05.5401045Z         if not isinstance(error, AsyncAdapt_asyncpg_dbapi.Error):
+2026-09-23T22:17:05.8519291Z E                   sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.UniqueViolationError'>: duplicate key value violates unique constraint "uq_leagues_join_code"
+2026-09-23T22:17:05.8526689Z /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:784: IntegrityError
+2026-09-23T22:17:05.8553862Z FAILED tests/test_scheduler_jobs.py::test_home_and_the_coupon_pick_the_same_round_in_every_state - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.UniqueViolationError'>: duplicate key value violates unique constraint "uq_leagues_join_code"
+2026-09-23T22:17:05.8565219Z ============ 1 failed, 1296 passed, 7 warnings in 376.54s (0:06:16) ============
+2026-09-23T22:17:06.9809277Z  2026-09-23 22:13:15.549 UTC [134] STATEMENT:  INSERT INTO profiles (display_name, pin_hash, role, timezone, odds_format, avatar_url, is_active, locked_until, deleted_at, id, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::player_role, $4::VARCHAR, $5::odds_format, $6::VARCHAR, $7::BOOLEAN, $8::TIMESTAMP WITHOUT TIME ZONE, $9::TIMESTAMP WITHOUT TIME ZONE, $10::UUID, $11::TIMESTAMP WITHOUT TIME ZONE) RETURNING profiles.failed_login_count, profiles.updated_at

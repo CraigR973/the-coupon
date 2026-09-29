@@ -1,0 +1,312 @@
+=== 5cefff3 chore: harden the delivery gate
+    asserts +0 -0; test defs +0 -0; removed-not-readded 0
+    ratchet: +BACKEND_TEST_COUNT=1172 +FRONTEND_TEST_COUNT=1045
+=== c822e69 fix: preserve simultaneous claim conflicts
+    asserts +6 -0; test defs +1 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1172 +BACKEND_TEST_COUNT=1174
+=== be387da fix: prevent stray rounds from scoring
+    asserts +17 -0; test defs +3 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1174 +BACKEND_TEST_COUNT=1177
+    MARKER no-cover: apps/api/src/services/scoring.py: if league is None:  # pragma: no cover — the foreign key makes this unreachable
+=== 30fe08b fix: protect privileged PIN resets
+    asserts +11 -0; test defs +2 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1177 +BACKEND_TEST_COUNT=1179
+=== d1b9ee9 fix: stabilise delivery gate timing
+    asserts +0 -0; test defs +0 -0; removed-not-readded 0
+=== 7ef953d fix: expose preview readiness in CI
+    asserts +0 -0; test defs +0 -0; removed-not-readded 0
+=== 89217f8 fix: tolerate coloured preview readiness
+    asserts +0 -0; test defs +0 -0; removed-not-readded 0
+=== fa922f8 fix: make keyboard focus visible
+    asserts +12 -0; test defs +3 -0; removed-not-readded 0
+    ratchet: -FRONTEND_TEST_COUNT=1045 +FRONTEND_TEST_COUNT=1073
+=== 8ed2740 fix: put every public screen in a landmark
+    asserts +5 -4; test defs +1 -0; removed-not-readded 0
+    ratchet: -FRONTEND_TEST_COUNT=1073 +FRONTEND_TEST_COUNT=1083
+    CHANGED-EXPECT apps/web/e2e/prod-bundle-a11y.spec.ts
+       - await expect(page.locator('form')).toBeVisible();
+       + await expect(page.locator(ready).first()).toBeVisible();
+    CHANGED-EXPECT apps/web/src/test/accessibility.test.tsx
+       - expect(results.violations.map((v) => v.id)).toEqual([]);
+       + expect(results.violations.map((v) => v.id)).toEqual([]);
+    CHANGED-EXPECT apps/web/src/test/accessibility.test.tsx
+       - expect(document.querySelectorAll('main')).toHaveLength(1);
+       - expect(document.querySelectorAll('h1')).toHaveLength(1);
+       + expect(document.querySelectorAll('main')).toHaveLength(1);
+       + expect(document.querySelectorAll('h1')).toHaveLength(1);
+       + expect(container.querySelectorAll('main')).toHaveLength(0);
+=== 6794111 fix: stop dimming tuned text with opacity
+    asserts +5 -0; test defs +2 -0; removed-not-readded 0
+    ratchet: -FRONTEND_TEST_COUNT=1083 +FRONTEND_TEST_COUNT=1096
+=== 7d0e56b feat: open the round on a fixture, and answer refusals in kind
+    asserts +22 -4; test defs +7 -2; removed-not-readded 2
+    ratchet: -FRONTEND_TEST_COUNT=1096 +FRONTEND_TEST_COUNT=1110
+    REMOVED TEST: apps/web/src/test/CurrentRoundPage.test.tsx :: keeps competitions collapsed until a member opens one
+    REMOVED TEST: apps/web/src/test/usePickEditor.test.tsx :: maps a 409 SELECTION_TAKEN into a friendly error toast
+    CHANGED-EXPECT apps/web/src/test/CurrentRoundPage.test.tsx
+       - expect(screen.queryByTestId('pick-card-fx1')).toBeNull();
+       - expect(screen.queryByTestId('pick-card-fx2')).toBeNull();
+       + expect(epl.getAttribute('aria-expanded')).toBe('true');
+    CHANGED-EXPECT apps/web/src/test/usePickEditor.test.tsx
+       - expect(mockToast.error).toHaveBeenCalledWith(expect.stringMatching(/just grabbed/i));
+       + expect(mockToast.warning).toHaveBeenCalledWith(
+       + expect(mockToast.error).not.toHaveBeenCalled();
+       + expect(actionOf(warningToasts().at(-1))?.label).toMatch(/refresh/i);
+    CHANGED-EXPECT apps/web/src/test/usePickEditor.test.tsx
+       - expect(mockToast.error).toHaveBeenCalledWith(expect.stringMatching(/offline/i));
+       + expect(mockToast.info).toHaveBeenCalledWith(expect.stringMatching(/offline/i));
+       + expect(mockToast.error).not.toHaveBeenCalled();
+=== 597905d fix: three keyboard and reflow defects the sweep cannot see
+    asserts +21 -0; test defs +11 -0; removed-not-readded 0
+    ratchet: -FRONTEND_TEST_COUNT=1110 +FRONTEND_TEST_COUNT=1122
+=== 37c6e40 fix: do not let a griefing lock cost a member their session
+    asserts +34 -0; test defs +12 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1179 -FRONTEND_TEST_COUNT=1122 +BACKEND_TEST_COUNT=1187 +FRONTEND_TEST_COUNT=1126
+    MARKER noqa: apps/api/src/routers/auth.py: except Exception:  # noqa: BLE001 — a refused login must still answer 401
+    MARKER type-ignore: apps/api/src/routers/auth.py: charge_failure: ChargeLoginFailure = None,  # type: ignore[assignment]
+    MARKER eslint-disable: apps/web/src/contexts/AuthContext.tsx: // eslint-disable-next-line react-hooks/exhaustive-deps
+=== da8a13d fix: stop the join code walking past removal and approval
+    asserts +33 -0; test defs +7 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1187 -FRONTEND_TEST_COUNT=1126 +BACKEND_TEST_COUNT=1193 +FRONTEND_TEST_COUNT=1127
+    MARKER py-skip/xfail: apps/api/tests/test_league_join_gate.py: pytestmark = pytest.mark.skipif(
+=== 623f9b7 fix: make oversight a read, not a licence to play
+    asserts +10 -0; test defs +7 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1193 +BACKEND_TEST_COUNT=1200
+    MARKER py-skip/xfail: apps/api/tests/test_league_write_access.py: pytestmark = pytest.mark.skipif(
+=== ae187ea fix: make a member's name theirs within a league
+    asserts +16 -0; test defs +8 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1200 +BACKEND_TEST_COUNT=1208
+    MARKER py-skip/xfail: apps/api/tests/test_league_display_name.py: pytestmark = pytest.mark.skipif(
+=== 591d0c2 feat: give the web app a Content-Security-Policy
+    asserts +27 -0; test defs +11 -0; removed-not-readded 0
+    ratchet: -FRONTEND_TEST_COUNT=1127 +FRONTEND_TEST_COUNT=1140
+=== 5c02dcd fix: forget the league on logout, and refuse an invite to a deleted one
+    asserts +16 -0; test defs +9 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1208 -FRONTEND_TEST_COUNT=1140 +BACKEND_TEST_COUNT=1210 +FRONTEND_TEST_COUNT=1147
+=== d1d4b60 fix: narrow the match-day refresh to the pooled competitions
+    asserts +20 -0; test defs +5 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1210 +BACKEND_TEST_COUNT=1215
+=== 8b1aa0d fix: charge every provider entry point to the plan counter
+    asserts +21 -0; test defs +7 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1215 +BACKEND_TEST_COUNT=1225
+    MARKER any: apps/api/src/services/odds_cache.py: # process pays for the catalogue, and that request is as real as any other.
+=== 39b299f fix: bound the pick path by what the deployment has left
+    asserts +12 -1; test defs +9 -2; removed-not-readded 2
+    ratchet: -BACKEND_TEST_COUNT=1225 +BACKEND_TEST_COUNT=1240
+    REMOVED TEST: apps/api/tests/test_picks_flow.py :: test_a_second_league_keeps_its_own_pick_budget
+    REMOVED TEST: apps/api/tests/test_request_budget.py :: test_the_aggregate_bound_is_per_league_rather_than_per_installation
+    CHANGED-EXPECT apps/api/tests/test_picks_flow.py
+       - assert quiet_pick.status_code == 201, quiet_pick.text
+       + assert quiet_pick.status_code == 429, quiet_pick.text
+       + assert quiet_pick.json()["detail"] == PICKS_BUSY
+=== a498e2a fix: give discovery a budget, and spend it across windows
+    asserts +9 -0; test defs +5 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1240 +BACKEND_TEST_COUNT=1245
+=== c36beb4 perf: answer the member before telling the league
+    asserts +9 -0; test defs +2 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1245 +BACKEND_TEST_COUNT=1249
+    MARKER type-ignore: apps/api/tests/test_picks_flow.py: await send(message)  # type: ignore[operator]
+    MARKER type-ignore: apps/api/tests/test_picks_flow.py: await self.inner(scope, receive, timed_send)  # type: ignore[operator]
+=== 2179fb5 fix: push the discovery-silence alarm, not just log it
+    asserts +28 -0; test defs +8 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1249 +BACKEND_TEST_COUNT=1257
+=== 665e266 fix: do not lose the pick reminder to the fall-back hour
+    asserts +10 -0; test defs +3 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1257 +BACKEND_TEST_COUNT=1260
+    MARKER type-ignore: apps/api/tests/test_scheduler.py: nxt = trigger.get_next_fire_time(None, start)  # type: ignore[attr-defined]
+    MARKER type-ignore: apps/api/tests/test_scheduler.py: previous, nxt = nxt, trigger.get_next_fire_time(nxt, nxt)  # type: ignore[attr-defined]
+=== 092ff38 fix: complete a round when the roster change fills it
+    asserts +26 -0; test defs +9 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1260 +BACKEND_TEST_COUNT=1269
+=== 8eff2bb fix: divide win rate by the picks that actually ran
+    asserts +9 -0; test defs +2 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1269 +BACKEND_TEST_COUNT=1271
+=== efdfdeb fix: guard the two calendar rules a declaration can break
+    asserts +14 -0; test defs +7 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1271 +BACKEND_TEST_COUNT=1278
+=== 46b8d29 fix: leave a voided leg out of the combined coupon
+    asserts +26 -0; test defs +8 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1278 -FRONTEND_TEST_COUNT=1147 +BACKEND_TEST_COUNT=1281 +FRONTEND_TEST_COUNT=1154
+=== e8b5fe4 fix: stop averaging rank across leagues of different sizes
+    asserts +5 -5; test defs +3 -3; removed-not-readded 3
+    REMOVED TEST: apps/api/tests/test_picks_flow.py :: test_avg_rank_skips_leagues_too_small_to_rank_against
+    REMOVED TEST: apps/web/src/test/CareerProfilePage.test.tsx :: says how many leagues the average rank actually covers
+    REMOVED TEST: apps/web/src/test/CareerProfilePage.test.tsx :: explains a missing average rather than showing a misleading number
+    CHANGED-EXPECT apps/api/tests/test_picks_flow.py
+       - assert summary["avg_rank"] == 2.0, "1.5 would mean the two-person league counted"
+       - assert summary["avg_rank_leagues"] == 1
+       + assert ranky == [], f"the summary aggregates rank again: {ranky}"
+    CHANGED-EXPECT apps/web/src/test/CareerProfilePage.test.tsx
+       - expect(await screen.findByText(/Averaged over 1 of your 2 leagues/)).toBeTruthy();
+       + expect(stats.textContent).not.toMatch(/rank/i);
+       + expect(screen.queryByText('Avg rank')).toBeNull();
+       + expect(screen.getByText(/Rank does not average across them/)).toBeTruthy();
+    CHANGED-EXPECT apps/web/src/test/CareerProfilePage.test.tsx
+       - expect(stats.textContent).toContain('—');
+       - expect(screen.getByText(/at least 3 members/)).toBeTruthy();
+       + expect(stats.textContent).toBe('Points57Win rate60%Picks won3/5');
+=== 2f7d742 fix: stop four round-population tests asserting on the day of the week
+    asserts +2 -0; test defs +1 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1281 +BACKEND_TEST_COUNT=1282
+=== 1bfe512 perf: label the summary's rounds once, off a projection
+    asserts +17 -0; test defs +3 -0; removed-not-readded 0
+    MARKER py-skip/xfail: apps/api/tests/test_cross_league_summary_cost.py: pytestmark = pytest.mark.skipif(
+    MARKER noqa: apps/api/tests/test_cross_league_summary_cost.py: def record(conn, cursor, statement, parameters, context, executemany) -> None:  # noqa: ANN001, ARG001
+=== f929c3d perf: compress the Saturday slate on its way down a phone
+    asserts +16 -0; test defs +4 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1285 +BACKEND_TEST_COUNT=1289
+    MARKER py-skip/xfail: apps/api/tests/test_response_compression.py: pytestmark = pytest.mark.skipif(
+    MARKER noqa: apps/api/tests/test_response_compression.py: def _wire_bytes(response) -> int:  # noqa: ANN001
+=== 00d609e feat: refuse a shipment that migrates with nothing written down
+    asserts +18 -0; test defs +8 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1289 +BACKEND_TEST_COUNT=1297
+=== ee3d196 perf: index the two reads that sweep rounds, and right-size the pool
+    asserts +6 -0; test defs +3 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1297 +BACKEND_TEST_COUNT=1300
+    MARKER py-skip/xfail: apps/api/tests/test_sweep_index_usage.py: pytestmark = pytest.mark.skipif(
+=== ba3f580 perf: stop precaching two admin consoles most members cannot open
+    asserts +8 -0; test defs +6 -0; removed-not-readded 0
+    ratchet: -FRONTEND_TEST_COUNT=1154 +FRONTEND_TEST_COUNT=1160
+=== 7e37b9b perf: replace framer-motion with CSS, and drop a font nothing asked for
+    asserts +15 -1; test defs +8 -1; removed-not-readded 1
+    ratchet: -FRONTEND_TEST_COUNT=1160 +FRONTEND_TEST_COUNT=1167
+    REMOVED TEST: apps/web/src/test/visualPolish.test.tsx :: renders children inside a motion wrapper
+    MARKER eslint-disable: apps/web/src/hooks/useSlidingIndicator.ts: // eslint-disable-next-line react-hooks/exhaustive-deps
+    CHANGED-EXPECT apps/web/src/test/TabBar.test.tsx
+       - expect(more.querySelector('span')?.className).toContain('bg-primary');
+       + expect(more.getAttribute('aria-current')).toBeNull();
+=== 13e49b4 perf: stop the countdown re-rendering the screen, and name the cache keys
+    asserts +21 -0; test defs +11 -0; removed-not-readded 0
+    ratchet: -FRONTEND_TEST_COUNT=1167 +FRONTEND_TEST_COUNT=1180
+=== ca62213 fix: take members' names out of the public repository (Batch 155)
+    asserts +15 -14; test defs +3 -3; removed-not-readded 3
+    REMOVED TEST: apps/api/tests/test_rename_notice.py :: test_body_names_the_old_name_and_the_new_one
+    REMOVED TEST: apps/api/tests/test_rename_notice.py :: test_matches_the_name_case_insensitively
+    REMOVED TEST: apps/api/tests/test_rename_notice.py :: test_the_marker_records_both_names
+    CHANGED-EXPECT apps/api/tests/test_backfill_august_2026.py
+       - assert {p.member for p in undocumented} == {"Lewis", "[member name redacted]"}
+       + assert {p.member for p in undocumented} == {"Member B", "Member H"}
+    CHANGED-EXPECT apps/api/tests/test_backfill_august_2026.py
+       - assert by_name["Adam wales"].picks_played == 2, "the two backfilled rounds"
+       - assert by_name["Lewis"].picks_played == 3, "plus the 22 August pick that was missing"
+       - assert by_name["[member name redacted]"].picks_played == 3
+       + assert by_name["Member C"].picks_played == 2, "the two backfilled rounds"
+       + assert by_name["Member B"].picks_played == 3, "plus the 22 August pick that was missing"
+       + assert by_name["Member H"].picks_played == 3
+    CHANGED-EXPECT apps/api/tests/test_rename_notice.py
+       - assert set(sent) == {m.new_name for m in RENAMED_MEMBERS}
+       + assert set(sent) == {str(profile_id) for profile_id in RENAMED_PROFILE_IDS}
+    CHANGED-EXPECT apps/api/tests/test_rename_notice.py
+       - assert RENAMED_MEMBERS[0].old_name in body
+       - assert RENAMED_MEMBERS[0].new_name in body
+       + assert 'Sign in as "Member A Fullname"' in body
+       + assert "old sign-in name no longer works" in body
+    CHANGED-EXPECT apps/api/tests/test_rename_notice.py
+       - assert sent == {member.new_name: 1}
+       + assert sent == {str(profile_id): 1}
+       + assert json.loads(payload)["body"] == notice_body("Renamed Again")
+    CHANGED-EXPECT apps/api/tests/test_rename_notice.py
+       - assert marker.changes == {"old": member.old_name, "new": member.new_name, "pushes": 1}
+       + assert marker.changes == {"new": person.display_name, "pushes": 1}
+    CHANGED-EXPECT apps/api/tests/test_rename_notice.py
+       - assert sent == {member.new_name: 0}
+       + assert sent == {str(profile_id): 0}
+    CHANGED-EXPECT apps/api/tests/test_rename_notice.py
+       - assert sent == {member.new_name: 1}
+       + assert sent == {str(profile_id): 1}
+    CHANGED-EXPECT apps/web/src/test/AdminConsole.test.tsx
+       - expect(await screen.findByText('Lewis')).toBeTruthy();
+       + expect(await screen.findByText('Dana')).toBeTruthy();
+    CHANGED-EXPECT apps/web/src/test/AdminConsole.test.tsx
+       - expect((screen.getByLabelText(/display name/i) as HTMLInputElement).value).toBe('Lewis');
+       + expect((screen.getByLabelText(/display name/i) as HTMLInputElement).value).toBe('Dana');
+    CHANGED-EXPECT apps/web/src/test/LoginPage.test.tsx
+       - expect((screen.getByLabelText(/display name/i) as HTMLInputElement).value).toBe('Lewis');
+       + expect((screen.getByLabelText(/display name/i) as HTMLInputElement).value).toBe('Dana');
+=== c9d0ed3 chore: move CI, the gate and the web build to Node 24 (Batch 127)
+    asserts +0 -0; test defs +0 -0; removed-not-readded 0
+=== 9b99f41 fix: bound every web push by a timeout and refuse odd push ports (Batch 142)
+    asserts +6 -0; test defs +2 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1300 +BACKEND_TEST_COUNT=1305
+=== 98de5d2 feat: a weekly off-site backup of the scored history, switched off until provisioned (Batch 95)
+    asserts +41 -0; test defs +14 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1305 +BACKEND_TEST_COUNT=1321
+    MARKER any: apps/api/src/services/backup_storage.py: so every copy died with the next redeploy. This is the destination that survives one: any
+    MARKER type-ignore: apps/api/tests/test_offsite_backup.py: import pgserver  # type: ignore[import-untyped,unused-ignore]
+    MARKER py-skip/xfail: apps/api/tests/test_offsite_backup.py: _needs_database = pytest.mark.skipif(
+=== 9731b4a feat: let a site admin correct a settled pick through the API (Batch 134)
+    asserts +24 -0; test defs +6 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1321 +BACKEND_TEST_COUNT=1327
+    MARKER no-cover: apps/api/src/routers/admin.py: if fixture is None:  # pragma: no cover — the foreign key guarantees it
+    MARKER no-cover: apps/api/src/routers/admin.py: if resolution is None:  # pragma: no cover — a score or a void settles every market
+    MARKER py-skip/xfail: apps/api/tests/test_pick_correction.py: pytestmark = pytest.mark.skipif(
+=== baae8ed feat: let a member delete their account or download their data (Batch 136)
+    asserts +55 -0; test defs +11 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1327 -FRONTEND_TEST_COUNT=1180 +BACKEND_TEST_COUNT=1335 +FRONTEND_TEST_COUNT=1187
+    MARKER py-skip/xfail: apps/api/tests/test_account_erasure.py: pytestmark = pytest.mark.skipif(
+=== fbf78e4 feat: tell members when their round settles, and what their pick did (Batch 135)
+    asserts +40 -0; test defs +7 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1335 +BACKEND_TEST_COUNT=1342
+    MARKER no-cover: apps/api/src/services/notification_triggers.py: return opening  # pragma: no cover
+    MARKER no-cover: apps/api/src/services/notification_triggers.py: if gameweek is None:  # pragma: no cover — it committed a moment ago
+    MARKER py-skip/xfail: apps/api/tests/test_round_settled_batch_135.py: pytestmark = pytest.mark.skipif(
+=== c5be640 feat: tell a renamed member in the app when push cannot reach them (Batch 148)
+    asserts +36 -0; test defs +13 -0; removed-not-readded 0
+    ratchet: -BACKEND_TEST_COUNT=1342 -FRONTEND_TEST_COUNT=1187 +BACKEND_TEST_COUNT=1349 +FRONTEND_TEST_COUNT=1197
+=== 828f42d fix: certify request budget from stored rounds
+    asserts +9 -5; test defs +15 -14; removed-not-readded 2
+    ratchet: -BACKEND_TEST_COUNT=1349 +BACKEND_TEST_COUNT=1350
+    REMOVED TEST: apps/api/tests/test_request_budget.py :: test_the_budget_covers_the_largest_round_the_database_holds
+    REMOVED TEST: apps/api/tests/test_request_budget.py :: test_the_production_shape_costs_ten_requests_a_sweep_not_twenty_one
+    CHANGED-EXPECT apps/api/tests/test_request_budget.py
+       - assert first == 21, "the cold card costs what the whole round costs"
+       - assert second == 10, f"the second sweep cost {second} requests, not ten"
+       + assert first == math.ceil(round_shape.total / EVENTS_PER_ODDS_REQUEST)
+       + assert second == math.ceil(round_shape.priced / EVENTS_PER_ODDS_REQUEST)
+    CHANGED-EXPECT apps/api/tests/test_request_budget.py
+       - assert 1 <= cup_asks <= windows, (
+       + assert 1 <= unpriced_asks <= windows, (
+    CHANGED-EXPECT apps/api/tests/test_request_budget.py
+       - assert await _tightest_browsing_hour() <= HOURLY_LIMIT
+       + assert await _tightest_browsing_hour(round_shape) <= HOURLY_LIMIT
+=== 99b5fc9 fix: remeasure production competition walk
+    asserts +2 -2; test defs +1 -1; removed-not-readded 1
+    REMOVED TEST: apps/api/tests/test_competitions.py :: test_the_trim_removes_thirteen_of_the_thirty_three_the_pool_holds
+    CHANGED-EXPECT apps/api/tests/test_competitions.py
+       - assert len(LIVE_POOL) == 33
+       + assert len(LIVE_POOL) == 36
+    CHANGED-EXPECT apps/api/tests/test_competitions.py
+       - assert len(played(LIVE_POOL)) == 20
+       + assert len(played(LIVE_POOL)) == 23
+=== 83facaf fix(e2e): align coupon flow with current round contracts
+    asserts +3 -2; test defs +0 -0; removed-not-readded 0
+    CHANGED-EXPECT apps/web/e2e/coupon-flow.spec.ts
+       - await expect(page.locator('[data-testid^="pick-card-"]')).toHaveCount(0);
+       + await expect(firstCompetition.locator('[data-testid^="pick-card-"]')).toHaveCount(1);
+       + await expect(page.locator('[data-testid^="pick-card-"]')).toHaveCount(1);
+    CHANGED-EXPECT apps/web/e2e/coupon-flow.spec.ts
+       - await expect(alice.getByText(/Averaged over 1 of your 2 leagues/)).toBeVisible();
+       + await expect(alice.getByText(/Rank does not average across them/)).toBeVisible();
+=== 66acf8b feat(web): unify statistic type scale
+    asserts +3 -0; test defs +2 -0; removed-not-readded 0
+    ratchet: -FRONTEND_TEST_COUNT=1197 +FRONTEND_TEST_COUNT=1199
+=== b6e0865 feat(web): add desktop two-column layouts
+    asserts +8 -0; test defs +0 -0; removed-not-readded 0
+=== d827cdf fix(web): restore targets and zoom navigation
+    asserts +10 -0; test defs +0 -0; removed-not-readded 0
+=== afea45f feat(web): complete first-run home
+    asserts +12 -1; test defs +1 -1; removed-not-readded 1
+    REMOVED TEST: apps/web/src/test/DashboardPage.test.tsx :: points a member with no leagues at the discovery page
+    CHANGED-EXPECT apps/web/src/test/DashboardPage.test.tsx
+       - expect(screen.getByRole('link', { name: /find a league/i }).getAttribute('href')).toBe(
+       + expect(discovery.getAttribute('href')).toBe(
+=== aa28601 fix(web): distinguish failures from empty states
+    asserts +17 -1; test defs +4 -0; removed-not-readded 0
+    ratchet: -FRONTEND_TEST_COUNT=1199 +FRONTEND_TEST_COUNT=1204
+    CHANGED-EXPECT apps/web/src/test/visualPolish.test.tsx
+       - expect(node.className).toContain('animate-pulse');
+       + expect(node.className).toContain('animate-shimmer');
+       + expect(screen.getByRole('alert')).toHaveAttribute('data-testid', 'query-error-state');
+       + expect(retry).toHaveBeenCalledOnce();
+=== 4121cf0 fix(web): keep mobile toasts above navigation
+    asserts +0 -1; test defs +0 -0; removed-not-readded 0

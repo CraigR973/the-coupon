@@ -1,0 +1,91 @@
+-	/api/openapi.json	Route	
+-	/api/docs	Route	
+-	/docs/oauth2-redirect	Route	
+-	/api/redoc	Route	
+GET	/api/v1/health	health.health	
+GET	/api/v1/health/ready	health.ready	
+GET	/api/v1/config	config.client_config	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> avatar_storage get_current_user
+POST	/api/v1/auth/login	auth.login	enforce_login_limit get_limiter_db login_failure_charger
+POST	/api/v1/auth/register	auth.register	
+POST	/api/v1/auth/refresh	auth.refresh	
+POST	/api/v1/auth/logout	auth.logout	
+GET	/api/v1/auth/me	auth.me	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+PATCH	/api/v1/auth/me	auth.update_profile	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+PUT	/api/v1/auth/me/pin	auth.change_pin	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+POST	/api/v1/auth/pin/reset-request	auth.pin_reset_request	enforce_pin_reset_request_limit get_limiter_db
+POST	/api/v1/auth/pin/set	auth.set_pin_after_reset	
+POST	/api/v1/auth/me/avatar	auth.upload_avatar	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> avatar_storage get_current_user
+DELETE	/api/v1/auth/me/avatar	auth.clear_avatar	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> avatar_storage get_current_user
+DELETE	/api/v1/auth/players/{player_id}/avatar	auth.remove_player_avatar	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> avatar_storage get_current_user require_admin
+GET	/api/v1/me/profile	me.get_profile	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+GET	/api/v1/me/cross-league-summary	me.cross_league_summary	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+GET	/api/v1/me/export	me.export_my_data	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+POST	/api/v1/me/delete	me.delete_my_account	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> avatar_storage get_current_user
+GET	/api/v1/me/rename-notice	me.get_rename_notice	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+POST	/api/v1/me/rename-notice/seen	me.acknowledge_rename_notice	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+GET	/api/v1/push/vapid-public-key	notifications.get_vapid_public_key	
+POST	/api/v1/push/subscribe	notifications.subscribe_push	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+DELETE	/api/v1/push/unsubscribe	notifications.unsubscribe_push	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+POST	/api/v1/push/test	notifications.test_push	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+GET	/api/v1/notifications/preferences	notifications.get_preferences	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+PATCH	/api/v1/notifications/preferences	notifications.patch_preferences	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+POST	/api/v1/leagues	leagues.create_league	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user get_optional_odds_provider
+GET	/api/v1/leagues/mine	leagues.list_my_leagues	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+GET	/api/v1/leagues/discover	leagues.discover_leagues	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+GET	/api/v1/leagues/by-code/{code}	leagues.get_league_by_code	
+GET	/api/v1/leagues/{slug}	leagues.get_league	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+PATCH	/api/v1/leagues/{slug}	leagues.update_league	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_admin
+GET	/api/v1/leagues/{slug}/audit-log	leagues.league_audit_log	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_admin
+GET	/api/v1/leagues/{slug}/competitions	leagues.league_competitions	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user get_odds_provider require_league_admin
+POST	/api/v1/leagues/{slug}/gameweeks/refresh	leagues.refresh_rounds	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user get_optional_odds_provider require_league_admin
+DELETE	/api/v1/leagues/{slug}	leagues.delete_league	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_admin
+POST	/api/v1/leagues/{slug}/join	leagues.join_league	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+DELETE	/api/v1/leagues/{slug}/membership	leagues.leave_league	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+POST	/api/v1/leagues/claim-invite	league_memberships.claim_invite_authenticated	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+POST	/api/v1/leagues/join-by-code	league_memberships.join_league_by_code	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+GET	/api/v1/leagues/{slug}/members	league_memberships.list_members	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_member
+POST	/api/v1/leagues/{slug}/members/{target_player_id}/promote	league_memberships.promote_member	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_admin
+POST	/api/v1/leagues/{slug}/members/{target_player_id}/demote	league_memberships.demote_member	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_admin
+DELETE	/api/v1/leagues/{slug}/members/{target_player_id}	league_memberships.remove_member	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_admin
+PUT	/api/v1/leagues/{slug}/members/me/display-name	league_memberships.set_my_display_name	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_member_write
+POST	/api/v1/leagues/{slug}/invites	league_memberships.create_league_invite	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_admin
+GET	/api/v1/leagues/{slug}/invites	league_memberships.list_league_invites	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_admin
+DELETE	/api/v1/leagues/{slug}/invites/{invite_id}	league_memberships.revoke_league_invite	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_admin
+POST	/api/v1/leagues/{slug}/members/{target_player_id}/reset-pin	league_memberships.reset_member_pin	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_admin
+POST	/api/v1/leagues/{slug}/join-code/rotate	league_memberships.rotate_join_code	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_admin
+GET	/api/v1/leagues/{slug}/join-requests	league_join_requests.list_join_requests	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_admin
+POST	/api/v1/leagues/{slug}/join-requests/{request_id}/approve	league_join_requests.approve_join_request	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_admin
+POST	/api/v1/leagues/{slug}/join-requests/{request_id}/reject	league_join_requests.reject_join_request	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_admin
+GET	/api/v1/leagues/{slug}/gameweeks	gameweek.list_gameweeks	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_member
+GET	/api/v1/leagues/{slug}/gameweek/current	gameweek.current_gameweek	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user get_odds_provider require_league_member
+GET	/api/v1/football/tables	football.competition_tables	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+GET	/api/v1/football/results	football.previous_results	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+GET	/api/v1/football/teams/{team_id}/season	football.team_season	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user
+POST	/api/v1/leagues/{slug}/picks	picks.submit_pick	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user get_odds_provider require_league_member_write
+GET	/api/v1/leagues/{slug}/gameweeks/{gameweek_id}/pick	picks.my_pick	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_member
+GET	/api/v1/leagues/{slug}/coupon	coupon.combined_coupon	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_member
+GET	/api/v1/leagues/{slug}/standings	coupon.league_standings	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_member
+GET	/api/v1/leagues/{slug}/seasons	coupon.league_seasons	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_member
+GET	/api/v1/leagues/{slug}/results	coupon.league_results	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_member
+GET	/api/v1/leagues/{slug}/players/{player_id}/profile	players.player_profile	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_league_member
+GET	/api/v1/admin/calendar	admin.get_season_calendar	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+PUT	/api/v1/admin/calendar/anchor	admin.put_season_anchor	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+POST	/api/v1/admin/calendar/extra-weeks	admin.post_extra_week	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+DELETE	/api/v1/admin/calendar/extra-weeks	admin.delete_extra_week	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+GET	/api/v1/admin/players	admin.list_players	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+POST	/api/v1/admin/players/{player_id}/reset-pin	admin.reset_player_pin	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+POST	/api/v1/admin/players/{player_id}/unlock	admin.unlock_player	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+DELETE	/api/v1/admin/players/{player_id}	admin.delete_player	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+GET	/api/v1/admin/invites	admin.list_invites	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+DELETE	/api/v1/admin/invites/{invite_id}	admin.revoke_invite	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+GET	/api/v1/admin/leagues	admin.list_leagues	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+POST	/api/v1/admin/leagues/{league_id}/rotate-join-code	admin.rotate_league_join_code	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+GET	/api/v1/admin/dashboard	admin.dashboard	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+GET	/api/v1/admin/jobs	admin.list_jobs	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+POST	/api/v1/admin/jobs/{key}/run	admin.run_job	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+GET	/api/v1/admin/results/pending	admin.pending_results	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+POST	/api/v1/admin/results/{gameweek_id}/settle	admin.settle_manually	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+POST	/api/v1/admin/picks/{pick_id}/correct	admin.correct_pick	<fastapi.security.http.HTTPBearer object at 0x10fd6a720> get_current_user require_admin
+POST	/__e2e/seed	e2e_server.seed_coupon_flow	
+POST	/__e2e/lock	e2e_server.lock_coupon_flow	
+POST	/__e2e/settle	e2e_server.settle_coupon_flow	

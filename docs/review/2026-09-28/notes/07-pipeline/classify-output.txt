@@ -1,0 +1,55 @@
+5cefff3 tooling  chore: harden the delivery gate  [PROTECTED: .github/workflows/ci.yml apps/web/playwright.prod-bundle.config.ts docs/agent-commands/phase-closeout.md scripts/assert-quality-guardrails.sh scripts/check-closeout-safety.sh scripts/ci-local.sh scripts/run-prod-bundle-smoke.sh ]
+c822e69 api      fix: preserve simultaneous claim conflicts
+be387da api      fix: prevent stray rounds from scoring
+30fe08b api      fix: protect privileged PIN resets
+d1b9ee9 api      fix: stabilise delivery gate timing  [PROTECTED: scripts/run-prod-bundle-smoke.sh ]
+7ef953d tooling  fix: expose preview readiness in CI  [PROTECTED: scripts/run-prod-bundle-smoke.sh ]
+89217f8 tooling  fix: tolerate coloured preview readiness  [PROTECTED: scripts/run-prod-bundle-smoke.sh ]
+fa922f8 web      fix: make keyboard focus visible
+8ed2740 web      fix: put every public screen in a landmark
+6794111 web      fix: stop dimming tuned text with opacity
+7d0e56b web      feat: open the round on a fixture, and answer refusals in kind
+597905d web      fix: three keyboard and reflow defects the sweep cannot see
+37c6e40 API+WEB  fix: do not let a griefing lock cost a member their session
+da8a13d API+WEB  fix: stop the join code walking past removal and approval
+623f9b7 api      fix: make oversight a read, not a licence to play
+ae187ea api      fix: make a member's name theirs within a league
+591d0c2 web      feat: give the web app a Content-Security-Policy
+5c02dcd API+WEB  fix: forget the league on logout, and refuse an invite to a deleted one
+d1d4b60 api      fix: narrow the match-day refresh to the pooled competitions
+8b1aa0d api      fix: charge every provider entry point to the plan counter
+39b299f api      fix: bound the pick path by what the deployment has left
+a498e2a api      fix: give discovery a budget, and spend it across windows
+c36beb4 api      perf: answer the member before telling the league
+2179fb5 api      fix: push the discovery-silence alarm, not just log it
+665e266 api      fix: do not lose the pick reminder to the fall-back hour
+092ff38 api      fix: complete a round when the roster change fills it
+8eff2bb api      fix: divide win rate by the picks that actually ran
+efdfdeb api      fix: guard the two calendar rules a declaration can break
+46b8d29 API+WEB  fix: leave a voided leg out of the combined coupon
+e8b5fe4 API+WEB  fix: stop averaging rank across leagues of different sizes
+2f7d742 api      fix: stop four round-population tests asserting on the day of the week
+1bfe512 api      perf: label the summary's rounds once, off a projection
+f929c3d api      perf: compress the Saturday slate on its way down a phone
+00d609e api      feat: refuse a shipment that migrates with nothing written down
+ee3d196 api      perf: index the two reads that sweep rounds, and right-size the pool
+ba3f580 web      perf: stop precaching two admin consoles most members cannot open
+7e37b9b web      perf: replace framer-motion with CSS, and drop a font nothing asked for
+13e49b4 web      perf: stop the countdown re-rendering the screen, and name the cache keys
+ca62213 api      fix: take members' names out of the public repository (Batch 155)
+c9d0ed3 web      chore: move CI, the gate and the web build to Node 24 (Batch 127)  [PROTECTED: .github/workflows/ci.yml apps/web/package.json scripts/ci-local.sh ]
+9b99f41 api      fix: bound every web push by a timeout and refuse odd push ports (Batch 142)
+98de5d2 api      feat: a weekly off-site backup of the scored history, switched off until provisioned (Batch 95)
+9731b4a api      feat: let a site admin correct a settled pick through the API (Batch 134)
+baae8ed API+WEB  feat: let a member delete their account or download their data (Batch 136)
+fbf78e4 api      feat: tell members when their round settles, and what their pick did (Batch 135)
+c5be640 API+WEB  feat: tell a renamed member in the app when push cannot reach them (Batch 148)
+828f42d api      fix: certify request budget from stored rounds
+99b5fc9 api      fix: remeasure production competition walk
+83facaf tooling  fix(e2e): align coupon flow with current round contracts
+66acf8b web      feat(web): unify statistic type scale
+b6e0865 web      feat(web): add desktop two-column layouts
+d827cdf web      fix(web): restore targets and zoom navigation
+afea45f web      feat(web): complete first-run home
+aa28601 web      fix(web): distinguish failures from empty states
+4121cf0 web      fix(web): keep mobile toasts above navigation

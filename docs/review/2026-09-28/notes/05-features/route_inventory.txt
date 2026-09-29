@@ -1,0 +1,84 @@
+GET    /api/v1/admin/calendar                                                 admin.py:130                 | App.tsx:277, pages/admin/AdminNav.tsx:14, pages/admin/AdminCalendarPage.tsx:26
+PUT    /api/v1/admin/calendar/anchor                                          admin.py:147                 | pages/admin/AdminCalendarPage.tsx:41
+POST   /api/v1/admin/calendar/extra-weeks                                     admin.py:170                 | pages/admin/AdminCalendarPage.tsx:59, pages/admin/AdminCalendarPage.tsx:77
+DELETE /api/v1/admin/calendar/extra-weeks                                     admin.py:196                 | pages/admin/AdminCalendarPage.tsx:59, pages/admin/AdminCalendarPage.tsx:77
+GET    /api/v1/admin/players                                                  admin.py:275                 | App.tsx:278, pages/admin/AdminNav.tsx:15, pages/admin/AdminPlayersPage.tsx:45
+POST   /api/v1/admin/players/{player_id}/reset-pin                            admin.py:317                 | pages/admin/AdminPlayersPage.tsx:66
+POST   /api/v1/admin/players/{player_id}/unlock                               admin.py:350                 | pages/admin/AdminPlayersPage.tsx:86
+DELETE /api/v1/admin/players/{player_id}                                      admin.py:389                 | pages/admin/AdminPlayersPage.tsx:101
+GET    /api/v1/admin/invites                                                  admin.py:477                 | App.tsx:264, App.tsx:281, components/LeagueActionsMenu.tsx:141, pages/admin/AdminNav.tsx:18
+DELETE /api/v1/admin/invites/{invite_id}                                      admin.py:516                 | pages/admin/AdminInvitesPage.tsx:35
+GET    /api/v1/admin/leagues                                                  admin.py:550                 | App.tsx:282, pages/admin/AdminNav.tsx:19, pages/admin/AdminAllLeaguesPage.tsx:35
+POST   /api/v1/admin/leagues/{league_id}/rotate-join-code                     admin.py:591                 | pages/admin/AdminAllLeaguesPage.tsx:49
+GET    /api/v1/admin/dashboard                                                admin.py:806                 | App.tsx:275, App.tsx:276, components/TabBar.tsx:111, pages/admin/AdminDashboardPage.tsx:29
+GET    /api/v1/admin/jobs                                                     admin.py:1025                | pages/admin/AdminSyncPage.tsx:38
+POST   /api/v1/admin/jobs/{key}/run                                           admin.py:1051                | pages/admin/AdminSyncPage.tsx:54
+GET    /api/v1/admin/results/pending                                          admin.py:1150                | pages/admin/AdminResultsPage.tsx:42
+POST   /api/v1/admin/results/{gameweek_id}/settle                             admin.py:1214                | pages/admin/AdminResultsPage.tsx:75
+POST   /api/v1/admin/picks/{pick_id}/correct                                  admin.py:1348                | -- NO WEB CALLER --
+POST   /api/v1/auth/login                                                     auth.py:256                  | contexts/AuthContext.tsx:205, contexts/AuthContext.tsx:264
+POST   /api/v1/auth/register                                                  auth.py:399                  | contexts/AuthContext.tsx:212
+POST   /api/v1/auth/refresh                                                   auth.py:530                  | lib/api.ts:102, lib/api.ts:136
+POST   /api/v1/auth/logout                                                    auth.py:606                  | contexts/AuthContext.tsx:230
+GET    /api/v1/auth/me                                                        auth.py:636                  | pages/SettingsPage.tsx:475, pages/SettingsPage.tsx:538
+PATCH  /api/v1/auth/me                                                        auth.py:652                  | pages/SettingsPage.tsx:475, pages/SettingsPage.tsx:538
+PUT    /api/v1/auth/me/pin                                                    auth.py:689                  | pages/SettingsPage.tsx:328
+POST   /api/v1/auth/pin/reset-request                                         auth.py:734                  | pages/ForgotPinPage.tsx:21
+POST   /api/v1/auth/pin/set                                                   auth.py:791                  | pages/SetPinPage.tsx:40
+POST   /api/v1/auth/me/avatar                                                 auth.py:884                  | components/AvatarUpload.tsx:47, components/AvatarUpload.tsx:66, hooks/useClientConfig.ts:10
+DELETE /api/v1/auth/me/avatar                                                 auth.py:965                  | components/AvatarUpload.tsx:47, components/AvatarUpload.tsx:66, hooks/useClientConfig.ts:10
+DELETE /api/v1/auth/players/{player_id}/avatar                                auth.py:984                  | -- NO WEB CALLER --
+GET    /api/v1/config                                                         config.py:39                 | hooks/useClientConfig.ts:4, hooks/useClientConfig.ts:14, hooks/useClientConfig.ts:18, hooks/useClientConfig.ts:34
+GET    /api/v1/leagues/{slug}/coupon                                          coupon.py:36                 | pages/CurrentRoundPage.tsx:177
+GET    /api/v1/leagues/{slug}/standings                                       coupon.py:50                 | pages/LeaderboardPage.tsx:60, pages/MyLeaguesPage.tsx:28
+GET    /api/v1/leagues/{slug}/seasons                                         coupon.py:58                 | pages/LeaderboardPage.tsx:46
+GET    /api/v1/leagues/{slug}/results                                         coupon.py:64                 | pages/ResultsPage.tsx:47
+GET    /api/v1/football/tables                                                football.py:52               | pages/FootballPage.tsx:106, pages/FootballPage.tsx:106
+GET    /api/v1/football/results                                               football.py:79               | pages/FootballPage.tsx:112
+GET    /api/v1/football/teams/{team_id}/season                                football.py:105              | pages/TeamSeasonPage.tsx:56
+GET    /api/v1/leagues/{slug}/gameweeks                                       gameweek.py:163              | hooks/useGameweekHistory.ts:59, pages/LeagueSettingsPage.tsx:66
+GET    /api/v1/leagues/{slug}/gameweek/current                                gameweek.py:209              | pages/CurrentRoundPage.tsx:164
+GET    /api/v1/health                                                         health.py:59                 | -- NO WEB CALLER --
+GET    /api/v1/health/ready                                                   health.py:65                 | -- NO WEB CALLER --
+GET    /api/v1/leagues/{slug}/join-requests                                   league_join_requests.py:56   | pages/LeagueJoinRequestsPage.tsx:21, pages/LeagueSettingsPage.tsx:72
+POST   /api/v1/leagues/{slug}/join-requests/{request_id}/approve              league_join_requests.py:93   | pages/LeagueJoinRequestsPage.tsx:29
+POST   /api/v1/leagues/{slug}/join-requests/{request_id}/reject               league_join_requests.py:146  | pages/LeagueJoinRequestsPage.tsx:43
+POST   /api/v1/leagues/claim-invite                                           league_memberships.py:63     | pages/JoinPage.tsx:38
+POST   /api/v1/leagues/join-by-code                                           league_memberships.py:139    | pages/JoinPage.tsx:37, pages/JoinByCodePage.tsx:56
+GET    /api/v1/leagues/{slug}/members                                         league_memberships.py:188    | App.tsx:256, pages/LeagueMembersPage.tsx:37
+POST   /api/v1/leagues/{slug}/members/{target_player_id}/promote              league_memberships.py:224    | pages/LeagueMembersPage.tsx:46
+POST   /api/v1/leagues/{slug}/members/{target_player_id}/demote               league_memberships.py:259    | pages/LeagueMembersPage.tsx:59
+DELETE /api/v1/leagues/{slug}/members/{target_player_id}                      league_memberships.py:301    | pages/LeagueMembersPage.tsx:74
+PUT    /api/v1/leagues/{slug}/members/me/display-name                         league_memberships.py:394    | -- NO WEB CALLER --
+POST   /api/v1/leagues/{slug}/invites                                         league_memberships.py:455    | pages/LeagueAdminInvitesPage.tsx:30, pages/LeagueAdminInvitesPage.tsx:88
+GET    /api/v1/leagues/{slug}/invites                                         league_memberships.py:504    | pages/LeagueAdminInvitesPage.tsx:30, pages/LeagueAdminInvitesPage.tsx:88
+DELETE /api/v1/leagues/{slug}/invites/{invite_id}                             league_memberships.py:526    | pages/LeagueAdminInvitesPage.tsx:107
+POST   /api/v1/leagues/{slug}/members/{target_player_id}/reset-pin            league_memberships.py:577    | -- NO WEB CALLER --
+POST   /api/v1/leagues/{slug}/join-code/rotate                                league_memberships.py:663    | pages/LeagueAdminInvitesPage.tsx:64
+POST   /api/v1/leagues                                                        leagues.py:791               | App.tsx:15, App.tsx:242, App.tsx:245, App.tsx:282
+GET    /api/v1/leagues/mine                                                   leagues.py:908               | contexts/LeagueContext.tsx:52, pages/MyLeaguesPage.tsx:97
+GET    /api/v1/leagues/discover                                               leagues.py:958               | App.tsx:247, pages/DiscoverLeaguesPage.tsx:36, pages/CareerProfilePage.tsx:106, pages/CurrentRoundPage.tsx:311
+GET    /api/v1/leagues/by-code/{code}                                         leagues.py:1035              | pages/JoinByCodePage.tsx:40
+GET    /api/v1/leagues/{slug}                                                 leagues.py:1091              | App.tsx:246, App.tsx:247, App.tsx:248, App.tsx:249
+PATCH  /api/v1/leagues/{slug}                                                 leagues.py:1161              | App.tsx:246, App.tsx:247, App.tsx:248, App.tsx:249
+GET    /api/v1/leagues/{slug}/audit-log                                       leagues.py:1385              | pages/LeagueAuditLogPage.tsx:89
+GET    /api/v1/leagues/{slug}/competitions                                    leagues.py:1480              | pages/LeagueSettingsPage.tsx:58
+POST   /api/v1/leagues/{slug}/gameweeks/refresh                               leagues.py:1570              | pages/LeagueSettingsPage.tsx:245
+DELETE /api/v1/leagues/{slug}                                                 leagues.py:1658              | App.tsx:246, App.tsx:247, App.tsx:248, App.tsx:249
+POST   /api/v1/leagues/{slug}/join                                            leagues.py:1689              | pages/DiscoverLeaguesPage.tsx:44
+DELETE /api/v1/leagues/{slug}/membership                                      leagues.py:1740              | components/LeagueActionsMenu.tsx:61, pages/LeagueMembersPage.tsx:88
+GET    /api/v1/me/profile                                                     me.py:64                     | -- NO WEB CALLER --
+GET    /api/v1/me/cross-league-summary                                        me.py:228                    | hooks/useCrossLeagueSummary.ts:18, pages/DashboardPage.tsx:133
+GET    /api/v1/me/export                                                      me.py:597                    | components/YourDataSection.tsx:30
+POST   /api/v1/me/delete                                                      me.py:623                    | components/YourDataSection.tsx:53
+GET    /api/v1/me/rename-notice                                               me.py:678                    | components/RenameNotice.tsx:42, lib/types.ts:691
+POST   /api/v1/me/rename-notice/seen                                          me.py:687                    | components/RenameNotice.tsx:53
+GET    /api/v1/push/vapid-public-key                                          notifications.py:133         | -- NO WEB CALLER --
+POST   /api/v1/push/subscribe                                                 notifications.py:147         | hooks/usePushSubscription.ts:78
+DELETE /api/v1/push/unsubscribe                                               notifications.py:184         | hooks/usePushSubscription.ts:102
+POST   /api/v1/push/test                                                      notifications.py:207         | pages/SettingsPage.tsx:90
+GET    /api/v1/notifications/preferences                                      notifications.py:254         | pages/SettingsPage.tsx:206, pages/SettingsPage.tsx:211
+PATCH  /api/v1/notifications/preferences                                      notifications.py:276         | pages/SettingsPage.tsx:206, pages/SettingsPage.tsx:211
+POST   /api/v1/leagues/{slug}/picks                                           picks.py:252                 | hooks/usePickEditor.ts:353
+GET    /api/v1/leagues/{slug}/gameweeks/{gameweek_id}/pick                    picks.py:604                 | hooks/usePickEditor.ts:318
+GET    /api/v1/leagues/{slug}/players/{player_id}/profile                     players.py:86                | pages/PlayerProfilePage.tsx:46
