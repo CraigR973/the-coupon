@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "happy",
+    "name": "about",
+    "path": "/about",
+    "full": true,
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "About & scoring rules"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": true,
+    "settledText": true,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/about",
+    "snippet": "THE COUPON AL BACK About & scoring rules How it works One pick a week. Choose a single selection — a match result (1X2) or Both Teams to Score — from this Saturday's slate. First come, first served. No two members of a l"
+  },
+  "axe": {
+    "url": "/about",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 2
+      }
+    ],
+    "passes": 41
+  },
+  "errors": []
+}

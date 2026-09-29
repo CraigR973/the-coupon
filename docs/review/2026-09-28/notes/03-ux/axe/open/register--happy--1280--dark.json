@@ -1,0 +1,47 @@
+{
+  "job": {
+    "persona": null,
+    "state": "happy",
+    "name": "register",
+    "path": "/register",
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Create account"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/register",
+    "snippet": "THE COUPON One pick. One coupon. Every Saturday. Grab your selection before 14:30 — no two the same. Create account DISPLAY NAME This is how you sign in and how you appear on every leaderboard. CHOOSE A PIN CONFIRM PIN Y"
+  },
+  "axe": {
+    "url": "/register",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "aria-prohibited-attr",
+        "nodes": 1
+      },
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

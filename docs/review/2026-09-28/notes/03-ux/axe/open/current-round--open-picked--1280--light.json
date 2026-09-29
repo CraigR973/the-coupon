@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Bob",
+    "state": "open-picked",
+    "name": "current-round",
+    "path": "/leagues/the-coupon/predictions",
+    "full": true,
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "This week's coupon"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/predictions",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Bob BO THE COUPON TEST LEAGUE · GAMEWEEK 1B This week's coupon YOUR LEAGUES TAP TO SWITCH Sunday Club The Coupon Test League Current round Season GAMEWEEK 1B Open 0 "
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/predictions",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 3
+      }
+    ],
+    "passes": 34
+  },
+  "errors": []
+}

@@ -1,0 +1,47 @@
+{
+  "job": {
+    "persona": null,
+    "state": "happy",
+    "name": "welcome",
+    "path": "/welcome",
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "One Saturday pick. One shared coupon."
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/welcome",
+    "snippet": "THE COUPON One pick. One coupon. Every Saturday. One Saturday pick. One shared coupon. Claim a priced football selection before the weekly lock. No two members can hold the same selection, and a winner scores its frozen "
+  },
+  "axe": {
+    "url": "/welcome",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "aria-prohibited-attr",
+        "nodes": 1
+      },
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 29
+  },
+  "errors": []
+}

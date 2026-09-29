@@ -1,0 +1,43 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "happy",
+    "name": "create-league",
+    "path": "/leagues/new",
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "Create a League"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": true,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/new",
+    "snippet": "THE COUPON AL You're offline — some content may be outdated Create a League League details LEAGUE NAME DESCRIPTION (OPTIONAL) PRIVACY Private — invite only Public — anyone can ask to join Public — anyone can join instant"
+  },
+  "axe": {
+    "url": "/leagues/new",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 4
+      }
+    ],
+    "passes": 40
+  },
+  "errors": []
+}

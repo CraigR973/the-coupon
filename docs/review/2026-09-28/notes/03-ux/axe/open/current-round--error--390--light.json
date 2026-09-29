@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "error",
+    "name": "current-round",
+    "path": "/leagues/the-coupon/predictions",
+    "waitMs": 4500,
+    "setup": true,
+    "after": false
+  },
+  "width": 390,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "This week's coupon"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/predictions",
+    "snippet": "THE COUPON AL THE COUPON TEST LEAGUE · THIS ROUND This week's coupon YOUR LEAGUES TAP TO SWITCH Sunday Club The Coupon Test League Current round Season GAMEWEEK 1B Open 0 picks No coupon this week yet Internal Server Err"
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/predictions",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 35
+  },
+  "errors": []
+}

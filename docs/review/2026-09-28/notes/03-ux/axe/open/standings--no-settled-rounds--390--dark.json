@@ -1,0 +1,43 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "no-settled-rounds",
+    "name": "standings",
+    "path": "/leagues/sunday-club/leaderboard",
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Sunday Club"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": true,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/sunday-club/leaderboard",
+    "snippet": "THE COUPON AL 2026/27 STANDINGS Sunday Club Leave YOUR LEAGUES TAP TO SWITCH Sunday Club The Coupon Test League Copy standings 1 AL Alice 0/0 won 0 PTS 1 BO Bob 0/0 won 0 PTS Home Coupon Football Stats Leagues More"
+  },
+  "axe": {
+    "url": "/leagues/sunday-club/leaderboard",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 35
+  },
+  "errors": []
+}

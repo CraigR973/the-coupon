@@ -1,0 +1,47 @@
+{
+  "job": {
+    "persona": null,
+    "state": "happy",
+    "name": "forgot-pin",
+    "path": "/forgot-pin",
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Reset PIN"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/forgot-pin",
+    "snippet": "THE COUPON Reset PIN Enter your display name to ask an admin for a PIN reset. DISPLAY NAME Request PIN reset Back to sign in"
+  },
+  "axe": {
+    "url": "/forgot-pin",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "aria-prohibited-attr",
+        "nodes": 1
+      },
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

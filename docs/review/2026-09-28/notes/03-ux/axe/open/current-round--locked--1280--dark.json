@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "locked",
+    "name": "current-round",
+    "path": "/leagues/sunday-club/predictions",
+    "full": true,
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "This week's coupon"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": true,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/sunday-club/predictions",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL SUNDAY CLUB · GAMEWEEK 1B This week's coupon YOUR LEAGUES TAP TO SWITCH Sunday Club The Coupon Test League Current round Season Coupon complete Picks are lo"
+  },
+  "axe": {
+    "url": "/leagues/sunday-club/predictions",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 3
+      }
+    ],
+    "passes": 34
+  },
+  "errors": []
+}

@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "happy",
+    "name": "settings",
+    "path": "/settings",
+    "full": true,
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Settings"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/settings",
+    "snippet": "THE COUPON AL ACCOUNT & DEVICE Settings Change PIN Enter your current PIN, then choose a new 4-digit PIN. Current PIN New PIN Change PIN Timezone Used for kickoff times and notification scheduling. Europe/London Europe/D"
+  },
+  "axe": {
+    "url": "/settings",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 2
+      }
+    ],
+    "passes": 40
+  },
+  "errors": []
+}

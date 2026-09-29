@@ -1,0 +1,43 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "empty",
+    "name": "results",
+    "path": "/leagues/sunday-club/predictions/results",
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Season"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": true,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/leagues/sunday-club/predictions/results",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL SUNDAY CLUB · EVERY SETTLED GAMEWEEK Season YOUR LEAGUES TAP TO SWITCH Sunday Club The Coupon Test League Current round Season No results yet A gameweek app"
+  },
+  "axe": {
+    "url": "/leagues/sunday-club/predictions/results",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 33
+  },
+  "errors": []
+}

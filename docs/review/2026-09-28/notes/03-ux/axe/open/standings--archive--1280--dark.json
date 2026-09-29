@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "archive",
+    "name": "standings",
+    "path": "/leagues/the-coupon/leaderboard?season=2025",
+    "full": true,
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "The Coupon Test League"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": true,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/leaderboard?season=2025",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL 2025/26 STANDINGS The Coupon Test League Manage YOUR LEAGUES TAP TO SWITCH Sunday Club The Coupon Test League SEASON PAST SEASONS 2026/27 NOW 2025/26 A comp"
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/leaderboard?season=2025",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 2
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

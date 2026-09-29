@@ -1,0 +1,43 @@
+{
+  "job": {
+    "persona": "Dave",
+    "state": "happy",
+    "name": "join-by-code",
+    "path": "/leagues/join",
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "Join a league"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": true,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/join",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Dave DA You're offline — some content may be outdated LEAGUES Join a league Enter join code LEAGUE CODE Ask the league admin for their share link or 6-character code"
+  },
+  "axe": {
+    "url": "/leagues/join",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 39
+  },
+  "errors": []
+}

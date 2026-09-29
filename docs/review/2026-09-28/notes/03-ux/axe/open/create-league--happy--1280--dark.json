@@ -1,0 +1,43 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "happy",
+    "name": "create-league",
+    "path": "/leagues/new",
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Create a League"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": true,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/new",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL You're offline — some content may be outdated Create a League League details LEAGUE NAME DESCRIPTION (OPTIONAL) PRIVACY Private — invite only Public — anyon"
+  },
+  "axe": {
+    "url": "/leagues/new",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 38
+  },
+  "errors": []
+}

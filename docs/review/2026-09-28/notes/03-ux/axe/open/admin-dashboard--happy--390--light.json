@@ -1,0 +1,43 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "happy",
+    "name": "admin-dashboard",
+    "path": "/admin/dashboard",
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "Dashboard"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": true,
+    "settledText": false,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/admin/dashboard",
+    "snippet": "THE COUPON AL SITE ADMIN Dashboard Dashboard Calendar Players Results Sync Invites All leagues MEMBERS 5 LEAGUES 2 AWAITING PIN 0 ROUNDS STUCK UNSETTLED Sunday Club 2 pending Locked Tue 29 Sep 13:49 · enter the result NE"
+  },
+  "axe": {
+    "url": "/admin/dashboard",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 4
+      }
+    ],
+    "passes": 38
+  },
+  "errors": []
+}

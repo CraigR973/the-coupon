@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "happy",
+    "name": "team-season",
+    "path": "/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025",
+    "full": true,
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "Arsenal FC"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": true,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL ENGLISH PREMIER LEAGUE · 2025/26 Arsenal FC BACK TO TABLE FIXTURES 9 MAY 15:00 H home to Liverpool FC Next — 16 MAY 15:00 A away to Tottenham Hotspur FC POS"
+  },
+  "axe": {
+    "url": "/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

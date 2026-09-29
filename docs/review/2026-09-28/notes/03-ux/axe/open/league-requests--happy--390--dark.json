@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "happy",
+    "name": "league-requests",
+    "path": "/leagues/the-coupon/admin/requests",
+    "full": false,
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Join Requests"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/admin/requests",
+    "snippet": "THE COUPON AL BACK Join Requests Erin 9/29/2026 Pending Approve Reject Home Coupon Football Stats Leagues More"
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/admin/requests",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

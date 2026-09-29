@@ -1,6 +1,0 @@
-file	path	persona	violations	proof
-login--happy--390--dark	/login	null	0	{"sk":0,"err":0,"h1":["Sign in"],"hs":0}
-home--happy--390--dark	/	Alice	0	{"sk":0,"err":0,"h1":["Hi Alice"],"hs":0}
-current-round--open--390--dark	/leagues/the-coupon/predictions	Alice	0	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
-home--loading--390--dark	/	Alice	0	{"sk":13,"err":0,"h1":["Hi Alice"],"hs":0}
-home--error--390--dark	/	Alice	0	{"sk":0,"err":1,"h1":["Hi Alice"],"hs":0}

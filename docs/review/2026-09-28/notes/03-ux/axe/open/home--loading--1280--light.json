@@ -1,0 +1,49 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "loading",
+    "name": "home",
+    "path": "/",
+    "allowSkeleton": true,
+    "axe": true,
+    "setup": true,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "Hi Alice"
+    ],
+    "mains": 1,
+    "skeletons": 13,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL THE COUPON · YOUR SEASON Hi Alice Your picks, deadlines and results — together when your first league begins."
+  },
+  "axe": {
+    "url": "/",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "aria-prohibited-attr",
+        "nodes": 2
+      },
+      {
+        "id": "color-contrast",
+        "nodes": 4
+      }
+    ],
+    "passes": 34
+  },
+  "errors": []
+}

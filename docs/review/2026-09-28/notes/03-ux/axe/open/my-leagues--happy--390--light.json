@@ -1,0 +1,43 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "happy",
+    "name": "my-leagues",
+    "path": "/leagues",
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "My Leagues"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues",
+    "snippet": "THE COUPON AL My Leagues Your league hubs, shortcuts, and current standing in one place. Discover Join + New LEAGUE HUB Sunday Club Private One game each, match result only. 2 / 15 members Rank #1 0 pts OPEN STANDINGS → "
+  },
+  "axe": {
+    "url": "/leagues",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 17
+      }
+    ],
+    "passes": 35
+  },
+  "errors": []
+}

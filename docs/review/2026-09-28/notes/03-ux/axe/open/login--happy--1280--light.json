@@ -1,0 +1,47 @@
+{
+  "job": {
+    "persona": null,
+    "state": "happy",
+    "name": "login",
+    "path": "/login",
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "Sign in"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/login",
+    "snippet": "THE COUPON One pick. One coupon. Every Saturday. Grab your selection before 14:30 — no two the same. Sign in DISPLAY NAME PIN Sign in Forgot PIN? New here? Create account"
+  },
+  "axe": {
+    "url": "/login",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "aria-prohibited-attr",
+        "nodes": 1
+      },
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

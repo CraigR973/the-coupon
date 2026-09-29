@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "archive-season",
+    "name": "results",
+    "path": "/leagues/the-coupon/predictions/results",
+    "full": true,
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "Season"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": true,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/predictions/results",
+    "snippet": "THE COUPON AL THE COUPON TEST LEAGUE · EVERY SETTLED GAMEWEEK Season YOUR LEAGUES TAP TO SWITCH Sunday Club The Coupon Test League Current round Season Gameweek 38 Bob won·2 of 3 landed 22 pts 9.27 Coupon lost Gameweek 3"
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/predictions/results",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 35
+  },
+  "errors": []
+}

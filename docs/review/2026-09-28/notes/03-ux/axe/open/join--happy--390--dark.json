@@ -1,0 +1,47 @@
+{
+  "job": {
+    "persona": null,
+    "state": "happy",
+    "name": "join",
+    "path": "/join/REVIEWINVITE1",
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Join the league"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/join/REVIEWINVITE1",
+    "snippet": "THE COUPON One pick. One coupon. Every Saturday. Join the league Create an account or sign in, and this invite will be ready to claim. Create accountI already have an account"
+  },
+  "axe": {
+    "url": "/join/REVIEWINVITE1",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "aria-prohibited-attr",
+        "nodes": 1
+      },
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 30
+  },
+  "errors": []
+}

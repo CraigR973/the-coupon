@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "happy",
+    "name": "league-invites",
+    "path": "/leagues/the-coupon/admin/invites",
+    "full": false,
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "Invites"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/admin/invites",
+    "snippet": "THE COUPON AL BACK Invites Invite friends Share the league join code so anyone can join from the link or the app. EEFA0F Share invite Generate new code — old links stop working Advanced: one-time private link Home Coupon"
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/admin/invites",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 37
+  },
+  "errors": []
+}

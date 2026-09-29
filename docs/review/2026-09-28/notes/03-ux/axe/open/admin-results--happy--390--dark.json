@@ -1,0 +1,43 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "happy",
+    "name": "admin-results",
+    "path": "/admin/results",
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Results"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": true,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/admin/results",
+    "snippet": "THE COUPON AL SITE ADMIN Results Dashboard Calendar Players Results Sync Invites All leagues Sunday Club 1 Aug locked Tue 29 Sep 13:49 Forfar Athletic v Brechin City Scottish League Two · 1 pending pick(s) – Not played A"
+  },
+  "axe": {
+    "url": "/admin/results",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 2
+      }
+    ],
+    "passes": 39
+  },
+  "errors": []
+}

@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "happy",
+    "name": "home",
+    "path": "/",
+    "full": true,
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "Hi Alice"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": true,
+    "settledText": true,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL THE COUPON · YOUR SEASON Hi Alice 2 leagues, one clear view of every round. 1 league needs a pick The Coupon Test League locks in 2d 20h POINTS 0 PICKS WON "
+  },
+  "axe": {
+    "url": "/",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 11
+      }
+    ],
+    "passes": 38
+  },
+  "errors": []
+}

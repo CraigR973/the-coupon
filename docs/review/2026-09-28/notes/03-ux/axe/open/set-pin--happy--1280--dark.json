@@ -1,0 +1,47 @@
+{
+  "job": {
+    "persona": null,
+    "state": "happy",
+    "name": "set-pin",
+    "path": "/set-pin?name=Dana",
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Choose a new PIN"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/set-pin?name=Dana",
+    "snippet": "THE COUPON Choose a new PIN An admin cleared your PIN. Pick a new one — nobody else has seen it, and nobody else will. DISPLAY NAME NEW PIN CONFIRM NEW PIN Set PIN and sign in Back to sign in"
+  },
+  "axe": {
+    "url": "/set-pin?name=Dana",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "aria-prohibited-attr",
+        "nodes": 1
+      },
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

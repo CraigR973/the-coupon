@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Dave",
+    "state": "firstrun",
+    "name": "home",
+    "path": "/",
+    "full": true,
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Hi Dave"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/",
+    "snippet": "THE COUPON DA THE COUPON · YOUR SEASON Hi Dave Your picks, deadlines and results — together when your first league begins. You're not in a league yet Find a league to follow its picks, results and standings from here. Fi"
+  },
+  "axe": {
+    "url": "/",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 9
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

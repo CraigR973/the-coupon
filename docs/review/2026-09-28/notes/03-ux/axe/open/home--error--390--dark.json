@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "error",
+    "name": "home",
+    "path": "/",
+    "waitMs": 4500,
+    "setup": true,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Hi Alice"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 1,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/",
+    "snippet": "THE COUPON AL THE COUPON · YOUR SEASON Hi Alice Your picks, deadlines and results — together when your first league begins. Couldn't load your leagues Please try again shortly. Try again Home Coupon Football Stats League"
+  },
+  "axe": {
+    "url": "/",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 4
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}
