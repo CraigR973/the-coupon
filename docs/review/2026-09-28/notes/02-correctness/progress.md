@@ -42,3 +42,4 @@ Interrupted once by a usage limit (28 Sep ~23:04); resumed 29 Sep 08:40 on a fre
 - DONE (cal_guards.py — NOT calendar.py, which shadows stdlib): CORR-11, CORR-12 held; CORR-16 still true. Next: budget.py (CORR-15 + refresh + 159/161 + 115 cert).
 - DONE (budget.py, pytest-budget.txt): CORR-15 partial -> CORR-24 MED; 161 held; 115 held w/ caveat. Next: dst.py (CORR-17 + DST lock/open instants + NY member), then backup.py, backfill dry-run, sweep, web void/conflict check.
 - DONE (dst.py): CORR-17 held; CORR-05 held; lock instants + NY/Sydney labels correct across both changes (put in 'checked'). Next: backup.py (Batch 95 local fake S3), then backfill dry-run, sweep, web check.
+- DONE (backup_check.py): Batch 95 held. Next: backfill dry-run (backfill.py), sweep of changed code, web check (void + conflict messaging).

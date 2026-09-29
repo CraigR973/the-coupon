@@ -1,0 +1,22 @@
+[configured, reachable] run_offsite_backup -> True; store calls ['GET /review-bucket', 'PUT /review-bucket/review/the-coupon-20260929T133151Z.dump']; pg_dump runs 1; latest backup_failed audit (n/a); secret in audit: False; admin pushes []
+objects in the fake bucket: ['review-bucket/review/the-coupon-20260929T133151Z.dump 72537B']
+pg_restore exit 1 pg_restore: error: could not execute query: ERROR:  schema "public" already exists
+Command was: CREATE SCHEMA public;
+--- restore uses the runbook command: pg_restore --clean --if-exists --no-owner --exit-on-error ---
+[configured, reachable] run_offsite_backup -> True; store calls ['GET /review-bucket', 'PUT /review-bucket/review/the-coupon-20260929T133216Z.dump']; pg_dump runs 1; latest backup_failed audit (n/a); secret in audit: False; admin pushes []
+objects in the fake bucket: ['review-bucket/review/the-coupon-20260929T133216Z.dump 72537B']
+pg_restore exit 0
+  select count(*) from profiles                                          source=21 restored=21 OK
+  select count(*) from leagues                                           source=7 restored=7 OK
+  select count(*) from gameweeks                                         source=13 restored=13 OK
+  select count(*) from picks                                             source=27 restored=27 OK
+  select coalesce(sum(points_awarded),0) from picks                      source=220 restored=220 OK
+  select count(*) from audit_log where action_type <> 'backup_failed'    source=9 restored=9 OK
+  select version_num from alembic_version                                source=026 restored=026 OK
+  select string_agg(status::text || ':' || coalesce(points_awarded,-1):: source=pending:-1,won:21,won:19,void:0,won:25,l restored=pending:-1,won:21,won:19,void:0,won:25,l OK
+[missing secret] run_offsite_backup -> False; store calls []; pg_dump runs 0; latest backup_failed audit {'error': 'off-site backup is switched on but missing BACKUP_S3_SECRET_ACCESS_KEY', 'offsite': True}; secret in audit: False; admin pushes ['off-site backup is switched on but missing BACKUP_S3_SECRET_ACCESS_KEY']
+[endpoint not https] run_offsite_backup -> False; store calls []; pg_dump runs 0; latest backup_failed audit {'error': 'BACKUP_S3_ENDPOINT must be a bare https:// origin, such as https://<account_id>.eu.r2.cloudflarestorage.com', 'offsite': True}; secret in audit: False; admin pushes []
+[unreachable] run_offsite_backup -> False; store calls ['GET /review-bucket']; pg_dump runs 0; latest backup_failed audit {'error': 'backup target unreachable: ConnectError', 'offsite': True}; secret in audit: False; admin pushes []
+[listing refused] run_offsite_backup -> False; store calls ['GET /review-bucket']; pg_dump runs 0; latest backup_failed audit {'error': 'backup target refused a listing: HTTP 403 (AccessDenied)', 'offsite': True}; secret in audit: False; admin pushes []
+[upload refused] run_offsite_backup -> False; store calls ['GET /review-bucket', 'PUT /review-bucket/review/the-coupon-20260929T133218Z.dump']; pg_dump runs 1; latest backup_failed audit {'error': 'backup upload refused: HTTP 500 (InternalError)', 'offsite': True}; secret in audit: False; admin pushes []
+offsite_backup scheduled when storage=none: False; when s3: True (cron[day_of_week='mon', hour='4', minute='0'])
