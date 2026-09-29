@@ -27,13 +27,13 @@ Branch `chore/review-2026-09-28`, cut from `main` at `eb18bcb`. Never push, merg
 
 | lens | state | notes dir | next step |
 | --- | --- | --- | --- |
-| 01 security | running (subagent, launched 22:57) | `notes/01-security/` | |
-| 02 correctness | running (subagent, launched 22:57) | `notes/02-correctness/` | |
-| 03 UX / a11y | todo | `notes/03-ux/` | |
-| 04 performance / ops | todo | `notes/04-perf/` | |
-| 05 feature gaps | running (subagent, launched 22:53) | `notes/05-features/` | |
+| 01 security | running (resumed 29 Sep 08:40) | `notes/01-security/` | |
+| 02 correctness | running (resumed 29 Sep 08:40) | `notes/02-correctness/` | |
+| 03 UX / a11y | running (launched 29 Sep 08:41) | `notes/03-ux/` | |
+| 04 performance / ops | running (launched 29 Sep 08:41; timings deferred until quiet) | `notes/04-perf/` | |
+| 05 feature gaps | running (resumed 29 Sep 08:40) | `notes/05-features/` | |
 | 06 premium design | todo | `notes/06-design/` | |
-| 07 agent pipeline | running (subagent, launched 22:53) | `notes/07-pipeline/` | |
+| 07 agent pipeline | running (resumed 29 Sep 08:40) | `notes/07-pipeline/` | |
 
 ## Lead's own work (not delegated)
 
@@ -44,8 +44,7 @@ Branch `chore/review-2026-09-28`, cut from `main` at `eb18bcb`. Never push, merg
 
 ## Exact next step
 
-Waves: 05 + 07 launched while the full gate ran. When the full gate finishes: start
-the `SKIP_PROD_BUNDLE=1` gate and launch 01 + 02. When that gate finishes: launch 03 +
-04 (04 defers timings until the machine is quiet). When 03's corpus is committed:
-launch 06. If a subagent is lost, relaunch it pointing at its brief and its
+Six passes running (01, 02, 03, 04, 05, 07). When 03's corpus is committed: launch 06.
+When the other passes finish, tell 04 the machine is quiet so it can take timings.
+Then: verify every HIGH+, reconcile, write 08/09/10 and the README. If a subagent is lost, relaunch it pointing at its brief and its
 `notes/<lens>/progress.md`.
