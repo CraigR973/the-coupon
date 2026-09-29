@@ -162,8 +162,8 @@ includes the void legs, so home prints "4-fold · 54.91" beside a coupon that sa
 Confirmed in real Chromium on the production bundle (`notes/02-correctness/web_check.mjs`,
 `out/web_check*.txt`): home's card reads "2 of 4 picks landed · 4-fold · 54.91", the
 Results row "54.91", and tapping that row opens the coupon at "7.44 — 2 legs voided — not
-in the combined price" (`screenshots/home--last-result-void--1280--light.png`,
-`results--void-leg-price--…`, `coupon--settled-void-legs--…`).
+in the combined price" (`screenshots/home--last-result-void-unstyled--1280--light.png`,
+`results--void-leg-price-unstyled--…`, `coupon--settled-void-legs-unstyled--…`).
 
 **Member impact:** the same week's accumulator shows two different prices depending on
 which screen a member opens.
@@ -274,7 +274,7 @@ dry run. API-carrying; worth doing before the owner runs the backfill.
 count is the league's *current* active roster. Legs are kept for members who left (leaving
 never removed a pick) and for erased members (Batch 136 keeps it by design), so after Erin
 left L1 and Bob deleted his account, the settled Gameweek 1 coupon reads **"Result 4 of
-3"** beside "3 of 3 picked" (`screenshots/coupon--settled-void-legs--1280--light.png`).
+3"** beside "3 of 3 picked" (`screenshots/coupon--settled-void-legs-unstyled--1280--light.png`).
 The share text's "incomplete" note is guarded against a negative count, so only the
 header is wrong.
 
