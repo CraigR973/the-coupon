@@ -1,0 +1,305 @@
+{
+ "reflow": [
+  {
+   "route": "/login",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/register",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/forgot-pin",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/set-pin?name=Dana",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/join/REVIEWINVITE1",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/welcome",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/",
+   "overflow": 0,
+   "clipped": [
+    "<dt class=\"truncate font-mono text-caption uppercase tracking-[0.25em] text-text-muted\"> X sw=61/51 sh=16/16 \"Points\"",
+    "<dt class=\"truncate font-mono text-caption uppercase tracking-[0.25em] text-text-muted\"> X sw=92/51 sh=16/16 \"Picks won\"",
+    "<dt class=\"truncate font-mono text-caption uppercase tracking-[0.25em] text-text-muted\"> X sw=82/51 sh=16/16 \"Win rate\""
+   ],
+   "overflowTS": 0,
+   "clippedTS": [
+    "<dt class=\"truncate font-mono text-caption uppercase tracking-[0.25em] text-text-muted\"> X sw=80/51 sh=18/18 \"Picks won\"",
+    "<dt class=\"truncate font-mono text-caption uppercase tracking-[0.25em] text-text-muted\"> X sw=71/51 sh=18/18 \"Win rate\"",
+    "<p class=\"truncate font-sans text-base font-semibold text-text-primary\"> X sw=226/184 sh=24/24 \"The Coupon Test League\""
+   ]
+  },
+  {
+   "route": "/leagues/the-coupon/predictions",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/leagues/sunday-club/predictions",
+   "overflow": 0,
+   "clipped": [
+    "<span class=\"min-w-0 truncate font-mono text-caption uppercase tracking-[0.2em] text-text-pri\"> X sw=211/208 sh=16/16 \"English Premier League\""
+   ],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/leagues/the-coupon/predictions/results",
+   "overflow": 0,
+   "clipped": [
+    "<p class=\"truncate font-sans text-xs text-text-muted\"> X sw=130/122 sh=16/16 \"Alice won·1 of 3 landed\""
+   ],
+   "overflowTS": 0,
+   "clippedTS": [
+    "<p class=\"truncate font-sans text-xs text-text-muted\"> X sw=166/106 sh=18/18 \"Bob won·2 of 3 landed\"",
+    "<p class=\"truncate font-sans text-xs text-text-muted\"> X sw=171/97 sh=18/18 \"Alice won·1 of 3 landed\""
+   ]
+  },
+  {
+   "route": "/leagues/the-coupon/leaderboard",
+   "overflow": 0,
+   "clipped": [
+    "<h1 class=\"text-2xl sm:text-3xl font-semibold text-text-primary tracking-tight font-sans le\"> X sw=251/186 sh=30/30 \"The Coupon Test League\""
+   ],
+   "overflowTS": 0,
+   "clippedTS": [
+    "<h1 class=\"text-2xl sm:text-3xl font-semibold text-text-primary tracking-tight font-sans le\"> X sw=339/175 sh=36/36 \"The Coupon Test League\""
+   ]
+  },
+  {
+   "route": "/leagues/the-coupon/leaderboard?season=2025",
+   "overflow": 0,
+   "clipped": [
+    "<h1 class=\"text-2xl sm:text-3xl font-semibold text-text-primary tracking-tight font-sans le\"> X sw=251/186 sh=30/30 \"The Coupon Test League\""
+   ],
+   "overflowTS": 0,
+   "clippedTS": [
+    "<h1 class=\"text-2xl sm:text-3xl font-semibold text-text-primary tracking-tight font-sans le\"> X sw=339/175 sh=36/36 \"The Coupon Test League\""
+   ]
+  },
+  {
+   "route": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4",
+   "overflow": 0,
+   "clipped": [
+    "<p class=\"truncate font-sans text-xs text-text-muted\"> X sw=375/169 sh=16/16 \"English Premier League·Aston Villa v Newcastle United·2 May \"",
+    "<p class=\"truncate font-sans text-xs text-text-muted\"> X sw=338/170 sh=16/16 \"English Premier League·Leeds United v Burnley·25 Apr 2026\""
+   ],
+   "overflowTS": 0,
+   "clippedTS": [
+    "<p class=\"truncate font-sans text-xs text-text-muted\"> X sw=482/158 sh=18/18 \"English Premier League·Aston Villa v Newcastle United·2 May \"",
+    "<p class=\"truncate font-sans text-xs text-text-muted\"> X sw=433/158 sh=18/18 \"English Premier League·Leeds United v Burnley·25 Apr 2026\""
+   ]
+  },
+  {
+   "route": "/profile",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": [
+    "<p class=\"truncate font-sans text-sm font-medium text-text-primary\"> X sw=196/169 sh=21/21 \"The Coupon Test League\""
+   ]
+  },
+  {
+   "route": "/football",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/football?view=results",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025",
+   "overflow": 0,
+   "clipped": [
+    "<p class=\"truncate text-sm font-sans text-text-primary\"> X sw=140/125 sh=20/20 \"Tottenham Hotspur FC\"",
+    "<p class=\"truncate text-sm font-sans text-text-primary\"> X sw=140/86 sh=20/20 \"Tottenham Hotspur FC\""
+   ],
+   "overflowTS": 0,
+   "clippedTS": [
+    "<p class=\"truncate text-sm font-sans text-text-primary\"> X sw=179/123 sh=21/21 \"Tottenham Hotspur FC\"",
+    "<p class=\"truncate text-sm font-sans text-text-primary\"> X sw=89/82 sh=21/21 \"Chelsea FC\"",
+    "<p class=\"truncate text-sm font-sans text-text-primary\"> X sw=179/82 sh=21/21 \"Tottenham Hotspur FC\"",
+    "<p class=\"truncate text-sm font-sans text-text-primary\"> X sw=101/82 sh=21/21 \"Liverpool FC\"",
+    "<p class=\"truncate text-sm font-sans text-text-primary\"> X sw=88/82 sh=21/21 \"Everton FC\""
+   ]
+  },
+  {
+   "route": "/settings",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 25,
+   "clippedTS": []
+  },
+  {
+   "route": "/about",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": [
+    "<h1 class=\"text-2xl sm:text-3xl font-semibold text-text-primary tracking-tight font-sans le\"> X sw=300/288 sh=36/36 \"About & scoring rules\""
+   ]
+  },
+  {
+   "route": "/offline",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/leagues",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/leagues/new",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/leagues/discover",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 38,
+   "clippedTS": []
+  },
+  {
+   "route": "/leagues/join",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/leagues/the-coupon/admin/members",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/leagues/the-coupon/admin/settings",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": [
+    "<input class=\"flex h-11 w-full rounded-md border border-border bg-surface px-4 py-2 text-base \"> X sw=256/244 sh=42/42 \"\"",
+    "<input class=\"flex h-11 w-full rounded-md border border-border bg-surface px-4 py-2 text-base \"> X sw=308/244 sh=42/42 \"\""
+   ]
+  },
+  {
+   "route": "/leagues/the-coupon/admin/requests",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 40,
+   "clippedTS": []
+  },
+  {
+   "route": "/leagues/the-coupon/admin/invites",
+   "overflow": 0,
+   "clipped": [
+    "<p class=\"text-sm font-mono truncate text-text-secondary\"> X sw=336/113 sh=20/20 \"http://127.0.0.1:4330/join/REVIEWINVITE1\""
+   ],
+   "overflowTS": 0,
+   "clippedTS": [
+    "<p class=\"text-sm font-mono truncate text-text-secondary\"> X sw=336/95 sh=21/21 \"http://127.0.0.1:4330/join/REVIEWINVITE1\""
+   ]
+  },
+  {
+   "route": "/leagues/the-coupon/admin/audit-log",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/admin/dashboard",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/admin/calendar",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/admin/players",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/admin/results",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/admin/sync",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/admin/invites",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  },
+  {
+   "route": "/admin/leagues",
+   "overflow": 0,
+   "clipped": [],
+   "overflowTS": 0,
+   "clippedTS": []
+  }
+ ]
+}

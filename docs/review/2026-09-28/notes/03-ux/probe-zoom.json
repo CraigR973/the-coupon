@@ -1,0 +1,52 @@
+{
+ "zoom": [
+  {
+   "route": "/",
+   "innerWidth": 640,
+   "innerHeight": 400,
+   "headerH": 57,
+   "headerPos": "sticky",
+   "desktopNav": true,
+   "tabBar": false,
+   "tabBarH": 0,
+   "usable": 343,
+   "hScroll": 79
+  },
+  {
+   "route": "/leagues/the-coupon/predictions",
+   "innerWidth": 640,
+   "innerHeight": 400,
+   "headerH": 57,
+   "headerPos": "sticky",
+   "desktopNav": true,
+   "tabBar": false,
+   "tabBarH": 0,
+   "usable": 343,
+   "hScroll": 79
+  },
+  {
+   "route": "/leagues/the-coupon/leaderboard",
+   "innerWidth": 640,
+   "innerHeight": 400,
+   "headerH": 57,
+   "headerPos": "sticky",
+   "desktopNav": true,
+   "tabBar": false,
+   "tabBarH": 0,
+   "usable": 343,
+   "hScroll": 79
+  },
+  {
+   "route": "/login",
+   "innerWidth": 640,
+   "innerHeight": 400,
+   "headerH": 0,
+   "headerPos": null,
+   "desktopNav": null,
+   "tabBar": null,
+   "tabBarH": 0,
+   "usable": 400,
+   "hScroll": 0
+  }
+ ]
+}

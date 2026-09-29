@@ -1,0 +1,121 @@
+{
+ "motion": [
+  {
+   "rm": "no-preference",
+   "route": "/",
+   "early": [
+    "width",
+    "page-enter"
+   ],
+   "running": [],
+   "infinite": [],
+   "smooth": 0,
+   "transition": [
+    "transform:260",
+    "color:150",
+    "color:150",
+    "page-enter:220",
+    "shimmer:1800",
+    "shimmer:1800"
+   ]
+  },
+  {
+   "rm": "no-preference",
+   "route": "/leagues/the-coupon/predictions",
+   "early": [
+    "transform",
+    "width",
+    "page-enter",
+    "shimmer",
+    "shimmer"
+   ],
+   "running": [],
+   "infinite": [],
+   "smooth": 0,
+   "transition": []
+  },
+  {
+   "rm": "no-preference",
+   "route": "/leagues/the-coupon/leaderboard",
+   "early": [
+    "transform",
+    "width",
+    "page-enter"
+   ],
+   "running": [],
+   "infinite": [],
+   "smooth": 1,
+   "transition": [
+    "transform:260",
+    "color:150",
+    "color:150",
+    "page-enter:220",
+    "shimmer:1800",
+    "shimmer:1800"
+   ]
+  },
+  {
+   "rm": "no-preference",
+   "route": "/login",
+   "early": [],
+   "running": [],
+   "infinite": [],
+   "smooth": 0,
+   "transition": null
+  },
+  {
+   "rm": "no-preference",
+   "route": "/welcome",
+   "early": [],
+   "running": [],
+   "infinite": [],
+   "smooth": 0,
+   "transition": null
+  },
+  {
+   "rm": "reduce",
+   "route": "/",
+   "early": [],
+   "running": [],
+   "infinite": [],
+   "smooth": 0,
+   "transition": []
+  },
+  {
+   "rm": "reduce",
+   "route": "/leagues/the-coupon/predictions",
+   "early": [],
+   "running": [],
+   "infinite": [],
+   "smooth": 0,
+   "transition": []
+  },
+  {
+   "rm": "reduce",
+   "route": "/leagues/the-coupon/leaderboard",
+   "early": [],
+   "running": [],
+   "infinite": [],
+   "smooth": 0,
+   "transition": []
+  },
+  {
+   "rm": "reduce",
+   "route": "/login",
+   "early": [],
+   "running": [],
+   "infinite": [],
+   "smooth": 0,
+   "transition": null
+  },
+  {
+   "rm": "reduce",
+   "route": "/welcome",
+   "early": [],
+   "running": [],
+   "infinite": [],
+   "smooth": 0,
+   "transition": null
+  }
+ ]
+}

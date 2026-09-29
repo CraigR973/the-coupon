@@ -1,0 +1,8 @@
+probe_indicator.mjs, 390x844 dark, Alice, 29 Sep ~19:45 BST. Item x positions (* = aria-current) vs the tabbar-indicator's rendered x.
+/leagues/the-coupon/predictions  items: Home@0 Coupon@78* Football Stats@156 Leagues@234 More@312  indicator x=234 w=78 style translateX(78px)
+/leagues/the-coupon/leaderboard  items: ... Leagues@234*  indicator x=390 (off-screen) translateX(234px)
+/football                        items: ... Football Stats@156*  indicator x=312 translateX(156px)
+/                                items: Home@0*  indicator x=156 translateX(0px)
+/settings                        items: ... More@312*  indicator x=468 (off-screen) translateX(312px)
+=> base offset 156px = (390-78)/2: static position of an inset-less absolute child in a justify-around flex container.
+Tab icons: Football Stats svg 20x8 at y=784 (others 20x20 at y=790); label wraps to two lines.

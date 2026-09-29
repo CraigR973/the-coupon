@@ -1,0 +1,292 @@
+{
+ "contrast": [
+  {
+   "id": "UX-18 locked selection caption (\"win N pts\")",
+   "route": "/leagues/sunday-club/predictions",
+   "persona": "Alice",
+   "sel": "[data-testid^=\"selection-\"][disabled] .text-caption",
+   "theme": "light",
+   "width": 390,
+   "found": 3,
+   "res": [
+    {
+     "text": "YOUR PICK · 19 PTS",
+     "bg": "#ffffff",
+     "fg": "#666f7d",
+     "ratio": 5.08
+    },
+    {
+     "text": "WIN 38 PTS",
+     "bg": "#ffffff",
+     "fg": "#a2a8b0",
+     "ratio": 2.4
+    },
+    {
+     "text": "WIN 43 PTS",
+     "bg": "#ffffff",
+     "fg": "#a2a8b0",
+     "ratio": 2.4
+    }
+   ]
+  },
+  {
+   "id": "UX-18 locked selection caption (\"win N pts\")",
+   "route": "/leagues/sunday-club/predictions",
+   "persona": "Alice",
+   "sel": "[data-testid^=\"selection-\"][disabled] .text-caption",
+   "theme": "dark",
+   "width": 390,
+   "found": 3,
+   "res": [
+    {
+     "text": "YOUR PICK · 19 PTS",
+     "bg": "#131720",
+     "fg": "#8690a6",
+     "ratio": 5.6
+    },
+    {
+     "text": "WIN 38 PTS",
+     "bg": "#131720",
+     "fg": "#585f70",
+     "ratio": 2.81
+    },
+    {
+     "text": "WIN 43 PTS",
+     "bg": "#131720",
+     "fg": "#585f70",
+     "ratio": 2.81
+    }
+   ]
+  },
+  {
+   "id": "UX-18 locked selection odds",
+   "route": "/leagues/sunday-club/predictions",
+   "persona": "Alice",
+   "sel": "[data-testid^=\"selection-\"][disabled] .font-mono.text-xs",
+   "theme": "light",
+   "width": 390,
+   "found": 3,
+   "res": [
+    {
+     "text": "1.90",
+     "bg": "#ffffff",
+     "fg": "#047f59",
+     "ratio": 5.02
+    },
+    {
+     "text": "3.75",
+     "bg": "#ffffff",
+     "fg": "#717478",
+     "ratio": 4.7
+    },
+    {
+     "text": "4.30",
+     "bg": "#ffffff",
+     "fg": "#717478",
+     "ratio": 4.7
+    }
+   ]
+  },
+  {
+   "id": "UX-18 locked selection odds",
+   "route": "/leagues/sunday-club/predictions",
+   "persona": "Alice",
+   "sel": "[data-testid^=\"selection-\"][disabled] .font-mono.text-xs",
+   "theme": "dark",
+   "width": 390,
+   "found": 3,
+   "res": [
+    {
+     "text": "1.90",
+     "bg": "#131720",
+     "fg": "#10b981",
+     "ratio": 7.07
+    },
+    {
+     "text": "3.75",
+     "bg": "#131720",
+     "fg": "#979ba6",
+     "ratio": 6.45
+    },
+    {
+     "text": "4.30",
+     "bg": "#131720",
+     "fg": "#979ba6",
+     "ratio": 6.45
+    }
+   ]
+  },
+  {
+   "id": "UX-21 player-profile lost row text",
+   "route": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4?season=2025",
+   "persona": "Alice",
+   "sel": ".opacity-60 p",
+   "theme": "light",
+   "width": 390,
+   "found": 2,
+   "res": [
+    {
+     "text": "Draw",
+     "bg": "#fbfcfd",
+     "fg": "#6e7176",
+     "ratio": 4.77
+    },
+    {
+     "text": "English Premier League·Leeds U",
+     "bg": "#fbfcfd",
+     "fg": "#9fa5ae",
+     "ratio": 2.41
+    }
+   ]
+  },
+  {
+   "id": "UX-21 player-profile lost row text",
+   "route": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4?season=2025",
+   "persona": "Alice",
+   "sel": ".opacity-60 p",
+   "theme": "dark",
+   "width": 390,
+   "found": 2,
+   "res": [
+    {
+     "text": "Draw",
+     "bg": "#0f131a",
+     "fg": "#9498a0",
+     "ratio": 6.43
+    },
+    {
+     "text": "English Premier League·Leeds U",
+     "bg": "#0f131a",
+     "fg": "#545c6b",
+     "ratio": 2.77
+    }
+   ]
+  },
+  {
+   "id": "UX-21 player-profile lost badge",
+   "route": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4?season=2025",
+   "persona": "Alice",
+   "sel": ".opacity-60 .bg-error\\/20",
+   "theme": "light",
+   "width": 390,
+   "found": 1,
+   "res": [
+    {
+     "text": "Lost",
+     "bg": "#fbfcfd",
+     "fg": "#e37979",
+     "ratio": 2.81
+    }
+   ]
+  },
+  {
+   "id": "UX-21 player-profile lost badge",
+   "route": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4?season=2025",
+   "persona": "Alice",
+   "sel": ".opacity-60 .bg-error\\/20",
+   "theme": "dark",
+   "width": 390,
+   "found": 1,
+   "res": [
+    {
+     "text": "Lost",
+     "bg": "#0f131a",
+     "fg": "#9d3739",
+     "ratio": 2.69
+    }
+   ]
+  },
+  {
+   "id": "UX-13 team-season kick-off time",
+   "route": "/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025",
+   "persona": "Alice",
+   "sel": "[data-testid^=\"team-match-\"] .w-16",
+   "theme": "light",
+   "width": 390,
+   "found": 6,
+   "res": [
+    {
+     "text": "9 MAY\n15:00",
+     "bg": "#ffffff",
+     "fg": "#666f7d",
+     "ratio": 5.08
+    },
+    {
+     "text": "16 MAY\n15:00",
+     "bg": "#ffffff",
+     "fg": "#666f7d",
+     "ratio": 5.08
+    },
+    {
+     "text": "2 MAY",
+     "bg": "#ffffff",
+     "fg": "#666f7d",
+     "ratio": 5.08
+    }
+   ]
+  },
+  {
+   "id": "UX-13 team-season kick-off time",
+   "route": "/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025",
+   "persona": "Alice",
+   "sel": "[data-testid^=\"team-match-\"] .w-16",
+   "theme": "dark",
+   "width": 390,
+   "found": 6,
+   "res": [
+    {
+     "text": "9 MAY\n15:00",
+     "bg": "#131720",
+     "fg": "#8690a6",
+     "ratio": 5.6
+    },
+    {
+     "text": "16 MAY\n15:00",
+     "bg": "#131720",
+     "fg": "#8690a6",
+     "ratio": 5.6
+    },
+    {
+     "text": "2 MAY",
+     "bg": "#131720",
+     "fg": "#8690a6",
+     "ratio": 5.6
+    }
+   ]
+  },
+  {
+   "id": "UX-13 season strip \"now\" badge",
+   "route": "/leagues/the-coupon/leaderboard?season=2025",
+   "persona": "Alice",
+   "sel": "button span.uppercase:text-is(\"now\")",
+   "theme": "light",
+   "width": 390,
+   "found": 1,
+   "res": [
+    {
+     "text": "NOW",
+     "bg": "#ffffff",
+     "fg": "#666f7d",
+     "ratio": 5.08
+    }
+   ]
+  },
+  {
+   "id": "UX-13 season strip \"now\" badge",
+   "route": "/leagues/the-coupon/leaderboard?season=2025",
+   "persona": "Alice",
+   "sel": "button span.uppercase:text-is(\"now\")",
+   "theme": "dark",
+   "width": 390,
+   "found": 1,
+   "res": [
+    {
+     "text": "NOW",
+     "bg": "#131720",
+     "fg": "#8690a6",
+     "ratio": 5.6
+    }
+   ]
+  }
+ ]
+}

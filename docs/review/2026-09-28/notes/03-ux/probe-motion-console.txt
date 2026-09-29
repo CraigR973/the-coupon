@@ -1,0 +1,10 @@
+motion no-preference /: early=2 running=0 infinite=0 smooth=0 onNav=6 ["transform:260","color:150","color:150","page-enter:220","shimmer:1800","shimmer:1800"]
+motion no-preference /leagues/the-coupon/predictions: early=5 running=0 infinite=0 smooth=0 onNav=0 []
+motion no-preference /leagues/the-coupon/leaderboard: early=3 running=0 infinite=0 smooth=1 onNav=6 ["transform:260","color:150","color:150","page-enter:220","shimmer:1800","shimmer:1800"]
+motion no-preference /login: early=0 running=0 infinite=0 smooth=0 onNav=- null
+motion no-preference /welcome: early=0 running=0 infinite=0 smooth=0 onNav=- null
+motion reduce /: early=0 running=0 infinite=0 smooth=0 onNav=0 []
+motion reduce /leagues/the-coupon/predictions: early=0 running=0 infinite=0 smooth=0 onNav=0 []
+motion reduce /leagues/the-coupon/leaderboard: early=0 running=0 infinite=0 smooth=0 onNav=0 []
+motion reduce /login: early=0 running=0 infinite=0 smooth=0 onNav=- null
+motion reduce /welcome: early=0 running=0 infinite=0 smooth=0 onNav=- null
