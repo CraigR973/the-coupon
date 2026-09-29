@@ -38,11 +38,13 @@ Brief: `../briefs/common.md` + `../briefs/06-design.md`.
 
 - 00:18 mockups built + shot (mockups/: toasts, round, standings, settled × 390 dark/light + 1280 dark = 12 PNGs); doc updated with mockup table.
 
+- 00:20 all processes stopped (stack 8160, web 4360; no postgres left). Lens DONE.
+
 ## Plan / order
 A. [done] open-round: feedback captures confirm / conflict / price-moved (real) / queued-offline; standalone safe-area; PWA manifest+icons.
 B. [done, no restart needed] restart API --keep-data → exhaust budget with 5 members × 10 → Alice sees PICKS_BUSY.
 C. [done] lock + settle in process with a void leg → settled results, settled coupon, standings; erase a member → "Former" copy.
 D. judge corpus (Part 1 + peripheral), write lens doc, top-ten + mockups + contrast numbers.
 
-## In flight
-- Next: stop stack (stack_design.py) and web (build_web.py → vite preview :4360), final commit, reply to lead (≤40 lines).
+## In flight (none)
+- Lens 06 complete. Nothing in flight. If resumed: only follow-ups the lead asks for.
