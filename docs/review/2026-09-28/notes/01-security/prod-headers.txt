@@ -1,0 +1,74 @@
+# Production, read-only: GET only, no auth. 29 Sep 2026 14:21 BST
+
+## web GET /
+HTTP/2 200 
+accept-ranges: bytes
+access-control-allow-origin: *
+age: 56017
+cache-control: public, max-age=0, must-revalidate
+content-disposition: inline
+content-security-policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-Td895dO8wmyTVvdQFkeGpQIFPVrJm4buJgVlEFGlNmo='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; font-src 'self'; connect-src 'self' https://api-production-109b1.up.railway.app https://api-production-0641.up.railway.app; worker-src 'self'; manifest-src 'self'
+content-type: text/html; charset=utf-8
+date: Tue, 29 Sep 2026 13:21:28 GMT
+etag: "05a6782a0e3756f61f832002af56bd19"
+last-modified: Mon, 28 Sep 2026 21:47:51 GMT
+permissions-policy: camera=(), microphone=(), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: Vercel
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-vercel-cache: HIT
+x-vercel-id: lhr1::zgpzt-1790688088724-28a77864d30c
+content-length: 3844
+
+## web GET /login
+HTTP/2 200 
+access-control-allow-origin: *
+cache-control: public, max-age=0, must-revalidate
+content-security-policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-Td895dO8wmyTVvdQFkeGpQIFPVrJm4buJgVlEFGlNmo='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; font-src 'self'; connect-src 'self' https://api-production-109b1.up.railway.app https://api-production-0641.up.railway.app; worker-src 'self'; manifest-src 'self'
+content-type: text/html; charset=utf-8
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-frame-options: DENY
+
+## API GET /api/v1/health
+HTTP/2 200 
+cache-control: no-store
+content-security-policy: default-src 'none'; frame-ancestors 'none'
+content-type: application/json
+date: Tue, 29 Sep 2026 13:21:31 GMT
+permissions-policy: camera=(), microphone=(), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: railway-hikari
+strict-transport-security: max-age=63072000; includeSubDomains
+x-content-type-options: nosniff
+x-correlation-id: 49e2b416-5200-4c7d-a654-204d0291a82c
+x-frame-options: DENY
+x-railway-request-id: uU3-0eWzQH-wrob_0-QtfA
+content-length: 82
+x-hikari-trace: lhr1.mryf
+x-railway-edge: lhr1
+
+{"status":"ok","sha":"b08a47f3a58bce3886eb48cbf7774658fb8986f6","migration":"026"}
+
+## API docs routes
+/api/docs -> 404
+/api/redoc -> 404
+/api/openapi.json -> 404
+/docs -> 404
+/openapi.json -> 404
+
+## API CORS preflight from a foreign origin
+HTTP/2 400 
+access-control-allow-credentials: true
+access-control-allow-methods: DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT
+access-control-max-age: 600
+## API CORS preflight from the web origin
+HTTP/2 200 
+access-control-allow-credentials: true
+access-control-allow-methods: DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT
+access-control-allow-origin: https://the-coupon-production.vercel.app
+access-control-max-age: 600
+
+## staging API health (the second connect-src origin)
+200

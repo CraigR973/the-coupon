@@ -34,6 +34,16 @@ the durable login limit was never spent by it; the auth lifecycle was driven ove
 | SEC-16 | 124 | held | Frank joined league B by code, was removed, code rotated (`PRW6H5` → `BWCQ52`); old code 404, `/join` 403 (private). `public_request` league by code → `status: pending`, request listed for the admin, second attempt `409 JOIN_REQUEST_PENDING` |
 | SEC-17 | 125 | held (member writes) | Non-member site admin: pick submit 403, display-name override 403; reads (standings, coupon) 200. League-**admin** writes still carry the site-admin bypass by design — PATCH league, create invite, rotate code all 200, audited as the site admin (see Checked, and Owner decisions) |
 | SEC-20 | 126 | **partial** | Exact, case-folded, padded, reserved ("Former member") and non-ASCII names refused. **An override may equal the global name of someone not yet in the league, who can then join** — two members named "Erin" on one roster — SEC-29 |
+| SEC-01 | earlier | held | V3 changed PIN → the refresh token issued before it → 401 |
+| SEC-02 | earlier | held | `pin/reset-request` for Bob → generic 200, `player_pin_reset` audit row at stage `requested` |
+| SEC-03 | earlier | held | Six wrong PINs with `X-Forwarded-For: 203.0.113.N, 10.9.9.9` (N rotating) all charged to `login:v5:10.9.9.9`; sixth → 429 |
+| SEC-04 | earlier | held | V3, locked by the SEC-28 run at 08:00 UTC, signed in with the correct PIN six hours later |
+| SEC-05 | earlier | held | Refresh → new pair; replaying the old token → 401, and the rotated one → 401 too |
+| SEC-06 | earlier | held | `not-a-uuid` and a 500-character value replaced by a fresh uuid4; a valid uuid echoed |
+| SEC-07 | earlier | held (code) | `run_prune_refresh_tokens` and `run_prune_rate_limit_counters` still registered (`scheduler.py:203, 238`); the scheduler is off in the harness |
+| SEC-08 | earlier | held | Register with `1234` → 422 "too common" |
+| SEC-11 | earlier | held | `no-store` on every authenticated JSON response sampled, including the gzip-compressed slate |
+| SEC-12 | earlier | held | Plain HTTP, 127.0.0.1, `[::1]`, 169.254.169.254, 10.0.0.1, a look-alike suffix, userinfo, trailing dot and a prefix look-alike all 422; `web.push.apple.com` 201 |
 | SEC-23 | 142 | held (port) | `:8443` and `:22` on allowlisted hosts → 422 "must use the standard HTTPS port"; `:443` accepted |
 | SEC-26 | 143 | held | Live, unclaimed invite to a soft-deleted league → `404 League not found` |
 
@@ -155,6 +165,19 @@ override is set, and on join refuse — or clear — an existing override that n
   Two small notes for the correctness lens, not security: the deleted member still counts in
   the league's `member_count` (12 against a roster of 11) and so in its capacity, and their
   player id still opens a profile page labelled "Former member".
+- **Pick correction (Batch 134)** — `s06_spot.py`. League admin and member → 403. Goals
+  outside 0-99, one score without the other, and a reason under three characters → 422; no
+  field for points, status or odds exists, so a caller cannot state a verdict — the pick is
+  re-scored by the shared rule (a BTTS "Yes" at 1.80 corrected to 0-0 → lost, 18 → 0). A
+  repeat is idempotent (`changed: false`, no second audit row). The audit row records actor,
+  before, after, result and reason. **INFO:** it names the league by id, not
+  `league_slug`, so it does not appear in that league's own audit log
+  (`_league_audit_scope`) — a league admin cannot see that a member's score was changed or
+  why. Worth adding `league_slug` to the row's `changes`.
+- **Extra weeks (Batch 132)** — site admin only (member and league admin 403). A past date →
+  422 `EXTRA_WEEK_IN_THE_PAST`, outside the season → 422; a future midweek date → 200. The
+  settled-week guard (`EXTRA_WEEK_LOCKED`) could not be reached, because a settled week is
+  already in the past and the past guard answers first.
 - **League-admin writes by a non-member site admin** (PATCH league, create invite, rotate
   code) succeed and are audited under the site admin's name. Batch 125 deliberately scoped
   the split to the member dependency; these are oversight actions, not pool consumption.

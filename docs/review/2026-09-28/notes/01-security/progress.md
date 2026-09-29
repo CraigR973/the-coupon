@@ -27,10 +27,13 @@ joined A; league A description edited by sam).
 | SEC-26 | held (404) |
 | SEC-18 web half | todo: code read says refresh before PIN (AuthContext.tsx:118-140) — cite as code-held; optionally verify |
 | SEC-19 CSP, SEC-21, SEC-22, SEC-25 | todo |
-| SEC-01..13 spot-check | todo |
+| SEC-01..08, 11, 12 spot-check | done — all held, in doc | probes.txt; SEC-09 → SEC-21; SEC-10, SEC-13 web: todo in csp_check / code |
 | 136 delete/export | done — held; written into doc (Checked) | probes.txt "136" |
-| new surfaces 134, 135/148, 132, 129, 145 | todo | |
-| OSV, secrets, prod headers | todo |
+| 134, 132 | done — held; 134 INFO (correction absent from league audit log) | probes.txt |
+| 135/148, 129, 145, lockout push | todo (code-read level) | |
+| prod headers + health | done | prod-headers.txt; sha b08a47f3, migration 026 |
+| CSP check (prod /login + local bundle w/ injected CSP) | running | csp_check.mjs → csp-check.txt |
+| OSV, secrets | todo |
 | 01-security.md | todo — start now |
 
 ## Leads still to check
