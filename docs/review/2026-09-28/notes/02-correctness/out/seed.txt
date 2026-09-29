@@ -1,0 +1,6 @@
+run_discover_fixtures -> True; provider calls {'list_competitions': 2, 'list_events': 6}
+  l1-defaults  2026-10-03 open      locks 2026-10-03 13:30:00 opens None n=1
+  l2-friday    2026-10-02 open      locks 2026-10-02 17:00:00 opens None n=1
+  l3-race-sel  2026-10-03 open      locks 2026-10-03 13:30:00 opens None n=1
+  l4-race-fix  2026-10-03 open      locks 2026-10-03 13:30:00 opens None n=1
+  season_calendars: [(2026, datetime.date(2026, 10, 3), [])]

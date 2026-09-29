@@ -1,0 +1,133 @@
+
+## SEC-15: league admin reset targets  (29 Sep 08:43:57)
+alice = league admin A (ordinary player site-wide). sadie = SITE ADMIN, plain member of A.
+gary = admin of league B, plain member of A. carol = ordinary member of A.
+POST /api/v1/leagues/the-coupon/members/9d6b80b6-f471-48ad-b466-931cfc8d91a7/reset-pin as alice -> 403 {"detail":"SITE_ADMIN_RESET_REQUIRED"}
+POST /api/v1/leagues/the-coupon/members/011ede48-253a-4856-8b91-97b82ddbf0fd/reset-pin as alice -> 403 {"detail":"SITE_ADMIN_RESET_REQUIRED"}
+POST /api/v1/leagues/the-coupon/members/1998b31c-fd60-434d-adef-ec327f46924b/reset-pin as alice -> 200 {"temp_pin":null,"pin_cleared":true,"sessions_revoked":0}
+carol (ordinary member) reset still works; carol re-claims her own PIN:
+POST /api/v1/auth/pin/set as anon {"display_name": "Carol", "pin": "8351"} -> 204 
+POST /api/v1/auth/login as anon {"display_name": "Carol", "pin": "8351"} -> 200 <658 bytes>
+
+## SEC-15 residual: demote a co-admin, then reset them  (29 Sep 08:43:58)
+hank = second admin of league A, admin of nothing else. Attacker = alice.
+POST /api/v1/leagues/the-coupon/members/e43fcb5b-0417-46a6-bb31-bf0de80b4ea3/reset-pin as alice -> 403 {"detail":"SITE_ADMIN_RESET_REQUIRED"}
+POST /api/v1/leagues/the-coupon/members/e43fcb5b-0417-46a6-bb31-bf0de80b4ea3/demote as alice -> 204 
+POST /api/v1/leagues/the-coupon/members/e43fcb5b-0417-46a6-bb31-bf0de80b4ea3/reset-pin as alice -> 200 {"temp_pin":null,"pin_cleared":true,"sessions_revoked":0}
+claim window is open; the attacker (no auth) chooses hank's PIN:
+POST /api/v1/auth/pin/set as anon {"display_name": "Hank", "pin": "7294"} -> 204 
+POST /api/v1/auth/login as anon {"display_name": "Hank", "pin": "7294"} -> 200 <657 bytes>
+GET /api/v1/auth/me as bearer -> 200 {"id":"e43fcb5b-0417-46a6-bb31-bf0de80b4ea3","display_name":"Hank","role":"player","timezone":"Europe/London","odds_format":"decimal","avatar_url":null}
+=> alice now holds a session as hank.
+
+## SEC-18 API half: one source, five victims, five wrong PINs each  (29 Sep 08:44:34)
+(waiting 28s for a fresh 900s limiter window)
+POST /api/v1/auth/login as anon {"display_name": "V1", "pin": "9173"} -> 401 <32 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V1", "pin": "9173"} -> 401 <32 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V1", "pin": "9173"} -> 401 <32 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V1", "pin": "9173"} -> 401 <32 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V1", "pin": "9173"} -> 401 <32 bytes>
+  V1: [401, 401, 401, 401, 401]
+POST /api/v1/auth/login as anon {"display_name": "V2", "pin": "9173"} -> 401 <32 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V2", "pin": "9173"} -> 401 <32 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V2", "pin": "9173"} -> 401 <32 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V2", "pin": "9173"} -> 401 <32 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V2", "pin": "9173"} -> 401 <32 bytes>
+  V2: [401, 401, 401, 401, 401]
+POST /api/v1/auth/login as anon {"display_name": "V3", "pin": "9173"} -> 401 <32 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V3", "pin": "9173"} -> 401 <32 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V3", "pin": "9173"} -> 401 <32 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V3", "pin": "9173"} -> 401 <32 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V3", "pin": "9173"} -> 401 <32 bytes>
+  V3: [401, 401, 401, 401, 401]
+POST /api/v1/auth/login as anon {"display_name": "V4", "pin": "9173"} -> 429 <49 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V4", "pin": "9173"} -> 429 <49 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V4", "pin": "9173"} -> 429 <49 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V4", "pin": "9173"} -> 429 <49 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V4", "pin": "9173"} -> 429 <49 bytes>
+  V4: [429, 429, 429, 429, 429]
+POST /api/v1/auth/login as anon {"display_name": "V5", "pin": "9173"} -> 429 <49 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V5", "pin": "9173"} -> 429 <49 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V5", "pin": "9173"} -> 429 <49 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V5", "pin": "9173"} -> 429 <49 bytes>
+POST /api/v1/auth/login as anon {"display_name": "V5", "pin": "9173"} -> 429 <49 bytes>
+  V5: [429, 429, 429, 429, 429]
+  25 requests in 7.7s, same 15-minute window
+database after the run:
+  V1: failed_login_count=5 locked_until=2026-09-29 08:00:03.615170
+  V2: failed_login_count=5 locked_until=2026-09-29 08:00:05.150278
+  V3: failed_login_count=5 locked_until=2026-09-29 08:00:06.585934
+  V4: failed_login_count=5 locked_until=2026-09-29 08:00:08.097841
+  V5: failed_login_count=5 locked_until=2026-09-29 08:00:09.653027
+  source bucket login-src:127.0.0.1 LIMITER/15/15/minute hits=25
+correct PIN for each victim, from a different source (XFF 10.20.30.40):
+POST /api/v1/auth/login as anon XFF=10.20.30.40 {"display_name": "V1", "pin": "1234"} -> 423 <55 bytes>
+POST /api/v1/auth/login as anon XFF=10.20.30.40 {"display_name": "V2", "pin": "1234"} -> 423 <55 bytes>
+POST /api/v1/auth/login as anon XFF=10.20.30.40 {"display_name": "V3", "pin": "1234"} -> 423 <55 bytes>
+POST /api/v1/auth/login as anon XFF=10.20.30.40 {"display_name": "V4", "pin": "1234"} -> 423 <55 bytes>
+POST /api/v1/auth/login as anon XFF=10.20.30.40 {"display_name": "V5", "pin": "1234"} -> 423 <55 bytes>
+
+## SEC-16: removal rotates the join code; public_request is gated at both doors  (29 Sep 08:45:49)
+GET /api/v1/leagues/league-b as dave -> 200 {"id":"c95da999-05fe-4ac1-b8e7-c31ac12f2b9f","slug":"league-b","name":"League B","description":null,"privacy":"private","max_members":50,"pick_scope":"selection","slate_window":{"start_weekday":5,"start_minute":900,"end_weekday":5,"end_minute":900,"lock_offset_minutes":30,"pick_open_offset_minutes":null},"competitions":null,"offered_markets":["MATCH_ODDS","BOTH_TEAMS_TO_SCORE"],"member_count":3,"c... <956 bytes>
+league B code before: PRW6H5
+POST /api/v1/leagues/join-by-code as frank {"code": "PRW6H5"} -> 200 {"league_slug":"league-b","league_name":"League B","status":"joined"}
+DELETE /api/v1/leagues/league-b/members/943ac9e3-05f8-4924-ba9d-ae36d0e63209 as dave -> 204 
+GET /api/v1/leagues/league-b as dave -> 200 {"id":"c95da999-05fe-4ac1-b8e7-c31ac12f2b9f","slug":"league-b","name":"League B","description":null,"privacy":"private","max_members":50,"pick_scope":"selection","slate_window":{"start_weekday":5,"start_minute":900,"end_weekday":5,"end_minute":900,"lock_offset_minutes":30,"pick_open_offset_minutes":null},"competitions":null,"offered_markets":["MATCH_ODDS","BOTH_TEAMS_TO_SCORE"],"member_count":3,"c... <956 bytes>
+league B code after removal: BWCQ52 (rotated: True)
+POST /api/v1/leagues/join-by-code as frank {"code": "PRW6H5"} -> 404 {"detail":"Invalid join code"}
+POST /api/v1/leagues/league-b/join as frank -> 403 {"detail":"PRIVATE_LEAGUE: join via invite only"}
+GET /api/v1/leagues/league-b as frank -> 404 {"detail":"League not found"}
+public_request league C: join-by-code as v5 (no membership) must create a request
+POST /api/v1/leagues/join-by-code as v5 {"code": "E9MXB4"} -> 200 {"league_slug":"league-c","league_name":"League C","status":"pending"}
+GET /api/v1/leagues/league-c/members as v5 -> 403 {"detail":"League membership required"}
+GET /api/v1/leagues/league-c/join-requests as dave -> 200 [{"id":"dd56a5c8-554f-41fb-b6c3-154588aefe91","player_id":"943ac9e3-05f8-4924-ba9d-ae36d0e63209","display_name":"Frank","status":"pending","requested_at":"2026-09-29T07:41:13.899146Z","decided_at":null,"decision_note":null},{"id":"207d59ac-0df2-45a3-8d66-81a2a1722c5c","player_id":"64a5e8e3-388f-4a99-93dc-6f49cd4df1e6","display_name":"V5","status":"pending","requested_at":"2026-09-29T07:45:49.85285... <444 bytes>
+second attempt by code while pending:
+POST /api/v1/leagues/join-by-code as v5 {"code": "E9MXB4"} -> 409 {"detail":"JOIN_REQUEST_PENDING"}
+
+## SEC-17: non-member site admin on every write route into league A  (29 Sep 08:45:50)
+member-level writes (require_league_member_write):
+POST /api/v1/leagues/the-coupon/picks as sam {"fixture_id": "00000000-0000-0000-0000-000000000000", "market": "MATCH_ODDS", "outcome": "HOME", "odds": 2.0} -> 403 {"detail":"League membership required"}
+PUT /api/v1/leagues/the-coupon/members/me/display-name as sam {"display_name_override": "Overseer"} -> 403 {"detail":"League membership required"}
+DELETE /api/v1/leagues/the-coupon/membership as sam -> 404 {"detail":"Not a member of this league"}
+PATCH /api/v1/notifications/preferences as sam {"league_mutes": {"04093550-0314-43f0-8b4b-f4c2ff9ecdc7": true}} -> 200 {"global_mute":false,"quiet_hours_start":null,"quiet_hours_end":null,"leagues":[]}
+league-admin writes (require_league_admin keeps the site-admin bypass):
+PATCH /api/v1/leagues/the-coupon as sam {"description": "edited by a non-member site admin"} -> 200 {"id":"04093550-0314-43f0-8b4b-f4c2ff9ecdc7","slug":"the-coupon","name":"The Coupon Test League","description":"edited by a non-member site admin","privacy":"private","max_members":50,"pick_scope":"selection","slate_window":{"start_weekday":5,"start_minute":900,"end_weekday":5,"end_minute":900,"lock_offset_minutes":30,"pick_open_offset_minutes":null},"competitions":null,"offered_markets":["MATCH_O... <562 bytes>
+POST /api/v1/leagues/the-coupon/invites as sam {} -> 201 {"id":"ffd2b8b1-f727-498e-bb3d-c8b13fe8e2d5","token":"_fxPJVJErwqmPChR-eYb65OObQ3YqU0RS5rOvUkW7WU","display_name_hint":null,"created_by":"028636e4-106d-4cfa-84c1-bcfe3b39b251","claimed_by":null,"claimed_at":null,"expires_at":"2026-10-06T07:45:50.483439Z","is_active":true,"created_at":"2026-09-29T07:45:50.484338Z","league_id":"04093550-0314-43f0-8b4b-f4c2ff9ecdc7"}
+POST /api/v1/leagues/the-coupon/join-code/rotate as sam -> 200 {"join_code":"XNEV5S"}
+reads still allowed:
+GET /api/v1/leagues/the-coupon/standings as sam -> 200 <3612 bytes>
+GET /api/v1/leagues/the-coupon/coupon as sam -> 200 <148 bytes>
+audit trail for the admin writes above (actor shown to league A's admin):
+GET /api/v1/leagues/the-coupon/audit-log?page_size=5 as alice -> 200 <1426 bytes>
+  league_join_code_rotated     actor='Sam' changes=None
+  league_invite_created        actor='Sam' changes={'league_slug': 'the-coupon'}
+  league_updated               actor='Sam' changes={'description': {'to': 'edited by a non-member site admin', 'from': None}}
+  player_pin_reset             actor='Alice' changes={'stage': 'reset', 'league_slug': 'the-coupon', 'display_name': 'Hank'}
+  member_demoted               actor='Alice' changes={'player_id': 'e43fcb5b-0417-46a6-bb31-bf0de80b4ea3'}
+
+## SEC-20: per-league name override  (29 Sep 08:45:51)
+PUT /api/v1/leagues/the-coupon/members/me/display-name as bob {"display_name_override": "Carol"} -> 409 {"detail":"NAME_TAKEN_IN_LEAGUE"}
+PUT /api/v1/leagues/the-coupon/members/me/display-name as bob {"display_name_override": "carol"} -> 409 {"detail":"NAME_TAKEN_IN_LEAGUE"}
+PUT /api/v1/leagues/the-coupon/members/me/display-name as bob {"display_name_override": "  Carol  "} -> 409 {"detail":"NAME_TAKEN_IN_LEAGUE"}
+PUT /api/v1/leagues/the-coupon/members/me/display-name as bob {"display_name_override": "CAROL"} -> 409 {"detail":"NAME_TAKEN_IN_LEAGUE"}
+PUT /api/v1/leagues/the-coupon/members/me/display-name as bob {"display_name_override": "CaroI"} -> 204 
+PUT /api/v1/leagues/the-coupon/members/me/display-name as bob {"display_name_override": "Car0l"} -> 204 
+PUT /api/v1/leagues/the-coupon/members/me/display-name as bob {"display_name_override": "Car\u043e l"} -> 422 {"detail":"Display name can use letters, numbers, spaces, and . _ ' - and must start with a letter or number."}
+PUT /api/v1/leagues/the-coupon/members/me/display-name as bob {"display_name_override": "Former member"} -> 422 {"detail":"That name is reserved."}
+PUT /api/v1/leagues/the-coupon/members/me/display-name as bob {"display_name_override": "Sam"} -> 204 
+PUT /api/v1/leagues/the-coupon/members/me/display-name as bob {"display_name_override": "Erin"} -> 204 
+bob is now shown as 'Erin' in league A. Erin (league B only) joins league A by code:
+GET /api/v1/leagues/the-coupon as alice -> 200 {"id":"04093550-0314-43f0-8b4b-f4c2ff9ecdc7","slug":"the-coupon","name":"The Coupon Test League","description":"edited by a non-member site admin","privacy":"private","max_members":50,"pick_scope":"selection","slate_window":{"start_weekday":5,"start_minute":900,"end_weekday":5,"end_minute":900,"lock_offset_minutes":30,"pick_open_offset_minutes":null},"competitions":null,"offered_markets":["MATCH_O... <2150 bytes>
+POST /api/v1/leagues/join-by-code as erin {"code": "XNEV5S"} -> 200 {"league_slug":"the-coupon","league_name":"The Coupon Test League","status":"joined"}
+GET /api/v1/leagues/the-coupon/members as alice -> 200 <1721 bytes>
+league A roster names: ['Erin', 'Alice', 'Carol', 'Erin', 'V5', 'V1', 'Sadie', 'Gary', 'Hank', 'V3', 'V4', 'V2']
+'Erin' appears 2 times
+PUT /api/v1/leagues/the-coupon/members/me/display-name as bob {"display_name_override": null} -> 204 
+
+## SEC-23: push endpoint port  (29 Sep 08:45:52)
+POST /api/v1/push/subscribe as bob {"endpoint": "https://fcm.googleapis.com:8443/fcm/send/abc", "keys": {"p256dh": "x", "auth": "y"}} -> 422 {"detail":[{"type":"value_error","loc":["body","endpoint"],"msg":"Value error, Push endpoint must use the standard HTTPS port","input":"https://fcm.googleapis.com:8443/fcm/send/abc","ctx":{"error":{}}}]}
+POST /api/v1/push/subscribe as bob {"endpoint": "https://fcm.googleapis.com:443/fcm/send/abc", "keys": {"p256dh": "x", "auth": "y"}} -> 201 {"status":"subscribed"}
+POST /api/v1/push/subscribe as bob {"endpoint": "https://updates.push.services.mozilla.com:22/wpush/v2/abc", "keys": {"p256dh": "x", "auth": "y"}} -> 422 {"detail":[{"type":"value_error","loc":["body","endpoint"],"msg":"Value error, Push endpoint must use the standard HTTPS port","input":"https://updates.push.services.mozilla.com:22/wpush/v2/abc","ctx":{"error":{}}}]}
+
+## SEC-26: invite to a soft-deleted league  (29 Sep 08:45:52)
+POST /api/v1/leagues/claim-invite as frank {"token": "V3mRsyncsC0d42zVcuXK7QoVVv1Hv0z4Wh5jcax-SPI"} -> 404 {"detail":"League not found"}

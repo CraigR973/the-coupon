@@ -1,0 +1,64 @@
+c822e69 feat/batch-120-replay                        guardrail=0 safety=0 | fix: preserve simultaneous claim conflicts
+be387da feat/batch-121-replay                        guardrail=0 safety=0 | fix: prevent stray rounds from scoring
+30fe08b feat/batch-122-replay                        guardrail=0 safety=0 | fix: protect privileged PIN resets
+d1b9ee9 fix/deterministic-delivery-gates             guardrail=1 safety=0 | fix: stabilise delivery gate timing
+    guardrail: quality guardrails: FAIL — this batch changes its own gate or lint/type configuration:   scripts/run-prod-bundle-smoke.sh Move that work to an explicitly approved gate-maintenance batch. 
+7ef953d fix/preview-readiness-signal                 guardrail=1 safety=0 | fix: expose preview readiness in CI
+    guardrail: quality guardrails: FAIL — this batch changes its own gate or lint/type configuration:   scripts/run-prod-bundle-smoke.sh Move that work to an explicitly approved gate-maintenance batch. 
+89217f8 fix/preview-readiness-ansi                   guardrail=1 safety=0 | fix: tolerate coloured preview readiness
+    guardrail: quality guardrails: FAIL — this batch changes its own gate or lint/type configuration:   scripts/run-prod-bundle-smoke.sh Move that work to an explicitly approved gate-maintenance batch. 
+fa922f8 feat/batch-158-replay                        guardrail=0 safety=0 | fix: make keyboard focus visible
+8ed2740 feat/batch-137-replay                        guardrail=0 safety=0 | fix: put every public screen in a landmark
+6794111 feat/batch-138-replay                        guardrail=0 safety=0 | fix: stop dimming tuned text with opacity
+7d0e56b feat/batch-139-replay                        guardrail=0 safety=0 | feat: open the round on a fixture, and answer refusals in kind
+597905d feat/batch-167-replay                        guardrail=0 safety=0 | fix: three keyboard and reflow defects the sweep cannot see
+37c6e40 feat/batch-123-replay                        guardrail=0 safety=1 | fix: do not let a griefing lock cost a member their session
+    safety: close-out safety: REFUSED — Batch 000 changes both API and web. 
+da8a13d feat/batch-124-replay                        guardrail=0 safety=1 | fix: stop the join code walking past removal and approval
+    safety: close-out safety: REFUSED — Batch 000 changes both API and web. 
+623f9b7 feat/batch-125-replay                        guardrail=0 safety=0 | fix: make oversight a read, not a licence to play
+ae187ea feat/batch-126-replay                        guardrail=0 safety=0 | fix: make a member's name theirs within a league
+591d0c2 feat/batch-141-replay                        guardrail=0 safety=0 | feat: give the web app a Content-Security-Policy
+5c02dcd feat/batch-143-replay                        guardrail=0 safety=1 | fix: forget the league on logout, and refuse an invite to a deleted one
+    safety: close-out safety: REFUSED — Batch 000 changes both API and web. 
+d1d4b60 feat/batch-159-replay                        guardrail=0 safety=0 | fix: narrow the match-day refresh to the pooled competitions
+8b1aa0d feat/batch-160-replay                        guardrail=0 safety=0 | fix: charge every provider entry point to the plan counter
+39b299f feat/batch-161-replay                        guardrail=0 safety=0 | fix: bound the pick path by what the deployment has left
+a498e2a feat/batch-133-replay                        guardrail=0 safety=0 | fix: give discovery a budget, and spend it across windows
+c36beb4 feat/batch-162-replay                        guardrail=0 safety=0 | perf: answer the member before telling the league
+2179fb5 feat/batch-129-replay                        guardrail=0 safety=0 | fix: push the discovery-silence alarm, not just log it
+665e266 feat/batch-147-replay                        guardrail=0 safety=0 | fix: do not lose the pick reminder to the fall-back hour
+092ff38 feat/batch-130-replay                        guardrail=0 safety=0 | fix: complete a round when the roster change fills it
+8eff2bb feat/batch-131-replay                        guardrail=0 safety=0 | fix: divide win rate by the picks that actually ran
+efdfdeb feat/batch-132-replay                        guardrail=0 safety=0 | fix: guard the two calendar rules a declaration can break
+46b8d29 feat/batch-156-replay                        guardrail=0 safety=1 | fix: leave a voided leg out of the combined coupon
+    safety: close-out safety: REFUSED — Batch 000 changes both API and web. 
+e8b5fe4 feat/batch-157-replay                        guardrail=0 safety=1 | fix: stop averaging rank across leagues of different sizes
+    safety: close-out safety: REFUSED — Batch 000 changes both API and web. 
+2f7d742 fix/round-population-window-clock            guardrail=0 safety=0 | fix: stop four round-population tests asserting on the day of the week
+1bfe512 feat/batch-144-replay                        guardrail=0 safety=0 | perf: label the summary's rounds once, off a projection
+f929c3d feat/batch-145-replay                        guardrail=0 safety=0 | perf: compress the Saturday slate on its way down a phone
+00d609e feat/batch-128-replay                        guardrail=0 safety=0 | feat: refuse a shipment that migrates with nothing written down
+ee3d196 feat/batch-146-replay                        guardrail=0 safety=0 | perf: index the two reads that sweep rounds, and right-size the pool
+ba3f580 feat/batch-163-replay                        guardrail=0 safety=0 | perf: stop precaching two admin consoles most members cannot open
+7e37b9b feat/batch-164-replay                        guardrail=0 safety=0 | perf: replace framer-motion with CSS, and drop a font nothing asked for
+13e49b4 feat/batch-165-replay                        guardrail=0 safety=0 | perf: stop the countdown re-rendering the screen, and name the cache keys
+ca62213 feat/batch-155-replay                        guardrail=0 safety=0 | fix: take members' names out of the public repository (Batch 155)
+c9d0ed3 feat/batch-127-replay                        guardrail=0 safety=0 | chore: move CI, the gate and the web build to Node 24 (Batch 127)
+9b99f41 feat/batch-142-replay                        guardrail=0 safety=0 | fix: bound every web push by a timeout and refuse odd push ports (Batch 142)
+98de5d2 feat/batch-95-replay                         guardrail=0 safety=0 | feat: a weekly off-site backup of the scored history, switched off until provisioned (Batch 95)
+9731b4a feat/batch-134-replay                        guardrail=0 safety=0 | feat: let a site admin correct a settled pick through the API (Batch 134)
+baae8ed feat/batch-136-replay                        guardrail=0 safety=1 | feat: let a member delete their account or download their data (Batch 136)
+    safety: close-out safety: REFUSED — Batch 000 changes both API and web. 
+fbf78e4 feat/batch-135-replay                        guardrail=0 safety=0 | feat: tell members when their round settles, and what their pick did (Batch 135)
+c5be640 feat/batch-148-replay                        guardrail=0 safety=1 | feat: tell a renamed member in the app when push cannot reach them (Batch 148)
+    safety: close-out safety: REFUSED — Batch 000 changes both API and web. 
+828f42d feat/batch-115-certify-from-stored-rounds    guardrail=0 safety=0 | fix: certify request budget from stored rounds
+99b5fc9 fix/remeasure-production-walk                guardrail=0 safety=0 | fix: remeasure production competition walk
+83facaf fix/e2e-coupon-flow                          guardrail=0 safety=0 | fix(e2e): align coupon flow with current round contracts
+66acf8b feat/batch-151-replay                        guardrail=0 safety=0 | feat(web): unify statistic type scale
+b6e0865 feat/batch-140-replay                        guardrail=0 safety=0 | feat(web): add desktop two-column layouts
+d827cdf feat/batch-168-replay                        guardrail=0 safety=0 | fix(web): restore targets and zoom navigation
+afea45f feat/batch-150-replay                        guardrail=0 safety=0 | feat(web): complete first-run home
+aa28601 feat/batch-149-replay                        guardrail=0 safety=0 | fix(web): distinguish failures from empty states
+4121cf0 feat/batch-000-replay                        guardrail=0 safety=0 | fix(web): keep mobile toasts above navigation

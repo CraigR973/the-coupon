@@ -1,0 +1,72 @@
+## B07 download via the UI
+{
+ "filename": "the-coupon-my-data-2026-09-29.json",
+ "keys": [
+  "exported_at",
+  "profile",
+  "leagues",
+  "picks",
+  "notification_preferences",
+  "signed_in_devices",
+  "push_devices"
+ ],
+ "picks": 1,
+ "profile_name": "Carol"
+}
+## B07 delete via the UI
+{
+ "landed_on": "/login",
+ "toast_visible": false,
+ "api": [
+  "GET /api/v1/me/rename-notice 200",
+  "GET /api/v1/me/export 200",
+  "POST /api/v1/me/delete 204"
+ ]
+}
+## A11 dialog
+{
+ "text": "Your sign-in name changed\n\nSign in as \"Dave\" from now on. Your old sign-in name no longer works, and a forgotten-PIN request needs the new one. Your PIN itself has not changed.\n\nGot it\nClose",
+ "shown_again_after_reload": false,
+ "api": [
+  "GET /api/v1/me/rename-notice 200",
+  "POST /api/v1/me/rename-notice/seen 204",
+  "GET /api/v1/me/rename-notice 200"
+ ]
+}
+## screenshots
+[
+ [
+  "settings--your-data--1280--light.png",
+  "Settings scrolled to Your data (Carol, before deletion)"
+ ],
+ [
+  "settings--delete-confirm--1280--light.png",
+  "Delete my account: confirm panel with PIN entered"
+ ],
+ [
+  "login--after-account-deleted--1280--light.png",
+  "Landing on /login after self-service deletion, toast visible"
+ ],
+ [
+  "home--rename-notice--1280--light.png",
+  "In-app rename notice dialog shown to an untold renamed member"
+ ],
+ [
+  "register--signups-closed-before-submit--1280--light.png",
+  "Register form with sign-ups closed: full form, no notice"
+ ]
+]
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Error: strict mode violation: getByRole('alert') resolved to 2 elements:
+    1) <div role="alert" class="sr-only" aria-atomic="false" data-testid="toast-alerts"></div> aka getByTestId('toast-alerts')
+    2) <p role="alert" class="text-xs text-error font-sans">Sign-ups are closed right now. Ask a league admin…</p> aka getByText('Sign-ups are closed right now')
+
+Call log:
+  - waiting for getByRole('alert') to be visible
+
+    at /Users/craigrobinson/the-coupon/docs/review/2026-09-28/notes/05-features/browser.mjs:123:17
+
+Node.js v24.21.0

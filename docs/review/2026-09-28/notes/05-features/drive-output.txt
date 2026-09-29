@@ -1,0 +1,533 @@
+## league A picks (who, outcome, status, frozen odds)
+[
+ [
+  "Alice",
+  "HOME",
+  201,
+  1.9
+ ],
+ [
+  "Bob",
+  "DRAW",
+  201,
+  3.75
+ ],
+ [
+  "Carol",
+  "AWAY",
+  201,
+  4.3
+ ],
+ [
+  "Dave",
+  "HOME",
+  201,
+  2.4
+ ]
+]
+## create league B
+{
+ "status": 201,
+ "slug": "second-league",
+ "pick_scope": "fixture"
+}
+## Alice joins B by code
+{
+ "status": 200,
+ "body": {
+  "league_slug": "second-league",
+  "league_name": "Second League",
+  "status": "joined"
+ }
+}
+## Dave joins B by code
+{
+ "status": 200,
+ "body": {
+  "league_slug": "second-league",
+  "league_name": "Second League",
+  "status": "joined"
+ }
+}
+## league B picks (Dave deliberately has none)
+[
+ [
+  "Bob",
+  201
+ ],
+ [
+  "Alice",
+  201
+ ]
+]
+## Carol mutes league A
+{
+ "status": 200,
+ "leagues": [
+  {
+   "league_id": "f081828b-4b20-4279-beb9-b42393fc7aee",
+   "league_name": "The Coupon Test League",
+   "muted": true
+  }
+ ]
+}
+{"gameweek_id": "8b42bbcf-39af-4347-b71a-452d487a65b7", "league_id": "f081828b-4b20-4279-beb9-b42393fc7aee", "leader_present": true, "leader_points": 24, "event": "standings recomputed", "logger": "src.scheduler", "level": "info", "timestamp": "2026-09-29T07:43:36.961816Z"}
+{"resolved": {"8b42bbcf-39af-4347-b71a-452d487a65b7": 4}, "notified": {"8b42bbcf-39af-4347-b71a-452d487a65b7": 3}, "event": "gameweeks settled", "logger": "src.scheduler", "level": "info", "timestamp": "2026-09-29T07:43:36.971894Z"}
+## B08 sweep run 1 (ok, sends)
+{
+ "ok": true,
+ "sends": [
+  {
+   "player_id": "06603c9e-1a3b-41d1-a660-bd1cdef81e5b",
+   "title": "The Coupon Test League",
+   "body": "Gameweek 1b has settled. Your pick, Arsenal (v Chelsea) @ 1.90, won 19 points.",
+   "type": "round_settled",
+   "who": "Alice"
+  },
+  {
+   "player_id": "39faae39-29a9-4c47-8905-109b2773f31b",
+   "title": "The Coupon Test League",
+   "body": "Gameweek 1b has settled. Your pick, Forfar Athletic (v Brechin City) @ 2.40, won 24 points.",
+   "type": "round_settled",
+   "who": "Dave"
+  },
+  {
+   "player_id": "c0406b78-f671-4e7d-8e4b-880dce0b7979",
+   "title": "The Coupon Test League",
+   "body": "Gameweek 1b has settled. Your pick, Draw (Arsenal v Chelsea) @ 3.75, lost.",
+   "type": "round_settled",
+   "who": "Bob"
+  }
+ ]
+}
+## B08 sweep run 2 — must send nothing
+{
+ "ok": true,
+ "sends": 0
+}
+{"gameweek_id": "7498e317-a9dc-47f2-8979-80a80acdcc94", "admin_id": "06603c9e-1a3b-41d1-a660-bd1cdef81e5b", "fixtures": 2, "picks_resolved": 2, "settled": true, "event": "round settled by hand", "correlation_id": "80a14599-ea22-4368-99d4-2a833051cf95", "logger": "src.routers.admin", "level": "info", "timestamp": "2026-09-29T07:43:37.106648Z"}
+## B08 manual settle league B
+{
+ "status": 200,
+ "body": {
+  "gameweek_id": "7498e317-a9dc-47f2-8979-80a80acdcc94",
+  "picks_resolved": 2,
+  "settled": true
+ },
+ "sends": [
+  {
+   "player_id": "06603c9e-1a3b-41d1-a660-bd1cdef81e5b",
+   "title": "Second League",
+   "body": "Gameweek 1b has settled. Your pick, Forfar Athletic (v Brechin City) @ 2.40, lost.",
+   "type": "round_settled",
+   "who": "Alice"
+  },
+  {
+   "player_id": "39faae39-29a9-4c47-8905-109b2773f31b",
+   "title": "Second League",
+   "body": "Gameweek 1b has settled. You had no pick this round.",
+   "type": "round_settled",
+   "who": "Dave"
+  },
+  {
+   "player_id": "c0406b78-f671-4e7d-8e4b-880dce0b7979",
+   "title": "Second League",
+   "body": "Gameweek 1b has settled. Your pick, Arsenal (v Chelsea) @ 1.90, won 19 points.",
+   "type": "round_settled",
+   "who": "Bob"
+  }
+ ]
+}
+## Bob's own pick (only Bob can read its id)
+{
+ "id": "af5d497c-dd3a-47f6-ac93-3486e7d50933",
+ "league_id": "f081828b-4b20-4279-beb9-b42393fc7aee",
+ "gameweek_id": "8b42bbcf-39af-4347-b71a-452d487a65b7",
+ "fixture_id": "1cd47028-397d-4a5f-aa80-14887f2bb467",
+ "home": "Arsenal",
+ "away": "Chelsea",
+ "competition": "English Premier League",
+ "market": "MATCH_ODDS",
+ "outcome": "DRAW",
+ "runner_name": "The Draw",
+ "odds": 3.75,
+ "status": "lost",
+ "points_awarded": 0
+}
+## A10 every read a site admin has: does any return Bob's pick id?
+{
+ "/api/v1/leagues/mine": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/leagues/the-coupon": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/leagues/the-coupon/gameweek/current": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/leagues/the-coupon/gameweeks": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/leagues/the-coupon/coupon?gameweek_id=8b42bbcf-39af-4347-b71a-452d487a65b7": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/leagues/the-coupon/standings": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/leagues/the-coupon/results": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/leagues/the-coupon/players/c0406b78-f671-4e7d-8e4b-880dce0b7979/profile": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/leagues/the-coupon/members": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/leagues/the-coupon/audit-log": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/admin/dashboard": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/admin/results/pending": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/admin/players": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/admin/leagues": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/admin/invites": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/me/cross-league-summary": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ },
+ "/api/v1/me/export": {
+  "status": 200,
+  "contains_bob_pick_id": false
+ }
+}
+{"pick_id": "af5d497c-dd3a-47f6-ac93-3486e7d50933", "admin_id": "06603c9e-1a3b-41d1-a660-bd1cdef81e5b", "status_before": "lost", "status": "won", "event": "pick corrected", "correlation_id": "2eb36807-4901-4842-9fd2-e7f4b9023e6d", "logger": "src.routers.admin", "level": "info", "timestamp": "2026-09-29T07:43:37.495420Z"}
+## A10 correction
+{
+ "first": [
+  200,
+  {
+   "pick_id": "af5d497c-dd3a-47f6-ac93-3486e7d50933",
+   "changed": true,
+   "status_before": "lost",
+   "points_before": 0,
+   "status": "won",
+   "points": 38
+  }
+ ],
+ "repeat": [
+  200,
+  {
+   "pick_id": "af5d497c-dd3a-47f6-ac93-3486e7d50933",
+   "changed": false,
+   "status_before": "won",
+   "points_before": 38,
+   "status": "won",
+   "points": 38
+  }
+ ],
+ "as_member": [
+  403,
+  {
+   "detail": "Admin access required"
+  }
+ ],
+ "sends_to_anyone": 0
+}
+## A10 Bob's pick after correction — any field saying it was corrected?
+{
+ "keys_before": [
+  "away",
+  "competition",
+  "fixture_id",
+  "gameweek_id",
+  "home",
+  "id",
+  "league_id",
+  "market",
+  "odds",
+  "outcome",
+  "points_awarded",
+  "runner_name",
+  "status"
+ ],
+ "keys_after": [
+  "away",
+  "competition",
+  "fixture_id",
+  "gameweek_id",
+  "home",
+  "id",
+  "league_id",
+  "market",
+  "odds",
+  "outcome",
+  "points_awarded",
+  "runner_name",
+  "status"
+ ],
+ "status": "won",
+ "points": 38
+}
+## A10 standings after correction
+[
+ [
+  "Bob",
+  38
+ ],
+ [
+  "Dave",
+  24
+ ],
+ [
+  "Alice",
+  19
+ ],
+ [
+  "Carol",
+  0
+ ]
+]
+## A10 league A audit log (league admin view) after correction
+{
+ "total": 0,
+ "actions": [],
+ "mentions_pick_corrected": false
+}
+## A10 league B audit log (its admin, Bob) after a site admin hand-settled it
+{
+ "total": 3,
+ "actions": [
+  [
+   "member_joined",
+   "league_memberships",
+   null
+  ],
+  [
+   "member_joined",
+   "league_memberships",
+   null
+  ],
+  [
+   "league_created",
+   "leagues",
+   null
+  ]
+ ],
+ "mentions_manual_settlement": false
+}
+## A10 site-admin dashboard recent audit (no reason, no league)
+[
+ [
+  "league_updated",
+  "picks",
+  "af5d497c-dd3a-47f6-ac93-3486e7d50933"
+ ],
+ [
+  "league_updated",
+  "gameweeks",
+  "7498e317-a9dc-47f2-8979-80a80acdcc94"
+ ],
+ [
+  "member_joined",
+  "league_memberships",
+  "b30f5066-b19e-424e-92b6-98c8ff791ce9"
+ ],
+ [
+  "member_joined",
+  "league_memberships",
+  "b30f5066-b19e-424e-92b6-98c8ff791ce9"
+ ],
+ [
+  "league_created",
+  "leagues",
+  "b30f5066-b19e-424e-92b6-98c8ff791ce9"
+ ]
+]
+## A10 the audit row that exists (database)
+{
+ "target_table": "picks",
+ "changes": {
+  "after": {
+   "points": 38,
+   "status": "won"
+  },
+  "action": "pick_corrected",
+  "before": {
+   "points": 0,
+   "status": "lost"
+  },
+  "reason": "Provider score was wrong; it finished 1-1",
+  "result": {
+   "away_goals": 1,
+   "home_goals": 1
+  },
+  "league_id": "f081828b-4b20-4279-beb9-b42393fc7aee",
+  "gameweek_id": "8b42bbcf-39af-4347-b71a-452d487a65b7"
+ }
+}
+## B07 Bob export
+{
+ "status": 200,
+ "content_disposition": "attachment; filename=\"the-coupon-my-data-2026-09-29.json\"",
+ "top_level_keys": [
+  "exported_at",
+  "leagues",
+  "notification_preferences",
+  "picks",
+  "profile",
+  "push_devices",
+  "signed_in_devices"
+ ],
+ "mentions_other_members": []
+}
+## B07 refusals
+{
+ "wrong_pin": [
+  403,
+  {
+   "detail": "That PIN isn't right."
+  }
+ ],
+ "sole_admin_of_B": [
+  409,
+  {
+   "detail": "You're the only admin of Second League. Make another member an admin first, so the league still has someone to run it."
+  }
+ ],
+ "site_admin": [
+  409,
+  {
+   "detail": "A site admin can't delete their own account here."
+  }
+ ]
+}
+## A11 rename notice
+{
+ "dave": [
+  200,
+  {
+   "notice": {
+    "title": "Your sign-in name changed",
+    "body": "Sign in as \"Dave\" from now on. Your old sign-in name no longer works, and a forgotten-PIN request needs the new one. Your PIN itself has not changed."
+   }
+  }
+ ],
+ "bob": [
+  200,
+  {
+   "notice": null
+  }
+ ]
+}
+## A12 signups closed
+{
+ "register_valid": [
+  403,
+  {
+   "detail": "Sign-ups are closed right now. Ask a league admin for an invite."
+  }
+ ],
+ "register_invalid_name_still_403_so_state_is_public": [
+  403,
+  {
+   "detail": "Sign-ups are closed right now. Ask a league admin for an invite."
+  }
+ ],
+ "config_unauthenticated": [
+  401,
+  {
+   "detail": "Not authenticated"
+  }
+ ],
+ "invite_created": 201,
+ "claim_invite_without_account": [
+  401,
+  {
+   "detail": "Not authenticated"
+  }
+ ]
+}
+## B09 results vs standings across a season boundary
+{
+ "results_starts_on": [
+  "2026-08-01",
+  "2026-05-02"
+ ],
+ "results_with_season_2026_param": [
+  "2026-08-01",
+  "2026-05-02"
+ ],
+ "seasons": [
+  [
+   "2026/27",
+   true,
+   1
+  ],
+  [
+   "2025/26",
+   false,
+   1
+  ]
+ ],
+ "standings_current": [
+  [
+   "Bob",
+   38
+  ],
+  [
+   "Dave",
+   24
+  ],
+  [
+   "Alice",
+   19
+  ],
+  [
+   "Carol",
+   0
+  ]
+ ],
+ "standings_2025": [
+  [
+   "Bob",
+   20
+  ],
+  [
+   "Alice",
+   0
+  ],
+  [
+   "Carol",
+   0
+  ],
+  [
+   "Dave",
+   0
+  ]
+ ]
+}
