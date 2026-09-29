@@ -430,5 +430,69 @@
   "width": 1280,
   "theme": "dark",
   "confirmed": "Bob: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cHi Bob\u201d, settled word no, \u201cvoid\u201d \u00d70"
+ },
+ {
+  "file": "home--standalone-safearea--393--dark.png",
+  "url": "/",
+  "state": "home \u2014 standalone + safe-area insets",
+  "width": 393,
+  "theme": "dark",
+  "confirmed": "Alice, iOS UA, standalone seen by the app (True), env(safe-area-inset) 59/34 via CDP: header 140px (pad 75px), tab bar 95px (pad 34px), theme-color #071A3D"
+ },
+ {
+  "file": "standings-toast--standalone-safearea--393--dark.png",
+  "url": "/leagues/the-coupon/leaderboard",
+  "state": "standings-toast \u2014 standalone + safe-area insets",
+  "width": 393,
+  "theme": "dark",
+  "confirmed": "Alice, iOS UA, standalone seen by the app (True), env(safe-area-inset) 59/34 via CDP: header 140px (pad 75px), tab bar 95px (pad 34px), theme-color #071A3D; toast \u201cStandings copied\u201d 15px above the tab bar"
+ },
+ {
+  "file": "current-round-offline--standalone-safearea--393--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "current-round-offline \u2014 standalone + safe-area insets",
+  "width": 393,
+  "theme": "dark",
+  "confirmed": "Alice, iOS UA, standalone seen by the app (True), env(safe-area-inset) 59/34 via CDP: header 140px (pad 75px), tab bar 95px (pad 34px), theme-color #071A3D; offline banner top 140 (static)"
+ },
+ {
+  "file": "current-round-offline-scrolled--standalone-safearea--393--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "current-round-offline-scrolled \u2014 standalone + safe-area insets",
+  "width": 393,
+  "theme": "dark",
+  "confirmed": "Alice, iOS UA, standalone seen by the app (True), env(safe-area-inset) 59/34 via CDP: header 140px (pad 75px), tab bar 95px (pad 34px), theme-color #071A3D; offline banner top -760 (static)"
+ },
+ {
+  "file": "home--standalone-safearea--393--light.png",
+  "url": "/",
+  "state": "home \u2014 standalone + safe-area insets",
+  "width": 393,
+  "theme": "light",
+  "confirmed": "Alice, iOS UA, standalone seen by the app (True), env(safe-area-inset) 59/34 via CDP: header 140px (pad 75px), tab bar 95px (pad 34px), theme-color #F7F8FA"
+ },
+ {
+  "file": "standings-toast--standalone-safearea--393--light.png",
+  "url": "/leagues/the-coupon/leaderboard",
+  "state": "standings-toast \u2014 standalone + safe-area insets",
+  "width": 393,
+  "theme": "light",
+  "confirmed": "Alice, iOS UA, standalone seen by the app (True), env(safe-area-inset) 59/34 via CDP: header 140px (pad 75px), tab bar 95px (pad 34px), theme-color #F7F8FA; toast \u201cStandings copied\u201d 15px above the tab bar"
+ },
+ {
+  "file": "current-round-offline--standalone-safearea--393--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "current-round-offline \u2014 standalone + safe-area insets",
+  "width": 393,
+  "theme": "light",
+  "confirmed": "Alice, iOS UA, standalone seen by the app (True), env(safe-area-inset) 59/34 via CDP: header 140px (pad 75px), tab bar 95px (pad 34px), theme-color #F7F8FA; offline banner top 140 (static)"
+ },
+ {
+  "file": "current-round-offline-scrolled--standalone-safearea--393--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "current-round-offline-scrolled \u2014 standalone + safe-area insets",
+  "width": 393,
+  "theme": "light",
+  "confirmed": "Alice, iOS UA, standalone seen by the app (True), env(safe-area-inset) 59/34 via CDP: header 140px (pad 75px), tab bar 95px (pad 34px), theme-color #F7F8FA; offline banner top -760 (static)"
  }
 ]

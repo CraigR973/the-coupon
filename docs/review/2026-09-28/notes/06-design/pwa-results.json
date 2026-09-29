@@ -1,0 +1,296 @@
+{
+ "insets": {
+  "top": 59,
+  "bottom": 34,
+  "left": 0,
+  "right": 0
+ },
+ "out": [
+  {
+   "theme": "dark",
+   "name": "home",
+   "path": "/",
+   "file": "home--standalone-safearea--393--dark.png",
+   "sha256": "ebd03bca8119c31061c0ad948d01ac04f9f96d6b392963d960d5c032837dbaa4",
+   "standaloneSeen": true,
+   "installGate": false,
+   "header": {
+    "top": 0,
+    "bottom": 140,
+    "h": 140
+   },
+   "headerPadTop": "75px",
+   "headerRow": {
+    "top": 75,
+    "bottom": 139,
+    "h": 64
+   },
+   "tabBar": {
+    "top": 757,
+    "bottom": 852,
+    "h": 95
+   },
+   "tabBarPadBottom": "34px",
+   "toast": null,
+   "toastGap": null,
+   "offlineBanner": null,
+   "themeColor": "#071A3D",
+   "headerBg": "rgba(0, 0, 0, 0)",
+   "innerHeight": 852
+  },
+  {
+   "theme": "dark",
+   "name": "standings-toast",
+   "path": "/leagues/the-coupon/leaderboard",
+   "file": "standings-toast--standalone-safearea--393--dark.png",
+   "sha256": "39d66ffb7e34a3efd6adfb8c6364100c7305f30d83343114ab373ef1277f40d8",
+   "standaloneSeen": true,
+   "installGate": false,
+   "header": {
+    "top": 0,
+    "bottom": 140,
+    "h": 140
+   },
+   "headerPadTop": "75px",
+   "headerRow": {
+    "top": 75,
+    "bottom": 139,
+    "h": 64
+   },
+   "tabBar": {
+    "top": 757,
+    "bottom": 852,
+    "h": 95
+   },
+   "tabBarPadBottom": "34px",
+   "toast": {
+    "top": 689,
+    "bottom": 742,
+    "h": 54,
+    "text": "Standings copied"
+   },
+   "toastGap": 15,
+   "offlineBanner": null,
+   "themeColor": "#071A3D",
+   "headerBg": "rgba(0, 0, 0, 0)",
+   "innerHeight": 852
+  },
+  {
+   "theme": "dark",
+   "name": "current-round-offline",
+   "path": "/leagues/the-coupon/predictions",
+   "file": "current-round-offline--standalone-safearea--393--dark.png",
+   "sha256": "6d294010d1ae81db0ac78551f8acf26a682fe1c62e989f33d990813b3bf70152",
+   "standaloneSeen": true,
+   "installGate": false,
+   "header": {
+    "top": 0,
+    "bottom": 140,
+    "h": 140
+   },
+   "headerPadTop": "75px",
+   "headerRow": {
+    "top": 75,
+    "bottom": 139,
+    "h": 64
+   },
+   "tabBar": {
+    "top": 757,
+    "bottom": 852,
+    "h": 95
+   },
+   "tabBarPadBottom": "34px",
+   "toast": null,
+   "toastGap": null,
+   "offlineBanner": {
+    "top": 140,
+    "bottom": 177,
+    "h": 37,
+    "sticky": "static"
+   },
+   "themeColor": "#071A3D",
+   "headerBg": "rgba(0, 0, 0, 0)",
+   "innerHeight": 852
+  },
+  {
+   "theme": "dark",
+   "name": "current-round-offline-scrolled",
+   "path": "/leagues/the-coupon/predictions",
+   "file": "current-round-offline-scrolled--standalone-safearea--393--dark.png",
+   "sha256": "6b882b579852ff2dcf1f43be6b671b8a4ec4bff09a5502f13e95df7a4be96d8a",
+   "standaloneSeen": true,
+   "installGate": false,
+   "header": {
+    "top": 0,
+    "bottom": 140,
+    "h": 140
+   },
+   "headerPadTop": "75px",
+   "headerRow": {
+    "top": 75,
+    "bottom": 139,
+    "h": 64
+   },
+   "tabBar": {
+    "top": 757,
+    "bottom": 852,
+    "h": 95
+   },
+   "tabBarPadBottom": "34px",
+   "toast": null,
+   "toastGap": null,
+   "offlineBanner": {
+    "top": -760,
+    "bottom": -723,
+    "h": 37,
+    "sticky": "static"
+   },
+   "themeColor": "#071A3D",
+   "headerBg": "rgba(0, 0, 0, 0)",
+   "innerHeight": 852
+  },
+  {
+   "theme": "light",
+   "name": "home",
+   "path": "/",
+   "file": "home--standalone-safearea--393--light.png",
+   "sha256": "fa4ac3733ab5b427a8c5ab380bdc4a292717157c99914316f20f70fd08ffe838",
+   "standaloneSeen": true,
+   "installGate": false,
+   "header": {
+    "top": 0,
+    "bottom": 140,
+    "h": 140
+   },
+   "headerPadTop": "75px",
+   "headerRow": {
+    "top": 75,
+    "bottom": 139,
+    "h": 64
+   },
+   "tabBar": {
+    "top": 757,
+    "bottom": 852,
+    "h": 95
+   },
+   "tabBarPadBottom": "34px",
+   "toast": null,
+   "toastGap": null,
+   "offlineBanner": null,
+   "themeColor": "#F7F8FA",
+   "headerBg": "rgba(0, 0, 0, 0)",
+   "innerHeight": 852
+  },
+  {
+   "theme": "light",
+   "name": "standings-toast",
+   "path": "/leagues/the-coupon/leaderboard",
+   "file": "standings-toast--standalone-safearea--393--light.png",
+   "sha256": "8e264b8fd4d386a6b01168582826d2bdc8826b535fe542d1e8d2afc497fabb90",
+   "standaloneSeen": true,
+   "installGate": false,
+   "header": {
+    "top": 0,
+    "bottom": 140,
+    "h": 140
+   },
+   "headerPadTop": "75px",
+   "headerRow": {
+    "top": 75,
+    "bottom": 139,
+    "h": 64
+   },
+   "tabBar": {
+    "top": 757,
+    "bottom": 852,
+    "h": 95
+   },
+   "tabBarPadBottom": "34px",
+   "toast": {
+    "top": 689,
+    "bottom": 742,
+    "h": 54,
+    "text": "Standings copied"
+   },
+   "toastGap": 15,
+   "offlineBanner": null,
+   "themeColor": "#F7F8FA",
+   "headerBg": "rgba(0, 0, 0, 0)",
+   "innerHeight": 852
+  },
+  {
+   "theme": "light",
+   "name": "current-round-offline",
+   "path": "/leagues/the-coupon/predictions",
+   "file": "current-round-offline--standalone-safearea--393--light.png",
+   "sha256": "0a013be47713598030b5ad9941e519cf0fee486cec91b1ac26850e35592e4e3d",
+   "standaloneSeen": true,
+   "installGate": false,
+   "header": {
+    "top": 0,
+    "bottom": 140,
+    "h": 140
+   },
+   "headerPadTop": "75px",
+   "headerRow": {
+    "top": 75,
+    "bottom": 139,
+    "h": 64
+   },
+   "tabBar": {
+    "top": 757,
+    "bottom": 852,
+    "h": 95
+   },
+   "tabBarPadBottom": "34px",
+   "toast": null,
+   "toastGap": null,
+   "offlineBanner": {
+    "top": 140,
+    "bottom": 177,
+    "h": 37,
+    "sticky": "static"
+   },
+   "themeColor": "#F7F8FA",
+   "headerBg": "rgba(0, 0, 0, 0)",
+   "innerHeight": 852
+  },
+  {
+   "theme": "light",
+   "name": "current-round-offline-scrolled",
+   "path": "/leagues/the-coupon/predictions",
+   "file": "current-round-offline-scrolled--standalone-safearea--393--light.png",
+   "sha256": "32fe6a56c392f35bec28ff4694e19d6c1c1cb531ab492a3b3cf8e2ba34a284ad",
+   "standaloneSeen": true,
+   "installGate": false,
+   "header": {
+    "top": 0,
+    "bottom": 140,
+    "h": 140
+   },
+   "headerPadTop": "75px",
+   "headerRow": {
+    "top": 75,
+    "bottom": 139,
+    "h": 64
+   },
+   "tabBar": {
+    "top": 757,
+    "bottom": 852,
+    "h": 95
+   },
+   "tabBarPadBottom": "34px",
+   "toast": null,
+   "toastGap": null,
+   "offlineBanner": {
+    "top": -760,
+    "bottom": -723,
+    "h": 37,
+    "sticky": "static"
+   },
+   "themeColor": "#F7F8FA",
+   "headerBg": "rgba(0, 0, 0, 0)",
+   "innerHeight": 852
+  }
+ ]
+}

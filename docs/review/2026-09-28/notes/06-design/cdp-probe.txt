@@ -1,0 +1,4 @@
+chromium 148.0.7778.96
+Emulation.setSafeAreaInsetsOverride ok
+Emulation.setEmulatedMedia ok
+{ pad: '47px / 34px', standalone: false }

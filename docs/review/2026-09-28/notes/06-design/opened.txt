@@ -14,3 +14,5 @@ results--settled--390--dark.png
 home--after-settle-loser--390--light.png
 current-round--settled-void-leg--390--light.png
 coupon--settled-void--1280--dark.png
+standings-toast--standalone-safearea--393--light.png
+current-round-offline--standalone-safearea--393--dark.png
