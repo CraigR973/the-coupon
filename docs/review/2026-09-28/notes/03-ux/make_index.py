@@ -68,7 +68,8 @@ MOCKED = {"pick-pricemoved": "POST fulfilled 409 PRICE_MOVED:9.99 (API shape, mo
           "toast-error": "POST fulfilled 500 (mocked)",
           "pick-conflict": "POST fulfilled 409 SELECTION_TAKEN (API shape, mocked; see notes)",
           "pick-confirm": "real POST by Carol"}
-for txt in ("toasts.txt", "toasts-conflict.txt"):
+toast_rows = {}
+for txt in ("toasts.txt", "toasts-conflict.txt"):  # later file wins (the conflict re-capture)
     f = NOTES / txt
     if not f.exists():
         continue
@@ -81,12 +82,14 @@ for txt in ("toasts.txt", "toasts-conflict.txt"):
         if not png.exists():
             continue
         h = hashlib.sha256(png.read_bytes()).hexdigest()
-        by_hash[h].append(name)
         _, state, width, theme = name[:-4].split("--")
         region = "role=alert" if alert else ("role=status" if status else "none")
         who = "Carol" if state == "pick-confirm" else "Alice"
-        rows.append(f"| `{name}` | `/leagues/the-coupon/predictions` | {state} | {width} | {theme} | `{h[:12]}` "
+        toast_rows[name] = (h, f"| `{name}` | `/leagues/the-coupon/predictions` | {state} | {width} | {theme} | `{h[:12]}` "
                     f"| {who}, {MOCKED.get(state.replace('-safearea34',''), '')}: {typ} toast {toast[:60]}…; {region}; gap to tab bar {gap}px, to viewport bottom {bottom}px | — |")
+for name, (h, row) in toast_rows.items():
+    by_hash[h].append(name)
+    rows.append(row)
 
 dups = {h: fs for h, fs in by_hash.items() if len(fs) > 1}
 (NOTES / "duplicates.txt").write_text(

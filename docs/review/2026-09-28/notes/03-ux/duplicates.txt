@@ -6,4 +6,3 @@ c7e90d1e334f  league-audit-log--error--1280--dark.png  league-audit-log--happy--
 8e1df9496bb2  league-audit-log--error--1280--light.png  league-audit-log--happy--1280--light.png
 fe5d9c6d2cdf  league-audit-log--error--390--dark.png  league-audit-log--happy--390--dark.png
 43684605b0f3  league-audit-log--error--390--light.png  league-audit-log--happy--390--light.png
-521cfddeb758  current-round--pick-conflict--390--light.png  current-round--pick-conflict--390--light.png

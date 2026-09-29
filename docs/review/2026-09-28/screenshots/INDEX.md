@@ -25,7 +25,7 @@ first paint. 390 captures use a desktop UA at 390×844 (the layout an installed 
 install gate is UA-triggered and is captured separately as `install-gate--mobile-browser`).
 Personas: Alice = site admin + league admin of the-coupon; Bob = member; Dave = no league.
 Last column: axe-core 4.10.2 violations at capture (`rule:nodes`), `—` = not run.
-Duplicate hashes: 9 groups (see `notes/03-ux/duplicates.txt`).
+Duplicate hashes: 8 groups (see `notes/03-ux/duplicates.txt`).
 
 | file | url at capture | state | width | theme | sha256 | state confirmed by | axe |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -375,7 +375,7 @@ Duplicate hashes: 9 groups (see `notes/03-ux/duplicates.txt`).
 | `football--results--390--dark.png` | `/football?date=2026-05-02` | results | 390 | dark | `b48ecd5168c7` | Alice: h1 “Football Stats” | 0 |
 | `football--results--390--light.png` | `/football?date=2026-05-02` | results | 390 | light | `4b4cce16d878` | Alice: h1 “Football Stats” | 0 |
 | `current-round--pick-confirm--390--light.png` | `/leagues/the-coupon/predictions` | pick-confirm | 390 | light | `805cd41470b3` | Carol, real POST by Carol: success toast "Grabbed Arsenal @ 1.90"…; role=status; gap to tab bar 15px, to viewport bottom 76px | — |
-| `current-round--pick-conflict--390--light.png` | `/leagues/the-coupon/predictions` | pick-conflict | 390 | light | `521cfddeb758` | Alice, POST fulfilled 409 SELECTION_TAKEN (API shape, mocked; see notes): undefined toast undefined…; none; gap to tab bar nullpx, to viewport bottom nullpx | — |
+| `current-round--pick-conflict--390--light.png` | `/leagues/the-coupon/predictions` | pick-conflict | 390 | light | `521cfddeb758` | Alice, POST fulfilled 409 SELECTION_TAKEN (API shape, mocked; see notes): warning toast "Someone in your league just grabbed that selection — pick a…; role=alert; gap to tab bar 15px, to viewport bottom 76px | — |
 | `current-round--pick-pricemoved--390--light.png` | `/leagues/the-coupon/predictions` | pick-pricemoved | 390 | light | `6f50f6edccd3` | Alice, POST fulfilled 409 PRICE_MOVED:9.99 (API shape, mocked): warning toast "That price moved before your pick landed — it’s now 9.99. T…; role=alert; gap to tab bar 15px, to viewport bottom 76px | — |
 | `current-round--pick-busy--390--light.png` | `/leagues/the-coupon/predictions` | pick-busy | 390 | light | `a78088a90c07` | Alice, POST fulfilled 429 PICKS_BUSY (mocked): error toast "Too many picks are being made in your league right now — yo…; role=alert; gap to tab bar 15px, to viewport bottom 76px | — |
 | `current-round--toast-error--390--light.png` | `/leagues/the-coupon/predictions` | toast-error | 390 | light | `a7c667653bc4` | Alice, POST fulfilled 500 (mocked): error toast "Internal Server Error"…; role=alert; gap to tab bar 15px, to viewport bottom 76px | — |
@@ -392,7 +392,6 @@ Duplicate hashes: 9 groups (see `notes/03-ux/duplicates.txt`).
 | `current-round--pick-busy--1280--dark.png` | `/leagues/the-coupon/predictions` | pick-busy | 1280 | dark | `02092a6a02c2` | Alice, POST fulfilled 429 PICKS_BUSY (mocked): error toast "Too many picks are being made in your league right now — yo…; role=alert; gap to tab bar nullpx, to viewport bottom 32px | — |
 | `current-round--toast-error--1280--dark.png` | `/leagues/the-coupon/predictions` | toast-error | 1280 | dark | `594b178d507c` | Alice, POST fulfilled 500 (mocked): error toast "Internal Server Error"…; role=alert; gap to tab bar nullpx, to viewport bottom 32px | — |
 | `current-round--toast-error-safearea34--390--dark.png` | `/leagues/the-coupon/predictions` | toast-error-safearea34 | 390 | dark | `2c4dc7f00b60` | Alice, POST fulfilled 500 (mocked): error toast "Internal Server Error"…; role=alert; gap to tab bar 15px, to viewport bottom 110px | — |
-| `current-round--pick-conflict--390--light.png` | `/leagues/the-coupon/predictions` | pick-conflict | 390 | light | `521cfddeb758` | Alice, POST fulfilled 409 SELECTION_TAKEN (API shape, mocked; see notes): warning toast "Someone in your league just grabbed that selection — pick a…; role=alert; gap to tab bar 15px, to viewport bottom 76px | — |
 | `current-round--pick-conflict--390--dark.png` | `/leagues/the-coupon/predictions` | pick-conflict | 390 | dark | `e4de16582ea8` | Alice, POST fulfilled 409 SELECTION_TAKEN (API shape, mocked; see notes): warning toast "Someone in your league just grabbed that selection — pick a…; role=alert; gap to tab bar 15px, to viewport bottom 76px | — |
 | `current-round--pick-conflict--1280--light.png` | `/leagues/the-coupon/predictions` | pick-conflict | 1280 | light | `2214522c040d` | Alice, POST fulfilled 409 SELECTION_TAKEN (API shape, mocked; see notes): warning toast "Someone in your league just grabbed that selection — pick a…; role=alert; gap to tab bar nullpx, to viewport bottom 32px | — |
 | `current-round--pick-conflict--1280--dark.png` | `/leagues/the-coupon/predictions` | pick-conflict | 1280 | dark | `c8ed3ce5c86b` | Alice, POST fulfilled 409 SELECTION_TAKEN (API shape, mocked; see notes): warning toast "Someone in your league just grabbed that selection — pick a…; role=alert; gap to tab bar nullpx, to viewport bottom 32px | — |
