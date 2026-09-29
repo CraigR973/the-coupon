@@ -1,0 +1,139 @@
+lens 06 contrast — 110 pairs, 16 FAIL (the 'TODAY (measured)' rows are the defect, not a proposal)
+1 toast title                      dark  --text-primary on --surface-overlay                        #F0F4FF on #242938  13.17:1  need 4.5  PASS
+1 toast body/description           dark  --text-secondary on --surface-overlay                      #94A3B8 on #242938   5.65:1  need 4.5  PASS
+1 toast icon + 3px edge            dark  --success-ink on --surface-overlay (non-text)              #10B981 on #242938   5.71:1  need 3.0  PASS
+1 toast icon + 3px edge            dark  --warning-ink on --surface-overlay (non-text)              #F59E0B on #242938   6.75:1  need 3.0  PASS
+1 toast icon + 3px edge            dark  --error-ink on --surface-overlay (non-text)                #FE5353 on #242938   4.54:1  need 3.0  PASS
+1 toast icon + 3px edge            dark  --primary-ink on --surface-overlay (non-text)              #10B981 on #242938   5.71:1  need 3.0  PASS
+1 toast action button              dark  --on-primary on --primary                                  #0B0E13 on #10B981   7.62:1  need 4.5  PASS
+1 toast action (secondary)         dark  --text-primary on --surface-elevated                       #F0F4FF on #1B2030  14.73:1  need 4.5  PASS
+1 TODAY (measured)                 dark  --text-primary on Sonner light success bg                  #F0F4FF on #ECFDF3   1.04:1  need 4.5  FAIL
+1 TODAY (measured)                 dark  --text-primary on Sonner light warning bg                  #F0F4FF on #FFFCF0   1.07:1  need 4.5  FAIL
+1 TODAY (measured)                 dark  --text-primary on Sonner light error bg                    #F0F4FF on #FFF0F0   1.01:1  need 4.5  FAIL
+2 active pill bg-primary/15        dark  --primary-ink on primary@15% over --bg                     #10B981 on #0C2824   6.16:1  need 4.5  PASS
+2 active pill label                dark  --text-primary on primary@15% over --bg                    #F0F4FF on #0C2824  14.20:1  need 4.5  PASS
+2 active pill bg-primary/15        dark  --primary-ink on primary@15% over --surface                #10B981 on #132F2F   5.61:1  need 4.5  PASS
+2 active pill label                dark  --text-primary on primary@15% over --surface               #F0F4FF on #132F2F  12.94:1  need 4.5  PASS
+2 active pill bg-primary/15        dark  --primary-ink on primary@15% over --surface-elevated       #10B981 on #19373C   5.01:1  need 4.5  PASS
+2 active pill label                dark  --text-primary on primary@15% over --surface-elevated      #F0F4FF on #19373C  11.55:1  need 4.5  PASS
+2 picked button bg-success/20      dark  --success-ink on success@20% over --surface                #10B981 on #123733   5.11:1  need 4.5  PASS
+2 picked button caption            dark  --text-muted on success@20% over --surface                 #8690A6 on #123733   4.05:1  need 4.5  FAIL
+2 error panel bg-error/10          dark  --error-ink on error@10% over --surface                    #FE5353 on #291C24   5.11:1  need 4.5  PASS
+2 error panel body                 dark  --text-secondary on error@10% over --surface               #94A3B8 on #291C24   6.37:1  need 4.5  PASS
+2 warning panel bg-warning/10      dark  --warning-ink on warning@10% over --surface                #F59E0B on #2A241E   7.14:1  need 4.5  PASS
+2 picked button bg-success/20      dark  --success-ink on success@20% over --surface-elevated       #10B981 on #193F40   4.53:1  need 4.5  PASS
+2 picked button caption            dark  --text-muted on success@20% over --surface-elevated        #8690A6 on #193F40   3.59:1  need 4.5  FAIL
+2 error panel bg-error/10          dark  --error-ink on error@10% over --surface-elevated           #FE5353 on #302432   4.62:1  need 4.5  PASS
+2 error panel body                 dark  --text-secondary on error@10% over --surface-elevated      #94A3B8 on #302432   5.75:1  need 4.5  PASS
+2 warning panel bg-warning/10      dark  --warning-ink on warning@10% over --surface-elevated       #F59E0B on #312D2C   6.34:1  need 4.5  PASS
+2 header bg-surface/90             dark  --text-secondary on surface@90% over --text-primary        #94A3B8 on #292D36   5.38:1  need 4.5  PASS
+2 header bg-surface/90             dark  --primary-ink (active tab) on the same                     #10B981 on #292D36   5.44:1  need 4.5  PASS
+2 tab bar bg-surface/95            dark  --text-secondary on surface@95% over --text-primary        #94A3B8 on #1E222B   6.21:1  need 4.5  PASS
+2 tab bar bg-surface/95            dark  --primary-ink (active tab) on the same                     #10B981 on #1E222B   6.28:1  need 4.5  PASS
+3 price 16px/600                   dark  --text-primary on --surface                                #F0F4FF on #131720  16.30:1  need 4.5  PASS
+3 settled mark WON                 dark  --success-ink on --surface                                 #10B981 on #131720   7.07:1  need 4.5  PASS
+3 settled mark LOST                dark  --error-ink on --surface                                   #FE5353 on #131720   5.62:1  need 4.5  PASS
+3 settled mark VOID / muted pts    dark  --text-muted on --surface                                  #8690A6 on #131720   5.60:1  need 4.5  PASS
+3 price 16px/600                   dark  --text-primary on --surface-elevated                       #F0F4FF on #1B2030  14.73:1  need 4.5  PASS
+3 settled mark WON                 dark  --success-ink on --surface-elevated                        #10B981 on #1B2030   6.39:1  need 4.5  PASS
+3 settled mark LOST                dark  --error-ink on --surface-elevated                          #FE5353 on #1B2030   5.07:1  need 4.5  PASS
+3 settled mark VOID / muted pts    dark  --text-muted on --surface-elevated                         #8690A6 on #1B2030   5.06:1  need 4.5  PASS
+4 coupon headline LOST 24px        dark  --error-ink on --surface                                   #FE5353 on #131720   5.62:1  need 3.0  PASS
+4 coupon headline WON 24px         dark  --success-ink on --surface                                 #10B981 on #131720   7.07:1  need 3.0  PASS
+4 coupon price (struck) 20px       dark  --text-secondary on --surface                              #94A3B8 on #131720   6.99:1  need 4.5  PASS
+5 medal bar 3px                    dark  --gold on --surface (non-text)                             #E5C46B on #131720  10.62:1  need 3.0  PASS
+5 medal bar 3px                    dark  --silver on --surface (non-text)                           #B8C0CC on #131720   9.78:1  need 3.0  PASS
+5 medal bar 3px                    dark  --bronze on --surface (non-text)                           #C28B5C on #131720   6.10:1  need 3.0  PASS
+5 rank numeral 1                   dark  --gold-ink on --surface                                    #E5C46B on #131720  10.62:1  need 4.5  PASS
+5 rank numeral 3                   dark  --bronze-ink on --surface                                  #C28B5C on #131720   6.10:1  need 4.5  PASS
+5 rank numeral 2 (proposed --silver-ink = --text-secondary) dark  --text-secondary on --surface                              #94A3B8 on #131720   6.99:1  need 4.5  PASS
+5 points 17px/600                  dark  --text-primary on --surface                                #F0F4FF on #131720  16.30:1  need 4.5  PASS
+5 own row tint primary@8%          dark  --text-primary on primary@8% over --surface                #F0F4FF on #132428  14.56:1  need 4.5  PASS
+5 own row name                     dark  --primary-ink on primary@8% over --surface                 #10B981 on #132428   6.32:1  need 4.5  PASS
+6 offline banner                   dark  --text-primary on warning@12% over --bg                    #F0F4FF on #271F12  14.79:1  need 4.5  PASS
+6 offline banner icon              dark  --warning-ink on warning@12% over --bg (non-text)          #F59E0B on #271F12   7.57:1  need 3.0  PASS
+7 league chip (inactive)           dark  --text-secondary on --surface-elevated                     #94A3B8 on #1B2030   6.32:1  need 4.5  PASS
+7 league chip (active)             dark  --on-primary on --primary                                  #0B0E13 on #10B981   7.62:1  need 4.5  PASS
+
+1 toast title                      light --text-primary on --surface-overlay                        #14181F on #FFFFFF  17.79:1  need 4.5  PASS
+1 toast body/description           light --text-secondary on --surface-overlay                      #4B5563 on #FFFFFF   7.56:1  need 4.5  PASS
+1 toast icon + 3px edge            light --success-ink on --surface-overlay (non-text)              #047F59 on #FFFFFF   5.02:1  need 3.0  PASS
+1 toast icon + 3px edge            light --warning-ink on --surface-overlay (non-text)              #A75B04 on #FFFFFF   5.07:1  need 3.0  PASS
+1 toast icon + 3px edge            light --error-ink on --surface-overlay (non-text)                #D72525 on #FFFFFF   5.02:1  need 3.0  PASS
+1 toast icon + 3px edge            light --primary-ink on --surface-overlay (non-text)              #047F59 on #FFFFFF   5.02:1  need 3.0  PASS
+1 toast action button              light --on-primary on --primary                                  #0B0E13 on #059669   5.13:1  need 4.5  PASS
+1 toast action (secondary)         light --text-primary on --surface-elevated                       #14181F on #F1F3F5  16.00:1  need 4.5  PASS
+1 TODAY (measured)                 light --text-primary on Sonner light success bg                  #14181F on #ECFDF3  16.87:1  need 4.5  PASS
+1 TODAY (measured)                 light --text-primary on Sonner light warning bg                  #14181F on #FFFCF0  17.31:1  need 4.5  PASS
+1 TODAY (measured)                 light --text-primary on Sonner light error bg                    #14181F on #FFF0F0  16.08:1  need 4.5  PASS
+2 active pill bg-primary/15        light --primary-ink on primary@15% over --bg                     #047F59 on #D3E9E4   3.95:1  need 4.5  FAIL
+2 active pill label                light --text-primary on primary@15% over --bg                    #14181F on #D3E9E4  14.02:1  need 4.5  PASS
+2 active pill bg-primary/15        light --primary-ink on primary@15% over --surface                #047F59 on #DAEFE8   4.18:1  need 4.5  FAIL
+2 active pill label                light --text-primary on primary@15% over --surface               #14181F on #DAEFE8  14.82:1  need 4.5  PASS
+2 active pill bg-primary/15        light --primary-ink on primary@15% over --surface-elevated       #047F59 on #CEE5E0   3.80:1  need 4.5  FAIL
+2 active pill label                light --text-primary on primary@15% over --surface-elevated      #14181F on #CEE5E0  13.48:1  need 4.5  PASS
+2 picked button bg-success/20      light --success-ink on success@20% over --surface                #047F59 on #CDEAE1   3.93:1  need 4.5  FAIL
+2 picked button caption            light --text-muted on success@20% over --surface                 #666F7D on #CDEAE1   3.98:1  need 4.5  FAIL
+2 error panel bg-error/10          light --error-ink on error@10% over --surface                    #D72525 on #FCE9E9   4.30:1  need 4.5  FAIL
+2 error panel body                 light --text-secondary on error@10% over --surface               #4B5563 on #FCE9E9   6.47:1  need 4.5  PASS
+2 warning panel bg-warning/10      light --warning-ink on warning@10% over --surface                #A75B04 on #FBF1E6   4.55:1  need 4.5  PASS
+2 picked button bg-success/20      light --success-ink on success@20% over --surface-elevated       #047F59 on #C2E0D9   3.57:1  need 4.5  FAIL
+2 picked button caption            light --text-muted on success@20% over --surface-elevated        #666F7D on #C2E0D9   3.62:1  need 4.5  FAIL
+2 error panel bg-error/10          light --error-ink on error@10% over --surface-elevated           #D72525 on #EFDFE0   3.90:1  need 4.5  FAIL
+2 error panel body                 light --text-secondary on error@10% over --surface-elevated      #4B5563 on #EFDFE0   5.87:1  need 4.5  PASS
+2 warning panel bg-warning/10      light --warning-ink on warning@10% over --surface-elevated       #A75B04 on #EFE7DD   4.14:1  need 4.5  FAIL
+2 header bg-surface/90             light --text-secondary on surface@90% over --text-primary        #4B5563 on #E8E8E9   6.17:1  need 4.5  PASS
+2 header bg-surface/90             light --primary-ink (active tab) on the same                     #047F59 on #E8E8E9   4.10:1  need 4.5  FAIL
+2 tab bar bg-surface/95            light --text-secondary on surface@95% over --text-primary        #4B5563 on #F3F3F4   6.82:1  need 4.5  PASS
+2 tab bar bg-surface/95            light --primary-ink (active tab) on the same                     #047F59 on #F3F3F4   4.52:1  need 4.5  PASS
+3 price 16px/600                   light --text-primary on --surface                                #14181F on #FFFFFF  17.79:1  need 4.5  PASS
+3 settled mark WON                 light --success-ink on --surface                                 #047F59 on #FFFFFF   5.02:1  need 4.5  PASS
+3 settled mark LOST                light --error-ink on --surface                                   #D72525 on #FFFFFF   5.02:1  need 4.5  PASS
+3 settled mark VOID / muted pts    light --text-muted on --surface                                  #666F7D on #FFFFFF   5.08:1  need 4.5  PASS
+3 price 16px/600                   light --text-primary on --surface-elevated                       #14181F on #F1F3F5  16.00:1  need 4.5  PASS
+3 settled mark WON                 light --success-ink on --surface-elevated                        #047F59 on #F1F3F5   4.51:1  need 4.5  PASS
+3 settled mark LOST                light --error-ink on --surface-elevated                          #D72525 on #F1F3F5   4.52:1  need 4.5  PASS
+3 settled mark VOID / muted pts    light --text-muted on --surface-elevated                         #666F7D on #F1F3F5   4.57:1  need 4.5  PASS
+4 coupon headline LOST 24px        light --error-ink on --surface                                   #D72525 on #FFFFFF   5.02:1  need 3.0  PASS
+4 coupon headline WON 24px         light --success-ink on --surface                                 #047F59 on #FFFFFF   5.02:1  need 3.0  PASS
+4 coupon price (struck) 20px       light --text-secondary on --surface                              #4B5563 on #FFFFFF   7.56:1  need 4.5  PASS
+5 medal bar 3px                    light --gold on --surface (non-text)                             #B8862E on #FFFFFF   3.24:1  need 3.0  PASS
+5 medal bar 3px                    light --silver on --surface (non-text)                           #8A93A1 on #FFFFFF   3.10:1  need 3.0  PASS
+5 medal bar 3px                    light --bronze on --surface (non-text)                           #A65E2A on #FFFFFF   4.93:1  need 3.0  PASS
+5 rank numeral 1                   light --gold-ink on --surface                                    #8F6823 on #FFFFFF   5.03:1  need 4.5  PASS
+5 rank numeral 3                   light --bronze-ink on --surface                                  #A45D29 on #FFFFFF   5.03:1  need 4.5  PASS
+5 rank numeral 2 (proposed --silver-ink = --text-secondary) light --text-secondary on --surface                              #4B5563 on #FFFFFF   7.56:1  need 4.5  PASS
+5 points 17px/600                  light --text-primary on --surface                                #14181F on #FFFFFF  17.79:1  need 4.5  PASS
+5 own row tint primary@8%          light --text-primary on primary@8% over --surface                #14181F on #EBF7F3  16.21:1  need 4.5  PASS
+5 own row name                     light --primary-ink on primary@8% over --surface                 #047F59 on #EBF7F3   4.57:1  need 4.5  PASS
+6 offline banner                   light --text-primary on warning@12% over --bg                    #14181F on #F3E9DD  14.84:1  need 4.5  PASS
+6 offline banner icon              light --warning-ink on warning@12% over --bg (non-text)          #A75B04 on #F3E9DD   4.23:1  need 3.0  PASS
+7 league chip (inactive)           light --text-secondary on --surface-elevated                     #4B5563 on #F1F3F5   6.79:1  need 4.5  PASS
+7 league chip (active)             light --on-primary on --primary                                  #0B0E13 on #059669   5.13:1  need 4.5  PASS
+
+
+max tint alpha keeping >= 4.5:1 (search in 1% steps)
+  dark  --primary-ink on primary@N% over --bg: max N = 30%
+  dark  --primary-ink on primary@N% over --surface: max N = 25%
+  dark  --primary-ink on primary@N% over --surface-elevated: max N = 20%
+  dark  --success-ink on success@N% over --surface: max N = 25%
+  dark  --success-ink on success@N% over --surface-elevated: max N = 20%
+  dark  --text-muted on success@N% over --surface: max N = 13%
+  dark  --text-muted on success@N% over --surface-elevated: max N = 7%
+  dark  --error-ink on error@N% over --surface: max N = 20%
+  dark  --error-ink on error@N% over --surface-elevated: max N = 12%
+  dark  --warning-ink on warning@N% over --surface: max N = 30%
+  dark  --warning-ink on warning@N% over --surface-elevated: max N = 26%
+  dark  header/tab bar: --primary-ink passes over the worst content from surface@85%
+  light --primary-ink on primary@N% over --bg: max N = 4%
+  light --primary-ink on primary@N% over --surface: max N = 9%
+  light --primary-ink on primary@N% over --surface-elevated: max N = 0%
+  light --success-ink on success@N% over --surface: max N = 9%
+  light --success-ink on success@N% over --surface-elevated: max N = 0%
+  light --text-muted on success@N% over --surface: max N = 9%
+  light --text-muted on success@N% over --surface-elevated: max N = 1%
+  light --error-ink on error@N% over --surface: max N = 7%
+  light --error-ink on error@N% over --surface-elevated: max N = 0%
+  light --warning-ink on warning@N% over --surface: max N = 11%
+  light --warning-ink on warning@N% over --surface-elevated: max N = 1%
+  light header/tab bar: --primary-ink passes over the worst content from surface@95%

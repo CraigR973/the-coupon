@@ -31,8 +31,10 @@ Brief: `../briefs/common.md` + `../briefs/06-design.md`.
 - 00:00 PWA pass: pwa/icon-masks.html+png (maskable == icon-512 byte-identical; ticket ends outside 80% safe zone); pwa.mjs standalone+insets 59/34 (8 captures): header 140px, tab bar 95px, toast gap 15 (held), offline banner static (scrolls away). theme-color #071A3D (dark) vs header.
   FOUND: all 53 opacity-modified token utilities (126 uses, 40 files) compile to NOTHING (tokens are var() hex, no <alpha-value>) → header/tab bar have no fill (computed rgba(0,0,0,0)), no tints anywhere (opacity-modifier-audit.txt).
 
-- 00:12 peripheral: opened ~30 lens-03 captures; 26 lens-03 captures carry a leaked offline banner (corpus-offline-banner-scan.txt), my-leagues--happy and league-members--happy are EMPTY → re-captured 9 screens as `*-l06--*` (peripheral.mjs). tabbar_probe.txt: indicator +156px always (absolute span in justify-around flex, no left-0), Football icon 20x8. cls.txt: round CLS 0.247 @390, standings 0.141, home 0.
+- 00:06 peripheral: opened ~30 lens-03 captures; 26 lens-03 captures carry a leaked offline banner (corpus-offline-banner-scan.txt), my-leagues--happy and league-members--happy are EMPTY → re-captured 9 screens as `*-l06--*` (peripheral.mjs). tabbar_probe.txt: indicator +156px always (absolute span in justify-around flex, no left-0), Football icon 20x8. cls.txt: round CLS 0.247 @390, standings 0.141, home 0.
   FOUND: Football Stats opens with every table collapsed; admin sub-nav labels overlap at 390; JoinPage names no league.
+
+- 00:15 contrast.py → contrast.txt (110 pairs; naive tint enable fails 13 pairs — DES-11 fix must cap alphas). Lens doc 06-premium-design.md WRITTEN (Part 1, register DES-10..23, per screen, top ten, batches, decisions).
 
 ## Plan / order
 A. [done] open-round: feedback captures confirm / conflict / price-moved (real) / queued-offline; standalone safe-area; PWA manifest+icons.
@@ -41,4 +43,4 @@ C. [done] lock + settle in process with a void leg → settled results, settled 
 D. judge corpus (Part 1 + peripheral), write lens doc, top-ten + mockups + contrast numbers.
 
 ## In flight
-- Next: WRITE the lens doc (06-premium-design.md) — Part 1 table, register DES-10.., per-screen; then top-ten + mockups (mockups/) + contrast numbers (contrast.py).
+- Next: mockups/ toasts.html, round.html, standings.html, settled.html → mockup_shots.mjs at 390 + 1280 (dark) + 390 light; then fix counts in doc (opened.txt), stop processes, final commit, reply.
