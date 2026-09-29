@@ -165,5 +165,5 @@ Added 29 Sep 15:00 (verified): PIPE-08 held — every proper-noun token Batch 15
 0 hits on main (hashed, never printed; one dictionary-word hit was "Tooling"). PIPE-09 held
 (pnpm-pin-rehearsal.txt: 9.14.2 shim refused, rc 1). Two-batch split
 (two-batch-split-output.txt): web-only batch over owed drift → "PASS — web-only", rc 0.
-Next: wait for combined gate; then revert worktree, hook clean-branch rehearsal, PIPE-03
+Doc: Method, prior table (PIPE-03 + no-DB pending), register table written 15:05. Next: finding sections.
 rehearsal on an alternative port, no-DB pytest split for doc corrections; write the doc.
