@@ -1,2 +1,5 @@
 == dirty worktree (a batch with uncommitted changes, gate green — the close-out decision point):
 (rc=0, output above if any)
+== clean worktree on throwaway/pipeline-probe (no batch, no open row):
+⚠️  Branch clean — a build batch whose scripts/ci-local.sh gate is green closes out now: run /phase-closeout <id> without waiting to be asked (AGENTS.md). A launch phase still waits for the user to run /launch-closeout <Lx>.
+(rc=0)

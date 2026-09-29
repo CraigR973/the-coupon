@@ -52,8 +52,8 @@ Scripts and raw output: `notes/07-pipeline/` (`replay_guards.sh`, `gate_probes.s
 | id | batch | status | evidence |
 | --- | --- | --- | --- |
 | PIPE-01 | owner, by hand | **not fixed** | `.claude/settings.local.json` unchanged since 30 Jul: `Bash(*)`, `mcp__supabase__execute_sql` allowed, `rm -rf` rules for other repositories, `enableAllProjectMcpServers: true`. `.mcp.json` binds the Supabase server to a project that is neither the staging project in `.codex/config.toml` nor production, with no read-only flag (compared by equality, never printed). **Driven:** this review's own session was offered the whole Supabase tool family — `execute_sql`, `apply_migration`, `delete_branch`, `merge_branch`, `deploy_edge_function` — and did not call it |
-| PIPE-02 | 153 | **partial** | Both hooks now say close out automatically (identical commands, `.claude/settings.json` = `.codex/hooks.json`). Re-driven in the worktree: the hook is **silent on a dirty batch tree**, which is the state at the close-out decision (the diff is uncommitted until close-out step 4), and speaks on any clean non-main branch — including a review branch with no batch. See PIPE-17 |
-| PIPE-03 | 152 | PENDING | |
+| PIPE-02 | 153 | **partial** | Both hooks now say close out automatically (identical commands, `.claude/settings.json` = `.codex/hooks.json`). Re-driven in the worktree: the hook is **silent on a dirty batch tree**, which is the state at the close-out decision (the diff is uncommitted until close-out step 4), and on a clean branch with no batch it said to run `/phase-closeout`. See PIPE-17 |
+| PIPE-03 | 152 | **held** | Re-driven on port 4291 (4173 is the lead's): the real script with only the port changed, the port held by another server — Vite reported "Port 4291 is already in use" and the smoke failed in one second, "preview failed before readiness (exit 1)", before Playwright ran. Small fragility: the readiness pattern hard-codes `4173` separately from `PORT` |
 | PIPE-04 | 152 | **partial** | Counts are recorded and ratcheted, and a fall, a skip or an xfail fails the gate; lowering the ratchet is refused (probe G03). But a loosened assertion, a swapped-in trivial test, `type: ignore`, `eslint-disable`, `.todo`, and five unprotected config files all pass — and the guardrail can be switched off from the branch. See PIPE-10 |
 | PIPE-05 | 152 | **partial** | Replayed: the guard as it stood refuses all seven API+web batches (123, 124, 143, 156, 157, 136, 148) and passes the other 48. Drift now runs before the push. But existing drift is only reported: a web-only batch over an owed `/ship-prod` passes (probe). See PIPE-14 |
 | PIPE-06 | 153 | **partial** | Figures now carry dates, as the fix asked; they have drifted again — "780 passed, 520 skipped" at 1,300 tests in `AGENTS.md`, `batch-verify.md` and `phase-closeout.md` against a ratchet of 1,350 — and `AGENTS.md` still sends agents to "step 8's push", which is step 9 since Batch 152 inserted the safety step. Re-measured at `eb18bcb` without a database: **800 passed, 550 skipped** (29 Sep, 1,350 tests). |
@@ -61,7 +61,7 @@ Scripts and raw output: `notes/07-pipeline/` (`replay_guards.sh`, `gate_probes.s
 | PIPE-08 | 155 | **held** | Every proper-noun token Batch 155 removed has **zero** hits on `main` (checked by hashing, never printed). History was not rewritten, per the owner's decision |
 | PIPE-09 | 127 | **held** | `ci-local.sh`'s pnpm check evaluated verbatim with a pnpm 9.14.2 shim first on `PATH`: refused, exit 1, "package.json pins '9.15.0'" |
 
-**Tally: 3 held, 5 partial, 1 not fixed, 0 regressed.** PENDING-TALLY
+**Tally: 4 held, 4 partial, 1 not fixed, 0 regressed.** Every "held" was re-driven: PIPE-03 by holding the port, PIPE-07 by measuring, PIPE-08 by grepping `main`, PIPE-09 by running the gate's own pnpm check against the wrong version.
 
 ## Register
 
@@ -287,7 +287,8 @@ waiting. But the hook only speaks when the branch is **clean**. In the automatic
 batch's changes stay uncommitted until close-out step 4, so at the moment an agent decides
 whether to close out, the tree is dirty and the hook is silent (re-driven in the worktree:
 no output). It does speak on any clean non-main branch, including a review branch with no
-batch on it — PENDING-HOOK-CLEAN
+batch on it: on the clean throwaway branch it printed "run /phase-closeout <id> without
+waiting to be asked". An agent on a review or chore branch is being told to push `main`.
 
 **Fix:** key the message on an unchecked batch row matching the branch name
 (`feat/batch-N-*`), not on a clean tree.

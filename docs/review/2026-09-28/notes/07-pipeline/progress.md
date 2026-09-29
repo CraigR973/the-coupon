@@ -170,3 +170,4 @@ rehearsal on an alternative port, no-DB pytest split for doc corrections; write 
 - 14:40 combined gate backend: PASS (1350 tests, 0 skipped) over the weakenings; PIPE-12 wording corrected (120-122 were API-only; Group N shipped at 89217f82, the commit that turned CI green).
 - 14:46 no-DB split measured: 800 passed / 550 skipped (nodb-pytest-output.txt); doc corrections filled.
 - 14:50 combined gate: ci-local PASS (10 checks), 1350/1204, 0 skipped, over six weakenings; PENDING-COMBINED filled.
+- 14:55 PIPE-03 held (pipe03-rehearsal-output.txt); hook clean-branch prints close-out advice (hook-rehearsal.txt); tally 4 held / 4 partial / 1 not fixed. Next: read-through of the doc, cleanup (worktree remove, branch -D, clone rm), final commit, reply.
