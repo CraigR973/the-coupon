@@ -1,0 +1,2 @@
+== dirty worktree (a batch with uncommitted changes, gate green — the close-out decision point):
+(rc=0, output above if any)

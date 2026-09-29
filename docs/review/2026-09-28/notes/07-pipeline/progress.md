@@ -148,3 +148,15 @@ explicit-any error passes; ruff.toml (line-length 100, select E) → an F841 pas
 vitest.config.ts replaces vite.config.ts; a 3-line conftest.py hook turns "1 failed, 9
 passed" into "10 passed" with the count unchanged.
 Next: write the lens document skeleton + verified findings, then the combined gate.
+
+Added 29 Sep 14:50: combined gate running in background (notes/combined-gate-output.txt,
+started 14:22). Cold start measured: next-batch-prompt reads STATUS 6,377 + BUILD_PLAN head
+18,828 (of which the 7 ticked "Open batches" rows are 14,733) + last session-log section
+2,191 + command 1,401 + AGENTS.md 9,259 = ~38 KB (~9.6k tokens). BUILD_PLAN 287→353 KB,
+session-log 271→541 KB since 2ce6f42. Hook rehearsal (hook-rehearsal.txt): silent on a dirty
+batch tree. Lens doc skeleton written (Method done). Contradictions found: batch-verify.md
+tells agents to run pytest with the app-starter venv that AGENTS.md says cannot collect the
+suite; AGENTS.md + agent-commands/README say `/group-start <I-Y>` (Z exists); phase-closeout
+"For Batch 6" fossil; ci-local.sh header says it runs what CI runs (CI runs less); STATUS
+ratchet twice; STATUS "no open batches" vs BUILD_PLAN "Open batches" with 7 ticked rows;
+STATUS web last-verified b08a47f3 (lead saw 4121cf0 live); drift probe "Batch 51".
