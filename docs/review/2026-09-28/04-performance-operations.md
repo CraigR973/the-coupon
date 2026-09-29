@@ -145,6 +145,7 @@ leaves out (see Doc corrections).
 | PERF-15 | 165 | **held** | both context values are `useMemo`'d (`AuthContext.tsx:315`, `LeagueContext.tsx:87`) |
 | PERF-16 | 165 | **held for the standings key; factory partial** | `queryKeys.standings.forSeason` keys `'current'` apart from a named season; 42 inline `queryKey: [...]` literals remain outside the factory |
 | PERF-17 | 164 | **not fixed** | cold `/login` still downloads **three font files, 48.8 KiB, one preloaded** (`jetbrains-mono-600`, `outfit-400`, `outfit-600`) — the same payload as 13 Sep. Batch 164 removed a fourth file from the app, not from the sign-in screen (`browser-run1.json`) |
+| PERF-10 | 162 | **held** | real uvicorn on :8141, every webpush replaced by a 179 ms sleep in the executor (the per-send time implied by 49 sends in 8,759 ms): a pick in the **50-member league answered in 63 ms**, its fan-out finished 9.5 s later; in the 12-member league 213 ms, fan-out 2.2 s later. Each eligible member got **exactly one** send, the picker none (`push-fanout.json`). But see PERF-20 |
 | PERF-03 | 145 | **held locally; not checkable in production read-only** | 264-fixture slate 299,134 B → 15,202 B with `content-encoding: gzip`, `vary: Accept-Encoding`; responses under 4 KB deliberately uncompressed. Production's only public API responses (`/health`, 82 B) sit below the floor, so no header could prove it (`prod-health-headers.txt`) |
 
 ## Register
@@ -152,6 +153,7 @@ leaves out (see Doc corrections).
 | id | sev | deploy | status | finding |
 | --- | --- | --- | --- | --- |
 | PERF-19 | HIGH | live | verified | A league of 40-50 members breaks its home screen and results once the combined odds pass about 10^26 |
+| PERF-20 | MED | live | verified | Each background fan-out holds a pooled connection for its whole run: a burst of picks in a big league exhausts the pool, fails picks with 500 and silently drops alerts |
 | PERF-21 | MED | live | verified | The slate refresh has no budget: five league windows spend 118 requests in each refresh hour |
 | PERF-22 | LOW | live | verified | framer-motion is still a declared dependency though nothing imports it |
 | PERF-18 | MED | live | verified | The slate makes two queries per competition on the card — 56 statements at production's 23 competitions |
@@ -185,6 +187,41 @@ change.
 
 **Fix:** quantize inside `decimal.localcontext()` with enough precision (or cap the
 displayed price and flag it), and add a 50-leg test at realistic prices.
+
+## PERF-20 · MED · live · verified — the fan-out holds a connection; a burst exhausts the pool
+
+Batch 162 moved the pick alert after the response, into `_announce_after_response`
+(`routers/picks.py:490-560`). That function opens one session and keeps it across every
+send — `send_notification` reads the member's mute, preferences and subscriptions on it,
+then awaits the webpush in the executor, member after member — so each fan-out holds a
+pooled connection for its whole duration: ~9 s at 50 members. Batch 146 sized the pool
+at 5 + 5 on the reasoning that ten is "more than the scheduler and a Saturday-morning
+league can occupy at once" (`database.py`); ten fan-outs in flight is exactly ten.
+
+Measured over real HTTP (`push_fanout.py`, `push-fanout-errors.txt`): **12 members of
+the 50-member league submitting at once** → 10 answered 201, **2 answered 500 after
+10.15 s** (`QueuePool limit of size 5 overflow 5 reached, connection timed out`), and of
+the 10 successful picks **only 4 fan-outs ran** — the other 6 died acquiring a connection
+at the top of `_announce_after_response`, outside the `_announce` wrapper that swallows
+failures, so 294 alerts were never sent and nothing retries them (Batch 107's retry
+covers only the all-picked completion). The pool sat at 10 checked out for the whole
+fan-out window.
+
+Considered for HIGH and rejected: no pick is lost — the two 500s failed before commit and
+a retry succeeds — and the condition needs roughly ten picks inside one fan-out window in
+a large, well-subscribed league (at production's 13 members with 7 subscriptions a
+fan-out is about a second). It is the lock-time rush in a 30-50 member league that
+reaches it. Load average 3.5-4.7 during the run; the mechanism (one connection per
+fan-out, ten in the pool) does not depend on it.
+
+**Member impact:** in a big league at the deadline, some members' picks fail with an
+error they read as "may not have been sent", and most of the league is never told who
+picked what.
+
+**Fix:** release the connection during sends — read the recipients and their
+subscriptions up front, commit/close, send without a session, then record delivery in a
+short second transaction — and bound concurrent fan-outs (a semaphore) below the pool
+size. Catch failures for the whole background task, not only inside `_announce`.
 
 ## PERF-21 · MED · live · verified — the refresh job has no budget of its own
 

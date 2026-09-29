@@ -1,0 +1,9 @@
+perf_push_app log extract, 12 concurrent picks in the 50-member league (Tue Sep 29 23:45:29 BST 2026)
+HTTP results:
+  11 POST /api/v1/leagues/stress-50/picks HTTP/1.1" 201 Created
+   2 POST /api/v1/leagues/stress-50/picks HTTP/1.1" 500 Internal Server Error
+unhandled ASGI exceptions: 8
+  of which in _announce_after_response (background fan-out never ran): 6
+QueuePool timeouts: 10
+sends recorded:      196 (= 4 complete fan-outs of 49)
+    | sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 5 reached, connection timed out, timeout 10.00 (Background on this error at: https://sqlalche.me/e/20/3o7r)
