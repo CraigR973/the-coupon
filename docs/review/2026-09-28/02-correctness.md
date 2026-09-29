@@ -31,6 +31,13 @@ in `notes/02-correctness/` (`out/*.txt`).
 
 ## Prior findings
 
+**Slice of the 2026-09-13 register (12 items): 7 held, 3 partial, 1 not fixed, 0 regressed,
+1 accepted and still true.** Held: CORR-08, 09, 10, 11, 12, 17, 18. Partial: CORR-14
+(self-deletion path, CORR-19), CORR-15 (mis-priced budget, CORR-24), void legs (two
+surfaces, CORR-21). Not fixed: CORR-13. Accepted: CORR-16. Every row below was re-driven
+against the running stack; the extra rows (Batches 95, 115, 134-136, 161, CORR-05 and the
+last-two-slots race) are the brief's other priorities.
+
 | id | batch | status | evidence |
 | --- | --- | --- | --- |
 | CORR-08 | 120 | **held** | 4 runs × 12 simultaneous HTTP submissions for one selection (2 in `selection` scope, 2 in `fixture` scope): each run exactly one 201 and eleven 409 (`SELECTION_TAKEN` / `FIXTURE_TAKEN`), zero 500s, `Access-Control-Allow-Origin` present on every 409; no 500 anywhere in the API log (`out/race.txt`) |
@@ -264,8 +271,8 @@ dry run. API-carrying; worth doing before the owner runs the backfill.
 ## CORR-26 · LOW · live · verified — "4 of 3"
 
 `CouponSection.tsx` heads the coupon `${leg_count} of ${memberCount}`, where the member
-count is the league's *current* active roster. Legs are kept for members who left (Batch
-130 keeps their pick) and for erased members (Batch 136 keeps it by design), so after Erin
+count is the league's *current* active roster. Legs are kept for members who left (leaving
+never removed a pick) and for erased members (Batch 136 keeps it by design), so after Erin
 left L1 and Bob deleted his account, the settled Gameweek 1 coupon reads **"Result 4 of
 3"** beside "3 of 3 picked" (`screenshots/coupon--settled-void-legs--1280--light.png`).
 The share text's "incomplete" note is guarded against a negative count, so only the
@@ -298,9 +305,52 @@ decisions. API-carrying.
 
 ## Checked and found nothing material
 
+- **The core loop across two differently configured leagues.** L1 (Saturday, lock 30,
+  Match Odds only, selection scope) and L2 (Friday 19:00-22:00, lock 60, both markets, a
+  two-competition subset, fixture scope) were discovered by the scheduler's own job,
+  picked over HTTP, locked and settled by `run_lock_gameweeks` / `run_settle_gameweeks`
+  with the clock pinned. L2's card held only its two competitions; a BTTS claim on a
+  fixture already taken in fixture scope was refused `409 FIXTURE_TAKEN`; an L1 member
+  posting an L2-only fixture got `404 Fixture is not on this league's slate`. Winners
+  scored `round(odds × 10)` (3.10 → 31, 2.10 → 21), losses 0, voids 0 and `null` win
+  rate; standings, the Results list, the cross-league summary and each member's settle
+  push agreed on every number (`out/lifecycle.txt`).
+- **Time.** Lock instants either side of both clock changes (Sat 24 Oct 13:30Z, Sun 25 Oct
+  12:30Z, Fri 30 Oct 18:45Z, Sat 31 Oct 14:30Z, Sun 28 Mar 2027 11:30Z, Sat 3 Apr 13:30Z)
+  and what London, New York and Sydney members are told — including the week London is on
+  GMT and New York still on EDT (Sat 31 Oct: 14:30 / 10:30 / Sun 01:30) — are all right
+  (`out/dst.txt`).
+- **The sweep** of every added line under `apps/api/src` since `2ce6f42` for naive local
+  time, hardcoded Saturday/15:00 and unfiltered "latest round" lookups found none; the new
+  queries are league-scoped where they should be, and the two deliberately global ones
+  (`_week_has_settled_round`, the re-anchor) are global because labels are. The only
+  missing filter found is CORR-25's `deleted_at` (`out/sweep.txt`).
+- **Two admins correcting one pick**, **the Batch 161 installation bucket**, **the off-site
+  backup and its restore**, and **the backfill's dry-run → apply → dry-run** behave exactly
+  as documented (Prior findings table).
+
 ## Proposed batches
 
+1. **Self-deletion completes the round silently and credits the next picker** (CORR-19) — API-carrying.
+2. **A round the settle guard will never settle is still offered for picks; the stray still shares a label** (CORR-20, CORR-13) — API-carrying.
+3. **The discovery budget prices the raw pool, and the refresh has no budget** (CORR-24) — API-carrying.
+4. **The Results list and home still price void legs; a settled coupon reads "4 of 3"** (CORR-21, CORR-26) — API-carrying (web follows in the same batch).
+5. **Tell the member when a correction changes their result; settle a round nobody picked** (CORR-22, CORR-23) — API-carrying.
+6. **The backfill and re-anchor count deleted leagues** (CORR-25) — API-carrying; before the owner runs the backfill.
+7. **Release a departed member's unlocked claims** (CORR-27) — API-carrying, after the owner decision below.
+
 ## Owner decisions
+
+- **What happens to an unlocked pick when its member deletes their account or leaves?**
+  (CORR-27) Options: (a) keep it, as now — the claim blocks that selection or fixture for
+  the week and the leg stays on the coupon as "Former member"; (b) delete picks on rounds
+  that have not locked, keep locked and settled ones. The 2026-09-22 decision
+  ("anonymise, keep history") was about history; an unlocked pick is not history yet.
+  Recommendation: **(b)**.
+- **A refused round's picks** (CORR-20): once the guard refuses a round, should its picks
+  be voided (the member sees "void — no points") or stay pending? Recommendation: stop
+  offering such rounds (the batch), and void any that already exist so nothing is pending
+  for ever.
 
 ## Doc corrections
 
@@ -308,3 +358,20 @@ None found so far. (`docs/backfills/2026-season-calendar.md` is accurate for dat
 deleted-league rounds; CORR-25 is a code fix, not a doc correction.)
 
 ## What this pass did not do
+
+- **The admin hand-entry settle path's notification** (Batch 135) was read, not re-driven;
+  only the evening sweep's was.
+- **Removal and site-admin deletion** as roster changes (Batch 130) were read; leaving and
+  self-deletion were driven.
+- **The lost-race message in the browser** was not re-driven: the API now returns the 409
+  with CORS (CORR-08), and the web's handling of `SELECTION_TAKEN` did not change since the
+  last review verified it.
+- **Batch 160's counter** (every provider entry point charged) is lens 04's; not measured here.
+- **A pick racing the lock** was not driven concurrently; `pick_refusal` is still checked
+  after the odds fetch (read).
+- DST behaviour was exercised through the real trigger and the services with pinned
+  instants, not by moving the machine clock. No live provider, no production read, and the
+  backfill `--apply` ran only on a throwaway scratch database that was then dropped.
+- Deploy tags: every finding is on code that reached production with the API at
+  `b08a47f3` (in sync with `main` per the lead's drift check), so all are `live`; CORR-25
+  concerns a backfill the owner has not run yet.
