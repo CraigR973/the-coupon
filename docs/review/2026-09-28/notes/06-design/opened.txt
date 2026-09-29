@@ -16,3 +16,39 @@ current-round--settled-void-leg--390--light.png
 coupon--settled-void--1280--dark.png
 standings-toast--standalone-safearea--393--light.png
 current-round-offline--standalone-safearea--393--dark.png
+my-leagues--happy-l06--390--dark.png
+my-leagues--happy-l06--1280--light.png
+league-members--happy-l06--390--dark.png
+career-profile--settled-l06--390--dark.png
+home--firstrun-l06--1280--dark.png
+create-league--happy-l06--390--light.png
+# lens-03 captures opened for this lens
+current-round--open--1280--dark.png
+current-round--open--390--dark.png
+current-round--open--390--dark--full.png
+current-round--open--1280--light--full.png
+home--happy--1280--dark--full.png
+standings--happy--1280--light.png
+standings--archive--390--dark--full.png
+standings--archive--1280--dark.png
+results--archive-season--390--light.png
+results--archive-season--1280--dark.png
+home--firstrun--390--dark.png
+home--loading--390--light.png
+home--error--390--dark.png
+welcome--happy--390--dark.png
+login--happy--390--light.png
+register--happy--390--dark.png
+install-gate--mobile-browser--390--dark.png
+join--happy--390--light.png
+forgot-pin--happy--390--dark.png
+my-leagues--happy--390--dark.png (ARTEFACT: offline banner, no leagues)
+settings--happy--390--light--full.png
+league-members--happy--390--light.png (ARTEFACT: offline banner, empty)
+league-settings--happy--1280--dark--full.png
+admin-dashboard--happy--1280--dark.png
+admin-players--happy--390--light.png
+football--happy--390--dark.png
+team-season--happy--1280--light.png
+football--results--390--light.png
+notes/03-ux/focus/round-390-dark-stop8.png

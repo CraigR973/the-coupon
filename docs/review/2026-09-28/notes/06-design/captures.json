@@ -494,5 +494,301 @@
   "width": 393,
   "theme": "light",
   "confirmed": "Alice, iOS UA, standalone seen by the app (True), env(safe-area-inset) 59/34 via CDP: header 140px (pad 75px), tab bar 95px (pad 34px), theme-color #F7F8FA; offline banner top -760 (static)"
+ },
+ {
+  "file": "my-leagues--happy-l06--390--light.png",
+  "url": "/leagues",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cMy Leagues\u201d, 341 chars of page text"
+ },
+ {
+  "file": "my-leagues--happy-l06--390--dark.png",
+  "url": "/leagues",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cMy Leagues\u201d, 341 chars of page text"
+ },
+ {
+  "file": "my-leagues--happy-l06--1280--light.png",
+  "url": "/leagues",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cMy Leagues\u201d, 341 chars of page text"
+ },
+ {
+  "file": "my-leagues--happy-l06--1280--dark.png",
+  "url": "/leagues",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cMy Leagues\u201d, 341 chars of page text"
+ },
+ {
+  "file": "my-leagues--firstrun-l06--390--light.png",
+  "url": "/leagues",
+  "state": "firstrun (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cMy Leagues\u201d, 167 chars of page text"
+ },
+ {
+  "file": "my-leagues--firstrun-l06--390--dark.png",
+  "url": "/leagues",
+  "state": "firstrun (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cMy Leagues\u201d, 167 chars of page text"
+ },
+ {
+  "file": "my-leagues--firstrun-l06--1280--light.png",
+  "url": "/leagues",
+  "state": "firstrun (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cMy Leagues\u201d, 167 chars of page text"
+ },
+ {
+  "file": "my-leagues--firstrun-l06--1280--dark.png",
+  "url": "/leagues",
+  "state": "firstrun (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cMy Leagues\u201d, 167 chars of page text"
+ },
+ {
+  "file": "discover-leagues--happy-l06--390--light.png",
+  "url": "/leagues/discover",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cDiscover Leagues\u201d, 144 chars of page text"
+ },
+ {
+  "file": "discover-leagues--happy-l06--390--dark.png",
+  "url": "/leagues/discover",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cDiscover Leagues\u201d, 144 chars of page text"
+ },
+ {
+  "file": "discover-leagues--happy-l06--1280--light.png",
+  "url": "/leagues/discover",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cDiscover Leagues\u201d, 144 chars of page text"
+ },
+ {
+  "file": "discover-leagues--happy-l06--1280--dark.png",
+  "url": "/leagues/discover",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cDiscover Leagues\u201d, 144 chars of page text"
+ },
+ {
+  "file": "join-by-code--happy-l06--390--light.png",
+  "url": "/leagues/join",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cJoin a league\u201d, 124 chars of page text"
+ },
+ {
+  "file": "join-by-code--happy-l06--390--dark.png",
+  "url": "/leagues/join",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cJoin a league\u201d, 124 chars of page text"
+ },
+ {
+  "file": "join-by-code--happy-l06--1280--light.png",
+  "url": "/leagues/join",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cJoin a league\u201d, 124 chars of page text"
+ },
+ {
+  "file": "join-by-code--happy-l06--1280--dark.png",
+  "url": "/leagues/join",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cJoin a league\u201d, 124 chars of page text"
+ },
+ {
+  "file": "create-league--happy-l06--390--light.png",
+  "url": "/leagues/new",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cCreate a League\u201d, 730 chars of page text"
+ },
+ {
+  "file": "create-league--happy-l06--390--dark.png",
+  "url": "/leagues/new",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cCreate a League\u201d, 730 chars of page text"
+ },
+ {
+  "file": "create-league--happy-l06--1280--light.png",
+  "url": "/leagues/new",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cCreate a League\u201d, 730 chars of page text"
+ },
+ {
+  "file": "create-league--happy-l06--1280--dark.png",
+  "url": "/leagues/new",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cCreate a League\u201d, 730 chars of page text"
+ },
+ {
+  "file": "league-members--happy-l06--390--light.png",
+  "url": "/leagues/the-coupon/admin/members",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cMembers\u201d, 179 chars of page text"
+ },
+ {
+  "file": "league-members--happy-l06--390--dark.png",
+  "url": "/leagues/the-coupon/admin/members",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cMembers\u201d, 179 chars of page text"
+ },
+ {
+  "file": "league-members--happy-l06--1280--light.png",
+  "url": "/leagues/the-coupon/admin/members",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cMembers\u201d, 179 chars of page text"
+ },
+ {
+  "file": "league-members--happy-l06--1280--dark.png",
+  "url": "/leagues/the-coupon/admin/members",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cMembers\u201d, 179 chars of page text"
+ },
+ {
+  "file": "league-settings--happy-l06--390--light.png",
+  "url": "/leagues/the-coupon/admin/settings",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cLeague Settings\u201d, 1696 chars of page text"
+ },
+ {
+  "file": "league-settings--happy-l06--390--dark.png",
+  "url": "/leagues/the-coupon/admin/settings",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cLeague Settings\u201d, 1696 chars of page text"
+ },
+ {
+  "file": "league-settings--happy-l06--1280--light.png",
+  "url": "/leagues/the-coupon/admin/settings",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cLeague Settings\u201d, 1696 chars of page text"
+ },
+ {
+  "file": "league-settings--happy-l06--1280--dark.png",
+  "url": "/leagues/the-coupon/admin/settings",
+  "state": "happy (re-capture: lens 03\u2019s copy shows the offline banner)",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Alice: navigator.onLine=true, no offline banner, h1 \u201cLeague Settings\u201d, 1696 chars of page text"
+ },
+ {
+  "file": "career-profile--settled-l06--390--light.png",
+  "url": "/profile",
+  "state": "settled",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Hana: navigator.onLine=true, no offline banner, h1 \u201cHana\u201d, 411 chars of page text"
+ },
+ {
+  "file": "career-profile--settled-l06--390--dark.png",
+  "url": "/profile",
+  "state": "settled",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Hana: navigator.onLine=true, no offline banner, h1 \u201cHana\u201d, 411 chars of page text"
+ },
+ {
+  "file": "career-profile--settled-l06--1280--light.png",
+  "url": "/profile",
+  "state": "settled",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Hana: navigator.onLine=true, no offline banner, h1 \u201cHana\u201d, 411 chars of page text"
+ },
+ {
+  "file": "career-profile--settled-l06--1280--dark.png",
+  "url": "/profile",
+  "state": "settled",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Hana: navigator.onLine=true, no offline banner, h1 \u201cHana\u201d, 411 chars of page text"
+ },
+ {
+  "file": "home--firstrun-l06--390--light.png",
+  "url": "/",
+  "state": "firstrun",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cHi Dave\u201d, 333 chars of page text"
+ },
+ {
+  "file": "home--firstrun-l06--390--dark.png",
+  "url": "/",
+  "state": "firstrun",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cHi Dave\u201d, 333 chars of page text"
+ },
+ {
+  "file": "home--firstrun-l06--390--dark--full.png",
+  "url": "/",
+  "state": "firstrun (full page)",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cHi Dave\u201d, 333 chars of page text"
+ },
+ {
+  "file": "home--firstrun-l06--1280--light.png",
+  "url": "/",
+  "state": "firstrun",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cHi Dave\u201d, 333 chars of page text"
+ },
+ {
+  "file": "home--firstrun-l06--1280--dark.png",
+  "url": "/",
+  "state": "firstrun",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Dave: navigator.onLine=true, no offline banner, h1 \u201cHi Dave\u201d, 333 chars of page text"
  }
 ]

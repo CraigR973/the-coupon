@@ -1,0 +1,36 @@
+my-leagues--happy-l06--390--light: online=true banner=false h1=My Leagues text=341ch “My Leagues Your league hubs, shortcuts, and current standing in one pl”
+my-leagues--happy-l06--390--dark: online=true banner=false h1=My Leagues text=341ch “My Leagues Your league hubs, shortcuts, and current standing in one pl”
+my-leagues--happy-l06--1280--light: online=true banner=false h1=My Leagues text=341ch “My Leagues Your league hubs, shortcuts, and current standing in one pl”
+my-leagues--happy-l06--1280--dark: online=true banner=false h1=My Leagues text=341ch “My Leagues Your league hubs, shortcuts, and current standing in one pl”
+my-leagues--firstrun-l06--390--light: online=true banner=false h1=My Leagues text=167ch “My Leagues Your league hubs, shortcuts, and current standing in one pl”
+my-leagues--firstrun-l06--390--dark: online=true banner=false h1=My Leagues text=167ch “My Leagues Your league hubs, shortcuts, and current standing in one pl”
+my-leagues--firstrun-l06--1280--light: online=true banner=false h1=My Leagues text=167ch “My Leagues Your league hubs, shortcuts, and current standing in one pl”
+my-leagues--firstrun-l06--1280--dark: online=true banner=false h1=My Leagues text=167ch “My Leagues Your league hubs, shortcuts, and current standing in one pl”
+discover-leagues--happy-l06--390--light: online=true banner=false h1=Discover Leagues text=144ch “LEAGUES Discover Leagues My leagues The Coupon Test League Public · re”
+discover-leagues--happy-l06--390--dark: online=true banner=false h1=Discover Leagues text=144ch “LEAGUES Discover Leagues My leagues The Coupon Test League Public · re”
+discover-leagues--happy-l06--1280--light: online=true banner=false h1=Discover Leagues text=144ch “LEAGUES Discover Leagues My leagues The Coupon Test League Public · re”
+discover-leagues--happy-l06--1280--dark: online=true banner=false h1=Discover Leagues text=144ch “LEAGUES Discover Leagues My leagues The Coupon Test League Public · re”
+join-by-code--happy-l06--390--light: online=true banner=false h1=Join a league text=124ch “LEAGUES Join a league Enter join code LEAGUE CODE Ask the league admin”
+join-by-code--happy-l06--390--dark: online=true banner=false h1=Join a league text=124ch “LEAGUES Join a league Enter join code LEAGUE CODE Ask the league admin”
+join-by-code--happy-l06--1280--light: online=true banner=false h1=Join a league text=124ch “LEAGUES Join a league Enter join code LEAGUE CODE Ask the league admin”
+join-by-code--happy-l06--1280--dark: online=true banner=false h1=Join a league text=124ch “LEAGUES Join a league Enter join code LEAGUE CODE Ask the league admin”
+create-league--happy-l06--390--light: online=true banner=false h1=Create a League text=730ch “Create a League League details LEAGUE NAME DESCRIPTION (OPTIONAL) PRIV”
+create-league--happy-l06--390--dark: online=true banner=false h1=Create a League text=730ch “Create a League League details LEAGUE NAME DESCRIPTION (OPTIONAL) PRIV”
+create-league--happy-l06--1280--light: online=true banner=false h1=Create a League text=730ch “Create a League League details LEAGUE NAME DESCRIPTION (OPTIONAL) PRIV”
+create-league--happy-l06--1280--dark: online=true banner=false h1=Create a League text=730ch “Create a League League details LEAGUE NAME DESCRIPTION (OPTIONAL) PRIV”
+league-members--happy-l06--390--light: online=true banner=false h1=Members text=179ch “BACK Members Leave league AL Alice Admin You BO Bob Promote Remove CA ”
+league-members--happy-l06--390--dark: online=true banner=false h1=Members text=179ch “BACK Members Leave league AL Alice Admin You BO Bob Promote Remove CA ”
+league-members--happy-l06--1280--light: online=true banner=false h1=Members text=179ch “BACK Members Leave league AL Alice Admin You BO Bob Promote Remove CA ”
+league-members--happy-l06--1280--dark: online=true banner=false h1=Members text=179ch “BACK Members Leave league AL Alice Admin You BO Bob Promote Remove CA ”
+league-settings--happy-l06--390--light: online=true banner=false h1=League Settings text=1696ch “BACK League Settings Details LEAGUE NAME DESCRIPTION PRIVACY Private —”
+league-settings--happy-l06--390--dark: online=true banner=false h1=League Settings text=1696ch “BACK League Settings Details LEAGUE NAME DESCRIPTION PRIVACY Private —”
+league-settings--happy-l06--1280--light: online=true banner=false h1=League Settings text=1696ch “BACK League Settings Details LEAGUE NAME DESCRIPTION PRIVACY Private —”
+league-settings--happy-l06--1280--dark: online=true banner=false h1=League Settings text=1696ch “BACK League Settings Details LEAGUE NAME DESCRIPTION PRIVACY Private —”
+career-profile--settled-l06--390--light: online=true banner=false h1=Hana text=411ch “HA YOUR RECORD Hana Across your leagues POINTS 21 WIN RATE 100% PICKS ”
+career-profile--settled-l06--390--dark: online=true banner=false h1=Hana text=411ch “HA YOUR RECORD Hana Across your leagues POINTS 21 WIN RATE 100% PICKS ”
+career-profile--settled-l06--1280--light: online=true banner=false h1=Hana text=411ch “HA YOUR RECORD Hana Across your leagues POINTS 21 WIN RATE 100% PICKS ”
+career-profile--settled-l06--1280--dark: online=true banner=false h1=Hana text=411ch “HA YOUR RECORD Hana Across your leagues POINTS 21 WIN RATE 100% PICKS ”
+home--firstrun-l06--390--light: online=true banner=false h1=Hi Dave text=333ch “THE COUPON · YOUR SEASON Hi Dave Your picks, deadlines and results — t”
+home--firstrun-l06--390--dark: online=true banner=false h1=Hi Dave text=333ch “THE COUPON · YOUR SEASON Hi Dave Your picks, deadlines and results — t”
+home--firstrun-l06--1280--light: online=true banner=false h1=Hi Dave text=333ch “THE COUPON · YOUR SEASON Hi Dave Your picks, deadlines and results — t”
+home--firstrun-l06--1280--dark: online=true banner=false h1=Hi Dave text=333ch “THE COUPON · YOUR SEASON Hi Dave Your picks, deadlines and results — t”

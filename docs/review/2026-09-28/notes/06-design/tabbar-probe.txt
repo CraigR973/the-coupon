@@ -1,0 +1,8 @@
+no-preference /: active=Home tab x=[0,78] indicator x=[156,234] centre offset=156px; football icon 20x8, label ~3 line(s)
+no-preference /leagues/the-coupon/predictions: active=Coupon tab x=[78,156] indicator x=[234,312] centre offset=156px; football icon 20x8, label ~3 line(s)
+no-preference /football: active=Football Stats tab x=[156,234] indicator x=[312,390] centre offset=156px; football icon 20x8, label ~3 line(s)
+no-preference /leagues/the-coupon/leaderboard: active=Leagues tab x=[234,312] indicator x=[390,468] centre offset=156px; football icon 20x8, label ~3 line(s)
+reduce /: active=Home tab x=[0,78] indicator x=[156,234] centre offset=156px; football icon 20x8, label ~3 line(s)
+reduce /leagues/the-coupon/predictions: active=Coupon tab x=[78,156] indicator x=[234,312] centre offset=156px; football icon 20x8, label ~3 line(s)
+reduce /football: active=Football Stats tab x=[156,234] indicator x=[312,390] centre offset=156px; football icon 20x8, label ~3 line(s)
+reduce /leagues/the-coupon/leaderboard: active=Leagues tab x=[234,312] indicator x=[390,468] centre offset=156px; football icon 20x8, label ~3 line(s)
