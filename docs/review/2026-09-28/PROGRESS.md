@@ -12,10 +12,16 @@ Branch `chore/review-2026-09-28`, cut from `main` at `eb18bcb`. Never push, merg
 | `date` checked | done | Mon 28 Sep 2026 22:40 BST |
 | branch + `00-prompt.md` committed | done | `f45f128` |
 | drift check | done | API `b08a47f3` at migration 026; `main` `eb18bcb` is 14 commits ahead, none reach the API image → **in sync**, exit 0 |
-| full gate | **PASS, 11 checks, 11m18s** — backend 1,350 / 0 skipped, frontend 1,204 / 0 skipped, both equal to the ratchets | `notes/baseline-ci-full.log` |
-| `SKIP_PROD_BUNDLE=1` gate | running (started 22:57) | `notes/baseline-ci-skip.log` |
+| full gate | **PASS, 11 checks, 11m18s** — backend 1,350 / 0 skipped, frontend 1,204 / 0 skipped, both equal to the ratchets | `notes/baseline-ci-full.txt` |
+| `SKIP_PROD_BUNDLE=1` gate | **PASS, 10 checks, 10m37s** | `notes/baseline-ci-skip.txt` |
 | shared harness | smoke-tested 22:47 (API health, HTTP login, bundle build, Chromium sign-in) | `notes/harness/stack.py`, `notes/harness/web.sh` |
 | lens briefs | written | `notes/briefs/common.md` + one per lens |
+
+## Interruptions
+
+| when | what | recovery |
+| --- | --- | --- |
+| 28 Sep ~23:04 → 29 Sep 08:37 | usage limit stopped all four running passes (01, 02, 05, 07) minutes after launch; each had only read its brief and started notes | partial notes committed `fed7399`; stale `sec`/`corr` stacks killed; passes resumed from their transcripts |
 
 ## Lenses
 
