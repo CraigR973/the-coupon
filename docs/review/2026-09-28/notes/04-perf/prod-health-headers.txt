@@ -1,0 +1,21 @@
+Tue Sep 29 14:50:54 BST 2026
+$ curl -sS -D - -H "Accept-Encoding: gzip" https://api-production-109b1.up.railway.app/api/v1/health
+HTTP/2 200 
+cache-control: no-store
+content-security-policy: default-src 'none'; frame-ancestors 'none'
+content-type: application/json
+date: Tue, 29 Sep 2026 13:50:57 GMT
+permissions-policy: camera=(), microphone=(), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: railway-hikari
+strict-transport-security: max-age=63072000; includeSubDomains
+x-content-type-options: nosniff
+x-correlation-id: 3b5f1db6-cffe-4774-8358-1dfc9f3597d5
+x-frame-options: DENY
+x-railway-request-id: k9O6HfDSQzG7j5UUALIuDA
+content-length: 82
+x-hikari-trace: lhr1.4rsz
+x-railway-edge: lhr1
+
+
+{"status":"ok","sha":"b08a47f3a58bce3886eb48cbf7774658fb8986f6","migration":"026"}

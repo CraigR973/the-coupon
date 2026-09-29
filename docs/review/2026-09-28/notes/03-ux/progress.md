@@ -3,14 +3,30 @@
 A fresh session resumes from this file alone. Brief: `../briefs/common.md` + `../briefs/03-ux.md`.
 Ports: API 8130, web 4330. Stack name `ux`. New ids from UX-21.
 
+## How to (re)start
+
+```
+~/.cache/the-coupon/ci-local-venv/bin/python docs/review/2026-09-28/notes/harness/stack.py --name ux --api-port 8130 --origin http://127.0.0.1:4330 --seed   # background
+bash docs/review/2026-09-28/notes/harness/web.sh ux http://127.0.0.1:8130 4330                                                                              # background
+~/.cache/the-coupon/ci-local-venv/bin/python docs/review/2026-09-28/notes/03-ux/seed_states.py --reset --login
+```
+`--reset` re-runs the e2e base seed then adds every state; `--login` writes
+`<scratchpad>/ux-sessions.json` (Alice, Bob, Carol, Dave) for `lib.mjs` to inject.
+Personas: Alice = site admin + league admin of `the-coupon` + member of `sunday-club`;
+Bob = member of the-coupon, admin of sunday-club; Carol = member; Dave = no league;
+Erin = pending join request. the-coupon round OPEN (locks +3 days); sunday-club round
+LOCKED; the-coupon season 2025 archive (rounds 37, 38 settled). Settled current round is
+produced by `POST /__e2e/settle` after picks + `POST /__e2e/lock` (phase B, destroys open state).
+
 ## State
 
 | step | state | evidence |
 | --- | --- | --- |
 | briefs, prompt, 2026-09-13 lens doc + INDEX read | done 29 Sep 08:40 | |
-| notes dir created | done | |
-| stack + bundle up | todo | |
-| seeding script (2nd league, settled, archive, locked, no-league member, site admin) | todo | `seed_states.py` |
+| seeding script | done, verified by API reads 08:45 | `seed_states.py` |
+| Playwright helpers | written | `lib.mjs` |
+| interrupted by usage limit ~08:50; resumed 14:47 | | lead committed notes as 0e1265e (pre-rewrite hash) |
+| stack + bundle restarted | in flight 14:48 | |
 | axe sweep (every route × 2 themes × 390/1280) | todo | `axe/` |
 | state captures + corpus | todo | `../../screenshots/` |
 | keyboard pass | todo | |
@@ -28,8 +44,14 @@ Ports: API 8130, web 4330. Stack name `ux`. New ids from UX-21.
   `page-has-heading-one`, `region`) only. Reflow spec: same 6 routes at 320 px,
   no theme, clipping + page overflow. Nothing signed-in, nothing at 390, no
   colour-contrast, no focus-indicator check.
+- Install gate (`InstallPromptController`) is UA-triggered (Android/iOS), not
+  width-triggered: 390 captures use a desktop Chromium UA at 390×844 (the layout a
+  standalone PWA gets). The gate itself is captured separately with a mobile UA.
+- `AppToaster` only speaks toasts whose title is a string (all current call sites are).
+- Cross-lens: lens 07 says UX-18 payout `opacity-60` is at `PickRow.tsx:238`, no batch.
+- Lens 02 already added rows to `screenshots/INDEX.md` — append only.
 
 ## Next step
 
-Start the stack (`stack.py --name ux --api-port 8130 --origin http://127.0.0.1:4330 --seed`)
-and the bundle (`web.sh ux http://127.0.0.1:8130 4330`), both in the background.
+Wait for stack + bundle, run `seed_states.py --reset --login`, then write `sweep.mjs`
+(axe + capture per route × theme × width).
