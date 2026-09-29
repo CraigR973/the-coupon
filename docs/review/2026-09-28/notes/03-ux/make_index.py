@@ -91,6 +91,15 @@ for name, (h, row) in toast_rows.items():
     by_hash[h].append(name)
     rows.append(row)
 
+# Offline pick queue (offline.mjs): sunday-club round reopened, Alice taps a free selection offline.
+for png in sorted(SHOTS.glob("current-round--offline-queued--*.png")):
+    h = hashlib.sha256(png.read_bytes()).hexdigest()
+    by_hash[h].append(png.name)
+    _, state, width, theme = png.stem.split("--")
+    rows.append(f"| `{png.name}` | `/leagues/sunday-club/predictions` | offline-queued | {width} | {theme} | `{h[:12]}` "
+                "| Alice, Chromium offline emulation after load, one selection tapped: spinner on it, every selection disabled, "
+                "no toast, no 'waiting to send' marker, 0 POSTs (offline-verify.txt); pick landed after reconnect (offline.txt) | — |")
+
 dups = {h: fs for h, fs in by_hash.items() if len(fs) > 1}
 (NOTES / "duplicates.txt").write_text(
     "\n".join(f"{h[:12]}  {'  '.join(fs)}" for h, fs in dups.items()) + ("\n" if dups else "none\n")

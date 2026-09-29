@@ -1,0 +1,6 @@
+current-round--offline-queued--390--light.png: tapped Chelsea offline -> toast "", marker=false, status="", alert="" | back online -> toast "Grabbed Chelsea @ 4.30", marker=false, API pick now Chelsea
+current-round--offline-queued--390--dark.png: tapped The Draw offline -> toast "", marker=false, status="", alert="" | back online -> toast "Grabbed The Draw @ 3.75", marker=false, API pick now The Draw
+current-round--offline-queued--1280--light.png: tapped Chelsea offline -> toast "", marker=false, status="", alert="" | back online -> toast "Grabbed Chelsea @ 4.30", marker=false, API pick now Chelsea
+current-round--offline-queued--1280--dark.png: tapped The Draw offline -> toast "", marker=false, status="", alert="" | back online -> toast "Grabbed The Draw @ 3.75", marker=false, API pick now The Draw
+UX-19 /login: "Forgot PIN?" 316×24
+UX-19 /settings: "About & scoring rules" 358×24
