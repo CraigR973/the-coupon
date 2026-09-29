@@ -25,6 +25,15 @@ Branch `chore/review-2026-09-28`, cut from `main` at `eb18bcb`. Never push, merg
 | 29 Sep ~08:50 → 13:36 | usage limit again, ~10 minutes into six parallel passes | notes committed `a1fc4bb`. **Pacing changed: at most three passes at once**, finishing lenses rather than advancing all six; each resume re-sends a whole transcript, so fewer live passes waste less per interruption. Resumed 01, 02, 07 at 13:40 (their `sec`/`corr` stacks left running); 03, 04, 05 queued with stacks stopped |
 | 29 Sep ~15:30? → 18:32 | usage limit, third time, with 03, 04, 05 running (01, 02, 07 had finished at 14:45) | notes committed `98e2284`; stacks left running; 03, 04, 05 resumed 18:35 |
 
+## Harness defect (29 Sep 18:40)
+
+Lens 03 found `notes/harness/web.sh` built with the wrong cwd, so Tailwind emitted a 9 KB
+stylesheet: every capture built with it is unstyled. Fixed at 18:50 (builds from
+`apps/web`, refuses a stylesheet under 30 KB; 45.8 KB verified). Lens 02's three and lens
+05's six captures are relabelled `-unstyled-` and count as text evidence only. The machine
+also appears to have slept between ~18:45 and 23:13 (a ten-minute wait returned at 23:13
+with load 189).
+
 ## Privacy scrub (29 Sep ~14:50)
 
 Lens 07's `scan-test-diffs.txt` (first committed in the partial-notes commit) quoted one
@@ -40,10 +49,10 @@ untouched, per the owner's decision.
 | --- | --- | --- | --- |
 | 01 security | **done** 14:45 — 20 held / 3 partial / 1 not fixed; SEC-27..31 | `notes/01-security/` | |
 | 02 correctness | **done** 14:45 — 7 held / 3 partial / 1 not fixed / 1 accepted; CORR-19..27 | `notes/02-correctness/` | |
-| 03 UX / a11y | running (resumed ~14:55) | `notes/03-ux/` | |
-| 04 performance / ops | running (resumed ~14:55) | `notes/04-perf/` | |
-| 05 feature gaps | running (resumed ~14:55) | `notes/05-features/` | |
-| 06 premium design | todo | `notes/06-design/` | |
+| 03 UX / a11y | running (resumed 18:35) — 330-run open-phase axe sweep + corpus batch 1 committed | `notes/03-ux/` | |
+| 04 performance / ops | running (resumed 18:35) — shapes seeded, EXPLAIN, provider budget, bundle done | `notes/04-perf/` | |
+| 05 feature gaps | **done** ~18:45 — 3 held / 1 partial / 5 not fixed; FEAT-A13..15, B10..12 | `notes/05-features/` | |
+| 06 premium design | running (launched 23:40) | `notes/06-design/` | |
 | 07 agent pipeline | **done** 14:45 — 4 held / 4 partial / 1 not fixed; PIPE-10..19 | `notes/07-pipeline/` | |
 
 ## Lead's own work (not delegated)
