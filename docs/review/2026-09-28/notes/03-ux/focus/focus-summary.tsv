@@ -1,0 +1,15 @@
+page	width	theme	stop	element	w×h	changed	px≥3	perimeter	p90	max	verdict
+login	390	light	1	input "Your name"	316×44	3010	2728	720	5.02	5.02	PASS
+login	390	light	2	input "PIN digit 1"	48×48	898	616	192	5.02	5.02	PASS
+login	390	light	3	input "PIN digit 2"	48×48	898	616	192	5.02	5.02	PASS
+login	390	light	4	input "PIN digit 3"	48×48	898	616	192	5.02	5.02	PASS
+login	390	light	5	input "PIN digit 4"	48×48	898	616	192	5.02	5.02	PASS
+login	390	light	6	button "Sign in"	316×44	2254	2120	720	5.02	5.02	PASS
+login	390	light	7	a "Forgot PIN?"	316×24	1384	1368	680	5.98	5.98	PASS
+login	390	light	8	a "Create account"	82×15	408	390	194	5.98	5.98	PASS
+login	390	dark	1	input "Your name"	316×44	2987	2805	720	7.07	7.07	PASS
+login	390	dark	2	input "PIN digit 1"	48×48	875	693	192	7.07	7.07	PASS
+login	390	dark	3	input "PIN digit 2"	48×48	875	693	192	7.07	7.07	PASS
+login	390	dark	4	input "PIN digit 3"	48×48	875	693	192	7.07	7.07	PASS
+login	390	dark	5	input "PIN digit 4"	48×48	875	693	192	7.07	7.07	PASS
+login	390	dark	6	button "Sign in"	316×44	2241	2137	720	7.07	7.07	PASS

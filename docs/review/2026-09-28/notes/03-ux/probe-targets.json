@@ -1,0 +1,1443 @@
+{
+ "targets": [
+  {
+   "route": "/login",
+   "width": 390,
+   "small": [
+    {
+     "name": "Create account",
+     "tag": "A",
+     "w": 82,
+     "h": 15,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 1,
+   "total": 8
+  },
+  {
+   "route": "/register",
+   "width": 390,
+   "small": [
+    {
+     "name": "Already have an account? Sign in",
+     "tag": "A",
+     "w": 175,
+     "h": 15,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 1,
+   "total": 11
+  },
+  {
+   "route": "/forgot-pin",
+   "width": 390,
+   "small": [
+    {
+     "name": "Back to sign in",
+     "tag": "A",
+     "w": 75,
+     "h": 15,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 1,
+   "total": 3
+  },
+  {
+   "route": "/set-pin?name=Dana",
+   "width": 390,
+   "small": [
+    {
+     "name": "Back to sign in",
+     "tag": "A",
+     "w": 75,
+     "h": 15,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 0,
+   "total": 10
+  },
+  {
+   "route": "/join/REVIEWINVITE1",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 1,
+   "total": 2
+  },
+  {
+   "route": "/welcome",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 1,
+   "total": 2
+  },
+  {
+   "route": "/",
+   "width": 390,
+   "small": [
+    {
+     "name": "The Coupon Test League locks in 2d 15h",
+     "tag": "A",
+     "w": 261,
+     "h": 20,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 5,
+   "total": 13
+  },
+  {
+   "route": "/leagues/the-coupon/predictions",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Current round",
+     "w": 105,
+     "h": 30
+    }
+   ],
+   "primaryCount": 11,
+   "total": 22
+  },
+  {
+   "route": "/leagues/sunday-club/predictions",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Current round",
+     "w": 105,
+     "h": 30
+    }
+   ],
+   "primaryCount": 6,
+   "total": 18
+  },
+  {
+   "route": "/leagues/the-coupon/predictions/results",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Season",
+     "w": 68,
+     "h": 30
+    }
+   ],
+   "primaryCount": 6,
+   "total": 12
+  },
+  {
+   "route": "/leagues/the-coupon/leaderboard",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Show 2026/27, the season being played",
+     "w": 106,
+     "h": 30
+    }
+   ],
+   "primaryCount": 7,
+   "total": 16
+  },
+  {
+   "route": "/leagues/the-coupon/leaderboard?season=2025",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Show the 2025/26 season",
+     "w": 75,
+     "h": 30
+    }
+   ],
+   "primaryCount": 7,
+   "total": 16
+  },
+  {
+   "route": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4",
+   "width": 390,
+   "small": [
+    {
+     "name": "Leaderboard",
+     "tag": "A",
+     "w": 126,
+     "h": 16,
+     "crowded": false
+    },
+    {
+     "name": "How each week went →",
+     "tag": "A",
+     "w": 192,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 5,
+   "total": 10
+  },
+  {
+   "route": "/profile",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 5,
+   "total": 10
+  },
+  {
+   "route": "/football",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 5,
+   "total": 12
+  },
+  {
+   "route": "/football?view=results",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 5,
+   "total": 12
+  },
+  {
+   "route": "/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 5,
+   "total": 9
+  },
+  {
+   "route": "/settings",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Enable all notifications",
+     "w": 44,
+     "h": 24
+    },
+    {
+     "name": "Sunday Club",
+     "w": 44,
+     "h": 24
+    },
+    {
+     "name": "The Coupon Test League",
+     "w": 44,
+     "h": 24
+    }
+   ],
+   "primaryCount": 8,
+   "total": 30
+  },
+  {
+   "route": "/about",
+   "width": 390,
+   "small": [
+    {
+     "name": "Back",
+     "tag": "A",
+     "w": 58,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 5,
+   "total": 9
+  },
+  {
+   "route": "/offline",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 6,
+   "total": 9
+  },
+  {
+   "route": "/leagues",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "+ New",
+     "w": 56,
+     "h": 36
+    }
+   ],
+   "primaryCount": 6,
+   "total": 13
+  },
+  {
+   "route": "/leagues/new",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 6,
+   "total": 20
+  },
+  {
+   "route": "/leagues/discover",
+   "width": 390,
+   "small": [
+    {
+     "name": "Leagues",
+     "tag": "A",
+     "w": 87,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 5,
+   "total": 10
+  },
+  {
+   "route": "/leagues/join",
+   "width": 390,
+   "small": [
+    {
+     "name": "Leagues",
+     "tag": "A",
+     "w": 87,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 5,
+   "total": 10
+  },
+  {
+   "route": "/leagues/the-coupon/admin/members",
+   "width": 390,
+   "small": [
+    {
+     "name": "Back",
+     "tag": "A",
+     "w": 58,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "Leave league",
+     "w": 93,
+     "h": 36
+    },
+    {
+     "name": "Promote",
+     "w": 60,
+     "h": 28
+    },
+    {
+     "name": "Remove",
+     "w": 57,
+     "h": 28
+    },
+    {
+     "name": "Promote",
+     "w": 60,
+     "h": 28
+    },
+    {
+     "name": "Remove",
+     "w": 57,
+     "h": 28
+    }
+   ],
+   "primaryCount": 10,
+   "total": 14
+  },
+  {
+   "route": "/leagues/the-coupon/admin/settings",
+   "width": 390,
+   "small": [
+    {
+     "name": "Back",
+     "tag": "A",
+     "w": 58,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "All UK leagues",
+     "w": 48,
+     "h": 28
+    }
+   ],
+   "primaryCount": 8,
+   "total": 28
+  },
+  {
+   "route": "/leagues/the-coupon/admin/requests",
+   "width": 390,
+   "small": [
+    {
+     "name": "Back",
+     "tag": "A",
+     "w": 58,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "Approve",
+     "w": 69,
+     "h": 36
+    },
+    {
+     "name": "Reject",
+     "w": 57,
+     "h": 36
+    }
+   ],
+   "primaryCount": 7,
+   "total": 11
+  },
+  {
+   "route": "/leagues/the-coupon/admin/invites",
+   "width": 390,
+   "small": [
+    {
+     "name": "Back",
+     "tag": "A",
+     "w": 58,
+     "h": 16,
+     "crowded": false
+    },
+    {
+     "name": "Generate new code — old links stop worki",
+     "tag": "BUTTON",
+     "w": 249,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "Share invite",
+     "w": 105,
+     "h": 36
+    },
+    {
+     "name": "Generate new code — old links stop worki",
+     "w": 249,
+     "h": 16
+    },
+    {
+     "name": "Copy",
+     "w": 53,
+     "h": 36
+    },
+    {
+     "name": "Revoke",
+     "w": 61,
+     "h": 36
+    }
+   ],
+   "primaryCount": 10,
+   "total": 15
+  },
+  {
+   "route": "/leagues/the-coupon/admin/audit-log",
+   "width": 390,
+   "small": [
+    {
+     "name": "Back",
+     "tag": "A",
+     "w": 58,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 5,
+   "total": 9
+  },
+  {
+   "route": "/admin/dashboard",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 5,
+   "total": 16
+  },
+  {
+   "route": "/admin/calendar",
+   "width": 390,
+   "small": [
+    {
+     "name": "View all 49 calendar dates",
+     "tag": "SUMMARY",
+     "w": 290,
+     "h": 20,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 6,
+   "total": 20
+  },
+  {
+   "route": "/admin/players",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Reset PIN",
+     "w": 104,
+     "h": 36
+    },
+    {
+     "name": "Reset PIN",
+     "w": 104,
+     "h": 36
+    },
+    {
+     "name": "Delete",
+     "w": 87,
+     "h": 36
+    },
+    {
+     "name": "Reset PIN",
+     "w": 104,
+     "h": 36
+    },
+    {
+     "name": "Delete",
+     "w": 87,
+     "h": 36
+    },
+    {
+     "name": "Reset PIN",
+     "w": 104,
+     "h": 36
+    },
+    {
+     "name": "Delete",
+     "w": 87,
+     "h": 36
+    },
+    {
+     "name": "Reset PIN",
+     "w": 104,
+     "h": 36
+    },
+    {
+     "name": "Delete",
+     "w": 87,
+     "h": 36
+    }
+   ],
+   "primaryCount": 14,
+   "total": 25
+  },
+  {
+   "route": "/admin/results",
+   "width": 390,
+   "small": [
+    {
+     "name": "",
+     "tag": "INPUT",
+     "w": 13,
+     "h": 13,
+     "crowded": false
+    },
+    {
+     "name": "",
+     "tag": "INPUT",
+     "w": 13,
+     "h": 13,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "Settle round",
+     "w": 86,
+     "h": 36
+    }
+   ],
+   "primaryCount": 6,
+   "total": 22
+  },
+  {
+   "route": "/admin/sync",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    }
+   ],
+   "primaryCount": 14,
+   "total": 24
+  },
+  {
+   "route": "/admin/invites",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Revoke",
+     "w": 93,
+     "h": 36
+    }
+   ],
+   "primaryCount": 6,
+   "total": 16
+  },
+  {
+   "route": "/admin/leagues",
+   "width": 390,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "New join code",
+     "w": 126,
+     "h": 36
+    },
+    {
+     "name": "New join code",
+     "w": 126,
+     "h": 36
+    }
+   ],
+   "primaryCount": 7,
+   "total": 17
+  },
+  {
+   "route": "/login",
+   "width": 1280,
+   "small": [
+    {
+     "name": "Create account",
+     "tag": "A",
+     "w": 82,
+     "h": 15,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 1,
+   "total": 8
+  },
+  {
+   "route": "/register",
+   "width": 1280,
+   "small": [
+    {
+     "name": "Already have an account? Sign in",
+     "tag": "A",
+     "w": 175,
+     "h": 15,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 1,
+   "total": 11
+  },
+  {
+   "route": "/forgot-pin",
+   "width": 1280,
+   "small": [
+    {
+     "name": "Back to sign in",
+     "tag": "A",
+     "w": 75,
+     "h": 15,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 1,
+   "total": 3
+  },
+  {
+   "route": "/set-pin?name=Dana",
+   "width": 1280,
+   "small": [
+    {
+     "name": "Back to sign in",
+     "tag": "A",
+     "w": 75,
+     "h": 15,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 0,
+   "total": 10
+  },
+  {
+   "route": "/join/REVIEWINVITE1",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 1,
+   "total": 2
+  },
+  {
+   "route": "/welcome",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 1,
+   "total": 2
+  },
+  {
+   "route": "/",
+   "width": 1280,
+   "small": [
+    {
+     "name": "The Coupon Test League locks in 2d 15h",
+     "tag": "A",
+     "w": 261,
+     "h": 20,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "Home",
+     "w": 60,
+     "h": 32
+    }
+   ],
+   "primaryCount": 1,
+   "total": 13
+  },
+  {
+   "route": "/leagues/the-coupon/predictions",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Coupon",
+     "w": 70,
+     "h": 32
+    },
+    {
+     "name": "Current round",
+     "w": 105,
+     "h": 30
+    }
+   ],
+   "primaryCount": 7,
+   "total": 22
+  },
+  {
+   "route": "/leagues/sunday-club/predictions",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Coupon",
+     "w": 70,
+     "h": 32
+    },
+    {
+     "name": "Current round",
+     "w": 105,
+     "h": 30
+    }
+   ],
+   "primaryCount": 2,
+   "total": 18
+  },
+  {
+   "route": "/leagues/the-coupon/predictions/results",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Coupon",
+     "w": 70,
+     "h": 32
+    },
+    {
+     "name": "Season",
+     "w": 68,
+     "h": 30
+    }
+   ],
+   "primaryCount": 2,
+   "total": 12
+  },
+  {
+   "route": "/leagues/the-coupon/leaderboard",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Leagues",
+     "w": 73,
+     "h": 32
+    },
+    {
+     "name": "Show 2026/27, the season being played",
+     "w": 106,
+     "h": 30
+    }
+   ],
+   "primaryCount": 3,
+   "total": 16
+  },
+  {
+   "route": "/leagues/the-coupon/leaderboard?season=2025",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Leagues",
+     "w": 73,
+     "h": 32
+    },
+    {
+     "name": "Show the 2025/26 season",
+     "w": 75,
+     "h": 30
+    }
+   ],
+   "primaryCount": 3,
+   "total": 16
+  },
+  {
+   "route": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4",
+   "width": 1280,
+   "small": [
+    {
+     "name": "Leaderboard",
+     "tag": "A",
+     "w": 126,
+     "h": 16,
+     "crowded": false
+    },
+    {
+     "name": "How each week went →",
+     "tag": "A",
+     "w": 192,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "Leagues",
+     "w": 73,
+     "h": 32
+    }
+   ],
+   "primaryCount": 1,
+   "total": 10
+  },
+  {
+   "route": "/profile",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 0,
+   "total": 10
+  },
+  {
+   "route": "/football",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Football Stats",
+     "w": 105,
+     "h": 32
+    }
+   ],
+   "primaryCount": 1,
+   "total": 12
+  },
+  {
+   "route": "/football?view=results",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Football Stats",
+     "w": 105,
+     "h": 32
+    }
+   ],
+   "primaryCount": 1,
+   "total": 12
+  },
+  {
+   "route": "/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 0,
+   "total": 9
+  },
+  {
+   "route": "/settings",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Settings",
+     "w": 71,
+     "h": 32
+    },
+    {
+     "name": "Enable all notifications",
+     "w": 44,
+     "h": 24
+    },
+    {
+     "name": "Sunday Club",
+     "w": 44,
+     "h": 24
+    },
+    {
+     "name": "The Coupon Test League",
+     "w": 44,
+     "h": 24
+    }
+   ],
+   "primaryCount": 4,
+   "total": 30
+  },
+  {
+   "route": "/about",
+   "width": 1280,
+   "small": [
+    {
+     "name": "Back",
+     "tag": "A",
+     "w": 58,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 0,
+   "total": 9
+  },
+  {
+   "route": "/offline",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 1,
+   "total": 9
+  },
+  {
+   "route": "/leagues",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Leagues",
+     "w": 73,
+     "h": 32
+    },
+    {
+     "name": "+ New",
+     "w": 56,
+     "h": 36
+    }
+   ],
+   "primaryCount": 2,
+   "total": 13
+  },
+  {
+   "route": "/leagues/new",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Leagues",
+     "w": 73,
+     "h": 32
+    }
+   ],
+   "primaryCount": 2,
+   "total": 20
+  },
+  {
+   "route": "/leagues/discover",
+   "width": 1280,
+   "small": [
+    {
+     "name": "Leagues",
+     "tag": "A",
+     "w": 87,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "Leagues",
+     "w": 73,
+     "h": 32
+    }
+   ],
+   "primaryCount": 1,
+   "total": 10
+  },
+  {
+   "route": "/leagues/join",
+   "width": 1280,
+   "small": [
+    {
+     "name": "Leagues",
+     "tag": "A",
+     "w": 87,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "Leagues",
+     "w": 73,
+     "h": 32
+    }
+   ],
+   "primaryCount": 1,
+   "total": 10
+  },
+  {
+   "route": "/leagues/the-coupon/admin/members",
+   "width": 1280,
+   "small": [
+    {
+     "name": "Back",
+     "tag": "A",
+     "w": 58,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "Leagues",
+     "w": 73,
+     "h": 32
+    },
+    {
+     "name": "Leave league",
+     "w": 93,
+     "h": 36
+    },
+    {
+     "name": "Promote",
+     "w": 60,
+     "h": 28
+    },
+    {
+     "name": "Remove",
+     "w": 57,
+     "h": 28
+    },
+    {
+     "name": "Promote",
+     "w": 60,
+     "h": 28
+    },
+    {
+     "name": "Remove",
+     "w": 57,
+     "h": 28
+    }
+   ],
+   "primaryCount": 6,
+   "total": 14
+  },
+  {
+   "route": "/leagues/the-coupon/admin/settings",
+   "width": 1280,
+   "small": [
+    {
+     "name": "Back",
+     "tag": "A",
+     "w": 58,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "Leagues",
+     "w": 73,
+     "h": 32
+    },
+    {
+     "name": "All UK leagues",
+     "w": 48,
+     "h": 28
+    }
+   ],
+   "primaryCount": 4,
+   "total": 28
+  },
+  {
+   "route": "/leagues/the-coupon/admin/requests",
+   "width": 1280,
+   "small": [
+    {
+     "name": "Back",
+     "tag": "A",
+     "w": 58,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "Leagues",
+     "w": 73,
+     "h": 32
+    },
+    {
+     "name": "Approve",
+     "w": 69,
+     "h": 36
+    },
+    {
+     "name": "Reject",
+     "w": 57,
+     "h": 36
+    }
+   ],
+   "primaryCount": 3,
+   "total": 11
+  },
+  {
+   "route": "/leagues/the-coupon/admin/invites",
+   "width": 1280,
+   "small": [
+    {
+     "name": "Back",
+     "tag": "A",
+     "w": 58,
+     "h": 16,
+     "crowded": false
+    },
+    {
+     "name": "Generate new code — old links stop worki",
+     "tag": "BUTTON",
+     "w": 249,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "Leagues",
+     "w": 73,
+     "h": 32
+    },
+    {
+     "name": "Share invite",
+     "w": 105,
+     "h": 36
+    },
+    {
+     "name": "Generate new code — old links stop worki",
+     "w": 249,
+     "h": 16
+    },
+    {
+     "name": "Copy",
+     "w": 53,
+     "h": 36
+    },
+    {
+     "name": "Revoke",
+     "w": 61,
+     "h": 36
+    }
+   ],
+   "primaryCount": 6,
+   "total": 15
+  },
+  {
+   "route": "/leagues/the-coupon/admin/audit-log",
+   "width": 1280,
+   "small": [
+    {
+     "name": "Back",
+     "tag": "A",
+     "w": 58,
+     "h": 16,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "Leagues",
+     "w": 73,
+     "h": 32
+    }
+   ],
+   "primaryCount": 1,
+   "total": 9
+  },
+  {
+   "route": "/admin/dashboard",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [],
+   "primaryCount": 0,
+   "total": 16
+  },
+  {
+   "route": "/admin/calendar",
+   "width": 1280,
+   "small": [
+    {
+     "name": "View all 49 calendar dates",
+     "tag": "SUMMARY",
+     "w": 1164,
+     "h": 20,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [],
+   "primaryCount": 1,
+   "total": 20
+  },
+  {
+   "route": "/admin/players",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Reset PIN",
+     "w": 104,
+     "h": 36
+    },
+    {
+     "name": "Reset PIN",
+     "w": 104,
+     "h": 36
+    },
+    {
+     "name": "Delete",
+     "w": 87,
+     "h": 36
+    },
+    {
+     "name": "Reset PIN",
+     "w": 104,
+     "h": 36
+    },
+    {
+     "name": "Delete",
+     "w": 87,
+     "h": 36
+    },
+    {
+     "name": "Reset PIN",
+     "w": 104,
+     "h": 36
+    },
+    {
+     "name": "Delete",
+     "w": 87,
+     "h": 36
+    },
+    {
+     "name": "Reset PIN",
+     "w": 104,
+     "h": 36
+    },
+    {
+     "name": "Delete",
+     "w": 87,
+     "h": 36
+    }
+   ],
+   "primaryCount": 9,
+   "total": 25
+  },
+  {
+   "route": "/admin/results",
+   "width": 1280,
+   "small": [
+    {
+     "name": "",
+     "tag": "INPUT",
+     "w": 13,
+     "h": 13,
+     "crowded": false
+    },
+    {
+     "name": "",
+     "tag": "INPUT",
+     "w": 13,
+     "h": 13,
+     "crowded": false
+    }
+   ],
+   "primaryUnder44": [
+    {
+     "name": "Settle round",
+     "w": 86,
+     "h": 36
+    }
+   ],
+   "primaryCount": 1,
+   "total": 22
+  },
+  {
+   "route": "/admin/sync",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    },
+    {
+     "name": "Run now",
+     "w": 99,
+     "h": 36
+    }
+   ],
+   "primaryCount": 9,
+   "total": 24
+  },
+  {
+   "route": "/admin/invites",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "Revoke",
+     "w": 93,
+     "h": 36
+    }
+   ],
+   "primaryCount": 1,
+   "total": 16
+  },
+  {
+   "route": "/admin/leagues",
+   "width": 1280,
+   "small": [],
+   "primaryUnder44": [
+    {
+     "name": "New join code",
+     "w": 126,
+     "h": 36
+    },
+    {
+     "name": "New join code",
+     "w": 126,
+     "h": 36
+    }
+   ],
+   "primaryCount": 2,
+   "total": 17
+  }
+ ]
+}
