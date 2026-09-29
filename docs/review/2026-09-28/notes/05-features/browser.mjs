@@ -33,6 +33,7 @@ async function newPage(browser, width = 1280, height = 800) {
       file = path.join(BUNDLE, 'index.html');
     }
     return route.fulfill({ status: 200, body: fs.readFileSync(file),
+      headers: { 'Access-Control-Allow-Origin': ORIGIN },
       contentType: TYPES[path.extname(file)] ?? 'application/octet-stream' });
   });
   const page = await context.newPage();
@@ -70,7 +71,7 @@ try {
     await page.goto(`${ORIGIN}/settings`);
     const section = page.getByRole('heading', { name: 'Your data' });
     await section.scrollIntoViewIfNeeded();
-    await shot(page, 'settings--your-data--1280--light.png', 'Settings scrolled to Your data (Carol, before deletion)');
+    await shot(page, 'settings--your-data-unstyled--1280--light.png', 'Settings scrolled to Your data (Carol, before deletion)');
     const [download] = await Promise.all([
       page.waitForEvent('download', { timeout: 15000 }),
       page.getByRole('button', { name: 'Download my data' }).click(),
@@ -82,13 +83,27 @@ try {
       picks: data.picks?.length, profile_name: data.profile?.display_name });
     await page.getByRole('button', { name: 'Delete my account' }).click();
     await typePin(page, 'Confirm PIN', '1234');
-    await shot(page, 'settings--delete-confirm--1280--light.png', 'Delete my account: confirm panel with PIN entered');
+    await shot(page, 'settings--delete-confirm-unstyled--1280--light.png', 'Delete my account: confirm panel with PIN entered');
     await page.getByRole('button', { name: 'Delete my account permanently' }).click();
     await page.waitForURL((u) => u.pathname.startsWith('/login'), { timeout: 20000 });
     const toast = await page.getByText('Your account has been deleted.').isVisible().catch(() => false);
-    await shot(page, 'login--after-account-deleted--1280--light.png', 'Landing on /login after self-service deletion');
+    await shot(page, 'login--after-account-deleted-unstyled--1280--light.png', 'Landing on /login after self-service deletion');
     log('B07 delete via the UI', { landed_on: new URL(page.url()).pathname, toast_visible: toast,
       api: api.filter((l) => l.includes('/me/')) });
+    await context.close();
+  }
+
+  // ── FEAT-B07 re-capture (styled) as Bob, opening the confirm panel but never submitting ──
+  if (PH.includes('bob')) {
+    const { context, page } = await newPage(browser);
+    await signIn(page, 'Bob');
+    await page.goto(`${ORIGIN}/settings`);
+    await page.getByRole('heading', { name: 'Your data' }).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(800);
+    await shot(page, 'settings--your-data-unstyled--1280--light.png', 'Settings scrolled to Your data (Bob)');
+    await page.getByRole('button', { name: 'Delete my account' }).click();
+    await typePin(page, 'Confirm PIN', '1234');
+    await shot(page, 'settings--delete-confirm-unstyled--1280--light.png', 'Delete my account: confirm panel with PIN entered, not submitted (Bob)');
     await context.close();
   }
 
@@ -98,7 +113,7 @@ try {
     await signIn(page, 'Dave');
     const dialog = page.getByTestId('rename-notice');
     await dialog.waitFor({ timeout: 15000 });
-    await shot(page, 'home--rename-notice--1280--light.png', 'In-app rename notice dialog shown to an untold renamed member');
+    await shot(page, 'home--rename-notice-unstyled--1280--light.png', 'In-app rename notice dialog shown to an untold renamed member');
     const text = await dialog.innerText();
     await page.getByRole('button', { name: 'Got it' }).click();
     await page.waitForTimeout(1500);
@@ -115,14 +130,14 @@ try {
     const { context, page, api } = await newPage(browser);
     await page.goto(`${ORIGIN}/register`);
     await page.locator('#display-name').waitFor();
-    await shot(page, 'register--signups-closed-before-submit--1280--light.png', 'Register form with sign-ups closed: full form, no notice');
+    await shot(page, 'register--signups-closed-before-submit-unstyled--1280--light.png', 'Register form with sign-ups closed: full form, no notice');
     await page.locator('#display-name').fill('Newcomer');
     await typePin(page, 'Choose a PIN', '4826');
     await typePin(page, 'Confirm PIN', '4826');
     await page.getByRole('button', { name: /create account/i }).click();
     const alert = page.locator('p[role="alert"]');
     await alert.waitFor({ timeout: 15000 });
-    await shot(page, 'register--signups-closed-after-submit--1280--light.png', 'Register refused only after the form is filled in');
+    await shot(page, 'register--signups-closed-after-submit-unstyled--1280--light.png', 'Register refused only after the form is filled in');
     log('A12 register with sign-ups closed', { alert: await alert.innerText(),
       api: api.filter((l) => l.includes('/auth/')) });
     await context.close();

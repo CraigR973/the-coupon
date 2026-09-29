@@ -1,0 +1,26 @@
+## A12 register with sign-ups closed
+{
+ "alert": "Sign-ups are closed right now. Ask a league admin for an invite.",
+ "api": [
+  "POST /api/v1/auth/register 403"
+ ]
+}
+## screenshots
+[
+ [
+  "settings--your-data--1280--light.png",
+  "Settings scrolled to Your data (Bob)"
+ ],
+ [
+  "settings--delete-confirm--1280--light.png",
+  "Delete my account: confirm panel with PIN entered, not submitted (Bob)"
+ ],
+ [
+  "register--signups-closed-before-submit--1280--light.png",
+  "Register form with sign-ups closed: full form, no notice"
+ ],
+ [
+  "register--signups-closed-after-submit--1280--light.png",
+  "Register refused only after the form is filled in"
+ ]
+]

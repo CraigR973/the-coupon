@@ -62,14 +62,27 @@ Not a gap (checked present): who-hasn't-picked list (PickRow.tsx:128), move pick
 lock (pick_changed), invite share sheet for admins (lib/invite.ts:73), settled-result
 share, reminder ~3h before lock (scheduler.py:844).
 
+## Driven (29 Sep)
+
+- `drive.py` → `drive-output.txt` (+ `drive-stderr.txt`): two leagues (A selection scope,
+  B fixture scope MATCH_ODDS only), both settle paths, correction, export/delete refusals,
+  rename notice, signups closed, season boundary. All held/verified as written above, plus:
+  correcting Bob's pick to 1-1 left Alice's Arsenal-win pick on the same fixture at won 19
+  (two contradictory "won" picks on one match); no read a site admin has returns another
+  member's pick id (17 routes swept), nor does the member's own export; league A audit log
+  total 0 after the correction; league B's admin cannot see the site admin's hand
+  settlement either.
+- `browser.mjs` → `browser-output.txt`, `browser-output-2.txt`: Carol downloaded her data
+  and deleted her account through Settings (lands on /login, toast); Dave saw the rename
+  dialog once, POST seen 204, not shown after reload; register form renders fully with
+  signups closed and refuses only on submit. Captures are UNSTYLED (CSS did not apply under
+  page.route fulfilment even with ACAO) — renamed `*-unstyled--*`, indexed as functional
+  evidence only.
+
 ## Next
 
-1. Commit this file.
-2. Start stack on 8150 (PUBLIC_SIGNUP_ENABLED=false in env for the A12 run later, or a
-   second run), write `drive.py` (HTTP + in-process) to verify A10, B07 API, A11, B08
-   both paths, A12, B09, audit-log invisibility, pick-id discoverability. Save output
-   to `drive-output.txt`.
-3. Browser: build bundle with VITE_API_URL=http://127.0.0.1:8150 into scratchpad, then
-   Playwright page.route on http://review05.localhost serving files; stack origin
-   must be that origin. Check Settings → Your data, rename dialog, register form.
-4. Write the lens document; stop the stack; commit; reply ≤40 lines.
+1. Read 02-correctness.md (CORR-22 silent correction, CORR-23 unpicked round never
+   settles) and 01-security.md (correction absent from audit log) — cross-reference, do not
+   duplicate.
+2. Write 05-feature-gaps.md.
+3. Stop the stack (bg task, pid in scratchpad stack-features.json), commit, reply ≤40 lines.
