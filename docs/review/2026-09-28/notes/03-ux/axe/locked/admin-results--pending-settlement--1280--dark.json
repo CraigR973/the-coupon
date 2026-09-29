@@ -1,0 +1,43 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "pending-settlement",
+    "name": "admin-results",
+    "path": "/admin/results",
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Results"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": true,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/admin/results",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL SITE ADMIN Results Dashboard Calendar Players Results Sync Invites All leagues Sunday Club 1 Aug locked Tue 29 Sep 13:49 Forfar Athletic v Brechin City Scot"
+  },
+  "axe": {
+    "url": "/admin/results",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 38
+  },
+  "errors": []
+}

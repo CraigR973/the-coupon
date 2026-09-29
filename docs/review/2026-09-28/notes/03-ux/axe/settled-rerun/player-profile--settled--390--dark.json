@@ -1,0 +1,135 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "settled",
+    "name": "player-profile",
+    "path": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4",
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Bob"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": true,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4",
+    "snippet": "THE COUPON AL BO LEADERBOARD MEMBER RECORD Bob This league POINTS 0 RANK #3 WIN RATE 0% PICKS WON 0/1 What they pick CUMULATIVE ODDS 4.30 AVERAGE ODDS 4.30 POINTS PER PICK 0.00 BEST RETURN 0 pts LONGSHOTS (3.00+) 1 FAVOU"
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": 6,
+        "targets": [
+          {
+            "target": ".opacity-60.p-3.gap-3:nth-child(1) > .min-w-0.flex-1 > .gap-2.flex.items-center > .bg-surface-elevated.px-2\\.5.py-0\\.5",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.61 (foreground color: #555c6b, background color: #151924, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
+            "html": "<div class=\"inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors bg-surface-elevated text-text-muted border border-border\">1X2</div>",
+            "data": {
+              "fgColor": "#555c6b",
+              "bgColor": "#151924",
+              "contrastRatio": 2.61,
+              "fontSize": "9.0pt (12px)",
+              "fontWeight": "normal",
+              "messageKey": null,
+              "expectedContrastRatio": "4.5:1"
+            }
+          },
+          {
+            "target": ".opacity-60.p-3.gap-3:nth-child(1) > .items-end.gap-0\\.5.shrink-0 > .gap-1\\.5.flex > .text-caption.tabular-nums.text-text-muted",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.76 (foreground color: #555c6b, background color: #10131b, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
+            "html": "<span class=\"font-mono text-caption tabular-nums text-text-muted\">4.30</span>",
+            "data": {
+              "fgColor": "#555c6b",
+              "bgColor": "#10131b",
+              "contrastRatio": 2.76,
+              "fontSize": "9.0pt (12px)",
+              "fontWeight": "normal",
+              "messageKey": null,
+              "expectedContrastRatio": "4.5:1"
+            }
+          },
+          {
+            "target": ".opacity-60.p-3.gap-3:nth-child(1) > .items-end.gap-0\\.5.shrink-0 > .gap-1\\.5.flex > .bg-error\\/20.text-error.border-error\\/30",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.68 (foreground color: #9d3739, background color: #10131b, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
+            "html": "<div class=\"inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors bg-error/20 text-error border border-error/30\">Lost</div>",
+            "data": {
+              "fgColor": "#9d3739",
+              "bgColor": "#10131b",
+              "contrastRatio": 2.68,
+              "fontSize": "9.0pt (12px)",
+              "fontWeight": "normal",
+              "messageKey": null,
+              "expectedContrastRatio": "4.5:1"
+            }
+          },
+          {
+            "target": ".opacity-60.p-3.gap-3:nth-child(3) > .min-w-0.flex-1 > .gap-2.flex.items-center > .bg-surface-elevated.px-2\\.5.py-0\\.5",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.61 (foreground color: #555c6b, background color: #151924, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
+            "html": "<div class=\"inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors bg-surface-elevated text-text-muted border border-border\">1X2</div>",
+            "data": {
+              "fgColor": "#555c6b",
+              "bgColor": "#151924",
+              "contrastRatio": 2.61,
+              "fontSize": "9.0pt (12px)",
+              "fontWeight": "normal",
+              "messageKey": null,
+              "expectedContrastRatio": "4.5:1"
+            }
+          },
+          {
+            "target": ".opacity-60.p-3.gap-3:nth-child(3) > .items-end.gap-0\\.5.shrink-0 > .gap-1\\.5.flex > .text-caption.tabular-nums.text-text-muted",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.76 (foreground color: #555c6b, background color: #10131b, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
+            "html": "<span class=\"font-mono text-caption tabular-nums text-text-muted\">3.60</span>",
+            "data": {
+              "fgColor": "#555c6b",
+              "bgColor": "#10131b",
+              "contrastRatio": 2.76,
+              "fontSize": "9.0pt (12px)",
+              "fontWeight": "normal",
+              "messageKey": null,
+              "expectedContrastRatio": "4.5:1"
+            }
+          },
+          {
+            "target": ".opacity-60.p-3.gap-3:nth-child(3) > .items-end.gap-0\\.5.shrink-0 > .gap-1\\.5.flex > .bg-error\\/20.text-error.border-error\\/30",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.68 (foreground color: #9d3739, background color: #10131b, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
+            "html": "<div class=\"inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors bg-error/20 text-error border border-error/30\">Lost</div>",
+            "data": {
+              "fgColor": "#9d3739",
+              "bgColor": "#10131b",
+              "contrastRatio": 2.68,
+              "fontSize": "9.0pt (12px)",
+              "fontWeight": "normal",
+              "messageKey": null,
+              "expectedContrastRatio": "4.5:1"
+            }
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 6
+      }
+    ],
+    "passes": 38
+  },
+  "errors": []
+}

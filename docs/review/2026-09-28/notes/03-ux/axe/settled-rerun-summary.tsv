@@ -1,0 +1,9 @@
+file	path	persona	violations	proof
+coupon--settled--390--light	/leagues/the-coupon/predictions	Alice	color-contrast(s):4	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+coupon--settled--390--dark	/leagues/the-coupon/predictions	Alice	color-contrast(s):4	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+coupon--settled--1280--light	/leagues/the-coupon/predictions	Alice	color-contrast(s):4	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+coupon--settled--1280--dark	/leagues/the-coupon/predictions	Alice	color-contrast(s):4	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+player-profile--settled--390--light	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	color-contrast(s):6	{"sk":0,"err":0,"h1":["Bob"],"hs":0}
+player-profile--settled--390--dark	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	color-contrast(s):6	{"sk":0,"err":0,"h1":["Bob"],"hs":0}
+player-profile--settled--1280--light	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	color-contrast(s):8	{"sk":0,"err":0,"h1":["Bob"],"hs":0}
+player-profile--settled--1280--dark	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	color-contrast(s):8	{"sk":0,"err":0,"h1":["Bob"],"hs":0}

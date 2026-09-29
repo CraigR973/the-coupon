@@ -1,0 +1,13 @@
+file	path	persona	violations	proof
+current-round--locked-own--390--light	/leagues/the-coupon/predictions	Alice	0	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+current-round--locked-own--390--dark	/leagues/the-coupon/predictions	Alice	0	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+current-round--locked-own--1280--light	/leagues/the-coupon/predictions	Alice	0	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+current-round--locked-own--1280--dark	/leagues/the-coupon/predictions	Alice	0	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+home--locked--390--light	/	Alice	0	{"sk":0,"err":0,"h1":["Hi Alice"],"hs":0}
+home--locked--390--dark	/	Alice	0	{"sk":0,"err":0,"h1":["Hi Alice"],"hs":0}
+home--locked--1280--light	/	Alice	0	{"sk":0,"err":0,"h1":["Hi Alice"],"hs":0}
+home--locked--1280--dark	/	Alice	0	{"sk":0,"err":0,"h1":["Hi Alice"],"hs":0}
+admin-results--pending-settlement--390--light	/admin/results	Alice	0	{"sk":0,"err":0,"h1":["Results"],"hs":0}
+admin-results--pending-settlement--390--dark	/admin/results	Alice	0	{"sk":0,"err":0,"h1":["Results"],"hs":0}
+admin-results--pending-settlement--1280--light	/admin/results	Alice	0	{"sk":0,"err":0,"h1":["Results"],"hs":0}
+admin-results--pending-settlement--1280--dark	/admin/results	Alice	0	{"sk":0,"err":0,"h1":["Results"],"hs":0}

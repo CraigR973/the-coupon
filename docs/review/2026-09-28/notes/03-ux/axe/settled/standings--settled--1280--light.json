@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "settled",
+    "name": "standings",
+    "path": "/leagues/the-coupon/leaderboard",
+    "full": true,
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "The Coupon Test League"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": true,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/leaderboard",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL 2026/27 STANDINGS The Coupon Test League Manage YOUR LEAGUES TAP TO SWITCH Sunday Club The Coupon Test League SEASON PAST SEASONS 2026/27 NOW 2025/26 Copy s"
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/leaderboard",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "settled",
+    "name": "results",
+    "path": "/leagues/the-coupon/predictions/results",
+    "full": true,
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "Season"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": true,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/predictions/results",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL THE COUPON TEST LEAGUE · EVERY SETTLED GAMEWEEK Season YOUR LEAGUES TAP TO SWITCH Sunday Club The Coupon Test League Current round Season Gameweek 1b Carol "
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/predictions/results",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 35
+  },
+  "errors": []
+}

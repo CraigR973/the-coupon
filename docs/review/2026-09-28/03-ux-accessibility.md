@@ -187,10 +187,34 @@ an `overflow` ancestor, and two patterns clip it:
 - **Partly:** chips inside horizontal scroll strips (the round's "Current round / Season" sub-nav,
   the league switcher, the season strip, the site-admin sub-nav) lose the top and bottom of the
   ring to `overflow-x: auto`; the sides remain at 4.72:1 light / 7.62:1 dark, so focus is visible
-  but the ring is broken (17 stops across 3 pages).
+  but the ring is broken (23 stops across 3 pages; the remaining 4 failing stops are the obscured selections of UX-28).
 
 **Fix:** an inset ring (`inset 0 0 0 2px`) or `outline` with a negative offset for controls that
 sit flush inside clipping containers; `py-1` on the scroll strips so the ring has room.
+
+## UX-30 · MED · live · verified — Escape on every other dialog still drops focus onto the page body
+
+Batch 167 fixed UX-16 for the bottom-nav "More" sheet only, and that fix holds (Escape returns
+focus to "More", `:focus-visible`). Every other dialog in the app is opened from state rather than
+from a Radix `Dialog.Trigger`, and has the exact defect UX-16 described. Driven from the keyboard
+at 1280 (`notes/03-ux/keyboard2.mjs`, `keyboard2.txt`): open, confirm focus moved inside, Tab 12×
+(containment held in all five — 0 escapes), Escape:
+
+| dialog | focus after Escape | next Tab lands on |
+| --- | --- | --- |
+| Leave league (League actions menu, league admin) | `<body>` | "Home", top of the page |
+| Delete league (League actions menu) | `<body>` | "Home" |
+| Leave (standings, member) | `<body>` | "Home" |
+| Leave league (members page) | `<body>` | "Home" |
+| Delete player (site admin) | `<body>` | "Home" |
+
+The two menus (account, League actions) return focus correctly.
+
+**Member impact:** a keyboard user who backs out of "Leave league" is thrown to the top of the page
+and has to Tab back through the whole header to find their place.
+
+**Fix:** the TabBar pattern — keep a ref to the opening control and focus it in
+`onCloseAutoFocus` — in one shared wrapper, so the next dialog cannot miss it.
 
 ## Checked and found nothing material
 

@@ -1,0 +1,33 @@
+file	path	persona	violations	proof
+current-round--settled--390--light	/leagues/the-coupon/predictions	Alice	0	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+current-round--settled--390--dark	/leagues/the-coupon/predictions	Alice	0	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+current-round--settled--1280--light	/leagues/the-coupon/predictions	Alice	0	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+current-round--settled--1280--dark	/leagues/the-coupon/predictions	Alice	0	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+coupon--settled--390--light	/leagues/the-coupon/predictions	Alice	color-contrast(s):4	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+coupon--settled--390--dark	/leagues/the-coupon/predictions	Alice	color-contrast(s):4	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+coupon--settled--1280--light	/leagues/the-coupon/predictions	Alice	color-contrast(s):4	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+coupon--settled--1280--dark	/leagues/the-coupon/predictions	Alice	color-contrast(s):4	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+home--settled--390--light	/	Alice	0	{"sk":0,"err":0,"h1":["Hi Alice"],"hs":0}
+home--settled--390--dark	/	Alice	0	{"sk":0,"err":0,"h1":["Hi Alice"],"hs":0}
+home--settled--1280--light	/	Alice	0	{"sk":0,"err":0,"h1":["Hi Alice"],"hs":0}
+home--settled--1280--dark	/	Alice	0	{"sk":0,"err":0,"h1":["Hi Alice"],"hs":0}
+results--settled--390--light	/leagues/the-coupon/predictions/results	Alice	0	{"sk":0,"err":0,"h1":["Season"],"hs":0}
+results--settled--390--dark	/leagues/the-coupon/predictions/results	Alice	0	{"sk":0,"err":0,"h1":["Season"],"hs":0}
+results--settled--1280--light	/leagues/the-coupon/predictions/results	Alice	0	{"sk":0,"err":0,"h1":["Season"],"hs":0}
+results--settled--1280--dark	/leagues/the-coupon/predictions/results	Alice	0	{"sk":0,"err":0,"h1":["Season"],"hs":0}
+standings--settled--390--light	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":0,"h1":["The Coupon Test League"],"hs":0}
+standings--settled--390--dark	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":0,"h1":["The Coupon Test League"],"hs":0}
+standings--settled--1280--light	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":0,"h1":["The Coupon Test League"],"hs":0}
+standings--settled--1280--dark	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":0,"h1":["The Coupon Test League"],"hs":0}
+player-profile--settled--390--light	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	color-contrast(s):6	{"sk":0,"err":0,"h1":["Bob"],"hs":0}
+player-profile--settled--390--dark	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	color-contrast(s):6	{"sk":0,"err":0,"h1":["Bob"],"hs":0}
+player-profile--settled--1280--light	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	color-contrast(s):8	{"sk":0,"err":0,"h1":["Bob"],"hs":0}
+player-profile--settled--1280--dark	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	color-contrast(s):8	{"sk":0,"err":0,"h1":["Bob"],"hs":0}
+career-profile--settled--390--light	/profile	Alice	0	{"sk":0,"err":0,"h1":["Alice"],"hs":0}
+career-profile--settled--390--dark	/profile	Alice	0	{"sk":0,"err":0,"h1":["Alice"],"hs":0}
+career-profile--settled--1280--light	/profile	Alice	0	{"sk":0,"err":0,"h1":["Alice"],"hs":0}
+career-profile--settled--1280--dark	/profile	Alice	0	{"sk":0,"err":0,"h1":["Alice"],"hs":0}
+admin-results--settled--390--light	/admin/results	Alice	0	{"sk":0,"err":0,"h1":["Results"],"hs":0}
+admin-results--settled--390--dark	/admin/results	Alice	0	{"sk":0,"err":0,"h1":["Results"],"hs":0}
+admin-results--settled--1280--light	/admin/results	Alice	0	{"sk":0,"err":0,"h1":["Results"],"hs":0}
+admin-results--settled--1280--dark	/admin/results	Alice	0	{"sk":0,"err":0,"h1":["Results"],"hs":0}

@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "settled",
+    "name": "current-round",
+    "path": "/leagues/the-coupon/predictions",
+    "full": true,
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "This week's coupon"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": true,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/predictions",
+    "snippet": "THE COUPON AL THE COUPON TEST LEAGUE · GAMEWEEK 1B This week's coupon YOUR LEAGUES TAP TO SWITCH Sunday Club The Coupon Test League Current round Season GAMEWEEK 1B Settled 3 picks Round settled 3 of 3 picked YOUR PICK A"
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/predictions",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 8
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

@@ -1,0 +1,107 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "settled",
+    "name": "coupon",
+    "path": "/leagues/the-coupon/predictions#coupon",
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "This week's coupon"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": true,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/predictions",
+    "snippet": "THE COUPON AL THE COUPON TEST LEAGUE · GAMEWEEK 1B This week's coupon YOUR LEAGUES TAP TO SWITCH Sunday Club The Coupon Test League Current round Season GAMEWEEK 1B Settled 3 picks Round settled 3 of 3 picked YOUR PICK A"
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/predictions#coupon",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": 4,
+        "targets": [
+          {
+            "target": "li[data-testid=\"acca-leg-0\"] > .flex-1.min-w-0 > .break-words.text-text-secondary",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.24 (foreground color: #5d6776, background color: #10131b, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
+            "html": "<p class=\"break-words font-sans text-xs text-text-secondary\">Bob</p>",
+            "data": {
+              "fgColor": "#5d6776",
+              "bgColor": "#10131b",
+              "contrastRatio": 3.24,
+              "fontSize": "9.0pt (12px)",
+              "fontWeight": "normal",
+              "messageKey": null,
+              "expectedContrastRatio": "4.5:1"
+            }
+          },
+          {
+            "target": "li[data-testid=\"acca-leg-0\"] > .flex-1.min-w-0 > .line-clamp-2",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.76 (foreground color: #555c6b, background color: #10131b, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
+            "html": "<p class=\"line-clamp-2 font-sans text-xs text-text-muted\">at Arsenal · English Premier League</p>",
+            "data": {
+              "fgColor": "#555c6b",
+              "bgColor": "#10131b",
+              "contrastRatio": 2.76,
+              "fontSize": "9.0pt (12px)",
+              "fontWeight": "normal",
+              "messageKey": null,
+              "expectedContrastRatio": "4.5:1"
+            }
+          },
+          {
+            "target": ".border-error\\/30",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.68 (foreground color: #9d3739, background color: #10131b, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
+            "html": "<div class=\"inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors bg-error/20 text-error border border-error/30\">Lost</div>",
+            "data": {
+              "fgColor": "#9d3739",
+              "bgColor": "#10131b",
+              "contrastRatio": 2.68,
+              "fontSize": "9.0pt (12px)",
+              "fontWeight": "normal",
+              "messageKey": null,
+              "expectedContrastRatio": "4.5:1"
+            }
+          },
+          {
+            "target": "li[data-testid=\"acca-leg-0\"] > .items-end.gap-0\\.5.shrink-0 > .tabular-nums.text-caption.font-mono",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.76 (foreground color: #555c6b, background color: #10131b, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
+            "html": "<span class=\"font-mono text-caption tabular-nums text-text-muted\">0 pts</span>",
+            "data": {
+              "fgColor": "#555c6b",
+              "bgColor": "#10131b",
+              "contrastRatio": 2.76,
+              "fontSize": "9.0pt (12px)",
+              "fontWeight": "normal",
+              "messageKey": null,
+              "expectedContrastRatio": "4.5:1"
+            }
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 5
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

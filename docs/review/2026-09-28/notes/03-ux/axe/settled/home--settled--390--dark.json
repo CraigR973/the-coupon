@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "settled",
+    "name": "home",
+    "path": "/",
+    "full": true,
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Hi Alice"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": true,
+    "settledText": true,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/",
+    "snippet": "THE COUPON AL THE COUPON · YOUR SEASON Hi Alice 2 leagues, one clear view of every round. You’re all caught up POINTS 19 PICKS WON 1/1 WIN RATE 100% Your leagues 2 IN PLAY Sunday Club GAMEWEEK 1B Round in progress Locked"
+  },
+  "axe": {
+    "url": "/",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 13
+      }
+    ],
+    "passes": 39
+  },
+  "errors": []
+}

@@ -25,10 +25,26 @@ first paint. 390 captures use a desktop UA at 390×844 (the layout an installed 
 install gate is UA-triggered and is captured separately as `install-gate--mobile-browser`).
 Personas: Alice = site admin + league admin of the-coupon; Bob = member; Dave = no league.
 Last column: axe-core 4.10.2 violations at capture (`rule:nodes`), `—` = not run.
-Duplicate hashes: 8 groups (see `notes/03-ux/duplicates.txt`).
+Duplicate hashes: 12 groups (see `notes/03-ux/duplicates.txt`).
 
 | file | url at capture | state | width | theme | sha256 | state confirmed by | axe |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| `admin-results--pending-settlement--1280--dark.png` | `/admin/results` | pending-settlement | 1280 | dark | `c1e1b5682515` | Alice: h1 “Results” | 0 |
+| `admin-results--pending-settlement--1280--light.png` | `/admin/results` | pending-settlement | 1280 | light | `aa1f925dec34` | Alice: h1 “Results” | 0 |
+| `admin-results--pending-settlement--390--dark.png` | `/admin/results` | pending-settlement | 390 | dark | `07572dd7cf2b` | Alice: h1 “Results” | 0 |
+| `admin-results--pending-settlement--390--light.png` | `/admin/results` | pending-settlement | 390 | light | `c86bcf572cc0` | Alice: h1 “Results” | 0 |
+| `current-round--locked-own--1280--dark.png` | `/leagues/the-coupon/predictions` | locked-own | 1280 | dark | `3d5c37ccb2b1` | Alice: round status locked (API); 'lock' text present | 0 |
+| `current-round--locked-own--1280--dark--full.png` | `/leagues/the-coupon/predictions` | locked-own (full page) | 1280 | dark | `9b2f0eb0382b` | Alice: round status locked (API); 'lock' text present | 0 |
+| `current-round--locked-own--1280--light.png` | `/leagues/the-coupon/predictions` | locked-own | 1280 | light | `8f7b4cb663cc` | Alice: round status locked (API); 'lock' text present | 0 |
+| `current-round--locked-own--1280--light--full.png` | `/leagues/the-coupon/predictions` | locked-own (full page) | 1280 | light | `6c2eb7c00aea` | Alice: round status locked (API); 'lock' text present | 0 |
+| `current-round--locked-own--390--dark.png` | `/leagues/the-coupon/predictions` | locked-own | 390 | dark | `b7f470e332e7` | Alice: round status locked (API); 'lock' text present | 0 |
+| `current-round--locked-own--390--dark--full.png` | `/leagues/the-coupon/predictions` | locked-own (full page) | 390 | dark | `d04839c46e72` | Alice: round status locked (API); 'lock' text present | 0 |
+| `current-round--locked-own--390--light.png` | `/leagues/the-coupon/predictions` | locked-own | 390 | light | `69439e3ba07e` | Alice: round status locked (API); 'lock' text present | 0 |
+| `current-round--locked-own--390--light--full.png` | `/leagues/the-coupon/predictions` | locked-own (full page) | 390 | light | `717aefb39d95` | Alice: round status locked (API); 'lock' text present | 0 |
+| `home--locked--1280--dark.png` | `/` | locked | 1280 | dark | `a65cd186c846` | Alice: round status locked (API); 'lock' text present | 0 |
+| `home--locked--1280--light.png` | `/` | locked | 1280 | light | `32457444b87c` | Alice: round status locked (API); 'lock' text present | 0 |
+| `home--locked--390--dark.png` | `/` | locked | 390 | dark | `f9ed25f21698` | Alice: round status locked (API); 'lock' text present | 0 |
+| `home--locked--390--light.png` | `/` | locked | 390 | light | `6dc078818511` | Alice: round status locked (API); 'lock' text present | 0 |
 | `about--happy--1280--dark.png` | `/about` | happy | 1280 | dark | `b82d0aa7ff79` | Alice: h1 “About & scoring rules” | 0 |
 | `about--happy--1280--dark--full.png` | `/about` | happy (full page) | 1280 | dark | `3329c3d6dd93` | Alice: h1 “About & scoring rules” | 0 |
 | `about--happy--1280--light.png` | `/about` | happy | 1280 | light | `4a250cb590bc` | Alice: h1 “About & scoring rules” | 0 |
@@ -374,6 +390,46 @@ Duplicate hashes: 8 groups (see `notes/03-ux/duplicates.txt`).
 | `football--results--1280--light.png` | `/football?date=2026-05-02` | results | 1280 | light | `9689bbc1dab1` | Alice: h1 “Football Stats” | 0 |
 | `football--results--390--dark.png` | `/football?date=2026-05-02` | results | 390 | dark | `b48ecd5168c7` | Alice: h1 “Football Stats” | 0 |
 | `football--results--390--light.png` | `/football?date=2026-05-02` | results | 390 | light | `4b4cce16d878` | Alice: h1 “Football Stats” | 0 |
+| `admin-results--settled--1280--dark.png` | `/admin/results` | settled | 1280 | dark | `665ee7f902eb` | Alice: settled via API | 0 |
+| `admin-results--settled--1280--light.png` | `/admin/results` | settled | 1280 | light | `1b8084882a93` | Alice: settled via API | 0 |
+| `admin-results--settled--390--dark.png` | `/admin/results` | settled | 390 | dark | `359ed914b333` | Alice: settled via API | 0 |
+| `admin-results--settled--390--light.png` | `/admin/results` | settled | 390 | light | `e0bedfccdf80` | Alice: settled via API | 0 |
+| `career-profile--settled--1280--dark.png` | `/profile` | settled | 1280 | dark | `037768d6b7f5` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `career-profile--settled--1280--light.png` | `/profile` | settled | 1280 | light | `6b4b80b70356` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `career-profile--settled--390--dark.png` | `/profile` | settled | 390 | dark | `779760f2db30` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `career-profile--settled--390--light.png` | `/profile` | settled | 390 | light | `5a809e462282` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `coupon--settled--1280--dark.png` | `/leagues/the-coupon/predictions` | settled | 1280 | dark | `3fe07f7b1d26` | Alice: won/lost/settled text present after `/__e2e/settle` | color-contrast:4 |
+| `coupon--settled--1280--light.png` | `/leagues/the-coupon/predictions` | settled | 1280 | light | `ec34ad4f24a1` | Alice: won/lost/settled text present after `/__e2e/settle` | color-contrast:4 |
+| `coupon--settled--390--dark.png` | `/leagues/the-coupon/predictions` | settled | 390 | dark | `fcb01905e9d9` | Alice: won/lost/settled text present after `/__e2e/settle` | color-contrast:4 |
+| `coupon--settled--390--light.png` | `/leagues/the-coupon/predictions` | settled | 390 | light | `2d83acc9e81e` | Alice: won/lost/settled text present after `/__e2e/settle` | color-contrast:4 |
+| `current-round--settled--1280--dark.png` | `/leagues/the-coupon/predictions` | settled | 1280 | dark | `e6c9e665e16e` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `current-round--settled--1280--dark--full.png` | `/leagues/the-coupon/predictions` | settled (full page) | 1280 | dark | `2cfbc70976d7` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `current-round--settled--1280--light.png` | `/leagues/the-coupon/predictions` | settled | 1280 | light | `0c636b68f1c2` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `current-round--settled--1280--light--full.png` | `/leagues/the-coupon/predictions` | settled (full page) | 1280 | light | `992b1614ca0e` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `current-round--settled--390--dark.png` | `/leagues/the-coupon/predictions` | settled | 390 | dark | `804a2bac239f` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `current-round--settled--390--dark--full.png` | `/leagues/the-coupon/predictions` | settled (full page) | 390 | dark | `59b358594f09` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `current-round--settled--390--light.png` | `/leagues/the-coupon/predictions` | settled | 390 | light | `f63a20b9ba01` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `current-round--settled--390--light--full.png` | `/leagues/the-coupon/predictions` | settled (full page) | 390 | light | `d8254e83bb27` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `home--settled--1280--dark.png` | `/` | settled | 1280 | dark | `007712d80abd` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `home--settled--1280--dark--full.png` | `/` | settled (full page) | 1280 | dark | `42114b0fbf35` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `home--settled--1280--light.png` | `/` | settled | 1280 | light | `5d592a4a8c3d` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `home--settled--1280--light--full.png` | `/` | settled (full page) | 1280 | light | `e55c9d21e013` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `home--settled--390--dark.png` | `/` | settled | 390 | dark | `b3aee0d4b8b7` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `home--settled--390--dark--full.png` | `/` | settled (full page) | 390 | dark | `d3673f098174` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `home--settled--390--light.png` | `/` | settled | 390 | light | `b07d67766b18` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `home--settled--390--light--full.png` | `/` | settled (full page) | 390 | light | `e0312753efcb` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `player-profile--settled--1280--dark.png` | `/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4` | settled | 1280 | dark | `1f3f26145c54` | Alice: won/lost/settled text present after `/__e2e/settle` | color-contrast:8 |
+| `player-profile--settled--1280--light.png` | `/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4` | settled | 1280 | light | `aff584f8cae4` | Alice: won/lost/settled text present after `/__e2e/settle` | color-contrast:8 |
+| `player-profile--settled--390--dark.png` | `/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4` | settled | 390 | dark | `21bc70abaa28` | Alice: won/lost/settled text present after `/__e2e/settle` | color-contrast:6 |
+| `player-profile--settled--390--light.png` | `/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4` | settled | 390 | light | `e7b56c967bf1` | Alice: won/lost/settled text present after `/__e2e/settle` | color-contrast:6 |
+| `results--settled--1280--dark.png` | `/leagues/the-coupon/predictions/results` | settled | 1280 | dark | `9f4526a64762` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `results--settled--1280--light.png` | `/leagues/the-coupon/predictions/results` | settled | 1280 | light | `0482ebcc6e03` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `results--settled--390--dark.png` | `/leagues/the-coupon/predictions/results` | settled | 390 | dark | `1b4a15e2349c` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `results--settled--390--light.png` | `/leagues/the-coupon/predictions/results` | settled | 390 | light | `2e9db6ca90c5` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `standings--settled--1280--dark.png` | `/leagues/the-coupon/leaderboard` | settled | 1280 | dark | `fd270c744fd7` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `standings--settled--1280--light.png` | `/leagues/the-coupon/leaderboard` | settled | 1280 | light | `118a9e7d8703` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `standings--settled--390--dark.png` | `/leagues/the-coupon/leaderboard` | settled | 390 | dark | `c6c52921129a` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
+| `standings--settled--390--light.png` | `/leagues/the-coupon/leaderboard` | settled | 390 | light | `756765cb737a` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
 | `current-round--pick-confirm--390--light.png` | `/leagues/the-coupon/predictions` | pick-confirm | 390 | light | `805cd41470b3` | Carol, real POST by Carol: success toast "Grabbed Arsenal @ 1.90"…; role=status; gap to tab bar 15px, to viewport bottom 76px | — |
 | `current-round--pick-conflict--390--light.png` | `/leagues/the-coupon/predictions` | pick-conflict | 390 | light | `521cfddeb758` | Alice, POST fulfilled 409 SELECTION_TAKEN (API shape, mocked; see notes): warning toast "Someone in your league just grabbed that selection — pick a…; role=alert; gap to tab bar 15px, to viewport bottom 76px | — |
 | `current-round--pick-pricemoved--390--light.png` | `/leagues/the-coupon/predictions` | pick-pricemoved | 390 | light | `6f50f6edccd3` | Alice, POST fulfilled 409 PRICE_MOVED:9.99 (API shape, mocked): warning toast "That price moved before your pick landed — it’s now 9.99. T…; role=alert; gap to tab bar 15px, to viewport bottom 76px | — |
