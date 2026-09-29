@@ -25,8 +25,8 @@ serves (web and API in sync per the lead's drift check), so every finding is **l
   with the close-out guard's own path rules, and scanned hunk by hunk for skip, xfail,
   `.only`, `.todo`, `type: ignore`, `eslint-disable`, `noqa`, removed test functions,
   removed or changed assertions and ratchet changes. Every hit was read by hand.
-- **The guards, replayed.** In a push-less scratch clone, for each of the 55 non-docs
-  commits, local `main` was set to its parent and the guardrail and close-out guard were run
+- **The guards, replayed.** In a push-less scratch clone, for each of the 54 code commits
+  after Batch 152's bootstrap (`5cefff3`, which introduced the guards), local `main` was set to its parent and the guardrail and close-out guard were run
   **as they existed at that commit** (the drift check stubbed, since the real one calls
   production).
 - **The gate, attacked.** In a throwaway worktree (`throwaway/pipeline-probe`, never
@@ -54,8 +54,8 @@ Scripts and raw output: `notes/07-pipeline/` (`replay_guards.sh`, `gate_probes.s
 | PIPE-01 | owner, by hand | **not fixed** | `.claude/settings.local.json` unchanged since 30 Jul: `Bash(*)`, `mcp__supabase__execute_sql` allowed, `rm -rf` rules for other repositories, `enableAllProjectMcpServers: true`. `.mcp.json` binds the Supabase server to a project that is neither the staging project in `.codex/config.toml` nor production, with no read-only flag (compared by equality, never printed). **Driven:** this review's own session was offered the whole Supabase tool family — `execute_sql`, `apply_migration`, `delete_branch`, `merge_branch`, `deploy_edge_function` — and did not call it |
 | PIPE-02 | 153 | **partial** | Both hooks now say close out automatically (identical commands, `.claude/settings.json` = `.codex/hooks.json`). Re-driven in the worktree: the hook is **silent on a dirty batch tree**, which is the state at the close-out decision (the diff is uncommitted until close-out step 4), and on a clean branch with no batch it said to run `/phase-closeout`. See PIPE-17 |
 | PIPE-03 | 152 | **held** | Re-driven on port 4291 (4173 is the lead's): the real script with only the port changed, the port held by another server — Vite reported "Port 4291 is already in use" and the smoke failed in one second, "preview failed before readiness (exit 1)", before Playwright ran. Small fragility: the readiness pattern hard-codes `4173` separately from `PORT` |
-| PIPE-04 | 152 | **partial** | Counts are recorded and ratcheted, and a fall, a skip or an xfail fails the gate; lowering the ratchet is refused (probe G03). But a loosened assertion, a swapped-in trivial test, `type: ignore`, `eslint-disable`, `.todo`, and five unprotected config files all pass — and the guardrail can be switched off from the branch. See PIPE-10 |
-| PIPE-05 | 152 | **partial** | Replayed: the guard as it stood refuses all seven API+web batches (123, 124, 143, 156, 157, 136, 148) and passes the other 48. Drift now runs before the push. But existing drift is only reported: a web-only batch over an owed `/ship-prod` passes (probe). See PIPE-14 |
+| PIPE-04 | 152 | **partial** | Counts are recorded and ratcheted, and a fall, a skip or an xfail fails the gate; lowering the ratchet is refused (probe G03). But a loosened assertion, a swapped-in trivial test, `type: ignore`, `eslint-disable`, `.todo`, `conftest.py` and six unprotected config files all pass — and the guardrail can be switched off from the branch. See PIPE-10 |
+| PIPE-05 | 152 | **partial** | Replayed: the guard as it stood refuses all seven API+web batches (123, 124, 143, 156, 157, 136, 148) and passes the other 47. Drift now runs before the push. But existing drift is only reported: a web-only batch over an owed `/ship-prod` passes (probe). See PIPE-14 |
 | PIPE-06 | 153 | **partial** | Figures now carry dates, as the fix asked; they have drifted again — "780 passed, 520 skipped" at 1,300 tests in `AGENTS.md`, `batch-verify.md` and `phase-closeout.md` against a ratchet of 1,350 — and `AGENTS.md` still sends agents to "step 8's push", which is step 9 since Batch 152 inserted the safety step. Re-measured at `eb18bcb` without a database: **800 passed, 550 skipped** (29 Sep, 1,350 tests). |
 | PIPE-07 | 154 | **held**, with a leak | `/next-batch-prompt` reads **38.3 KB** today (Batch 154 said 38 KB). But 14.7 KB of the 18.8 KB build-plan head is seven *ticked* rows, because nothing moves a row out when it closes. See PIPE-18 |
 | PIPE-08 | 155 | **held** | Every proper-noun token Batch 155 removed has **zero** hits on `main` (checked by hashing, never printed). History was not rewritten, per the owner's decision |
@@ -67,7 +67,7 @@ Scripts and raw output: `notes/07-pipeline/` (`replay_guards.sh`, `gate_probes.s
 
 | id | sev | deploy | status | finding |
 | --- | --- | --- | --- | --- |
-| PIPE-10 | MED | live | verified | The gate is judged by the branch's own copy of the gate, and five unprotected config files switch its checks off |
+| PIPE-10 | MED | live | verified | The gate is judged by the branch's own copy of the gate, and unprotected config files switch its checks off |
 | PIPE-11 | MED | live | verified | The protected smoke script was changed three times on branches the guardrail refuses, with no record |
 | PIPE-12 | MED | live | verified | CI went red eight times in a week, three batch close-outs pushed on red, and nothing reads it |
 | PIPE-13 | MED | live | verified | The only end-to-end journey is outside the gate; it rotted for five days and one batch deployed before running it |
@@ -199,8 +199,8 @@ This reverses a written instruction, so it is an owner decision below.
 
 ## PIPE-13 · MED · live · verified — the only end-to-end journey is outside the gate
 
-`apps/web/e2e/coupon-flow.spec.ts` is the one test that registers members, picks, settles
-and reads standings through the production bundle. Neither `ci-local.sh` nor CI runs it:
+`apps/web/e2e/coupon-flow.spec.ts` is the one test in which members claim unique picks, the
+round locks and settles, and standings are read — through the real bundle and API. Neither `ci-local.sh` nor CI runs it:
 `playwright.prod-bundle.config.ts` matches `prod-bundle*.spec.ts` only, and the journey is
 `pnpm e2e`, run by hand.
 
@@ -208,7 +208,7 @@ It rotted. Batch 139 (23 Sep 01:34) opened the first competition by default, and
 still asserted no pick card was visible; Batch 157 (23 Sep 17:15) removed "Averaged over 1 of
 your 2 leagues", which the journey still expected. Both batches closed green. The journey was
 repaired five days later by `83facaf` (28 Sep), an out-of-batch commit with no session-log
-entry of its own. For those five days a batch that broke register → pick → settle would have
+entry of its own. For those five days a batch that broke pick → lock → settle would have
 deployed on a green gate.
 
 Group Z then leaned on it as evidence ("production-bundle coupon journey passed" in four
@@ -306,7 +306,7 @@ cold start reads, until someone moves them by hand.
 For scale: `docs/BUILD_PLAN.md` grew from 287 KB to 353 KB since `2ce6f42`, and
 `session-log.md` from 271 KB to 541 KB (it now also carries the old STATUS archive). Neither
 is read whole by any workflow; the risk is a tool that loads a file from the top — a 2,000-line
-default read of `session-log.md` is roughly 35k tokens of history before the entry being
+default read of `session-log.md` is 146 KB, roughly 36k tokens, of history before the entry being
 appended. `/batch-start` reads about 22 KB plus its row; `/group-start` about 45-50 KB before
 its first batch (its own file, `09-prompts.md`, the group's section of `08-sequencing.md`,
 STATUS and recent entries).
@@ -369,7 +369,7 @@ STATUS and recent entries).
 
 | hazard | 2026-09-13 | today |
 | --- | --- | --- |
-| Never weaken the gate | prose only | **script, partial**: config edits by name and falling counts are refused; the guardrail runs from the branch, five precedence files are unprotected, content changes are invisible (PIPE-10) |
+| Never weaken the gate | prose only | **script, partial**: config edits by name and falling counts are refused; the guardrail runs from the branch, precedence config files and `conftest.py` are unprotected, content changes are invisible (PIPE-10) |
 | Test counts must not fall | nothing | **script**, exact ratchet — local gate only; CI does not check (PIPE-12) |
 | Gate edits need owner approval | — | **script**, but the approval table is editable from the branch it approves (PIPE-10) |
 | Drift before shipping | script, after the push | **script, before the push**; existing drift only reported (PIPE-14) |

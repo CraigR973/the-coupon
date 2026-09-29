@@ -28,12 +28,11 @@ Do not touch the pre-existing worktree `/private/tmp/the-coupon-main-batch149` (
 
 ## Exact next step
 
-(29 Sep 14:17) Worktree `<scratchpad>/wt-pipeline` exists on `throwaway/pipeline-probe`
-at eb18bcb with `pnpm install --offline` done. Scratch clone `<scratchpad>/replay` (origin
-removed) exists for historical replays. Next: guardrail-only probes in the worktree (one at a
-time, `git -C wt checkout -- .` between), then config-precedence probes (ruff.toml,
-mypy.ini, nested .eslintrc, vitest.config.ts), then one combined SKIP_PROD_BUNDLE=1 gate.
-Write findings into `../../07-agent-pipeline.md` as each is verified.
+**DONE (29 Sep ~15:05).** Lens document complete: `../../07-agent-pipeline.md`. Worktree
+`wt-pipeline` removed (rm + `git worktree prune`; git 2.16 has no `worktree remove`),
+branch `throwaway/pipeline-probe` deleted, scratch clone removed, no processes left. The
+pre-existing `/private/tmp/the-coupon-main-batch149` worktree was not touched. Nothing left
+to do for lens 07 except answer the lead's questions.
 
 ## Working findings so far (resume context; evidence files are beside this one)
 
