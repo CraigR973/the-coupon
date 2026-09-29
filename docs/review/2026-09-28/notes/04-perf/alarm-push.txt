@@ -1,0 +1,6 @@
+stale run 1: alarm=True pushes=1
+stale run 2: alarm=True pushes=0
+stale run 3: alarm=True pushes=0
+healthy run: alarm=False pushes=0
+recipients: ['https://push.invalid/e7b95592-a83a-4bb1-b79d-ae69ef4b27d6']
+payload: {"title": "The Coupon has stopped building rounds", "body": "No new round has be

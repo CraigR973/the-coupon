@@ -1,0 +1,28 @@
+$ bash scripts/check-migration-recovery.sh --deployed 026
+migration recovery: PASS — this shipment applies no migration (production at 026)
+exit 0
+
+$ bash scripts/check-migration-recovery.sh --deployed 025
+migration recovery: this shipment applies 1 revision(s) past 025
+  Each one removes the rollback target until a later shipment applies none.
+
+  026  PASS — docs/runbooks/migration-026-recovery.md (99 lines)
+
+migration recovery: PASS — every applied revision has a written plan.
+exit 0
+
+$ bash scripts/check-migration-recovery.sh --deployed 024
+migration recovery: this shipment applies 2 revision(s) past 024
+  Each one removes the rollback target until a later shipment applies none.
+
+  025  FAIL — no plan at docs/runbooks/migration-025-recovery.md
+         The plan belongs to the batch that adds the revision, not to the shipment.
+         docs/runbooks/migrations.md says what it has to answer.
+  026  PASS — docs/runbooks/migration-026-recovery.md (99 lines)
+
+migration recovery: REFUSED — do not upload.
+exit 1
+
+$ bash scripts/check-migration-recovery.sh --plan-for 025 026
+  revision 025 -> no plan at docs/runbooks/migration-025-recovery.md
+exit 1

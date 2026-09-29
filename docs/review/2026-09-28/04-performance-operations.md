@@ -150,6 +150,9 @@ leaves out (see Doc corrections).
 | PERF-02 | owner decision (one worker; move the scheduler out before ~10 leagues) | **unchanged, as decided** | still one uvicorn process with the scheduler inside it (`nixpacks.toml` start command, `main.py` lifespan); one live league. Concurrency re-timing *pending a quiet machine* |
 | OPS-17 | none | **not fixed** | `create_scheduler()` started paused: all **13** registered jobs have `misfire_grace_time = 1`; only the switched-off `offsite_backup` sets 3,600 (`jobs.json`). Re-driven: the real `lock_gameweeks` job, due while the loop was busy 0.5 s, ran; busy 1.5 s, it was **dropped** — "was missed by 0:00:01.4" (`misfire-demo.txt`) |
 | OPS-18 | none | **not fixed** | on a Saturday **every hour** at :00 runs `lock_gameweeks` + `live_scores`, and 06:00, 07:00, 09:00, 11:00, 18:00, 20:00 and 22:00 add discovery, the warm pass, the refresh or settle — three jobs in one second. `coalesce=True, max_instances=1` still drops an overrun. At the stress shape with an instant provider the costliest are settle (32 statements, ~1.0 s at load 6) and discovery (19, 88 ms); the rest are 1-2 statements (`jobs.json`) |
+| OPS-12 | 128 | **held** | rehearsed locally (`ops12-recovery-rehearsal.txt`): `--deployed 026` → PASS, nothing applied; `--deployed 025` → PASS, 026's 99-line plan found; `--deployed 024` → **exit 1**, "025 FAIL — no plan"; `--plan-for 025 026` → exit 1. `ship-prod.md` step 7 runs it and says exit 1 or 2 may not be uploaded past. Enforcement is the workflow's instruction to an agent, not a hook (lens 07's territory) |
+| OPS-13 | 95 (built, switched off) | **not fixed — open across four reviews** | Batch 95's weekly job registers only when `BACKUP_STORAGE` is not `none` (`scheduler.py:1070`, default `none`, `config.py:326`); STATUS (28 Sep) records it off and "no backup yet". Not observable read-only. **RPO today: unbounded** — no durable copy of production has ever existed (Batch 75 removed a nightly dump that only ever wrote to `/tmp`); **RTO: undefined**, because there is nothing to restore. Raised as FEAT-A02 (HIGH) on 26 Aug and OPS-13 (HIGH) on 13 Sep; deferred by the owner since 30 Jul. What remains is owner work, not code: the bucket, the key, the egress check (FEAT-A09's consumer is still unattributed) and one manual run |
+| OPS-14 | 129 | **held** | real `report_discovery_silence()` on the scratch DB with every round aged 10 days and one site admin subscribed: run 1 alarm + **1 push**, runs 2 and 3 alarm + **0 pushes** (durable cooldown), healthy run **0** (`alarm-push.txt`) |
 | PERF-03 | 145 | **held locally; not checkable in production read-only** | 264-fixture slate 299,134 B → 15,202 B with `content-encoding: gzip`, `vary: Accept-Encoding`; responses under 4 KB deliberately uncompressed. Production's only public API responses (`/health`, 82 B) sit below the floor, so no header could prove it (`prod-health-headers.txt`) |
 
 ## Register
@@ -160,6 +163,7 @@ leaves out (see Doc corrections).
 | PERF-20 | MED | live | verified | Each background fan-out holds a pooled connection for its whole run: a burst of picks in a big league exhausts the pool, fails picks with 500 and silently drops alerts |
 | PERF-21 | MED | live | verified | The slate refresh has no budget: five league windows spend 118 requests in each refresh hour |
 | PERF-23 | MED | live | verified (hour) | The installation pick bucket caps the whole deployment at 50 submissions an hour and 100 a day, counting changes of mind |
+| OPS-19 | LOW | tooling | verified | The deploy and rollback commands still run the Railway and Vercel CLIs on Node 20 |
 | PERF-22 | LOW | live | verified | framer-motion is still a declared dependency though nothing imports it |
 | PERF-18 | MED | live | verified | The slate makes two queries per competition on the card — 56 statements at production's 23 competitions |
 
@@ -261,9 +265,10 @@ total** (`pick-buckets.txt`). The bucket counts *submissions*, not provider requ
 by design it over-counts a re-pick — and a member changing their mind is a submission.
 
 So the deployment, not the league, now has room for one full league per hour and 100
-submissions per day. Two 25-member leagues locking at 14:30, or production's shape of
-five leagues and ~40 members each picking once and changing once on a Saturday, reach
-the ceiling, and the next member is refused with `PICKS_BUSY`. The suite asserts
+submissions per day. Two 25-member leagues whose members mostly pick in the hour before a
+shared 14:30 lock reach the hourly ceiling; 50 members across any number of leagues each
+picking once and changing once reach the daily one. The next member is refused with
+`PICKS_BUSY`. The suite asserts
 exactly this capacity (`test_the_installation_bucket_still_lets_a_full_league_take_its_picks`
 checks one league) and nothing checks two. The measured Saturday at one window spends
 289 of 500, so the day has room the bucket does not grant.
@@ -277,6 +282,29 @@ their pick at the deadline for a budget that is not actually spent.
 **Fix:** charge the installation bucket only when the pick path actually goes upstream
 (the cache knows whether the 60-second price was a hit), and size its day from what the
 measured day leaves spare rather than a round 100.
+
+## Deploy and rollback hygiene
+
+The rollback target today is a plain redeploy of Railway `e77dde8f` (the `c671ccf9`
+image), which STATUS records as booting against the current schema because the
+27 Sep shipment applied no migration. That reasoning is sound and the recovery gate
+confirms nothing is pending (`--deployed 026` → PASS), but **nothing asserts the
+rollback target itself** — the gate checks that pending revisions have plans, not that a
+named baseline image carries the deployed revision. It is recorded by hand in STATUS and
+in each shipment's session-log entry. Given migrations are additive-only by convention
+(`docs/runbooks/migrations.md`) that is acceptable; a one-line check that the baseline's
+image reports the same `migration` would make it mechanical.
+
+## OPS-19 · LOW · tooling · verified — the operator's CLIs run on an end-of-life Node
+
+Batch 127 moved CI, the gate and the web build to Node 24, but `ship-prod.md` still puts
+`~/.nvm/versions/node/v20.20.2` in front of the Vercel and Railway CLIs in nine places,
+including both rollback commands (`ship-prod.md:337`, `:344`), and STATUS says "run it
+with Node 20 first on PATH". Node 20 has been end-of-life since 30 April. Nothing member-
+facing runs on it; the risk is that the one procedure used under pressure depends on a
+runtime that no longer gets fixes and may be removed by the next `nvm` tidy.
+
+**Fix:** re-test both CLIs on Node 24 and update `ship-prod.md` and STATUS together.
 
 ## PERF-22 · LOW · live · verified — a removed library is still installed
 
