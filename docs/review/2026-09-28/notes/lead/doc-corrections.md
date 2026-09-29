@@ -16,6 +16,7 @@ corrections and left them). Each line: file — from → to — who found it.
 | `docs/review/2026-09-13/08-sequencing.md` | SEC-22 "Folded into Batch 127" → planned for 127, which left it out; see SEC-30 | 01 |
 | `docs/BUILD_PLAN.md` | the seven ticked rows under "Open batches" (115, 140, 148-151, 168) moved into `## Closed batches` at their written positions, content unchanged (verified by a sorted-line diff) | 07 (PIPE-18) |
 | `docs/BUILD_PLAN.md`, Batch 123 row | added a dated note that its API half does not hold (SEC-28) | 01 |
+| `screenshots/INDEX.md` (lens 03 rows) | 26 "happy"/"firstrun" captures of six screens were taken with the browser still offline; each row now says so and points to lens 06's `*-l06--*` re-capture | 06 |
 | `notes/07-pipeline/scan-test-diffs.txt` | one redacted member name replaced, and this branch's history rewritten so no commit carries it | 01 |
 
 **Consequence to know before merging:** `phase-closeout.md` is on the guardrail's

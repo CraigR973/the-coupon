@@ -114,10 +114,10 @@ confirm is a real POST; conflict, price-moved and busy replay the API's exact re
 | `coupon--open--1280--light.png` | `/leagues/the-coupon/predictions` | open | 1280 | light | `b70650ef2ac1` | Alice: h1 “This week's coupon” | 0 |
 | `coupon--open--390--dark.png` | `/leagues/the-coupon/predictions` | open | 390 | dark | `820b8d2c5c16` | Alice: h1 “This week's coupon” | 0 |
 | `coupon--open--390--light.png` | `/leagues/the-coupon/predictions` | open | 390 | light | `34c8f711dc0f` | Alice: h1 “This week's coupon” | 0 |
-| `create-league--happy--1280--dark.png` | `/leagues/new` | happy | 1280 | dark | `2b4b812039ea` | Alice: h1 “Create a League” | 0 |
-| `create-league--happy--1280--light.png` | `/leagues/new` | happy | 1280 | light | `015f4bb19bd5` | Alice: h1 “Create a League” | 0 |
-| `create-league--happy--390--dark.png` | `/leagues/new` | happy | 390 | dark | `db91c122f423` | Alice: h1 “Create a League” | 0 |
-| `create-league--happy--390--light.png` | `/leagues/new` | happy | 390 | light | `99c3f912b97d` | Alice: h1 “Create a League” | 0 |
+| `create-league--happy--1280--dark.png` | `/leagues/new` | happy | 1280 | dark | `2b4b812039ea` | Alice: h1 “Create a League” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `create-league--happy--1280--light.png` | `/leagues/new` | happy | 1280 | light | `015f4bb19bd5` | Alice: h1 “Create a League” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `create-league--happy--390--dark.png` | `/leagues/new` | happy | 390 | dark | `db91c122f423` | Alice: h1 “Create a League” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `create-league--happy--390--light.png` | `/leagues/new` | happy | 390 | light | `99c3f912b97d` | Alice: h1 “Create a League” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
 | `current-round--error--1280--dark.png` | `/leagues/the-coupon/predictions` | error | 1280 | dark | `137a4d22925a` | Alice: **no error state rendered** (500 fulfilled) | 0 |
 | `current-round--error--1280--light.png` | `/leagues/the-coupon/predictions` | error | 1280 | light | `b5976533f921` | Alice: **no error state rendered** (500 fulfilled) | 0 |
 | `current-round--error--390--dark.png` | `/leagues/the-coupon/predictions` | error | 390 | dark | `ee37ad97260b` | Alice: **no error state rendered** (500 fulfilled) | 0 |
@@ -154,10 +154,10 @@ confirm is a real POST; conflict, price-moved and busy replay the API's exact re
 | `current-round--open-picked--390--dark--full.png` | `/leagues/the-coupon/predictions` | open-picked (full page) | 390 | dark | `e77edc428781` | Bob: h1 “This week's coupon” | 0 |
 | `current-round--open-picked--390--light.png` | `/leagues/the-coupon/predictions` | open-picked | 390 | light | `4e39c90ae55f` | Bob: h1 “This week's coupon” | 0 |
 | `current-round--open-picked--390--light--full.png` | `/leagues/the-coupon/predictions` | open-picked (full page) | 390 | light | `7dd8a2bfb598` | Bob: h1 “This week's coupon” | 0 |
-| `discover-leagues--happy--1280--dark.png` | `/leagues/discover` | happy | 1280 | dark | `0e8672d1a670` | Dave: h1 “Discover Leagues” | 0 |
-| `discover-leagues--happy--1280--light.png` | `/leagues/discover` | happy | 1280 | light | `ae8c8949b0da` | Dave: h1 “Discover Leagues” | 0 |
-| `discover-leagues--happy--390--dark.png` | `/leagues/discover` | happy | 390 | dark | `8e4f70f30c72` | Dave: h1 “Discover Leagues” | 0 |
-| `discover-leagues--happy--390--light.png` | `/leagues/discover` | happy | 390 | light | `1f2c3a3f28cf` | Dave: h1 “Discover Leagues” | 0 |
+| `discover-leagues--happy--1280--dark.png` | `/leagues/discover` | happy | 1280 | dark | `0e8672d1a670` | Dave: h1 “Discover Leagues” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `discover-leagues--happy--1280--light.png` | `/leagues/discover` | happy | 1280 | light | `ae8c8949b0da` | Dave: h1 “Discover Leagues” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `discover-leagues--happy--390--dark.png` | `/leagues/discover` | happy | 390 | dark | `8e4f70f30c72` | Dave: h1 “Discover Leagues” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `discover-leagues--happy--390--light.png` | `/leagues/discover` | happy | 390 | light | `1f2c3a3f28cf` | Dave: h1 “Discover Leagues” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
 | `football--error--1280--dark.png` | `/football` | error | 1280 | dark | `352e931697ed` | Alice: `query-error-state` present (1), API fulfilled 500 | 0 |
 | `football--error--1280--light.png` | `/football` | error | 1280 | light | `27480a453d24` | Alice: `query-error-state` present (1), API fulfilled 500 | 0 |
 | `football--error--390--dark.png` | `/football` | error | 390 | dark | `ef9ba8e6b79c` | Alice: `query-error-state` present (1), API fulfilled 500 | 0 |
@@ -216,10 +216,10 @@ confirm is a real POST; conflict, price-moved and busy replay the API's exact re
 | `join--happy--1280--light.png` | `/join/REVIEWINVITE1` | happy | 1280 | light | `10d621354fe6` | signed out: h1 “Join the league” | 0 |
 | `join--happy--390--dark.png` | `/join/REVIEWINVITE1` | happy | 390 | dark | `898fc6ab9631` | signed out: h1 “Join the league” | 0 |
 | `join--happy--390--light.png` | `/join/REVIEWINVITE1` | happy | 390 | light | `ff8c3ab9a56c` | signed out: h1 “Join the league” | 0 |
-| `join-by-code--happy--1280--dark.png` | `/leagues/join` | happy | 1280 | dark | `1febf9357405` | Dave: h1 “Join a league” | 0 |
-| `join-by-code--happy--1280--light.png` | `/leagues/join` | happy | 1280 | light | `732157d60adf` | Dave: h1 “Join a league” | 0 |
-| `join-by-code--happy--390--dark.png` | `/leagues/join` | happy | 390 | dark | `2ab7d3335e7f` | Dave: h1 “Join a league” | 0 |
-| `join-by-code--happy--390--light.png` | `/leagues/join` | happy | 390 | light | `da6cb9aedc7e` | Dave: h1 “Join a league” | 0 |
+| `join-by-code--happy--1280--dark.png` | `/leagues/join` | happy | 1280 | dark | `1febf9357405` | Dave: h1 “Join a league” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `join-by-code--happy--1280--light.png` | `/leagues/join` | happy | 1280 | light | `732157d60adf` | Dave: h1 “Join a league” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `join-by-code--happy--390--dark.png` | `/leagues/join` | happy | 390 | dark | `2ab7d3335e7f` | Dave: h1 “Join a league” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `join-by-code--happy--390--light.png` | `/leagues/join` | happy | 390 | light | `da6cb9aedc7e` | Dave: h1 “Join a league” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
 | `league-audit-log--error--1280--dark.png` | `/leagues/the-coupon/admin/audit-log` | error | 1280 | dark | `c7e90d1e334f` | Alice: **no error state rendered** (500 fulfilled) | 0 |
 | `league-audit-log--error--1280--light.png` | `/leagues/the-coupon/admin/audit-log` | error | 1280 | light | `8e1df9496bb2` | Alice: **no error state rendered** (500 fulfilled) | 0 |
 | `league-audit-log--error--390--dark.png` | `/leagues/the-coupon/admin/audit-log` | error | 390 | dark | `fe5d9c6d2cdf` | Alice: **no error state rendered** (500 fulfilled) | 0 |
@@ -240,10 +240,10 @@ confirm is a real POST; conflict, price-moved and busy replay the API's exact re
 | `league-members--error--1280--light.png` | `/leagues/the-coupon/admin/members` | error | 1280 | light | `39995fac8e71` | Alice: **no error state rendered** (500 fulfilled) | 0 |
 | `league-members--error--390--dark.png` | `/leagues/the-coupon/admin/members` | error | 390 | dark | `8038861371e5` | Alice: **no error state rendered** (500 fulfilled) | 0 |
 | `league-members--error--390--light.png` | `/leagues/the-coupon/admin/members` | error | 390 | light | `9498218c44af` | Alice: **no error state rendered** (500 fulfilled) | 0 |
-| `league-members--happy--1280--dark.png` | `/leagues/the-coupon/admin/members` | happy | 1280 | dark | `c453243b0f1e` | Alice: h1 “Members” | 0 |
-| `league-members--happy--1280--light.png` | `/leagues/the-coupon/admin/members` | happy | 1280 | light | `4ec839a0ce6e` | Alice: h1 “Members” | 0 |
-| `league-members--happy--390--dark.png` | `/leagues/the-coupon/admin/members` | happy | 390 | dark | `3f4d50965575` | Alice: h1 “Members” | 0 |
-| `league-members--happy--390--light.png` | `/leagues/the-coupon/admin/members` | happy | 390 | light | `22dc2678ce62` | Alice: h1 “Members” | 0 |
+| `league-members--happy--1280--dark.png` | `/leagues/the-coupon/admin/members` | happy | 1280 | dark | `c453243b0f1e` | Alice: h1 “Members” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `league-members--happy--1280--light.png` | `/leagues/the-coupon/admin/members` | happy | 1280 | light | `4ec839a0ce6e` | Alice: h1 “Members” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `league-members--happy--390--dark.png` | `/leagues/the-coupon/admin/members` | happy | 390 | dark | `3f4d50965575` | Alice: h1 “Members” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `league-members--happy--390--light.png` | `/leagues/the-coupon/admin/members` | happy | 390 | light | `22dc2678ce62` | Alice: h1 “Members” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
 | `league-members--loading--1280--dark.png` | `/leagues/the-coupon/admin/members` | loading | 1280 | dark | `de7a0699ec68` | Alice: 3 `aria-busy` skeletons in DOM, request held open | 0 |
 | `league-members--loading--1280--light.png` | `/leagues/the-coupon/admin/members` | loading | 1280 | light | `d515c06ac491` | Alice: 3 `aria-busy` skeletons in DOM, request held open | 0 |
 | `league-members--loading--390--dark.png` | `/leagues/the-coupon/admin/members` | loading | 390 | dark | `3ef52da11ed5` | Alice: 3 `aria-busy` skeletons in DOM, request held open | 0 |
@@ -259,8 +259,8 @@ confirm is a real POST; conflict, price-moved and busy replay the API's exact re
 | `league-settings--happy--1280--dark.png` | `/leagues/the-coupon/admin/settings` | happy | 1280 | dark | `33173c47eaa6` | Alice: h1 “League Settings” | 0 |
 | `league-settings--happy--1280--dark--full.png` | `/leagues/the-coupon/admin/settings` | happy (full page) | 1280 | dark | `3d928900970e` | Alice: h1 “League Settings” | 0 |
 | `league-settings--happy--1280--light.png` | `/leagues/the-coupon/admin/settings` | happy | 1280 | light | `c93ba1887992` | Alice: h1 “League Settings” | 0 |
-| `league-settings--happy--390--dark.png` | `/leagues/the-coupon/admin/settings` | happy | 390 | dark | `93f0ed43c936` | Alice: h1 “League Settings” | 0 |
-| `league-settings--happy--390--light.png` | `/leagues/the-coupon/admin/settings` | happy | 390 | light | `c2151db6ec75` | Alice: h1 “League Settings” | 0 |
+| `league-settings--happy--390--dark.png` | `/leagues/the-coupon/admin/settings` | happy | 390 | dark | `93f0ed43c936` | Alice: h1 “League Settings” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `league-settings--happy--390--light.png` | `/leagues/the-coupon/admin/settings` | happy | 390 | light | `c2151db6ec75` | Alice: h1 “League Settings” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
 | `login--happy--1280--dark.png` | `/login` | happy | 1280 | dark | `42dcae5ad14f` | signed out: h1 “Sign in” | 0 |
 | `login--happy--1280--light.png` | `/login` | happy | 1280 | light | `4a8f39e2360f` | signed out: h1 “Sign in” | 0 |
 | `login--happy--390--dark.png` | `/login` | happy | 390 | dark | `5ba906ca522f` | signed out: h1 “Sign in” | 0 |
@@ -269,18 +269,18 @@ confirm is a real POST; conflict, price-moved and busy replay the API's exact re
 | `my-leagues--error--1280--light.png` | `/leagues` | error | 1280 | light | `a0d2a21caad3` | Alice: **no error state rendered** (500 fulfilled) | 0 |
 | `my-leagues--error--390--dark.png` | `/leagues` | error | 390 | dark | `afb9e0381d15` | Alice: **no error state rendered** (500 fulfilled) | 0 |
 | `my-leagues--error--390--light.png` | `/leagues` | error | 390 | light | `269859118181` | Alice: **no error state rendered** (500 fulfilled) | 0 |
-| `my-leagues--firstrun--1280--dark.png` | `/leagues` | firstrun | 1280 | dark | `73e947e4953a` | Dave: empty copy present: “THE COUPON Home Coupon Football Stats Leagues Settings Dave DA You're …” | 0 |
-| `my-leagues--firstrun--1280--light.png` | `/leagues` | firstrun | 1280 | light | `055202f673be` | Dave: empty copy present: “THE COUPON Home Coupon Football Stats Leagues Settings Dave DA You're …” | 0 |
-| `my-leagues--firstrun--390--dark.png` | `/leagues` | firstrun | 390 | dark | `8ba627ebfe2c` | Dave: empty copy present: “THE COUPON DA You're offline — some content may be outdated My Leagues…” | 0 |
-| `my-leagues--firstrun--390--light.png` | `/leagues` | firstrun | 390 | light | `6901290d8224` | Dave: empty copy present: “THE COUPON DA You're offline — some content may be outdated My Leagues…” | 0 |
+| `my-leagues--firstrun--1280--dark.png` | `/leagues` | firstrun | 1280 | dark | `73e947e4953a` | Dave: empty copy present: “THE COUPON Home Coupon Football Stats Leagues Settings Dave DA You're …” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `my-leagues--firstrun--1280--light.png` | `/leagues` | firstrun | 1280 | light | `055202f673be` | Dave: empty copy present: “THE COUPON Home Coupon Football Stats Leagues Settings Dave DA You're …” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `my-leagues--firstrun--390--dark.png` | `/leagues` | firstrun | 390 | dark | `8ba627ebfe2c` | Dave: empty copy present: “THE COUPON DA You're offline — some content may be outdated My Leagues…” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `my-leagues--firstrun--390--light.png` | `/leagues` | firstrun | 390 | light | `6901290d8224` | Dave: empty copy present: “THE COUPON DA You're offline — some content may be outdated My Leagues…” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
 | `my-leagues--forced-empty--1280--dark.png` | `/leagues` | forced-empty | 1280 | dark | `402583d6324b` | Alice: empty copy present: “THE COUPON Home Coupon Football Stats Leagues Settings Alice AL My Lea…” | 0 |
 | `my-leagues--forced-empty--1280--light.png` | `/leagues` | forced-empty | 1280 | light | `64c4423cbd0d` | Alice: empty copy present: “THE COUPON Home Coupon Football Stats Leagues Settings Alice AL My Lea…” | 0 |
 | `my-leagues--forced-empty--390--dark.png` | `/leagues` | forced-empty | 390 | dark | `3232be2b2b9c` | Alice: empty copy present: “THE COUPON AL My Leagues Your league hubs, shortcuts, and current stan…” | 0 |
 | `my-leagues--forced-empty--390--light.png` | `/leagues` | forced-empty | 390 | light | `b059afc6044e` | Alice: empty copy present: “THE COUPON AL My Leagues Your league hubs, shortcuts, and current stan…” | 0 |
-| `my-leagues--happy--1280--dark.png` | `/leagues` | happy | 1280 | dark | `87820a2fc7df` | Alice: h1 “My Leagues” | 0 |
-| `my-leagues--happy--1280--light.png` | `/leagues` | happy | 1280 | light | `7548da3b4287` | Alice: h1 “My Leagues” | 0 |
-| `my-leagues--happy--390--dark.png` | `/leagues` | happy | 390 | dark | `9861ca01e984` | Alice: h1 “My Leagues” | 0 |
-| `my-leagues--happy--390--light.png` | `/leagues` | happy | 390 | light | `ecd2755fe377` | Alice: h1 “My Leagues” | 0 |
+| `my-leagues--happy--1280--dark.png` | `/leagues` | happy | 1280 | dark | `87820a2fc7df` | Alice: h1 “My Leagues” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `my-leagues--happy--1280--light.png` | `/leagues` | happy | 1280 | light | `7548da3b4287` | Alice: h1 “My Leagues” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `my-leagues--happy--390--dark.png` | `/leagues` | happy | 390 | dark | `9861ca01e984` | Alice: h1 “My Leagues” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
+| `my-leagues--happy--390--light.png` | `/leagues` | happy | 390 | light | `ecd2755fe377` | Alice: h1 “My Leagues” | 0 **Artefact: captured with the browser offline, so the offline banner shows and the content may be missing — use lens 06's `*-l06--*` re-capture.** |
 | `my-leagues--loading--1280--dark.png` | `/leagues` | loading | 1280 | dark | `062274f38908` | Alice: 2 `aria-busy` skeletons in DOM, request held open | 0 |
 | `my-leagues--loading--1280--light.png` | `/leagues` | loading | 1280 | light | `a38996a90b78` | Alice: 2 `aria-busy` skeletons in DOM, request held open | 0 |
 | `my-leagues--loading--390--dark.png` | `/leagues` | loading | 390 | dark | `8a9df7c550f3` | Alice: 2 `aria-busy` skeletons in DOM, request held open | 0 |
