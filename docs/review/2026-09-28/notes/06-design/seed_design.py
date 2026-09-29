@@ -212,7 +212,10 @@ async def clear_rate_limits() -> None:
 def login_all(names: list[str]) -> dict:
     out = {}
     for name in names:
-        out[name] = post("/api/v1/auth/login", {"display_name": name, "pin": PIN})
+        try:
+            out[name] = post("/api/v1/auth/login", {"display_name": name, "pin": PIN})
+        except Exception as exc:  # e.g. Kai after deleting his account in settle_design.py
+            print(f"login {name} failed: {exc}", file=sys.stderr)
     return out
 
 

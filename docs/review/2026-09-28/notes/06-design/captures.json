@@ -190,5 +190,245 @@
   "width": 1280,
   "theme": "dark",
   "confirmed": "Ivan: league budget exhausted by real submissions from Jo, Kai, Lee (the 23rd in busy-run.txt drew PICKS_BUSY); his POST \u2192 429 PICKS_BUSY; toast type=error, no action; title contrast 1.01:1"
+ },
+ {
+  "file": "current-round--settled-winner--390--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "settled-winner",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d71"
+ },
+ {
+  "file": "current-round--settled-winner--390--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "settled-winner",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d71"
+ },
+ {
+  "file": "current-round--settled-winner--390--dark--full.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "settled-winner (full page)",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d71"
+ },
+ {
+  "file": "current-round--settled-winner--1280--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "settled-winner",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d71"
+ },
+ {
+  "file": "current-round--settled-winner--1280--light--full.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "settled-winner (full page)",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d71"
+ },
+ {
+  "file": "current-round--settled-winner--1280--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "settled-winner",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d71"
+ },
+ {
+  "file": "current-round--settled-void-leg--390--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "settled-void-leg",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Ivan: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d71"
+ },
+ {
+  "file": "current-round--settled-void-leg--390--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "settled-void-leg",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Ivan: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d71"
+ },
+ {
+  "file": "current-round--settled-void-leg--1280--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "settled-void-leg",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Ivan: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d71"
+ },
+ {
+  "file": "current-round--settled-void-leg--1280--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "settled-void-leg",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Ivan: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d71"
+ },
+ {
+  "file": "coupon--settled-void--390--light.png",
+  "url": "/leagues/the-coupon/predictions/coupon",
+  "state": "settled-void",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d72, \u201cFormer member\u201d present"
+ },
+ {
+  "file": "coupon--settled-void--390--dark.png",
+  "url": "/leagues/the-coupon/predictions/coupon",
+  "state": "settled-void",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d72, \u201cFormer member\u201d present"
+ },
+ {
+  "file": "coupon--settled-void--390--dark--full.png",
+  "url": "/leagues/the-coupon/predictions/coupon",
+  "state": "settled-void (full page)",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d72, \u201cFormer member\u201d present"
+ },
+ {
+  "file": "coupon--settled-void--1280--light.png",
+  "url": "/leagues/the-coupon/predictions/coupon",
+  "state": "settled-void",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d72, \u201cFormer member\u201d present"
+ },
+ {
+  "file": "coupon--settled-void--1280--light--full.png",
+  "url": "/leagues/the-coupon/predictions/coupon",
+  "state": "settled-void (full page)",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d72, \u201cFormer member\u201d present"
+ },
+ {
+  "file": "coupon--settled-void--1280--dark.png",
+  "url": "/leagues/the-coupon/predictions/coupon",
+  "state": "settled-void",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThis week's coupon\u201d, settled word yes, \u201cvoid\u201d \u00d72, \u201cFormer member\u201d present"
+ },
+ {
+  "file": "results--settled--390--light.png",
+  "url": "/leagues/the-coupon/predictions/results",
+  "state": "settled",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cSeason\u201d, settled word yes, \u201cvoid\u201d \u00d70"
+ },
+ {
+  "file": "results--settled--390--dark.png",
+  "url": "/leagues/the-coupon/predictions/results",
+  "state": "settled",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cSeason\u201d, settled word yes, \u201cvoid\u201d \u00d70"
+ },
+ {
+  "file": "results--settled--1280--light.png",
+  "url": "/leagues/the-coupon/predictions/results",
+  "state": "settled",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cSeason\u201d, settled word yes, \u201cvoid\u201d \u00d70"
+ },
+ {
+  "file": "results--settled--1280--dark.png",
+  "url": "/leagues/the-coupon/predictions/results",
+  "state": "settled",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cSeason\u201d, settled word yes, \u201cvoid\u201d \u00d70"
+ },
+ {
+  "file": "standings--settled-8-members--390--light.png",
+  "url": "/leagues/the-coupon/leaderboard",
+  "state": "settled-8-members",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThe Coupon Test League\u201d, settled word yes, \u201cvoid\u201d \u00d72, \u201cFormer member\u201d present"
+ },
+ {
+  "file": "standings--settled-8-members--390--dark.png",
+  "url": "/leagues/the-coupon/leaderboard",
+  "state": "settled-8-members",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThe Coupon Test League\u201d, settled word yes, \u201cvoid\u201d \u00d72, \u201cFormer member\u201d present"
+ },
+ {
+  "file": "standings--settled-8-members--390--dark--full.png",
+  "url": "/leagues/the-coupon/leaderboard",
+  "state": "settled-8-members (full page)",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThe Coupon Test League\u201d, settled word yes, \u201cvoid\u201d \u00d72, \u201cFormer member\u201d present"
+ },
+ {
+  "file": "standings--settled-8-members--1280--light.png",
+  "url": "/leagues/the-coupon/leaderboard",
+  "state": "settled-8-members",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThe Coupon Test League\u201d, settled word yes, \u201cvoid\u201d \u00d72, \u201cFormer member\u201d present"
+ },
+ {
+  "file": "standings--settled-8-members--1280--light--full.png",
+  "url": "/leagues/the-coupon/leaderboard",
+  "state": "settled-8-members (full page)",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThe Coupon Test League\u201d, settled word yes, \u201cvoid\u201d \u00d72, \u201cFormer member\u201d present"
+ },
+ {
+  "file": "standings--settled-8-members--1280--dark.png",
+  "url": "/leagues/the-coupon/leaderboard",
+  "state": "settled-8-members",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Alice: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cThe Coupon Test League\u201d, settled word yes, \u201cvoid\u201d \u00d72, \u201cFormer member\u201d present"
+ },
+ {
+  "file": "home--after-settle-loser--390--light.png",
+  "url": "/",
+  "state": "after-settle-loser",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Bob: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cHi Bob\u201d, settled word no, \u201cvoid\u201d \u00d70"
+ },
+ {
+  "file": "home--after-settle-loser--390--dark.png",
+  "url": "/",
+  "state": "after-settle-loser",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Bob: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cHi Bob\u201d, settled word no, \u201cvoid\u201d \u00d70"
+ },
+ {
+  "file": "home--after-settle-loser--1280--light.png",
+  "url": "/",
+  "state": "after-settle-loser",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Bob: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cHi Bob\u201d, settled word no, \u201cvoid\u201d \u00d70"
+ },
+ {
+  "file": "home--after-settle-loser--1280--dark.png",
+  "url": "/",
+  "state": "after-settle-loser",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Bob: round status `settled` via API (settle_design.py: 3 won, 1 void, 4 lost); page text: h1 \u201cHi Bob\u201d, settled word no, \u201cvoid\u201d \u00d70"
  }
 ]

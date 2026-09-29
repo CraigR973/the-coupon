@@ -24,11 +24,15 @@ Brief: `../briefs/common.md` + `../briefs/06-design.md`.
   FOUND: dark-mode toast title contrast 1.01-1.07:1 (index.css override from 4121cf0 + Sonner theme light) — live (prod CSS index-Br02Ny1y.css identical).
   FOUND: queued-offline shows NO toast/notice (React Query pauses the mutation offline; spinner only); on reconnect the pick lands (201).
 
+- 00:20 measure.mjs open phase (measure-open.txt): first price y=1134 at 390 (fold 783), y=856 at 1280 (fold 800); 0 nodes <12px; 19 tracked labels on the round.
+- 00:30 Phase C done: settle_design.py (Alice/Hana picks, Kai erased, lock, in-process settle: 3 won/1 void/4 lost); settled.mjs 30 captures (settled-run.txt). 54 lens-06 INDEX rows.
+  FOUND: settled slate still shows potential pts on lost/void selections; lost coupon headline is the price not the result; "TAKEN BY FORMER" (PickCard firstName); standings/results 2-col Z order at 1280 (8 members); stat labels truncate "PICKS …" at 390; home loading/error shows no-league copy.
+
 ## Plan / order
 A. [done] open-round: feedback captures confirm / conflict / price-moved (real) / queued-offline; standalone safe-area; PWA manifest+icons.
 B. [done, no restart needed] restart API --keep-data → exhaust budget with 5 members × 10 → Alice sees PICKS_BUSY.
-C. lock + settle in process with a void leg → settled results, settled coupon, standings; erase a member → "Former" copy.
+C. [done] lock + settle in process with a void leg → settled results, settled coupon, standings; erase a member → "Former" copy.
 D. judge corpus (Part 1 + peripheral), write lens doc, top-ten + mockups + contrast numbers.
 
 ## In flight
-- Phase C next: lock + settle with a void leg (in process), erase a member.
+- Next: PWA pass (manifest, icons in masks, theme-color, standalone + safe-area inset emulation) → pwa.mjs.

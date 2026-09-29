@@ -1,0 +1,26 @@
+{
+  "pick Alice ('Arsenal', 'MATCH_ODDS', 'HOME')": "201 Arsenal",
+  "pick Hana ('Arsenal', 'BOTH_TEAMS_TO_SCORE', 'NO')": "201 No",
+  "Kai deletes own account": "204 None",
+  "lock": [
+    200,
+    {
+      "status": "locked"
+    }
+  ],
+  "settle": {
+    "gameweek": "501a1a01-53bf-4e81-bbb4-729648727743",
+    "resolved": 8,
+    "status": "settled"
+  },
+  "picks": [
+    "Arsenal 1.90 won 19",
+    "Brechin City 3.10 lost 0",
+    "Chelsea 4.30 lost 0",
+    "No 2.05 won 21",
+    "The Draw 3.20 lost 0",
+    "The Draw 3.75 lost 0",
+    "Yes 1.80 void 0",
+    "Yes 1.95 won 20"
+  ]
+}

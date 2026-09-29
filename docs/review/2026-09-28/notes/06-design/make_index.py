@@ -24,7 +24,7 @@ lines = [
     "(`notes/06-design/stack_design.py`: the e2e server + a test-only `POST /__review/move-price`;",
     "`ODDS_PROVIDER=fake`, scheduler off). Playwright Chromium, deviceScaleFactor 1, reduced motion,",
     "service workers blocked. Every state below was driven for real — no request was mocked — and the",
-    "last column says what proved it. Each PNG was opened after capture; duplicates are listed in",
+    "last column says what proved it (page text or HTTP, never the file name). The PNGs viewed by eye are listed in `notes/06-design/opened.txt`; duplicates in",
     "`notes/06-design/duplicates.txt`.",
     "",
     "| file | url at capture | state | width | theme | sha256 | state confirmed by |",

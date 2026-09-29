@@ -1,0 +1,315 @@
+[
+ {
+  "phase": "open",
+  "persona": "Alice",
+  "screen": "home",
+  "width": 390,
+  "firstContentTop": null,
+  "firstContentText": null,
+  "viewportH": 844,
+  "usableBottom": 783,
+  "docH": 1167,
+  "mainWidth": 390,
+  "mainLeft": 0,
+  "fontSizes": {
+   "12": 18,
+   "14": 16,
+   "16": 13,
+   "18": 2,
+   "20": 3,
+   "32": 1
+  },
+  "distinctSizes": 6,
+  "under12": 0,
+  "under12Sample": [],
+  "trackedLabels": 11,
+  "trackedSample": [
+   "THE COUPON",
+   "The Coupon · Your season",
+   "Points",
+   "Picks won",
+   "Win rate",
+   "2 in play",
+   "Gameweek 1b",
+   "Standings",
+   "Gameweek 1b",
+   "Last result · Gameweek 38",
+   "Standings"
+  ],
+  "fontFamilies": [
+   "JetBrains Mono",
+   "Outfit"
+  ],
+  "firstContentAboveFold": null
+ },
+ {
+  "phase": "open",
+  "persona": "Alice",
+  "screen": "current-round",
+  "width": 390,
+  "firstContentTop": 1134,
+  "firstContentText": "Arsenal1.90win 19 pts",
+  "viewportH": 844,
+  "usableBottom": 783,
+  "docH": 1573,
+  "mainWidth": 390,
+  "mainLeft": 0,
+  "fontSizes": {
+   "12": 52,
+   "14": 6,
+   "16": 14,
+   "24": 1,
+   "30": 1
+  },
+  "distinctSizes": 5,
+  "under12": 0,
+  "under12Sample": [],
+  "trackedLabels": 19,
+  "trackedSample": [
+   "THE COUPON",
+   "The Coupon Test League · Gamew",
+   "Your leagues",
+   "Tap to switch",
+   "Gameweek 1b",
+   "The coupon",
+   "6-fold accumulator",
+   "Pick your selection",
+   "How scoring works",
+   "English Premier League",
+   "Sat 1 Aug, 15:00",
+   "Arsenal FC, 1st"
+  ],
+  "fontFamilies": [
+   "JetBrains Mono",
+   "Outfit"
+  ],
+  "firstContentAboveFold": false
+ },
+ {
+  "phase": "open",
+  "persona": "Alice",
+  "screen": "standings",
+  "width": 390,
+  "firstContentTop": 438,
+  "firstContentText": "1ALAlice0/0 won0pts",
+  "viewportH": 844,
+  "usableBottom": 783,
+  "docH": 1114,
+  "mainWidth": 390,
+  "mainLeft": 0,
+  "fontSizes": {
+   "12": 37,
+   "14": 16,
+   "16": 6,
+   "18": 8,
+   "24": 1
+  },
+  "distinctSizes": 5,
+  "under12": 0,
+  "under12Sample": [],
+  "trackedLabels": 6,
+  "trackedSample": [
+   "THE COUPON",
+   "2026/27 standings",
+   "Your leagues",
+   "Tap to switch",
+   "Season",
+   "Past seasons"
+  ],
+  "fontFamilies": [
+   "JetBrains Mono",
+   "Outfit"
+  ],
+  "firstContentAboveFold": true
+ },
+ {
+  "phase": "open",
+  "persona": "Alice",
+  "screen": "results",
+  "width": 390,
+  "firstContentTop": 358,
+  "firstContentText": "Gameweek 38Bob won·2 of 3 landed22 pts9.27Coupon l",
+  "viewportH": 844,
+  "usableBottom": 783,
+  "docH": 844,
+  "mainWidth": 390,
+  "mainLeft": 0,
+  "fontSizes": {
+   "12": 16,
+   "14": 4,
+   "16": 6,
+   "24": 1
+  },
+  "distinctSizes": 4,
+  "under12": 0,
+  "under12Sample": [],
+  "trackedLabels": 4,
+  "trackedSample": [
+   "THE COUPON",
+   "The Coupon Test League · Every",
+   "Your leagues",
+   "Tap to switch"
+  ],
+  "fontFamilies": [
+   "JetBrains Mono",
+   "Outfit"
+  ],
+  "firstContentAboveFold": true
+ },
+ {
+  "phase": "open",
+  "persona": "Alice",
+  "screen": "home",
+  "width": 1280,
+  "firstContentTop": null,
+  "firstContentText": null,
+  "viewportH": 800,
+  "usableBottom": 800,
+  "docH": 1123,
+  "mainWidth": 1280,
+  "mainLeft": 0,
+  "fontSizes": {
+   "12": 18,
+   "14": 22,
+   "16": 8,
+   "18": 2,
+   "20": 3,
+   "36": 1
+  },
+  "distinctSizes": 6,
+  "under12": 0,
+  "under12Sample": [],
+  "trackedLabels": 11,
+  "trackedSample": [
+   "THE COUPON",
+   "The Coupon · Your season",
+   "Points",
+   "Picks won",
+   "Win rate",
+   "2 in play",
+   "Gameweek 1b",
+   "Standings",
+   "Gameweek 1b",
+   "Last result · Gameweek 38",
+   "Standings"
+  ],
+  "fontFamilies": [
+   "JetBrains Mono",
+   "Outfit"
+  ],
+  "firstContentAboveFold": null
+ },
+ {
+  "phase": "open",
+  "persona": "Alice",
+  "screen": "current-round",
+  "width": 1280,
+  "firstContentTop": 856,
+  "firstContentText": "Arsenal1.90win 19 pts",
+  "viewportH": 800,
+  "usableBottom": 800,
+  "docH": 1143,
+  "mainWidth": 1280,
+  "mainLeft": 0,
+  "fontSizes": {
+   "12": 52,
+   "14": 12,
+   "16": 9,
+   "30": 2
+  },
+  "distinctSizes": 4,
+  "under12": 0,
+  "under12Sample": [],
+  "trackedLabels": 19,
+  "trackedSample": [
+   "THE COUPON",
+   "The Coupon Test League · Gamew",
+   "Your leagues",
+   "Tap to switch",
+   "Gameweek 1b",
+   "The coupon",
+   "6-fold accumulator",
+   "Pick your selection",
+   "How scoring works",
+   "English Premier League",
+   "Sat 1 Aug, 15:00",
+   "Arsenal FC, 1st"
+  ],
+  "fontFamilies": [
+   "JetBrains Mono",
+   "Outfit"
+  ],
+  "firstContentAboveFold": false
+ },
+ {
+  "phase": "open",
+  "persona": "Alice",
+  "screen": "standings",
+  "width": 1280,
+  "firstContentTop": 420,
+  "firstContentText": "1ALAlice0/0 won0pts",
+  "viewportH": 800,
+  "usableBottom": 800,
+  "docH": 800,
+  "mainWidth": 1280,
+  "mainLeft": 0,
+  "fontSizes": {
+   "12": 37,
+   "14": 22,
+   "16": 1,
+   "18": 8,
+   "30": 1
+  },
+  "distinctSizes": 5,
+  "under12": 0,
+  "under12Sample": [],
+  "trackedLabels": 6,
+  "trackedSample": [
+   "THE COUPON",
+   "2026/27 standings",
+   "Your leagues",
+   "Tap to switch",
+   "Season",
+   "Past seasons"
+  ],
+  "fontFamilies": [
+   "JetBrains Mono",
+   "Outfit"
+  ],
+  "firstContentAboveFold": true
+ },
+ {
+  "phase": "open",
+  "persona": "Alice",
+  "screen": "results",
+  "width": 1280,
+  "firstContentTop": 324,
+  "firstContentText": "Gameweek 38Bob won·2 of 3 landed22 pts9.27Coupon l",
+  "viewportH": 800,
+  "usableBottom": 800,
+  "docH": 800,
+  "mainWidth": 1280,
+  "mainLeft": 0,
+  "fontSizes": {
+   "12": 16,
+   "14": 10,
+   "16": 1,
+   "30": 1
+  },
+  "distinctSizes": 4,
+  "under12": 0,
+  "under12Sample": [],
+  "trackedLabels": 4,
+  "trackedSample": [
+   "THE COUPON",
+   "The Coupon Test League · Every",
+   "Your leagues",
+   "Tap to switch"
+  ],
+  "fontFamilies": [
+   "JetBrains Mono",
+   "Outfit"
+  ],
+  "firstContentAboveFold": true
+ }
+]

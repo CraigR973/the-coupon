@@ -1,0 +1,16 @@
+# lens-06 captures opened (viewed) by the reviewer, in order
+current-round--feedback-queued-offline--390--dark.png
+current-round--feedback-conflict--390--dark.png
+current-round--feedback-price-moved--1280--dark.png
+current-round--feedback-confirmed--390--light.png
+current-round--feedback-busy--390--dark.png
+current-round--feedback-queued-offline--1280--light.png
+current-round--settled-winner--390--dark--full.png
+coupon--settled-void--390--dark--full.png
+current-round--settled-winner--1280--light--full.png
+standings--settled-8-members--1280--dark.png
+standings--settled-8-members--390--dark--full.png
+results--settled--390--dark.png
+home--after-settle-loser--390--light.png
+current-round--settled-void-leg--390--light.png
+coupon--settled-void--1280--dark.png
