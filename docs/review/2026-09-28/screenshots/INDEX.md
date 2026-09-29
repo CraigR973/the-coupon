@@ -25,7 +25,7 @@ first paint. 390 captures use a desktop UA at 390×844 (the layout an installed 
 install gate is UA-triggered and is captured separately as `install-gate--mobile-browser`).
 Personas: Alice = site admin + league admin of the-coupon; Bob = member; Dave = no league.
 Last column: axe-core 4.10.2 violations at capture (`rule:nodes`), `—` = not run.
-Duplicate hashes: 12 groups (see `notes/03-ux/duplicates.txt`).
+Duplicate hashes: 8 groups (see `notes/03-ux/duplicates.txt`).
 
 | file | url at capture | state | width | theme | sha256 | state confirmed by | axe |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -390,10 +390,6 @@ Duplicate hashes: 12 groups (see `notes/03-ux/duplicates.txt`).
 | `football--results--1280--light.png` | `/football?date=2026-05-02` | results | 1280 | light | `9689bbc1dab1` | Alice: h1 “Football Stats” | 0 |
 | `football--results--390--dark.png` | `/football?date=2026-05-02` | results | 390 | dark | `b48ecd5168c7` | Alice: h1 “Football Stats” | 0 |
 | `football--results--390--light.png` | `/football?date=2026-05-02` | results | 390 | light | `4b4cce16d878` | Alice: h1 “Football Stats” | 0 |
-| `admin-results--settled--1280--dark.png` | `/admin/results` | settled | 1280 | dark | `665ee7f902eb` | Alice: settled via API | 0 |
-| `admin-results--settled--1280--light.png` | `/admin/results` | settled | 1280 | light | `1b8084882a93` | Alice: settled via API | 0 |
-| `admin-results--settled--390--dark.png` | `/admin/results` | settled | 390 | dark | `359ed914b333` | Alice: settled via API | 0 |
-| `admin-results--settled--390--light.png` | `/admin/results` | settled | 390 | light | `e0bedfccdf80` | Alice: settled via API | 0 |
 | `career-profile--settled--1280--dark.png` | `/profile` | settled | 1280 | dark | `037768d6b7f5` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
 | `career-profile--settled--1280--light.png` | `/profile` | settled | 1280 | light | `6b4b80b70356` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |
 | `career-profile--settled--390--dark.png` | `/profile` | settled | 390 | dark | `779760f2db30` | Alice: won/lost/settled text present after `/__e2e/settle` | 0 |

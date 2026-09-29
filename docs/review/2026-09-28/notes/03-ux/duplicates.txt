@@ -2,10 +2,6 @@
 e2c032169382  admin-dashboard--error--1280--light.png  admin-dashboard--loading--1280--light.png
 35c3a3a1f9f7  admin-dashboard--error--390--dark.png  admin-dashboard--loading--390--dark.png
 2fc3d6e42a85  admin-dashboard--error--390--light.png  admin-dashboard--loading--390--light.png
-665ee7f902eb  admin-results--happy--1280--dark.png  admin-results--settled--1280--dark.png
-1b8084882a93  admin-results--happy--1280--light.png  admin-results--settled--1280--light.png
-359ed914b333  admin-results--happy--390--dark.png  admin-results--settled--390--dark.png
-e0bedfccdf80  admin-results--happy--390--light.png  admin-results--settled--390--light.png
 c7e90d1e334f  league-audit-log--error--1280--dark.png  league-audit-log--happy--1280--dark.png
 8e1df9496bb2  league-audit-log--error--1280--light.png  league-audit-log--happy--1280--light.png
 fe5d9c6d2cdf  league-audit-log--error--390--dark.png  league-audit-log--happy--390--dark.png
