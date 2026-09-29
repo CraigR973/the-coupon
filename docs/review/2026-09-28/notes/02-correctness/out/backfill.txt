@@ -1,0 +1,46 @@
+alembic: (exit 0)
+=== --dry-run ===
+season calendars:
+    2026: week 1 = 2026-08-01 (would store)
+round labels that move:
+    Saturday League · 2026-08-08: was Gameweek 1 -> now Gameweek 2, 1 pick(s)
+    Saturday League · 2026-08-15: was Gameweek 2 -> now Gameweek 3, 1 pick(s)
+    Saturday League · 2026-08-22: was Gameweek 3 -> now Gameweek 4, 1 pick(s)
+    Own Window League · 2026-08-29: was Gameweek 1 -> now Gameweek 5, 1 pick(s)
+    Saturday League · 2026-08-29: was Gameweek 4 -> now Gameweek 5, 1 pick(s)
+    Own Window League · 2026-09-05: was Gameweek 3 -> now Gameweek 6, 1 pick(s)
+    Saturday League · 2026-09-05: was Gameweek 5 -> now Gameweek 6, 1 pick(s)
+    Saturday League · 2026-09-12: was Gameweek 6 -> now Gameweek 7, 1 pick(s)
+    Saturday League · 2026-09-19: was Gameweek 7 -> now Gameweek 8, 1 pick(s)
+    Saturday League · 2026-09-26: was Gameweek 8 -> now Gameweek 9
+unchanged round labels: 1
+
+DRY RUN — nothing written.
+(exit 0)
+=== --apply (scratch DB backfill_check only) ===
+season calendars:
+    2026: week 1 = 2026-08-01 (would store)
+round labels that move:
+    Saturday League · 2026-08-08: was Gameweek 1 -> now Gameweek 2, 1 pick(s)
+    Saturday League · 2026-08-15: was Gameweek 2 -> now Gameweek 3, 1 pick(s)
+    Saturday League · 2026-08-22: was Gameweek 3 -> now Gameweek 4, 1 pick(s)
+    Own Window League · 2026-08-29: was Gameweek 1 -> now Gameweek 5, 1 pick(s)
+    Saturday League · 2026-08-29: was Gameweek 4 -> now Gameweek 5, 1 pick(s)
+    Own Window League · 2026-09-05: was Gameweek 3 -> now Gameweek 6, 1 pick(s)
+    Saturday League · 2026-09-05: was Gameweek 5 -> now Gameweek 6, 1 pick(s)
+    Saturday League · 2026-09-12: was Gameweek 6 -> now Gameweek 7, 1 pick(s)
+    Saturday League · 2026-09-19: was Gameweek 7 -> now Gameweek 8, 1 pick(s)
+    Saturday League · 2026-09-26: was Gameweek 8 -> now Gameweek 9
+unchanged round labels: 1
+
+APPLIED at 2026-09-29T13:33:33.291598+00:00.
+(exit 0)
+=== --dry-run again ===
+season calendars:
+    2026: week 1 = 2026-08-01 (already stored)
+round labels that move:
+    none
+unchanged round labels: 11
+
+DRY RUN — nothing written.
+(exit 0)

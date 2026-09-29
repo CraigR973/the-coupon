@@ -63,6 +63,7 @@ in `notes/02-correctness/` (`out/*.txt`).
 | CORR-22 | LOW | live | verified | A pick correction is silent: the member told "lost" by the settle push is never told they won |
 | CORR-23 | LOW | live | verified | A round nobody picked on never settles, so it is never announced and stays "locked" for ever |
 | CORR-24 | MED | live | verified | Discovery's budget prices a walk at the raw pool (36) not what is walked (23): two walks a day at production's shape, and a third window is not served |
+| CORR-25 | LOW | live (not yet run in production) | verified on scratch | The season-calendar backfill and the runtime re-anchor count a deleted league's rounds, so one early test round renumbers every live league |
 
 ## CORR-19 · MED · live · verified — self-deletion reopens CORR-14
 
@@ -225,6 +226,32 @@ a three-window deployment one league's next round appears hours later than the o
 with `is_played`, or pass `played(pooled)` from the job), and give `run_refresh_slate` the
 same budget. API-carrying.
 
+## CORR-25 · LOW · live · verified on scratch — a deleted league can move the anchor
+
+`backfill_season_calendar.plan` derives each season's anchor from `min(canonical_saturday)`
+over **every** round, joined to `leagues` with no `deleted_at` filter; the runtime
+`reanchor_from_earliest_round` and `ensure_calendar_for_new_season` read `gameweeks` the
+same way. Dry-run against a separate scratch database (`backfill_check`, dropped after;
+`notes/02-correctness/backfill.py`, `out/backfill.txt`) seeded like the backfill note's
+production description — a Saturday league 8 Aug-26 Sep numbered 1-8, a second league on
+its own window (29 Aug = 1, 5 Sep = 3) — **plus one deleted league whose only round is
+1 Aug**: the dry run anchors week 1 on **1 Aug**, and every live round moves one week
+("Saturday League · 2026-08-08: was Gameweek 1 -> now Gameweek 2", …, 26 Sep "was 8 -> now
+9"). The deleted league's own round is counted only in "unchanged round labels: 1", so the
+dry run never names the row that caused the shift. `--apply` then stored 1 Aug and a
+second dry run reported no moves, as the note says it must.
+
+Whether production holds such a round is unknown (production is not read by this
+review); the backfill note expects 8 Aug. The owner's review of the dry run is the
+safeguard, but the line that would explain a surprising anchor is missing.
+
+**Member impact:** if a deleted or test league ever played earlier in the season, applying
+the backfill renumbers every live league's played weeks by one.
+
+**Fix:** filter `League.deleted_at IS NULL` in `plan`, `reanchor_from_earliest_round` and
+`ensure_calendar_for_new_season`'s count, and print the round that set each anchor in the
+dry run. API-carrying; worth doing before the owner runs the backfill.
+
 ## Checked and found nothing material
 
 ## Proposed batches
@@ -232,5 +259,8 @@ same budget. API-carrying.
 ## Owner decisions
 
 ## Doc corrections
+
+None found so far. (`docs/backfills/2026-season-calendar.md` is accurate for data with no
+deleted-league rounds; CORR-25 is a code fix, not a doc correction.)
 
 ## What this pass did not do
