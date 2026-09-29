@@ -1,6 +1,6 @@
 # 04 — Performance and operations
 
-Status: **in progress** (sections marked *pending* are not yet measured).
+Status: **complete except Lighthouse and wall-clock timings**, which wait for a quiet machine (see the end).
 
 ## Method
 
@@ -128,44 +128,50 @@ leaves out (see Doc corrections).
 
 ## Prior findings
 
-*Partial — rows are added as each is re-driven.*
-
 | id | batch | verdict | evidence |
 | --- | --- | --- | --- |
 | PERF-01 + OPS-16 | 144 | **held** | home summary 13 statements at both shapes and for 1 or 3 leagues (was 15); one `SELECT DISTINCT gameweeks.starts_on` projection, not whole rounds (`api-*-sql.txt`) |
+| PERF-02 | owner decision (one worker; move the scheduler out before ~10 leagues) | **unchanged, as decided** | still one uvicorn process with the scheduler inside it (`nixpacks.toml` start command, `main.py` lifespan); one live league. Concurrency re-timing *pending a quiet machine* |
+| PERF-03 | 145 | **held locally; not checkable in production read-only** | 264-fixture slate 299,134 B → 15,202 B with `content-encoding: gzip`, `vary: Accept-Encoding`; responses under 4 KB deliberately uncompressed. Production's only public API responses (`/health`, 82 B) sit below the floor, so no header could prove it (`prod-health-headers.txt`) |
 | PERF-04 | 146 (migration 026) | **held** | the SQL the app actually runs, captured from `retire_stranded_rounds` and the settle sweep at the stress shape and explained: retirement's pick-existence check is an `Index Only Scan using ix_picks_gameweek_id`, the settle sweep's pending-pick read a `Bitmap Index Scan on ix_picks_gameweek_id` — both by the planner's own choice. The 76-row `gameweeks` table is still sequentially scanned, correctly at one page; with seq scans disabled both reads take `ix_gameweeks_starts_on` (`explain-stress.txt`) |
 | PERF-05 | 146 | **held** | pool is 5 + 5 with a 10 s `pool_timeout` (`database.py`), down from 10 + 10 — but see PERF-20 for what now holds a connection |
 | PERF-06 / PERF-07 | 159 | **held at three windows; the cliff moved to four** | counting fake (below): the refresh job walks 23 competitions per window per run, not 41. Three windows: Saturday peak **72/hour**, day **337** (was 145 and 527). Five windows: **118/hour** in both refresh hours — see PERF-21 |
 | PERF-08 | 160 | **held** | across three simulated days at 1, 3 and 5 windows the plan counter's hourly figure equalled the transport's count in **every hour** (0 mismatches), and `requests_made` equalled the transport total (744, 929, 1,118) |
+| PERF-09 | 161 | **held** | the real limiter, charged in the route's order (league bucket, then installation): 1, 2, 5 and 20 leagues × 60 attempts each allow **50 provider-spending submissions in the hour in every case** (was 50 × leagues). `pick-buckets.txt`. The price is PERF-23 |
+| PERF-10 | 162 | **held** | real uvicorn on :8141, every webpush replaced by a 179 ms sleep in the executor (the per-send time implied by 49 sends in 8,759 ms): a pick in the **50-member league answered in 63 ms**, its fan-out finished 9.5 s later; in the 12-member league 213 ms, fan-out 2.2 s later. Each eligible member got **exactly one** send, the picker none (`push-fanout.json`). But see PERF-20 |
 | PERF-11 | 163 | **held as scoped** | the build's manifest is still every emitted file (83 entries; the plugin prints 745.7 KiB), but `sw.ts` filters it through `isRoleGatedChunk` before `precacheAndRoute`: 13 admin and league-admin chunks (61.5 KiB) are dropped, so a member's service worker fetches **70 entries, 798 KiB on disk** — 55 member-route JS chunks (636 KiB), 9 icons (64 KiB), 3 fonts, the CSS and the shell. That is what Batch 163 asked for (keep the routes every member uses); the saving is 7 %, because the admin chunks were never the bulk (`bundle.json`) |
 | PERF-12 | 164 | **held** | no chunk contains framer-motion or its runtime (`chunks_mentioning_framer_motion: []`); JS is **697.3 KiB raw / 237.6 KiB gzip in 68 chunks** (was 823.6 KB / 278.8 KB in 67). The dependency is still declared (PERF-22) |
-| OPS-11 | 127 | **held** | Node 24 in all three CI jobs (`ci.yml:61,78,97`), in the gate (`ci-local.sh:188`, `nvm use 24`), `.nvmrc` 24 and `apps/web` `engines.node: 24.x`, which is what the Vercel project builds from. Vercel's runtime itself is not observable read-only |
-| OPS-15 | not batched (owner, 24 Sep) | **not fixed, wider** | declared → current on npm today (`npm-latest.txt`): Vite 5 → 8, ESLint 8 → 10, Tailwind 3 → 4, Vitest 2 → 5, vite-plugin-pwa 0.20 → 1.3, React 18 → 19, TypeScript 5 → 7. Three majors behind on the build tool now, against "several" on 13 Sep |
 | PERF-13 | 165 | **held** | a stub DevTools hook counting components that actually rendered in each commit (cloned fiber + `PerformedWork`), 3 × 5 s idle on the 264-fixture round screen at 390 px: **5 commits, 1 component each** — the countdown alone (`browser.mjs`, run 2). Home: 5 commits of 3 components. Standings: none |
 | PERF-15 | 165 | **held** | both context values are `useMemo`'d (`AuthContext.tsx:315`, `LeagueContext.tsx:87`) |
 | PERF-16 | 165 | **held for the standings key; factory partial** | `queryKeys.standings.forSeason` keys `'current'` apart from a named season; 42 inline `queryKey: [...]` literals remain outside the factory |
 | PERF-17 | 164 | **not fixed** | cold `/login` still downloads **three font files, 48.8 KiB, one preloaded** (`jetbrains-mono-600`, `outfit-400`, `outfit-600`) — the same payload as 13 Sep. Batch 164 removed a fourth file from the app, not from the sign-in screen (`browser-run1.json`) |
-| PERF-10 | 162 | **held** | real uvicorn on :8141, every webpush replaced by a 179 ms sleep in the executor (the per-send time implied by 49 sends in 8,759 ms): a pick in the **50-member league answered in 63 ms**, its fan-out finished 9.5 s later; in the 12-member league 213 ms, fan-out 2.2 s later. Each eligible member got **exactly one** send, the picker none (`push-fanout.json`). But see PERF-20 |
-| PERF-09 | 161 | **held** | the real limiter, charged in the route's order (league bucket, then installation): 1, 2, 5 and 20 leagues × 60 attempts each allow **50 provider-spending submissions in the hour in every case** (was 50 × leagues). `pick-buckets.txt`. The price is PERF-23 |
-| PERF-02 | owner decision (one worker; move the scheduler out before ~10 leagues) | **unchanged, as decided** | still one uvicorn process with the scheduler inside it (`nixpacks.toml` start command, `main.py` lifespan); one live league. Concurrency re-timing *pending a quiet machine* |
-| OPS-17 | none | **not fixed** | `create_scheduler()` started paused: all **13** registered jobs have `misfire_grace_time = 1`; only the switched-off `offsite_backup` sets 3,600 (`jobs.json`). Re-driven: the real `lock_gameweeks` job, due while the loop was busy 0.5 s, ran; busy 1.5 s, it was **dropped** — "was missed by 0:00:01.4" (`misfire-demo.txt`) |
-| OPS-18 | none | **not fixed** | on a Saturday **every hour** at :00 runs `lock_gameweeks` + `live_scores`, and 06:00, 07:00, 09:00, 11:00, 18:00, 20:00 and 22:00 add discovery, the warm pass, the refresh or settle — three jobs in one second. `coalesce=True, max_instances=1` still drops an overrun. At the stress shape with an instant provider the costliest are settle (32 statements, ~1.0 s at load 6) and discovery (19, 88 ms); the rest are 1-2 statements (`jobs.json`) |
+| PERF-14 | 166 (closed by re-measurement) | *pending a quiet machine* | Lighthouse mobile median of 3 on standings needs a 1-minute load under 4; the machine ran at 4-80 throughout this pass |
+| OPS-11 | 127 | **held** | Node 24 in all three CI jobs (`ci.yml:61,78,97`), in the gate (`ci-local.sh:188`, `nvm use 24`), `.nvmrc` 24 and `apps/web` `engines.node: 24.x`, which is what the Vercel project builds from. Vercel's runtime itself is not observable read-only |
 | OPS-12 | 128 | **held** | rehearsed locally (`ops12-recovery-rehearsal.txt`): `--deployed 026` → PASS, nothing applied; `--deployed 025` → PASS, 026's 99-line plan found; `--deployed 024` → **exit 1**, "025 FAIL — no plan"; `--plan-for 025 026` → exit 1. `ship-prod.md` step 7 runs it and says exit 1 or 2 may not be uploaded past. Enforcement is the workflow's instruction to an agent, not a hook (lens 07's territory) |
 | OPS-13 | 95 (built, switched off) | **not fixed — open across four reviews** | Batch 95's weekly job registers only when `BACKUP_STORAGE` is not `none` (`scheduler.py:1070`, default `none`, `config.py:326`); STATUS (28 Sep) records it off and "no backup yet". Not observable read-only. **RPO today: unbounded** — no durable copy of production has ever existed (Batch 75 removed a nightly dump that only ever wrote to `/tmp`); **RTO: undefined**, because there is nothing to restore. Raised as FEAT-A02 (HIGH) on 26 Aug and OPS-13 (HIGH) on 13 Sep; deferred by the owner since 30 Jul. What remains is owner work, not code: the bucket, the key, the egress check (FEAT-A09's consumer is still unattributed) and one manual run |
 | OPS-14 | 129 | **held** | real `report_discovery_silence()` on the scratch DB with every round aged 10 days and one site admin subscribed: run 1 alarm + **1 push**, runs 2 and 3 alarm + **0 pushes** (durable cooldown), healthy run **0** (`alarm-push.txt`) |
-| PERF-03 | 145 | **held locally; not checkable in production read-only** | 264-fixture slate 299,134 B → 15,202 B with `content-encoding: gzip`, `vary: Accept-Encoding`; responses under 4 KB deliberately uncompressed. Production's only public API responses (`/health`, 82 B) sit below the floor, so no header could prove it (`prod-health-headers.txt`) |
+| OPS-15 | not batched (owner, 24 Sep) | **not fixed, wider** | declared → current on npm today (`npm-latest.txt`): Vite 5 → 8, ESLint 8 → 10, Tailwind 3 → 4, Vitest 2 → 5, vite-plugin-pwa 0.20 → 1.3, React 18 → 19, TypeScript 5 → 7. Three majors behind on the build tool now, against "several" on 13 Sep |
+| OPS-17 | none | **not fixed** | `create_scheduler()` started paused: all **13** registered jobs have `misfire_grace_time = 1`; only the switched-off `offsite_backup` sets 3,600 (`jobs.json`). Re-driven: the real `lock_gameweeks` job, due while the loop was busy 0.5 s, ran; busy 1.5 s, it was **dropped** — "was missed by 0:00:01.4" (`misfire-demo.txt`) |
+| OPS-18 | none | **not fixed** | on a Saturday **every hour** at :00 runs `lock_gameweeks` + `live_scores`, and 06:00, 07:00, 09:00, 11:00, 18:00, 20:00 and 22:00 add discovery, the warm pass, the refresh or settle — three jobs in one second. `coalesce=True, max_instances=1` still drops an overrun. At the stress shape with an instant provider the costliest are settle (32 statements, ~1.0 s at load 6) and discovery (19, 88 ms); the rest are 1-2 statements (`jobs.json`) |
+
+Tally of the 23 rows: **held 15** (PERF-01/OPS-16, 04, 05, 06/07, 08, 09, 10, 11, 12, 13,
+15, OPS-11, 12, 14, and PERF-03 locally), **partial 1** (PERF-16), **not fixed 5**
+(PERF-17, OPS-13, OPS-15, OPS-17, OPS-18 — the last two never had a batch),
+**unchanged by decision 1** (PERF-02), **pending 1** (PERF-14). None regressed. "Held"
+means re-driven against the running scratch stack, the counting fake or real Chromium,
+as each row says.
 
 ## Register
 
 | id | sev | deploy | status | finding |
 | --- | --- | --- | --- | --- |
 | PERF-19 | HIGH | live | verified | A league of 40-50 members breaks its home screen and results once the combined odds pass about 10^26 |
+| PERF-18 | MED | live | verified | The slate makes two queries per competition on the card — 56 statements at production's 23 competitions |
 | PERF-20 | MED | live | verified | Each background fan-out holds a pooled connection for its whole run: a burst of picks in a big league exhausts the pool, fails picks with 500 and silently drops alerts |
 | PERF-21 | MED | live | verified | The slate refresh has no budget: five league windows spend 118 requests in each refresh hour |
 | PERF-23 | MED | live | verified (hour) | The installation pick bucket caps the whole deployment at 50 submissions an hour and 100 a day, counting changes of mind |
 | OPS-19 | LOW | tooling | verified | The deploy and rollback commands still run the Railway and Vercel CLIs on Node 20 |
 | PERF-22 | LOW | live | verified | framer-motion is still a declared dependency though nothing imports it |
-| PERF-18 | MED | live | verified | The slate makes two queries per competition on the card — 56 statements at production's 23 competitions |
 
 ## PERF-19 · HIGH · live · verified — the combined odds overflow in large leagues
 
@@ -256,6 +262,28 @@ Saturday morning can be refused a price for five minutes, twice.
 hour between them), and price the walk at the played intersection rather than the raw
 pool (CORR-24).
 
+## PERF-18 · MED · live · verified — the slate queries per competition
+
+The round screen's statement count is **10 + 2 × competitions on the card**: 56 at
+production's 23 competitions, 66 at 28. `fixture_context` (`services/football_data.py:923-990`)
+calls `resolve_names` once per competition (`:950`), and each call reads the alias table
+and then the competition's teams (`services/team_matching.py:263`, `:284`). Its docstring
+says "three queries for a slate of any size". The code is unchanged since Batch 16; the
+2026-09-13 pass measured 12 because its round spanned one competition, so **its "no N+1
+anywhere" was wrong for this screen** — the counts did not vary with the one factor that
+drives them.
+
+Bounded — at most the 41 played competitions, 92 statements — but these are serial round
+trips on the most-used screen on a Saturday morning: at a 5-10 ms Railway→Supabase round
+trip (not measured; production cannot be probed read-only) the 46 extra statements are
+roughly 0.2-0.5 s per card load.
+
+**Member impact:** the pick screen is slower than it needs to be, and slower the wider
+the card.
+
+**Fix:** resolve every competition's names in two queries (`IN` over competition ids),
+as the docstring already claims.
+
 ## PERF-23 · MED · live · verified (hourly; daily by configuration) — one bucket for every league's picks
 
 Batch 161 closed PERF-09 by charging a shared installation bucket beneath the per-league
@@ -318,44 +346,93 @@ needs the owner to name the batch.
 **Fix:** drop the dependency in the next batch that is allowed to touch
 `apps/web/package.json`.
 
-## PERF-18 · MED · live · verified — the slate queries per competition
-
-The round screen's statement count is **10 + 2 × competitions on the card**: 56 at
-production's 23 competitions, 66 at 28. `fixture_context` (`services/football_data.py:923-990`)
-calls `resolve_names` once per competition (`:950`), and each call reads the alias table
-and then the competition's teams (`services/team_matching.py:263`, `:284`). Its docstring
-says "three queries for a slate of any size". The code is unchanged since Batch 16; the
-2026-09-13 pass measured 12 because its round spanned one competition, so **its "no N+1
-anywhere" was wrong for this screen** — the counts did not vary with the one factor that
-drives them.
-
-Bounded — at most the 41 played competitions, 92 statements — but these are serial round
-trips on the most-used screen on a Saturday morning: at a 5-10 ms Railway→Supabase round
-trip (not measured; production cannot be probed read-only) the 46 extra statements are
-roughly 0.2-0.5 s per card load.
-
-**Member impact:** the pick screen is slower than it needs to be, and slower the wider
-the card.
-
-**Fix:** resolve every competition's names in two queries (`IN` over competition ids),
-as the docstring already claims.
-
 ## Checked and found nothing material
 
-*pending*
+- **No growth with data volume.** Every endpoint's statement count is identical at the
+  production and stress shapes, and the home summary is 13 statements for a member in
+  one league or three. The one exception grows with competitions, not rows (PERF-18).
+- **The 4 KB compression floor is right.** Login (658 B, two JWTs) and every response
+  under 4 KB go uncompressed on purpose — a compressed secret beside attacker-influenced
+  data is the BREACH shape — and every slate, table and export above it compresses 85-95 %.
+- **The client still never polls**: 0 requests in 120 idle seconds on three screens.
+- **The plan counter is now the truth**: equal to the transport's count in every hour of
+  three simulated days at three window counts (PERF-08).
+- **Settlement is de-duplicated**: one `/events/{id}` per distinct pending fixture — 12
+  at 18:00, 0 at 20:00 and 22:00 — however many leagues hold it.
+- **A frozen pick still costs exactly one request**, and the warm pass's cost follows
+  distinct fixtures, not leagues (leagues sharing a window share the sweep).
+- **The account export** (new since 2ce6f42) is 6 statements at both shapes, 11 KB → 1.7 KB.
+- **The settlement fan-out** runs after the commit in its own session and the recovery
+  gate and discovery alarm behave as documented (OPS-12, OPS-14).
+
+## Where the 2026-09-13 pass was wrong
+
+- **"There is no N+1 anywhere."** The slate queries twice per competition on the card
+  (PERF-18). The 13 Sep shapes varied rows, members and leagues, but its open round
+  spanned one competition, so the one factor that drives the count never moved. The code
+  is from Batch 16 and was live then.
+- Its "84 KB" slate was not fully priced. With both markets priced on all 264 fixtures
+  the payload is 299 KB raw (15 KB compressed); the size that matters on a phone is now
+  the compressed one either way.
 
 ## Proposed batches
 
-*pending*
+1. **Large-league accumulator arithmetic** (PERF-19) — quantize under a wider decimal
+   context or cap the displayed price; 50-leg test. API-carrying, no migration.
+2. **The pick fan-out stops holding a connection** (PERF-20) — read recipients, release
+   the session, send, record; bound concurrent fan-outs; catch-all on the task. API-carrying.
+3. **The slate refresh gets a budget, and walks are priced at what is walked** (PERF-21
+   with CORR-24). API-carrying.
+4. **Resolve the slate's club names in two queries** (PERF-18). API-carrying.
+5. **Charge the installation pick bucket on upstream spend only** (PERF-23), after the
+   owner decision below. API-carrying.
+6. **Misfire grace and a spread top of the hour** (OPS-17, OPS-18) — a grace of minutes
+   on every job, and lock/refresh/settle off the same second as `live_scores`.
+   API-carrying.
+7. **Sign-in fonts and the dead animation dependency** (PERF-17, PERF-22) — web-only;
+   needs the owner to name the batch for `apps/web/package.json`.
+8. **Operator CLIs on Node 24** (OPS-19) — tooling and docs only.
 
 ## Owner decisions
 
-*pending*
+1. **Switch on the weekly backup (OPS-13).** Options: switch it on now (a 17 MB dump a
+   week across Supabase egress, with FEAT-A09's consumer still unattributed); attribute
+   the egress first; or keep deferring. **Recommendation: switch it on now.** The dump is
+   small against any egress quota, the job fails loudly and early if the target is
+   wrong, and the alternative is a fourth review with an unbounded recovery point.
+2. **The pick budget's shape (PERF-23).** Options: (a) charge the installation bucket
+   only when the pick path goes upstream; (b) keep submissions but size the day from the
+   measured spare (~200); (c) a larger odds plan. **Recommendation: (a)** — it bounds real
+   spend exactly and stops refusing picks that cost nothing.
+3. **Workers and the scheduler (PERF-02), revisited.** Still one worker, as decided.
+   PERF-20 is a new reason the pool, not the worker count, binds first. **Recommendation:
+   unchanged — one worker; fix PERF-20 before any concurrency change.**
+4. **The toolchain (OPS-15).** Three majors behind on Vite. Options: one migration batch
+   per major, Vite first; or hold until something forces it. **Recommendation: schedule
+   Vite 8 as its own batch after the API fixes above**, since every later major (Vitest,
+   the PWA plugin) follows it.
 
 ## Doc corrections
 
-*pending*
+| file | from | to |
+| --- | --- | --- |
+| `STATUS.md:34` | "the certified worst day is 481 of 500 provider requests" | "the budget suite certifies 481 of 500 for browsing, discovery, the weekly walk, one warm pass and the manual allowance; it omits the twice-daily refresh, settlement and the pick bucket (a measured one-window Saturday is 289)" |
+| `STATUS.md` Toolchain, Vercel CLI line | "run it with Node 20 first on PATH" | say it is Node 20 by necessity and end-of-life, until OPS-19 lands |
+| `apps/api/src/config.py:112-113` (code comment, belongs to a batch) | "the whole manual admin allowance brings it to 460 of 500" | 481 of 500 at the 23-competition walk (Batch 115 fix) |
+| `apps/api/src/services/football_data.py:935` (docstring, belongs to PERF-18's batch) | "three queries for a slate of any size" | two queries per competition plus three |
 
 ## What this pass did not do
 
-*pending*
+- **Lighthouse and wall-clock timings are pending a quiet machine** (PERF-14, PERF-02's
+  concurrency figure): the 1-minute load average ran between 4 and 82 throughout.
+  `lighthouse.mjs` (Lighthouse 13.5.0 under the scratchpad) and `concurrency.py` are
+  ready and gate themselves on load < 4.
+- No production load, no authenticated production request; compression in production
+  could not be confirmed read-only (no public response above 4 KB).
+- **Provider latency is not modelled** — the mock answers instantly and never returns
+  `429`, so the counts are the evidence and the cooldown behaviour in PERF-21 is read
+  from the code, not observed. Four windows was not simulated (92 by arithmetic).
+- The PERF-19 threshold is exact for the app's function; how often real 40-50 member
+  leagues cross it depends on prices members choose, which no data here can show.
+- FotMob (`sync_football_data`, `live_scores`) ran with no provider, as on 13 Sep.
+- No WebKit or real iOS device; Chromium only.
