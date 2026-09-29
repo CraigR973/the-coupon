@@ -1,0 +1,16 @@
+62:+            LeagueMembership.deleted_at.is_(None),
+235:+            LeagueMembership.deleted_at.is_(None),
+439:+        select(League).where(League.id == invite.league_id, League.deleted_at.is_(None))
+485:+            LeagueMembership.deleted_at.is_(None),
+486:+            Profile.deleted_at.is_(None),
+489:+        .limit(1)
+509:+            LeagueMembership.deleted_at.is_(None),
+511:+        .limit(1)
+997:+table. What makes them absent everywhere else is the profile: ``deleted_at`` and
+1054:+            LeagueMembership.deleted_at.is_(None),
+1055:+            Profile.deleted_at.is_(None),
+1067:+            LeagueMembership.deleted_at.is_(None),
+1068:+            League.deleted_at.is_(None),
+1167:+    member.deleted_at = now
+1251:+                "left_at": membership.deleted_at.isoformat() if membership.deleted_at else None,
+1980:+        select(Profile).where(Profile.id == profile_id, Profile.deleted_at.is_(None))

@@ -64,6 +64,7 @@ in `notes/02-correctness/` (`out/*.txt`).
 | CORR-23 | LOW | live | verified | A round nobody picked on never settles, so it is never announced and stays "locked" for ever |
 | CORR-24 | MED | live | verified | Discovery's budget prices a walk at the raw pool (36) not what is walked (23): two walks a day at production's shape, and a third window is not served |
 | CORR-25 | LOW | live (not yet run in production) | verified on scratch | The season-calendar backfill and the runtime re-anchor count a deleted league's rounds, so one early test round renumbers every live league |
+| CORR-26 | LOW | live | verified | A settled coupon reads "4 of 3" once a member who picked has left or deleted their account |
 
 ## CORR-19 · MED · live · verified — self-deletion reopens CORR-14
 
@@ -148,6 +149,12 @@ panel and card, `me.py:469`, `me.py:552`), and all three still pass every leg's
 cross-league summary's `last_result` (`out/lifecycle.txt`). `leg_count` there also
 includes the void legs, so home prints "4-fold · 54.91" beside a coupon that says
 "2-fold @ 7.44 — 2 legs void, not in the price".
+
+Confirmed in real Chromium on the production bundle (`notes/02-correctness/web_check.mjs`,
+`out/web_check*.txt`): home's card reads "2 of 4 picks landed · 4-fold · 54.91", the
+Results row "54.91", and tapping that row opens the coupon at "7.44 — 2 legs voided — not
+in the combined price" (`screenshots/home--last-result-void--1280--light.png`,
+`results--void-leg-price--…`, `coupon--settled-void-legs--…`).
 
 **Member impact:** the same week's accumulator shows two different prices depending on
 which screen a member opens.
@@ -251,6 +258,21 @@ the backfill renumbers every live league's played weeks by one.
 **Fix:** filter `League.deleted_at IS NULL` in `plan`, `reanchor_from_earliest_round` and
 `ensure_calendar_for_new_season`'s count, and print the round that set each anchor in the
 dry run. API-carrying; worth doing before the owner runs the backfill.
+
+## CORR-26 · LOW · live · verified — "4 of 3"
+
+`CouponSection.tsx` heads the coupon `${leg_count} of ${memberCount}`, where the member
+count is the league's *current* active roster. Legs are kept for members who left (Batch
+130 keeps their pick) and for erased members (Batch 136 keeps it by design), so after Erin
+left L1 and Bob deleted his account, the settled Gameweek 1 coupon reads **"Result 4 of
+3"** beside "3 of 3 picked" (`screenshots/coupon--settled-void-legs--1280--light.png`).
+The share text's "incomplete" note is guarded against a negative count, so only the
+header is wrong.
+
+**Member impact:** a past coupon claims more picks than members, which reads as a bug.
+
+**Fix:** head a settled coupon with the leg count alone ("4 picks"), or count members who
+held a pick in that round rather than today's roster. Web-only.
 
 ## Checked and found nothing material
 
