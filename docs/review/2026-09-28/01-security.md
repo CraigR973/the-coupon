@@ -1,0 +1,160 @@
+# 01 — Security
+
+*Draft in progress — sections are filled as each probe is verified. See
+`notes/01-security/progress.md` for state.*
+
+## Method
+
+A route-by-route authorisation matrix rebuilt from the running app's own route table
+(`notes/01-security/list_routes.py` walks FastAPI's router tree: **84 API routes**, 5 of
+them new since `2ce6f42`) and **probed against a running seeded instance** — the shared
+harness (`tests.e2e_server`, scratch PostgreSQL at migration 026, `ODDS_PROVIDER=fake`,
+scheduler off) on port 8110, with extra actors seeded in process by
+`notes/01-security/seed_matrix.py`: a second private league with its own admin and member,
+a `public_request` league, a soft-deleted league holding a live invite, an outsider, a
+site admin who belongs to nothing, a site admin who is a plain member of league A, a
+league-B admin who is a plain member of league A, a co-admin of league A, and five
+lockout victims. Access tokens for the matrix were minted with the scratch JWT secret so
+the durable login limit was never spent by it; the auth lifecycle was driven over real
+`/auth/login`.
+
+- **73 routes × 7 roles** (anonymous, league-A member, league-A admin, league-B member,
+  league-B admin, outsider, non-member site admin): `notes/01-security/matrix.txt` and
+  `matrix.csv`. Destructive routes were aimed at a random id so an authorised caller
+  reaches the handler's own 404 while an unauthorised one is refused first.
+- The prior register re-driven over HTTP; every exchange is in
+  `notes/01-security/probes.txt`, produced by the `s0N_*.py` scripts beside it.
+
+## Prior findings
+
+| id | batch | status | evidence (how it was driven) |
+| --- | --- | --- | --- |
+| SEC-15 | 122 | **partial** | League admin → site admin: `403 SITE_ADMIN_RESET_REQUIRED`; → another league's admin: 403; → ordinary member: 200 and the reset claims normally. **But demoting a co-admin first reopens it** — SEC-27 |
+| SEC-18 | 123 | **partial** | Web half held in code (a stored refresh token is spent before the PIN screen, `AuthContext.tsx:118-140`). **API half not effective**: one source locked five accounts; the per-source budget answers 429 only *after* each lock is written — SEC-28 |
+| SEC-16 | 124 | held | Frank joined league B by code, was removed, code rotated (`PRW6H5` → `BWCQ52`); old code 404, `/join` 403 (private). `public_request` league by code → `status: pending`, request listed for the admin, second attempt `409 JOIN_REQUEST_PENDING` |
+| SEC-17 | 125 | held (member writes) | Non-member site admin: pick submit 403, display-name override 403; reads (standings, coupon) 200. League-**admin** writes still carry the site-admin bypass by design — PATCH league, create invite, rotate code all 200, audited as the site admin (see Checked, and Owner decisions) |
+| SEC-20 | 126 | **partial** | Exact, case-folded, padded, reserved ("Former member") and non-ASCII names refused. **An override may equal the global name of someone not yet in the league, who can then join** — two members named "Erin" on one roster — SEC-29 |
+| SEC-23 | 142 | held (port) | `:8443` and `:22` on allowlisted hosts → 422 "must use the standard HTTPS port"; `:443` accepted |
+| SEC-26 | 143 | held | Live, unclaimed invite to a soft-deleted league → `404 League not found` |
+
+## Register
+
+| id | sev | deploy | status | finding |
+| --- | --- | --- | --- | --- |
+| SEC-28 | MED | live | verified | The per-source login backoff (Batch 123) never stops a lock: one address still locks any number of accounts |
+| SEC-27 | MED | live | verified | A league admin can still take over a co-admin: demote them, then reset their PIN |
+| SEC-29 | LOW-MED | live | verified | A per-league name can copy someone outside the league, who can then join under the same name |
+
+## SEC-28 · MED · live · verified — the per-source backoff arrives after the damage
+
+Batch 123 added `LOGIN_SOURCE_FAILURE_LIMIT` (15 wrong PINs per 15 minutes per source) so
+"one address cannot work a whole leaderboard five attempts at a time". It is **charged, never
+checked first**: `login()` increments the victim's `failed_login_count`, sets `locked_until`
+at the fifth failure and **commits** (`routers/auth.py:329-335`), and only then calls
+`charge_failure()` (`:344`), which raises the 429. No code consults the source bucket before
+the PIN is verified. So the only effect of an exhausted source budget is that the attacker
+reads 429 instead of 401 — the lock is already written.
+
+Reproduced (`notes/01-security/s02_sec18.py`, `probes.txt` "SEC-18"): from one address,
+five wrong PINs to each of five members inside one window, 25 requests in 7.7 s.
+
+| victim | responses | database afterwards | correct PIN from another address |
+| --- | --- | --- | --- |
+| V1-V3 | 401 ×5 | `failed_login_count=5`, locked | 423 |
+| V4, V5 | **429 ×5** | `failed_login_count=5`, **locked** | **423** |
+
+Source bucket `login-src:127.0.0.1` ended at 25 hits against a limit of 15. The Batch 123
+test (`tests/test_durable_rate_limit.py:443-463`) asserts only that *some* response was a
+429 (`refusals > 0`), never that the fourth account stayed unlocked, which is how this
+passed the gate.
+
+**Member impact:** anyone can still keep a named member out of sign-in all Saturday from one
+connection, five requests per quarter-hour per victim; the new limit changes the status code
+the attacker sees, not what the victim sees.
+
+**Disproof attempted:** the web half of Batch 123 does hold — a member with a live refresh
+token is let in without the PIN, so the victims are those without one (signed out, new
+device, or a session older than 30 days). That, plus the lockout push now telling the member
+it was not them, is why this is MED rather than the original HIGH. The per-(name, address)
+limit and the account lock are unchanged and still bound brute force.
+
+**Fix:** check the source budget *before* verifying the PIN (a read-only peek at the counter,
+refusing with 429 when spent), and keep charging only on failure. Add a test that asserts
+the fourth victim's `locked_until` is still null.
+
+## SEC-27 · MED · live · verified — demote a co-admin, then reset them
+
+Batch 122 refuses a league-scoped PIN reset when the target is a site admin or "an admin of
+any league" (`routers/league_memberships.py:627-640`). But a league admin can **demote** a
+co-admin of the same league whenever there are two or more (`:276`), and the demoted member
+is then an admin of nothing. Reproduced (`s01_sec15.py`, `probes.txt` "SEC-15 residual"):
+
+```text
+reset-pin hank  (co-admin of league A)        -> 403 SITE_ADMIN_RESET_REQUIRED
+demote hank                                    -> 204
+reset-pin hank                                 -> 200 pin_cleared
+POST /auth/pin/set {Hank, 7294}  (no auth)     -> 204
+POST /auth/login {Hank, 7294}                  -> 200, session as Hank
+```
+
+**Member impact:** someone you made a co-admin can sign in as you — your picks, your other
+leagues — and all you see is that your PIN no longer works.
+
+**Disproof attempted:** a co-admin who is also an admin of any *other* league is still
+refused, and a site admin is always refused. The demotion and the reset both land in the
+league audit log under the attacker's name. The general mechanism — a reset opens a 24-hour
+window that `/auth/pin/set` closes for whoever names the account first — is the
+2026-08-23 owner decision and is unchanged; this finding is only that one of Batch 122's
+two guards can be stepped around.
+
+**Fix:** refuse a league-scoped reset of anyone who was a league admin recently (for
+example, whose most recent `member_demoted` audit row is younger than the claim window), or
+simpler, route every reset of a current or former admin through the site console.
+
+## SEC-29 · LOW-MED · live · verified — a per-league name can copy someone who has not joined yet
+
+Batch 126 checks an override against the effective names of the league's **current**
+members (`_effective_name_taken`, `routers/league_memberships.py:364`). Nothing checks again
+when somebody joins: `join-by-code`, `/join`, invite claim and join-request approval all go
+straight to `_upsert_membership`. Reproduced (`s03_sec16_26.py`, `probes.txt` "SEC-20"):
+Bob set his league-A name to `Erin` (204 — Erin was only in league B) and to `Sam` (204 —
+the site admin's name); Erin then joined league A by code, and league A's roster read
+`['Erin', 'Alice', 'Carol', 'Erin', …]`.
+
+Confusables are accepted exactly as registration accepts them (`CaroI`, `Car0l`); that is
+the charset rule working as designed, not a gap in this batch.
+
+**Member impact:** a member can wear the site admin's name in a league the site admin is not
+in, or pre-empt a friend's name before they join, and the table then shows two people under
+one name.
+
+**Fix:** check the global display names of *all* profiles (not only current members) when an
+override is set, and on join refuse — or clear — an existing override that now collides.
+
+## Checked and found nothing material
+
+*(in progress)*
+
+- **Authorisation matrix, 73 routes × 7 roles:** every refusal was a 401/403 from the
+  dependency; the three cells the script flagged are all correct behaviour — `PUT /auth/me/pin`
+  answers 401 "Current PIN is incorrect" to a wrong current PIN, a site admin deleting their
+  own account gets 409 by design, and `/join` on a private league is 403 for everybody.
+- **League-admin writes by a non-member site admin** (PATCH league, create invite, rotate
+  code) succeed and are audited under the site admin's name. Batch 125 deliberately scoped
+  the split to the member dependency; these are oversight actions, not pool consumption.
+
+## Proposed batches
+
+*(in progress)*
+
+## Owner decisions
+
+*(in progress)*
+
+## Doc corrections
+
+*(in progress)*
+
+## What this pass did not do
+
+*(in progress)*
