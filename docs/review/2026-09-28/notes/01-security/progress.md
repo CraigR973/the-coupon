@@ -2,59 +2,44 @@
 
 Resume from this file alone. Ports: API 8110, web 4310. Ids from SEC-27.
 Stack: `~/.cache/the-coupon/ci-local-venv/bin/python /Users/craigrobinson/the-coupon/docs/review/2026-09-28/notes/harness/stack.py --name sec --api-port 8110 --origin http://127.0.0.1:4310 --seed`
-(run in background; kill with SIGTERM when done). Save output as `.txt` (`*.log` is gitignored).
+(background; SIGTERM when done). Then `seed_matrix.py` (writes scratchpad/matrix-actors.json with
+minted tokens). Output as `.txt` (`*.log` is gitignored). Evidence transcript: `probes.txt`.
 
-Interrupted once: usage limit 28 Sep ~23:04, resumed 29 Sep 08:40 (lead killed the old stack).
+Interruptions: 28 Sep ~23:04 (usage), 29 Sep ~08:50 (usage). Resumed 14:17. Stack on 8110 was
+still running with the seeded state below (league A has been mutated by the probes: hank demoted
+and his PIN taken over; v1-v5 locked at 08:00 UTC, expired now; league A code rotated; erin
+joined A; league A description edited by sam).
+
+**Write findings into `../../01-security.md` as each one is verified.**
 
 ## State
 
 | step | state | evidence |
 | --- | --- | --- |
-| briefs, prompt, prior 01-security, prior README read | done | — |
-| router inventory + diff since 2ce6f42 | done | `routes.tsv` (84 API routes), `routes-2ce6f42.txt` vs `routes-main.txt`: 5 new routes (me/export, me/delete, me/rename-notice GET + seen, admin/picks/{id}/correct) |
-| code read: deps, auth, rate_limit, me, account_erasure, rename_notice, admin diff, league_memberships, leagues (partial) | done | leads below |
-| stack up | todo (restart) | |
-| seed script (league B, outsider, site admins) | todo | `seed_matrix.py` |
-| authz matrix probed | todo | |
-| cross-league IDOR | todo | |
-| SEC-15..26 re-driven | todo | |
-| SEC-01..13 spot-check | todo | |
-| new surfaces (136, 134, 135/148, 132, 123, 129, 141, 145) | todo | |
-| OSV live query | todo | |
-| secrets scan + redaction check | todo | |
-| production headers + health | todo | |
-| 01-security.md written | todo | |
+| router inventory + diff since 2ce6f42 | done | `routes.tsv` 84 routes; 5 new (me/export, me/delete, me/rename-notice ×2, admin/picks/{id}/correct) |
+| matrix 73 routes × 7 roles | done | `matrix.txt`/`matrix.csv`; 3 "mismatches" are all expected (PIN-check 401/403 before auth-able work, site-admin self-delete 409, private-league join 403) |
+| SEC-15 | partial — held for site admin + other-league admin; **bypass: demote co-admin then reset** (SEC-27) | probes.txt "SEC-15" sections |
+| SEC-18 API half | **not fixed** — 5 victims locked from one source; victims 4-5 got 429 but were still locked (SEC-28) | probes.txt "SEC-18" |
+| SEC-16 | held (code rotated on removal, old code 404; public_request by code → pending) | probes.txt |
+| SEC-17 | held for member writes; league-admin writes keep site-admin bypass (PATCH, invite, rotate all 200 for non-member sam; audited as "Sam") → INFO/owner note | probes.txt |
+| SEC-20 | held for exact/case/padding/reserved/charset; **but override may equal a non-member's global name, who can then join → two "Erin"s** (SEC-29, LOW-MED); confusables CaroI/Car0l accepted (same as registration) | probes.txt |
+| SEC-23 port | held (8443, 22 refused; 443 ok). timeout: code-read todo |
+| SEC-26 | held (404) |
+| SEC-18 web half | todo: code read says refresh before PIN (AuthContext.tsx:118-140) — cite as code-held; optionally verify |
+| SEC-19 CSP, SEC-21, SEC-22, SEC-25 | todo |
+| SEC-01..13 spot-check | todo |
+| new surfaces 136 (delete/export), 134, 135/148, 132, 129, 145 | todo |
+| OSV, secrets, prod headers | todo |
+| 01-security.md | todo — start now |
 
-## Leads from code reading (to verify on the stack)
+## Leads still to check
 
-1. **Per-source login backoff (Batch 123) does not gate anything.** `login()` increments and
-   commits the victim's `failed_login_count` (and locks) *before* `charge_failure()` raises
-   429. No pre-check of the source bucket. So one address can still lock any number of
-   accounts; the 429 arrives after the damage. Test `test_one_source_cannot_work_a_leaderboard...`
-   asserts only `refusals > 0`. Verify: 5 victims × 5 wrong PINs from one source → victims 4-5
-   still locked (423 on correct PIN).
-2. Lockout push: one per lock (locked_until reset on expiry) → sustained griefing sends 4/hour,
-   tag `account-locked` collapses on device. Assess harassment.
-3. **SEC-15 bypass via demote:** league admin X demotes co-admin Y (allowed when 2+ admins),
-   then Y is no longer "admin of any league" → X resets Y's PIN → claims via unauthenticated
-   `/auth/pin/set`. Verify.
-4. `require_league_admin` (leagues.py:240) still has the site-admin bypass for every league-admin
-   **write** (PATCH/DELETE league, promote/demote/remove, invites, reset-pin, rotate, join-request
-   approve/reject, refresh rounds). Batch 125 scoped only the member dependency. Judge vs SEC-17.
-5. `/me/delete` PIN check: 403 on wrong PIN, rate limit 5/hour in-memory per user; no lockout
-   counter. Stolen access token + PIN guessing → irreversible delete. Assess.
-6. Erased member keeps active memberships (by design for standings) — check capacity count,
-   admin-role residue; re-registrant inheritance (things keyed by name: invites hint nulled,
-   login buckets deleted, pin/set window).
-7. `CreateLeagueInviteRequest.display_name_hint` and `UpdateLeagueRequest.description` have no
-   max_length (column String(100) for hint → possible 500).
-8. Audit scope uses `changes->>'league_slug'`; slugs are globally unique incl. deleted and
-   immutable → no cross-league bleed (checked).
-9. `/leagues/{slug}/join` on public_open: removed member can rejoin by slug (inherent to open).
+- `/me/delete` PIN check has no lockout counter, 5/hour in-memory per user.
+- Erased member keeps active memberships (capacity), re-registrant inheritance.
+- `display_name_hint` (String(100)) and league `description` unbounded → possible 500 / bloat.
+- Lockout push: one per lock; sustained griefing → 4/hour, tag collapses.
 
 ## Exact next step
 
-Start the stack, write `seed_matrix.py` (league B with Dave admin / Erin member, outsider Frank,
-site admin Sam non-member, site admin Sadie member of A, Gary admin of B + member of A,
-public_request league C, soft-deleted league D with invite), mint tokens with the harness
-JWT secret, then run the matrix probe.
+Write 01-security.md skeleton with SEC-27/28/29 and the prior table so far; then 136 deletion
+probes; then headers/OSV/secrets.
