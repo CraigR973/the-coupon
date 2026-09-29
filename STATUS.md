@@ -15,7 +15,7 @@ Checked 2026-09-28 unless a line says otherwise.
 | --- | --- |
 | API | `api-production-109b1.up.railway.app` serves `b08a47f3` at migration `026` |
 | API deployment | Railway `86f9ba84-b72d-4791-80ab-c3730ccd9032`, one replica, `europe-west4` |
-| Web | `the-coupon-production.vercel.app`, last live-verified at `b08a47f3` (2026-09-27); Vercel builds `main` on every push |
+| Web | `the-coupon-production.vercel.app` serves `main` at `4121cf0`, Batch 149's last web change — its stylesheet was checked live on 2026-09-28; Vercel builds `main` on every push |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -31,7 +31,10 @@ Checked 2026-09-28 unless a line says otherwise.
 
 - **No `/ship-prod` is owed.** Batch 115 and its 23-competition measurement fix shipped on
   2026-09-27 as Railway `86f9ba84` (`b08a47f3`); the drift check reports **in sync**, and
-  the certified worst day is 481 of 500 provider requests.
+  the budget suite certifies 481 of 500 provider requests for browsing, discovery, the weekly
+  walk, one warm pass and the manual allowance. That is not a ceiling: it omits the
+  twice-daily refresh, settlement and the pick bucket. A measured one-window Saturday is 289
+  (review 2026-09-28, lens 04).
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
   Railway `e77dde8f-9bf3-4c6c-9080-addf52504307`, the previous `c671ccf9` image — boots
   against the database as it stands. Vercel was already on `b08a47f3` at
@@ -78,9 +81,9 @@ Checked 2026-09-24.
 
 - **The gate is `scripts/ci-local.sh`**: eleven checks and no skips. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,350, frontend 1,204). 11 to 13 minutes on this Mac, and 38 when macOS's storage scan loads it (2026-09-25). Without a database the
-  backend suite was 780 passed and 520 skipped at 1,300 tests — not the gate. Current
-  ratchets are 1,350 backend and 1,204 frontend tests.
+  (backend 1,350, frontend 1,204). 11 to 13 minutes on this Mac (11m18s on 2026-09-28), and
+  38 when macOS's storage scan loads it (2026-09-25). Without a database the backend suite is
+  800 passed and 550 skipped at 1,350 tests (2026-09-29) — not the gate.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
   `apps/api/requirements-dev.txt`: Python 3.12, FastAPI 0.141.1, ruff 0.5.4. app-starter's
   venv cannot import the suite.
@@ -98,7 +101,8 @@ Checked 2026-09-24.
   line. The Railway CLI's default link is staging, and the Supabase MCP here is a
   different product — never read Coupon data through it.
 - **Vercel CLI**: run it with Node 20 first on `PATH` (the ambient `node` is 14 and cannot
-  load it). Its stored token is short-lived and refreshed by any `vercel` command, so run
+  load it). Node 20 is end-of-life; it stays here only until the CLIs are re-tested on
+  Node 24 (review 2026-09-28, OPS-19). Its stored token is short-lived and refreshed by any `vercel` command, so run
   `vercel whoami` before reading it for a REST call (2026-09-26).
 - **Deploys**: the web app ships on every push to `main`; the API ships only through
   `/ship-prod`.

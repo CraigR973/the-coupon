@@ -192,7 +192,8 @@ rather than by an agent that the same configuration governs.
 - **CORR-16** — the season-rollover week split across two calendars. No league
   plays that boundary; revisit if one does.
 - **SEC-22** — seventeen advisories confined to the build toolchain, none
-  reachable in production. Folded into Batch 127's toolchain refresh as hygiene.
+  reachable in production. Planned for Batch 127's toolchain refresh as hygiene;
+  Batch 127 then left OPS-15 out, so it went unfixed — see 2026-09-28 SEC-30.
 - **SEC-14**, and the other decisions recorded on 2026-08-27, are unchanged.
 - **CORR-18** (average rank across leagues) and the combined coupon's treatment
   of a void leg are **owner decisions**, not batches — see the README. If the

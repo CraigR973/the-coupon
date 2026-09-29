@@ -55,218 +55,6 @@ ticked rows can collect here until someone moves them below.
 
 ### Open batches
 
-- [x] **Batch 115 — The budget certifies a round that no longer exists** ✅ 2026-09-27
-  **Rescoped 2026-09-27 (owner decision): item 2 below, and nothing else.** This row was
-  recorded on 2026-09-11 as superseded by Batch 119, folding both its items in, but 119's own
-  row carried only item 1. That half shipped with it: the warm pass is
-  `services/odds_warm.py`, run by the scheduler over the horizon `odds_warm_horizon_weeks`
-  sets (default 1). Item 2 never did — `tests/test_request_budget.py` still declares
-  `OBSERVED_LARGEST_ROUND = 202` and `OBSERVED_UNPRICED = 103` by hand, and its tripwire
-  compares the database against that literal (checked 2026-09-27). So item 1, its open
-  decision and its verification lines are done; the title has dropped their half, which was
-  "Nothing learns until a member arrives". The primary change is to tests. The live
-  measurement made the certified budget red, so the owner also approved the item 2 lever
-  on 2026-09-27: browse TTLs move from 2h / 1h / 30m to 4h / 2h / 1h, while the 60-second
-  pick tier stays fixed. `scripts/check-deploy-drift.sh` counts anything under `apps/api`
-  as reaching the image, so a `/ship-prod` follows close-out.
-  Specified 2026-09-06 from the `/ship-prod` of Batch 114, which closed the outage and left
-  two things measurably open. Both are about the same thing: the deployment now *can* learn
-  which fixtures a bookmaker prices, and nothing makes it learn at a useful moment or feeds
-  what it learns back into the number the suite certifies.
-
-  **1. The marker is written on the critical path, and only there.** Measured against
-  production fifteen minutes after `023` applied: `odds_checked_at_utc` is **`never`** across
-  all 1,003 fixtures, and zero are marked. That is correct behaviour and it is the problem —
-  `record_observations` runs in `current_gameweek`, so the only thing that teaches the
-  deployment anything is an authenticated member opening a pick screen. The consequence
-  falls exactly where Batch 114 was written to defend: the **first** member to open the card
-  on a match morning pays the whole cold sweep — `ceil(264 / 10) = 27` requests against a
-  100/hour plan — in the hour everyone else is trying to pick, and every member after them
-  picks for free off what that one member bought. The six-hour re-check has the same shape:
-  whichever card load happens to land after it falls due pays for all of it.
-
-  `refresh_slate` already exists to firm up the imminent card, and its docstring still says
-  *"Odds themselves are snapshotted onto each pick at pick time and served through the
-  provider's own TTL cache, so there is nothing to warm here."* Batch 114 made that sentence
-  false. There is now something to warm, and it is the one thing that is expensive exactly
-  when it is least affordable.
-
-  **Warm the marker on the scheduled pass, so a member never pays to discover it.** The job
-  sweeps each open round's askable fixtures once, writes the marker from what comes back, and
-  commits — the same `askable` / `record_observations` pair the card runs, called from a job
-  that has no member waiting on it.
-
-  **This is not free, and the arithmetic should be stated rather than implied.** A brand-new
-  round costs one full sweep — 27 requests at today's largest — wherever it is paid. Warming
-  it means paying that on the job *and* a cheaper priced-only sweep when the first member
-  arrives, so the absolute daily total rises by roughly one sweep per new round. What it buys
-  is the removal of a 27-request spike from the hour before a lock, replaced by about ten.
-  The daily cap has the room and the hourly one does not, which is the whole reason the tiers
-  are shaped the way they are. Steady state is cheaper still, because the marker persists and
-  only the re-check cadence re-pays.
-
-  Open decision for the owner: whether the warm pass covers **every** open round or only the
-  imminent one. `refresh_slate` already uses a horizon of 1 and says why — the far weeks have
-  not firmed up. The same argument applies here, and the counter-argument is that a league
-  whose round opens early then gets no warming at all.
-
-  **2. The certification is sized on a round that no longer exists, and it went stale in a
-  day.** Batch 114 recorded `OBSERVED_LARGEST_ROUND = 202` / `OBSERVED_UNPRICED = 103` from
-  the outage. Preflight for its own shipment, the next day, measured the largest round at
-  **264** — and 242 behind it — with **zero** FA Cup fixtures: the long tail is now 40
-  `england-amateur-fa-trophy` plus a spread of `england-amateur-*` divisions. The shape
-  recurred within twenty-four hours under a different competition, which is the strongest
-  argument yet for the scope boundary Batch 114 drew: the deployment learning *per fixture* is
-  right where a per-competition filter would already be catching nothing.
-
-  `test_the_budget_covers_the_largest_round_the_database_holds` is the tripwire Batch 114 added
-  for exactly this and it is already red against production data. It passes on the gate only
-  because CI runs against a scratch database with no rounds in it — which is honest, and is
-  also why a hand-maintained constant will go stale again the moment nobody re-measures.
-
-  **Stop maintaining the number by hand.** The suite should read the largest round *and* its
-  unpriced share out of the database when one is present, and fall back to the recorded
-  measurement only when there is not — with the recorded pair kept as a dated floor rather
-  than as the thing being trusted. That is the difference between a constant that lied for a
-  month and a measurement that re-takes itself. Record today's as 264, and record that its
-  unpriced share was not yet knowable when this was specified, because item 1 had not run.
-
-  Then re-run the whole budget suite against the real numbers and **fix whatever turns red**.
-  That is the part that cannot be sized in advance: at 264 fixtures the answer depends on the
-  priced share, and if it does not fit, the fix is a decision — a tighter horizon, a different
-  tier, or a bigger plan — not a smaller assertion. Never reach green by loosening the guard;
-  that is what made this necessary twice.
-
-  **Explicitly out of scope: tightening the near tier.** Batch 114 observed that a cheaper
-  sweep might let the near tier tighten to around twenty minutes — *fresher* than the design
-  that broke — and said to take that number from the counters rather than from the paragraph.
-  The counters shipped; they have no production data through them yet, and item 1 is what will
-  give them some. Deciding it here would be taking the number from the paragraph after all.
-  The 2026-09-27 decision goes the other way: the derived 264 / 89 shape cannot satisfy the
-  free plan at the old ceilings, so browsing deliberately loosens to 4h / 2h / 1h. Pick
-  submission remains on its separate 60-second ceiling and still refuses `PRICE_MOVED`.
-
-  Verification: the scheduled pass writing the marker with no member involved, and a member's
-  first card load afterwards costing the priced subset rather than the whole round; the pass
-  being a no-op for a round already learned inside its re-check window; a degraded or
-  rate-limited pass writing **nothing**, on the same evidence rule the card uses; the pass not
-  running inside the hour before a lock, beside the `refresh_slate` timing Batch 114 moved; the
-  budget suite deriving both figures from a seeded database and falling back to the recorded
-  pair without one; the tripwire passing against a round larger than the recorded floor once
-  the derivation is live; and the full suite green against the production shape as measured at
-  the time the batch is built rather than as written here. Run migrations and the full
-  PostgreSQL-backed gate.
-
-  Scope boundary: when and by what the marker is learned, and where the budget suite gets its
-  figures. No change to what the marker *means*, to the card filter, to `PRICE_MOVED`, to the
-  `429` cooldown, or to the reserve. The only runtime change is the owner-approved browse TTL
-  move from 2h / 1h / 30m to 4h / 2h / 1h; the 60-second pick tier does not move. **API only
-  — no web half, so nothing reaches members until `/ship-prod`.** Depends on Batch 114, which
-  shipped 2026-09-06; independent of Batches 112 and 113.
-
-- [x] **Batch 140 — The desktop layout is the phone layout stretched** ✅ 2026-09-28
-  — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-01 (high impact).
-  There is not one large-breakpoint utility in the application (45 small, 9 medium, zero
-  large or extra-large) and the shell pins the same maximum width at every viewport; the
-  current-round, leaderboard and results pages have no responsive utilities at all. At 1280
-  the product is one narrow column of phone-sized cards in a wide empty frame — and the
-  owner has decided desktop is a supported way to play.
-
-  A real two-column arrangement at the large breakpoint for the three screens that carry
-  lists — round beside coupon, standings beside form — and a wider shell maximum.
-
-  Verification: screenshots at 1280×800 in both themes showing the two-column arrangement;
-  the 390×844 layouts unchanged; axe-core clean at both widths.
-
-  Scope boundary: responsive layout for those three screens and the shell width. No new
-  components, no imagery, no token changes that could affect contrast. **Web-only.**
-
-- [x] **Batch 148 — A renamed member with no push subscription can never be told** ✅ 2026-09-27
-  — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-A11 (MED, live).
-  `rename_notice.py` delivers by web push only and writes its "told them" marker only when
-  a push is actually delivered, so a member with no active subscription is retried on every
-  boot and never informed through any channel. One of the three members renamed by Batch 74
-  is in exactly that state. `STATUS.md` records it as a timing note ("watch for that third
-  marker"); it is a design gap, because there is no second channel to watch for.
-
-  Add an in-app notice shown on next sign-in as the fallback, and treat that as delivery
-  for the marker.
-
-  Verification: a test that a member with no push subscription is shown the notice once on
-  next sign-in and the marker is then written; a test that a member who got the push is not
-  shown it again.
-
-  Scope boundary: the rename notice's delivery channels. No general display-name-changed
-  system. **API + web.**
-
-- [x] **Batch 149 — Toasts collide with the tab bar, skeletons do not match what replaces them, and errors look like empty states** ✅ 2026-09-28
-  — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-04, DES-05 and DES-06
-  (med impact, live). The toaster is anchored bottom-right with no offset for the 60px tab
-  bar or the safe area, so on a phone a toast lands on the navigation. Loading states are
-  generic grey bars that do not match the shape of the content, which jumps 53px when they
-  resolve — and an `.animate-shimmer` class exists in the stylesheet (`index.css:398`) with
-  **zero users**. An error state renders identically to an empty state, with no retry.
-
-  Offset the toaster above the tab bar and the safe-area inset; shape the skeletons to the
-  content they stand in for and use the shimmer that already exists; give error states
-  their own treatment and a retry control.
-
-  Verification: screenshots at 390×844 in both themes showing a toast clear of the tab bar,
-  a skeleton matching its resolved content, and an error state distinct from the empty one
-  with a working retry.
-
-  Scope boundary: these three presentational concerns. No data-layer changes. **Web-only.**
-
-- [x] **Batch 150 — The first screen a new member sees stops at 58% and its only action is a text link** ✅ 2026-09-28
-  — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-07 (med impact,
-  live). Batch 97 made home fill the viewport — measured at 81% of 844px with the full-page
-  height equal to the viewport — but only for the state where a member already has a
-  league. First-run home ends at 58% and offers a single inline text link as its call to
-  action. It is the first impression, and it is the one home state the fill-the-viewport
-  work never reached.
-
-  Give first-run home a real primary action and enough content to reach the fold, reusing
-  the patterns Batch 97 established rather than inventing new ones.
-
-  Verification: a first-run screenshot at 390×844 in both themes reaching the fold, with a
-  button-weight primary action; axe-core clean.
-
-  Scope boundary: the no-league home state. No change to the populated home.
-  **Web-only.**
-
-- [x] **Batch 151 — The same statistic is drawn two ways, and there is no type scale** ✅ 2026-09-28
-  — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-08 and DES-09 (med
-  impact, live). The hero statistic and the card statistic are the same object rendered
-  five different ways, including different colours for the figure itself. And
-  `tailwind.config.ts` defines no `fontSize` or `lineHeight` at all, so type is chosen per
-  component: 84 nodes render at 11px or smaller and four at 9px, which is below comfortable
-  for odds and points on a phone.
-
-  Unify the two statistic components behind one, and define a type scale in the Tailwind
-  config, raising the smallest sizes as part of it.
-
-  Verification: both statistic surfaces rendering from one component; no node below the new
-  minimum; axe-core contrast clean in both themes at both viewports; screenshots before and
-  after.
-
-  Scope boundary: the statistic component and the type scale. Raising sizes only — no
-  colour changes, so contrast cannot regress. **Web-only.**
-
-- [x] **Batch 168 — Two links are under the minimum target size and 200% zoom gives a third of the screen to navigation** ✅ 2026-09-28
-  — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-19 and UX-20 (LOW,
-  live). "Forgot PIN?" renders 316×**16** and "About & scoring rules" 358×**20**, both under
-  the 24px minimum of WCAG 2.2 SC 2.5.8 ("Create account" is inline text and exempt). At 200%
-  zoom on a 1280 viewport the layout falls back to mobile chrome, which then eats 142px of
-  the 450px usable height.
-
-  Raise both targets to 24px; keep the desktop chrome at 200% zoom, which follows naturally
-  from Batch 140's responsive work and should be verified together with it.
-
-  Verification: both targets measured ≥24px; usable viewport at 200% zoom measured before
-  and after.
-
-  Scope boundary: those two targets and the zoom breakpoint. **Web-only — pairs with Batch 140.**
-
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
@@ -294,18 +82,24 @@ ordered launch checklist is in `docs/LAUNCH_PLAN.md`.
 - [x] **Batch 1 — Application spine** ✅ 2026-07-25 — PIN auth, profiles,
   notifications, leagues, memberships, join requests, invites, scheduler
   framework, and baseline migration.
+
 - [x] **Batch 2 — Betfair adapter** ✅ 2026-07-25 — live client, shared domain
   mapping, canned implementation, retries, prices, and settlement.
+
 - [x] **Batch 3 — Pick and scoring engine** ✅ 2026-07-26 — gameweeks, fixtures,
   picks, both uniqueness constraints, odds scoring, standings, and combined
   coupon.
+
 - [x] **Batch 4 — Scheduler** ✅ 2026-07-26 — slate refresh, reminders, locking,
   settlement, and shared live-session lifecycle.
+
 - [x] **Batch 5 — Frontend reshape** ✅ 2026-07-26 — weekly pick UI, combined
   coupon, home, standings, and current API binding.
+
 - [x] **Batch 6 — Verify + rebrand pass** ✅ 2026-07-26 — run every verification gate below,
   remove inherited product naming and unused surfaces, replace inherited
   documentation and assets, and delete the temporary handoff document.
+
 - [x] **Batch 7 — Odds provider replacement** ✅ 2026-08-04 — replace the Betfair Exchange
   with `odds-api.io` priced by Bet365, for full UK coverage including the
   Scottish lower divisions the Exchange does not price. Extract a
@@ -3892,6 +3686,115 @@ answered until it lands, because until then there is no data to look at.
   fixture is right where a per-competition filter is wrong. API and web. No dependency on Batch 112
   or 113 — this is a live production defect and should be taken before both.
 
+- [x] **Batch 115 — The budget certifies a round that no longer exists** ✅ 2026-09-27
+  **Rescoped 2026-09-27 (owner decision): item 2 below, and nothing else.** This row was
+  recorded on 2026-09-11 as superseded by Batch 119, folding both its items in, but 119's own
+  row carried only item 1. That half shipped with it: the warm pass is
+  `services/odds_warm.py`, run by the scheduler over the horizon `odds_warm_horizon_weeks`
+  sets (default 1). Item 2 never did — `tests/test_request_budget.py` still declares
+  `OBSERVED_LARGEST_ROUND = 202` and `OBSERVED_UNPRICED = 103` by hand, and its tripwire
+  compares the database against that literal (checked 2026-09-27). So item 1, its open
+  decision and its verification lines are done; the title has dropped their half, which was
+  "Nothing learns until a member arrives". The primary change is to tests. The live
+  measurement made the certified budget red, so the owner also approved the item 2 lever
+  on 2026-09-27: browse TTLs move from 2h / 1h / 30m to 4h / 2h / 1h, while the 60-second
+  pick tier stays fixed. `scripts/check-deploy-drift.sh` counts anything under `apps/api`
+  as reaching the image, so a `/ship-prod` follows close-out.
+  Specified 2026-09-06 from the `/ship-prod` of Batch 114, which closed the outage and left
+  two things measurably open. Both are about the same thing: the deployment now *can* learn
+  which fixtures a bookmaker prices, and nothing makes it learn at a useful moment or feeds
+  what it learns back into the number the suite certifies.
+
+  **1. The marker is written on the critical path, and only there.** Measured against
+  production fifteen minutes after `023` applied: `odds_checked_at_utc` is **`never`** across
+  all 1,003 fixtures, and zero are marked. That is correct behaviour and it is the problem —
+  `record_observations` runs in `current_gameweek`, so the only thing that teaches the
+  deployment anything is an authenticated member opening a pick screen. The consequence
+  falls exactly where Batch 114 was written to defend: the **first** member to open the card
+  on a match morning pays the whole cold sweep — `ceil(264 / 10) = 27` requests against a
+  100/hour plan — in the hour everyone else is trying to pick, and every member after them
+  picks for free off what that one member bought. The six-hour re-check has the same shape:
+  whichever card load happens to land after it falls due pays for all of it.
+
+  `refresh_slate` already exists to firm up the imminent card, and its docstring still says
+  *"Odds themselves are snapshotted onto each pick at pick time and served through the
+  provider's own TTL cache, so there is nothing to warm here."* Batch 114 made that sentence
+  false. There is now something to warm, and it is the one thing that is expensive exactly
+  when it is least affordable.
+
+  **Warm the marker on the scheduled pass, so a member never pays to discover it.** The job
+  sweeps each open round's askable fixtures once, writes the marker from what comes back, and
+  commits — the same `askable` / `record_observations` pair the card runs, called from a job
+  that has no member waiting on it.
+
+  **This is not free, and the arithmetic should be stated rather than implied.** A brand-new
+  round costs one full sweep — 27 requests at today's largest — wherever it is paid. Warming
+  it means paying that on the job *and* a cheaper priced-only sweep when the first member
+  arrives, so the absolute daily total rises by roughly one sweep per new round. What it buys
+  is the removal of a 27-request spike from the hour before a lock, replaced by about ten.
+  The daily cap has the room and the hourly one does not, which is the whole reason the tiers
+  are shaped the way they are. Steady state is cheaper still, because the marker persists and
+  only the re-check cadence re-pays.
+
+  Open decision for the owner: whether the warm pass covers **every** open round or only the
+  imminent one. `refresh_slate` already uses a horizon of 1 and says why — the far weeks have
+  not firmed up. The same argument applies here, and the counter-argument is that a league
+  whose round opens early then gets no warming at all.
+
+  **2. The certification is sized on a round that no longer exists, and it went stale in a
+  day.** Batch 114 recorded `OBSERVED_LARGEST_ROUND = 202` / `OBSERVED_UNPRICED = 103` from
+  the outage. Preflight for its own shipment, the next day, measured the largest round at
+  **264** — and 242 behind it — with **zero** FA Cup fixtures: the long tail is now 40
+  `england-amateur-fa-trophy` plus a spread of `england-amateur-*` divisions. The shape
+  recurred within twenty-four hours under a different competition, which is the strongest
+  argument yet for the scope boundary Batch 114 drew: the deployment learning *per fixture* is
+  right where a per-competition filter would already be catching nothing.
+
+  `test_the_budget_covers_the_largest_round_the_database_holds` is the tripwire Batch 114 added
+  for exactly this and it is already red against production data. It passes on the gate only
+  because CI runs against a scratch database with no rounds in it — which is honest, and is
+  also why a hand-maintained constant will go stale again the moment nobody re-measures.
+
+  **Stop maintaining the number by hand.** The suite should read the largest round *and* its
+  unpriced share out of the database when one is present, and fall back to the recorded
+  measurement only when there is not — with the recorded pair kept as a dated floor rather
+  than as the thing being trusted. That is the difference between a constant that lied for a
+  month and a measurement that re-takes itself. Record today's as 264, and record that its
+  unpriced share was not yet knowable when this was specified, because item 1 had not run.
+
+  Then re-run the whole budget suite against the real numbers and **fix whatever turns red**.
+  That is the part that cannot be sized in advance: at 264 fixtures the answer depends on the
+  priced share, and if it does not fit, the fix is a decision — a tighter horizon, a different
+  tier, or a bigger plan — not a smaller assertion. Never reach green by loosening the guard;
+  that is what made this necessary twice.
+
+  **Explicitly out of scope: tightening the near tier.** Batch 114 observed that a cheaper
+  sweep might let the near tier tighten to around twenty minutes — *fresher* than the design
+  that broke — and said to take that number from the counters rather than from the paragraph.
+  The counters shipped; they have no production data through them yet, and item 1 is what will
+  give them some. Deciding it here would be taking the number from the paragraph after all.
+  The 2026-09-27 decision goes the other way: the derived 264 / 89 shape cannot satisfy the
+  free plan at the old ceilings, so browsing deliberately loosens to 4h / 2h / 1h. Pick
+  submission remains on its separate 60-second ceiling and still refuses `PRICE_MOVED`.
+
+  Verification: the scheduled pass writing the marker with no member involved, and a member's
+  first card load afterwards costing the priced subset rather than the whole round; the pass
+  being a no-op for a round already learned inside its re-check window; a degraded or
+  rate-limited pass writing **nothing**, on the same evidence rule the card uses; the pass not
+  running inside the hour before a lock, beside the `refresh_slate` timing Batch 114 moved; the
+  budget suite deriving both figures from a seeded database and falling back to the recorded
+  pair without one; the tripwire passing against a round larger than the recorded floor once
+  the derivation is live; and the full suite green against the production shape as measured at
+  the time the batch is built rather than as written here. Run migrations and the full
+  PostgreSQL-backed gate.
+
+  Scope boundary: when and by what the marker is learned, and where the budget suite gets its
+  figures. No change to what the marker *means*, to the card filter, to `PRICE_MOVED`, to the
+  `429` cooldown, or to the reserve. The only runtime change is the owner-approved browse TTL
+  move from 2h / 1h / 30m to 4h / 2h / 1h; the 60-second pick tier does not move. **API only
+  — no web half, so nothing reaches members until `/ship-prod`.** Depends on Batch 114, which
+  shipped 2026-09-06; independent of Batches 112 and 113.
+
 - [x] **Batch 116 — A pick alert names a selection nobody can place, and stamps the product's
   name over the league's** ✅ 2026-09-12
   Specified 2026-09-11 from the owner's live use of the alerts Batch 107 shipped. Two defects
@@ -4312,6 +4215,10 @@ answered until it lands, because until then there is no data to look at.
   Scope boundary: the unlock path and the lockout limiter. No change to the lockout
   duration or attempt count. **API + web — the web half helps on its own.**
 
+  **Review 2026-09-28 (SEC-28): the API half does not hold.** The per-source budget is
+  charged after the lock is written and never checked first, so one address still locks any
+  number of accounts; the batch's test asserts only that some response was a 429.
+
 - [x] **Batch 124 — A removed member walks back in with the old join code, and approval-gated leagues are not gated** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/01-security.md`, SEC-16 (MED, live). Removal
   never rotates the join code, join-by-code has no removed-or-banned check, and the
@@ -4638,6 +4545,23 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: the round screen's default state and the toast variants. **Web-only.**
 
+- [x] **Batch 140 — The desktop layout is the phone layout stretched** ✅ 2026-09-28
+  — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-01 (high impact).
+  There is not one large-breakpoint utility in the application (45 small, 9 medium, zero
+  large or extra-large) and the shell pins the same maximum width at every viewport; the
+  current-round, leaderboard and results pages have no responsive utilities at all. At 1280
+  the product is one narrow column of phone-sized cards in a wide empty frame — and the
+  owner has decided desktop is a supported way to play.
+
+  A real two-column arrangement at the large breakpoint for the three screens that carry
+  lists — round beside coupon, standings beside form — and a wider shell maximum.
+
+  Verification: screenshots at 1280×800 in both themes showing the two-column arrangement;
+  the 390×844 layouts unchanged; axe-core clean at both widths.
+
+  Scope boundary: responsive layout for those three screens and the shell width. No new
+  components, no imagery, no token changes that could affect contrast. **Web-only.**
+
 - [x] **Batch 141 — The web app ships no Content-Security-Policy and can be framed** ✅ 2026-09-23
   — specified from `docs/review/2026-09-13/01-security.md`, SEC-19 (MED, live).
   `apps/web/vercel.json` sets only `Cache-Control`, `Permissions-Policy`,
@@ -4772,6 +4696,77 @@ answered until it lands, because until then there is no data to look at.
 
   Scope boundary: the reminder trigger. No change to the reminder's content, window or
   recipients. **API-carrying, low priority.**
+
+- [x] **Batch 148 — A renamed member with no push subscription can never be told** ✅ 2026-09-27
+  — specified from `docs/review/2026-09-13/05-feature-gaps.md`, FEAT-A11 (MED, live).
+  `rename_notice.py` delivers by web push only and writes its "told them" marker only when
+  a push is actually delivered, so a member with no active subscription is retried on every
+  boot and never informed through any channel. One of the three members renamed by Batch 74
+  is in exactly that state. `STATUS.md` records it as a timing note ("watch for that third
+  marker"); it is a design gap, because there is no second channel to watch for.
+
+  Add an in-app notice shown on next sign-in as the fallback, and treat that as delivery
+  for the marker.
+
+  Verification: a test that a member with no push subscription is shown the notice once on
+  next sign-in and the marker is then written; a test that a member who got the push is not
+  shown it again.
+
+  Scope boundary: the rename notice's delivery channels. No general display-name-changed
+  system. **API + web.**
+
+- [x] **Batch 149 — Toasts collide with the tab bar, skeletons do not match what replaces them, and errors look like empty states** ✅ 2026-09-28
+  — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-04, DES-05 and DES-06
+  (med impact, live). The toaster is anchored bottom-right with no offset for the 60px tab
+  bar or the safe area, so on a phone a toast lands on the navigation. Loading states are
+  generic grey bars that do not match the shape of the content, which jumps 53px when they
+  resolve — and an `.animate-shimmer` class exists in the stylesheet (`index.css:398`) with
+  **zero users**. An error state renders identically to an empty state, with no retry.
+
+  Offset the toaster above the tab bar and the safe-area inset; shape the skeletons to the
+  content they stand in for and use the shimmer that already exists; give error states
+  their own treatment and a retry control.
+
+  Verification: screenshots at 390×844 in both themes showing a toast clear of the tab bar,
+  a skeleton matching its resolved content, and an error state distinct from the empty one
+  with a working retry.
+
+  Scope boundary: these three presentational concerns. No data-layer changes. **Web-only.**
+
+- [x] **Batch 150 — The first screen a new member sees stops at 58% and its only action is a text link** ✅ 2026-09-28
+  — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-07 (med impact,
+  live). Batch 97 made home fill the viewport — measured at 81% of 844px with the full-page
+  height equal to the viewport — but only for the state where a member already has a
+  league. First-run home ends at 58% and offers a single inline text link as its call to
+  action. It is the first impression, and it is the one home state the fill-the-viewport
+  work never reached.
+
+  Give first-run home a real primary action and enough content to reach the fold, reusing
+  the patterns Batch 97 established rather than inventing new ones.
+
+  Verification: a first-run screenshot at 390×844 in both themes reaching the fold, with a
+  button-weight primary action; axe-core clean.
+
+  Scope boundary: the no-league home state. No change to the populated home.
+  **Web-only.**
+
+- [x] **Batch 151 — The same statistic is drawn two ways, and there is no type scale** ✅ 2026-09-28
+  — specified from `docs/review/2026-09-13/06-premium-design.md`, DES-08 and DES-09 (med
+  impact, live). The hero statistic and the card statistic are the same object rendered
+  five different ways, including different colours for the figure itself. And
+  `tailwind.config.ts` defines no `fontSize` or `lineHeight` at all, so type is chosen per
+  component: 84 nodes render at 11px or smaller and four at 9px, which is below comfortable
+  for odds and points on a phone.
+
+  Unify the two statistic components behind one, and define a type scale in the Tailwind
+  config, raising the smallest sizes as part of it.
+
+  Verification: both statistic surfaces rendering from one component; no node below the new
+  minimum; axe-core contrast clean in both themes at both viewports; screenshots before and
+  after.
+
+  Scope boundary: the statistic component and the type scale. Raising sizes only — no
+  colour changes, so contrast cannot regress. **Web-only.**
 
 - [x] **Batch 152 — The gate can pass without testing the bundle, and nothing notices a weakened gate** ✅ 2026-09-22
   — specified from `docs/review/2026-09-13/07-agent-pipeline.md`, PIPE-03, PIPE-04 and
@@ -5120,3 +5115,18 @@ answered until it lands, because until then there is no data to look at.
   the trigger; a failure toast carries an assertive role.
 
   Scope boundary: these three. **Web-only.**
+
+- [x] **Batch 168 — Two links are under the minimum target size and 200% zoom gives a third of the screen to navigation** ✅ 2026-09-28
+  — specified from `docs/review/2026-09-13/03-ux-accessibility.md`, UX-19 and UX-20 (LOW,
+  live). "Forgot PIN?" renders 316×**16** and "About & scoring rules" 358×**20**, both under
+  the 24px minimum of WCAG 2.2 SC 2.5.8 ("Create account" is inline text and exempt). At 200%
+  zoom on a 1280 viewport the layout falls back to mobile chrome, which then eats 142px of
+  the 450px usable height.
+
+  Raise both targets to 24px; keep the desktop chrome at 200% zoom, which follows naturally
+  from Batch 140's responsive work and should be verified together with it.
+
+  Verification: both targets measured ≥24px; usable viewport at 200% zoom measured before
+  and after.
+
+  Scope boundary: those two targets and the zoom breakpoint. **Web-only — pairs with Batch 140.**

@@ -31,7 +31,7 @@ When the user invokes a slash command, read and follow its matching canonical
 file:
 
 - `/next-batch-prompt <mode>` → `docs/agent-commands/next-batch-prompt.md`
-- `/group-start <I-Y>` → `docs/agent-commands/group-start.md`
+- `/group-start <I-Z>` → `docs/agent-commands/group-start.md`
 - `/batch-start <id>` → `docs/agent-commands/batch-start.md`
 - `/batch-verify <id>` → `docs/agent-commands/batch-verify.md`
 - `/phase-closeout <id>` → `docs/agent-commands/phase-closeout.md`
@@ -51,7 +51,7 @@ It stops at each documented API checkpoint and waits for an explicit
 global rule that close-out waits for a slash command). When `/batch-start <N>`
 finishes and the full `scripts/ci-local.sh` gate is green, run
 `docs/agent-commands/phase-closeout.md` for that batch without being asked —
-including step 8's push. Stop and report instead of closing out if the worktree
+including step 9's push. Stop and report instead of closing out if the worktree
 holds anything beyond that batch, or if the batch row is already ticked.
 
 ### A red gate: fix it, but only in one direction
@@ -87,7 +87,7 @@ not to take.
 the first attempt. With no manual review before the push, that report is the only
 record of what went wrong on the way to shipping.
 
-**What that push means.** Step 8 pushes `main` and Vercel releases the web app
+**What that push means.** Step 9 pushes `main` and Vercel releases the web app
 from it, so a batch's frontend half reaches members minutes after it verifies,
 before CI has necessarily reported. Two consequences to hold:
 
@@ -115,13 +115,13 @@ scripts/ci-local.sh              # everything CI runs; SKIP_PROD_BUNDLE=1 to dro
 **Use this before close-out, not the piecemeal commands below.** It builds its own venv
 from `apps/api/requirements-dev.txt`, so the versions match the pins rather than whatever
 is on `PATH`; it starts a clean `pgserver` and runs `alembic upgrade head` before pytest,
-so the **520 Postgres-backed tests actually execute** instead of skipping; and it checks
+so the **550 Postgres-backed tests actually execute** instead of skipping; and it checks
 the deployment config and the frontend as well. Eleven checks, no skips — ten with
 `SKIP_PROD_BUNDLE=1`, which drops the Playwright deep-link smoke against the
 prod bundle.
 
-Running pytest without `DATABASE_URL` is **780 passed, 520 skipped** (measured
-2026-09-24, at 1,300 tests; the split moves as tests are added, so rerun rather than trust
+Running pytest without `DATABASE_URL` is **800 passed, 550 skipped** (measured
+2026-09-29, at 1,350 tests; the split moves as tests are added, so rerun rather than trust
 it), and the skipped set is the HTTP pick flow, settlement, the scheduler jobs, slate
 persistence, seeds and every migration test — that is, the core of the game. A green run
 in that mode says very little.

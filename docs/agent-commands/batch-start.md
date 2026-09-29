@@ -56,5 +56,5 @@ description: Start a numbered Coupon batch, implement it, and verify it.
    and report instead if the three attempts are exhausted, the failure is not
    this batch's to fix, or the worktree holds changes beyond this batch.
 
-Do not fetch, pull, or assume a remote exists. (Close-out's own step 8 pushes;
+Do not fetch, pull, or assume a remote exists. (Close-out's own step 9 pushes;
 nothing in this workflow does.)

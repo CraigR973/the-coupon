@@ -19,8 +19,8 @@ deployment-config assertions, and the frontend's install/lint/typecheck/test/bui
 Playwright deep-link smoke — eleven checks.
 `SKIP_PROD_BUNDLE=1` drops only the Playwright deep-link smoke.
 
-**Running pytest without a database is not this gate.** It is `780 passed, 520 skipped`
-(measured 2026-09-24),
+**Running pytest without a database is not this gate.** It is `800 passed, 550 skipped`
+(measured 2026-09-29, at 1,350 tests),
 and the skipped set is the HTTP pick flow, settlement, the scheduler jobs, slate
 persistence, seeds and every migration test. Treating the database run as conditional —
 "when database behavior is in scope" — is how a batch reaches `main` without the core of
@@ -52,14 +52,15 @@ not need the project's dependencies the way mypy does. Passing the directory
 rather than `.` keeps the "never `cd`" rule and still finds
 `apps/api/pyproject.toml`, so the non-default `line-length = 100` applies.
 
-Then the rest, from the shared venv:
+Then the rest, from the gate's own venv (app-starter's venv has no Pillow and cannot
+collect the suite — see `AGENTS.md`):
 
 ```bash
 PYTHONPATH=/Users/craigrobinson/the-coupon/apps/api \
-  /Users/craigrobinson/app-starter/apps/api/.venv/bin/mypy \
+  /Users/craigrobinson/.cache/the-coupon/ci-local-venv/bin/mypy \
   /Users/craigrobinson/the-coupon/apps/api/src
 PYTHONPATH=/Users/craigrobinson/the-coupon/apps/api \
-  /Users/craigrobinson/app-starter/apps/api/.venv/bin/python -m pytest \
+  /Users/craigrobinson/.cache/the-coupon/ci-local-venv/bin/python -m pytest \
   /Users/craigrobinson/the-coupon/apps/api/tests
 ```
 

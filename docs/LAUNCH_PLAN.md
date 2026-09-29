@@ -189,7 +189,9 @@ chooses otherwise:
   that a bad migration, a mistaken administrative write, or platform-side loss
   is unrecoverable, and `picks` — including `odds_at_pick`, `points_awarded`,
   and `status` — has no second copy. Routine operation does not put it at
-  risk: `sync_slate` upserts and never deletes. Revisit post-launch.
+  risk: `sync_slate` upserts and never deletes. Revisited post-launch by Batch 95
+  (2026-09-25): a weekly off-site logical backup, built and switched off until the owner
+  provisions its bucket (`docs/runbooks/backup-restore.md`).
 - [ ] Move migrations out of concurrent web startup before ever increasing the
   API above one replica. The one-replica MVP may retain migration-on-start.
   **Not work today** — `.railway/railway.ts` pins `numReplicas = 1`. This is a
@@ -424,8 +426,9 @@ application requires a separately reviewed forward recovery plan.
 - [ ] Review errors, failed pushes, Betfair auth refreshes, and database
   connections. Backup completion is out of scope under the 2026-07-30
   deferral. No backup is scheduled at all: Batch 75 removed the nightly dump,
-  which wrote to an ephemeral path and produced no recovery artifact, and
-  restoring one is Batch 95.
+  which wrote to an ephemeral path and produced no recovery artifact. Batch 95
+  (2026-09-25) built the weekly off-site replacement; it stays switched off until the
+  owner provisions it.
 - [ ] Staging is already dormant from L4 under the 2026-07-30 one-project
   decision. After the first live gameweek, confirm production isolation and
   record the staging reactivation path in
