@@ -87,6 +87,10 @@ share, reminder ~3h before lock (scheduler.py:844).
 - `drive-addendum.txt`: member gets join_code; export has no pick ids; no web caller
   lacks a route.
 
+## Written (29 Sep 18:45)
+
+- 05-feature-gaps.md written; stack stopped 18:32.
+
 ## Next
 
 0. (done) 1. Read 02-correctness.md (CORR-22 silent correction, CORR-23 unpicked round never
