@@ -143,7 +143,7 @@ Evidence: `notes/03-ux/probe-indicator.txt`; visible in `current-round--error--3
 ## UX-27 · LOW · live · verified — at 200% zoom the header overflows and pushes the account menu off-screen
 
 Batch 168 kept the desktop header at 200% zoom (1280×800 at 200% = 640×400 CSS px). It is kept,
-and the content area is now 343 of 400px (86%, was 308 of 450). But at exactly the `sm`
+and the content area is now 343 of 400px (86%; the 2026-09-13 measure was 142px of chrome). But at exactly the `sm`
 breakpoint the header — logo, five links, theme toggle, account menu — does not fit: the page
 scrolls sideways by **79px** on home, the coupon and standings, "Football Stats" wraps, and the
 account menu (profile, sign out) sits beyond the right edge (`notes/03-ux/probe-zoom.txt`,
@@ -151,6 +151,46 @@ account menu (profile, sign out) sits beyond the right edge (`notes/03-ux/probe-
 
 **Fix:** let the header nav collapse to icons or move Settings into the account menu between `sm`
 and `md`; assert `scrollWidth <= clientWidth` at 640 in the reflow spec.
+
+## UX-28 · MED · live · verified — keyboard focus lands behind the tab bar and the sticky header
+
+The page has no `scroll-padding`, so when Tab moves focus to a control below the fold the browser
+scrolls it just into the viewport — behind the fixed 60px tab bar on a phone — and Shift+Tab
+scrolls it just under the sticky 57px header. Hit-testing five points on every focused control
+(`notes/03-ux/obscured.mjs`, `obscured.txt`):
+
+- **390, the coupon, Tab forward: the selection buttons themselves are fully hidden** ("Arsenal
+  1.90 win 19 pts", "Draw 3.75 win 38 pts") — the rendered-pixel focus capture of those stops shows
+  only the tab bar (`notes/03-ux/focus/round-390-light-stop12.png`).
+- Shift+Tab, fully hidden under the header: the four PIN digits on Settings (1280), the round's
+  "Current round / Season" sub-nav (1280), "Back" and three form fields on league settings (both
+  widths).
+
+This is WCAG 2.2 SC 2.4.11 Focus Not Obscured (Minimum), level AA — new since the 2026-09-13
+register, which measured ring contrast but not position.
+
+**Member impact:** a keyboard user choosing a pick on a phone cannot see which selection they are
+about to claim.
+
+**Fix:** `html { scroll-padding-top: <header height>; scroll-padding-bottom:
+calc(var(--tabbar-height) + var(--safe-bottom)) }` below `sm`, header height only above it; add
+an obscured-focus assertion to the prod-bundle smoke.
+
+## UX-29 · LOW · live · verified — two places still clip the new focus ring
+
+Batch 158's ring is a 2px gap plus a 3px `--primary-ink` box-shadow. Box-shadows are clipped by
+an `overflow` ancestor, and two patterns clip it:
+
+- **Fully:** the "How scoring works" toggle (`OddsGuide.tsx:61`) is a full-width button inside an
+  `overflow-hidden` card, so its ring is never drawn — **zero changed pixels** on focus in all four
+  runs (both themes, both widths). A keyboard user gets no focus indication at all on it.
+- **Partly:** chips inside horizontal scroll strips (the round's "Current round / Season" sub-nav,
+  the league switcher, the season strip, the site-admin sub-nav) lose the top and bottom of the
+  ring to `overflow-x: auto`; the sides remain at 4.72:1 light / 7.62:1 dark, so focus is visible
+  but the ring is broken (17 stops across 3 pages).
+
+**Fix:** an inset ring (`inset 0 0 0 2px`) or `outline` with a negative offset for controls that
+sit flush inside clipping containers; `py-1` on the scroll strips so the ring has room.
 
 ## Checked and found nothing material
 

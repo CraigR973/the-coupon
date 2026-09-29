@@ -1,0 +1,12 @@
+390 /leagues/the-coupon/predictions: Tab 14 stops, fully hidden 2 [Arsenal1.90win 19 pts | Draw3.75win 38 pts], partly 2; Shift+Tab 14 stops, fully hidden 0 [], partly 0
+390 /: Tab 5 stops, fully hidden 0 [], partly 1; Shift+Tab 5 stops, fully hidden 0 [], partly 0
+390 /leagues/the-coupon/leaderboard: Tab 8 stops, fully hidden 0 [], partly 0; Shift+Tab 8 stops, fully hidden 0 [], partly 0
+390 /settings: Tab 16 stops, fully hidden 0 [], partly 0; Shift+Tab 21 stops, fully hidden 0 [], partly 3
+390 /leagues/the-coupon/admin/settings: Tab 8 stops, fully hidden 0 [], partly 0; Shift+Tab 19 stops, fully hidden 4 [ | Back |  | Announce when picks open], partly 0
+390 /football: Tab 4 stops, fully hidden 0 [], partly 0; Shift+Tab 4 stops, fully hidden 0 [], partly 0
+1280 /leagues/the-coupon/predictions: Tab 14 stops, fully hidden 0 [], partly 0; Shift+Tab 14 stops, fully hidden 2 [Season | Current round], partly 0
+1280 /: Tab 5 stops, fully hidden 0 [], partly 0; Shift+Tab 5 stops, fully hidden 0 [], partly 0
+1280 /leagues/the-coupon/leaderboard: Tab 8 stops, fully hidden 0 [], partly 0; Shift+Tab 8 stops, fully hidden 0 [], partly 0
+1280 /settings: Tab 16 stops, fully hidden 0 [], partly 0; Shift+Tab 21 stops, fully hidden 4 [PIN digit 4 | PIN digit 3 | PIN digit 2 | PIN digit 1], partly 0
+1280 /leagues/the-coupon/admin/settings: Tab 8 stops, fully hidden 0 [], partly 0; Shift+Tab 19 stops, fully hidden 3 [Back |  | ], partly 2
+1280 /football: Tab 4 stops, fully hidden 0 [], partly 0; Shift+Tab 4 stops, fully hidden 0 [], partly 0

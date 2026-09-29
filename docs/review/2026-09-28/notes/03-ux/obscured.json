@@ -1,0 +1,1862 @@
+[
+ {
+  "route": "/leagues/the-coupon/predictions",
+  "width": 390,
+  "down": [
+   {
+    "key": "Current round198",
+    "name": "Current round",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Season198",
+    "name": "Season",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Older gameweek257",
+    "name": "Older gameweek",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "The coupon0 of 3477",
+    "name": "The coupon0 of 3",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "How scoring workswin = odds × 10578",
+    "name": "How scoring workswin = odds × 10",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "English Premier League1639",
+    "name": "English Premier League1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Arsenal FC form, oldest first: won, drew770",
+    "name": "Arsenal FC form, oldest first: won, drew",
+    "onEl": 3,
+    "onChrome": 2,
+    "inChrome": false
+   },
+   {
+    "key": "Chelsea FC form, oldest first: drew, won770",
+    "name": "Chelsea FC form, oldest first: drew, won",
+    "onEl": 3,
+    "onChrome": 2,
+    "inChrome": false
+   },
+   {
+    "key": "Arsenal1.90win 19 pts828",
+    "name": "Arsenal1.90win 19 pts",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   },
+   {
+    "key": "Draw3.75win 38 pts828",
+    "name": "Draw3.75win 38 pts",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   },
+   {
+    "key": "Chelsea4.30win 43 pts888",
+    "name": "Chelsea4.30win 43 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Both teams score1.80win 18 pts974",
+    "name": "Both teams score1.80win 18 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "No — not both score2.05win 21 pts974",
+    "name": "No — not both score2.05win 21 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Scottish League Two11075",
+    "name": "Scottish League Two1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ],
+  "up": [
+   {
+    "key": "Scottish League Two11075",
+    "name": "Scottish League Two1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "No — not both score2.05win 21 pts974",
+    "name": "No — not both score2.05win 21 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Both teams score1.80win 18 pts974",
+    "name": "Both teams score1.80win 18 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Chelsea4.30win 43 pts888",
+    "name": "Chelsea4.30win 43 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Draw3.75win 38 pts828",
+    "name": "Draw3.75win 38 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Arsenal1.90win 19 pts828",
+    "name": "Arsenal1.90win 19 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Chelsea FC form, oldest first: drew, won770",
+    "name": "Chelsea FC form, oldest first: drew, won",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Arsenal FC form, oldest first: won, drew770",
+    "name": "Arsenal FC form, oldest first: won, drew",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "English Premier League1639",
+    "name": "English Premier League1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "How scoring workswin = odds × 10578",
+    "name": "How scoring workswin = odds × 10",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "The coupon0 of 3477",
+    "name": "The coupon0 of 3",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Older gameweek257",
+    "name": "Older gameweek",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Season198",
+    "name": "Season",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Current round198",
+    "name": "Current round",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ]
+ },
+ {
+  "route": "/",
+  "width": 390,
+  "down": [
+   {
+    "key": "The Coupon Test League locks in 2d 15h255",
+    "name": "The Coupon Test League locks in 2d 15h",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Sunday ClubGameweek 1bRound in progressL456",
+    "name": "Sunday ClubGameweek 1bRound in progressL",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Standings#1of 2·0 pts671",
+    "name": "Standings#1of 2·0 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "The Coupon Test LeagueGameweek 1bPick re742",
+    "name": "The Coupon Test LeagueGameweek 1bPick re",
+    "onEl": 3,
+    "onChrome": 2,
+    "inChrome": false
+   },
+   {
+    "key": "Standings#1of 3·0 pts1057",
+    "name": "Standings#1of 3·0 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ],
+  "up": [
+   {
+    "key": "Standings#1of 3·0 pts1057",
+    "name": "Standings#1of 3·0 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "The Coupon Test LeagueGameweek 1bPick re742",
+    "name": "The Coupon Test LeagueGameweek 1bPick re",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Standings#1of 2·0 pts671",
+    "name": "Standings#1of 2·0 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Sunday ClubGameweek 1bRound in progressL456",
+    "name": "Sunday ClubGameweek 1bRound in progressL",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "The Coupon Test League locks in 2d 15h255",
+    "name": "The Coupon Test League locks in 2d 15h",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ]
+ },
+ {
+  "route": "/leagues/the-coupon/leaderboard",
+  "width": 390,
+  "down": [
+   {
+    "key": "League actions101",
+    "name": "League actions",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Sunday Club229",
+    "name": "Sunday Club",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Show 2026/27, the season being played331",
+    "name": "Show 2026/27, the season being played",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Show the 2025/26 season331",
+    "name": "Show the 2025/26 season",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Copy standings390",
+    "name": "Copy standings",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1ALAlice0/0 won0pts438",
+    "name": "1ALAlice0/0 won0pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1BOBob0/0 won0pts516",
+    "name": "1BOBob0/0 won0pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1CACarol0/0 won0pts594",
+    "name": "1CACarol0/0 won0pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ],
+  "up": [
+   {
+    "key": "1CACarol0/0 won0pts594",
+    "name": "1CACarol0/0 won0pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1BOBob0/0 won0pts516",
+    "name": "1BOBob0/0 won0pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1ALAlice0/0 won0pts438",
+    "name": "1ALAlice0/0 won0pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Copy standings390",
+    "name": "Copy standings",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Show the 2025/26 season331",
+    "name": "Show the 2025/26 season",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Show 2026/27, the season being played331",
+    "name": "Show 2026/27, the season being played",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Sunday Club229",
+    "name": "Sunday Club",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "League actions101",
+    "name": "League actions",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ]
+ },
+ {
+  "route": "/settings",
+  "width": 390,
+  "down": [
+   {
+    "key": "PIN digit 1331",
+    "name": "PIN digit 1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 2331",
+    "name": "PIN digit 2",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 3331",
+    "name": "PIN digit 3",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 4331",
+    "name": "PIN digit 4",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 1423",
+    "name": "PIN digit 1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 2423",
+    "name": "PIN digit 2",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 3423",
+    "name": "PIN digit 3",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 4423",
+    "name": "PIN digit 4",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Timezone679",
+    "name": "Timezone",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Decimal2.50882",
+    "name": "Decimal2.50",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Fractional3/2882",
+    "name": "Fractional3/2",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Light1104",
+    "name": "Light",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Dark1104",
+    "name": "Dark",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "System1104",
+    "name": "System",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Enable all notifications1455",
+    "name": "Enable all notifications",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1532",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ],
+  "up": [
+   {
+    "key": "1532",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Enable all notifications1455",
+    "name": "Enable all notifications",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "System1104",
+    "name": "System",
+    "onEl": 3,
+    "onChrome": 2,
+    "inChrome": false
+   },
+   {
+    "key": "Dark1104",
+    "name": "Dark",
+    "onEl": 3,
+    "onChrome": 2,
+    "inChrome": false
+   },
+   {
+    "key": "Light1104",
+    "name": "Light",
+    "onEl": 3,
+    "onChrome": 2,
+    "inChrome": false
+   },
+   {
+    "key": "Fractional3/2882",
+    "name": "Fractional3/2",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Decimal2.50882",
+    "name": "Decimal2.50",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Timezone679",
+    "name": "Timezone",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 4423",
+    "name": "PIN digit 4",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 3423",
+    "name": "PIN digit 3",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 2423",
+    "name": "PIN digit 2",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 1423",
+    "name": "PIN digit 1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 4331",
+    "name": "PIN digit 4",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 3331",
+    "name": "PIN digit 3",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 2331",
+    "name": "PIN digit 2",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 1331",
+    "name": "PIN digit 1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "About & scoring rules2189",
+    "name": "About & scoring rules",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Delete my account2110",
+    "name": "Delete my account",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Download my data2035",
+    "name": "Download my data",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "The Coupon Test League1699",
+    "name": "The Coupon Test League",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Sunday Club1657",
+    "name": "Sunday Club",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ]
+ },
+ {
+  "route": "/leagues/the-coupon/admin/settings",
+  "width": 390,
+  "down": [
+   {
+    "key": "Back103",
+    "name": "Back",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "278",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "366",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Private — invite onlyPublic — anyone can454",
+    "name": "Private — invite onlyPublic — anyone can",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "574",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "One selection — others can take the same662",
+    "name": "One selection — others can take the same",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "MondayTuesdayWednesdayThursdayFridaySatu972",
+    "name": "MondayTuesdayWednesdayThursdayFridaySatu",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "972",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ],
+  "up": [
+   {
+    "key": "972",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "MondayTuesdayWednesdayThursdayFridaySatu972",
+    "name": "MondayTuesdayWednesdayThursdayFridaySatu",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "One selection — others can take the same662",
+    "name": "One selection — others can take the same",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "574",
+    "name": "",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   },
+   {
+    "key": "Private — invite onlyPublic — anyone can454",
+    "name": "Private — invite onlyPublic — anyone can",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "366",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "278",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Back103",
+    "name": "Back",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   },
+   {
+    "key": "Delete league2439",
+    "name": "Delete league",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "2383",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Refresh rounds2177",
+    "name": "Refresh rounds",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Save changes1952",
+    "name": "Save changes",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "All UK leagues1867",
+    "name": "All UK leagues",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1718",
+    "name": "",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   },
+   {
+    "key": "1672",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Reset to Saturday 3pm1467",
+    "name": "Reset to Saturday 3pm",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Announce when picks open1245",
+    "name": "Announce when picks open",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   },
+   {
+    "key": "1144",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1056",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ]
+ },
+ {
+  "route": "/football",
+  "width": 390,
+  "down": [
+   {
+    "key": "Tables187",
+    "name": "Tables",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Results187",
+    "name": "Results",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "English Premier League5252",
+    "name": "English Premier League5",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Scottish League Two4320",
+    "name": "Scottish League Two4",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ],
+  "up": [
+   {
+    "key": "Scottish League Two4320",
+    "name": "Scottish League Two4",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "English Premier League5252",
+    "name": "English Premier League5",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Results187",
+    "name": "Results",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Tables187",
+    "name": "Tables",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ]
+ },
+ {
+  "route": "/leagues/the-coupon/predictions",
+  "width": 1280,
+  "down": [
+   {
+    "key": "Current round164",
+    "name": "Current round",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Season164",
+    "name": "Season",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Older gameweek223",
+    "name": "Older gameweek",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "The coupon0 of 3443",
+    "name": "The coupon0 of 3",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "How scoring workswin = odds × 10468",
+    "name": "How scoring workswin = odds × 10",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "English Premier League1529",
+    "name": "English Premier League1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Arsenal FC form, oldest first: won, drew660",
+    "name": "Arsenal FC form, oldest first: won, drew",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Chelsea FC form, oldest first: drew, won660",
+    "name": "Chelsea FC form, oldest first: drew, won",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Arsenal1.90win 19 pts718",
+    "name": "Arsenal1.90win 19 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Draw3.75win 38 pts718",
+    "name": "Draw3.75win 38 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Chelsea4.30win 43 pts718",
+    "name": "Chelsea4.30win 43 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Both teams score1.80win 18 pts804",
+    "name": "Both teams score1.80win 18 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "No — not both score2.05win 21 pts804",
+    "name": "No — not both score2.05win 21 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Scottish League Two1889",
+    "name": "Scottish League Two1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ],
+  "up": [
+   {
+    "key": "Scottish League Two1889",
+    "name": "Scottish League Two1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "No — not both score2.05win 21 pts804",
+    "name": "No — not both score2.05win 21 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Both teams score1.80win 18 pts804",
+    "name": "Both teams score1.80win 18 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Chelsea4.30win 43 pts718",
+    "name": "Chelsea4.30win 43 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Draw3.75win 38 pts718",
+    "name": "Draw3.75win 38 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Arsenal1.90win 19 pts718",
+    "name": "Arsenal1.90win 19 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Chelsea FC form, oldest first: drew, won660",
+    "name": "Chelsea FC form, oldest first: drew, won",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Arsenal FC form, oldest first: won, drew660",
+    "name": "Arsenal FC form, oldest first: won, drew",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "English Premier League1529",
+    "name": "English Premier League1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "How scoring workswin = odds × 10468",
+    "name": "How scoring workswin = odds × 10",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "The coupon0 of 3443",
+    "name": "The coupon0 of 3",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Older gameweek223",
+    "name": "Older gameweek",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Season164",
+    "name": "Season",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   },
+   {
+    "key": "Current round164",
+    "name": "Current round",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   }
+  ]
+ },
+ {
+  "route": "/",
+  "width": 1280,
+  "down": [
+   {
+    "key": "The Coupon Test League locks in 2d 15h235",
+    "name": "The Coupon Test League locks in 2d 15h",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Sunday ClubGameweek 1bRound in progressL440",
+    "name": "Sunday ClubGameweek 1bRound in progressL",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Standings#1of 2·0 pts655",
+    "name": "Standings#1of 2·0 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "The Coupon Test LeagueGameweek 1bPick re726",
+    "name": "The Coupon Test LeagueGameweek 1bPick re",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Standings#1of 3·0 pts1041",
+    "name": "Standings#1of 3·0 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ],
+  "up": [
+   {
+    "key": "Standings#1of 3·0 pts1041",
+    "name": "Standings#1of 3·0 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "The Coupon Test LeagueGameweek 1bPick re726",
+    "name": "The Coupon Test LeagueGameweek 1bPick re",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Standings#1of 2·0 pts655",
+    "name": "Standings#1of 2·0 pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Sunday ClubGameweek 1bRound in progressL440",
+    "name": "Sunday ClubGameweek 1bRound in progressL",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "The Coupon Test League locks in 2d 15h235",
+    "name": "The Coupon Test League locks in 2d 15h",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ]
+ },
+ {
+  "route": "/leagues/the-coupon/leaderboard",
+  "width": 1280,
+  "down": [
+   {
+    "key": "League actions77",
+    "name": "League actions",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Sunday Club211",
+    "name": "Sunday Club",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Show 2026/27, the season being played313",
+    "name": "Show 2026/27, the season being played",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Show the 2025/26 season313",
+    "name": "Show the 2025/26 season",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Copy standings372",
+    "name": "Copy standings",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1ALAlice0/0 won0pts420",
+    "name": "1ALAlice0/0 won0pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1BOBob0/0 won0pts420",
+    "name": "1BOBob0/0 won0pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1CACarol0/0 won0pts498",
+    "name": "1CACarol0/0 won0pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ],
+  "up": [
+   {
+    "key": "1CACarol0/0 won0pts498",
+    "name": "1CACarol0/0 won0pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1BOBob0/0 won0pts420",
+    "name": "1BOBob0/0 won0pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1ALAlice0/0 won0pts420",
+    "name": "1ALAlice0/0 won0pts",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Copy standings372",
+    "name": "Copy standings",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Show the 2025/26 season313",
+    "name": "Show the 2025/26 season",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Show 2026/27, the season being played313",
+    "name": "Show 2026/27, the season being played",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Sunday Club211",
+    "name": "Sunday Club",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "League actions77",
+    "name": "League actions",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ]
+ },
+ {
+  "route": "/settings",
+  "width": 1280,
+  "down": [
+   {
+    "key": "PIN digit 1293",
+    "name": "PIN digit 1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 2293",
+    "name": "PIN digit 2",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 3293",
+    "name": "PIN digit 3",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 4293",
+    "name": "PIN digit 4",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 1385",
+    "name": "PIN digit 1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 2385",
+    "name": "PIN digit 2",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 3385",
+    "name": "PIN digit 3",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 4385",
+    "name": "PIN digit 4",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Timezone621",
+    "name": "Timezone",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Decimal2.50804",
+    "name": "Decimal2.50",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Fractional3/2804",
+    "name": "Fractional3/2",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Light1006",
+    "name": "Light",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Dark1006",
+    "name": "Dark",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "System1006",
+    "name": "System",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Enable all notifications1341",
+    "name": "Enable all notifications",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1418",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ],
+  "up": [
+   {
+    "key": "1418",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Enable all notifications1341",
+    "name": "Enable all notifications",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "System1006",
+    "name": "System",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Dark1006",
+    "name": "Dark",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Light1006",
+    "name": "Light",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Fractional3/2804",
+    "name": "Fractional3/2",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Decimal2.50804",
+    "name": "Decimal2.50",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Timezone621",
+    "name": "Timezone",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 4385",
+    "name": "PIN digit 4",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 3385",
+    "name": "PIN digit 3",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 2385",
+    "name": "PIN digit 2",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 1385",
+    "name": "PIN digit 1",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 4293",
+    "name": "PIN digit 4",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 3293",
+    "name": "PIN digit 3",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 2293",
+    "name": "PIN digit 2",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "PIN digit 1293",
+    "name": "PIN digit 1",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "About & scoring rules2035",
+    "name": "About & scoring rules",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Delete my account1956",
+    "name": "Delete my account",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Download my data1881",
+    "name": "Download my data",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "The Coupon Test League1565",
+    "name": "The Coupon Test League",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Sunday Club1523",
+    "name": "Sunday Club",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ]
+ },
+ {
+  "route": "/leagues/the-coupon/admin/settings",
+  "width": 1280,
+  "down": [
+   {
+    "key": "Back79",
+    "name": "Back",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "260",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "348",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Private — invite onlyPublic — anyone can436",
+    "name": "Private — invite onlyPublic — anyone can",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "556",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "One selection — others can take the same644",
+    "name": "One selection — others can take the same",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "MondayTuesdayWednesdayThursdayFridaySatu906",
+    "name": "MondayTuesdayWednesdayThursdayFridaySatu",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "906",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ],
+  "up": [
+   {
+    "key": "906",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "MondayTuesdayWednesdayThursdayFridaySatu906",
+    "name": "MondayTuesdayWednesdayThursdayFridaySatu",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "One selection — others can take the same644",
+    "name": "One selection — others can take the same",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "556",
+    "name": "",
+    "onEl": 2,
+    "onChrome": 3,
+    "inChrome": false
+   },
+   {
+    "key": "Private — invite onlyPublic — anyone can436",
+    "name": "Private — invite onlyPublic — anyone can",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "348",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "260",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Back79",
+    "name": "Back",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   },
+   {
+    "key": "Delete league2241",
+    "name": "Delete league",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "2185",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Refresh rounds1999",
+    "name": "Refresh rounds",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Save changes1790",
+    "name": "Save changes",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "All UK leagues1713",
+    "name": "All UK leagues",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1572",
+    "name": "",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   },
+   {
+    "key": "1526",
+    "name": "",
+    "onEl": 0,
+    "onChrome": 5,
+    "inChrome": false
+   },
+   {
+    "key": "Reset to Saturday 3pm1337",
+    "name": "Reset to Saturday 3pm",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Announce when picks open1163",
+    "name": "Announce when picks open",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "1078",
+    "name": "",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "990",
+    "name": "",
+    "onEl": 2,
+    "onChrome": 3,
+    "inChrome": false
+   }
+  ]
+ },
+ {
+  "route": "/football",
+  "width": 1280,
+  "down": [
+   {
+    "key": "Tables169",
+    "name": "Tables",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Results169",
+    "name": "Results",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "English Premier League5234",
+    "name": "English Premier League5",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Scottish League Two4302",
+    "name": "Scottish League Two4",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ],
+  "up": [
+   {
+    "key": "Scottish League Two4302",
+    "name": "Scottish League Two4",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "English Premier League5234",
+    "name": "English Premier League5",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Results169",
+    "name": "Results",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   },
+   {
+    "key": "Tables169",
+    "name": "Tables",
+    "onEl": 5,
+    "onChrome": 0,
+    "inChrome": false
+   }
+  ]
+ }
+]

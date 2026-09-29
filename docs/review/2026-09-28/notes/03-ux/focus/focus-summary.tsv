@@ -13,3 +13,619 @@ login	390	dark	3	input "PIN digit 2"	48×48	875	693	192	7.07	7.07	PASS
 login	390	dark	4	input "PIN digit 3"	48×48	875	693	192	7.07	7.07	PASS
 login	390	dark	5	input "PIN digit 4"	48×48	875	693	192	7.07	7.07	PASS
 login	390	dark	6	button "Sign in"	316×44	2241	2137	720	7.07	7.07	PASS
+login	390	dark	7	a "Forgot PIN?"	316×24	2068	1368	680	10.30	10.30	PASS
+login	390	dark	8	a "Create account"	82×15	604	390	194	10.30	10.30	PASS
+login	1280	light	1	input "Your name"	342×44	3218	2936	772	5.02	5.02	PASS
+login	1280	light	2	input "PIN digit 1"	48×48	896	619	192	5.02	5.02	PASS
+login	1280	light	3	input "PIN digit 2"	48×48	898	616	192	5.02	5.02	PASS
+login	1280	light	4	input "PIN digit 3"	48×48	898	616	192	5.02	5.02	PASS
+login	1280	light	5	input "PIN digit 4"	48×48	898	616	192	5.02	5.02	PASS
+login	1280	light	6	button "Sign in"	342×44	2410	2276	772	5.02	5.02	PASS
+login	1280	light	7	a "Forgot PIN?"	342×24	1488	1472	732	5.98	5.98	PASS
+login	1280	light	8	a "Create account"	82×15	408	390	194	5.98	5.98	PASS
+login	1280	dark	1	input "Your name"	342×44	3195	3013	772	7.07	7.07	PASS
+login	1280	dark	2	input "PIN digit 1"	48×48	876	691	192	7.07	7.07	PASS
+login	1280	dark	3	input "PIN digit 2"	48×48	875	692	192	7.07	7.07	PASS
+login	1280	dark	4	input "PIN digit 3"	48×48	875	692	192	7.07	7.07	PASS
+login	1280	dark	5	input "PIN digit 4"	48×48	875	692	192	7.07	7.07	PASS
+login	1280	dark	6	button "Sign in"	342×44	2397	2293	772	7.07	7.07	PASS
+login	1280	dark	7	a "Forgot PIN?"	342×24	2224	1472	732	10.30	10.30	PASS
+login	1280	dark	8	a "Create account"	82×15	604	390	194	10.30	10.30	PASS
+home	390	light	1	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+home	390	light	2	a "Home"	182×44	936	920	452	5.63	5.63	PASS
+home	390	light	3	button "Account menu (Alice)"	32×32	516	308	128	4.72	4.72	PASS
+home	390	light	4	a "The Coupon Test League locks in 2d 15h"	261×20	1828	1664	562	5.02	5.02	PASS
+home	390	light	5	button "Sunday ClubGameweek 1bRound in progressL"	356×215	5085	3405	1142	5.02	5.02	PASS
+home	390	light	6	a "Standings#1of 2·0 pts"	356×49	3389	2409	810	5.02	5.02	PASS
+home	390	light	7	button "The Coupon Test LeagueGameweek 1bPick re"	356×190	4743	1779	1092	4.72	4.72	PASS
+home	390	light	8	a "Standings#1of 3·0 pts"	356×49	4053	1406	810	5.02	5.02	PASS
+home	390	light	9	a "Home"	78×60	612	409	276	5.02	5.02	PASS
+home	390	light	10	a "Coupon"	78×60	789	543	276	5.02	5.02	PASS
+home	390	light	11	a "Football Stats"	78×60	808	586	276	5.02	5.02	PASS
+home	390	light	12	a "Leagues"	78×60	802	577	276	5.02	5.02	PASS
+home	390	light	13	button "More"	78×60	612	409	276	5.02	5.02	PASS
+home	390	light	15	button "Switch to dark mode"	44×44	895	479	176	4.53	4.61	PASS
+home	390	light	16	a "Home"	182×44	1360	919	452	5.58	5.77	PASS
+home	390	light	17	button "Account menu (Alice)"	32×32	520	308	128	4.81	4.85	PASS
+home	390	dark	1	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+home	390	dark	2	a "Home"	182×44	936	920	452	11.10	11.10	PASS
+home	390	dark	3	button "Account menu (Alice)"	32×32	635	360	128	7.62	7.62	PASS
+home	390	dark	4	a "The Coupon Test League locks in 2d 15h"	261×20	1800	1689	562	7.07	7.07	PASS
+home	390	dark	5	button "Sunday ClubGameweek 1bRound in progressL"	356×215	5380	3432	1142	7.62	7.72	PASS
+home	390	dark	6	a "Standings#1of 2·0 pts"	356×49	3372	2440	810	7.68	7.72	PASS
+home	390	dark	7	button "The Coupon Test LeagueGameweek 1bPick re"	356×190	4692	1806	1092	7.62	7.67	PASS
+home	390	dark	8	a "Standings#1of 3·0 pts"	356×49	3996	1426	810	7.07	7.72	PASS
+home	390	dark	9	a "Home"	78×60	730	427	276	7.57	7.81	PASS
+home	390	dark	10	a "Coupon"	78×60	949	568	276	7.62	7.62	PASS
+home	390	dark	11	a "Football Stats"	78×60	988	607	276	7.62	7.62	PASS
+home	390	dark	12	a "Leagues"	78×60	978	598	276	7.62	7.62	PASS
+home	390	dark	13	button "More"	78×60	734	428	276	7.62	7.81	PASS
+home	390	dark	15	button "Switch to light mode"	44×44	788	502	176	7.14	7.45	PASS
+home	390	dark	16	a "Home"	182×44	1198	920	452	10.78	10.78	PASS
+home	390	dark	17	button "Account menu (Alice)"	32×32	503	357	128	7.40	7.51	PASS
+home	1280	light	1	a "Home"	182×52	1144	944	468	5.63	5.63	PASS
+home	1280	light	2	a "Home"	60×32	684	528	184	4.72	4.72	PASS
+home	1280	light	3	a "Coupon"	70×32	744	588	204	4.72	4.72	PASS
+home	1280	light	4	a "Football Stats"	105×32	954	798	274	4.72	4.72	PASS
+home	1280	light	5	a "Leagues"	73×32	762	606	211	4.72	4.72	PASS
+home	1280	light	6	a "Settings"	71×32	750	594	206	4.72	4.72	PASS
+home	1280	light	7	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+home	1280	light	8	button "Account menu (Alice)"	70×32	766	536	204	4.72	4.72	PASS
+home	1280	light	9	a "The Coupon Test League locks in 2d 15h"	261×20	1828	1666	562	5.02	5.02	PASS
+home	1280	light	10	button "Sunday ClubGameweek 1bRound in progressL"	1230×215	12077	8649	2890	5.02	5.02	PASS
+home	1280	light	11	a "Standings#1of 2·0 pts"	1230×49	10381	7653	2558	5.02	5.02	PASS
+home	1280	light	12	button "The Coupon Test LeagueGameweek 1bPick re"	1230×190	6857	4767	2840	4.72	4.72	PASS
+home	1280	light	13	a "Standings#1of 3·0 pts"	1230×49	10381	7653	2558	5.02	5.02	PASS
+home	1280	light	15	a "Home"	182×52	1163	944	468	5.68	5.84	PASS
+home	1280	light	16	a "Home"	60×32	793	528	184	4.94	4.94	PASS
+home	1280	light	17	a "Coupon"	70×32	873	588	204	4.94	4.94	PASS
+home	1280	light	18	a "Football Stats"	105×32	1107	798	274	4.94	4.97	PASS
+home	1280	light	19	a "Leagues"	73×32	905	606	211	4.94	4.94	PASS
+home	1280	light	20	a "Settings"	71×32	881	594	206	4.94	4.94	PASS
+home	1280	light	21	button "Switch to dark mode"	44×44	755	484	176	4.81	4.85	PASS
+home	1280	light	22	button "Account menu (Alice)"	70×32	798	537	204	4.93	4.94	PASS
+home	1280	dark	1	a "Home"	182×52	1146	944	468	11.10	11.10	PASS
+home	1280	dark	2	a "Home"	60×32	974	556	184	7.62	7.62	PASS
+home	1280	dark	3	a "Coupon"	70×32	1074	616	204	7.62	7.62	PASS
+home	1280	dark	4	a "Football Stats"	105×32	1424	826	274	7.62	7.62	PASS
+home	1280	dark	5	a "Leagues"	73×32	1104	634	211	7.62	7.62	PASS
+home	1280	dark	6	a "Settings"	71×32	1084	622	206	7.62	7.62	PASS
+home	1280	dark	7	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+home	1280	dark	8	button "Account menu (Alice)"	70×32	1031	588	204	7.62	7.62	PASS
+home	1280	dark	9	a "The Coupon Test League locks in 2d 15h"	261×20	1802	1691	562	7.07	7.07	PASS
+home	1280	dark	10	button "Sunday ClubGameweek 1bRound in progressL"	1230×215	13246	8676	2890	7.62	7.72	PASS
+home	1280	dark	11	a "Standings#1of 2·0 pts"	1230×49	10364	7684	2558	7.72	7.72	PASS
+home	1280	dark	12	button "The Coupon Test LeagueGameweek 1bPick re"	1230×190	8026	4794	2840	7.62	7.67	PASS
+home	1280	dark	13	a "Standings#1of 3·0 pts"	1230×49	10364	7684	2558	7.72	7.72	PASS
+home	1280	dark	15	a "Home"	182×52	1188	944	468	10.94	11.10	PASS
+home	1280	dark	16	a "Home"	60×32	770	552	184	6.93	6.93	PASS
+home	1280	dark	17	a "Coupon"	70×32	851	612	204	6.93	6.93	PASS
+home	1280	dark	18	a "Football Stats"	105×32	1076	822	274	6.93	6.95	PASS
+home	1280	dark	19	a "Leagues"	73×32	883	629	211	6.93	6.93	PASS
+home	1280	dark	20	a "Settings"	71×32	859	618	206	6.93	6.93	PASS
+home	1280	dark	21	button "Switch to light mode"	44×44	745	504	176	7.21	7.21	PASS
+home	1280	dark	22	button "Account menu (Alice)"	70×32	788	582	204	7.44	7.61	PASS
+round	390	light	1	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+round	390	light	2	a "Home"	182×44	936	920	452	5.63	5.63	PASS
+round	390	light	3	button "Account menu (Carol)"	32×32	516	308	128	4.72	4.72	PASS
+round	390	light	4	a "Current round"	105×30	322	183	270	4.72	4.72	FAIL
+round	390	light	5	a "Season"	68×30	270	183	197	4.72	4.72	FAIL
+round	390	light	6	button "Older gameweek"	44×44	680	488	176	5.02	5.02	PASS
+round	390	light	7	button "The coupon0 of 3"	358×44	2494	2368	804	4.72	4.72	PASS
+round	390	light	8	button "How scoring workswin = odds × 10"	356×44	0	0	800	0.00	0.00	NONE
+round	390	light	9	button "English Premier League1"	358×44	2496	2368	804	4.72	4.72	PASS
+round	390	light	10	button "Arsenal FC form, oldest first: won, drew"	70×24	1847	297	188	5.02	5.02	PASS
+round	390	light	11	button "Chelsea FC form, oldest first: drew, won"	70×24	1824	298	188	5.02	5.02	PASS
+round	390	light	12	button "Arsenal1.90win 19 pts"	158×52	4320	0	420	1.43	1.46	FAIL
+round	390	light	13	button "Draw3.75win 38 pts"	158×52	4259	0	420	1.41	1.46	FAIL
+round	390	light	14	button "Chelsea4.30win 43 pts"	158×52	1354	1220	420	5.02	5.02	PASS
+round	390	light	15	button "Both teams score1.80win 18 pts"	158×68	1450	1316	452	5.02	5.02	PASS
+round	390	light	16	button "No — not both score2.05win 21 pts"	158×68	1450	1316	452	5.02	5.02	PASS
+round	390	light	17	button "Scottish League Two1"	358×44	2496	2368	804	4.72	4.72	PASS
+round	390	light	18	a "Home"	78×60	591	409	276	4.72	4.76	PASS
+round	390	light	19	a "Coupon"	78×60	767	546	276	4.72	4.72	PASS
+round	390	light	20	a "Football Stats"	78×60	780	577	276	4.72	4.72	PASS
+round	390	light	21	a "Leagues"	78×60	792	586	276	4.72	4.76	PASS
+round	390	light	22	button "More"	78×60	589	406	276	4.72	4.72	PASS
+round	390	light	24	button "Switch to dark mode"	44×44	743	486	176	4.89	4.98	PASS
+round	390	light	25	a "Home"	182×44	972	920	452	5.98	5.98	PASS
+round	390	light	26	button "Account menu (Carol)"	32×32	533	313	128	5.02	5.02	PASS
+round	390	dark	1	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+round	390	dark	2	a "Home"	182×44	936	920	452	11.10	11.10	PASS
+round	390	dark	3	button "Account menu (Carol)"	32×32	635	360	128	7.62	7.62	PASS
+round	390	dark	4	a "Current round"	105×30	418	213	270	7.62	7.62	FAIL
+round	390	dark	5	a "Season"	68×30	382	213	197	7.62	7.62	PASS
+round	390	dark	6	button "Older gameweek"	44×44	652	505	176	7.07	7.07	PASS
+round	390	dark	7	button "The coupon0 of 3"	358×44	4018	2392	804	7.62	7.62	PASS
+round	390	dark	8	button "How scoring workswin = odds × 10"	356×44	0	0	800	0.00	0.00	NONE
+round	390	dark	9	button "English Premier League1"	358×44	4018	2392	804	7.62	7.62	PASS
+round	390	dark	10	button "Arsenal FC form, oldest first: won, drew"	70×24	1640	301	188	7.07	7.07	PASS
+round	390	dark	11	button "Chelsea FC form, oldest first: drew, won"	70×24	1654	302	188	7.07	7.07	PASS
+round	390	dark	12	button "Arsenal1.90win 19 pts"	158×52	3505	0	420	1.59	1.62	FAIL
+round	390	dark	13	button "Draw3.75win 38 pts"	158×52	3435	0	420	1.56	1.62	FAIL
+round	390	dark	14	button "Chelsea4.30win 43 pts"	158×52	1341	1237	420	7.07	7.07	PASS
+round	390	dark	15	button "Both teams score1.80win 18 pts"	158×68	1437	1333	452	7.07	7.07	PASS
+round	390	dark	16	button "No — not both score2.05win 21 pts"	158×68	1437	1333	452	7.07	7.07	PASS
+round	390	dark	17	button "Scottish League Two1"	358×44	4018	2392	804	7.62	7.62	PASS
+round	390	dark	18	a "Home"	78×60	779	428	276	7.62	7.62	PASS
+round	390	dark	19	a "Coupon"	78×60	1032	571	276	7.62	7.62	PASS
+round	390	dark	20	a "Football Stats"	78×60	1059	599	276	7.62	7.62	PASS
+round	390	dark	21	a "Leagues"	78×60	1060	608	276	7.62	7.62	PASS
+round	390	dark	22	button "More"	78×60	776	424	276	7.62	7.62	PASS
+round	390	dark	24	button "Switch to light mode"	44×44	733	503	176	7.21	7.27	PASS
+round	390	dark	25	a "Home"	182×44	1402	920	452	10.30	10.30	PASS
+round	390	dark	26	button "Account menu (Carol)"	32×32	497	355	128	7.21	7.27	PASS
+round	1280	light	1	a "Home"	182×52	1144	944	468	5.63	5.63	PASS
+round	1280	light	2	a "Home"	60×32	684	528	184	4.72	4.72	PASS
+round	1280	light	3	a "Coupon"	70×32	744	588	204	4.72	4.72	PASS
+round	1280	light	4	a "Football Stats"	105×32	954	798	274	4.72	4.72	PASS
+round	1280	light	5	a "Leagues"	73×32	762	606	211	4.72	4.72	PASS
+round	1280	light	6	a "Settings"	71×32	750	594	206	4.72	4.72	PASS
+round	1280	light	7	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+round	1280	light	8	button "Account menu (Carol)"	74×32	790	560	212	4.72	4.72	PASS
+round	1280	light	9	a "Current round"	105×30	233	122	270	4.72	4.72	FAIL
+round	1280	light	10	a "Season"	68×30	270	183	197	4.72	4.72	FAIL
+round	1280	light	11	button "Older gameweek"	44×44	681	487	176	5.02	5.02	PASS
+round	1280	light	12	button "The coupon0 of 3"	604×44	3972	3844	1296	4.72	4.72	PASS
+round	1280	light	13	button "How scoring workswin = odds × 10"	602×44	0	0	1292	0.00	0.00	NONE
+round	1280	light	14	button "English Premier League1"	604×44	3972	3844	1296	4.72	4.72	PASS
+round	1280	light	15	button "Arsenal FC form, oldest first: won, drew"	70×24	681	581	188	5.02	5.02	PASS
+round	1280	light	16	button "Chelsea FC form, oldest first: drew, won"	70×24	681	582	188	5.02	5.02	PASS
+round	1280	light	17	button "Arsenal1.90win 19 pts"	185×52	1520	1381	473	5.02	5.02	PASS
+round	1280	light	18	button "Draw3.75win 38 pts"	185×52	1514	1375	473	5.02	5.02	PASS
+round	1280	light	19	button "Chelsea4.30win 43 pts"	185×52	1520	1381	473	5.02	5.02	PASS
+round	1280	light	20	button "Both teams score1.80win 18 pts"	185×52	1516	1382	473	5.02	5.02	PASS
+round	1280	light	21	button "No — not both score2.05win 21 pts"	185×52	1510	1376	473	5.02	5.02	PASS
+round	1280	light	22	button "Scottish League Two1"	604×44	3972	3844	1296	4.72	4.72	PASS
+round	1280	light	24	a "Home"	182×52	1145	944	468	5.88	5.89	PASS
+round	1280	light	25	a "Home"	60×32	684	528	184	4.85	4.85	PASS
+round	1280	light	26	a "Coupon"	70×32	744	588	204	4.85	4.85	PASS
+round	1280	light	27	a "Football Stats"	105×32	954	798	274	4.85	4.85	PASS
+round	1280	light	28	a "Leagues"	73×32	762	606	211	4.85	4.85	PASS
+round	1280	light	29	a "Settings"	71×32	750	594	206	4.85	4.85	PASS
+round	1280	light	30	button "Switch to dark mode"	44×44	688	486	176	4.93	4.93	PASS
+round	1280	light	31	button "Account menu (Carol)"	74×32	791	560	212	4.84	4.85	PASS
+round	1280	dark	1	a "Home"	182×52	1146	944	468	11.10	11.10	PASS
+round	1280	dark	2	a "Home"	60×32	974	556	184	7.62	7.62	PASS
+round	1280	dark	3	a "Coupon"	70×32	1074	616	204	7.62	7.62	PASS
+round	1280	dark	4	a "Football Stats"	105×32	1424	826	274	7.62	7.62	PASS
+round	1280	dark	5	a "Leagues"	73×32	1104	634	211	7.62	7.62	PASS
+round	1280	dark	6	a "Settings"	71×32	1084	622	206	7.62	7.62	PASS
+round	1280	dark	7	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+round	1280	dark	8	button "Account menu (Carol)"	74×32	1071	612	212	7.62	7.62	PASS
+round	1280	dark	9	a "Current round"	105×30	316	145	270	7.62	7.62	FAIL
+round	1280	dark	10	a "Season"	68×30	382	213	197	7.62	7.62	PASS
+round	1280	dark	11	button "Older gameweek"	44×44	651	505	176	7.07	7.07	PASS
+round	1280	dark	12	button "The coupon0 of 3"	604×44	6478	3868	1296	7.62	7.62	PASS
+round	1280	dark	13	button "How scoring workswin = odds × 10"	602×44	0	0	1292	0.00	0.00	NONE
+round	1280	dark	14	button "English Premier League1"	604×44	6478	3868	1296	7.62	7.62	PASS
+round	1280	dark	15	button "Arsenal FC form, oldest first: won, drew"	70×24	668	589	188	7.07	7.07	PASS
+round	1280	dark	16	button "Chelsea FC form, oldest first: drew, won"	70×24	668	590	188	7.07	7.07	PASS
+round	1280	dark	17	button "Arsenal1.90win 19 pts"	185×52	1505	1399	473	7.07	7.07	PASS
+round	1280	dark	18	button "Draw3.75win 38 pts"	185×52	1499	1393	473	7.07	7.07	PASS
+round	1280	dark	19	button "Chelsea4.30win 43 pts"	185×52	1505	1399	473	7.07	7.07	PASS
+round	1280	dark	20	button "Both teams score1.80win 18 pts"	185×52	1503	1399	473	7.07	7.07	PASS
+round	1280	dark	21	button "No — not both score2.05win 21 pts"	185×52	1497	1393	473	7.07	7.07	PASS
+round	1280	dark	22	button "Scottish League Two1"	604×44	6478	3868	1296	7.62	7.62	PASS
+round	1280	dark	24	a "Home"	182×52	1159	944	468	10.90	11.04	PASS
+round	1280	dark	25	a "Home"	60×32	826	556	184	7.62	7.62	PASS
+round	1280	dark	26	a "Coupon"	70×32	906	616	204	7.62	7.62	PASS
+round	1280	dark	27	a "Football Stats"	105×32	1186	826	274	7.62	7.62	PASS
+round	1280	dark	28	a "Leagues"	73×32	930	634	211	7.62	7.62	PASS
+round	1280	dark	29	a "Settings"	71×32	914	622	206	7.62	7.62	PASS
+round	1280	dark	30	button "Switch to light mode"	44×44	799	508	176	7.62	7.62	PASS
+round	1280	dark	31	button "Account menu (Carol)"	74×32	947	611	212	7.62	7.62	PASS
+standings	390	light	1	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+standings	390	light	2	a "Home"	182×44	936	920	452	5.63	5.63	PASS
+standings	390	light	3	button "Account menu (Alice)"	32×32	516	308	128	4.72	4.72	PASS
+standings	390	light	4	button "League actions"	90×36	874	732	252	4.72	4.72	PASS
+standings	390	light	5	a "Sunday Club"	96×30	341	177	252	4.72	4.72	FAIL
+standings	390	light	6	button "Show 2026/27, the season being played"	106×30	355	177	272	4.72	4.72	FAIL
+standings	390	light	7	button "Show the 2025/26 season"	75×30	353	183	211	4.72	4.72	FAIL
+standings	390	light	8	button "Copy standings"	125×36	1078	943	323	4.72	4.72	PASS
+standings	390	light	9	a "1ALAlice0/0 won0pts"	358×70	2713	2481	856	4.72	4.72	PASS
+standings	390	light	10	a "1BOBob0/0 won0pts"	358×70	2642	2479	856	4.72	4.72	PASS
+standings	390	light	11	a "1CACarol0/0 won0pts"	358×70	2642	2479	856	4.72	4.72	PASS
+standings	390	light	12	a "Home"	78×60	591	409	276	4.72	4.76	PASS
+standings	390	light	13	a "Coupon"	78×60	767	546	276	4.72	4.72	PASS
+standings	390	light	14	a "Football Stats"	78×60	782	580	276	4.72	4.72	PASS
+standings	390	light	15	a "Leagues"	78×60	782	580	276	4.72	4.76	PASS
+standings	390	light	16	button "More"	78×60	591	409	276	4.72	4.72	PASS
+standings	390	dark	1	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+standings	390	dark	2	a "Home"	182×44	936	920	452	11.10	11.10	PASS
+standings	390	dark	3	button "Account menu (Alice)"	32×32	635	360	128	7.62	7.62	PASS
+standings	390	dark	4	button "League actions"	90×36	1290	760	252	7.62	7.62	PASS
+standings	390	dark	5	a "Sunday Club"	96×30	396	208	252	7.62	7.67	FAIL
+standings	390	dark	6	button "Show 2026/27, the season being played"	106×30	406	204	272	7.62	7.67	FAIL
+standings	390	dark	7	button "Show the 2025/26 season"	75×30	405	213	211	7.62	7.67	PASS
+standings	390	dark	8	button "Copy standings"	125×36	1642	969	323	7.62	7.62	PASS
+standings	390	dark	9	a "1ALAlice0/0 won0pts"	358×70	4260	2520	856	7.62	7.62	PASS
+standings	390	dark	10	a "1BOBob0/0 won0pts"	358×70	4226	2520	856	7.62	7.62	PASS
+standings	390	dark	11	a "1CACarol0/0 won0pts"	358×70	4226	2520	856	7.62	7.62	PASS
+standings	390	dark	12	a "Home"	78×60	779	428	276	7.62	7.62	PASS
+standings	390	dark	13	a "Coupon"	78×60	1032	571	276	7.62	7.62	PASS
+standings	390	dark	14	a "Football Stats"	78×60	1062	602	276	7.62	7.62	PASS
+standings	390	dark	15	a "Leagues"	78×60	1062	602	276	7.62	7.62	PASS
+standings	390	dark	16	button "More"	78×60	779	427	276	7.62	7.62	PASS
+standings	1280	light	1	a "Home"	182×52	1144	944	468	5.63	5.63	PASS
+standings	1280	light	2	a "Home"	60×32	684	528	184	4.72	4.72	PASS
+standings	1280	light	3	a "Coupon"	70×32	744	588	204	4.72	4.72	PASS
+standings	1280	light	4	a "Football Stats"	105×32	954	798	274	4.72	4.72	PASS
+standings	1280	light	5	a "Leagues"	73×32	762	606	211	4.72	4.72	PASS
+standings	1280	light	6	a "Settings"	71×32	750	594	206	4.72	4.72	PASS
+standings	1280	light	7	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+standings	1280	light	8	button "Account menu (Alice)"	70×32	766	536	204	4.72	4.72	PASS
+standings	1280	light	9	button "League actions"	90×36	874	732	252	4.72	4.72	PASS
+standings	1280	light	10	a "Sunday Club"	96×30	341	177	252	4.72	4.72	FAIL
+standings	1280	light	11	button "Show 2026/27, the season being played"	106×30	355	177	272	4.72	4.72	FAIL
+standings	1280	light	12	button "Show the 2025/26 season"	75×30	353	183	211	4.72	4.72	FAIL
+standings	1280	light	13	button "Copy standings"	125×36	1084	942	323	4.72	4.72	PASS
+standings	1280	light	14	a "1ALAlice0/0 won0pts"	612×70	4237	4003	1364	4.72	4.72	PASS
+standings	1280	light	15	a "1BOBob0/0 won0pts"	612×70	4166	4003	1364	4.72	4.72	PASS
+standings	1280	light	16	a "1CACarol0/0 won0pts"	612×70	4166	4003	1364	4.72	4.72	PASS
+standings	1280	dark	1	a "Home"	182×52	1146	944	468	11.10	11.10	PASS
+standings	1280	dark	2	a "Home"	60×32	974	556	184	7.62	7.62	PASS
+standings	1280	dark	3	a "Coupon"	70×32	1074	616	204	7.62	7.62	PASS
+standings	1280	dark	4	a "Football Stats"	105×32	1424	826	274	7.62	7.62	PASS
+standings	1280	dark	5	a "Leagues"	73×32	1104	634	211	7.62	7.62	PASS
+standings	1280	dark	6	a "Settings"	71×32	1084	622	206	7.62	7.62	PASS
+standings	1280	dark	7	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+standings	1280	dark	8	button "Account menu (Alice)"	70×32	1031	588	204	7.62	7.62	PASS
+standings	1280	dark	9	button "League actions"	90×36	1290	760	252	7.62	7.62	PASS
+standings	1280	dark	10	a "Sunday Club"	96×30	393	204	252	7.62	7.67	FAIL
+standings	1280	dark	11	button "Show 2026/27, the season being played"	106×30	406	204	272	7.62	7.67	FAIL
+standings	1280	dark	12	button "Show the 2025/26 season"	75×30	405	213	211	7.62	7.67	PASS
+standings	1280	dark	13	button "Copy standings"	125×36	1640	970	323	7.62	7.62	PASS
+standings	1280	dark	14	a "1ALAlice0/0 won0pts"	612×70	6800	4044	1364	7.62	7.62	PASS
+standings	1280	dark	15	a "1BOBob0/0 won0pts"	612×70	6766	4044	1364	7.62	7.62	PASS
+standings	1280	dark	16	a "1CACarol0/0 won0pts"	612×70	6766	4044	1364	7.62	7.62	PASS
+settings	390	light	1	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+settings	390	light	2	a "Home"	182×44	936	920	452	5.63	5.63	PASS
+settings	390	light	3	button "Account menu (Alice)"	32×32	516	308	128	4.72	4.72	PASS
+settings	390	light	4	input "PIN digit 1"	48×48	898	616	192	5.02	5.02	PASS
+settings	390	light	5	input "PIN digit 2"	48×48	898	616	192	5.02	5.02	PASS
+settings	390	light	6	input "PIN digit 3"	48×48	898	616	192	5.02	5.02	PASS
+settings	390	light	7	input "PIN digit 4"	48×48	898	616	192	5.02	5.02	PASS
+settings	390	light	8	input "PIN digit 1"	48×48	898	616	192	5.02	5.02	PASS
+settings	390	light	9	input "PIN digit 2"	48×48	898	616	192	5.02	5.02	PASS
+settings	390	light	10	input "PIN digit 3"	48×48	898	616	192	5.02	5.02	PASS
+settings	390	light	11	input "PIN digit 4"	48×48	898	616	192	5.02	5.02	PASS
+settings	390	light	12	select "Timezone"	316×40	1488	1356	712	3.77	3.77	PASS
+settings	390	light	13	button[radio] "Decimal2.50"	151×54	2070	1200	410	4.51	4.51	PASS
+settings	390	light	14	button[radio] "Fractional3/2"	151×54	2095	1199	410	4.51	5.02	PASS
+settings	390	light	15	button[radio] "Light"	99×44	1450	828	287	4.51	4.51	PASS
+settings	390	light	16	button[radio] "Dark"	99×44	1485	834	287	4.51	5.02	PASS
+settings	390	light	17	button[radio] "System"	99×44	1472	828	287	4.51	4.51	PASS
+settings	390	light	18	button[switch] "Enable all notifications"	44×24	500	373	136	5.02	5.02	PASS
+settings	390	light	19	input ""	101×36	1030	454	274	5.38	5.38	PASS
+settings	390	dark	1	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+settings	390	dark	2	a "Home"	182×44	936	920	452	11.10	11.10	PASS
+settings	390	dark	3	button "Account menu (Alice)"	32×32	635	360	128	7.62	7.62	PASS
+settings	390	dark	4	input "PIN digit 1"	48×48	875	693	192	7.07	7.07	PASS
+settings	390	dark	5	input "PIN digit 2"	48×48	875	693	192	7.07	7.07	PASS
+settings	390	dark	6	input "PIN digit 3"	48×48	875	693	192	7.07	7.07	PASS
+settings	390	dark	7	input "PIN digit 4"	48×48	875	693	192	7.07	7.07	PASS
+settings	390	dark	8	input "PIN digit 1"	48×48	875	693	192	7.07	7.07	PASS
+settings	390	dark	9	input "PIN digit 2"	48×48	875	693	192	7.07	7.07	PASS
+settings	390	dark	10	input "PIN digit 3"	48×48	875	693	192	7.07	7.07	PASS
+settings	390	dark	11	input "PIN digit 4"	48×48	875	693	192	7.07	7.07	PASS
+settings	390	dark	12	select "Timezone"	316×40	1462	1393	712	7.07	7.07	PASS
+settings	390	dark	13	button[radio] "Decimal2.50"	151×54	1668	1223	410	6.39	6.46	PASS
+settings	390	dark	14	button[radio] "Fractional3/2"	151×54	2083	1223	410	6.39	7.07	PASS
+settings	390	dark	15	button[radio] "Light"	99×44	1437	820	287	6.39	6.39	PASS
+settings	390	dark	16	button[radio] "Dark"	99×44	1180	857	287	6.39	6.46	PASS
+settings	390	dark	17	button[radio] "System"	99×44	1467	851	287	6.39	7.07	PASS
+settings	390	dark	18	button[switch] "Enable all notifications"	44×24	483	408	136	7.07	7.07	PASS
+settings	390	dark	19	input ""	101×36	1247	946	274	9.31	19.09	PASS
+settings	1280	light	1	a "Home"	182×52	1144	944	468	5.63	5.63	PASS
+settings	1280	light	2	a "Home"	60×32	684	528	184	4.72	4.72	PASS
+settings	1280	light	3	a "Coupon"	70×32	744	588	204	4.72	4.72	PASS
+settings	1280	light	4	a "Football Stats"	105×32	954	798	274	4.72	4.72	PASS
+settings	1280	light	5	a "Leagues"	73×32	762	606	211	4.72	4.72	PASS
+settings	1280	light	6	a "Settings"	71×32	750	594	206	4.72	4.72	PASS
+settings	1280	light	7	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+settings	1280	light	8	button "Account menu (Alice)"	70×32	766	536	204	4.72	4.72	PASS
+settings	1280	light	9	input "PIN digit 1"	48×48	898	616	192	5.02	5.02	PASS
+settings	1280	light	10	input "PIN digit 2"	48×48	898	616	192	5.02	5.02	PASS
+settings	1280	light	11	input "PIN digit 3"	48×48	898	616	192	5.02	5.02	PASS
+settings	1280	light	12	input "PIN digit 4"	48×48	898	618	192	5.02	5.02	PASS
+settings	1280	light	13	input "PIN digit 1"	48×48	898	616	192	5.02	5.02	PASS
+settings	1280	light	14	input "PIN digit 2"	48×48	898	616	192	5.02	5.02	PASS
+settings	1280	light	15	input "PIN digit 3"	48×48	898	616	192	5.02	5.02	PASS
+settings	1280	light	16	input "PIN digit 4"	48×48	898	618	192	5.02	5.02	PASS
+settings	1280	light	17	select "Timezone"	534×40	2360	2228	1148	3.77	3.77	PASS
+settings	1280	light	18	button[radio] "Decimal2.50"	185×54	2410	1404	478	4.51	4.51	PASS
+settings	1280	light	19	button[radio] "Fractional3/2"	185×54	2435	1403	478	4.51	5.02	PASS
+settings	1280	light	20	button[radio] "Light"	122×44	1680	966	332	4.51	4.51	PASS
+settings	1280	light	21	button[radio] "Dark"	122×44	1705	966	332	4.51	5.02	PASS
+settings	1280	light	22	button[radio] "System"	122×44	1705	965	332	4.51	4.51	PASS
+settings	1280	light	23	button[switch] "Enable all notifications"	44×24	500	373	136	5.02	5.02	PASS
+settings	1280	light	24	input ""	93×32	879	406	249	5.38	5.38	PASS
+settings	1280	dark	1	a "Home"	182×52	1146	944	468	11.10	11.10	PASS
+settings	1280	dark	2	a "Home"	60×32	974	556	184	7.62	7.62	PASS
+settings	1280	dark	3	a "Coupon"	70×32	1074	616	204	7.62	7.62	PASS
+settings	1280	dark	4	a "Football Stats"	105×32	1424	826	274	7.62	7.62	PASS
+settings	1280	dark	5	a "Leagues"	73×32	1104	634	211	7.62	7.62	PASS
+settings	1280	dark	6	a "Settings"	71×32	1084	622	206	7.62	7.62	PASS
+settings	1280	dark	7	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+settings	1280	dark	8	button "Account menu (Alice)"	70×32	1031	588	204	7.62	7.62	PASS
+settings	1280	dark	9	input "PIN digit 1"	48×48	875	693	192	7.07	7.07	PASS
+settings	1280	dark	10	input "PIN digit 2"	48×48	875	693	192	7.07	7.07	PASS
+settings	1280	dark	11	input "PIN digit 3"	48×48	875	693	192	7.07	7.07	PASS
+settings	1280	dark	12	input "PIN digit 4"	48×48	875	693	192	7.07	7.07	PASS
+settings	1280	dark	13	input "PIN digit 1"	48×48	875	693	192	7.07	7.07	PASS
+settings	1280	dark	14	input "PIN digit 2"	48×48	875	693	192	7.07	7.07	PASS
+settings	1280	dark	15	input "PIN digit 3"	48×48	875	693	192	7.07	7.07	PASS
+settings	1280	dark	16	input "PIN digit 4"	48×48	875	693	192	7.07	7.07	PASS
+settings	1280	dark	17	select "Timezone"	534×40	2334	2265	1148	7.07	7.07	PASS
+settings	1280	dark	18	button[radio] "Decimal2.50"	185×54	1940	1427	478	6.39	6.46	PASS
+settings	1280	dark	19	button[radio] "Fractional3/2"	185×54	2423	1427	478	6.39	7.07	PASS
+settings	1280	dark	20	button[radio] "Light"	122×44	1667	958	332	6.39	6.39	PASS
+settings	1280	dark	21	button[radio] "Dark"	122×44	1360	989	332	6.39	6.46	PASS
+settings	1280	dark	22	button[radio] "System"	122×44	1693	989	332	6.39	7.07	PASS
+settings	1280	dark	23	button[switch] "Enable all notifications"	44×24	483	408	136	7.07	7.07	PASS
+settings	1280	dark	24	input ""	93×32	1072	798	249	9.31	19.09	PASS
+league-settings	390	light	1	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+league-settings	390	light	2	a "Home"	182×44	936	920	452	5.63	5.63	PASS
+league-settings	390	light	3	button "Account menu (Alice)"	32×32	516	308	128	4.72	4.72	PASS
+league-settings	390	light	4	a "Back"	58×16	585	452	149	4.72	4.72	PASS
+league-settings	390	light	5	input ""	316×44	6160	2728	720	5.02	5.02	PASS
+league-settings	390	light	6	input ""	316×44	6842	2728	720	5.02	5.02	PASS
+league-settings	390	light	7	select "Private — invite onlyPublic — anyone can"	316×40	1488	1356	712	3.77	3.77	PASS
+league-settings	390	light	8	input "Unlimited"	316×44	3553	2760	720	5.02	8.06	PASS
+league-settings	390	light	9	select "One selection — others can take the same"	316×40	1488	1356	712	3.77	3.77	PASS
+league-settings	390	light	10	select "MondayTuesdayWednesdayThursdayFridaySatu"	152×40	832	700	384	3.77	3.77	PASS
+league-settings	390	light	11	input ""	152×44	2052	1416	392	5.02	5.02	PASS
+league-settings	390	dark	1	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+league-settings	390	dark	2	a "Home"	182×44	936	920	452	11.10	11.10	PASS
+league-settings	390	dark	3	button "Account menu (Alice)"	32×32	635	360	128	7.62	7.62	PASS
+league-settings	390	dark	4	a "Back"	58×16	801	482	149	7.62	7.62	PASS
+league-settings	390	dark	5	input ""	316×44	6198	2805	720	7.07	7.07	PASS
+league-settings	390	dark	6	input ""	316×44	6902	2805	720	7.07	7.07	PASS
+league-settings	390	dark	7	select "Private — invite onlyPublic — anyone can"	316×40	1462	1393	712	7.07	7.07	PASS
+league-settings	390	dark	8	input "Unlimited"	316×44	3531	2837	720	7.07	17.93	PASS
+league-settings	390	dark	9	select "One selection — others can take the same"	316×40	1462	1393	712	7.07	7.07	PASS
+league-settings	390	dark	10	select "MondayTuesdayWednesdayThursdayFridaySatu"	152×40	806	737	384	7.07	7.07	PASS
+league-settings	390	dark	11	input ""	152×44	2027	1818	392	10.30	19.09	PASS
+league-settings	1280	light	1	a "Home"	182×52	1144	944	468	5.63	5.63	PASS
+league-settings	1280	light	2	a "Home"	60×32	684	528	184	4.72	4.72	PASS
+league-settings	1280	light	3	a "Coupon"	70×32	744	588	204	4.72	4.72	PASS
+league-settings	1280	light	4	a "Football Stats"	105×32	954	798	274	4.72	4.72	PASS
+league-settings	1280	light	5	a "Leagues"	73×32	762	606	211	4.72	4.72	PASS
+league-settings	1280	light	6	a "Settings"	71×32	750	594	206	4.72	4.72	PASS
+league-settings	1280	light	7	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+league-settings	1280	light	8	button "Account menu (Alice)"	70×32	766	536	204	4.72	4.72	PASS
+league-settings	1280	light	9	a "Back"	58×16	585	452	149	4.72	4.72	PASS
+league-settings	1280	light	10	input ""	470×44	6749	3960	1028	5.02	5.02	PASS
+league-settings	1280	light	11	input ""	470×44	7326	3960	1028	5.02	5.02	PASS
+league-settings	1280	light	12	select "Private — invite onlyPublic — anyone can"	470×40	2104	1972	1020	3.77	3.77	PASS
+league-settings	1280	light	13	input "Unlimited"	470×44	4708	3992	1028	5.02	8.06	PASS
+league-settings	1280	light	14	select "One selection — others can take the same"	470×40	2104	1972	1020	3.77	3.77	PASS
+league-settings	1280	light	15	select "MondayTuesdayWednesdayThursdayFridaySatu"	229×40	1140	1008	538	3.77	3.77	PASS
+league-settings	1280	light	16	input ""	229×44	2594	2032	546	5.02	5.02	PASS
+league-settings	1280	dark	1	a "Home"	182×52	1146	944	468	11.10	11.10	PASS
+league-settings	1280	dark	2	a "Home"	60×32	974	556	184	7.62	7.62	PASS
+league-settings	1280	dark	3	a "Coupon"	70×32	1074	616	204	7.62	7.62	PASS
+league-settings	1280	dark	4	a "Football Stats"	105×32	1424	826	274	7.62	7.62	PASS
+league-settings	1280	dark	5	a "Leagues"	73×32	1104	634	211	7.62	7.62	PASS
+league-settings	1280	dark	6	a "Settings"	71×32	1084	622	206	7.62	7.62	PASS
+league-settings	1280	dark	7	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+league-settings	1280	dark	8	button "Account menu (Alice)"	70×32	1031	588	204	7.62	7.62	PASS
+league-settings	1280	dark	9	a "Back"	58×16	801	482	149	7.62	7.62	PASS
+league-settings	1280	dark	10	input ""	470×44	6771	4037	1028	7.07	7.07	PASS
+league-settings	1280	dark	11	input ""	470×44	7355	4037	1028	7.07	7.07	PASS
+league-settings	1280	dark	12	select "Private — invite onlyPublic — anyone can"	470×40	2078	2009	1020	7.07	7.07	PASS
+league-settings	1280	dark	13	input "Unlimited"	470×44	4688	4069	1028	7.07	17.93	PASS
+league-settings	1280	dark	14	select "One selection — others can take the same"	470×40	2078	2009	1020	7.07	7.07	PASS
+league-settings	1280	dark	15	select "MondayTuesdayWednesdayThursdayFridaySatu"	229×40	1114	1045	538	7.07	7.07	PASS
+league-settings	1280	dark	16	input ""	229×44	2571	2370	546	7.07	19.09	PASS
+admin-players	390	light	1	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+admin-players	390	light	2	a "Home"	182×44	936	920	452	5.63	5.63	PASS
+admin-players	390	light	3	button "Account menu (Alice)"	32×32	516	308	128	4.72	4.72	PASS
+admin-players	390	light	4	a "Dashboard"	44×44	285	148	176	4.72	4.72	FAIL
+admin-players	390	light	5	a "Calendar"	44×44	410	235	176	4.72	7.56	PASS
+admin-players	390	light	6	a "Players"	44×44	352	260	176	4.72	7.56	PASS
+admin-players	390	light	7	a "Results"	44×44	429	239	176	4.72	7.25	PASS
+admin-players	390	light	8	a "Sync"	44×44	440	278	176	4.72	7.56	PASS
+admin-players	390	light	9	a "Invites"	44×44	417	261	176	4.72	4.72	PASS
+admin-players	390	light	10	a "All leagues"	44×44	233	126	176	4.72	7.56	FAIL
+admin-players	390	light	11	input "Search players"	326×44	3078	2804	740	4.72	4.72	PASS
+admin-players	390	light	12	button "Reset PIN"	104×36	970	818	280	5.02	5.02	PASS
+admin-players	390	light	13	button "Reset PIN"	104×36	970	818	280	5.02	5.02	PASS
+admin-players	390	light	14	button "Delete"	87×36	883	716	246	5.02	5.02	PASS
+admin-players	390	light	15	button "Reset PIN"	104×36	970	818	280	5.02	5.02	PASS
+admin-players	390	light	16	button "Delete"	87×36	1659	441	246	5.02	5.02	PASS
+admin-players	390	light	17	button "Reset PIN"	104×36	970	818	280	5.02	5.02	PASS
+admin-players	390	light	18	button "Delete"	87×36	883	716	246	5.02	5.02	PASS
+admin-players	390	light	19	button "Reset PIN"	104×36	970	818	280	5.02	5.02	PASS
+admin-players	390	light	20	button "Delete"	87×36	880	716	246	5.02	5.02	PASS
+admin-players	390	light	21	a "Home"	78×60	591	409	276	4.72	4.76	PASS
+admin-players	390	light	22	a "Coupon"	78×60	767	546	276	4.72	4.72	PASS
+admin-players	390	light	23	a "Football Stats"	78×60	782	580	276	4.72	4.72	PASS
+admin-players	390	light	24	a "Leagues"	78×60	782	580	276	4.72	4.76	PASS
+admin-players	390	light	25	button "More"	78×60	591	409	276	4.72	4.72	PASS
+admin-players	390	light	27	button "Switch to dark mode"	44×44	735	484	176	4.77	4.85	PASS
+admin-players	390	light	28	a "Home"	182×44	1073	917	452	5.98	5.98	PASS
+admin-players	390	light	29	button "Account menu (Alice)"	32×32	527	312	128	4.97	4.98	PASS
+admin-players	390	dark	1	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+admin-players	390	dark	2	a "Home"	182×44	936	920	452	11.10	11.10	PASS
+admin-players	390	dark	3	button "Account menu (Alice)"	32×32	635	360	128	7.62	7.62	PASS
+admin-players	390	dark	4	a "Dashboard"	44×44	369	159	176	7.62	7.62	FAIL
+admin-players	390	dark	5	a "Calendar"	44×44	534	250	176	7.62	7.62	PASS
+admin-players	390	dark	6	a "Players"	44×44	477	275	176	7.62	7.62	PASS
+admin-players	390	dark	7	a "Results"	44×44	554	254	176	7.62	8.47	PASS
+admin-players	390	dark	8	a "Sync"	44×44	562	292	176	7.62	7.62	PASS
+admin-players	390	dark	9	a "Invites"	44×44	551	273	176	7.62	7.62	PASS
+admin-players	390	dark	10	a "All leagues"	44×44	303	136	176	7.62	7.62	FAIL
+admin-players	390	dark	11	input "Search players"	326×44	4450	2888	740	7.62	7.62	PASS
+admin-players	390	dark	12	button "Reset PIN"	104×36	934	843	280	7.07	7.07	PASS
+admin-players	390	dark	13	button "Reset PIN"	104×36	934	843	280	7.07	7.07	PASS
+admin-players	390	dark	14	button "Delete"	87×36	853	741	246	7.07	7.07	PASS
+admin-players	390	dark	15	button "Reset PIN"	104×36	934	843	280	7.07	7.07	PASS
+admin-players	390	dark	16	button "Delete"	87×36	1626	458	246	7.07	7.07	PASS
+admin-players	390	dark	17	button "Reset PIN"	104×36	934	843	280	7.07	7.07	PASS
+admin-players	390	dark	18	button "Delete"	87×36	853	741	246	7.07	7.07	PASS
+admin-players	390	dark	19	button "Reset PIN"	104×36	934	843	280	7.07	7.07	PASS
+admin-players	390	dark	20	button "Delete"	87×36	852	741	246	7.07	7.07	PASS
+admin-players	390	dark	21	a "Home"	78×60	779	428	276	7.62	7.62	PASS
+admin-players	390	dark	22	a "Coupon"	78×60	1032	571	276	7.62	7.62	PASS
+admin-players	390	dark	23	a "Football Stats"	78×60	1062	602	276	7.62	7.62	PASS
+admin-players	390	dark	24	a "Leagues"	78×60	1062	602	276	7.62	7.62	PASS
+admin-players	390	dark	25	button "More"	78×60	779	427	276	7.62	7.62	PASS
+admin-players	390	dark	27	button "Switch to light mode"	44×44	778	506	176	7.57	7.57	PASS
+admin-players	390	dark	28	a "Home"	182×44	1402	920	452	10.30	10.30	PASS
+admin-players	390	dark	29	button "Account menu (Alice)"	32×32	535	357	128	7.56	7.57	PASS
+admin-players	1280	light	1	a "Home"	182×52	1144	944	468	5.63	5.63	PASS
+admin-players	1280	light	2	a "Home"	60×32	684	528	184	4.72	4.72	PASS
+admin-players	1280	light	3	a "Coupon"	70×32	744	588	204	4.72	4.72	PASS
+admin-players	1280	light	4	a "Football Stats"	105×32	954	798	274	4.72	4.72	PASS
+admin-players	1280	light	5	a "Leagues"	73×32	762	606	211	4.72	4.72	PASS
+admin-players	1280	light	6	a "Settings"	71×32	750	594	206	4.72	4.72	PASS
+admin-players	1280	light	7	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+admin-players	1280	light	8	button "Account menu (Alice)"	70×32	766	536	204	4.72	4.72	PASS
+admin-players	1280	light	9	a "Dashboard"	94×44	293	163	276	4.72	4.72	FAIL
+admin-players	1280	light	10	a "Calendar"	82×44	406	249	252	4.72	4.72	FAIL
+admin-players	1280	light	11	a "Players"	71×44	346	270	230	4.72	4.72	PASS
+admin-players	1280	light	12	a "Results"	67×44	424	270	222	4.72	4.72	PASS
+admin-players	1280	light	13	a "Sync"	53×44	424	270	194	4.72	4.72	PASS
+admin-players	1280	light	14	a "Invites"	64×44	424	270	216	4.72	4.72	PASS
+admin-players	1280	light	15	a "All leagues"	90×44	424	270	269	4.72	4.72	PASS
+admin-players	1280	light	16	input "Search players"	736×44	6358	6086	1560	4.72	4.72	PASS
+admin-players	1280	light	17	button "Reset PIN"	104×36	970	818	280	5.02	5.02	PASS
+admin-players	1280	light	18	button "Reset PIN"	104×36	968	818	280	5.02	5.02	PASS
+admin-players	1280	light	19	button "Delete"	87×36	881	716	246	5.02	5.02	PASS
+admin-players	1280	light	20	button "Reset PIN"	104×36	970	818	280	5.02	5.02	PASS
+admin-players	1280	light	21	button "Delete"	87×36	883	716	246	5.02	5.02	PASS
+admin-players	1280	light	22	button "Reset PIN"	104×36	644	516	280	5.02	5.02	PASS
+admin-players	1280	light	23	button "Delete"	87×36	608	465	246	5.02	5.02	PASS
+admin-players	1280	light	24	button "Reset PIN"	104×36	970	818	280	5.02	5.02	PASS
+admin-players	1280	light	25	button "Delete"	87×36	883	716	246	5.02	5.02	PASS
+admin-players	1280	light	27	a "Home"	182×52	1144	944	468	5.63	5.63	PASS
+admin-players	1280	light	28	a "Home"	60×32	684	528	184	4.77	4.81	PASS
+admin-players	1280	light	29	a "Coupon"	70×32	896	586	204	4.84	4.84	PASS
+admin-players	1280	light	30	a "Football Stats"	105×32	1053	798	274	5.02	5.02	PASS
+admin-players	1280	light	31	a "Leagues"	73×32	770	608	211	5.02	5.02	PASS
+admin-players	1280	light	32	a "Settings"	71×32	758	596	206	5.02	5.02	PASS
+admin-players	1280	light	33	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+admin-players	1280	light	34	button "Account menu (Alice)"	70×32	766	536	204	4.72	4.72	PASS
+admin-players	1280	dark	1	a "Home"	182×52	1146	944	468	11.10	11.10	PASS
+admin-players	1280	dark	2	a "Home"	60×32	974	556	184	7.62	7.62	PASS
+admin-players	1280	dark	3	a "Coupon"	70×32	1074	616	204	7.62	7.62	PASS
+admin-players	1280	dark	4	a "Football Stats"	105×32	1424	826	274	7.62	7.62	PASS
+admin-players	1280	dark	5	a "Leagues"	73×32	1104	634	211	7.62	7.62	PASS
+admin-players	1280	dark	6	a "Settings"	71×32	1084	622	206	7.62	7.62	PASS
+admin-players	1280	dark	7	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+admin-players	1280	dark	8	button "Account menu (Alice)"	70×32	1031	588	204	7.62	7.62	PASS
+admin-players	1280	dark	9	a "Dashboard"	94×44	384	171	276	7.62	7.62	FAIL
+admin-players	1280	dark	10	a "Calendar"	82×44	544	258	252	7.62	7.62	PASS
+admin-players	1280	dark	11	a "Players"	71×44	499	282	230	7.62	7.62	PASS
+admin-players	1280	dark	12	a "Results"	67×44	562	282	222	7.62	7.62	PASS
+admin-players	1280	dark	13	a "Sync"	53×44	562	282	194	7.62	7.62	PASS
+admin-players	1280	dark	14	a "Invites"	64×44	562	282	216	7.62	7.62	PASS
+admin-players	1280	dark	15	a "All leagues"	90×44	562	282	269	7.62	7.62	PASS
+admin-players	1280	dark	16	input "Search players"	736×44	9370	6166	1560	7.62	7.62	PASS
+admin-players	1280	dark	17	button "Reset PIN"	104×36	934	843	280	7.07	7.07	PASS
+admin-players	1280	dark	18	button "Reset PIN"	104×36	934	844	280	7.07	7.07	PASS
+admin-players	1280	dark	19	button "Delete"	87×36	853	742	246	7.07	7.07	PASS
+admin-players	1280	dark	20	button "Reset PIN"	104×36	934	843	280	7.07	7.07	PASS
+admin-players	1280	dark	21	button "Delete"	87×36	853	741	246	7.07	7.07	PASS
+admin-players	1280	dark	22	button "Reset PIN"	104×36	612	537	280	7.07	7.07	PASS
+admin-players	1280	dark	23	button "Delete"	87×36	582	486	246	7.07	7.07	PASS
+admin-players	1280	dark	24	button "Reset PIN"	104×36	934	843	280	7.07	7.07	PASS
+admin-players	1280	dark	25	button "Delete"	87×36	853	741	246	7.07	7.07	PASS
+admin-players	1280	dark	27	a "Home"	182×52	1146	944	468	11.10	11.10	PASS
+admin-players	1280	dark	28	a "Home"	60×32	908	556	184	7.62	7.62	PASS
+admin-players	1280	dark	29	a "Coupon"	70×32	867	611	204	7.19	7.32	PASS
+admin-players	1280	dark	30	a "Football Stats"	105×32	1016	820	274	7.21	7.21	PASS
+admin-players	1280	dark	31	a "Leagues"	73×32	747	633	211	7.21	7.21	PASS
+admin-players	1280	dark	32	a "Settings"	71×32	735	621	206	7.21	7.21	PASS
+admin-players	1280	dark	33	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+admin-players	1280	dark	34	button "Account menu (Alice)"	70×32	1031	588	204	7.62	7.62	PASS
+football	390	light	1	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+football	390	light	2	a "Home"	182×44	936	920	452	5.63	5.63	PASS
+football	390	light	3	button "Account menu (Alice)"	32×32	516	308	128	4.72	4.72	PASS
+football	390	light	4	button[tab] "Tables"	70×44	898	657	227	5.02	5.02	PASS
+football	390	light	5	button[tab] "Results"	73×44	897	669	234	5.02	5.02	PASS
+football	390	light	6	button "English Premier League5"	358×44	2496	2368	804	4.72	4.72	PASS
+football	390	light	7	button "Scottish League Two4"	358×44	2496	2368	804	4.72	4.72	PASS
+football	390	light	8	a "Home"	78×60	591	409	276	4.72	4.76	PASS
+football	390	light	9	a "Coupon"	78×60	767	545	276	4.72	4.72	PASS
+football	390	light	10	a "Football Stats"	78×60	782	580	276	4.72	4.72	PASS
+football	390	light	11	a "Leagues"	78×60	780	577	276	4.72	4.76	PASS
+football	390	light	12	button "More"	78×60	601	415	276	4.72	4.72	PASS
+football	390	dark	1	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+football	390	dark	2	a "Home"	182×44	936	920	452	11.10	11.10	PASS
+football	390	dark	3	button "Account menu (Alice)"	32×32	635	360	128	7.62	7.62	PASS
+football	390	dark	4	button[tab] "Tables"	70×44	876	680	227	7.07	7.07	PASS
+football	390	dark	5	button[tab] "Results"	73×44	871	692	234	7.07	7.07	PASS
+football	390	dark	6	button "English Premier League5"	358×44	4018	2392	804	7.62	7.62	PASS
+football	390	dark	7	button "Scottish League Two4"	358×44	4018	2392	804	7.62	7.62	PASS
+football	390	dark	8	a "Home"	78×60	779	428	276	7.62	7.62	PASS
+football	390	dark	9	a "Coupon"	78×60	1032	571	276	7.62	7.62	PASS
+football	390	dark	10	a "Football Stats"	78×60	1062	602	276	7.62	7.62	PASS
+football	390	dark	11	a "Leagues"	78×60	1059	599	276	7.62	7.62	PASS
+football	390	dark	12	button "More"	78×60	777	433	276	7.62	7.62	PASS
+football	1280	light	1	a "Home"	182×52	1144	944	468	5.63	5.63	PASS
+football	1280	light	2	a "Home"	60×32	684	528	184	4.72	4.72	PASS
+football	1280	light	3	a "Coupon"	70×32	744	588	204	4.72	4.72	PASS
+football	1280	light	4	a "Football Stats"	105×32	954	798	274	4.72	4.72	PASS
+football	1280	light	5	a "Leagues"	73×32	762	606	211	4.72	4.72	PASS
+football	1280	light	6	a "Settings"	71×32	750	594	206	4.72	4.72	PASS
+football	1280	light	7	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+football	1280	light	8	button "Account menu (Alice)"	70×32	766	536	204	4.72	4.72	PASS
+football	1280	light	9	button[tab] "Tables"	70×44	898	657	227	5.02	5.02	PASS
+football	1280	light	10	button[tab] "Results"	73×44	897	669	234	5.02	5.02	PASS
+football	1280	light	11	button "English Premier League5"	1232×44	7740	7612	2552	4.72	4.72	PASS
+football	1280	light	12	button "Scottish League Two4"	1232×44	7740	7612	2552	4.72	4.72	PASS
+football	1280	dark	1	a "Home"	182×52	1146	944	468	11.10	11.10	PASS
+football	1280	dark	2	a "Home"	60×32	974	556	184	7.62	7.62	PASS
+football	1280	dark	3	a "Coupon"	70×32	1074	616	204	7.62	7.62	PASS
+football	1280	dark	4	a "Football Stats"	105×32	1424	826	274	7.62	7.62	PASS
+football	1280	dark	5	a "Leagues"	73×32	1104	634	211	7.62	7.62	PASS
+football	1280	dark	6	a "Settings"	71×32	1084	622	206	7.62	7.62	PASS
+football	1280	dark	7	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+football	1280	dark	8	button "Account menu (Alice)"	70×32	1031	588	204	7.62	7.62	PASS
+football	1280	dark	9	button[tab] "Tables"	70×44	876	680	227	7.07	7.07	PASS
+football	1280	dark	10	button[tab] "Results"	73×44	871	692	234	7.07	7.07	PASS
+football	1280	dark	11	button "English Premier League5"	1232×44	12758	7636	2552	7.62	7.62	PASS
+football	1280	dark	12	button "Scottish League Two4"	1232×44	12758	7636	2552	7.62	7.62	PASS
+player	390	light	1	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+player	390	light	2	a "Home"	182×44	936	920	452	5.63	5.63	PASS
+player	390	light	3	button "Account menu (Alice)"	32×32	516	308	128	4.72	4.72	PASS
+player	390	light	4	a "Leaderboard"	126×16	993	860	283	4.72	4.72	PASS
+player	390	light	5	a "How each week went →"	192×16	856	840	416	5.63	5.63	PASS
+player	390	light	6	a "Home"	78×60	591	409	276	4.72	4.76	PASS
+player	390	light	7	a "Coupon"	78×60	767	546	276	4.72	4.72	PASS
+player	390	light	8	a "Football Stats"	78×60	782	580	276	4.72	4.72	PASS
+player	390	light	9	a "Leagues"	78×60	782	580	276	4.72	4.76	PASS
+player	390	light	10	button "More"	78×60	591	409	276	4.72	4.72	PASS
+player	390	dark	1	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+player	390	dark	2	a "Home"	182×44	936	920	452	11.10	11.10	PASS
+player	390	dark	3	button "Account menu (Alice)"	32×32	635	360	128	7.62	7.62	PASS
+player	390	dark	4	a "Leaderboard"	126×16	1481	890	283	7.62	7.62	PASS
+player	390	dark	5	a "How each week went →"	192×16	856	840	416	11.10	11.10	PASS
+player	390	dark	6	a "Home"	78×60	779	428	276	7.62	7.62	PASS
+player	390	dark	7	a "Coupon"	78×60	1032	571	276	7.62	7.62	PASS
+player	390	dark	8	a "Football Stats"	78×60	1062	602	276	7.62	7.62	PASS
+player	390	dark	9	a "Leagues"	78×60	1062	602	276	7.62	7.62	PASS
+player	390	dark	10	button "More"	78×60	779	427	276	7.62	7.62	PASS
+player	1280	light	1	a "Home"	182×52	1144	944	468	5.63	5.63	PASS
+player	1280	light	2	a "Home"	60×32	684	528	184	4.72	4.72	PASS
+player	1280	light	3	a "Coupon"	70×32	744	588	204	4.72	4.72	PASS
+player	1280	light	4	a "Football Stats"	105×32	954	798	274	4.72	4.72	PASS
+player	1280	light	5	a "Leagues"	73×32	762	606	211	4.72	4.72	PASS
+player	1280	light	6	a "Settings"	71×32	750	594	206	4.72	4.72	PASS
+player	1280	light	7	button "Switch to dark mode"	44×44	686	484	176	4.72	4.72	PASS
+player	1280	light	8	button "Account menu (Alice)"	70×32	766	536	204	4.72	4.72	PASS
+player	1280	light	9	a "Leaderboard"	126×16	993	860	283	4.72	4.72	PASS
+player	1280	light	10	a "How each week went →"	192×16	856	840	416	5.63	5.63	PASS
+player	1280	dark	1	a "Home"	182×52	1146	944	468	11.10	11.10	PASS
+player	1280	dark	2	a "Home"	60×32	974	556	184	7.62	7.62	PASS
+player	1280	dark	3	a "Coupon"	70×32	1074	616	204	7.62	7.62	PASS
+player	1280	dark	4	a "Football Stats"	105×32	1424	826	274	7.62	7.62	PASS
+player	1280	dark	5	a "Leagues"	73×32	1104	634	211	7.62	7.62	PASS
+player	1280	dark	6	a "Settings"	71×32	1084	622	206	7.62	7.62	PASS
+player	1280	dark	7	button "Switch to light mode"	44×44	916	508	176	7.62	7.62	PASS
+player	1280	dark	8	button "Account menu (Alice)"	70×32	1031	588	204	7.62	7.62	PASS
+player	1280	dark	9	a "Leaderboard"	126×16	1481	890	283	7.62	7.62	PASS
+player	1280	dark	10	a "How each week went →"	192×16	856	840	416	11.10	11.10	PASS
