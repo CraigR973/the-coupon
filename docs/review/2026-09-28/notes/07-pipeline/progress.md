@@ -165,5 +165,5 @@ Added 29 Sep 15:00 (verified): PIPE-08 held — every proper-noun token Batch 15
 0 hits on main (hashed, never printed; one dictionary-word hit was "Tooling"). PIPE-09 held
 (pnpm-pin-rehearsal.txt: 9.14.2 shim refused, rc 1). Two-batch split
 (two-batch-split-output.txt): web-only batch over owed drift → "PASS — web-only", rc 0.
-Doc: all finding sections + nothing-material written 15:25. Next: enforced-vs-prose, AI feature, batches, decisions, doc corrections, did-not-do; fill PENDING-COMBINED, PIPE-03, PENDING-NODB, PENDING-TALLY, PENDING-HOOK-CLEAN.
+Doc: complete except PENDING-COMBINED, PIPE-03 row, PENDING-NODB(+DOC), PENDING-TALLY, PENDING-HOOK-CLEAN (15:35). Next: after gate — revert worktree, hook clean run, PIPE-03 rehearsal on alt port, no-DB pytest.
 rehearsal on an alternative port, no-DB pytest split for doc corrections; write the doc.

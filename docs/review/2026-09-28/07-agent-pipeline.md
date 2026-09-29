@@ -354,4 +354,121 @@ STATUS and recent entries).
   11-13 minutes; tight, but consistent with first-time passes on a quiet machine.
 - **CI and the local gate agree on versions** (Node 24, pnpm 9.15.0, Python 3.12).
 
-PENDING-SECTIONS-C
+## Enforced by machinery, or only by prose — rebuilt
+
+| hazard | 2026-09-13 | today |
+| --- | --- | --- |
+| Never weaken the gate | prose only | **script, partial**: config edits by name and falling counts are refused; the guardrail runs from the branch, five precedence files are unprotected, content changes are invisible (PIPE-10) |
+| Test counts must not fall | nothing | **script**, exact ratchet — local gate only; CI does not check (PIPE-12) |
+| Gate edits need owner approval | — | **script**, but the approval table is editable from the branch it approves (PIPE-10) |
+| Drift before shipping | script, after the push | **script, before the push**; existing drift only reported (PIPE-14) |
+| Split-half batch | — | **script refuses**; cleared by a typed flag, unrecorded (PIPE-14) |
+| Migration shipment needs a written recovery plan | — | **script** (`check-migration-recovery.sh`, Batch 128) — not itself protected |
+| Deployment configuration invariants | script in the gate | script in the gate and CI |
+| Single replica for migrations | code | code (not re-driven here) |
+| The end-to-end journey passes | — | **nothing** — outside the gate and CI (PIPE-13) |
+| CI green before members get it | — | **impossible** as built: the push deploys, CI runs after, nobody reads it (PIPE-12) |
+| Never force-push `main` | prose | prose — `main` has no branch protection |
+| Never implement on `main` | prose | prose (the guardrail diffs against local `main`, so work committed on `main` passes it; the close-out guard would then find no diff and stop) |
+| Red baseline gets its own branch | prose | prose — followed once (`fix/round-population-window-clock`) |
+| Three attempts at a failing check | prose | prose |
+| Report every failure | — | prose; the session-log template does not ask for CI or the guard's verdict |
+| Close out only when the tree holds one batch | prose | prose (the guard classifies the diff but does not check scope) |
+| Never `cd`; never pass the database URL to psql | prose | prose |
+| No live provider calls in automation | prose | prose |
+| Database tool scoped read-only to staging | contradicted by local config | **still contradicted** (PIPE-01) |
+
+The 2026-09-13 pattern has moved but not closed. The *deployment* is still well mechanised,
+and Batch 152 genuinely mechanised the *gate* — but by trusting the branch to run an honest
+copy of it, and by stopping at the push: nothing mechanical looks at CI, the end-to-end
+journey, or what happened after.
+
+## An AI product feature?
+
+**None.** The member-facing faults this review round is finding are ordinary engineering
+problems with ordinary fixes, and the product's appeal is a private group's own banter, which
+generated text would dilute. The one place a model earns its keep is this pipeline, and even
+there the deterministic fixes come first: a test-ID diff (PIPE-16) and a CI conclusion
+(PIPE-12) in each session-log entry tell the owner more, more reliably, than a model's summary
+of the diff would. A second-model review of each batch diff for weakened tests before the push
+is possible, but it would be advisory and would add minutes to every batch; not recommended
+ahead of those two.
+
+## Proposed batches
+
+All are tooling or documentation; none carries API code or a migration, but the first five
+edit protected files and so each needs its row and file list approved by the owner, as 153 and
+127 were.
+
+1. **Run the guardrail and count step from `main`'s copy; protect config by pattern; move the
+   approval table out of the branch** (PIPE-10) — tooling, gate maintenance.
+2. **Stamp a gate pass with the tree hash and refuse a push without it** (PIPE-11) — tooling,
+   gate maintenance.
+3. **Read CI after the push and stop on red; add the guardrail and count check to CI; fix the
+   two flaky backend tests** (PIPE-12) — tooling plus test-only changes under `apps/api`, which
+   the drift check counts as reaching the image, so a `/ship-prod` would be reported owed.
+4. **Put the coupon-flow journey in the gate and CI** (PIPE-13) — tooling, gate maintenance.
+5. **Refuse a web change over owed drift; record the guard's verdict and any shipment schedule
+   in the session log** (PIPE-14) — tooling, gate maintenance.
+6. **Close-out prints removed/renamed test IDs and turns follow-ups into rows** (PIPE-15,
+   PIPE-16) — tooling and documentation.
+7. **Key the stop hook on an open batch row; make `strike-batch` move closed rows** (PIPE-17,
+   PIPE-18) — tooling and documentation.
+
+PIPE-01 stays with the owner, by hand. PIPE-19 is housekeeping for whichever batch touches
+those files.
+
+## Owner decisions
+
+1. **Should close-out wait for CI?** (PIPE-12). Options: (a) keep "Do not poll CI"; (b) wait
+   for the run on the pushed SHA, record it, stop a group on red; (c) push the feature branch
+   first and wait for its run before merging, so CI runs *before* members get the build.
+   **Recommendation: (b)** — about 8 minutes a batch and no change to how deploys work; (c) is
+   stronger but doubles CI time per batch and changes the branch policy.
+2. **Should a gate change take effect only after it merges?** (PIPE-10). Running the gate from
+   `main`'s copy means a gate-maintenance batch cannot prove its own new gate on its branch; it
+   would run the new copy explicitly as a second, reported step. **Recommendation: yes.**
+3. **Protect `main` against force-pushes** (no required checks, so pushes still deploy). An
+   owner action on GitHub. **Recommendation: yes**; it costs nothing.
+4. **The 22 Sep gate fixes** (PIPE-11): were they directed by the owner in a live session? If
+   so, record that owner-directed gate fixes still get a row and a session-log entry. Either
+   way, no rollback is needed — the changes are sound.
+5. **`claude.yml`** (PIPE-19): delete it, or keep it dormant. **Recommendation: delete** — it
+   is template residue with write access in a public repository.
+
+## Doc corrections
+
+For the lead to apply. PENDING-NODB-DOC
+
+| file | from | to |
+| --- | --- | --- |
+| `AGENTS.md` | "including step 8's push" | "including step 9's push" |
+| `AGENTS.md` | "**What that push means.** Step 8 pushes `main`" | "**What that push means.** Step 9 pushes `main`" |
+| `AGENTS.md` | "`/group-start <I-Y>`" | "`/group-start <I-Z>`" |
+| `docs/agent-commands/README.md` | "`/group-start <I-Y>`" | "`/group-start <I-Z>`" |
+| `docs/agent-commands/phase-closeout.md` (protected — the guardrail will list it on this branch) | "For Batch 6 this also includes browser screenshots." | *(delete — a fossil from Batch 6)* |
+| `docs/agent-commands/batch-verify.md` | the "Then the rest, from the shared venv" pytest command using `/Users/craigrobinson/app-starter/apps/api/.venv/bin/python -m pytest` | `/Users/craigrobinson/.cache/the-coupon/ci-local-venv/bin/python -m pytest` — `AGENTS.md` says the app-starter venv cannot collect the suite (no Pillow) |
+| `STATUS.md` toolchain | "Current ratchets are 1,350 backend and 1,204 frontend tests." | *(delete — repeats the line's own "(backend 1,350, frontend 1,204)")* |
+| `STATUS.md` Live table, Web | "last live-verified at `b08a47f3` (2026-09-27)" | "serves the CSS of `4121cf0`, the last web commit (checked 2026-09-28)" |
+| `STATUS.md` Open batches | "Group Z's five web-only visual-pass batches are closed out; Vercel will build the final Batch 149 push from `main`." | "Group Z's five web-only visual-pass batches are closed out and live (checked 2026-09-28)." |
+| `docs/BUILD_PLAN.md` | seven ticked rows (115, 140, 148, 149, 150, 151, 168) under "### Open batches" | move them under "## Closed batches", leaving the heading for the new rows from Batch 169 |
+
+Not doc-only, so left for a batch: `ci-local.sh`'s header says it runs "the checks
+`.github/workflows/ci.yml` runs" (it runs more — CI has no guardrail or ratchet); the drift
+probe's "Batch 51"; `2f7d742`'s misattribution; `pyproject.toml`'s stale `[project]` pins.
+
+## What this pass did not do
+
+- **Did not identify who made the out-of-batch commits** (PIPE-11, and the 29 without a
+  trailer). Git records only the owner's identity; the agent transcripts are not in the
+  repository.
+- **Did not run the coupon-flow journey** or any browser run; its rot is shown from the diff
+  that repaired it.
+- **Did not exercise the Supabase MCP tools** (PIPE-01) — their presence in this session is the
+  evidence; calling one is exactly the hazard.
+- **Did not run `check-deploy-drift.sh`** (it fetches and calls production); the replays stub
+  it.
+- **Did not re-verify the two CI flakes locally**; the CI logs are the evidence, and a flaky
+  failure does not reproduce on demand.
+- **Token counts are estimates** (bytes ÷ 4); byte counts are exact.
+
