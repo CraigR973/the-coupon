@@ -39,31 +39,31 @@ README's scorecard is built from this table.
 | UX-18 | MED | **no batch** (session-log ~6169) | 03 | | |
 | UX-19 | LOW | 168 | 03 | | |
 | UX-20 | LOW | 168 | 03 | | |
-| PERF-01 | MED | 144 | 04 | | |
-| PERF-02 | MED | owner: one worker | 04 | | |
-| PERF-03 | MED | 145 | 04 | | |
-| PERF-04 | MED | 146 | 04 | | |
-| PERF-05 | LOW | 146 | 04 | | |
-| PERF-06 | HIGH | 159 | 04 | | |
-| PERF-07 | HIGH | 159 | 04 | | |
-| PERF-08 | HIGH | 160 | 04 | | |
-| PERF-09 | HIGH | 161 | 04 | | |
-| PERF-10 | MED | 162 | 04 | | |
-| PERF-11 | MED | 163 | 04 | | |
-| PERF-12 | MED | 164 | 04 | | |
-| PERF-13 | MED | 165 | 04 | | |
-| PERF-14 | MED | 166 (closed by re-measurement) | 04 | | |
-| PERF-15 | LOW | 165 | 04 | | |
-| PERF-16 | LOW | 165 | 04 | | |
-| PERF-17 | LOW | 164 | 04 | | |
-| OPS-11 | HIGH | 127 | 04 | | |
-| OPS-12 | HIGH | 128 | 04 | | |
-| OPS-13 | HIGH | 95 (built, off) | 04 | | |
-| OPS-14 | MED | 129 | 04 | | |
-| OPS-15 | LOW | left out of 127 | 04 | | |
-| OPS-16 | INFO | 144 / 153 | 04 | | |
-| OPS-17 | MED | **no batch** | 04 | | |
-| OPS-18 | LOW | **no batch** | 04 | | |
+| PERF-01 | MED | 144 | 04 | held | 04: 15 → 13 statements, projection |
+| PERF-02 | MED | owner: one worker | 04 | unchanged (decision) | 04: one worker, scheduler in-process |
+| PERF-03 | MED | 145 | 04 | held (local) | 04: 299 KB → 15 KB gzip locally; not checkable read-only in prod |
+| PERF-04 | MED | 146 | 04 | held | 04: EXPLAIN at stress uses the new indexes |
+| PERF-05 | LOW | 146 | 04 | held | 04: 5+5 pool — but see PERF-20 |
+| PERF-06 | HIGH | 159 | 04 | held | 04: refresh walks 23 per window, not 41 |
+| PERF-07 | HIGH | 159 | 04 | held | 04: three windows 72/hour, 337/day; cliff moved to four |
+| PERF-08 | HIGH | 160 | 04 | held | 04: counter = counting fake in every simulated hour |
+| PERF-09 | HIGH | 161 | 04 | held | 04: installation bucket caps at 50/hour (see PERF-23) |
+| PERF-10 | MED | 162 | 04 | held | 04: submit answers before fan-out — but see PERF-20 |
+| PERF-11 | MED | 163 | 04 | held | 04: SW filters role-gated chunks; 70 entries |
+| PERF-12 | MED | 164 | 04 | held | 04: no framer-motion in any chunk; 697 KiB / 238 KiB gzip |
+| PERF-13 | MED | 165 | 04 | held | 04: countdown no longer re-renders the screen |
+| PERF-14 | MED | 166 (closed by re-measurement) | 04 | pending | 04: Lighthouse needs a quiet machine |
+| PERF-15 | LOW | 165 | 04 | held | 04: both contexts memoised |
+| PERF-16 | LOW | 165 | 04 | partial | 04: standings key fixed; 42 inline keys remain |
+| PERF-17 | LOW | 164 | 04 | not fixed | 04: /login still loads 3 fonts, 48.8 KiB |
+| OPS-11 | HIGH | 127 | 04 | held | 04: Node 24 in CI, gate, .nvmrc, engines |
+| OPS-12 | HIGH | 128 | 04 | held | 04: recovery assertion rehearsed locally |
+| OPS-13 | HIGH | 95 (built, off) | 04 | not fixed | 04 + 05: built, switched off; no backup for 56 days |
+| OPS-14 | MED | 129 | 04 | held | 04: one push then silence; healthy sends none |
+| OPS-15 | LOW | left out of 127 | 04 | not fixed | 04: Vite 5→8, ESLint 8→10, Tailwind 3→4, Vitest 2→5 |
+| OPS-16 | INFO | 144 / 153 | 04 | held | 04 (with PERF-01); docstring defers to measured count |
+| OPS-17 | MED | **no batch** | 04 | not fixed | 04: all 13 jobs misfire_grace_time=1; a job due during a busy loop was dropped |
+| OPS-18 | LOW | **no batch** | 04 | not fixed | 04: jobs still share the top of the hour |
 | FEAT-A10 | HIGH | 134 | 05 | partial | 05: API holds; unusable from the app and per-pick only (FEAT-A13) |
 | FEAT-A11 | MED | 148 | 05 | held | 05: in-app notice shown once, seen recorded, not repeated |
 | FEAT-A12 | LOW | carried, no batch | 05 | not fixed | 05: sharper — with sign-ups closed nobody new can get in by any path |
