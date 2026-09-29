@@ -1,0 +1,86 @@
+{
+ "windows": 3,
+ "uptime": "23:17  up 14 days, 14:16, 1 user, load averages: 15.68 38.26 25.64",
+ "truth_total": 929,
+ "provider_requests_made": 929,
+ "plan_counter_day_used_at_end": 337,
+ "by_day": {
+  "Thu": 281,
+  "Fri": 311,
+  "Sat": 337
+ },
+ "saturday_peak_hour": [
+  "Sat 09:00",
+  72
+ ],
+ "saturday_by_hour": {
+  "Sat 06:00": 46,
+  "Sat 07:00": 32,
+  "Sat 09:00": 72,
+  "Sat 10:00": 30,
+  "Sat 11:00": 72,
+  "Sat 12:00": 32,
+  "Sat 13:00": 8,
+  "Sat 14:00": 26,
+  "Sat 16:00": 3,
+  "Sat 17:00": 2,
+  "Sat 18:00": 12,
+  "Sat 21:00": 2
+ },
+ "by_kind": {
+  "leagues": 1,
+  "events (slate walk)": 552,
+  "odds/multi": 342,
+  "odds (single)": 22,
+  "events/{id} (settle)": 12
+ },
+ "per_job_run": {
+  "Thu discover_fixtures": [
+   47
+  ],
+  "Thu warm_odds_marker": [
+   30
+  ],
+  "Thu refresh_slate": [
+   69,
+   69
+  ],
+  "Thu settle_gameweeks": [
+   0,
+   0,
+   0
+  ],
+  "Fri discover_fixtures": [
+   46
+  ],
+  "Fri warm_odds_marker": [
+   32
+  ],
+  "Fri refresh_slate": [
+   69,
+   69
+  ],
+  "Fri settle_gameweeks": [
+   0,
+   0,
+   0
+  ],
+  "Sat discover_fixtures": [
+   46
+  ],
+  "Sat warm_odds_marker": [
+   32
+  ],
+  "Sat refresh_slate": [
+   69,
+   69
+  ],
+  "Sat settle_gameweeks": [
+   12,
+   0,
+   0
+  ]
+ },
+ "hourly_counter_vs_truth_mismatches": [],
+ "pick_freezes": 15
+}

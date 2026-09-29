@@ -47,6 +47,67 @@ number of competitions on the card rather than with data volume (PERF-18). The h
 summary at the stress shape returned **500** for a member of the 50-member league
 (PERF-19).
 
+## The provider budget, measured
+
+`notes/04-perf/provider_budget.py`: the real `OddsApiProvider` on an `httpx.MockTransport`
+that serves a synthetic odds-api.io (67 UK competitions, 41 played; a pool history of 36
+competitions, 23 played; 264 fixtures on a Saturday, a third unpriced) and counts every
+request — the ground truth — wrapped in the real `CachingOddsProvider` and installed as
+the process-wide `odds_session`. The real jobs run on a virtual clock from Thu 1 Oct
+05:00 to Sun 4 Oct 00:00 London; members load every league's current round once a
+minute from 08:00 to 23:00 through the pick screen's own `askable` →
+`fetch_odds_best_effort` → `record_observations` path, and 15 prices are frozen on
+Saturday morning. Saturday is the measured day. `budget-1w.json`, `budget-3w.json`,
+`budget-5w.json`, `budget-summary.txt`.
+
+| Saturday | 13 Sep | 1 window | 3 windows | 5 windows |
+| --- | --- | --- | --- | --- |
+| day total (plan 500) | 283 | **289** | **337** | 376 |
+| worst hour (plan 100) | 63 | 54 (07:00) | 72 (09:00) | **118 (09:00 and 11:00)** |
+| `refresh_slate`, per run | 41 per window | **23** | 69 | **115** |
+| `discover_fixtures` (06:00) | — | 46 | 46 | 46 |
+| `warm_odds_marker` (07:00) | — | 54 | 32 | 37 |
+| settle (18:00 / 20:00 / 22:00) | — | 12 / 0 / 0 | 12 / 0 / 0 | 12 / 0 / 0 |
+| a frozen pick | 1 | 1 | 1 | 1 |
+
+Discovery is 46 at every window count because its budget (90) prices each walk at the
+raw pool of 36 competitions while 23 are walked, so it stops after two `(window, date)`
+walks: at three windows the third window and every second date go unwalked by the daily
+run (lens 02's CORR-24 found the same from the code). The refresh job has no budget at
+all and is linear in windows.
+
+### How "the certified worst day is 481" is derived — and why it is not a bound
+
+`tests/test_request_budget.py` sums five terms (`session-log.md`, Batch 115 fix):
+saturated browsing **252** (one 264-fixture round, 89 unpriced, browsed continuously
+for 24 hours through the 4h / 2h / 1h tiers) + daily discovery **92** (23 competitions ×
+2 windows × 2 dates) + the Sunday full-catalogue walk **41** + one cold warm pass **27**
+(`ceil(264/10)`) + the whole manual admin allowance **69** (3 walks a day × 23) = **481**.
+
+Each term is honestly derived, but the sum is not the day's ceiling:
+
+- **the twice-daily refresh is missing** — 2 × 23 × windows, **92 at the two windows the
+  discovery term assumes** (46 at one);
+- settlement (one `/events/{id}` per distinct pending fixture, 12 at production) and a
+  second warm round (the warm pass covers every round inside a week — 54, not 27, at one
+  window) are missing;
+- the pick path's own 100/day installation bucket is certified only against browsing +
+  discovery, never beside the rest;
+- browsing is priced for one round while discovery is priced for two windows; each extra
+  window is another round to browse;
+- the discovery term (92) is above discovery's own 90 budget, and in practice discovery
+  spends 46 because of the mispricing above.
+
+At its own two-window assumption the omitted scheduled terms add roughly 130 a day
+(refresh 92, settle 12, a second warm round 27), before any pick. What actually keeps a
+day inside the plan is the runtime valve — browsing widens 2× and 4× as the tighter of
+the hourly and daily allowance falls below half and a quarter, and is withheld below the
+50-request pick reserve — and Batch 160 made the gauge that valve reads honest. The
+certificate is a useful tripwire on the terms it covers; **the measured Saturday (289 at
+one window) is the better number to quote.** No finding is raised on the test itself
+(it is lens 07's gate), but STATUS's "certified worst day is 481" should say what it
+leaves out (see Doc corrections).
+
 ## Prior findings
 
 *Partial — rows are added as each is re-driven.*
@@ -56,6 +117,8 @@ summary at the stress shape returned **500** for a member of the 50-member leagu
 | PERF-01 + OPS-16 | 144 | **held** | home summary 13 statements at both shapes and for 1 or 3 leagues (was 15); one `SELECT DISTINCT gameweeks.starts_on` projection, not whole rounds (`api-*-sql.txt`) |
 | PERF-04 | 146 (migration 026) | **held** | the SQL the app actually runs, captured from `retire_stranded_rounds` and the settle sweep at the stress shape and explained: retirement's pick-existence check is an `Index Only Scan using ix_picks_gameweek_id`, the settle sweep's pending-pick read a `Bitmap Index Scan on ix_picks_gameweek_id` — both by the planner's own choice. The 76-row `gameweeks` table is still sequentially scanned, correctly at one page; with seq scans disabled both reads take `ix_gameweeks_starts_on` (`explain-stress.txt`) |
 | PERF-05 | 146 | **held** | pool is 5 + 5 with a 10 s `pool_timeout` (`database.py`), down from 10 + 10 — but see PERF-20 for what now holds a connection |
+| PERF-06 / PERF-07 | 159 | **held at three windows; the cliff moved to four** | counting fake (below): the refresh job walks 23 competitions per window per run, not 41. Three windows: Saturday peak **72/hour**, day **337** (was 145 and 527). Five windows: **118/hour** in both refresh hours — see PERF-21 |
+| PERF-08 | 160 | **held** | across three simulated days at 1, 3 and 5 windows the plan counter's hourly figure equalled the transport's count in **every hour** (0 mismatches), and `requests_made` equalled the transport total (744, 929, 1,118) |
 | PERF-03 | 145 | **held locally; not checkable in production read-only** | 264-fixture slate 299,134 B → 15,202 B with `content-encoding: gzip`, `vary: Accept-Encoding`; responses under 4 KB deliberately uncompressed. Production's only public API responses (`/health`, 82 B) sit below the floor, so no header could prove it (`prod-health-headers.txt`) |
 
 ## Register
@@ -63,6 +126,7 @@ summary at the stress shape returned **500** for a member of the 50-member leagu
 | id | sev | deploy | status | finding |
 | --- | --- | --- | --- | --- |
 | PERF-19 | HIGH | live | verified | A league of 40-50 members breaks its home screen and results once the combined odds pass about 10^26 |
+| PERF-21 | MED | live | verified | The slate refresh has no budget: five league windows spend 118 requests in each refresh hour |
 | PERF-18 | MED | live | verified | The slate makes two queries per competition on the card — 56 statements at production's 23 competitions |
 
 ## PERF-19 · HIGH · live · verified — the combined odds overflow in large leagues
@@ -94,6 +158,30 @@ change.
 
 **Fix:** quantize inside `decimal.localcontext()` with enough precision (or cap the
 displayed price and flag it), and add a 50-leg test at realistic prices.
+
+## PERF-21 · MED · live · verified — the refresh job has no budget of its own
+
+`run_refresh_slate` (`scheduler.py:546-608`) calls discovery with the narrowed pool but
+no `request_budget`, so it costs 23 requests per distinct window per run, at 09:00 and
+11:00 London. Measured: 23 at one window, 69 at three, **115 at five — 118 in each of
+those two hours with browsing**, against 100/hour. Four windows is 92 before a single
+card load. Discovery beside it is budgeted (Batch 133), which is what makes the
+omission visible.
+
+Tried to disprove: the count is the mock transport's own tally and equals
+`OddsApiProvider.requests_made`; the refresh horizon is 1, so there is no smaller walk
+to hope for; the hours are a setting (`ODDS_REFRESH_SLATE_HOURS`) but moving them moves
+the spike rather than shrinking it. Rated MED rather than HIGH because production runs
+one window today and the failure is a five-minute `429` cooldown rather than lost data —
+but that cooldown holds the pick path too ("a 429 cooldown holds everybody",
+`odds_cache.py:580`), and it lands in the 09:00 and 11:00 hours of a Saturday.
+
+**Member impact:** with four or more league windows, a member trying to pick on a
+Saturday morning can be refused a price for five minutes, twice.
+
+**Fix:** give the refresh job the same `request_budget` discovery has (or a share of one
+hour between them), and price the walk at the played intersection rather than the raw
+pool (CORR-24).
 
 ## PERF-18 · MED · live · verified — the slate queries per competition
 
