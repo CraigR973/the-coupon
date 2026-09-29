@@ -64,12 +64,12 @@ README's scorecard is built from this table.
 | OPS-16 | INFO | 144 / 153 | 04 | | |
 | OPS-17 | MED | **no batch** | 04 | | |
 | OPS-18 | LOW | **no batch** | 04 | | |
-| FEAT-A10 | HIGH | 134 | 05 | | |
-| FEAT-A11 | MED | 148 | 05 | | |
-| FEAT-A12 | LOW | carried, no batch | 05 | | |
-| FEAT-B07 | MED-HIGH | 136 | 05 | | |
-| FEAT-B08 | MED | 135 | 05 | | |
-| FEAT-B09 | LOW | carried, no batch | 05 | | |
+| FEAT-A10 | HIGH | 134 | 05 | partial | 05: API holds; unusable from the app and per-pick only (FEAT-A13) |
+| FEAT-A11 | MED | 148 | 05 | held | 05: in-app notice shown once, seen recorded, not repeated |
+| FEAT-A12 | LOW | carried, no batch | 05 | not fixed | 05: sharper — with sign-ups closed nobody new can get in by any path |
+| FEAT-B07 | MED-HIGH | 136 | 05 | held | 05 + 01 + 02: export and deletion through Settings in Chromium; history sums |
+| FEAT-B08 | MED | 135 | 05 | held | 05 + 02: both settle paths send once; muted league silent (gap CORR-23) |
+| FEAT-B09 | LOW | carried, no batch | 05 | not fixed | 05: /results ignores season across a boundary |
 | DES-01 | high | 140 | 06 | | |
 | DES-02 | high | 139 | 06 | | |
 | DES-03 | high | 139 | 06 | | |
@@ -88,3 +88,12 @@ README's scorecard is built from this table.
 | PIPE-07 | MED | 154 | 07 | held | 07: 38.3 KB, but 78% of the head is ticked rows (PIPE-18) |
 | PIPE-08 | MED | 155 | 07 | held | 07: zero hits on main by hash |
 | PIPE-09 | LOW | folded into 127 | 07 | held | 07: wrong pnpm refused |
+
+## Carried owner actions (not register items in 2026-09-13, tracked since 2026-08-26)
+
+| id | state 29 Sep | evidence |
+| --- | --- | --- |
+| FEAT-A01 launch gate L5 | not done | `LAUNCH_PLAN.md:30` unticked; `launch-log.md` L0-L4 only |
+| FEAT-A02 / OPS-13 backups | built (95), switched off | no backup since launch 4 Aug — 56 days on 29 Sep |
+| FEAT-A09 egress consumer | not done | STATUS; runbook step 5 |
+| PIPE-01 local agent config | not done | settings.local.json mtime 30 Jul |
