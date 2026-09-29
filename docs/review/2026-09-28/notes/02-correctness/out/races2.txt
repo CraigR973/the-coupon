@@ -1,0 +1,5 @@
+run_discover_fixtures -> True
+L1 2026-10-10: Alice picks -> 201
+Carol+Dan simultaneously -> 201/201, all_picked True/True; completion rows [('Carol', 3)]; distinct push bodies ['Alice picked Wolves (at Brentford) @ 4.30 · 1/3 picked', 'Carol picked Rangers (at Celtic) @ 2.60 · 3/3 picked — all picks are in', 'Dan picked Luton (at Derby) @ 9.00 · 3/3 picked'] (x7)
+L2 2026-10-09: Hank's pick 201 racing his deletion 204; picks on the round now [('Former member 70097290', True)]
+Ivy then tries the same fixture (fixture scope) -> 409 FIXTURE_TAKEN

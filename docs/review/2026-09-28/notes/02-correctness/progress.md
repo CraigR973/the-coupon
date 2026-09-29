@@ -45,3 +45,4 @@ Interrupted once by a usage limit (28 Sep ~23:04); resumed 29 Sep 08:40 on a fre
 - DONE (backup_check.py): Batch 95 held. Next: backfill dry-run (backfill.py), sweep of changed code, web check (void + conflict messaging).
 - DONE (backfill.py on separate scratch DB backfill_check, dropped): dry-run/apply/dry-run as documented; CORR-25 LOW (deleted league moves anchor). Next: sweep of changed code (sweep.txt), web check void + conflict, then finish doc sections + stop processes.
 - DONE (web_check.mjs): CORR-21 confirmed in Chromium; CORR-26 LOW. Screenshots + INDEX rows added. Sweep: nothing new (out/sweep.txt). Next: fill 'Checked and found nothing', 'Proposed batches', 'Owner decisions', 'Did not do'; stop processes; final commit; reply.
+- DONE (races2.py): last-two-slots held; CORR-27 LOW (departed member's open claim). Next: final doc sections, stop processes, commit, reply.

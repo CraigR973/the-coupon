@@ -51,6 +51,7 @@ in `notes/02-correctness/` (`out/*.txt`).
 | void legs (owner decision) | 156 | **partial** | The coupon screen is right — `GET /coupon` for L1 returns `combined_odds 7.44` = 3.10 × 2.40 with `void_leg_count 2`, and the share text reads the same fields. But the Results list and home's "Last result" panel still multiply the void legs: **54.91** for the same round. CORR-21 |
 | FEAT-A10 (pick correction) | 134 | **held**, gap in CORR-22 | `POST /admin/picks/{id}/correct` as the site admin flipped Bob lost → won 24; the repeat returned `changed: false` and wrote no audit row; a league admin got 403. Standings, the coupon (leg `won 24`, `all_won false`), the Results row (`picks_won` 1 → 2, winner still Dan on 31) and the cross-league summary all agreed on the next read. Two simultaneous corrections of Dan's pick with different scores serialised on the row lock: both 200, each reporting the true `before`, final state = the later one, two audit rows in order. No push was sent — CORR-22 |
 | FEAT-B08 (settle notification) | 135 | **held**, gap in CORR-23 | `run_settle_gameweeks` with the clock pinned to Sat 3 Oct 20:00Z: one push per active, unmuted member of each settled round, each naming their own result ("won 31 points", "lost", "was void — no points", "You had no pick this round"); the muted L2 member got nothing; the member who had left L1 and the deleted member got nothing; a second sweep sent **zero** (`out/lifecycle-pushes.json`). The admin hand-entry path was not re-driven |
+| last-two-slots completion | spot check | **held** | L1 with three active members: Alice picks, then Carol and Dan submit at the same instant → both 201 with `all_picked: true`, exactly **one** completion row (credited to Carol, whose insert landed), one "3/3 picked — all picks are in" message and Dan's announced as an ordinary pick (`out/races2.txt`) |
 | FEAT-B07 (anonymise, keep history) | 136 | **held** | After Bob deleted his account: L1's live table shows "Former member 24", the 2025/26 archive "Former member 25" at #1, the Results row names "Former member" as that week's winner, his coupon leg reads "Former member won 2.40 24"; Alice's, Carol's and Dan's points, win rates and summaries were byte-identical before and after (`out/lifecycle.txt`) |
 
 ## Register
@@ -65,6 +66,7 @@ in `notes/02-correctness/` (`out/*.txt`).
 | CORR-24 | MED | live | verified | Discovery's budget prices a walk at the raw pool (36) not what is walked (23): two walks a day at production's shape, and a third window is not served |
 | CORR-25 | LOW | live (not yet run in production) | verified on scratch | The season-calendar backfill and the runtime re-anchor count a deleted league's rounds, so one early test round renumbers every live league |
 | CORR-26 | LOW | live | verified | A settled coupon reads "4 of 3" once a member who picked has left or deleted their account |
+| CORR-27 | LOW | live | verified | A member who deletes their account (or leaves) keeps their claim on a round that has not locked, blocking the rest of the league |
 
 ## CORR-19 · MED · live · verified — self-deletion reopens CORR-14
 
@@ -273,6 +275,26 @@ header is wrong.
 
 **Fix:** head a settled coupon with the leg count alone ("4 picks"), or count members who
 held a pick in that round rather than today's roster. Web-only.
+
+## CORR-27 · LOW · live · verified — a departed member's open claim stays taken
+
+Erasure keeps every pick (owner decision: anonymise, keep history), and leaving a league
+keeps them too. That is right for settled rounds; for a round that has **not locked**, the
+claim goes on blocking the land-grab for a member who will never play it. Reproduced
+(`notes/02-correctness/races2.py`, `out/races2.txt`): in L2 (fixture scope, Fri 9 Oct
+open), Hank's pick and his own account deletion were fired together — both succeeded
+(201, 204), the round now holds "Former member 70097290"'s pick on the whole fixture, and
+Ivy's later claim on that fixture is refused `409 FIXTURE_TAKEN`. The same holds without
+any race: delete or leave while holding an unlocked pick. The departed member no longer
+counts towards "N of M picked", but their leg stays on the coupon.
+
+**Member impact:** a fixture (or selection) stays unavailable for the rest of the week
+because someone who has left still "holds" it.
+
+**Fix:** on erasure and on leave, delete the member's picks on that league's rounds that
+have not locked (the same predicate `_drop_voided_fixtures` uses), then re-evaluate
+completion (CORR-19). Settled and locked picks stay. Needs an owner nod — see Owner
+decisions. API-carrying.
 
 ## Checked and found nothing material
 
