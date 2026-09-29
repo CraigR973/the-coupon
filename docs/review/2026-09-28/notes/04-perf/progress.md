@@ -59,10 +59,29 @@ Commit only own paths: `git -C <repo> commit -m "..." -- docs/review/2026-09-28/
 - npm-latest.txt: current majors for OPS-15; OPS-11 Node 24 in CI/gate/.nvmrc/engines (not yet in doc)
 - framer-motion: in package.json deps, zero imports (test enforces) — check bundle once built
 
+## Measured 23:14-23:50 (all written into the lens doc and committed)
+
+- web: bundle.json, browser-run1.json (idle 120 s), browser.json (render counts, corrected
+  cloned-fiber method) → PERF-11/12/13/15/16 held, PERF-17 not fixed, PERF-22 (framer dep)
+- push_fanout.py via run_push_api.sh (:8141, stopped) → PERF-10 held, **PERF-20** pool
+  exhaustion (2×500, 6 of 10 fan-outs lost; push-fanout-errors.txt)
+- pick_buckets.py → PERF-09 held, **PERF-23** installation cap 50/h 100/day
+- jobs.py + misfire_demo.py → OPS-17 not fixed (verified drop), OPS-18 not fixed
+- ops12-recovery-rehearsal.txt → OPS-12 held; alarm_push.py → OPS-14 held; OPS-13 prose;
+  OPS-19 Node 20 in ship-prod CLIs
+- DB note: jobs.py locked rounds; reopen.py + alarm_push.py restored Oct 2/3 rounds to open
+
+## Still running
+
+- perf API `run_api.sh` on :8140 (uvicorn perf_app) and web preview on :4340 (web.sh perf)
+- stack perf (DB)
+
 ## Next step
 
-1. web bundle: `web.sh perf http://127.0.0.1:8140 4340` started in background (scratch web-perf);
-   analyse dist: JS raw/gzip, chunks, sw precache manifest, framer in chunks, fonts
-2. PERF-09 installation bucket check; PERF-10 + pool-hold (PERF-20 candidate) over real uvicorn
-3. scheduler table (OPS-17/18), OPS-12 rehearsal, OPS-13, OPS-14, deploy/rollback
-4. Lighthouse + timings when load < 4 (load was 15-80 at 23:15)
+1. Lighthouse under <scratch>/tools/lighthouse (installing), mobile throttled, median of 3,
+   home `/`, round `/leagues/the-coupon/predictions`, standings `/leagues/the-coupon/leaderboard`,
+   storage state `<scratch>/perf-state.json` — ONLY when 1-min load < 4 (lighthouse.mjs)
+2. timings: `bash run.sh measure_api.py timed --timings 20` and 20-concurrent home summary
+   (concurrency.py, to write) — only when load < 4
+3. finish doc: nothing-material, proposed batches, owner decisions, doc corrections, not done
+4. stop 8140 API, 4340 preview, stack perf; commit; reply to lead
