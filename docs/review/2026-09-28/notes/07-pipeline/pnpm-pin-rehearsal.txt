@@ -1,0 +1,4 @@
+PIPE-09 rehearsal: ci-local.sh lines 193-203 evaluated verbatim, with a pnpm 9.14.2 shim first on PATH
+pnpm is '9.14.2' but package.json pins '9.15.0'.
+With Node 24 selected, run: corepack enable pnpm
+rc=1

@@ -1,0 +1,5 @@
+pre-push deployment drift
+drift: stubbed — API behind origin/main, a /ship-prod is owed
+close-out safety: PASS — web-only batch; no API shipment added
+close-out safety: existing /ship-prod debt remains; report it in close-out
+rc=0

@@ -160,3 +160,10 @@ suite; AGENTS.md + agent-commands/README say `/group-start <I-Y>` (Z exists); ph
 "For Batch 6" fossil; ci-local.sh header says it runs what CI runs (CI runs less); STATUS
 ratchet twice; STATUS "no open batches" vs BUILD_PLAN "Open batches" with 7 ticked rows;
 STATUS web last-verified b08a47f3 (lead saw 4121cf0 live); drift probe "Batch 51".
+
+Added 29 Sep 15:00 (verified): PIPE-08 held — every proper-noun token Batch 155 removed has
+0 hits on main (hashed, never printed; one dictionary-word hit was "Tooling"). PIPE-09 held
+(pnpm-pin-rehearsal.txt: 9.14.2 shim refused, rc 1). Two-batch split
+(two-batch-split-output.txt): web-only batch over owed drift → "PASS — web-only", rc 0.
+Next: wait for combined gate; then revert worktree, hook clean-branch rehearsal, PIPE-03
+rehearsal on an alternative port, no-DB pytest split for doc corrections; write the doc.
