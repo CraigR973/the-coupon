@@ -27,7 +27,9 @@ where the pass is).
   `screenshots/INDEX.md` (lens 06 section). Every state was driven, none mocked, and each row
   states what proved it (the HTTP status the page received, or its text) — never the file name.
   Hashes: 99 distinct, no duplicates (`notes/06-design/duplicates.txt`). The PNGs I viewed by eye
-  — 23 of mine and 29 of lens 03's — are listed in `notes/06-design/opened.txt`.
+  — 23 of mine, 29 of lens 03's and the 8 mockup/mask renders — are listed in
+  `notes/06-design/opened.txt`; the rest of mine are confirmed by the page text or HTTP status
+  recorded in their INDEX row.
 - **Measurements.** First-content position and a rendered type census on the core screens
   (`measure.mjs` → `measure-open.txt`), layout shift with every API read held 1.2 s
   (`cls.mjs` → `cls.txt`), the tab-bar indicator with motion on and off (`tabbar-probe.txt`),
@@ -191,7 +193,8 @@ week; FotMob, Sleeper and FPL all put the list under the header.
 **Fix:** one compact context row replaces the breadcrumb, the switcher card and the pill row (league
 name as a menu button, gameweek and status on the right); the count shown once; the coupon
 accordion moved below the slate on phones; header row 52 px and the extra 16 px top pad dropped
-(`TopBar.tsx:111`). Target: first price ≤ 480 px at 390. Top-ten #5, mockup `mockups/round.html`.
+(`TopBar.tsx:111`). Target: first price ≤ 480 px at 390 — the mockup puts it at about 365. Top-ten
+#5, mockup `mockups/round.html`.
 Web-only, M.
 
 ### DES-12 · med · live · verified — two-column lists read in Z order at 1280
@@ -370,14 +373,24 @@ tints), DES-10 (toasts), and the tab bar (UX-24/26).
 
 Ranked by impact ÷ effort. Every colour is a token that already exists; every pairing's contrast is
 in `notes/06-design/contrast.txt` (both themes, every surface it sits on). The mockups are
-self-contained HTML using the app's token values and its own self-hosted fonts, screenshotted at
-390 and 1280 in Chromium beside the HTML.
+self-contained HTML — the app's token values are read from `index.css` and inlined at build time,
+fonts are the app's own self-hosted files — screenshotted in Chromium beside the HTML
+(`notes/06-design/mockups/`, rebuilt by `build_*.py`, shot by `mockup_shots.mjs`):
+
+| mockup | shows | PNGs |
+| --- | --- | --- |
+| `toasts.html` | #1 — the five outcomes on tokens, dark and light, with today's dark toast for comparison | `toasts--390--dark.png`, `toasts--390--light.png`, `toasts--1280--dark.png` |
+| `round.html` | #2, #4, #5 — compact context row, price as hero, first price at y≈365 at 390 (today 1134); at 1280 the slate beside a sticky status + coupon column | `round--390--dark.png`, `round--390--light.png`, `round--1280--dark.png` |
+| `standings.html` | #6 — one table at every width, 8 rows on one phone screen, medal bars, own row tint; at 1280 columns plus a round-summary side card | `standings--390--dark.png`, `standings--390--light.png`, `standings--1280--dark.png` |
+| `settled.html` | #7 — "Coupon lost · 3 of 8 landed" as headline, price struck, legs with won/lost/void, settled slate marked | `settled--390--dark.png`, `settled--390--light.png`, `settled--1280--dark.png` |
 
 1. **Theme the toasts** (DES-10). `AppToaster.tsx`: `theme={resolvedTheme}`; drop `richColors`;
    `toastOptions.classNames` → `bg-surface-overlay text-text-primary border border-border shadow-lg`
    with `[data-type=success|warning|error|info]` setting a 3 px left border and icon colour from
    `--success-ink` / `--warning-ink` / `--error-ink` / `--primary-ink`; action button `bg-primary
-   text-on-primary`. Delete `index.css:428-434`. Contrast: title 13.17:1 dark / 17.79:1 light;
+   text-on-primary`. Split each message into a title that says what happened ("Someone got there
+   first", "That price moved to 4.60", "Your pick wasn't saved") and a body that says what to do —
+   `pickErrorMessage` already has the body text. Delete `index.css:428-434`. Contrast: title 13.17:1 dark / 17.79:1 light;
    body 5.65 / 7.56; icon/edge 4.54–6.75 dark, 5.02–5.07 light (3:1 needed); action 7.62 / 5.13.
    Before: `current-round--feedback-conflict--390--dark.png`. Mockup: `mockups/toasts.html`. XS.
 2. **Fix the tab bar** (UX-26, UX-24). `TabBar.tsx:173` add `left-0` to the indicator (and check

@@ -1,0 +1,192 @@
+<!doctype html><html class="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+@font-face{font-family:Outfit;font-weight:400;src:url('../../../../../../apps/web/public/fonts/outfit-400.woff2') format('woff2')}
+@font-face{font-family:Outfit;font-weight:600;src:url('../../../../../../apps/web/public/fonts/outfit-600.woff2') format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-weight:600;src:url('../../../../../../apps/web/public/fonts/jetbrains-mono-600.woff2') format('woff2')}
+:root,html.dark{--bg: #0B0E13;
+--surface: #131720;
+--surface-elevated: #1B2030;
+--surface-overlay: #242938;
+--border: #2A3142;
+--border-strong: #3A4258;
+--text-primary: #F0F4FF;
+--text-secondary: #94A3B8;
+--text-muted: #8690A6;
+--text-inverse: #0B0E13;
+--on-primary: #0B0E13;
+--on-accent: #0B0E13;
+--avatar-on-metal: #0B0E13;
+--avatar-on-bronze: #0B0E13;
+--primary: #10B981;
+--primary-dark: #059669;
+--primary-glow: rgba(16, 185, 129, 0.35);
+--accent: #C8943C;
+--accent-dark: #A77C2A;
+--accent-glow: rgba(200, 148, 60, 0.35);
+--metal: #E8EBF0;
+--metal-mid: #B0B8C4;
+--metal-dark: #7A828F;
+--metal-gradient: linear-gradient(180deg, #E8EBF0 0%, #B0B8C4 60%, #7A828F 100%);
+--metal-gradient-h: linear-gradient(90deg, #E8EBF0 0%, #B0B8C4 100%);
+--wordmark-gradient: linear-gradient(180deg, #F0DDA6 0%, #D4A24A 55%, #A77C2A 100%);
+--wordmark-gradient-h: linear-gradient(90deg, #F0DDA6 0%, #D4A24A 50%, #A77C2A 100%);
+--success: #10B981;
+--warning: #F59E0B;
+--error: #EF4444;
+--live: #EF4444;
+--primary-ink: #10B981;
+--success-ink: #10B981;
+--warning-ink: #F59E0B;
+--accent-ink: #C8943C;
+--error-ink: #FE5353;
+--live-ink: #FE5353;
+--gold-ink: #E5C46B;
+--bronze-ink: #C28B5C;
+--locked: #8690A6;
+--gold: #E5C46B;
+--silver: #B8C0CC;
+--bronze: #C28B5C;
+--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+--shadow-md: 0 4px 16px -2px rgba(0, 0, 0, 0.5);
+--shadow-lg: 0 12px 40px -8px rgba(0, 0, 0, 0.6);
+--shadow-sheet: 0 -8px 32px -4px rgba(0, 0, 0, 0.6);
+--shadow-glow: 0 0 0 2px var(--surface), 0 0 0 5px var(--primary-ink);
+--shadow-glow-accent: 0 0 0 2px var(--surface), 0 0 0 5px var(--accent-ink);
+--shadow-glow-on-brand: 0 0 0 2px var(--primary), 0 0 0 5px var(--on-primary);
+--shimmer-stripe: rgba(255, 255, 255, 0.04);
+--radius-sm:10px;--radius-md:14px;--radius-lg:18px;color-scheme:dark}
+html.light{--bg: #F7F8FA;
+--surface: #FFFFFF;
+--surface-elevated: #F1F3F5;
+--surface-overlay: #FFFFFF;
+--border: #E5E8EB;
+--border-strong: #D1D5DB;
+--text-primary: #14181F;
+--text-secondary: #4B5563;
+--text-muted: #666F7D;
+--text-inverse: #FFFFFF;
+--on-primary: #0B0E13;
+--on-accent: #0B0E13;
+--avatar-on-metal: #FFFFFF;
+--avatar-on-bronze: #FFFFFF;
+--primary: #059669;
+--primary-dark: #047857;
+--primary-glow: rgba(5, 150, 105, 0.20);
+--accent: #A77C2A;
+--accent-dark: #8B6320;
+--accent-glow: rgba(167, 124, 42, 0.22);
+--metal: #4B5563;
+--metal-mid: #6B7280;
+--metal-dark: #9CA3AF;
+--metal-gradient: linear-gradient(180deg, #374151 0%, #6B7280 60%, #9CA3AF 100%);
+--metal-gradient-h: linear-gradient(90deg, #374151 0%, #6B7280 100%);
+--wordmark-gradient: linear-gradient(180deg, #D9A968 0%, #A77C2A 55%, #6E4F18 100%);
+--wordmark-gradient-h: linear-gradient(90deg, #D9A968 0%, #A77C2A 50%, #6E4F18 100%);
+--success: #059669;
+--warning: #D97706;
+--error: #DC2626;
+--live: #DC2626;
+--primary-ink: #047F59;
+--success-ink: #047F59;
+--warning-ink: #A75B04;
+--accent-ink: #8D6923;
+--error-ink: #D72525;
+--live-ink: #D72525;
+--gold-ink: #8F6823;
+--bronze-ink: #A45D29;
+--locked: #666F7D;
+--gold: #B8862E;
+--silver: #8A93A1;
+--bronze: #A65E2A;
+--shadow-sm: 0 1px 2px 0 rgba(20, 24, 31, 0.06);
+--shadow-md: 0 4px 16px -4px rgba(20, 24, 31, 0.10);
+--shadow-lg: 0 12px 40px -8px rgba(20, 24, 31, 0.16);
+--shadow-sheet: 0 -8px 32px -4px rgba(20, 24, 31, 0.16);
+--shadow-glow: 0 0 0 2px var(--surface), 0 0 0 5px var(--primary-ink);
+--shadow-glow-accent: 0 0 0 2px var(--surface), 0 0 0 5px var(--accent-ink);
+--shadow-glow-on-brand: 0 0 0 2px var(--primary), 0 0 0 5px var(--on-primary);
+--shimmer-stripe: rgba(20, 24, 31, 0.05);
+color-scheme:light}
+*{box-sizing:border-box;margin:0;padding:0;border-color:var(--border)}
+html,body{background:var(--bg);color:var(--text-primary);font-family:Outfit,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-weight:600;font-variant-numeric:tabular-nums}
+.overline{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-muted)}
+.note{font:12px/1.4 Outfit;color:var(--text-muted);padding:10px 16px;border-top:1px dashed var(--border-strong)}
+</style>
+<script>if(location.search.includes('light'))document.documentElement.className='light';else document.documentElement.className='dark'</script><title>Standings table</title><style>
+.hdr{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--border)}
+.hdr .in{height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;max-width:1280px;margin:0 auto}
+.brand{display:flex;align-items:center;gap:8px}
+.word{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:15px;letter-spacing:.28em;background:var(--wordmark-gradient-h, linear-gradient(90deg,#F0DDA6,#D4A24A 50%,#A77C2A));-webkit-background-clip:text;background-clip:text;color:transparent}
+html.light .word{background:linear-gradient(90deg,#D9A968,#A77C2A 50%,#6E4F18);-webkit-background-clip:text;background-clip:text}
+.av{width:32px;height:32px;border-radius:50%;background:var(--metal);color:var(--bg);display:grid;place-items:center;font:600 12px Outfit}
+.icon-btn{width:32px;height:32px;display:grid;place-items:center;color:var(--text-secondary)}
+.nav{display:none;gap:24px;font-size:14px;color:var(--text-secondary);margin-left:32px;flex:1}
+.nav .on{color:var(--primary-ink)}
+.tabbar{position:fixed;left:0;right:0;bottom:0;height:60px;background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:5}
+.tabbar a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12px;color:var(--text-muted);text-decoration:none;position:relative}
+.tabbar a.on{color:var(--primary-ink)}
+.tabbar a.on::before{content:'';position:absolute;top:0;left:22%;right:22%;height:2px;border-radius:2px;background:var(--primary)}
+.tabbar svg{width:20px;height:20px}
+.ctx{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg)}
+.league-btn{display:flex;align-items:center;gap:6px;font:600 15px Outfit;color:var(--text-primary);background:none;border:0;min-height:36px}
+.league-btn span.c{color:var(--text-muted);font-size:13px}
+.chip{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:999px;font:600 12px Outfit;border:1px solid var(--border-strong);color:var(--text-secondary)}
+.chip.open{color:var(--primary-ink);border-color:var(--primary-ink)}
+.chip.warn{color:var(--warning-ink);border-color:var(--warning-ink)}
+.chip.lost{color:var(--error-ink);border-color:var(--error-ink)}
+.chip.won{color:var(--success-ink);border-color:var(--success-ink)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg)}
+@media(min-width:900px){.hdr .in{height:56px;padding:0 24px}.nav{display:flex}.tabbar{display:none}.mob{display:none!important}}
+@media(max-width:899px){.desk{display:none!important}}
+
+body{padding-bottom:76px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:2px;background:var(--surface)}
+.seg span{font:600 12px Outfit;padding:5px 10px;border-radius:999px;color:var(--text-secondary)}
+.seg .on{background:var(--surface-elevated);color:var(--text-primary)}
+.wrap{max-width:1200px;margin:0 auto;padding:12px 16px}
+.tbl{width:100%;border-collapse:separate;border-spacing:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+th{font:600 12px 'JetBrains Mono';letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--border)}
+td{height:52px;padding:0 12px;border-bottom:1px solid var(--border);font-size:15px}
+tr:last-child td{border-bottom:0}
+.rk{width:40px;font-size:14px;color:var(--text-secondary);position:relative}
+.rk.gold::before,.rk.silver::before,.rk.bronze::before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0}
+.rk.gold::before{background:var(--gold)}.rk.silver::before{background:var(--silver)}.rk.bronze::before{background:var(--bronze)}
+.rk.gold{color:var(--gold-ink)}.rk.bronze{color:var(--bronze-ink)}
+.nm b{font-weight:600;display:block;line-height:20px}
+.sub{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-muted)}
+.f{font:600 12px 'JetBrains Mono';font-style:normal;color:var(--text-muted)}.f.W{color:var(--success-ink)}.f.L{color:var(--error-ink)}
+.pt{text-align:right;font-size:17px;width:64px}
+.c{text-align:center}
+tr.me td{background:color-mix(in srgb,var(--primary) 8%,var(--surface))}
+tr.me .nm b{color:var(--primary-ink)}
+.foot{font-size:12px;color:var(--text-muted);margin-top:10px;line-height:1.5}
+.side{display:none}
+@media(min-width:900px){body{padding-bottom:0}.ctx{max-width:1200px;margin:0 auto;border:0;padding:16px 24px 8px;background:none}
+ .grid .wrap{max-width:none;margin:0}.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;padding:0 24px}.wrap{padding:8px 0}.side{display:block;padding-top:8px}
+ td{height:48px}}
+.side .card{padding:16px;margin-bottom:12px}
+.side h3{font-size:15px;font-weight:600;margin:6px 0 10px}
+.kv{display:flex;justify-content:space-between;font-size:14px;padding:6px 0;border-top:1px solid var(--border)}
+.kv span:first-child{color:var(--text-secondary)}
+</style></head><body>
+<header class="hdr"><div class="in"><span class="icon-btn mob"><svg viewBox="0 0 20 20" width="18" height="18"><circle cx="10" cy="10" r="3.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.3 4.3l1.4 1.4M14.3 14.3l1.4 1.4M4.3 15.7l1.4-1.4M14.3 5.7l1.4-1.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><div class="brand"><svg viewBox="0 0 40 28" width="34" height="24" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="25" rx="5" fill="none" stroke="var(--primary)" stroke-width="2.4"/><path d="M8 10h11M8 14h8M8 18h6" stroke="var(--primary)" stroke-width="2.4" stroke-linecap="round"/><path d="M27 4v20" stroke="var(--primary)" stroke-width="2" stroke-dasharray="2 3"/><circle cx="32.5" cy="14" r="2.6" fill="var(--primary)"/></svg><span class="word">THE COUPON</span></div><nav class="nav"><span class="">Home</span><span class="">Coupon</span><span class="">Football</span><span class="on">Leagues</span><span class="">Settings</span></nav><div style="display:flex;align-items:center;gap:12px"><span class="icon-btn desk"><svg viewBox="0 0 20 20" width="18" height="18"><circle cx="10" cy="10" r="3.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.3 4.3l1.4 1.4M14.3 14.3l1.4 1.4M4.3 15.7l1.4-1.4M14.3 5.7l1.4-1.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><span class="desk" style="font-size:14px;color:var(--text-secondary)">Alice</span><span class="av">AL</span></div></div></header>
+<div class="ctx"><button class="league-btn">The Coupon Test League <span class="c">▾</span></button><div class="seg"><span class="on">2026/27</span><span>2025/26</span></div></div>
+<div class="grid" style="max-width:1200px;margin:0 auto">
+<div class="wrap">
+<table class="tbl"><thead><tr><th>#</th><th>Member</th><th class="desk c">Form</th><th class="desk c">Played</th><th class="desk c">Won</th><th class="desk c">Avg odds</th><th style="text-align:right">Pts</th></tr></thead><tbody><tr class=""><td class="rk mono gold">1</td><td class="nm"><b>Hana</b><span class="mob sub"><i class="f W">W</i><span class="wn">1/1 won</span></span></td>
+<td class="desk c"><i class="f W">W</i></td><td class="desk c mono">1</td><td class="desk c mono">1</td><td class="desk c mono">2.05</td><td class="pt mono">21</td></tr><tr class=""><td class="rk mono silver">2</td><td class="nm"><b>Carol</b><span class="mob sub"><i class="f W">W</i><span class="wn">1/1 won</span></span></td>
+<td class="desk c"><i class="f W">W</i></td><td class="desk c mono">1</td><td class="desk c mono">1</td><td class="desk c mono">1.95</td><td class="pt mono">20</td></tr><tr class="me"><td class="rk mono bronze">3</td><td class="nm"><b>Alice</b><span class="mob sub"><i class="f W">W</i><span class="wn">1/1 won</span></span></td>
+<td class="desk c"><i class="f W">W</i></td><td class="desk c mono">1</td><td class="desk c mono">1</td><td class="desk c mono">1.90</td><td class="pt mono">19</td></tr><tr class=""><td class="rk mono ">4</td><td class="nm"><b>Bob</b><span class="mob sub"><i class="f L">L</i><span class="wn">0/1 won</span></span></td>
+<td class="desk c"><i class="f L">L</i></td><td class="desk c mono">1</td><td class="desk c mono">0</td><td class="desk c mono">3.10</td><td class="pt mono">0</td></tr><tr class=""><td class="rk mono ">4</td><td class="nm"><b>Former member</b><span class="mob sub"><i class="f L">L</i><span class="wn">0/1 won</span></span></td>
+<td class="desk c"><i class="f L">L</i></td><td class="desk c mono">1</td><td class="desk c mono">0</td><td class="desk c mono">3.75</td><td class="pt mono">0</td></tr><tr class=""><td class="rk mono ">4</td><td class="nm"><b>Ivan</b><span class="mob sub"><i class="f V">V</i><span class="wn">0/1 won</span></span></td>
+<td class="desk c"><i class="f V">V</i></td><td class="desk c mono">1</td><td class="desk c mono">0</td><td class="desk c mono">—</td><td class="pt mono">0</td></tr><tr class=""><td class="rk mono ">4</td><td class="nm"><b>Jo</b><span class="mob sub"><i class="f L">L</i><span class="wn">0/1 won</span></span></td>
+<td class="desk c"><i class="f L">L</i></td><td class="desk c mono">1</td><td class="desk c mono">0</td><td class="desk c mono">4.30</td><td class="pt mono">0</td></tr><tr class=""><td class="rk mono ">4</td><td class="nm"><b>Lee</b><span class="mob sub"><i class="f L">L</i><span class="wn">0/1 won</span></span></td>
+<td class="desk c"><i class="f L">L</i></td><td class="desk c mono">1</td><td class="desk c mono">0</td><td class="desk c mono">3.20</td><td class="pt mono">0</td></tr></tbody></table>
+<p class="foot">Lens 06 mockup (DES-12, DES-13). One column at every width, 52 px rows (all 8 members fit at 390); at 1280 columns instead of a second column of cards. Medal bar 3 px: --gold 10.62:1 dark / 3.24 light, --silver 9.78 / 3.10, --bronze 6.10 / 4.93 (non-text, 3:1). Rank 1 and 3 numerals in --gold-ink / --bronze-ink (≥ 5.03). Own row: --primary at 8% over --surface, name --primary-ink 6.32 / 4.57, points --text-primary 14.56 / 16.21. Odds figures and the void note move to the side card / an info sheet.</p>
+</div>
+<aside class="side"><div class="card"><div class="overline">Gameweek 1b · settled</div><h3>Hana won the round · 21 pts</h3><div class="kv"><span>Landed</span><span class="mono">3 of 8</span></div><div class="kv"><span>Coupon</span><span class="chip lost">Lost</span></div><div class="kv"><span>Your pick</span><span>Arsenal <span class="mono">1.90</span> · <span style="color:var(--success-ink)">Won 19</span></span></div></div>
+<div class="card"><div class="overline">How the table works</div><p class="foot" style="margin-top:8px">Odds figures cover the 7 picks that ran; 1 void pick counts as played but is not priced. Form: last five settled rounds.</p></div></aside>
+</div>
+<nav class="tabbar mob"><a class=""><svg viewBox="0 0 20 20"><path d="M3 9l7-6 7 6v8H3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>Home</a><a class=""><svg viewBox="0 0 20 20"><rect x="2.5" y="5" width="15" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M13 5v10" stroke="currentColor" stroke-width="1.4" stroke-dasharray="1.5 2"/></svg>Coupon</a><a class=""><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 6.5l3 2.2-1.1 3.5H8.1L7 8.7z" fill="currentColor"/></svg>Football</a><a class="on"><svg viewBox="0 0 20 20"><path d="M6 3h8v4a4 4 0 0 1-8 0zM10 11v4M7 17h6M6 5H3.5a2.5 2.5 0 0 0 2.6 3M14 5h2.5a2.5 2.5 0 0 1-2.6 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Leagues</a><a class=""><svg viewBox="0 0 20 20"><circle cx="4.5" cy="10" r="1.5" fill="currentColor"/><circle cx="10" cy="10" r="1.5" fill="currentColor"/><circle cx="15.5" cy="10" r="1.5" fill="currentColor"/></svg>More</a></nav>
+</body></html>

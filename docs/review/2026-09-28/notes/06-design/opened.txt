@@ -52,3 +52,12 @@ football--happy--390--dark.png
 team-season--happy--1280--light.png
 football--results--390--light.png
 notes/03-ux/focus/round-390-dark-stop8.png
+# mockup screenshots opened
+mockups/toasts--1280--dark.png
+mockups/round--390--dark.png
+mockups/round--1280--dark.png
+mockups/standings--390--light.png
+mockups/standings--1280--dark.png
+mockups/settled--1280--dark.png
+mockups/settled--390--light.png
+notes/06-design/pwa/icon-masks.png

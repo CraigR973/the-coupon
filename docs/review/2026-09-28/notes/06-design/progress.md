@@ -34,7 +34,9 @@ Brief: `../briefs/common.md` + `../briefs/06-design.md`.
 - 00:06 peripheral: opened ~30 lens-03 captures; 26 lens-03 captures carry a leaked offline banner (corpus-offline-banner-scan.txt), my-leagues--happy and league-members--happy are EMPTY → re-captured 9 screens as `*-l06--*` (peripheral.mjs). tabbar_probe.txt: indicator +156px always (absolute span in justify-around flex, no left-0), Football icon 20x8. cls.txt: round CLS 0.247 @390, standings 0.141, home 0.
   FOUND: Football Stats opens with every table collapsed; admin sub-nav labels overlap at 390; JoinPage names no league.
 
-- 00:15 contrast.py → contrast.txt (110 pairs; naive tint enable fails 13 pairs — DES-11 fix must cap alphas). Lens doc 06-premium-design.md WRITTEN (Part 1, register DES-10..23, per screen, top ten, batches, decisions).
+- 00:12 contrast.py → contrast.txt (110 pairs; naive tint enable fails 13 pairs — DES-11 fix must cap alphas). Lens doc 06-premium-design.md WRITTEN (Part 1, register DES-10..23, per screen, top ten, batches, decisions).
+
+- 00:18 mockups built + shot (mockups/: toasts, round, standings, settled × 390 dark/light + 1280 dark = 12 PNGs); doc updated with mockup table.
 
 ## Plan / order
 A. [done] open-round: feedback captures confirm / conflict / price-moved (real) / queued-offline; standalone safe-area; PWA manifest+icons.
@@ -43,4 +45,4 @@ C. [done] lock + settle in process with a void leg → settled results, settled 
 D. judge corpus (Part 1 + peripheral), write lens doc, top-ten + mockups + contrast numbers.
 
 ## In flight
-- Next: mockups/ toasts.html, round.html, standings.html, settled.html → mockup_shots.mjs at 390 + 1280 (dark) + 390 light; then fix counts in doc (opened.txt), stop processes, final commit, reply.
+- Next: stop stack (stack_design.py) and web (build_web.py → vite preview :4360), final commit, reply to lead (≤40 lines).
