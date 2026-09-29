@@ -49,10 +49,10 @@ untouched, per the owner's decision.
 | --- | --- | --- | --- |
 | 01 security | **done** 14:45 — 20 held / 3 partial / 1 not fixed; SEC-27..31 | `notes/01-security/` | |
 | 02 correctness | **done** 14:45 — 7 held / 3 partial / 1 not fixed / 1 accepted; CORR-19..27 | `notes/02-correctness/` | |
-| 03 UX / a11y | running (resumed 18:35) — 330-run open-phase axe sweep + corpus batch 1 committed | `notes/03-ux/` | |
-| 04 performance / ops | running (resumed 18:35) — shapes seeded, EXPLAIN, provider budget, bundle done | `notes/04-perf/` | |
+| 03 UX / a11y | **done** 30 Sep 00:18 — 9 held / 3 partial / 1 not fixed; UX-21..33; 422 captures | `notes/03-ux/` | |
+| 04 performance / ops | all but timings done 29 Sep 23:55; resumed 30 Sep 00:31 for Lighthouse + timings on the quiet machine | `notes/04-perf/` | |
 | 05 feature gaps | **done** ~18:45 — 3 held / 1 partial / 5 not fixed; FEAT-A13..15, B10..12 | `notes/05-features/` | |
-| 06 premium design | running (launched 23:40) | `notes/06-design/` | |
+| 06 premium design | **done** 30 Sep 00:28 — 3 held / 6 partial; DES-10..23; top ten + 4 mockups; 99 captures | `notes/06-design/` | |
 | 07 agent pipeline | **done** 14:45 — 4 held / 4 partial / 1 not fixed; PIPE-10..19 | `notes/07-pipeline/` | |
 
 ## Lead's own work (not delegated)
@@ -64,9 +64,10 @@ untouched, per the owner's decision.
 
 ## Exact next step
 
-Three passes running (03, 04, 05). Launch 06 after 03's corpus. When the machine is
-quiet, tell 04 to take timings. Meanwhile the lead verifies 01/02/07's MED findings and
-fills notes/lead/scorecard.md.
+Only lens 04's timings remain (running). Lead: write the batch rows (169+) into
+`docs/BUILD_PLAN.md`, then `08-sequencing.md`, `09-prompts.md`, `10-reconciliation.md`
+(from `notes/lead/reconciliation.md`), then `README.md`; fold in 04's timings when they
+land; commit; send the README. Doc corrections applied so far: `notes/lead/doc-corrections.md`.
 When the other passes finish, tell 04 the machine is quiet so it can take timings.
 Then: verify every HIGH+, reconcile, write 08/09/10 and the README. If a subagent is lost, relaunch it pointing at its brief and its
 `notes/<lens>/progress.md`.
