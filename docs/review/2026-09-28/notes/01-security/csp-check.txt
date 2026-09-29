@@ -1,0 +1,6 @@
+PROD /login status 200 csp header present: true
+PROD /login violations: []
+PROD /login console errors: []
+LOCAL after login url: http://127.0.0.1:4310/
+LOCAL violations by route: {"/":[],"/leagues/the-coupon":[],"/leagues/the-coupon/predictions":[],"/leagues/the-coupon/standings":[],"/settings":[],"/profile":[]}
+LOCAL console errors: []

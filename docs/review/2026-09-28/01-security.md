@@ -42,9 +42,13 @@ the durable login limit was never spent by it; the auth lifecycle was driven ove
 | SEC-06 | earlier | held | `not-a-uuid` and a 500-character value replaced by a fresh uuid4; a valid uuid echoed |
 | SEC-07 | earlier | held (code) | `run_prune_refresh_tokens` and `run_prune_rate_limit_counters` still registered (`scheduler.py:203, 238`); the scheduler is off in the harness |
 | SEC-08 | earlier | held | Register with `1234` → 422 "too common" |
+| SEC-10 | earlier | held | Real login page in Chromium: `?next=/leagues/the-coupon/leaderboard` landed there; `//evil.example/x`, `/\evil.example` and `https://evil.example/` all landed on `/` (`csp-check-2.txt`) |
 | SEC-11 | earlier | held | `no-store` on every authenticated JSON response sampled, including the gzip-compressed slate |
 | SEC-12 | earlier | held | Plain HTTP, 127.0.0.1, `[::1]`, 169.254.169.254, 10.0.0.1, a look-alike suffix, userinfo, trailing dot and a prefix look-alike all 422; `web.push.apple.com` 201 |
-| SEC-23 | 142 | held (port) | `:8443` and `:22` on allowlisted hosts → 422 "must use the standard HTTPS port"; `:443` accepted |
+| SEC-13 | earlier | held (code) | The service worker's API route keeps `respectNoStore` (`sw.ts:52-63`) and every API response is `no-store` (SEC-11) |
+| SEC-19 | 141 | held | Production web serves a CSP and `frame-ancestors 'none'` + `X-Frame-Options: DENY` (`prod-headers.txt`). Zero CSP violations on production `/login`, and zero across 11 signed-in routes of the local production bundle with production's exact policy injected (connect-src pointed at the local API); a deliberate `fetch` to another origin was blocked and reported, so the listener works (`csp_check.mjs`, `csp-check.txt`, `csp-check-2.txt`). Policy judged below |
+| SEC-23 | 142 | held | Port: `:8443` and `:22` on allowlisted hosts → 422, `:443` accepted. Timeout: `webpush(..., timeout=PUSH_SEND_TIMEOUT_SECONDS)` = 5 s (`push_notification_service.py:42, 76-82`) |
+| SEC-25 | 143 | held | Chromium, desktop account menu: Erin viewed league B (`coupon_last_viewed_league` set) → Log out → localStorage empty → Sadie signed in on the same browser: no league key, "League B" nowhere on her home (`sec25_check.mjs`, `sec25-check.txt`) |
 | SEC-26 | 143 | held | Live, unclaimed invite to a soft-deleted league → `404 League not found` |
 
 ## Register
@@ -140,6 +144,39 @@ one name.
 
 **Fix:** check the global display names of *all* profiles (not only current members) when an
 override is set, and on join refuse — or clear — an existing override that now collides.
+
+## Production, read-only
+
+Recorded 29 Sep 14:21 BST, GET only, no credentials (`notes/01-security/prod-headers.txt`).
+
+- **API** `/api/v1/health` → `{"status":"ok","sha":"b08a47f3…","migration":"026"}`, the
+  deployed commit the lead's drift check reported. Headers unchanged from 2026-09-13 and
+  still exemplary: `default-src 'none'; frame-ancestors 'none'`, HSTS two years, nosniff,
+  `X-Frame-Options: DENY`, Referrer-Policy, Permissions-Policy, `no-store`. `/api/docs`,
+  `/api/redoc`, `/api/openapi.json`, `/docs`, `/openapi.json` all 404. A preflight from a
+  foreign origin → 400 with no `Access-Control-Allow-Origin`; from the web origin → 200
+  naming only that origin.
+- **Web** now adds `Content-Security-Policy` and `X-Frame-Options: DENY` to the 2026-09-13
+  set; HSTS is `max-age=63072000; includeSubDomains; preload`.
+
+**The CSP, judged.** `script-src 'self'` plus one hash (the inline theme bootstrap in
+`index.html`) is the part that matters, and it is strict: no `unsafe-inline`, no
+`unsafe-eval`, no third-party script host. `object-src 'none'`, `base-uri 'self'`,
+`form-action 'self'` and `frame-ancestors 'none'` close the usual side doors.
+
+- `style-src 'unsafe-inline'` — INFO. It permits injected `style` attributes, which matter
+  only alongside an HTML-injection bug (React escapes by default, and none was found); the
+  cost of removing it is nonces on every Radix/Framer inline style.
+- `connect-src` also allows the **staging** API (`api-production-0641`) — INFO. It is not an
+  exfiltration channel an attacker gains: with script execution they could already write to
+  an attacker-readable store through the *production* API that `connect-src` must allow (a
+  league description is free text). One shared `vercel.json` serves both environments; split
+  the policy per environment as hygiene.
+- `img-src https://*.supabase.co` — INFO. Any Supabase project, not only this one's storage;
+  narrow to the project host.
+- `access-control-allow-origin: *` on the HTML — INFO. Vercel's default for static files.
+  It lets another origin *read* the public HTML and bundle, which anyone can fetch anyway; it
+  cannot carry credentials, and the app keeps none in cookies.
 
 ## Checked and found nothing material
 

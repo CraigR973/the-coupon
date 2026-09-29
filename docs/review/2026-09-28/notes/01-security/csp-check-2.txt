@@ -1,0 +1,9 @@
+LOCAL after login url: http://127.0.0.1:4310/
+LOCAL violations by route: {"/":[],"/leagues/the-coupon":[],"/leagues/the-coupon/predictions":[],"/leagues/the-coupon/predictions/coupon":[],"/leagues/the-coupon/leaderboard":[],"/leagues/the-coupon/members":[],"/football":[],"/settings":[],"/profile":[],"/leagues/league-b/admin/settings":[],"/leagues/league-b/admin/audit-log":[]}
+LOCAL final urls: {"/":"http://127.0.0.1:4310/","/leagues/the-coupon":"http://127.0.0.1:4310/leagues/the-coupon/leaderboard","/leagues/the-coupon/predictions":"http://127.0.0.1:4310/leagues/the-coupon/predictions","/leagues/the-coupon/predictions/coupon":"http://127.0.0.1:4310/leagues/the-coupon/predictions#coupon","/leagues/the-coupon/leaderboard":"http://127.0.0.1:4310/leagues/the-coupon/leaderboard","/leagues/the-coupon/members":"http://127.0.0.1:4310/leagues/the-coupon/admin/members","/football":"http://127.0.0.1:4310/football","/settings":"http://127.0.0.1:4310/settings","/profile":"http://127.0.0.1:4310/profile","/leagues/league-b/admin/settings":"http://127.0.0.1:4310/leagues/league-b/admin/settings","/leagues/league-b/admin/audit-log":"http://127.0.0.1:4310/leagues/league-b/admin/audit-log"}
+LOCAL positive control (fetch to example.com): ["connect-src https://example.com/csp-probe :1"]
+SEC-10 next=/leagues/the-coupon/leaderboard -> landed on http://127.0.0.1:4310/leagues/the-coupon/leaderboard
+SEC-10 next=//evil.example/x -> landed on http://127.0.0.1:4310/
+SEC-10 next=/\evil.example -> landed on http://127.0.0.1:4310/
+SEC-10 next=https://evil.example/ -> landed on http://127.0.0.1:4310/
+LOCAL console errors: ["Connecting to 'https://example.com/csp-probe' violates the following Content Security Policy directive: \"connect-src 'self' http://127.0.0.1:8110\". The action has been blocked.","Fetch API cannot load https://example.com/csp-probe. Refused to connect because it violates the document's Content Security Policy."]

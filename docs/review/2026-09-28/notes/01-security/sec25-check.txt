@@ -1,0 +1,6 @@
+after Erin views league-b: {"coupon_player":"{\"id\":\"6659332c-5b4b-4daa-9d1c-552103337cd9\",\"displayName\":\"","coupon_access":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NjU5MzMyYy0","coupon_last_viewed_league":"{\"slug\":\"league-b\",\"name\":\"League B\"}","coupon_refresh":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NjU5MzMyYy0"}
+url after logout: http://127.0.0.1:4310/login
+after logout: {}
+after Sadie signs in on the same browser: {"coupon_player":"{\"id\":\"9d6b80b6-f471-48ad-b466-931cfc8d91a7\",\"displayName\":\"","coupon_access":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5ZDZiODBiNi1","coupon_refresh":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5ZDZiODBiNi1"}
+home url for Sadie: http://127.0.0.1:4310/
+"League B" visible to Sadie: false
