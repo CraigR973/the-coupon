@@ -141,3 +141,10 @@ Added 29 Sep 14:30 (verified, gate-probes-output.txt, self-approval-output.txt):
   maintenance changes". Control with the row ticked → rc 1.
 Next: tool-behaviour checks for the precedence files (ruff.toml, mypy.ini, nested eslintrc,
 vitest.config.ts, conftest hook), then the combined SKIP_PROD_BUNDLE=1 gate.
+
+Added 29 Sep 14:40 (verified, precedence-probes-output.txt): unprotected files change the
+gate's tools. mypy.ini (ignore_errors) → a real type error passes; src/.eslintrc.json → an
+explicit-any error passes; ruff.toml (line-length 100, select E) → an F841 passes;
+vitest.config.ts replaces vite.config.ts; a 3-line conftest.py hook turns "1 failed, 9
+passed" into "10 passed" with the count unchanged.
+Next: write the lens document skeleton + verified findings, then the combined gate.

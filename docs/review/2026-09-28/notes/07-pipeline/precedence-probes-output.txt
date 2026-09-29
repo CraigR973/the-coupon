@@ -1,0 +1,18 @@
+T1 ruff: unused local variable (F841) in src  [rerun 14:40 with the corrected probe]
+  before: rc=1
+  with apps/api/ruff.toml (select E only, no line-length): rc=1, 3648 errors (E501 at the default 88 — proves ruff.toml replaced pyproject's config)
+  with apps/api/ruff.toml (line-length = 100, select E): rc=0 'All checks passed!'
+T2 mypy: real type error in src
+  before: rc=1
+  with apps/api/mypy.ini: rc=0
+T3 eslint: explicit any in src
+  before: rc=1
+  with apps/web/src/.eslintrc.json: rc=0
+T4 vitest: which config wins
+  with apps/web/vitest.config.ts:  Test Files  1 failed (1)
+  with apps/web/vitest.config.ts:       Tests  no tests
+T5 pytest: a failing test, then a conftest hook
+  before: 1 failed, 9 passed in 1.29s
+  with the conftest hook: 10 passed in 1.05s
+
+Note T4: vitest ran 1 file (not the suite) — vitest.config.ts replaced vite.config.ts; the probe config lacked jsdom so the file failed, which is irrelevant to precedence.
