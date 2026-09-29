@@ -418,7 +418,7 @@ needs the owner to name the batch.
 | --- | --- | --- |
 | `STATUS.md:34` | "the certified worst day is 481 of 500 provider requests" | "the budget suite certifies 481 of 500 for browsing, discovery, the weekly walk, one warm pass and the manual allowance; it omits the twice-daily refresh, settlement and the pick bucket (a measured one-window Saturday is 289)" |
 | `STATUS.md` Toolchain, Vercel CLI line | "run it with Node 20 first on PATH" | say it is Node 20 by necessity and end-of-life, until OPS-19 lands |
-| `apps/api/src/config.py:112-113` (code comment, belongs to a batch) | "the whole manual admin allowance brings it to 460 of 500" | 481 of 500 at the 23-competition walk (Batch 115 fix) |
+| `apps/api/src/config.py:113-114` (code comment, belongs to a batch) | "the whole manual admin allowance brings it to 460 of 500" | 481 of 500 at the 23-competition walk (Batch 115 fix) |
 | `apps/api/src/services/football_data.py:935` (docstring, belongs to PERF-18's batch) | "three queries for a slate of any size" | two queries per competition plus three |
 
 ## What this pass did not do

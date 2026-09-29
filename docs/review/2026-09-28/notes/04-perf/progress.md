@@ -76,12 +76,18 @@ Commit only own paths: `git -C <repo> commit -m "..." -- docs/review/2026-09-28/
 - perf API `run_api.sh` on :8140 (uvicorn perf_app) and web preview on :4340 (web.sh perf)
 - stack perf (DB)
 
+## 23:54 state
+
+Lens doc complete except Lighthouse + timings (PERF-14, PERF-02 concurrency). Register:
+PERF-19 HIGH; PERF-18, 20, 21, 23 MED; OPS-19, PERF-22 LOW. Prior: held 15, partial 1,
+not fixed 5, by-decision 1, pending 1, regressed 0.
+
+Lighthouse started 23:54 in background (lighthouse.mjs, WAIT_MIN=40, gates on load<4) →
+writes lighthouse.json per page; log <scratch>/lighthouse.out.txt.
+
 ## Next step
 
-1. Lighthouse under <scratch>/tools/lighthouse (installing), mobile throttled, median of 3,
-   home `/`, round `/leagues/the-coupon/predictions`, standings `/leagues/the-coupon/leaderboard`,
-   storage state `<scratch>/perf-state.json` — ONLY when 1-min load < 4 (lighthouse.mjs)
-2. timings: `bash run.sh measure_api.py timed --timings 20` and 20-concurrent home summary
-   (concurrency.py, to write) — only when load < 4
-3. finish doc: nothing-material, proposed batches, owner decisions, doc corrections, not done
-4. stop 8140 API, 4340 preview, stack perf; commit; reply to lead
+1. when lighthouse.json has all 4 pages: `bash run.sh concurrency.py` (gates on load<4)
+2. write PERF-14 row + Lighthouse row in "The web client" table + timings into "The numbers"
+3. stop: pkill -f "perf_app:app"; kill the vite preview on 4340 (web.sh perf); SIGTERM stack perf
+4. commit; reply to lead (≤40 lines). If load never drops: reply TIMINGS PENDING with the commands above.
