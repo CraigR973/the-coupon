@@ -28,8 +28,12 @@ Do not touch the pre-existing worktree `/private/tmp/the-coupon-main-batch149` (
 
 ## Exact next step
 
-Finish manual review of removed tests (157, 155, 150, 164, 4121cf0, 83facaf, 137), then
-check the seven API+web batches' session-log entries for the guard outcome, then step 2.
+(29 Sep 14:17) Worktree `<scratchpad>/wt-pipeline` exists on `throwaway/pipeline-probe`
+at eb18bcb with `pnpm install --offline` done. Scratch clone `<scratchpad>/replay` (origin
+removed) exists for historical replays. Next: guardrail-only probes in the worktree (one at a
+time, `git -C wt checkout -- .` between), then config-precedence probes (ruff.toml,
+mypy.ini, nested .eslintrc, vitest.config.ts), then one combined SKIP_PROD_BUNDLE=1 gate.
+Write findings into `../../07-agent-pipeline.md` as each is verified.
 
 ## Working findings so far (resume context; evidence files are beside this one)
 
@@ -91,3 +95,33 @@ Agents' behaviour, 2ce6f42..main:
   No rows; no open rows.
 - 25 "23 Sep" ticks match 25 close-out commits dated 23 Sep. 23 Sep 01:04-03:41: ten
   batches at 12-28 min intervals each claiming a full gate (11-13 min) — tight, not proof.
+
+Added 29 Sep 08:40-08:50 (verified):
+- replay_guards.sh + replay-guards-output.txt: the guards as they existed at each commit,
+  in a push-less clone, drift stubbed. Guardrail REFUSES d1b9ee9, 7ef953d, 89217f8 (so no
+  green gate on those branches). Close-out guard REFUSES all 7 API+web batches (123, 124,
+  143, 156, 157, 136, 148). Only 136 and 148 record owner scheduling; 123/124/143/156/157
+  have no durable record of how the refusal was cleared. All other commits pass both.
+- 29 commits carry no agent trailer (152, 120-122, the three gate fixes, 115, walk fix,
+  83facaf, Group Z 151/140/168/150/149 + toast fix) — a second agent toolchain; unrecorded.
+- CI (.github/workflows/ci.yml) runs no guardrail, no ratchet, no zero-skip check; only
+  pushes to main ever trigger it (close-out never pushes branches). main is unprotected
+  (gh api .../branches/main/protection → 404; rulesets []). Repo is PUBLIC.
+- coupon-flow.spec.ts (the only full register→pick→settle journey) is in neither the gate
+  nor CI (playwright.prod-bundle.config.ts matches prod-bundle*.spec.ts only). It rotted
+  from 23 Sep (Batch 139 opened first group: pick-card count 0 → 1; Batch 157 removed the
+  "Averaged over" text) until 83facaf on 28 Sep, an out-of-batch fix.
+- Batch 149 closed out and pushed before its seeded browser run; that run found the toast
+  offset/contrast defect; 4121cf0 fixed it ~23 min later ("post-close-out correction").
+- Batch 149's gate: second full frontend run "timed out in two unrelated existing tests",
+  third passed — unnamed flakes, rerun to green.
+- Batch 140 changed an e2e expectation Alice→Bob (the batch's own new assertion; reported).
+- Batch 115 doubled browse TTLs (2h/1h/30m → 4h/2h/1h) — owner-approved in the row; fine.
+- .github/workflows/claude.yml: dormant @claude/auto-fix agent with contents: write, fed by
+  issue text in a public repo; references a prod-monitor workflow that does not exist;
+  `gh secret list` shows no secrets; all runs "skipped". LOW/INFO.
+- apps/api/pyproject.toml [project] deps list fastapi 0.111.0 / starlette 0.37.2 while the
+  gate runs 0.141.1 / 1.6.0 — stale metadata. INFO.
+- check-closeout-safety.sh pattern `vercel.json` (root) is dead — file is apps/web/vercel.json
+  (still covered by apps/web/*). check-deploy-drift.sh hardcodes ROOT and its tier-3 probe
+  is "Batch 51". INFO.
