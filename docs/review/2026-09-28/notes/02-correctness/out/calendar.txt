@@ -1,0 +1,12 @@
+CORR-11 declare 2026-09-26 (past Saturday+) -> 422 EXTRA_WEEK_IN_THE_PAST
+CORR-11 declare 2026-09-23 (past Wednesday) -> 422 EXTRA_WEEK_IN_THE_PAST
+CORR-11 declare 2026-10-05 (Mon in the week whose round has settled) -> 409 EXTRA_WEEK_LOCKED
+CORR-11 declare 2026-10-14 (future Wednesday, unsettled week) -> 200 extras=None
+CORR-11 withdraw 2026-10-14 -> 200
+CORR-12 [fri-first] synced cal-fri-fri-first 2027-08-13 -> 2027 anchor 2027-08-14
+CORR-12 [fri-first] synced cal-sat-fri-first 2027-08-07 -> 2027 anchor 2027-08-07
+CORR-12 [fri-first] labels: 2027-08-13='2', 2027-08-07='1'
+CORR-16 rollover: Wed 2027-06-30 -> '40' (2026 calendar), Sat 2027-07-03 -> '1' (2027 calendar)
+CORR-12 [sat-first] synced cal-sat-sat-first 2027-08-07 -> 2027 anchor 2027-08-07
+CORR-12 [sat-first] synced cal-fri-sat-first 2027-08-13 -> 2027 anchor 2027-08-07
+CORR-12 [sat-first] labels: 2027-08-07='1', 2027-08-13='2'
