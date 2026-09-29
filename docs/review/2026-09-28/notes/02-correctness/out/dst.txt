@@ -1,0 +1,14 @@
+trigger cron[minute='15']; 48 fires 2026-10-24 12:15:00..2026-10-26 11:15:00; distinct gaps ['1:00:00']
+locks 2026-10-24 20:00:00..2026-10-25 12:00:00 every 15 min (65 rounds): reminded exactly once = 65; not once: none
+trigger cron[minute='15']; 48 fires 2027-03-27 12:15:00..2027-03-29 11:15:00; distinct gaps ['1:00:00']
+locks 2027-03-27 20:00:00..2027-03-28 12:00:00 every 15 min (65 rounds): reminded exactly once = 65; not once: none
+Sat 24 Oct 2026 window 15:00 lock-30: lock 2026-10-24 13:30:00Z; London Sat 14:30, New York Sat 09:30, Sydney Sun 00:30
+Sun 25 Oct 2026 window 13:00 lock-30: lock 2026-10-25 12:30:00Z; London Sun 12:30, New York Sun 08:30, Sydney Sun 23:30
+Fri 30 Oct 2026 window 19:45 lock-60: lock 2026-10-30 18:45:00Z; London Fri 18:45, New York Fri 14:45, Sydney Sat 05:45
+Sat 31 Oct 2026 window 15:00 lock-30: lock 2026-10-31 14:30:00Z; London Sat 14:30, New York Sat 10:30, Sydney Sun 01:30
+Sat 27 Mar 2027 window 15:00 lock-30: lock 2027-03-27 14:30:00Z; London Sat 14:30, New York Sat 10:30, Sydney Sun 01:30
+Sun 28 Mar 2027 window 13:00 lock-30: lock 2027-03-28 11:30:00Z; London Sun 12:30, New York Sun 07:30, Sydney Sun 22:30
+Sat 03 Apr 2027 window 15:00 lock-30: lock 2027-04-03 13:30:00Z; London Sat 14:30, New York Sat 09:30, Sydney Sun 00:30
+CORR-05 PATCH {'slate_start_weekday': 6, 'slate_start_minute': 90, 'slate_end_weekday': 6, 'slate_end_minute': 90} -> 422 This window puts the window opening and the window close in the hour British clocks change, which happens either twice or not at all on thos
+CORR-05 PATCH {'slate_start_weekday': 6, 'slate_start_minute': 60, 'slate_end_weekday': 6, 'slate_end_minute': 60} -> 422 This window puts the window opening and the window close in the hour British clocks change, which happens either twice or not at all on thos
+CORR-05 PATCH {'slate_start_weekday': 6, 'slate_start_minute': 180, 'slate_end_weekday': 6, 'slate_end_minute': 180, 'lock_offset_minutes': 90} -> 422 This window puts the pick lock in the hour British clocks change, which happens either twice or not at all on those two Sundays. Move it out
