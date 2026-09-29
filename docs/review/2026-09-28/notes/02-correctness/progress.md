@@ -23,3 +23,12 @@ Interrupted once by a usage limit (28 Sep ~23:04); resumed 29 Sep 08:40 on a fre
 ## Prior findings status
 | id | status | evidence file |
 | --- | --- | --- |
+
+## Harness state (29 Sep 14:17, after second interruption)
+- DB holder: `stack.py --name corr --no-api` (scratch pg at pg-corr). API: `bash corr_api.sh` = `corr_server.py` on 8120
+  (e2e app, provider overrides removed so requests use odds_session -> CachingOddsProvider -> `richfake` CountingFake;
+  pushes captured at `GET/DELETE /__corr/pushes`; provider calls at `/__corr/calls`).
+- Driver scripts: `bash run.sh <script.py>` (runs from scratchpad; `lib.py` points settings at the scratch DB).
+- Seeded by `seed_two_leagues.py` (L1 Sat defaults MO/selection; L2 Fri 19-22 lock 60 both markets EPL+Champ fixture scope;
+  L3/L4 race leagues 12 members each, selection/fixture). `add_subs.py` gives every profile a fake push subscription.
+- Rounds after discovery: L1/L3/L4 Sat 3 Oct (lock 13:30Z), L2 Fri 2 Oct (lock 17:00Z). Calendar 2026 anchor 3 Oct.
