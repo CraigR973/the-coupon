@@ -28,7 +28,8 @@ joined A; league A description edited by sam).
 | SEC-18 web half | todo: code read says refresh before PIN (AuthContext.tsx:118-140) — cite as code-held; optionally verify |
 | SEC-19 CSP, SEC-21, SEC-22, SEC-25 | todo |
 | SEC-01..13 spot-check | todo |
-| new surfaces 136 (delete/export), 134, 135/148, 132, 129, 145 | todo |
+| 136 delete/export | done — held; written into doc (Checked) | probes.txt "136" |
+| new surfaces 134, 135/148, 132, 129, 145 | todo | |
 | OSV, secrets, prod headers | todo |
 | 01-security.md | todo — start now |
 

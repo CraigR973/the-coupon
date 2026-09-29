@@ -139,6 +139,22 @@ override is set, and on join refuse — or clear — an existing override that n
   dependency; the three cells the script flagged are all correct behaviour — `PUT /auth/me/pin`
   answers 401 "Current PIN is incorrect" to a wrong current PIN, a site admin deleting their
   own account gets 409 by design, and `/join` on a private league is 403 for everybody.
+- **Account deletion and data export (Batch 136)** — `s04_deletion.py`, `s05_deletion2.py`.
+  Neither route takes an id, so there is nothing to substitute: a member can only export or
+  delete themselves. Bob's export (598 bytes) holds his own profile, leagues and picks and no
+  other member's name or id; it is served `attachment` and `no-store`. The PIN is enforced
+  server-side (wrong PIN → 403, sixth attempt → 429 at 5/hour). A site admin is refused
+  (409) and so is a sole admin of a league others play in (409, names the league). A real
+  deletion (v2, who held a settled pick, two refresh tokens, a push subscription and a
+  league name override): the old access token → 401, the old refresh token → 401, login →
+  401; refresh tokens, push subscriptions, join requests and preferences all 0 rows; the
+  profile is `Former member 39d53f76` with no PIN, inactive and deleted; the override is
+  cleared; the pick is kept (18 points) and the standings show "Former member" with neither
+  old name anywhere in standings, roster or the league audit log. The freed name
+  re-registered (201) as a **new id** with no leagues, picks, devices or league access.
+  Two small notes for the correctness lens, not security: the deleted member still counts in
+  the league's `member_count` (12 against a roster of 11) and so in its capacity, and their
+  player id still opens a profile page labelled "Former member".
 - **League-admin writes by a non-member site admin** (PATCH league, create invite, rotate
   code) succeed and are audited under the site admin's name. Batch 125 deliberately scoped
   the split to the member dependency; these are oversight actions, not pool consumption.
