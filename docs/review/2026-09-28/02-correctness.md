@@ -40,6 +40,9 @@ in `notes/02-correctness/` (`out/*.txt`).
 | CORR-11 | 132 | **held** | `POST /admin/calendar/extra-weeks` as the site admin: 26 Sep and 23 Sep → 422 `EXTRA_WEEK_IN_THE_PAST`; Mon 5 Oct, in the football week whose rounds have settled → 409 `EXTRA_WEEK_LOCKED`; Wed 14 Oct → 200, then withdrawn 200 (`out/calendar.txt`). A future week whose round is open *with picks* can still be relabelled — within the batch's stated scope |
 | CORR-12 | 132 | **held** | In process on an empty season 2027 (rolled back): a Friday league's 13 Aug 2027 round discovered first set the anchor to 14 Aug; the Saturday league's 7 Aug round then pulled it back to 7 Aug, labels `1` / `2`. Reverse order: anchor 7 Aug, same labels |
 | CORR-16 | accepted | **still true, still harmless** | Wed 30 Jun 2027 labels `40` on the 2026 calendar and Sat 3 Jul 2027 `1` on the 2027 calendar — the rollover week is still split. No league plays that week and no batch changed it |
+| CORR-15 | 133, 159 | **partial** | The mechanism works — interleaved by date rank, stops cleanly on its budget, keeps what it bought (the batch's own tests pass against the scratch DB: `out/pytest-budget.txt`, 61 passed). But at **production's pool shape** the budget mis-prices a walk and the three-window acceptance fails: CORR-24 (`out/budget.txt`) |
+| Batch 161 (installation bucket) | 161 | **held** | Charged exactly as `submit_pick` charges: three leagues × 40 submissions in one hour admitted 40 / 10 / 0 = **50**, the installation limit. The first league to spend can starve the others — documented and intended |
+| Batch 115 (certification reads the DB) | 115 | **held, with a caveat** | `_database_round_shape` derives the largest round and its unpriced share from PostgreSQL and falls back to the dated 264 / 89 floor; run against the scratch DB it certified on the floor (largest round 6). The caveat is structural: the gate only ever runs against an empty scratch database, so in practice the floor is always what is certified, and `OBSERVED_DISTINCT_WINDOWS = 2` beside it is still a hand-typed constant nothing re-measures (INFO) |
 | CORR-10 | 131 | **held** | Settled L1 with two void legs (the fixture marked every runner `REMOVED`): Alice and Carol, void-only in L1, show `win_rate_pct = null` on `/standings` and Carol's `/players/{id}/profile`; Carol's cross-league summary reads 1 won of 2 played, 1 priced → **100%**, Alice's 1 won of 3 played, 2 priced → 50%; Bob (one loss) 0%. Every surface that shows a win rate reads `Standing.win_rate_pct` or divides by `picks_priced` (`out/lifecycle.txt`) |
 | CORR-18 | 157 | **held** | `GET /me/cross-league-summary` carries neither `avg_rank` nor `avg_rank_leagues` for three members; the web source references them only in a comment (`lib/types.ts:654`) |
 | void legs (owner decision) | 156 | **partial** | The coupon screen is right — `GET /coupon` for L1 returns `combined_odds 7.44` = 3.10 × 2.40 with `void_leg_count 2`, and the share text reads the same fields. But the Results list and home's "Last result" panel still multiply the void legs: **54.91** for the same round. CORR-21 |
@@ -56,6 +59,7 @@ in `notes/02-correctness/` (`out/*.txt`).
 | CORR-21 | LOW | live | verified | The Results list and home's "Last result" still multiply void legs into the combined price the coupon screen excludes |
 | CORR-22 | LOW | live | verified | A pick correction is silent: the member told "lost" by the settle push is never told they won |
 | CORR-23 | LOW | live | verified | A round nobody picked on never settles, so it is never announced and stays "locked" for ever |
+| CORR-24 | MED | live | verified | Discovery's budget prices a walk at the raw pool (36) not what is walked (23): two walks a day at production's shape, and a third window is not served |
 
 ## CORR-19 · MED · live · verified — self-deletion reopens CORR-14
 
@@ -176,6 +180,47 @@ member to miss the deadline), which is why LOW.
 
 **Fix:** in `settle_gameweek(s)`, flip a locked round with no picks to `settled` once its
 window has closed, then announce it like any other.
+
+## CORR-24 · MED · live · verified — the discovery budget prices the wrong number
+
+Batch 133 gave `run_discover_fixtures` a budget (`discovery_request_budget = 90`) and
+charges each `(window, date)` walk `per_walk = len(set(competition_ids))`
+(`services/gameweek.py`, in `discover_fixtures`). The job passes
+`pooled_competition_ids()` — which its own docstring says is the **raw** pool, for the
+caller to intersect — and `OddsApiProvider.fetch_slate` then walks only the pool ∩ the
+played catalogue. The repo's own 2026-09-27 measurement (`services/competitions.py`) is
+**36 pooled, 23 played**. So each walk is charged 36 and costs 23.
+
+Driven in process (`notes/02-correctness/budget.py`, `out/budget.txt`) with
+`discover_fixtures` called exactly as the two jobs call it and a stub that charges what
+odds-api.io charges (one `/events` per played competition walked):
+
+| distinct windows | daily run spends | walks | windows served | refresh (no budget) per run |
+| --- | --- | --- | --- | --- |
+| 1 | 46 | 2 of 2 | 1/1 | 23 |
+| 2 (production, per `test_request_budget.py`) | 46 | 2 of 4 | 2/2 | 46 |
+| 3 | 46 | 2 of 6 | **2/3** | 69 |
+| 5 | 46 | 2 of 10 | 2/5 | **115** |
+
+At two windows the run stops at half its budget and never pre-discovers the second week
+of either window; at three, the acceptance line "the last window still served" fails —
+the third window's next round is left to the 09:00 refresh. That refresh
+(`run_refresh_slate`) has no budget at all, and at five windows spends 115 in one hour
+against a 100/hour plan. With a raw-equals-played pool (the batch's own test data) the
+arithmetic comes out right, which is why the gate is green.
+
+**Disproof attempted.** Checked that `run_discover_fixtures` passes the raw pool
+(`competition_ids=pooled or None`), that nothing trims it before `per_walk` is computed,
+and that `odds_api.fetch_slate` does trim (`_uk_leagues` → `is_played`). The pool figures
+are the repo's measurement, not production reads. The member-facing cost is modest because
+the refresh catches each window's next round a few hours later, hence MED.
+
+**Member impact:** rounds more than a week out are not created by the morning job, and in
+a three-window deployment one league's next round appears hours later than the others'.
+
+**Fix:** compute `per_walk` from the competitions that will actually be walked (intersect
+with `is_played`, or pass `played(pooled)` from the job), and give `run_refresh_slate` the
+same budget. API-carrying.
 
 ## Checked and found nothing material
 

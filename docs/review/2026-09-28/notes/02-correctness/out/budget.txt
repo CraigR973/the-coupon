@@ -1,0 +1,17 @@
+settings.discovery_request_budget = 90, horizon 2; pool 23 competitions
+1 window(s): daily run 46 req / 2 walks, windows served 1/1 (unbudgeted would be 46); refresh run (no budget, horizon 1) 23 req, x2/day = 46
+2 window(s): daily run 69 req / 3 walks, windows served 2/2 (unbudgeted would be 92); refresh run (no budget, horizon 1) 46 req, x2/day = 92
+3 window(s): daily run 69 req / 3 walks, windows served 3/3 (unbudgeted would be 138); refresh run (no budget, horizon 1) 69 req, x2/day = 138
+4 window(s): daily run 69 req / 3 walks, windows served 3/4 (unbudgeted would be 184); refresh run (no budget, horizon 1) 92 req, x2/day = 184
+5 window(s): daily run 69 req / 3 walks, windows served 3/5 (unbudgeted would be 230); refresh run (no budget, horizon 1) 115 req, x2/day = 230
+6 window(s): daily run 69 req / 3 walks, windows served 3/6 (unbudgeted would be 276); refresh run (no budget, horizon 1) 138 req, x2/day = 276
+Batch 161: 3 leagues x 40 submissions -> admitted {'A': 40, 'B': 10, 'C': 0}, total 50 (installation limit 50/hour;100/day)
+--- pool shape: 36 pooled / 23 played (production 2026-09-27) ---
+settings.discovery_request_budget = 90, horizon 2; pool 36 competitions
+1 window(s): daily run 46 req / 2 walks, windows served 1/1 (unbudgeted would be 46); refresh run (no budget, horizon 1) 23 req, x2/day = 46
+2 window(s): daily run 46 req / 2 walks, windows served 2/2 (unbudgeted would be 92); refresh run (no budget, horizon 1) 46 req, x2/day = 92
+3 window(s): daily run 46 req / 2 walks, windows served 2/3 (unbudgeted would be 138); refresh run (no budget, horizon 1) 69 req, x2/day = 138
+4 window(s): daily run 46 req / 2 walks, windows served 2/4 (unbudgeted would be 184); refresh run (no budget, horizon 1) 92 req, x2/day = 184
+5 window(s): daily run 46 req / 2 walks, windows served 2/5 (unbudgeted would be 230); refresh run (no budget, horizon 1) 115 req, x2/day = 230
+6 window(s): daily run 46 req / 2 walks, windows served 2/6 (unbudgeted would be 276); refresh run (no budget, horizon 1) 138 req, x2/day = 276
+Batch 161: 3 leagues x 40 submissions -> admitted {'A': 40, 'B': 10, 'C': 0}, total 50 (installation limit 50/hour;100/day)
