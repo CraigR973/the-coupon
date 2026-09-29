@@ -98,7 +98,14 @@ and the scratch clone:
 | add `pytest.ini`, `.eslintignore`; edit `check-migration-recovery.sh`, `AGENTS.md`, `batch-start.md` | passes (G19, G22-G24) |
 | loosen an assertion in place, `# type: ignore`, `eslint-disable` | passes (G04-G06), by design — the guardrail checks files, not content |
 
-PENDING-COMBINED
+**Then the whole gate, over six weakenings at once** (`combined_weakening.py`): a core
+assertion loosened in place (the installation pick budget now accepts 201 *or* 429); a
+backend test deleted and a trivial one added; a test dropped at collection by the
+unprotected `conftest.py` and another trivial one added; a real type error in `src` silenced
+with `# type: ignore`; a real lint error silenced with `eslint-disable`; a frontend test
+swapped for `expect(true).toBe(true)` plus an `it.todo`. `SKIP_PROD_BUNDLE=1
+scripts/ci-local.sh` in the worktree, 14:22-14:34 on 29 Sep: **"ci-local: PASS (10
+checks)"** — backend 1,350 tests and frontend 1,204, zero skipped, exactly the ratchets.
 
 The self-approval route is not hypothetical: it is how the approval table arrived. Batch
 153's own branch added `153) … scripts/assert-quality-guardrails.sh` and the modified

@@ -169,3 +169,4 @@ Doc: complete except PENDING-COMBINED, PIPE-03 row, PENDING-NODB(+DOC), PENDING-
 rehearsal on an alternative port, no-DB pytest split for doc corrections; write the doc.
 - 14:40 combined gate backend: PASS (1350 tests, 0 skipped) over the weakenings; PIPE-12 wording corrected (120-122 were API-only; Group N shipped at 89217f82, the commit that turned CI green).
 - 14:46 no-DB split measured: 800 passed / 550 skipped (nodb-pytest-output.txt); doc corrections filled.
+- 14:50 combined gate: ci-local PASS (10 checks), 1350/1204, 0 skipped, over six weakenings; PENDING-COMBINED filled.
