@@ -1,0 +1,211 @@
+[
+ {
+  "endpoint": "https://push.invalid/Hank",
+  "title": "League Two (Friday)",
+  "body": "Gameweek 1 has settled. You had no pick this round.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "effcbc8d-8de5-4c40-ba2a-8ed9f29cb8b1",
+   "url": "/leagues/l2-friday/predictions?gw=9d9d9f4a-d4c3-44b8-821b-f9302095f28d#coupon"
+  },
+  "tag": "round-settled-effcbc8d-8de5-4c40-ba2a-8ed9f29cb8b1-9d9d9f4a-d4c3-44b8-821b-f9302095f28d"
+ },
+ {
+  "endpoint": "https://push.invalid/Alice",
+  "title": "League Two (Friday)",
+  "body": "Gameweek 1 has settled. Your pick, Both teams score (Brentford v Wolves) @ 2.10, won 21 points.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "effcbc8d-8de5-4c40-ba2a-8ed9f29cb8b1",
+   "url": "/leagues/l2-friday/predictions?gw=9d9d9f4a-d4c3-44b8-821b-f9302095f28d#coupon"
+  },
+  "tag": "round-settled-effcbc8d-8de5-4c40-ba2a-8ed9f29cb8b1-9d9d9f4a-d4c3-44b8-821b-f9302095f28d"
+ },
+ {
+  "endpoint": "https://push.invalid/Dan",
+  "title": "League Two (Friday)",
+  "body": "Gameweek 1 has settled. Your pick, Fulham (at Everton) @ 3.10, won 31 points.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "effcbc8d-8de5-4c40-ba2a-8ed9f29cb8b1",
+   "url": "/leagues/l2-friday/predictions?gw=9d9d9f4a-d4c3-44b8-821b-f9302095f28d#coupon"
+  },
+  "tag": "round-settled-effcbc8d-8de5-4c40-ba2a-8ed9f29cb8b1-9d9d9f4a-d4c3-44b8-821b-f9302095f28d"
+ },
+ {
+  "endpoint": "https://push.invalid/Gina",
+  "title": "League Two (Friday)",
+  "body": "Gameweek 1 has settled. Your pick, Arsenal (v Chelsea) @ 1.90, lost.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "effcbc8d-8de5-4c40-ba2a-8ed9f29cb8b1",
+   "url": "/leagues/l2-friday/predictions?gw=9d9d9f4a-d4c3-44b8-821b-f9302095f28d#coupon"
+  },
+  "tag": "round-settled-effcbc8d-8de5-4c40-ba2a-8ed9f29cb8b1-9d9d9f4a-d4c3-44b8-821b-f9302095f28d"
+ },
+ {
+  "endpoint": "https://push.invalid/Alice",
+  "title": "League One (defaults)",
+  "body": "Gameweek 1 has settled. Your pick, Motherwell (at Aberdeen), was void \u2014 no points.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "d154d089-d40a-4248-8d34-130190163069",
+   "url": "/leagues/l1-defaults/predictions?gw=f6f6c519-9d49-452b-a7a3-334700759bdd#coupon"
+  },
+  "tag": "round-settled-d154d089-d40a-4248-8d34-130190163069-f6f6c519-9d49-452b-a7a3-334700759bdd"
+ },
+ {
+  "endpoint": "https://push.invalid/Dan",
+  "title": "League One (defaults)",
+  "body": "Gameweek 1 has settled. Your pick, Rangers (at Celtic) @ 3.10, won 31 points.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "d154d089-d40a-4248-8d34-130190163069",
+   "url": "/leagues/l1-defaults/predictions?gw=f6f6c519-9d49-452b-a7a3-334700759bdd#coupon"
+  },
+  "tag": "round-settled-d154d089-d40a-4248-8d34-130190163069-f6f6c519-9d49-452b-a7a3-334700759bdd"
+ },
+ {
+  "endpoint": "https://push.invalid/Bob",
+  "title": "League One (defaults)",
+  "body": "Gameweek 1 has settled. Your pick, Celtic (v Rangers) @ 2.40, lost.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "d154d089-d40a-4248-8d34-130190163069",
+   "url": "/leagues/l1-defaults/predictions?gw=f6f6c519-9d49-452b-a7a3-334700759bdd#coupon"
+  },
+  "tag": "round-settled-d154d089-d40a-4248-8d34-130190163069-f6f6c519-9d49-452b-a7a3-334700759bdd"
+ },
+ {
+  "endpoint": "https://push.invalid/Carol",
+  "title": "League One (defaults)",
+  "body": "Gameweek 1 has settled. Your pick, Aberdeen (v Motherwell), was void \u2014 no points.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "d154d089-d40a-4248-8d34-130190163069",
+   "url": "/leagues/l1-defaults/predictions?gw=f6f6c519-9d49-452b-a7a3-334700759bdd#coupon"
+  },
+  "tag": "round-settled-d154d089-d40a-4248-8d34-130190163069-f6f6c519-9d49-452b-a7a3-334700759bdd"
+ },
+ {
+  "endpoint": "https://push.invalid/R04",
+  "title": "Race (selection)",
+  "body": "Gameweek 1 has settled. Your pick, Aberdeen (v Motherwell), was void \u2014 no points.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "17169ab2-41bd-4a45-bbc9-028a7a5acd08",
+   "url": "/leagues/l3-race-sel/predictions?gw=e7961d73-443d-42e0-b089-331e5582a875#coupon"
+  },
+  "tag": "round-settled-17169ab2-41bd-4a45-bbc9-028a7a5acd08-e7961d73-443d-42e0-b089-331e5582a875"
+ },
+ {
+  "endpoint": "https://push.invalid/R03",
+  "title": "Race (selection)",
+  "body": "Gameweek 1 has settled. Your pick, Draw (Aberdeen v Motherwell), was void \u2014 no points.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "17169ab2-41bd-4a45-bbc9-028a7a5acd08",
+   "url": "/leagues/l3-race-sel/predictions?gw=e7961d73-443d-42e0-b089-331e5582a875#coupon"
+  },
+  "tag": "round-settled-17169ab2-41bd-4a45-bbc9-028a7a5acd08-e7961d73-443d-42e0-b089-331e5582a875"
+ },
+ {
+  "endpoint": "https://push.invalid/R08",
+  "title": "Race (selection)",
+  "body": "Gameweek 1 has settled. Your pick, Draw (Celtic v Rangers) @ 3.20, lost.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "17169ab2-41bd-4a45-bbc9-028a7a5acd08",
+   "url": "/leagues/l3-race-sel/predictions?gw=e7961d73-443d-42e0-b089-331e5582a875#coupon"
+  },
+  "tag": "round-settled-17169ab2-41bd-4a45-bbc9-028a7a5acd08-e7961d73-443d-42e0-b089-331e5582a875"
+ },
+ {
+  "endpoint": "https://push.invalid/R02",
+  "title": "Race (selection)",
+  "body": "Gameweek 1 has settled. Your pick, Motherwell (at Aberdeen), was void \u2014 no points.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "17169ab2-41bd-4a45-bbc9-028a7a5acd08",
+   "url": "/leagues/l3-race-sel/predictions?gw=e7961d73-443d-42e0-b089-331e5582a875#coupon"
+  },
+  "tag": "round-settled-17169ab2-41bd-4a45-bbc9-028a7a5acd08-e7961d73-443d-42e0-b089-331e5582a875"
+ },
+ {
+  "endpoint": "https://push.invalid/R06",
+  "title": "Race (selection)",
+  "body": "Gameweek 1 has settled. Your pick, Both teams score (Celtic v Rangers) @ 1.95, lost.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "17169ab2-41bd-4a45-bbc9-028a7a5acd08",
+   "url": "/leagues/l3-race-sel/predictions?gw=e7961d73-443d-42e0-b089-331e5582a875#coupon"
+  },
+  "tag": "round-settled-17169ab2-41bd-4a45-bbc9-028a7a5acd08-e7961d73-443d-42e0-b089-331e5582a875"
+ },
+ {
+  "endpoint": "https://push.invalid/R09",
+  "title": "Race (selection)",
+  "body": "Gameweek 1 has settled. Your pick, Celtic (v Rangers) @ 2.40, lost.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "17169ab2-41bd-4a45-bbc9-028a7a5acd08",
+   "url": "/leagues/l3-race-sel/predictions?gw=e7961d73-443d-42e0-b089-331e5582a875#coupon"
+  },
+  "tag": "round-settled-17169ab2-41bd-4a45-bbc9-028a7a5acd08-e7961d73-443d-42e0-b089-331e5582a875"
+ },
+ {
+  "endpoint": "https://push.invalid/R05",
+  "title": "Race (selection)",
+  "body": "Gameweek 1 has settled. Your pick, No \u2014 not both score (Millwall v Watford) @ 1.65, won 17 points.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "17169ab2-41bd-4a45-bbc9-028a7a5acd08",
+   "url": "/leagues/l3-race-sel/predictions?gw=e7961d73-443d-42e0-b089-331e5582a875#coupon"
+  },
+  "tag": "round-settled-17169ab2-41bd-4a45-bbc9-028a7a5acd08-e7961d73-443d-42e0-b089-331e5582a875"
+ },
+ {
+  "endpoint": "https://push.invalid/R07",
+  "title": "Race (selection)",
+  "body": "Gameweek 1 has settled. Your pick, Rangers (at Celtic) @ 3.10, won 31 points.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "17169ab2-41bd-4a45-bbc9-028a7a5acd08",
+   "url": "/leagues/l3-race-sel/predictions?gw=e7961d73-443d-42e0-b089-331e5582a875#coupon"
+  },
+  "tag": "round-settled-17169ab2-41bd-4a45-bbc9-028a7a5acd08-e7961d73-443d-42e0-b089-331e5582a875"
+ },
+ {
+  "endpoint": "https://push.invalid/R10",
+  "title": "Race (selection)",
+  "body": "Gameweek 1 has settled. Your pick, No \u2014 not both score (Derby v Luton) @ 2.10, won 21 points.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "17169ab2-41bd-4a45-bbc9-028a7a5acd08",
+   "url": "/leagues/l3-race-sel/predictions?gw=e7961d73-443d-42e0-b089-331e5582a875#coupon"
+  },
+  "tag": "round-settled-17169ab2-41bd-4a45-bbc9-028a7a5acd08-e7961d73-443d-42e0-b089-331e5582a875"
+ },
+ {
+  "endpoint": "https://push.invalid/R01",
+  "title": "Race (selection)",
+  "body": "Gameweek 1 has settled. Your pick, Both teams score (Aberdeen v Motherwell), was void \u2014 no points.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "17169ab2-41bd-4a45-bbc9-028a7a5acd08",
+   "url": "/leagues/l3-race-sel/predictions?gw=e7961d73-443d-42e0-b089-331e5582a875#coupon"
+  },
+  "tag": "round-settled-17169ab2-41bd-4a45-bbc9-028a7a5acd08-e7961d73-443d-42e0-b089-331e5582a875"
+ },
+ {
+  "endpoint": "https://push.invalid/R11",
+  "title": "Race (selection)",
+  "body": "Gameweek 1 has settled. Your pick, Both teams score (Derby v Luton) @ 1.75, lost.",
+  "data": {
+   "type": "round_settled",
+   "league_id": "17169ab2-41bd-4a45-bbc9-028a7a5acd08",
+   "url": "/leagues/l3-race-sel/predictions?gw=e7961d73-443d-42e0-b089-331e5582a875#coupon"
+  },
+  "tag": "round-settled-17169ab2-41bd-4a45-bbc9-028a7a5acd08-e7961d73-443d-42e0-b089-331e5582a875"
+ }
+]

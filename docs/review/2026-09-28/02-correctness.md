@@ -37,6 +37,12 @@ in `notes/02-correctness/` (`out/*.txt`).
 | CORR-14 | 130 | **partial** | Held for the path Batch 130 wired: in L1, four of five picked and the fifth *left* → one completion row with an empty picker name, "4/4 picked — all picks are in" pushed to the four remaining members; a later pick move by Bob wrote no second row and was announced as an ordinary move. **Not fixed on the self-deletion path Batch 136 added two days later** — see CORR-19 (`out/completion.txt`) |
 | CORR-09 | 121 | **held**, residual in CORR-20 | Saturday→Friday window edit on Wed 30 Sep, driven over HTTP with discovery re-run: the stray Saturday round with **no** pick was retired (L5, Batch 112's rule intact); the stray holding Bob's pick was kept, and both settle passes refused it with `same-football-week settlement refused … reason=undeclared_same_week_round` while the Friday round settled — one scoring round, standings sum only Friday (`out/window.txt`). But the kept stray **still accepted a new pick** after the edit (Carol, 201) — CORR-20 |
 | CORR-13 | 121 | **not fixed** | The same reproduction: `GET /leagues/l6-sat-picked/gameweeks` labels both the Friday round and the stray Saturday round `season_week = '1'`, so the member still sees two "Gameweek 1" entries in one football week. Batch 121's verification line asked for "exactly one scoring round and one label"; the settle guard delivered the first half only (`out/window.txt`) |
+| CORR-10 | 131 | **held** | Settled L1 with two void legs (the fixture marked every runner `REMOVED`): Alice and Carol, void-only in L1, show `win_rate_pct = null` on `/standings` and Carol's `/players/{id}/profile`; Carol's cross-league summary reads 1 won of 2 played, 1 priced → **100%**, Alice's 1 won of 3 played, 2 priced → 50%; Bob (one loss) 0%. Every surface that shows a win rate reads `Standing.win_rate_pct` or divides by `picks_priced` (`out/lifecycle.txt`) |
+| CORR-18 | 157 | **held** | `GET /me/cross-league-summary` carries neither `avg_rank` nor `avg_rank_leagues` for three members; the web source references them only in a comment (`lib/types.ts:654`) |
+| void legs (owner decision) | 156 | **partial** | The coupon screen is right — `GET /coupon` for L1 returns `combined_odds 7.44` = 3.10 × 2.40 with `void_leg_count 2`, and the share text reads the same fields. But the Results list and home's "Last result" panel still multiply the void legs: **54.91** for the same round. CORR-21 |
+| FEAT-A10 (pick correction) | 134 | **held**, gap in CORR-22 | `POST /admin/picks/{id}/correct` as the site admin flipped Bob lost → won 24; the repeat returned `changed: false` and wrote no audit row; a league admin got 403. Standings, the coupon (leg `won 24`, `all_won false`), the Results row (`picks_won` 1 → 2, winner still Dan on 31) and the cross-league summary all agreed on the next read. Two simultaneous corrections of Dan's pick with different scores serialised on the row lock: both 200, each reporting the true `before`, final state = the later one, two audit rows in order. No push was sent — CORR-22 |
+| FEAT-B08 (settle notification) | 135 | **held**, gap in CORR-23 | `run_settle_gameweeks` with the clock pinned to Sat 3 Oct 20:00Z: one push per active, unmuted member of each settled round, each naming their own result ("won 31 points", "lost", "was void — no points", "You had no pick this round"); the muted L2 member got nothing; the member who had left L1 and the deleted member got nothing; a second sweep sent **zero** (`out/lifecycle-pushes.json`). The admin hand-entry path was not re-driven |
+| FEAT-B07 (anonymise, keep history) | 136 | **held** | After Bob deleted his account: L1's live table shows "Former member 24", the 2025/26 archive "Former member 25" at #1, the Results row names "Former member" as that week's winner, his coupon leg reads "Former member won 2.40 24"; Alice's, Carol's and Dan's points, win rates and summaries were byte-identical before and after (`out/lifecycle.txt`) |
 
 ## Register
 
@@ -44,6 +50,9 @@ in `notes/02-correctness/` (`out/*.txt`).
 | --- | --- | --- | --- | --- |
 | CORR-19 | MED | live | verified | A member deleting their own account completes the round silently, and the next pick change is announced as the completing pick |
 | CORR-20 | MED | live | verified | A round the settle guard will never settle is still offered for picks, which then stay pending for ever |
+| CORR-21 | LOW | live | verified | The Results list and home's "Last result" still multiply void legs into the combined price the coupon screen excludes |
+| CORR-22 | LOW | live | verified | A pick correction is silent: the member told "lost" by the settle push is never told they won |
+| CORR-23 | LOW | live | verified | A round nobody picked on never settles, so it is never announced and stays "locked" for ever |
 
 ## CORR-19 · MED · live · verified — self-deletion reopens CORR-14
 
@@ -116,6 +125,54 @@ stray), and the pick path should refuse (`ROUND_NOT_SCORING`, 409) a round
 `_same_week_round_may_settle` would refuse. Give the operator an explicit way to void a
 refused round's picks rather than leaving them pending. Travels with CORR-13's label fix.
 API-carrying.
+
+## CORR-21 · LOW · live · verified — two surfaces still price the void legs
+
+Batch 156 (owner decision: exclude void legs) changed `build_coupon` only. The same
+round's combined price is also computed by `scoring.gameweek_results` (the Results list,
+`scoring.py:773`) and by `me._last_results` / `me._latest_rounds` (home's "Last result"
+panel and card, `me.py:469`, `me.py:552`), and all three still pass every leg's
+`odds_at_pick` to `combined_odds`. L1's settled round with two void legs reads
+`combined_odds 7.44` on the coupon and **54.91** on `/results` and in the
+cross-league summary's `last_result` (`out/lifecycle.txt`). `leg_count` there also
+includes the void legs, so home prints "4-fold · 54.91" beside a coupon that says
+"2-fold @ 7.44 — 2 legs void, not in the price".
+
+**Member impact:** the same week's accumulator shows two different prices depending on
+which screen a member opens.
+
+**Fix:** filter void in the three other call sites (or have them share one helper with
+`build_coupon`), and carry `void_leg_count` on `GameweekResult` and `LastResult`.
+API-carrying; the web's two readers need the fold count adjusting.
+
+## CORR-22 · LOW · live · verified — a correction never reaches the member
+
+Batch 135 tells each member their result when a round settles; Batch 134's correction
+rewrites that result afterwards and sends nothing (`routers/admin.py correct_pick`). In
+the reproduction Bob received "Your pick, Celtic (v Rangers) @ 2.40, lost."; the site
+admin then corrected him to won, 24 points; the captured push log stayed empty. Neither
+row asks for a notification, so this is a gap rather than a regression — but the one
+member whose result changed is the one person who will not look.
+
+**Member impact:** a member told they lost is never told a correction gave them points.
+
+**Fix:** after a correction that changes the result, send the same per-member settle
+line (tagged `round-settled-…` so it replaces the old one in the tray), gated by the
+league mute. API-carrying, small.
+
+## CORR-23 · LOW · live · verified — a round with no picks never settles
+
+`settle_gameweeks_via_provider` asks the provider only about rounds with pending picks
+and returns early when there are none (`scoring.py`, unchanged since before 2ce6f42), so
+a locked round nobody picked on is never flipped to `settled`. After the lifecycle run
+the race league whose picks had been cleared (L4) and L5 were still `locked` a day after
+their windows. Consequences since Batch 135: its members are never told "Gameweek N has
+settled. You had no pick this round.", the round never reaches the Results list, and it
+is re-selected by every settle sweep for ever. Rare in a live league (it needs every
+member to miss the deadline), which is why LOW.
+
+**Fix:** in `settle_gameweek(s)`, flip a locked round with no picks to `settled` once its
+window has closed, then announce it like any other.
 
 ## Checked and found nothing material
 

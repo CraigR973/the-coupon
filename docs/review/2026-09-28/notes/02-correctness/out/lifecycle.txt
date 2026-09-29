@@ -1,0 +1,70 @@
+L2 round 2026-10-02 fixtures on card: 3 (['English Premier League', 'English Championship', 'English Premier League'])
+L2 Gina MATCH_ODDS/HOME fixture 0 -> 201
+L2 Alice BOTH_TEAMS_TO_SCORE/YES fixture 1 -> 201
+L2 Dan MATCH_ODDS/AWAY fixture 2 -> 201
+L2 Hank BTTS/NO on Gina's fixture (fixture scope) -> 409 FIXTURE_TAKEN
+L1 Carol picks an L2-only Friday fixture -> 404 Fixture is not on this league's slate
+  pick l1-defaults Alice: rf-1003-4 MATCH_ODDS/AWAY @ 2.05
+  pick l1-defaults Carol: rf-1003-4 MATCH_ODDS/HOME @ 3.60
+  pick l1-defaults Dan: rf-1003-1 MATCH_ODDS/AWAY @ 3.10
+  pick l1-defaults Bob: rf-1003-1 MATCH_ODDS/HOME @ 2.40
+  pick l2-friday Gina: rf-1002-0 MATCH_ODDS/HOME @ 1.90
+  pick l2-friday Alice: rf-1002-2 BOTH_TEAMS_TO_SCORE/YES @ 2.10
+  pick l2-friday Dan: rf-1002-1 MATCH_ODDS/AWAY @ 3.10
+run_lock_gameweeks -> True
+run_settle_gameweeks -> True
+run_settle_gameweeks (again) -> True; new pushes on the re-run: 0
+  settle push -> Hank   [League Two (Friday)] Gameweek 1 has settled. You had no pick this round.
+  settle push -> Alice  [League Two (Friday)] Gameweek 1 has settled. Your pick, Both teams score (Brentford v Wolves) @ 2.10, won 21 points.
+  settle push -> Dan    [League Two (Friday)] Gameweek 1 has settled. Your pick, Fulham (at Everton) @ 3.10, won 31 points.
+  settle push -> Gina   [League Two (Friday)] Gameweek 1 has settled. Your pick, Arsenal (v Chelsea) @ 1.90, lost.
+  settle push -> Alice  [League One (defaults)] Gameweek 1 has settled. Your pick, Motherwell (at Aberdeen), was void — no points.
+  settle push -> Dan    [League One (defaults)] Gameweek 1 has settled. Your pick, Rangers (at Celtic) @ 3.10, won 31 points.
+  settle push -> Bob    [League One (defaults)] Gameweek 1 has settled. Your pick, Celtic (v Rangers) @ 2.40, lost.
+  settle push -> Carol  [League One (defaults)] Gameweek 1 has settled. Your pick, Aberdeen (v Motherwell), was void — no points.
+  settle push -> R04    [Race (selection)] Gameweek 1 has settled. Your pick, Aberdeen (v Motherwell), was void — no points.
+  settle push -> R03    [Race (selection)] Gameweek 1 has settled. Your pick, Draw (Aberdeen v Motherwell), was void — no points.
+  settle push -> R08    [Race (selection)] Gameweek 1 has settled. Your pick, Draw (Celtic v Rangers) @ 3.20, lost.
+  settle push -> R02    [Race (selection)] Gameweek 1 has settled. Your pick, Motherwell (at Aberdeen), was void — no points.
+  settle push -> R06    [Race (selection)] Gameweek 1 has settled. Your pick, Both teams score (Celtic v Rangers) @ 1.95, lost.
+  settle push -> R09    [Race (selection)] Gameweek 1 has settled. Your pick, Celtic (v Rangers) @ 2.40, lost.
+  settle push -> R05    [Race (selection)] Gameweek 1 has settled. Your pick, No — not both score (Millwall v Watford) @ 1.65, won 17 points.
+  settle push -> R07    [Race (selection)] Gameweek 1 has settled. Your pick, Rangers (at Celtic) @ 3.10, won 31 points.
+  settle push -> R10    [Race (selection)] Gameweek 1 has settled. Your pick, No — not both score (Derby v Luton) @ 2.10, won 21 points.
+  settle push -> R01    [Race (selection)] Gameweek 1 has settled. Your pick, Both teams score (Aberdeen v Motherwell), was void — no points.
+  settle push -> R11    [Race (selection)] Gameweek 1 has settled. Your pick, Both teams score (Derby v Luton) @ 1.75, lost.
+[after settle] L1 coupon: legs 4 void 2 combined 7.44 all_won False :: Alice void 2.05 0, Carol void 3.6 0, Dan won 3.1 31, Bob lost 2.4 0
+[after settle] L1 results: 2026-10-03 legs 4 combined 54.91 winners ['Dan'] 31 won 1 | 2026-05-02 legs 2 combined 7.5 winners ['Bob'] 25 won 1
+[after settle] Alice summary: pts 21 won 1/3 priced 2 win_rate 50 | L1 last_result legs 4 combined 54.91 my_pick void | keys has avg_rank: False
+[after settle] Carol summary: pts 19 won 1/2 priced 1 win_rate 100 | L1 last_result legs 4 combined 54.91 my_pick void | keys has avg_rank: False
+[after settle] Dan summary: pts 62 won 2/2 priced 2 win_rate 100 | L1 last_result legs 4 combined 54.91 my_pick won | keys has avg_rank: False
+[after settle] l1-defaults standings: #1 Dan 31 (1/1, rate 100), #2 Alice 0 (0/1, rate None), #2 Bob 0 (0/1, rate 0), #2 Carol 0 (0/1, rate None)
+[after settle] l2-friday standings: #1 Dan 31 (1/1, rate 100), #2 Alice 21 (1/1, rate 100), #3 Gina 0 (0/1, rate 0), #3 Hank 0 (0/0, rate None), #3 Ivy 0 (0/0, rate None)
+[after settle] L1 archive 2025/26: #1 Bob 25, #2 Alice 0, #2 Carol 0, #2 Dan 0
+[after settle] Carol's L1 profile win_rate None won 0/1
+L1 picks before correction: [('Alice', 'void', 0, 'AWAY'), ('Carol', 'void', 0, 'HOME'), ('Dan', 'won', 31, 'AWAY'), ('Bob', 'lost', 0, 'HOME')]
+correct Bob 3-0: 200 {'pick_id': '675ca347-2577-49e7-8999-44b5f9b61d9d', 'changed': True, 'status_before': 'lost', 'points_before': 0, 'status': 'won', 'points': 24} ; repeat: 200 changed=False
+league admin (not site admin) correcting: 403
+concurrent corrections of Dan: A 200 {'pick_id': '6e437af2-a3b1-4818-87df-17074542d39e', 'changed': True, 'status_before': 'won', 'points_before': 31, 'status': 'lost', 'points': 0} | B 200 {'pick_id': '6e437af2-a3b1-4818-87df-17074542d39e', 'changed': True, 'status_before': 'lost', 'points_before': 0, 'status': 'won', 'points': 31}
+audit rows: [("provider mis-settled Bob's fixture", {'points': 0, 'status': 'lost'}, {'points': 24, 'status': 'won'}), ('admin A says home', {'points': 31, 'status': 'won'}, {'points': 0, 'status': 'lost'}), ('admin B says away', {'points': 0, 'status': 'lost'}, {'points': 31, 'status': 'won'})]
+Dan final: ('won', 31)
+pushes sent by the corrections: []
+[after correction] L1 coupon: legs 4 void 2 combined 7.44 all_won False :: Alice void 2.05 0, Carol void 3.6 0, Dan won 3.1 31, Bob won 2.4 24
+[after correction] L1 results: 2026-10-03 legs 4 combined 54.91 winners ['Dan'] 31 won 2 | 2026-05-02 legs 2 combined 7.5 winners ['Bob'] 25 won 1
+[after correction] Alice summary: pts 21 won 1/3 priced 2 win_rate 50 | L1 last_result legs 4 combined 54.91 my_pick void | keys has avg_rank: False
+[after correction] Carol summary: pts 19 won 1/2 priced 1 win_rate 100 | L1 last_result legs 4 combined 54.91 my_pick void | keys has avg_rank: False
+[after correction] Dan summary: pts 62 won 2/2 priced 2 win_rate 100 | L1 last_result legs 4 combined 54.91 my_pick won | keys has avg_rank: False
+[after correction] l1-defaults standings: #1 Dan 31 (1/1, rate 100), #2 Bob 24 (1/1, rate 100), #3 Alice 0 (0/1, rate None), #3 Carol 0 (0/1, rate None)
+[after correction] l2-friday standings: #1 Dan 31 (1/1, rate 100), #2 Alice 21 (1/1, rate 100), #3 Gina 0 (0/1, rate 0), #3 Hank 0 (0/0, rate None), #3 Ivy 0 (0/0, rate None)
+[after correction] L1 archive 2025/26: #1 Bob 25, #2 Alice 0, #2 Carol 0, #2 Dan 0
+[after correction] Carol's L1 profile win_rate None won 0/1
+Bob deletes his account -> 204
+[after Bob erased] L1 coupon: legs 4 void 2 combined 7.44 all_won False :: Alice void 2.05 0, Carol void 3.6 0, Dan won 3.1 31, Former member won 2.4 24
+[after Bob erased] L1 results: 2026-10-03 legs 4 combined 54.91 winners ['Dan'] 31 won 2 | 2026-05-02 legs 2 combined 7.5 winners ['Former member'] 25 won 1
+[after Bob erased] Alice summary: pts 21 won 1/3 priced 2 win_rate 50 | L1 last_result legs 4 combined 54.91 my_pick void | keys has avg_rank: False
+[after Bob erased] Carol summary: pts 19 won 1/2 priced 1 win_rate 100 | L1 last_result legs 4 combined 54.91 my_pick void | keys has avg_rank: False
+[after Bob erased] Dan summary: pts 62 won 2/2 priced 2 win_rate 100 | L1 last_result legs 4 combined 54.91 my_pick won | keys has avg_rank: False
+[after Bob erased] l1-defaults standings: #1 Dan 31 (1/1, rate 100), #2 Former member 24 (1/1, rate 100), #3 Alice 0 (0/1, rate None), #3 Carol 0 (0/1, rate None)
+[after Bob erased] l2-friday standings: #1 Dan 31 (1/1, rate 100), #2 Alice 21 (1/1, rate 100), #3 Gina 0 (0/1, rate 0), #3 Hank 0 (0/0, rate None), #3 Ivy 0 (0/0, rate None)
+[after Bob erased] L1 archive 2025/26: #1 Former member 25, #2 Alice 0, #2 Carol 0, #2 Dan 0
+[after Bob erased] Carol's L1 profile win_rate None won 0/1
