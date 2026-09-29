@@ -47,6 +47,24 @@ number of competitions on the card rather than with data volume (PERF-18). The h
 summary at the stress shape returned **500** for a member of the 50-member league
 (PERF-19).
 
+## The web client, measured
+
+Production bundle built by the harness against the local API and served by
+`vite preview`; real Chromium (Playwright 1.x, Node 24), service worker blocked for the
+page counts. `notes/04-perf/bundle.mjs` → `bundle.json`; `browser.mjs` →
+`browser-run1.json` (120 s idle) and `browser.json` (render counts).
+
+| | 13 Sep | now |
+| --- | --- | --- |
+| bundle | 823.6 KB JS raw, 278.8 KB gzip, 67 chunks | **697.3 KiB raw, 237.6 KiB gzip, 68 chunks** |
+| cold `/login` | 9 requests, 166.6 KB | 9 requests, 168.6 KiB gzip (439 KiB raw) |
+| reaching home | ~34 requests, ~253 KB | 23 requests after sign-in; a warm reload of home 31 requests, 224 KiB gzip |
+| service worker precache | 82 files, 974 KiB, admin included | **70 entries, admin excluded** (0 admin chunks fetched, 70 in the precache cache) |
+| API calls per screen | home 2 · round 4 · standings 4 | home 3 (5.9 KiB) · round 5 · standings 5 (13 KiB) |
+| idle requests | 0 in 5 min | **0 in 120 s** on home, the round screen and standings |
+| idle renders per 5 s, round screen | whole screen every second | **5 commits × 1 component** |
+| Lighthouse mobile | 98 · 92 · 95 · 77 | *pending a quiet machine* |
+
 ## The provider budget, measured
 
 `notes/04-perf/provider_budget.py`: the real `OddsApiProvider` on an `httpx.MockTransport`
@@ -123,6 +141,10 @@ leaves out (see Doc corrections).
 | PERF-12 | 164 | **held** | no chunk contains framer-motion or its runtime (`chunks_mentioning_framer_motion: []`); JS is **697.3 KiB raw / 237.6 KiB gzip in 68 chunks** (was 823.6 KB / 278.8 KB in 67). The dependency is still declared (PERF-22) |
 | OPS-11 | 127 | **held** | Node 24 in all three CI jobs (`ci.yml:61,78,97`), in the gate (`ci-local.sh:188`, `nvm use 24`), `.nvmrc` 24 and `apps/web` `engines.node: 24.x`, which is what the Vercel project builds from. Vercel's runtime itself is not observable read-only |
 | OPS-15 | not batched (owner, 24 Sep) | **not fixed, wider** | declared → current on npm today (`npm-latest.txt`): Vite 5 → 8, ESLint 8 → 10, Tailwind 3 → 4, Vitest 2 → 5, vite-plugin-pwa 0.20 → 1.3, React 18 → 19, TypeScript 5 → 7. Three majors behind on the build tool now, against "several" on 13 Sep |
+| PERF-13 | 165 | **held** | a stub DevTools hook counting components that actually rendered in each commit (cloned fiber + `PerformedWork`), 3 × 5 s idle on the 264-fixture round screen at 390 px: **5 commits, 1 component each** — the countdown alone (`browser.mjs`, run 2). Home: 5 commits of 3 components. Standings: none |
+| PERF-15 | 165 | **held** | both context values are `useMemo`'d (`AuthContext.tsx:315`, `LeagueContext.tsx:87`) |
+| PERF-16 | 165 | **held for the standings key; factory partial** | `queryKeys.standings.forSeason` keys `'current'` apart from a named season; 42 inline `queryKey: [...]` literals remain outside the factory |
+| PERF-17 | 164 | **not fixed** | cold `/login` still downloads **three font files, 48.8 KiB, one preloaded** (`jetbrains-mono-600`, `outfit-400`, `outfit-600`) — the same payload as 13 Sep. Batch 164 removed a fourth file from the app, not from the sign-in screen (`browser-run1.json`) |
 | PERF-03 | 145 | **held locally; not checkable in production read-only** | 264-fixture slate 299,134 B → 15,202 B with `content-encoding: gzip`, `vary: Accept-Encoding`; responses under 4 KB deliberately uncompressed. Production's only public API responses (`/health`, 82 B) sit below the floor, so no header could prove it (`prod-health-headers.txt`) |
 
 ## Register

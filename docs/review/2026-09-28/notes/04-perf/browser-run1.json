@@ -1,0 +1,146 @@
+{
+ "cold_login": {
+  "requests": 9,
+  "raw_kib": 439.4,
+  "gzip_kib": 168.6,
+  "api_calls": 0,
+  "api_raw_kib": 0,
+  "api_paths": [],
+  "fonts": [
+   "jetbrains-mono-600.woff2",
+   "outfit-400.woff2",
+   "outfit-600.woff2"
+  ]
+ },
+ "login_to_home": {
+  "requests": 23,
+  "raw_kib": 160.5,
+  "gzip_kib": 55.6,
+  "api_calls": 4,
+  "api_raw_kib": 6.5,
+  "api_paths": [
+   "/api/v1/auth/login",
+   "/api/v1/me/rename-notice",
+   "/api/v1/leagues/mine",
+   "/api/v1/me/cross-league-summary"
+  ],
+  "fonts": [],
+  "landed": "/"
+ },
+ "home": {
+  "path": "/",
+  "landed": "/",
+  "requests": 31,
+  "raw_kib": 599.2,
+  "gzip_kib": 223.7,
+  "api_calls": 3,
+  "api_raw_kib": 5.9,
+  "api_paths": [
+   "/api/v1/me/rename-notice",
+   "/api/v1/leagues/mine",
+   "/api/v1/me/cross-league-summary"
+  ],
+  "fonts": [
+   "jetbrains-mono-600.woff2",
+   "outfit-400.woff2",
+   "outfit-600.woff2"
+  ],
+  "idle_5s": [
+   {
+    "commits": 5,
+    "components_rendered": 140
+   },
+   {
+    "commits": 5,
+    "components_rendered": 140
+   },
+   {
+    "commits": 5,
+    "components_rendered": 140
+   }
+  ],
+  "idle_requests": 0,
+  "idle_seconds": 120
+ },
+ "current_round": {
+  "path": "/leagues/the-coupon/predictions",
+  "landed": "/leagues/the-coupon/predictions",
+  "requests": 38,
+  "raw_kib": 919.2,
+  "gzip_kib": 248.5,
+  "api_calls": 5,
+  "api_raw_kib": 297.5,
+  "api_paths": [
+   "/api/v1/me/rename-notice",
+   "/api/v1/leagues/mine",
+   "/api/v1/leagues/the-coupon/gameweeks",
+   "/api/v1/leagues/the-coupon/coupon",
+   "/api/v1/leagues/the-coupon/gameweek/current"
+  ],
+  "fonts": [
+   "jetbrains-mono-600.woff2",
+   "outfit-600.woff2",
+   "outfit-400.woff2"
+  ],
+  "idle_5s": [
+   {
+    "commits": 5,
+    "components_rendered": 810
+   },
+   {
+    "commits": 5,
+    "components_rendered": 810
+   },
+   {
+    "commits": 5,
+    "components_rendered": 810
+   }
+  ],
+  "idle_requests": 0,
+  "idle_seconds": 120
+ },
+ "standings": {
+  "path": "/leagues/the-coupon/leaderboard",
+  "landed": "/leagues/the-coupon/leaderboard",
+  "requests": 34,
+  "raw_kib": 578,
+  "gzip_kib": 217.2,
+  "api_calls": 5,
+  "api_raw_kib": 13,
+  "api_paths": [
+   "/api/v1/me/rename-notice",
+   "/api/v1/leagues/the-coupon",
+   "/api/v1/leagues/mine",
+   "/api/v1/leagues/the-coupon/standings",
+   "/api/v1/leagues/the-coupon/seasons"
+  ],
+  "fonts": [
+   "jetbrains-mono-600.woff2",
+   "outfit-600.woff2",
+   "outfit-400.woff2"
+  ],
+  "idle_5s": [
+   {
+    "commits": 0,
+    "components_rendered": 0
+   },
+   {
+    "commits": 0,
+    "components_rendered": 0
+   },
+   {
+    "commits": 0,
+    "components_rendered": 0
+   }
+  ],
+  "idle_requests": 0,
+  "idle_seconds": 120
+ },
+ "service_worker": {
+  "requests_from_sw": 71,
+  "caches": {
+   "workbox-precache-v2-http://127.0.0.1:4340/": 70
+  },
+  "admin_chunks_fetched": 0
+ }
+}
