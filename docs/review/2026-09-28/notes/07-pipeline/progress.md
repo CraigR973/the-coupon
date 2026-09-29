@@ -125,3 +125,19 @@ Added 29 Sep 08:40-08:50 (verified):
 - check-closeout-safety.sh pattern `vercel.json` (root) is dead — file is apps/web/vercel.json
   (still covered by apps/web/*). check-deploy-drift.sh hardcodes ROOT and its tier-3 probe
   is "Batch 51". INFO.
+
+Added 29 Sep 14:30 (verified, gate-probes-output.txt, self-approval-output.txt):
+- Guardrail catches: ratchet lowered (G03), pyproject ruff/mypy (G07/G08), .eslintrc.cjs
+  (G09), tsconfig (G10), ci-local.sh (G11), phase-closeout.md (G13), closeout guard (G21).
+- Guardrail passes (by design or gap): skip/xfail (G01/G02 — left to the count step),
+  loosened assert (G04), type: ignore in src (G05), eslint-disable (G06), ratchet raised
+  (G14 — count step's exact match catches), NEW ruff.toml / mypy.ini / src/.eslintrc.json /
+  vitest.config.ts / pytest.ini / .eslintignore (G15-G19, G22), conftest.py pyfunc hook
+  (G20), check-migration-recovery.sh (G23), AGENTS.md + batch-start.md (G24).
+- G12: prepend `exit 0` to the guardrail → rc 0, prints nothing: the gate runs the branch's
+  own copy.
+- Self-approval (clone, feat/batch-999-probe, open row): adding a `999)` line approving
+  ci-local.sh + the guardrail → rc 0 and prints "Batch 999's owner-approved gate
+  maintenance changes". Control with the row ticked → rc 1.
+Next: tool-behaviour checks for the precedence files (ruff.toml, mypy.ini, nested eslintrc,
+vitest.config.ts, conftest hook), then the combined SKIP_PROD_BUNDLE=1 gate.

@@ -1,0 +1,6 @@
+S1 edit ci-local.sh, no approval line:
+rc=1 :: quality guardrails: FAIL — this batch changes its own gate or lint/type configuration:   scripts/ci-local.sh Move that work to an explicitly approved gate-maintenance batch. 
+S2 plus a self-added approval line for 999:
+rc=0 :: quality guardrails: PASS — Batch 999's owner-approved gate maintenance changes:   scripts/assert-quality-guardrails.sh   scripts/ci-local.sh quality guardrails: expected tests — backend 1350 · frontend 1204 
+S3 control: same, but the 999 row ticked:
+rc=1 :: quality guardrails: FAIL — this batch changes its own gate or lint/type configuration:   scripts/assert-quality-guardrails.sh   scripts/ci-local.sh Move that work to an explicitly approved gate-maintenance batch. 
