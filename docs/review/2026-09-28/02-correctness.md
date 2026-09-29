@@ -35,12 +35,15 @@ in `notes/02-correctness/` (`out/*.txt`).
 | --- | --- | --- | --- |
 | CORR-08 | 120 | **held** | 4 runs × 12 simultaneous HTTP submissions for one selection (2 in `selection` scope, 2 in `fixture` scope): each run exactly one 201 and eleven 409 (`SELECTION_TAKEN` / `FIXTURE_TAKEN`), zero 500s, `Access-Control-Allow-Origin` present on every 409; no 500 anywhere in the API log (`out/race.txt`) |
 | CORR-14 | 130 | **partial** | Held for the path Batch 130 wired: in L1, four of five picked and the fifth *left* → one completion row with an empty picker name, "4/4 picked — all picks are in" pushed to the four remaining members; a later pick move by Bob wrote no second row and was announced as an ordinary move. **Not fixed on the self-deletion path Batch 136 added two days later** — see CORR-19 (`out/completion.txt`) |
+| CORR-09 | 121 | **held**, residual in CORR-20 | Saturday→Friday window edit on Wed 30 Sep, driven over HTTP with discovery re-run: the stray Saturday round with **no** pick was retired (L5, Batch 112's rule intact); the stray holding Bob's pick was kept, and both settle passes refused it with `same-football-week settlement refused … reason=undeclared_same_week_round` while the Friday round settled — one scoring round, standings sum only Friday (`out/window.txt`). But the kept stray **still accepted a new pick** after the edit (Carol, 201) — CORR-20 |
+| CORR-13 | 121 | **not fixed** | The same reproduction: `GET /leagues/l6-sat-picked/gameweeks` labels both the Friday round and the stray Saturday round `season_week = '1'`, so the member still sees two "Gameweek 1" entries in one football week. Batch 121's verification line asked for "exactly one scoring round and one label"; the settle guard delivered the first half only (`out/window.txt`) |
 
 ## Register
 
 | id | sev | deploy | status | finding |
 | --- | --- | --- | --- | --- |
 | CORR-19 | MED | live | verified | A member deleting their own account completes the round silently, and the next pick change is announced as the completing pick |
+| CORR-20 | MED | live | verified | A round the settle guard will never settle is still offered for picks, which then stay pending for ever |
 
 ## CORR-19 · MED · live · verified — self-deletion reopens CORR-14
 
@@ -66,6 +69,52 @@ as that member completing it.
 **Fix:** call `settle_completion_after_roster_change` for each of the member's leagues
 after `delete_my_account` commits (read the league ids before the erasure, as the
 site-admin delete does), plus a test mirroring Batch 130's leave test for self-deletion.
+API-carrying.
+
+## CORR-20 · MED · live · verified — a round that can never settle still takes picks
+
+Batch 121 answered CORR-09 with a settle-time guard (`scoring._same_week_round_may_settle`):
+in a league's Wednesday-to-Tuesday week, an undeclared round that is not on the league's
+current weekday is refused, and so is the league's own round if an undeclared sibling
+has already settled. The guard is right about scoring, but nothing on the *offering*
+side knows about it — discovery still creates the round, the round list still shows it,
+and the pick path (`routers/picks.py:_round_playing` + `pick_refusal`) checks only status
+and time. Two reachable shapes, both reproduced (`notes/02-correctness/window_change.py`,
+`out/window.txt`):
+
+1. **The kept stray keeps taking picks.** L6 on Saturday defaults; Bob picks Saturday 3
+   Oct; the admin moves the league to Friday 19:00 on Wednesday; discovery creates Friday
+   2 Oct and keeps the Saturday round because it holds a pick. Carol then claims a
+   selection on that Saturday round — **201**. At settlement Friday settles and the
+   Saturday round is refused on both sweeps: Bob's and Carol's picks stay `pending`, the
+   round stays `locked`, and an error is logged every evening.
+2. **The league's own new round after its week already settled.** L7 on Friday
+   19:00; its Friday 2 Oct round settles (Carol 19 points); that night the admin moves it
+   to Saturday 15:00; the next discovery creates Saturday 3 Oct in the same football
+   week, labelled `1` like the settled Friday round, open for picks. Bob and Carol both
+   pick (201, 201). Settlement refuses it with `reason=undeclared_sibling_already_settled`
+   on every sweep — for ever. Neither the admin's manual settle (which calls the same
+   `settle_gameweek`) nor pick correction (settled picks only) can move it.
+
+No member is told anything: the picks read as pending indefinitely, and the table simply
+never moves for that week.
+
+**Disproof attempted.** Retirement cannot help — the stray in (1) holds a pick and the
+round in (2) is on the league's cadence, so both are legitimate by
+`retire_stranded_rounds`'s rules. Neither `sync_slate` nor `discover_fixtures` consults
+the settle guard's rule, and no refusal on the pick path mentions it. Rated MED rather
+than HIGH because standings stay internally consistent (one scoring round per league per
+week, the guard's purpose) and nobody gains points others could not; the harm is picks
+made in good faith that silently never count, plus a round stuck `locked` for ever.
+
+**Member impact:** after a mid-season window change, members can pick on a round that
+will never settle, and their picks sit "pending" indefinitely with no explanation.
+
+**Fix:** apply the guard's rule where rounds are offered: `sync_slate` should not create a
+round in a football week where the league already holds a settled round (or a kept
+stray), and the pick path should refuse (`ROUND_NOT_SCORING`, 409) a round
+`_same_week_round_may_settle` would refuse. Give the operator an explicit way to void a
+refused round's picks rather than leaving them pending. Travels with CORR-13's label fix.
 API-carrying.
 
 ## Checked and found nothing material

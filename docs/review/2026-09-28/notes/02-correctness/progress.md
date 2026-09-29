@@ -37,3 +37,4 @@ Interrupted once by a usage limit (28 Sep ~23:04); resumed 29 Sep 08:40 on a fre
 - CORR-08 held (race.py, out/race.txt). NOTE: pick buckets are in-memory; restart corr_api.sh to reset the 50/hour installation bucket after ~45 submissions.
 ## Next
 - DONE: CORR-14 partial + CORR-19 verified (completion.py). Next: settle-guard stranding (CORR-20 candidate), then void-leg surfaces, then CORR-09/13 window change.
+- DONE: CORR-09 held, CORR-13 not fixed, CORR-20 verified (window_change.py). Next: void legs on results/home (voids.py), then lifecycle L1/L2 + correction + settle notify.

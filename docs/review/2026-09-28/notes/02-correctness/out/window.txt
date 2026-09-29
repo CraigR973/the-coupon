@@ -1,0 +1,29 @@
+after first discovery l5-sat-empty: [(datetime.date(2026, 10, 3), 'open', 0), (datetime.date(2026, 10, 10), 'open', 0)]
+after first discovery l6-sat-picked: [(datetime.date(2026, 10, 3), 'open', 0), (datetime.date(2026, 10, 10), 'open', 0)]
+after first discovery l7-fri-then-sat: [(datetime.date(2026, 10, 2), 'open', 0), (datetime.date(2026, 10, 9), 'open', 0)]
+L6 Bob picks Saturday 2026-10-03 -> 201
+L7 Bob, Carol pick 2026-10-02 -> 201, 201
+PATCH l5-sat-empty -> Friday: 200
+PATCH l6-sat-picked -> Friday: 200
+after change + discovery l5-sat-empty: [(datetime.date(2026, 10, 2), 'open', 0), (datetime.date(2026, 10, 9), 'open', 0)]
+after change + discovery l6-sat-picked: [(datetime.date(2026, 10, 2), 'open', 0), (datetime.date(2026, 10, 3), 'open', 1), (datetime.date(2026, 10, 9), 'open', 0)]
+L6 labels: 2026-10-09='2', 2026-10-03='1', 2026-10-02='1'
+L6 Carol picks on stray Saturday (after change) -> 201
+L6 Alice picks Friday -> 201
+L7 settle Fri: {'resolved': 2, 'status': 'settled'}
+PATCH l7 -> Saturday after Friday settled: 200
+L7 after change + discovery: [(datetime.date(2026, 10, 2), 'settled', 2), (datetime.date(2026, 10, 3), 'open', 0), (datetime.date(2026, 10, 10), 'open', 0)]
+L7 labels: 2026-10-10='2' open, 2026-10-03='1' open, 2026-10-02='1' settled
+L7 Bob, Carol pick new Saturday -> 201, 201
+settle #1 l6-sat-picked 2026-10-02: {'resolved': 1, 'status': 'settled'}
+settle #1 l6-sat-picked 2026-10-03: {'resolved': 0, 'status': 'locked'}
+settle #1 l7-fri-then-sat 2026-10-03: {'resolved': 0, 'status': 'locked'}
+settle #2 l6-sat-picked 2026-10-02: {'resolved': 0, 'status': 'settled'}
+settle #2 l6-sat-picked 2026-10-03: {'resolved': 0, 'status': 'locked'}
+settle #2 l7-fri-then-sat 2026-10-03: {'resolved': 0, 'status': 'locked'}
+final l6-sat-picked: [(datetime.date(2026, 10, 2), 'settled', 1), (datetime.date(2026, 10, 3), 'locked', 2), (datetime.date(2026, 10, 9), 'open', 0)]
+standings l6-sat-picked: Alice 0pts/1, Bob 0pts/0, Carol 0pts/0
+picks l6-sat-picked: [('Alice', datetime.date(2026, 10, 2), 'lost'), ('Bob', datetime.date(2026, 10, 3), 'pending'), ('Carol', datetime.date(2026, 10, 3), 'pending')]
+final l7-fri-then-sat: [(datetime.date(2026, 10, 2), 'settled', 2), (datetime.date(2026, 10, 3), 'locked', 2), (datetime.date(2026, 10, 10), 'open', 0)]
+standings l7-fri-then-sat: Carol 19pts/1, Alice 0pts/0, Bob 0pts/1
+picks l7-fri-then-sat: [('Bob', datetime.date(2026, 10, 2), 'lost'), ('Carol', datetime.date(2026, 10, 2), 'won'), ('Bob', datetime.date(2026, 10, 3), 'pending'), ('Carol', datetime.date(2026, 10, 3), 'pending')]
