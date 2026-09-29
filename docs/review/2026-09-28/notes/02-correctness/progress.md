@@ -32,3 +32,8 @@ Interrupted once by a usage limit (28 Sep ~23:04); resumed 29 Sep 08:40 on a fre
 - Seeded by `seed_two_leagues.py` (L1 Sat defaults MO/selection; L2 Fri 19-22 lock 60 both markets EPL+Champ fixture scope;
   L3/L4 race leagues 12 members each, selection/fixture). `add_subs.py` gives every profile a fake push subscription.
 - Rounds after discovery: L1/L3/L4 Sat 3 Oct (lock 13:30Z), L2 Fri 2 Oct (lock 17:00Z). Calendar 2026 anchor 3 Oct.
+
+## Verified so far (also written into 02-correctness.md)
+- CORR-08 held (race.py, out/race.txt). NOTE: pick buckets are in-memory; restart corr_api.sh to reset the 50/hour installation bucket after ~45 submissions.
+## Next
+- CORR-19 candidate: self-deletion skips completion (script `selfdelete.py`).

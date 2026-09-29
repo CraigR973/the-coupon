@@ -1,0 +1,7 @@
+round e7961d73-443d-42e0-b089-331e5582a875 fixture Aberdeen v Motherwell HOME @ {'market': 'MATCH_ODDS', 'outcome': 'HOME', 'runner_name': 'Aberdeen', 'odds': 3.6, 'taken_by_player_id': None, 'taken_by_name': None, 'taken_at': None, 'mine': False}
+round e7961d73-443d-42e0-b089-331e5582a875 fixture Aberdeen v Motherwell HOME @ {'market': 'MATCH_ODDS', 'outcome': 'HOME', 'runner_name': 'Aberdeen', 'odds': 3.6, 'taken_by_player_id': None, 'taken_by_name': None, 'taken_at': None, 'mine': False}
+l3-race-sel MATCH_ODDS/HOME x12: {(201, 'created'): 1, (409, 'SELECTION_TAKEN'): 11}; CORS missing on none
+l3-race-sel MATCH_ODDS/HOME x12: {(201, 'created'): 1, (409, 'SELECTION_TAKEN'): 11}; CORS missing on none
+l4-race-fix MATCH_ODDS/HOME x12: {(409, 'FIXTURE_TAKEN'): 11, (201, 'created'): 1}; CORS missing on none
+l4-race-fix MATCH_ODDS/HOME x12: {(201, 'created'): 1, (409, 'FIXTURE_TAKEN'): 11}; CORS missing on none
+picks left after cleanup: 0
