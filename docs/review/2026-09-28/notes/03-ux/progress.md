@@ -59,19 +59,20 @@ produced by `POST /__e2e/settle` after picks + `POST /__e2e/lock` (phase B, dest
 - Cross-lens: lens 07 says UX-18 payout `opacity-60` is at `PickRow.tsx:238`, no batch.
 - Lens 02 already added rows to `screenshots/INDEX.md` — append only.
 
-## Findings so far (ids)
+## DONE — 30 Sep 2026
 
-UX-21 player-profile lost row opacity (MED) · UX-22 install gate landmark + live form behind (MED) ·
-UX-23 no h1 on profile loading/error (LOW) · UX-24 "Football Stats" tab wraps, icon 20×8 (LOW) ·
-UX-25 error vs empty on 6 more screens incl. the coupon (MED) · UX-26 tab-bar indicator +156px (LOW) ·
-UX-27 200% zoom header overflow 79px, account menu off-screen (LOW).
-Prior: UX-13 held (5.08/5.6 + axe clean); UX-18 NOT fixed (2.40 light / 2.81 dark, disabled-button
-caveat); reduced motion held (all animations 0 under reduce); UX-20 partial (chrome kept, 343/400 usable,
-but UX-27); UX-15 partial (pick labels fine at 320; stat labels, standings h1, profile lines truncate).
-UX-01 held (served viewport meta has no user-scalable/maximum-scale).
+Lens document complete: `../../03-ux-accessibility.md` (UX-21..UX-33, prior table, gate coverage,
+batches, owner decisions). Corpus: 422 captures + INDEX block (`make_index.py`). All scripts here.
 
-## Next step
+Phases driven, in order (the scratch data is now past all of them): open sweep → probes (zoom,
+contrast, motion, reflow, targets) → focus.mjs → obscured.mjs → toasts.mjs (+ `conflict-mock`) →
+keyboard.mjs + keyboard2.mjs → Alice/Carol picks → `/__e2e/lock` → sweep locked →
+`/__e2e/settle` → sweep settled (+ rerun) → sunday-club round reopened by SQL
+(`UPDATE gameweeks SET status='open', locks_at_utc=now()+2 days WHERE league=sunday-club`) →
+offline.mjs + offline_verify.mjs. The API was restarted once with `--keep-data` to reset the
+in-process per-member pick limit (10/hour).
 
-After targets+focus finish: write their results; run `toasts.mjs` (Bob/Carol/Alice real picks +
-mocked refusals), then `keyboard.mjs`; then Alice picks via API, `POST /__e2e/lock` →
-`sweep --phase locked`; `POST /__e2e/settle` → `sweep --phase settled` (+ contrast of PickRow lost leg).
+To reproduce from scratch: restart stack with `--seed`, `build_web.py`, `seed_states.py --reset
+--login`, then the phase order above.
+
+Processes: stack `ux` (8130) and `build_web.py` preview (4330) stopped at the end of the pass.
