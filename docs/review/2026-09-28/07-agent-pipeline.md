@@ -78,4 +78,165 @@ Scripts and raw output: `notes/07-pipeline/` (`replay_guards.sh`, `gate_probes.s
 | PIPE-18 | LOW | live | verified | Closed rows stay in the build plan's "Open batches" head, which is 78% closed rows |
 | PIPE-19 | INFO | live | verified | Dormant or stale agent machinery: an issue-driven workflow, stale metadata, an orphaned worktree |
 
-PENDING-SECTIONS
+## PIPE-10 · MED · live · verified — the gate is judged by the branch's own copy of the gate
+
+`ci-local.sh` runs `scripts/assert-quality-guardrails.sh` **from the working tree**, and the
+guardrail's list of protected files and its table of owner approvals both live inside that
+same file. So the thing being judged supplies the judge. Driven in the throwaway worktree
+and the scratch clone:
+
+| probe | guardrail |
+| --- | --- |
+| edit `pyproject.toml` ruff or mypy settings, `.eslintrc.cjs`, `tsconfig.json`, `ci-local.sh`, `phase-closeout.md`, `check-closeout-safety.sh`; lower the ratchet | **refused** (G03, G07-G11, G13, G21) |
+| prepend `exit 0` to the guardrail itself | **passes, silently** (G12) |
+| on `feat/batch-999-probe` with an open row, add a `999)` line approving `ci-local.sh` and the guardrail | **passes**, printing "Batch 999's owner-approved gate maintenance changes"; refused once the row is ticked |
+| add `apps/api/mypy.ini` with `ignore_errors = True` | passes — and a real type error in `src` then passes mypy (was exit 1, now 0) |
+| add `apps/web/src/.eslintrc.json` turning a rule off | passes — and an `any` that failed lint then passes |
+| add `apps/api/ruff.toml` (`line-length = 100`, `select = ["E"]`) | passes — and an unused local that failed ruff then passes |
+| add `apps/web/vitest.config.ts` | passes — and vitest uses it instead of `vite.config.ts` |
+| add three lines to `tests/conftest.py` (`pytest_pyfunc_call` returning `True`) | passes — and "1 failed, 9 passed" becomes "10 passed", count unchanged |
+| add `pytest.ini`, `.eslintignore`; edit `check-migration-recovery.sh`, `AGENTS.md`, `batch-start.md` | passes (G19, G22-G24) |
+| loosen an assertion in place, `# type: ignore`, `eslint-disable` | passes (G04-G06), by design — the guardrail checks files, not content |
+
+PENDING-COMBINED
+
+The self-approval route is not hypothetical: it is how the approval table arrived. Batch
+153's own branch added `153) … scripts/assert-quality-guardrails.sh` and the modified
+guardrail then approved its own modification (`eabe49d`). The owner had approved that one
+in the row; the script cannot tell, because it checks only that the row is open, not that
+an approval is written in it. The comment asking agents not to add entries "on an agent's
+own judgement" is the only control.
+
+Before rating this, the pass tried to disprove it: every probe was re-run from a clean tree,
+the precedence checks were run with the tools exactly as `ci-local.sh` invokes them, and the
+control (ticked row) was refused. What keeps it MED rather than HIGH: none of the 55 code
+commits since `2ce6f42` did any of this — the agents' record is clean (see "Checked and found
+nothing material") — and each route is a deliberate edit that would show in the diff the
+owner reviews after the deploy.
+
+**Impact on a member:** an agent under pressure to reach green can turn a check off from
+inside its own branch, and the fault it was hiding deploys to members on the close-out push.
+
+**Fix:** run the guardrail and the count step from `main`'s copy (`git show
+main:scripts/assert-quality-guardrails.sh | bash`), so a branch's gate edits only take effect
+after merge; move the approval table out of the branch's reach (read it from `main`, and
+require the approving row to quote the file list); protect by pattern, not by name —
+`**/conftest.py`, `**/pytest.ini`, `**/mypy.ini`, `**/.mypy.ini`, `**/ruff.toml`,
+`**/.ruff.toml`, `**/setup.cfg`, `**/.eslintrc*`, `**/.eslintignore`, `**/vitest.config.*`,
+`**/tsconfig*.json` — plus `check-migration-recovery.sh` and `AGENTS.md`.
+
+## PIPE-11 · MED · live · verified — the gate was changed three times on branches the guardrail refuses
+
+On 22 Sep, hours after Batch 152 made `scripts/run-prod-bundle-smoke.sh` a protected file,
+three branches changed it: `fix/deterministic-delivery-gates` (`d1b9ee9`, which also moved
+three `test_round_population` windows off a fixed Tuesday), `fix/preview-readiness-signal`
+(`7ef953d`) and `fix/preview-readiness-ansi` (`89217f8`). Replaying the guardrail as it stood
+at each commit, in the scratch clone, **refuses all three** — none is a batch branch and no
+approval existed — so a green `ci-local.sh` cannot have run on them. All three were merged to
+`main` and pushed, which deploys. None has a commit body, a `BUILD_PLAN` row or a
+`session-log.md` entry, and unlike 101 of the 130 commits they carry no agent trailer, so it
+is not recorded whether an agent or the owner made them.
+
+The changes themselves look right — a longer readiness wait, running Vite directly because
+GitHub's pnpm wrapper buffered its output, and tolerating ANSI colour in the readiness line
+— and the third one turned CI green (PIPE-12). The finding is the process: on the gate's
+first day, its protected file changed three times with no record of who approved it.
+
+A smaller instance of the same looseness: Batch 144's ratchet raise (1,282 → 1,285) is in
+its close-out *documents* commit (`9a1467e`), not the batch commit, so `1bfe512` on its own
+fails its own gate; close-out step 8 says to stage the three documents only.
+
+**Impact on a member:** the check that stands between a batch and members can be changed
+with nothing but the diff to show it happened.
+
+**Fix:** make the push conditional on a gate pass for the exact tree being pushed —
+`ci-local.sh` writes the tree hash on PASS, and close-out (and any push) refuses without a
+matching stamp; a red-`main` fix that touches a protected file is owner-approved gate
+maintenance with a row, like 153 and 127.
+
+## PIPE-12 · MED · live · verified — CI goes red, three batches deployed on red, and nothing reads it
+
+`gh run list` since 20 Sep: **8 of 72 runs on `main` failed.**
+
+| when (UTC) | commit | failed | then |
+| --- | --- | --- | --- |
+| 22 Sep 11:30 → 21:06 | `c7a50bb` (152 close-out), `a689a57` (120), `48b6627` (121), `0ff3e8c` (122), `d1b9ee9`, `7ef953d` | prod-bundle smoke, six in a row | green at `89217f8`, 21:17 |
+| 23 Sep 02:41 | `ac54a71` (143 close-out) | `test_durable_rate_limit.py::test_an_unknown_name_is_charged_even_though_the_handler_commits_nothing` — 401 where 429 was expected | next push green |
+| 23 Sep 22:09 | `bf97763` (128 close-out) | `test_scheduler_jobs.py::test_home_and_the_coupon_pick_the_same_round_in_every_state` — `uq_leagues_join_code` unique violation | next push green |
+
+So Batches 120, 121 and 122 — the claim race, the stray round and the PIN takeover — were
+closed out and deployed while CI was red, and the group carried on. The two backend failures
+are flakes: each passed on the next push, **neither is mentioned anywhere** in
+`session-log.md`, `STATUS.md` or `BUILD_PLAN.md`, and neither test has been touched since.
+Batch 149 met two more locally — "timed out in two unrelated existing tests", rerun to green,
+unnamed.
+
+This is structural, not negligence. `phase-closeout.md` says "Do not poll CI". Close-out never
+pushes a feature branch, so CI only ever runs *after* the push that deploys. CI runs fewer
+checks than the local gate — no guardrail, no ratchet, no zero-skip check — so it would pass
+a skipped suite. `main` has no branch protection (`gh api …/branches/main/protection` → 404,
+no rulesets), so nothing mechanical stops a force-push either.
+
+**Impact on a member:** a fault that only CI's clean Linux/UTC run exposes — the class
+`vite.config.ts` pins `America/New_York` to catch — reaches members and stays, because the
+only signal goes to an inbox nobody is asked to read.
+
+**Fix:** after the push, close-out waits for the run on the pushed SHA (`gh run watch`,
+about 7-8 minutes) and writes its conclusion into the session-log line; red stops a group
+and is treated as red `main`. Add the guardrail and the count check to CI. Fix the two flaky
+tests (the join-code collision looks like two random codes meeting in a committed table).
+This reverses a written instruction, so it is an owner decision below.
+
+## PIPE-13 · MED · live · verified — the only end-to-end journey is outside the gate
+
+`apps/web/e2e/coupon-flow.spec.ts` is the one test that registers members, picks, settles
+and reads standings through the production bundle. Neither `ci-local.sh` nor CI runs it:
+`playwright.prod-bundle.config.ts` matches `prod-bundle*.spec.ts` only, and the journey is
+`pnpm e2e`, run by hand.
+
+It rotted. Batch 139 (23 Sep 01:34) opened the first competition by default, and the journey
+still asserted no pick card was visible; Batch 157 (23 Sep 17:15) removed "Averaged over 1 of
+your 2 leagues", which the journey still expected. Both batches closed green. The journey was
+repaired five days later by `83facaf` (28 Sep), an out-of-batch commit with no session-log
+entry of its own. For those five days a batch that broke register → pick → settle would have
+deployed on a green gate.
+
+Group Z then leaned on it as evidence ("production-bundle coupon journey passed" in four
+session-log headers), and Batch 149 shows the ordering problem: it closed out and pushed at
+20:54, *then* ran the seeded journey, which found the phone toast offset and a low-contrast
+toast title; `4121cf0` fixed them at 21:17. Members had the defect for about 23 minutes.
+
+**Impact on a member:** a regression in the Saturday journey that only the end-to-end run can
+see deploys with a green gate.
+
+**Fix:** run the journey in `ci-local.sh` and CI (Batch 149 measured it at 58 seconds; it
+needs the seeded e2e server and `FRONTEND_ORIGIN`), or at minimum make it a close-out step
+before the push for any batch that touches `apps/web`.
+
+## PIPE-14 · MED · live · verified — the split-half refusal is cleared by a flag, with no record
+
+Replayed as it stood, the close-out guard **refuses** all seven API+web batches since
+`2ce6f42`: 123, 124, 143, 156, 157, 136 and 148. The session log records the owner
+scheduling the shipment for **136 and 148 only**. For 123, 124, 143, 156 and 157 there is no
+durable record of how the refusal was cleared — `--shipment-scheduled` is a plain argument any
+agent can type, and the close-out report that should name it exists only in a chat
+transcript. (Phases 4 and 6 of the 2026-09-13 run order end "→ `/ship-prod`", which an agent
+could read as the schedule.) No member was hurt: all five web halves were written to be
+inert against the old API — Batch 124 says so, 157 tests it, 156 reads the new field as
+`?? 0` — but that was the agents' judgement, not the guard.
+
+The other gap is the one PIPE-05 was about. The guard judges one batch at a time and only
+*reports* existing drift. A probe with drift stubbed to "a `/ship-prod` is owed" and a
+web-only diff: **"PASS — web-only batch"**, exit 0. So an API-only batch followed by a
+web-only batch that calls its new route deploys the web half against an API that 404s — the
+2026-09-13 Calendar-page incident, split across two batches instead of one.
+
+**Impact on a member:** a screen can ship calling a route production does not serve until
+someone runs `/ship-prod`.
+
+**Fix:** the session-log template gets the "Close-out safety:" line Group Z already writes by
+habit, naming the guard's verdict and, for a split-half batch, who scheduled the shipment and
+when; the guard refuses a web change while drift reports a shipment owed, unless the same
+acknowledgement is given.
+
+PENDING-SECTIONS-B
