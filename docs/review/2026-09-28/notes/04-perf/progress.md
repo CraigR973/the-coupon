@@ -49,8 +49,20 @@ Commit only own paths: `git -C <repo> commit -m "..." -- docs/review/2026-09-28/
 
 - 18:35 resumed (third stop). Lead: be economical, compact result files, commit each step.
 
+## Measured since 18:35 (all in the lens doc)
+
+- stress seeded; api-stress.json: all counts identical except slate (66); **PERF-19 HIGH**
+  combined odds overflow → 500 on home summary + results at 50 members (combined-odds-limit.txt)
+- explain-stress.txt: PERF-04 held (ix_picks_gameweek_id by planner's choice), PERF-05 held
+- provider_budget.py 1/3/5 windows: PERF-06/07 held at 3w, PERF-08 held, **PERF-21** refresh
+  no budget (118/hour at 5w); 481 derivation written; DB re-seeded (production+stress) after
+- npm-latest.txt: current majors for OPS-15; OPS-11 Node 24 in CI/gate/.nvmrc/engines (not yet in doc)
+- framer-motion: in package.json deps, zero imports (test enforces) — check bundle once built
+
 ## Next step
 
-1. seed stress (`seed_shapes.py stress`), `measure_api.py stress`
-2. explain.py (retirement + settle actual SQL at stress), provider_budget.py, push_fanout.py
-3. bundle/precache, scheduler table, OPS checks, Lighthouse (load<4)
+1. web bundle: `web.sh perf http://127.0.0.1:8140 4340` started in background (scratch web-perf);
+   analyse dist: JS raw/gzip, chunks, sw precache manifest, framer in chunks, fonts
+2. PERF-09 installation bucket check; PERF-10 + pool-hold (PERF-20 candidate) over real uvicorn
+3. scheduler table (OPS-17/18), OPS-12 rehearsal, OPS-13, OPS-14, deploy/rollback
+4. Lighthouse + timings when load < 4 (load was 15-80 at 23:15)

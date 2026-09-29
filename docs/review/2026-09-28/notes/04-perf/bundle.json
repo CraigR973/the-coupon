@@ -1,0 +1,113 @@
+{
+ "js_chunks": 68,
+ "js_raw_kib": 697.3,
+ "js_gzip_kib": 237.6,
+ "css_raw_kib": 44.7,
+ "largest_js": [
+  [
+   "assets/react-vendor-DMYIMPK5.js",
+   176.9,
+   58.1
+  ],
+  [
+   "assets/index-CuQsCx4T.js",
+   118.3,
+   36.2
+  ],
+  [
+   "assets/dropdown-menu-C6vKZsHP.js",
+   51,
+   17.5
+  ],
+  [
+   "assets/query-Ch7dJISr.js",
+   41.2,
+   12.5
+  ],
+  [
+   "assets/dialog-D2MBPQgE.js",
+   33.7,
+   11.7
+  ],
+  [
+   "assets/CurrentRoundPage-CWwY1pag.js",
+   33.1,
+   9.8
+  ],
+  [
+   "assets/time-Ix0oEjE_.js",
+   29.1,
+   8.5
+  ],
+  [
+   "assets/SettingsPage-BY3rAyeF.js",
+   20.4,
+   5.9
+  ]
+ ],
+ "precache_manifest_entries": 83,
+ "precache_manifest_kib": 859.3,
+ "precache_after_role_filter_entries": 70,
+ "precache_after_role_filter_kib": 797.8,
+ "precache_kept_by_type": {
+  "html": {
+   "n": 1,
+   "kib": 3.8
+  },
+  "js": {
+   "n": 55,
+   "kib": 635.8
+  },
+  "css": {
+   "n": 1,
+   "kib": 44.7
+  },
+  "icon": {
+   "n": 9,
+   "kib": 64.1
+  },
+  "font": {
+   "n": 3,
+   "kib": 48.8
+  },
+  "other": {
+   "n": 1,
+   "kib": 0.6
+  }
+ },
+ "precache_dropped": [
+  "assets/LeagueSettingsPage-CTvG1U2_.js",
+  "assets/LeagueMembersPage-BE71Vcyq.js",
+  "assets/LeagueJoinRequestsPage-CHwrctMV.js",
+  "assets/LeagueAuditLogPage-8PW8wW6I.js",
+  "assets/LeagueAdminInvitesPage-BYetpA1n.js",
+  "assets/AdminSyncPage-BSaLQxWf.js",
+  "assets/AdminResultsPage-C1PnYYaC.js",
+  "assets/AdminPlayersPage-CMWHTDrJ.js",
+  "assets/AdminNav-kOYselwW.js",
+  "assets/AdminInvitesPage-Dj95aKHG.js",
+  "assets/AdminDashboardPage-6aefweIa.js",
+  "assets/AdminCalendarPage-B2NehDGe.js",
+  "assets/AdminAllLeaguesPage-Cef2A9Tx.js"
+ ],
+ "chunks_mentioning_framer_motion": [],
+ "index_html_preloads": [
+  "/fonts/jetbrains-mono-600.woff2",
+  "/assets/react-vendor-DMYIMPK5.js",
+  "/assets/query-Ch7dJISr.js"
+ ],
+ "fonts_in_dist": [
+  [
+   "fonts/jetbrains-mono-600.woff2",
+   21.3
+  ],
+  [
+   "fonts/outfit-400.woff2",
+   13.7
+  ],
+  [
+   "fonts/outfit-600.woff2",
+   13.8
+  ]
+ ]
+}

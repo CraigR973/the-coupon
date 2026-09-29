@@ -119,6 +119,10 @@ leaves out (see Doc corrections).
 | PERF-05 | 146 | **held** | pool is 5 + 5 with a 10 s `pool_timeout` (`database.py`), down from 10 + 10 — but see PERF-20 for what now holds a connection |
 | PERF-06 / PERF-07 | 159 | **held at three windows; the cliff moved to four** | counting fake (below): the refresh job walks 23 competitions per window per run, not 41. Three windows: Saturday peak **72/hour**, day **337** (was 145 and 527). Five windows: **118/hour** in both refresh hours — see PERF-21 |
 | PERF-08 | 160 | **held** | across three simulated days at 1, 3 and 5 windows the plan counter's hourly figure equalled the transport's count in **every hour** (0 mismatches), and `requests_made` equalled the transport total (744, 929, 1,118) |
+| PERF-11 | 163 | **held as scoped** | the build's manifest is still every emitted file (83 entries; the plugin prints 745.7 KiB), but `sw.ts` filters it through `isRoleGatedChunk` before `precacheAndRoute`: 13 admin and league-admin chunks (61.5 KiB) are dropped, so a member's service worker fetches **70 entries, 798 KiB on disk** — 55 member-route JS chunks (636 KiB), 9 icons (64 KiB), 3 fonts, the CSS and the shell. That is what Batch 163 asked for (keep the routes every member uses); the saving is 7 %, because the admin chunks were never the bulk (`bundle.json`) |
+| PERF-12 | 164 | **held** | no chunk contains framer-motion or its runtime (`chunks_mentioning_framer_motion: []`); JS is **697.3 KiB raw / 237.6 KiB gzip in 68 chunks** (was 823.6 KB / 278.8 KB in 67). The dependency is still declared (PERF-22) |
+| OPS-11 | 127 | **held** | Node 24 in all three CI jobs (`ci.yml:61,78,97`), in the gate (`ci-local.sh:188`, `nvm use 24`), `.nvmrc` 24 and `apps/web` `engines.node: 24.x`, which is what the Vercel project builds from. Vercel's runtime itself is not observable read-only |
+| OPS-15 | not batched (owner, 24 Sep) | **not fixed, wider** | declared → current on npm today (`npm-latest.txt`): Vite 5 → 8, ESLint 8 → 10, Tailwind 3 → 4, Vitest 2 → 5, vite-plugin-pwa 0.20 → 1.3, React 18 → 19, TypeScript 5 → 7. Three majors behind on the build tool now, against "several" on 13 Sep |
 | PERF-03 | 145 | **held locally; not checkable in production read-only** | 264-fixture slate 299,134 B → 15,202 B with `content-encoding: gzip`, `vary: Accept-Encoding`; responses under 4 KB deliberately uncompressed. Production's only public API responses (`/health`, 82 B) sit below the floor, so no header could prove it (`prod-health-headers.txt`) |
 
 ## Register
@@ -127,6 +131,7 @@ leaves out (see Doc corrections).
 | --- | --- | --- | --- | --- |
 | PERF-19 | HIGH | live | verified | A league of 40-50 members breaks its home screen and results once the combined odds pass about 10^26 |
 | PERF-21 | MED | live | verified | The slate refresh has no budget: five league windows spend 118 requests in each refresh hour |
+| PERF-22 | LOW | live | verified | framer-motion is still a declared dependency though nothing imports it |
 | PERF-18 | MED | live | verified | The slate makes two queries per competition on the card — 56 statements at production's 23 competitions |
 
 ## PERF-19 · HIGH · live · verified — the combined odds overflow in large leagues
@@ -182,6 +187,18 @@ Saturday morning can be refused a price for five minutes, twice.
 **Fix:** give the refresh job the same `request_budget` discovery has (or a share of one
 hour between them), and price the walk at the played intersection rather than the raw
 pool (CORR-24).
+
+## PERF-22 · LOW · live · verified — a removed library is still installed
+
+`apps/web/package.json:34` still declares `framer-motion ^11.3.2`. Nothing imports it
+(`src/test/animations.test.ts` enforces that) and no emitted chunk contains it, so
+members download none of it. What it still costs is an install, a lockfile entry that
+dependency scanners will keep reporting, and a trap: the next agent that reaches for an
+animation will find it "available". `package.json` is a protected file, so removing it
+needs the owner to name the batch.
+
+**Fix:** drop the dependency in the next batch that is allowed to touch
+`apps/web/package.json`.
 
 ## PERF-18 · MED · live · verified — the slate queries per competition
 
