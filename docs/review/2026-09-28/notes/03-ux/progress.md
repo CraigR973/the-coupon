@@ -7,7 +7,7 @@ Ports: API 8130, web 4330. Stack name `ux`. New ids from UX-21.
 
 ```
 ~/.cache/the-coupon/ci-local-venv/bin/python docs/review/2026-09-28/notes/harness/stack.py --name ux --api-port 8130 --origin http://127.0.0.1:4330 --seed   # background
-bash docs/review/2026-09-28/notes/harness/web.sh ux http://127.0.0.1:8130 4330                                                                              # background
+~/.cache/the-coupon/ci-local-venv/bin/python docs/review/2026-09-28/notes/03-ux/build_web.py   # background — NOT harness/web.sh (unstyled bundle)
 ~/.cache/the-coupon/ci-local-venv/bin/python docs/review/2026-09-28/notes/03-ux/seed_states.py --reset --login
 ```
 `--reset` re-runs the e2e base seed then adds every state; `--login` writes
@@ -26,7 +26,9 @@ produced by `POST /__e2e/settle` after picks + `POST /__e2e/lock` (phase B, dest
 | seeding script | done, verified by API reads 08:45 | `seed_states.py` |
 | Playwright helpers | written | `lib.mjs` |
 | interrupted by usage limit ~08:50; resumed 14:47 | | lead committed notes as 0e1265e (pre-rewrite hash) |
-| stack + bundle restarted | in flight 14:48 | |
+| stack + bundle restarted | done 14:50; interrupted again ~15:00, resumed 18:32 | |
+| **harness bundle is unstyled** | found 18:40 | `web.sh` builds with the wrong cwd: Tailwind `content` globs are cwd-relative, CSS 9.1 KB vs gate 45.8 KB. Replaced by `build_web.py` (cwd=apps/web via Python). Tell the lead: lens 02's screenshots built with web.sh are likely unstyled |
+| sweep.mjs smoke (5 runs) | done 18:36 | `axe/open-smoke*` — discard, taken against the unstyled bundle |
 | axe sweep (every route × 2 themes × 390/1280) | todo | `axe/` |
 | state captures + corpus | todo | `../../screenshots/` |
 | keyboard pass | todo | |
@@ -53,5 +55,5 @@ produced by `POST /__e2e/settle` after picks + `POST /__e2e/lock` (phase B, dest
 
 ## Next step
 
-Wait for stack + bundle, run `seed_states.py --reset --login`, then write `sweep.mjs`
-(axe + capture per route × theme × width).
+Run `sweep.mjs --phase open` (all jobs, both widths, both themes) in the background,
+writing to `axe/open/` and `axe/open-summary.tsv`; then phase `locked`/`settled`.
