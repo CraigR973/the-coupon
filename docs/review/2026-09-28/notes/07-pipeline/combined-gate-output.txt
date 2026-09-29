@@ -7,4 +7,15 @@ backend
   ruff check                          PASS
   ruff format --check                 PASS
   mypy src                            PASS
-  alembic upgrade head + pytest       
+  alembic upgrade head + pytest       PASS (1350 tests, 0 skipped)
+
+node dependencies
+  pnpm install --frozen-lockfile      PASS
+
+deployment-config
+  railway/nixpacks/vercel assertions  PASS
+
+frontend
+  lint                                PASS
+  typecheck                           PASS
+  test                                

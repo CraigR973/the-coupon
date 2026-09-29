@@ -69,7 +69,7 @@ Scripts and raw output: `notes/07-pipeline/` (`replay_guards.sh`, `gate_probes.s
 | --- | --- | --- | --- | --- |
 | PIPE-10 | MED | live | verified | The gate is judged by the branch's own copy of the gate, and five unprotected config files switch its checks off |
 | PIPE-11 | MED | live | verified | The protected smoke script was changed three times on branches the guardrail refuses, with no record |
-| PIPE-12 | MED | live | verified | CI went red eight times in a week, three batches deployed on red, and nothing reads it |
+| PIPE-12 | MED | live | verified | CI went red eight times in a week, three batch close-outs pushed on red, and nothing reads it |
 | PIPE-13 | MED | live | verified | The only end-to-end journey is outside the gate; it rotted for five days and one batch deployed before running it |
 | PIPE-14 | MED | live | verified | The split-half refusal is cleared by a flag with no durable record, and a two-batch split passes it |
 | PIPE-15 | LOW | live | verified | Follow-ups agents record in the session log become nobody's work |
@@ -154,7 +154,7 @@ with nothing but the diff to show it happened.
 matching stamp; a red-`main` fix that touches a protected file is owner-approved gate
 maintenance with a row, like 153 and 127.
 
-## PIPE-12 · MED · live · verified — CI goes red, three batches deployed on red, and nothing reads it
+## PIPE-12 · MED · live · verified — CI goes red, close-outs push on red, and nothing reads it
 
 `gh run list` since 20 Sep: **8 of 72 runs on `main` failed.**
 
@@ -165,7 +165,10 @@ maintenance with a row, like 153 and 127.
 | 23 Sep 22:09 | `bf97763` (128 close-out) | `test_scheduler_jobs.py::test_home_and_the_coupon_pick_the_same_round_in_every_state` — `uq_leagues_join_code` unique violation | next push green |
 
 So Batches 120, 121 and 122 — the claim race, the stray round and the PIN takeover — were
-closed out and deployed while CI was red, and the group carried on. The two backend failures
+closed out and pushed while CI was red, and the group carried on. They were API-only, so the
+push itself changed nothing members saw, and CI was green again (through PIPE-11's
+out-of-batch fixes) before their `/ship-prod` that night; a web batch in the same position
+would have been live on red. The two backend failures
 are flakes: each passed on the next push, **neither is mentioned anywhere** in
 `session-log.md`, `STATUS.md` or `BUILD_PLAN.md`, and neither test has been touched since.
 Batch 149 met two more locally — "timed out in two unrelated existing tests", rerun to green,
