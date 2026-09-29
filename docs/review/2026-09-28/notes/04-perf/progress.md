@@ -85,9 +85,31 @@ not fixed 5, by-decision 1, pending 1, regressed 0.
 Lighthouse started 23:54 in background (lighthouse.mjs, WAIT_MIN=40, gates on load<4) →
 writes lighthouse.json per page; log <scratch>/lighthouse.out.txt.
 
-## Next step
+## TIMINGS PENDING QUIET MACHINE (stopped 23:55, load 9.5)
 
-1. when lighthouse.json has all 4 pages: `bash run.sh concurrency.py` (gates on load<4)
-2. write PERF-14 row + Lighthouse row in "The web client" table + timings into "The numbers"
-3. stop: pkill -f "perf_app:app"; kill the vite preview on 4340 (web.sh perf); SIGTERM stack perf
-4. commit; reply to lead (≤40 lines). If load never drops: reply TIMINGS PENDING with the commands above.
+Everything else is done and in the lens doc. All processes stopped (API 8140, preview
+4340, Lighthouse, stack perf). The seeded data is still in `<scratch>/pg-perf`.
+
+## Next step — exact commands, run only when the 1-minute load average is under 4
+
+```bash
+S=/private/tmp/claude-501/-Users-craigrobinson-the-coupon/3c37fb9f-68c1-4af0-88c9-13ef38e101fd/scratchpad
+N=/Users/craigrobinson/the-coupon/docs/review/2026-09-28/notes/04-perf
+# 1. database, KEEPING the seeded shapes (without --keep-data the schema is reset;
+#    then re-run: bash $N/run.sh seed_shapes.py production && bash $N/run.sh seed_shapes.py stress)
+nohup ~/.cache/the-coupon/ci-local-venv/bin/python $N/../harness/stack.py --name perf --api-port 8140 --no-api --keep-data > $S/stack-perf.out.txt 2>&1 &
+bash $N/run.sh reopen.py                      # 3 Oct rounds open
+# 2. API (PricedFake) on 8140 and the prod bundle on 4340
+nohup bash $N/run_api.sh > $S/perf-api.out.txt 2>&1 &
+nohup bash $N/../harness/web.sh perf http://127.0.0.1:8140 4340 > $S/web-perf.out.txt 2>&1 &
+# 3. fresh sign-in state (browser.mjs signs in once and writes it), then Lighthouse (gates on load < 4)
+. ~/.nvm/nvm.sh && nvm use 24 --silent
+STATE=$S/perf-state.json node $N/browser.mjs 2
+STATE=$S/perf-state.json LH=$S/tools/lighthouse WAIT_MIN=40 node $N/lighthouse.mjs   # -> lighthouse.json
+# 4. wall-clock: sequential p50/p95 and 20 concurrent home summaries (gates on load < 4)
+bash $N/run.sh concurrency.py                 # -> timings.json
+```
+
+Then: add PERF-14 verdict (standings median score/TBT vs 77 / 915 ms), the Lighthouse row
+of "The web client" table, the timings (PERF-02 concurrency vs 1,254 ms) to "The numbers";
+remove the pending notes; stop everything; commit; reply to the lead.

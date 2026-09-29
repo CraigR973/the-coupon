@@ -190,7 +190,7 @@ beside it were unaffected (`api-stress.json`).
 
 Tried to disprove: no decimal context is set anywhere in `apps/api/src` (grep for
 `getcontext`/`localcontext` is empty); the threshold is a property of the arithmetic,
-not the seed; `max_members` accepts up to 50 (`routers/leagues.py`); and the game scores
+not the seed; `max_members` accepts up to 50 (`routers/leagues.py:351`, `:379`); and the game scores
 `round(odds × 10)`, so members are rewarded for longer prices, which pushes the average
 leg up rather than down. Not live pressure today — production has one league of 13 — but
 nothing refuses the league size that triggers it.
