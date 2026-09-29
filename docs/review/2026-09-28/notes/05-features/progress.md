@@ -79,9 +79,17 @@ share, reminder ~3h before lock (scheduler.py:844).
   page.route fulfilment even with ACAO) — renamed `*-unstyled--*`, indexed as functional
   evidence only.
 
+## Cross-refs read (29 Sep 15:05)
+
+- 02: FEAT-A10 held for the API; CORR-22 silent correction; CORR-23 unpicked round.
+- 01: correction absent from league audit log (INFO, their batch 4). Mine adds: manual
+  settlement is invisible too, per-fixture inconsistency, pick id undiscoverable.
+- `drive-addendum.txt`: member gets join_code; export has no pick ids; no web caller
+  lacks a route.
+
 ## Next
 
-1. Read 02-correctness.md (CORR-22 silent correction, CORR-23 unpicked round never
+0. (done) 1. Read 02-correctness.md (CORR-22 silent correction, CORR-23 unpicked round never
    settles) and 01-security.md (correction absent from audit log) — cross-reference, do not
    duplicate.
 2. Write 05-feature-gaps.md.

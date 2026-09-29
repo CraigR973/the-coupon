@@ -1,0 +1,3 @@
+## B12 ordinary member reads league A detail: role = player | join_code present: True
+## A13 member's own export: pick fields = ['competition', 'fixture', 'kickoff_utc', 'league', 'market', 'odds', 'points', 'round_starts_on', 'selection', 'status']
+## web /api/v1 literals with no matching route: [('/api/v1', 'sw.ts'), ('/api/v1/*', 'apiCachePolicy.ts'), ('/api/v1/admin', 'TabBar.tsx'), ('/api/v1/admin/*', 'types.ts'), ('/api/v1/leagues/X/coupon${gameweekId ', 'CurrentRoundPage.tsx'), ('/api/v1/leagues/X/gameweek/current${gameweekId ', 'CurrentRoundPage.tsx'), ('/api/v1/leagues/X/standings${season !== null ', 'LeaderboardPage.tsx')]
