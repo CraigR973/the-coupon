@@ -1,0 +1,427 @@
+{
+ "walk": [
+  {
+   "key": "Tab",
+   "url": "/login",
+   "tag": "INPUT",
+   "role": null,
+   "name": "Your name",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "typed": "Carol",
+   "url": "/login",
+   "tag": "INPUT",
+   "role": null,
+   "name": "Your name",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/login",
+   "tag": "INPUT",
+   "role": null,
+   "name": "PIN digit 1",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "typed": "1234",
+   "url": "/login",
+   "tag": "INPUT",
+   "role": null,
+   "name": "PIN digit 4",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "note": "after PIN",
+   "tag": "INPUT",
+   "role": null,
+   "name": "PIN digit 4",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Enter",
+   "url": "/login",
+   "tag": "INPUT",
+   "role": null,
+   "name": "PIN digit 4",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "note": "signed in at",
+   "url": "/"
+  },
+  {
+   "key": "Tab",
+   "url": "/",
+   "tag": "A",
+   "role": null,
+   "name": "Home",
+   "testid": null,
+   "fv": true,
+   "ring": "outline",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/",
+   "tag": "A",
+   "role": null,
+   "name": "Home",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/",
+   "tag": "A",
+   "role": null,
+   "name": "Coupon",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Enter",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "A",
+   "role": null,
+   "name": "Coupon",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "note": "on",
+   "url": "/leagues/the-coupon/predictions"
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "A",
+   "role": null,
+   "name": "Football Stats",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "A",
+   "role": null,
+   "name": "Leagues",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "A",
+   "role": null,
+   "name": "Settings",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Switch to light mode",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Account menu (Carol)",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "A",
+   "role": null,
+   "name": "Current round",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "A",
+   "role": null,
+   "name": "Season",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Older gameweek",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "The coupon2 of 3",
+   "testid": "coupon-toggle",
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Copy text",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "How scoring workswin = odds × 10",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "English Premier League1/1",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Arsenal FC form, oldest first: won, drew, won, won",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Chelsea FC form, oldest first: drew, won, won, los",
+   "testid": null,
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Tab",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Arsenal1.90win 19 pts",
+   "testid": "selection-be97e475-81da-4ac8-becc-e469b50c6f57-MATCH_ODDS-HOME",
+   "fv": true,
+   "ring": "shadow",
+   "disabled": false
+  },
+  {
+   "key": "Enter",
+   "url": "/leagues/the-coupon/predictions",
+   "tag": "BODY"
+  }
+ ],
+ "overlays": [
+  {
+   "label": "More sheet (bottom nav)",
+   "path": "/",
+   "width": 390,
+   "tabsToTrigger": true,
+   "afterOpen": {
+    "inside": true,
+    "containerRole": "dialog",
+    "tag": "BUTTON",
+    "name": "Close",
+    "modal": null
+   },
+   "tabEscapes": 0,
+   "afterEscape": {
+    "closed": true,
+    "onTrigger": true,
+    "tag": "BUTTON",
+    "name": "More",
+    "fv": true
+   }
+  },
+  {
+   "label": "Account menu",
+   "path": "/",
+   "width": 1280,
+   "tabsToTrigger": true,
+   "afterOpen": {
+    "inside": true,
+    "containerRole": "menu",
+    "tag": "A",
+    "name": "My profile",
+    "modal": null
+   },
+   "afterEscape": {
+    "closed": true,
+    "onTrigger": true,
+    "tag": "BUTTON",
+    "name": "Account menu (Alice)",
+    "fv": true
+   }
+  },
+  {
+   "label": "Account menu",
+   "path": "/",
+   "width": 390,
+   "tabsToTrigger": true,
+   "afterOpen": {
+    "inside": true,
+    "containerRole": "menu",
+    "tag": "A",
+    "name": "My profile",
+    "modal": null
+   },
+   "afterEscape": {
+    "closed": true,
+    "onTrigger": true,
+    "tag": "BUTTON",
+    "name": "Account menu (Alice)",
+    "fv": true
+   }
+  },
+  {
+   "label": "League actions menu",
+   "path": "/leagues/the-coupon/leaderboard",
+   "width": 1280,
+   "tabsToTrigger": true,
+   "afterOpen": {
+    "inside": true,
+    "containerRole": "menu",
+    "tag": "A",
+    "name": "Members",
+    "modal": null
+   },
+   "afterEscape": {
+    "closed": true,
+    "onTrigger": true,
+    "tag": "BUTTON",
+    "name": "League actions",
+    "fv": true
+   }
+  },
+  {
+   "label": "Leave-league dialog (from League actions menu)",
+   "path": "/leagues/the-coupon/leaderboard",
+   "width": 1280,
+   "item": "THE COUPONCarolCATHE COUPONHomeCouponFootball StatsLeaguesSettingsCarolCA2026/27 standingsThe Coupon Test LeagueLeaveSeasonPast seasons2026/27now2025/26Copy standings1ALAlice0/0 won0pts1BOBob0/0 won0pts1CACarol0/0 won0ptsHomeCouponFootball StatsLeaguesMore",
+   "afterOpen": {
+    "dialog": false,
+    "inside": false,
+    "tag": "BODY"
+   },
+   "afterEscape": {
+    "closed": true,
+    "tag": "BODY",
+    "name": "THE COUPONCarolCATHE COUPONHomeCouponFoo"
+   }
+  },
+  {
+   "label": "Leave-league dialog (members page)",
+   "path": "/leagues/the-coupon/admin/members",
+   "width": 1280,
+   "tabsToTrigger": true,
+   "afterOpen": {
+    "inside": true,
+    "containerRole": "dialog",
+    "tag": "INPUT",
+    "name": "",
+    "modal": null
+   },
+   "tabEscapes": 0,
+   "afterEscape": {
+    "closed": true,
+    "onTrigger": false,
+    "tag": "BODY",
+    "name": "THE COUPONAliceALTHE COUPONHomeCouponFoo",
+    "fv": false
+   }
+  },
+  {
+   "label": "Delete-player dialog (admin players)",
+   "path": "/admin/players",
+   "width": 1280,
+   "error": "Error: trigger not reached by Tab: button[aria-label^=\"Delete\"], button:has(svg.lucide-trash-2), button:has(svg.lucide-trash)"
+  }
+ ],
+ "walkSummary": {
+  "navKeys": 23,
+  "typedChars": 9,
+  "total": 32,
+  "claimed": "selection-be97e475-81da-4ac8-becc-e469b50c6f57-MATCH_ODDS-HOME",
+  "toast": [
+   "Grabbed Arsenal @ 1.90"
+  ],
+  "stopsWithoutVisibleFocus": []
+ }
+}

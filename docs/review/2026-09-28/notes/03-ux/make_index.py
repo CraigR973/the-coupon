@@ -62,6 +62,32 @@ for js in sorted(p for p in NOTES.glob("axe/*/*.json") if not p.parent.name.ends
             f"| `{h[:12]}` | {who}: {confirm(state, j['proof'])} | {v} |"
         )
 
+# Toast / pick-feedback captures (toasts.mjs): confirmed by the toast text and live region read at capture.
+MOCKED = {"pick-pricemoved": "POST fulfilled 409 PRICE_MOVED:9.99 (API shape, mocked)",
+          "pick-busy": "POST fulfilled 429 PICKS_BUSY (mocked)",
+          "toast-error": "POST fulfilled 500 (mocked)",
+          "pick-conflict": "POST fulfilled 409 SELECTION_TAKEN (API shape, mocked; see notes)",
+          "pick-confirm": "real POST by Carol"}
+for txt in ("toasts.txt", "toasts-conflict.txt"):
+    f = NOTES / txt
+    if not f.exists():
+        continue
+    for line in f.read_text().splitlines():
+        m = re.match(r"(current-round--[^:]+\.png): toast=(\S.*?) type=(\S+) gapToTabBar=(\S+) bottomGap=(\S+) alert=\"(.*?)\" status=\"(.*?)\"", line)
+        if not m:
+            continue
+        name, toast, typ, gap, bottom, alert, status = m.groups()
+        png = SHOTS / name
+        if not png.exists():
+            continue
+        h = hashlib.sha256(png.read_bytes()).hexdigest()
+        by_hash[h].append(name)
+        _, state, width, theme = name[:-4].split("--")
+        region = "role=alert" if alert else ("role=status" if status else "none")
+        who = "Carol" if state == "pick-confirm" else "Alice"
+        rows.append(f"| `{name}` | `/leagues/the-coupon/predictions` | {state} | {width} | {theme} | `{h[:12]}` "
+                    f"| {who}, {MOCKED.get(state.replace('-safearea34',''), '')}: {typ} toast {toast[:60]}…; {region}; gap to tab bar {gap}px, to viewport bottom {bottom}px | — |")
+
 dups = {h: fs for h, fs in by_hash.items() if len(fs) > 1}
 (NOTES / "duplicates.txt").write_text(
     "\n".join(f"{h[:12]}  {'  '.join(fs)}" for h, fs in dups.items()) + ("\n" if dups else "none\n")
