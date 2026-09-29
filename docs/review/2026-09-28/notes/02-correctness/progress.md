@@ -36,4 +36,4 @@ Interrupted once by a usage limit (28 Sep ~23:04); resumed 29 Sep 08:40 on a fre
 ## Verified so far (also written into 02-correctness.md)
 - CORR-08 held (race.py, out/race.txt). NOTE: pick buckets are in-memory; restart corr_api.sh to reset the 50/hour installation bucket after ~45 submissions.
 ## Next
-- CORR-19 candidate: self-deletion skips completion (script `selfdelete.py`).
+- DONE: CORR-14 partial + CORR-19 verified (completion.py). Next: settle-guard stranding (CORR-20 candidate), then void-leg surfaces, then CORR-09/13 window change.

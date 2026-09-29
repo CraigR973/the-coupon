@@ -34,11 +34,39 @@ in `notes/02-correctness/` (`out/*.txt`).
 | id | batch | status | evidence |
 | --- | --- | --- | --- |
 | CORR-08 | 120 | **held** | 4 runs × 12 simultaneous HTTP submissions for one selection (2 in `selection` scope, 2 in `fixture` scope): each run exactly one 201 and eleven 409 (`SELECTION_TAKEN` / `FIXTURE_TAKEN`), zero 500s, `Access-Control-Allow-Origin` present on every 409; no 500 anywhere in the API log (`out/race.txt`) |
+| CORR-14 | 130 | **partial** | Held for the path Batch 130 wired: in L1, four of five picked and the fifth *left* → one completion row with an empty picker name, "4/4 picked — all picks are in" pushed to the four remaining members; a later pick move by Bob wrote no second row and was announced as an ordinary move. **Not fixed on the self-deletion path Batch 136 added two days later** — see CORR-19 (`out/completion.txt`) |
 
 ## Register
 
 | id | sev | deploy | status | finding |
 | --- | --- | --- | --- | --- |
+| CORR-19 | MED | live | verified | A member deleting their own account completes the round silently, and the next pick change is announced as the completing pick |
+
+## CORR-19 · MED · live · verified — self-deletion reopens CORR-14
+
+Batch 130 made a round re-evaluate completion whenever the roster shrinks — leaving,
+being removed, and a site admin deleting an account all call
+`settle_completion_after_roster_change` after their commit. Batch 136's self-service
+deletion (`POST /api/v1/me/delete`, `routers/me.py:623-665`) sets the profile inactive
+and deleted exactly as the site-admin delete does, which drops the member out of
+`round_progress`'s count — but never calls that hook.
+
+Reproduction (`notes/02-correctness/completion.py`, `out/completion.txt`), L3 with
+twelve active members: R01-R11 pick; R12 deletes his own account (204). The league now
+has 11 active members and 11 picks, and `gameweek_completions` is **empty** and **zero**
+pushes went out. R05 then moves his pick: a completion row is written naming R05, and
+all eleven members receive "R05 picked No — not both score (Millwall v Watford) @ 1.65 ·
+11/11 picked — all picks are in". That is CORR-14's defect exactly — silent completion,
+then the wrong member credited — on the one roster path added after Batch 130.
+
+**Member impact:** when the last outstanding member deletes their account, the league is
+never told the coupon is complete, and when anyone next touches a pick it is announced
+as that member completing it.
+
+**Fix:** call `settle_completion_after_roster_change` for each of the member's leagues
+after `delete_my_account` commits (read the league ids before the erasure, as the
+site-admin delete does), plus a test mirroring Batch 130's leave test for self-deletion.
+API-carrying.
 
 ## Checked and found nothing material
 

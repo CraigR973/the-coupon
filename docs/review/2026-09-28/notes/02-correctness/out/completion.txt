@@ -1,0 +1,9 @@
+A: L1 picks by Alice,Bob,Carol,Dan -> [201, 201, 201, 201]; completions []
+A: Erin leaves -> 204; completions [('', 4, True)]
+A: pushes [('Alice', '4/4 picked — all picks are in'), ('Dan', '4/4 picked — all picks are in'), ('Bob', '4/4 picked — all picks are in'), ('Carol', '4/4 picked — all picks are in')]
+A: Bob moves pick -> 201; completions [('', 4, True)]; pushes ['Bob moved to Celtic (v Rangers) @ 2.40 · 4/4 picked', 'Bob moved to Celtic (v Rangers) @ 2.40 · 4/4 picked'] (x3)
+B: L3 picks by R01..R11 -> [201, 201, 201, 201, 201, 201, 201, 201, 201, 201, 201]; completions []
+B: R12 deletes own account -> 204; active members 11, picked 11; completions []; pushes 0
+B: R05 moves pick -> 201; completions [('R05', 11, True)]
+B: pushes after R05's move: ['R05 picked No — not both score (Millwall v Watford) @ 1.65 · 11/11 picked — all picks are in'] (x11)
+B: submit response progress after re-pick: picked 11/11 all_picked=True
