@@ -1,0 +1,132 @@
+{
+ "gate": {
+  "overlay": true,
+  "overlayRole": null,
+  "overlayModal": null,
+  "overlayInMain": false,
+  "overlayLandmarks": 0,
+  "formPresent": true,
+  "formHiddenFromAT": false,
+  "h1s": [
+   "One Saturday pick. One shared coupon.",
+   "Sign in"
+  ],
+  "tabStops": [
+   {
+    "tag": "INPUT",
+    "name": "Your name",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "INPUT",
+    "name": "PIN digit 1",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "INPUT",
+    "name": "PIN digit 2",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "INPUT",
+    "name": "PIN digit 3",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "INPUT",
+    "name": "PIN digit 4",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "BUTTON",
+    "name": "Sign in",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "A",
+    "name": "Forgot PIN?",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "A",
+    "name": "Create account",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "INPUT",
+    "name": "Your name",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "INPUT",
+    "name": "PIN digit 1",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "INPUT",
+    "name": "PIN digit 2",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "INPUT",
+    "name": "PIN digit 3",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "INPUT",
+    "name": "PIN digit 4",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "BUTTON",
+    "name": "Sign in",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "A",
+    "name": "Forgot PIN?",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "A",
+    "name": "Create account",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "INPUT",
+    "name": "Your name",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "INPUT",
+    "name": "PIN digit 1",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "INPUT",
+    "name": "PIN digit 2",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "INPUT",
+    "name": "PIN digit 3",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "INPUT",
+    "name": "PIN digit 4",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "BUTTON",
+    "name": "Sign in",
+    "coveredByOverlay": true
+   },
+   {
+    "tag": "A",
+    "name": "Forgot PIN?",
+    "coveredByOverlay": true
+   }
+  ]
+ }
+}

@@ -205,3 +205,21 @@ standings--loading--390--light	/leagues/the-coupon/leaderboard	Alice	0	{"sk":6,"
 standings--loading--390--dark	/leagues/the-coupon/leaderboard	Alice	0	{"sk":6,"err":0,"h1":["The Coupon Test League"],"hs":0}
 standings--loading--1280--light	/leagues/the-coupon/leaderboard	Alice	0	{"sk":6,"err":0,"h1":["The Coupon Test League"],"hs":0}
 standings--loading--1280--dark	/leagues/the-coupon/leaderboard	Alice	0	{"sk":6,"err":0,"h1":["The Coupon Test League"],"hs":0}
+standings--error--390--light	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":1,"h1":["The Coupon Test League"],"hs":0}
+standings--error--390--dark	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":1,"h1":["The Coupon Test League"],"hs":0}
+standings--error--1280--light	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":1,"h1":["The Coupon Test League"],"hs":0}
+standings--error--1280--dark	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":1,"h1":["The Coupon Test League"],"hs":0}
+results--loading--390--light	/leagues/the-coupon/predictions/results	Alice	0	{"sk":3,"err":0,"h1":["Season"],"hs":0}
+results--loading--390--dark	/leagues/the-coupon/predictions/results	Alice	0	{"sk":3,"err":0,"h1":["Season"],"hs":0}
+results--loading--1280--light	/leagues/the-coupon/predictions/results	Alice	0	{"sk":3,"err":0,"h1":["Season"],"hs":0}
+results--loading--1280--dark	/leagues/the-coupon/predictions/results	Alice	0	{"sk":3,"err":0,"h1":["Season"],"hs":0}
+results--error--390--light	/leagues/the-coupon/predictions/results	Alice	0	{"sk":0,"err":1,"h1":["Season"],"hs":0}
+results--error--390--dark	/leagues/the-coupon/predictions/results	Alice	0	{"sk":0,"err":1,"h1":["Season"],"hs":0}
+results--error--1280--light	/leagues/the-coupon/predictions/results	Alice	0	{"sk":0,"err":1,"h1":["Season"],"hs":0}
+results--error--1280--dark	/leagues/the-coupon/predictions/results	Alice	0	{"sk":0,"err":1,"h1":["Season"],"hs":0}
+my-leagues--loading--390--light	/leagues	Alice	0	{"sk":2,"err":0,"h1":["My Leagues"],"hs":0}
+my-leagues--loading--390--dark	/leagues	Alice	0	{"sk":2,"err":0,"h1":["My Leagues"],"hs":0}
+my-leagues--loading--1280--light	/leagues	Alice	0	{"sk":2,"err":0,"h1":["My Leagues"],"hs":0}
+my-leagues--loading--1280--dark	/leagues	Alice	0	{"sk":2,"err":0,"h1":["My Leagues"],"hs":0}
+my-leagues--error--390--light	/leagues	Alice	0	{"sk":0,"err":0,"h1":["My Leagues"],"hs":0}
+my-leagues--error--390--dark	/leagues	Alice	0	{"sk":0,"err":0,"h1":["My Leagues"],"hs":0}

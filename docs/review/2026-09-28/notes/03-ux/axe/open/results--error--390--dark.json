@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "error",
+    "name": "results",
+    "path": "/leagues/the-coupon/predictions/results",
+    "waitMs": 4500,
+    "setup": true,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Season"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 1,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": true,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/predictions/results",
+    "snippet": "THE COUPON AL THE COUPON TEST LEAGUE · EVERY SETTLED GAMEWEEK Season YOUR LEAGUES TAP TO SWITCH Sunday Club The Coupon Test League Current round Season Couldn't load results Internal Server Error Try again Home Coupon Fo"
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/predictions/results",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 35
+  },
+  "errors": []
+}

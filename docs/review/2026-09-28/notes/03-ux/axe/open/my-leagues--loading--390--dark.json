@@ -1,0 +1,45 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "loading",
+    "name": "my-leagues",
+    "path": "/leagues",
+    "allowSkeleton": true,
+    "axe": true,
+    "setup": true,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "My Leagues"
+    ],
+    "mains": 1,
+    "skeletons": 2,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues",
+    "snippet": "THE COUPON AL My Leagues Your league hubs, shortcuts, and current standing in one place. Discover Join + New Home Coupon Football Stats Leagues More"
+  },
+  "axe": {
+    "url": "/leagues",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 35
+  },
+  "errors": []
+}

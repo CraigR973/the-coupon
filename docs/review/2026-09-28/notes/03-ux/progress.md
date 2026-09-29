@@ -29,13 +29,15 @@ produced by `POST /__e2e/settle` after picks + `POST /__e2e/lock` (phase B, dest
 | stack + bundle restarted | done 14:50; interrupted again ~15:00, resumed 18:32 | |
 | **harness bundle is unstyled** | found 18:40 | `web.sh` builds with the wrong cwd: Tailwind `content` globs are cwd-relative, CSS 9.1 KB vs gate 45.8 KB. Replaced by `build_web.py` (cwd=apps/web via Python). Tell the lead: lens 02's screenshots built with web.sh are likely unstyled |
 | sweep.mjs smoke (5 runs) | done 18:36 | `axe/open-smoke*` — discard, taken against the unstyled bundle |
-| axe sweep (every route × 2 themes × 390/1280) | todo | `axe/` |
+| axe sweep open phase (every route × 2 themes × 390/1280, ~360 runs) | running since 18:44 | `axe/open/`, `axe/open-summary.tsv`, `sweep-open-console.txt` |
+| gate probe | done 19:05 | `probe-gate.txt`: install gate over /login has no landmark, page behind not inert; Tab lands only on covered login fields → UX-22 |
+| early axe results | player-profile lost rows (opacity-60, PlayerProfilePage.tsx:160) 2.24-2.8:1 all 4 runs → UX-21 (re-run pending); install gate region×6 → UX-22 | |
 | state captures + corpus | todo | `../../screenshots/` |
 | keyboard pass | todo | |
 | focus pixels (UX-14) | todo | |
 | names, zoom, reflow, reduced motion, targets | todo | |
 | repo a11y smoke coverage | done (read) | see below |
-| lens doc | todo | `../../03-ux-accessibility.md` |
+| lens doc | skeleton + method written 19:07 | `../../03-ux-accessibility.md` |
 
 ## Facts gathered so far
 
@@ -55,5 +57,7 @@ produced by `POST /__e2e/settle` after picks + `POST /__e2e/lock` (phase B, dest
 
 ## Next step
 
-Run `sweep.mjs --phase open` (all jobs, both widths, both themes) in the background,
-writing to `axe/open/` and `axe/open-summary.tsv`; then phase `locked`/`settled`.
+When the open sweep finishes: `make_index.py`, open a sample of state images, commit
+screenshots + INDEX. Then run (one at a time): `probe.mjs reflow|zoom|targets|motion|contrast`,
+`focus.mjs`, then picks → toasts/feedback, then `keyboard.mjs` (uses Carol's real login + pick),
+then lock → `sweep --phase locked`, settle → `sweep --phase settled`.
