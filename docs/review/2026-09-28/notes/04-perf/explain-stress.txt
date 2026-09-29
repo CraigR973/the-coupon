@@ -1,0 +1,118 @@
+shape: picks=2295 gameweeks=76
+settleable rounds at 3 Oct 18:00: 6
+
+=== RETIREMENT: SELECT season_calendars.season, season_calendars.week_one_anchor, season_calendars.extra_weeks, season_calendars.updated_at, season_calendars.created_at FROM season_calendars WHERE season_calendars.season IN ($1::INTEGER)
+--- planner's choice
+Seq Scan on season_calendars  (cost=0.00..1.02 rows=1 width=56) (actual time=0.008..0.009 rows=1 loops=1)
+  Filter: (season = 2026)
+  Rows Removed by Filter: 1
+  Buffers: shared hit=1
+Planning Time: 0.053 ms
+Execution Time: 0.024 ms
+--- enable_seqscan=off
+Index Scan using season_calendars_pkey on season_calendars  (cost=0.13..8.14 rows=1 width=56) (actual time=0.648..0.649 rows=1 loops=1)
+  Index Cond: (season = 2026)
+  Buffers: shared hit=2
+Planning Time: 0.047 ms
+Execution Time: 0.661 ms
+
+=== RETIREMENT: SELECT gameweeks.league_id, gameweeks.starts_on, gameweeks.number, gameweeks.status, gameweeks.locks_at_utc, gameweeks.picks_open_at_utc, gameweeks.settled_at, gameweeks.id, gameweeks.updated_at, gameweeks.created_at FROM gameweeks WHERE gameweeks.league_id = $1::UUID AND gameweeks.starts_on >= $2::DATE AND gameweeks.starts_on <= $3::DATE AND (gameweeks.starts_on NOT IN ($5::DATE, $6::DATE)) AND gameweeks.status != $4::gameweek_status AND NOT (EXISTS (SELECT picks.id FROM picks WHERE picks.gameweek_id = gameweeks.id))
+--- planner's choice
+Nested Loop Anti Join  (cost=0.28..4.72 rows=1 width=84) (actual time=0.026..0.026 rows=0 loops=1)
+  Buffers: shared hit=2
+  ->  Seq Scan on gameweeks  (cost=0.00..3.71 rows=1 width=84) (actual time=0.025..0.026 rows=0 loops=1)
+        Filter: ((starts_on >= '2026-09-29'::date) AND (starts_on <= '2026-10-13'::date) AND (starts_on <> ALL ('{2026-10-10,2026-10-03}'::date[])) AND (status <> 'settled'::gameweek_status) AND (league_id = 'fe75fd3e-d203-4dd8-9af5-1d6d873a640f'::uuid))
+        Rows Removed by Filter: 76
+        Buffers: shared hit=2
+  ->  Index Only Scan using ix_picks_gameweek_id on picks  (cost=0.28..4.47 rows=11 width=16) (never executed)
+        Index Cond: (gameweek_id = gameweeks.id)
+        Heap Fetches: 0
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.278 ms
+Execution Time: 0.060 ms
+--- enable_seqscan=off
+Nested Loop Anti Join  (cost=0.42..9.18 rows=1 width=84) (actual time=0.014..0.015 rows=0 loops=1)
+  Buffers: shared hit=3
+  ->  Index Scan using ix_gameweeks_starts_on on gameweeks  (cost=0.14..8.17 rows=1 width=84) (actual time=0.014..0.014 rows=0 loops=1)
+        Index Cond: ((starts_on >= '2026-09-29'::date) AND (starts_on <= '2026-10-13'::date))
+        Filter: ((starts_on <> ALL ('{2026-10-10,2026-10-03}'::date[])) AND (status <> 'settled'::gameweek_status) AND (league_id = 'fe75fd3e-d203-4dd8-9af5-1d6d873a640f'::uuid))
+        Rows Removed by Filter: 6
+        Buffers: shared hit=3
+  ->  Index Only Scan using ix_picks_gameweek_id on picks  (cost=0.28..4.47 rows=11 width=16) (never executed)
+        Index Cond: (gameweek_id = gameweeks.id)
+        Heap Fetches: 0
+Planning:
+  Buffers: shared hit=25
+Planning Time: 0.558 ms
+Execution Time: 0.031 ms
+
+=== SETTLE SWEEP: SELECT gameweeks.league_id, gameweeks.starts_on, gameweeks.number, gameweeks.status, gameweeks.locks_at_utc, gameweeks.picks_open_at_utc, gameweeks.settled_at, gameweeks.id, gameweeks.updated_at, gameweeks.created_at FROM gameweeks WHERE gameweeks.status != $1::gameweek_status AND gameweeks.locks_at_utc <= $2::TIMESTAMP WITHOUT TIME ZONE ORDER BY gameweeks.starts_on
+--- planner's choice
+Sort  (cost=3.72..3.78 rows=25 width=84) (actual time=0.022..0.023 rows=6 loops=1)
+  Sort Key: starts_on
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=2
+  ->  Seq Scan on gameweeks  (cost=0.00..3.14 rows=25 width=84) (actual time=0.009..0.016 rows=6 loops=1)
+        Filter: ((status <> 'settled'::gameweek_status) AND (locks_at_utc <= '2026-10-03 18:00:00'::timestamp without time zone))
+        Rows Removed by Filter: 70
+        Buffers: shared hit=2
+Planning Time: 0.056 ms
+Execution Time: 0.037 ms
+--- enable_seqscan=off
+Index Scan using ix_gameweeks_starts_on on gameweeks  (cost=0.14..17.66 rows=25 width=84) (actual time=0.036..0.040 rows=6 loops=1)
+  Filter: ((status <> 'settled'::gameweek_status) AND (locks_at_utc <= '2026-10-03 18:00:00'::timestamp without time zone))
+  Rows Removed by Filter: 70
+  Buffers: shared hit=82
+Planning Time: 0.054 ms
+Execution Time: 0.050 ms
+
+=== SETTLE SWEEP: SELECT DISTINCT picks.gameweek_id, fixtures.provider_event_id FROM picks JOIN fixtures ON fixtures.id = picks.fixture_id WHERE picks.gameweek_id IN ($2::UUID, $3::UUID, $4::UUID, $5::UUID, $6::UUID, $7::UUID) AND picks.status = $1::pick_status
+--- planner's choice
+Unique  (cost=79.36..79.37 rows=1 width=162) (actual time=0.173..0.189 rows=55 loops=1)
+  Buffers: shared hit=183
+  ->  Sort  (cost=79.36..79.36 rows=1 width=162) (actual time=0.172..0.176 rows=55 loops=1)
+        Sort Key: picks.gameweek_id, fixtures.provider_event_id
+        Sort Method: quicksort  Memory: 28kB
+        Buffers: shared hit=183
+        ->  Nested Loop  (cost=18.46..79.35 rows=1 width=162) (actual time=0.030..0.146 rows=55 loops=1)
+              Buffers: shared hit=183
+              ->  Bitmap Heap Scan on picks  (cost=18.18..71.04 rows=1 width=32) (actual time=0.020..0.036 rows=55 loops=1)
+                    Recheck Cond: (gameweek_id = ANY ('{57e8e335-4fae-45cd-acc4-4f0397c5f7aa,edcbacae-4976-4bd1-ac68-da491d2ae222,ddb0edbf-d882-44a7-a630-354491976ec1,f60c114a-d531-42c1-ad08-5df44267ffed,de09a95e-8df3-4630-9807-b44a952b84df,b1531538-48e5-410b-9875-281c0ce37069}'::uuid[]))
+                    Filter: (status = 'pending'::pick_status)
+                    Heap Blocks: exact=6
+                    Buffers: shared hit=18
+                    ->  Bitmap Index Scan on ix_picks_gameweek_id  (cost=0.00..18.18 rows=69 width=0) (actual time=0.015..0.015 rows=55 loops=1)
+                          Index Cond: (gameweek_id = ANY ('{57e8e335-4fae-45cd-acc4-4f0397c5f7aa,edcbacae-4976-4bd1-ac68-da491d2ae222,ddb0edbf-d882-44a7-a630-354491976ec1,f60c114a-d531-42c1-ad08-5df44267ffed,de09a95e-8df3-4630-9807-b44a952b84df,b1531538-48e5-410b-9875-281c0ce37069}'::uuid[]))
+                          Buffers: shared hit=12
+              ->  Index Scan using fixtures_pkey on fixtures  (cost=0.29..8.30 rows=1 width=162) (actual time=0.002..0.002 rows=1 loops=55)
+                    Index Cond: (id = picks.fixture_id)
+                    Buffers: shared hit=165
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.538 ms
+Execution Time: 0.227 ms
+--- enable_seqscan=off
+Unique  (cost=79.36..79.37 rows=1 width=162) (actual time=0.208..0.224 rows=55 loops=1)
+  Buffers: shared hit=183
+  ->  Sort  (cost=79.36..79.36 rows=1 width=162) (actual time=0.207..0.211 rows=55 loops=1)
+        Sort Key: picks.gameweek_id, fixtures.provider_event_id
+        Sort Method: quicksort  Memory: 28kB
+        Buffers: shared hit=183
+        ->  Nested Loop  (cost=18.46..79.35 rows=1 width=162) (actual time=0.024..0.184 rows=55 loops=1)
+              Buffers: shared hit=183
+              ->  Bitmap Heap Scan on picks  (cost=18.18..71.04 rows=1 width=32) (actual time=0.018..0.033 rows=55 loops=1)
+                    Recheck Cond: (gameweek_id = ANY ('{57e8e335-4fae-45cd-acc4-4f0397c5f7aa,edcbacae-4976-4bd1-ac68-da491d2ae222,ddb0edbf-d882-44a7-a630-354491976ec1,f60c114a-d531-42c1-ad08-5df44267ffed,de09a95e-8df3-4630-9807-b44a952b84df,b1531538-48e5-410b-9875-281c0ce37069}'::uuid[]))
+                    Filter: (status = 'pending'::pick_status)
+                    Heap Blocks: exact=6
+                    Buffers: shared hit=18
+                    ->  Bitmap Index Scan on ix_picks_gameweek_id  (cost=0.00..18.18 rows=69 width=0) (actual time=0.014..0.014 rows=55 loops=1)
+                          Index Cond: (gameweek_id = ANY ('{57e8e335-4fae-45cd-acc4-4f0397c5f7aa,edcbacae-4976-4bd1-ac68-da491d2ae222,ddb0edbf-d882-44a7-a630-354491976ec1,f60c114a-d531-42c1-ad08-5df44267ffed,de09a95e-8df3-4630-9807-b44a952b84df,b1531538-48e5-410b-9875-281c0ce37069}'::uuid[]))
+                          Buffers: shared hit=12
+              ->  Index Scan using fixtures_pkey on fixtures  (cost=0.29..8.30 rows=1 width=162) (actual time=0.002..0.002 rows=1 loops=55)
+                    Index Cond: (id = picks.fixture_id)
+                    Buffers: shared hit=165
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.215 ms
+Execution Time: 0.255 ms
