@@ -1,0 +1,6 @@
+12 legs: ok up to every leg at 20.00
+15 legs: ok up to every leg at 20.00
+20 legs: fails from every leg at 19.96 (last ok 19.95); product ~ 1.01e+26
+30 legs: fails from every leg at 7.36 (last ok 7.35); product ~ 1.01e+26
+40 legs: fails from every leg at 4.47 (last ok 4.46); product ~ 1.03e+26
+50 legs: fails from every leg at 3.32 (last ok 3.31); product ~ 1.14e+26

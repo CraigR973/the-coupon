@@ -92,12 +92,12 @@ class Seeder:
         )
         return ids
 
-    async def fixtures(self, day: date, count: int, *, extra_unplayed: int = 0) -> list[uuid.UUID]:
+    async def fixtures(self, day: date, count: int, *, extra_unplayed: int = 0, prefix: str = "ev") -> list[uuid.UUID]:
         rows = []
         for k in range(count + extra_unplayed):
             comp = COMPETITIONS[k % 23] if k < count else UNPLAYED[k % 13]
             fid = uuid.uuid4()
-            ev = f"ev-{day.isoformat()}-{k}"
+            ev = f"{prefix}-{day.isoformat()}-{k}"
             kickoff = _utc(day, 15) if k % 9 else _utc(day, 12, 30)
             rows.append({
                 "id": fid, "ev": ev, "h": f"Home {day:%m%d} {k}", "a": f"Away {day:%m%d} {k}",
@@ -233,13 +233,13 @@ async def stress(conn) -> None:  # noqa: ANN001
     n = 0
     for day in SETTLED_2025:
         n += 1
-        fixtures = await s.fixtures(day, 200)
+        fixtures = await s.fixtures(day, 200, prefix="st")
         await s.round(lid, day, n, fixtures, members, settled=True)
     for day in SETTLED_2026:
         n += 1
         have = pool[day][:200]
         if len(have) < 200:
-            have = have + await s.fixtures(day, 200 - len(have))
+            have = have + await s.fixtures(day, 200 - len(have), prefix="st")
         # distinct event ids for the top-up: fixtures() keys on k, so offset the names
         await s.round(lid, day, n, have, members, settled=True)
     n += 1

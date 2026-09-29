@@ -32,8 +32,25 @@ Commit only own paths: `git -C <repo> commit -m "..." -- docs/review/2026-09-28/
 - lens 07: no-DB pytest split today 800 passed / 550 skipped.
 - timings only under load 4; 03 and 05 running.
 
+## Measured so far (production shape seeded 14:49: 5 leagues, 1,174 fixtures, 35 rounds, 265 picks)
+
+`api-production.json` / `api-production-sql.txt` (measure_api.py):
+- home summary 13 stmts (Solo 1 league and Alice 3 leagues) — was 15 → Batch 144 held
+- current round 56 stmts = 10 + 2 per competition (23) — fixture_context loops
+  resolve_names per competition (football_data.py:950), unchanged since Batch 16 → NEW
+  finding PERF-18 (prior "no N+1" claim wrong for the slate; its shape had few competitions)
+- slate fully priced 264 fx: 299,134 B identity → 15,202 B gzip; standings 10.4 KB → 1.2 KB;
+  <4 KB responses uncompressed by design (BREACH note in main.py)
+- coupon 6, standings 5 (±season), results 7, rounds 8, pick submit 11 + 3 background
+- production /health headers (prod-health-headers.txt): 82 B, below the 4 KB floor, so
+  compression cannot be confirmed read-only (no public response >4 KB)
+
+## Resumes
+
+- 18:35 resumed (third stop). Lead: be economical, compact result files, commit each step.
+
 ## Next step
 
-1. run `seed_shapes.py production`, then statement-count script (`measure_api.py`)
-2. provider budget counting fake (`provider_budget.py`)
-3. EXPLAIN at stress, bundle/precache, scheduler table, OPS checks
+1. seed stress (`seed_shapes.py stress`), `measure_api.py stress`
+2. explain.py (retirement + settle actual SQL at stress), provider_budget.py, push_fanout.py
+3. bundle/precache, scheduler table, OPS checks, Lighthouse (load<4)

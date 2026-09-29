@@ -161,7 +161,7 @@ async def one(client: AsyncClient, method: str, url: str, token: str, body=None,
         "bytes_wire": resp.num_bytes_downloaded,
         "content_encoding": resp.headers.get("content-encoding"),
         "vary": resp.headers.get("vary"),
-        "json": resp.json() if resp.headers.get("content-type", "").startswith("application/json") else None,
+        "json": None,
         "sql": [s for s, _, _ in stmts[:split]],
     }
 
@@ -178,7 +178,7 @@ async def main() -> None:
             "and gf.fixture_id not in (select fixture_id from picks p where p.gameweek_id=g.id) "
             "order by gf.fixture_id limit 1"))).scalar()
     results: dict[str, dict] = {}
-    transport = ASGITransport(app=BodyMark(app))
+    transport = ASGITransport(app=BodyMark(app), raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         plan = [
             ("home summary (Solo, 1 league)", "GET", "/api/v1/me/cross-league-summary", "Solo", None),
