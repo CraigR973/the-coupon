@@ -1,0 +1,145 @@
+[
+ {
+  "log": "reset price: 200 {\"market_id\":\"1.100000001\",\"selection_id\":1002,\"price\":4.3}"
+ },
+ {
+  "state": "feedback-confirmed",
+  "width": 390,
+  "theme": "dark",
+  "persona": "Carol",
+  "target": "The Draw",
+  "file": "current-round--feedback-confirmed--390--dark.png",
+  "sha256": "f3b5a5f82f16262a3462b36996e4d59537690854672990f450892419225c0856",
+  "responses": [
+   "201 {\"id\":\"541926ff-a2ae-4733-9ea6-99caf2f81e0d\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"
+  ],
+  "toast": {
+   "title": "Grabbed The Draw @ 3.20",
+   "type": "success",
+   "action": null,
+   "rect": [
+    16,
+    715,
+    358,
+    54
+   ],
+   "bg": "rgb(236, 253, 243)",
+   "border": "rgb(211, 253, 229)",
+   "color": "rgb(0, 138, 46)",
+   "titleColor": "rgb(240, 244, 255)",
+   "iconColor": "rgb(0, 138, 46)",
+   "actionBg": null,
+   "actionColor": null
+  },
+  "tabBarTop": 783,
+  "gapToTabBar": 15,
+  "outstanding": null,
+  "offlineBanner": []
+ },
+ {
+  "log": "current-round--feedback-confirmed--390--dark.png: http=[\"201 {\\\"id\\\":\\\"541926ff-a2ae-4733-9ea6-99caf2f81e0d\\\",\\\"league_id\\\":\\\"8d214d2f-273c-4685-b460-3d304f981aaa\\\",\\\"gameweek_id\\\":\\\"501a1a01-\"] toast=\"Grabbed The Draw @ 3.20\" type=success action=null gap=15 outstanding=null"
+ },
+ {
+  "log": "  before tap: bob claims The Draw: 201"
+ },
+ {
+  "state": "feedback-conflict",
+  "width": 390,
+  "theme": "dark",
+  "persona": "Alice",
+  "target": "The Draw",
+  "file": "current-round--feedback-conflict--390--dark.png",
+  "sha256": "87276d5abfce9575e43373f756d66302c52b9f7c1cac8be823b4e2164f74505c",
+  "responses": [
+   "409 {\"detail\":\"SELECTION_TAKEN\"}"
+  ],
+  "toast": {
+   "title": "Someone in your league just grabbed that selection — pick another.",
+   "type": "warning",
+   "action": "Refresh the card",
+   "rect": [
+    16,
+    676,
+    358,
+    93
+   ],
+   "bg": "rgb(255, 252, 240)",
+   "border": "rgb(253, 245, 211)",
+   "color": "rgb(220, 118, 9)",
+   "titleColor": "rgb(240, 244, 255)",
+   "iconColor": "rgb(220, 118, 9)",
+   "actionBg": "rgb(23, 23, 23)",
+   "actionColor": "rgb(255, 255, 255)"
+  },
+  "tabBarTop": 783,
+  "gapToTabBar": 15,
+  "outstanding": null,
+  "offlineBanner": []
+ },
+ {
+  "log": "current-round--feedback-conflict--390--dark.png: http=[\"409 {\\\"detail\\\":\\\"SELECTION_TAKEN\\\"}\"] toast=\"Someone in your league just grabbed that selection — pick another.\" type=warning action=\"Refresh the card\" gap=15 outstanding=null"
+ },
+ {
+  "log": "  before tap: move Chelsea 4.30 -> 4.60: 200 {\"market_id\":\"1.100000001\",\"selection_id\":1002,\"price\":4.6}"
+ },
+ {
+  "state": "feedback-price-moved",
+  "width": 390,
+  "theme": "dark",
+  "persona": "Hana",
+  "target": "Chelsea",
+  "file": "current-round--feedback-price-moved--390--dark.png",
+  "sha256": "ffe61321c1b62f2a769970a045ebc11e4a4abee1a95ea08fbf42215d9d3236f5",
+  "responses": [
+   "409 {\"detail\":\"PRICE_MOVED:4.60\"}"
+  ],
+  "toast": {
+   "title": "That price moved before your pick landed — it’s now 4.60. Tap again to take it.",
+   "type": "warning",
+   "action": "Take 4.60",
+   "rect": [
+    16,
+    676,
+    358,
+    93
+   ],
+   "bg": "rgb(255, 252, 240)",
+   "border": "rgb(253, 245, 211)",
+   "color": "rgb(220, 118, 9)",
+   "titleColor": "rgb(240, 244, 255)",
+   "iconColor": "rgb(220, 118, 9)",
+   "actionBg": "rgb(23, 23, 23)",
+   "actionColor": "rgb(255, 255, 255)"
+  },
+  "tabBarTop": 783,
+  "gapToTabBar": 15,
+  "outstanding": null,
+  "offlineBanner": []
+ },
+ {
+  "log": "current-round--feedback-price-moved--390--dark.png: http=[\"409 {\\\"detail\\\":\\\"PRICE_MOVED:4.60\\\"}\"] toast=\"That price moved before your pick landed — it’s now 4.60. Tap again to take it.\" type=warning action=\"Take 4.60\" gap=15 outstanding=null"
+ },
+ {
+  "log": "reset price: 200 {\"market_id\":\"1.100000001\",\"selection_id\":1002,\"price\":4.3}"
+ },
+ {
+  "state": "feedback-queued-offline",
+  "width": 390,
+  "theme": "dark",
+  "persona": "Ivan",
+  "target": "Forfar Athletic",
+  "file": "current-round--feedback-queued-offline--390--dark.png",
+  "sha256": "9996a92ddcc8dbadb3c6a7930c995f996b8c64774ea6c8b16e2134423f3d2911",
+  "responses": [],
+  "toast": null,
+  "tabBarTop": 783,
+  "gapToTabBar": null,
+  "outstanding": null,
+  "offlineBanner": [
+   "You're offline — some content may be outdated"
+  ]
+ },
+ {
+  "log": "current-round--feedback-queued-offline--390--dark.png: http=[] toast=undefined type=undefined action=undefined gap=null outstanding=null"
+ }
+]

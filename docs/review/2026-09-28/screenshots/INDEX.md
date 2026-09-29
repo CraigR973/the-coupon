@@ -375,3 +375,42 @@ Duplicate hashes: 8 groups (see `notes/03-ux/duplicates.txt`).
 | `football--results--390--dark.png` | `/football?date=2026-05-02` | results | 390 | dark | `b48ecd5168c7` | Alice: h1 “Football Stats” | 0 |
 | `football--results--390--light.png` | `/football?date=2026-05-02` | results | 390 | light | `4b4cce16d878` | Alice: h1 “Football Stats” | 0 |
 <!-- lens-03 end -->
+
+<!-- lens-06 begin -->
+## Lens 06 — premium design corpus additions
+
+Production bundle built by `notes/06-design/build_web.py` (cwd=apps/web, CSS 45,794 B — the same
+file name, `index-Br02Ny1y.css`, that production serves) against the lens 06 stack on :8160
+(`notes/06-design/stack_design.py`: the e2e server + a test-only `POST /__review/move-price`;
+`ODDS_PROVIDER=fake`, scheduler off). Playwright Chromium, deviceScaleFactor 1, reduced motion,
+service workers blocked. Every state below was driven for real — no request was mocked — and the
+last column says what proved it. Each PNG was opened after capture; duplicates are listed in
+`notes/06-design/duplicates.txt`.
+
+| file | url at capture | state | width | theme | sha256 | state confirmed by |
+| --- | --- | --- | --- | --- | --- | --- |
+| `current-round--feedback-confirmed--390--light.png` | `/leagues/the-coupon/predictions` | confirmed | 390 | light | `457634c2c47e` | Carol: real POST → 201; toast “Grabbed Yes @ 1.95” type=success; title contrast 16.87:1 (feedback-run-1.txt) |
+| `current-round--feedback-conflict--390--light.png` | `/leagues/the-coupon/predictions` | conflict | 390 | light | `1c407d35d834` | Alice: Bob claimed Brechin City over the API (201) after her card loaded; her POST → 409 SELECTION_TAKEN; toast type=warning, action “Refresh the card”; title contrast 17.31:1 |
+| `current-round--feedback-price-moved--390--light.png` | `/leagues/the-coupon/predictions` | price-moved | 390 | light | `cbddc5dff4bd` | Hana: fake price moved 4.30 → 4.60 after her card loaded; POST → 409 PRICE_MOVED:4.60; toast type=warning, action “Take 4.60”; title contrast 17.31:1 |
+| `current-round--feedback-queued-offline--390--light.png` | `/leagues/the-coupon/predictions` | queued-offline (no message shown — DES finding) | 390 | light | `8390179594e9` | Ivan: context offline, tapped Forfar Athletic; POSTs sent while offline: 0; toast after 5 s: none; outstanding notice: none |
+| `current-round--feedback-queued-reconnected--390--light.png` | `/leagues/the-coupon/predictions` | queued pick sent on reconnect | 390 | light | `c53ab4df8214` | Ivan: back online; POST 201; toast “Grabbed Forfar Athletic @ 2.40” (success) |
+| `current-round--feedback-confirmed--390--dark.png` | `/leagues/the-coupon/predictions` | confirmed | 390 | dark | `e7f7b9c82a4c` | Carol: real POST → 201 {"id":"541926ff-a2ae-4733-9ea6-99caf; toast “Grabbed Yes @ 1.95” type=success; title contrast 1.04:1 |
+| `current-round--feedback-conflict--390--dark.png` | `/leagues/the-coupon/predictions` | conflict | 390 | dark | `2d93297ae463` | Alice: real POST → 409 {"detail":"SELECTION_TAKEN"}; toast “Someone in your league just grabbed that selection — pick another.” type=warning, action “Refresh the card”; title contrast 1.07:1 |
+| `current-round--feedback-price-moved--390--dark.png` | `/leagues/the-coupon/predictions` | price-moved | 390 | dark | `402a620f50d3` | Hana: real POST → 409 {"detail":"PRICE_MOVED:4.60"}; toast “That price moved before your pick landed — it’s now 4.60. Tap again to take it.” type=warning, action “Take 4.60”; title contrast 1.07:1 |
+| `current-round--feedback-queued-offline--390--dark.png` | `/leagues/the-coupon/predictions` | queued-offline (no message shown — DES finding) | 390 | dark | `96273338930e` | Ivan: context offline, tapped Yes; POSTs sent while offline: 1; toast after 5 s: none; outstanding notice: none |
+| `current-round--feedback-queued-reconnected--390--dark.png` | `/leagues/the-coupon/predictions` | queued pick sent on reconnect | 390 | dark | `332f8f258101` | Ivan: back online; POST 201; toast “Grabbed Yes @ 1.80” (success) |
+| `current-round--feedback-confirmed--1280--light.png` | `/leagues/the-coupon/predictions` | confirmed | 1280 | light | `61357294bd95` | Carol: real POST → 201 {"id":"541926ff-a2ae-4733-9ea6-99caf; toast “Grabbed The Draw @ 3.20” type=success; title contrast 16.87:1 |
+| `current-round--feedback-conflict--1280--light.png` | `/leagues/the-coupon/predictions` | conflict | 1280 | light | `cc61f7b39845` | Alice: real POST → 409 {"detail":"SELECTION_TAKEN"}; toast “Someone in your league just grabbed that selection — pick another.” type=warning, action “Refresh the card”; title contrast 17.31:1 |
+| `current-round--feedback-price-moved--1280--light.png` | `/leagues/the-coupon/predictions` | price-moved | 1280 | light | `af744cc63a0d` | Hana: real POST → 409 {"detail":"PRICE_MOVED:4.70"}; toast “That price moved before your pick landed — it’s now 4.70. Tap again to take it.” type=warning, action “Take 4.70”; title contrast 17.31:1 |
+| `current-round--feedback-queued-offline--1280--light.png` | `/leagues/the-coupon/predictions` | queued-offline (no message shown — DES finding) | 1280 | light | `13f70928fb8b` | Ivan: context offline, tapped Forfar Athletic; POSTs sent while offline: 1; toast after 5 s: none; outstanding notice: none |
+| `current-round--feedback-queued-reconnected--1280--light.png` | `/leagues/the-coupon/predictions` | queued pick sent on reconnect | 1280 | light | `42cf737da30f` | Ivan: back online; POST 201; toast “Grabbed Forfar Athletic @ 2.40” (success) |
+| `current-round--feedback-confirmed--1280--dark.png` | `/leagues/the-coupon/predictions` | confirmed | 1280 | dark | `34d416226c40` | Carol: real POST → 201 {"id":"541926ff-a2ae-4733-9ea6-99caf; toast “Grabbed Yes @ 1.95” type=success; title contrast 1.04:1 |
+| `current-round--feedback-conflict--1280--dark.png` | `/leagues/the-coupon/predictions` | conflict | 1280 | dark | `9d7ea2147692` | Alice: real POST → 409 {"detail":"SELECTION_TAKEN"}; toast “Someone in your league just grabbed that selection — pick another.” type=warning, action “Refresh the card”; title contrast 1.07:1 |
+| `current-round--feedback-price-moved--1280--dark.png` | `/leagues/the-coupon/predictions` | price-moved | 1280 | dark | `8508bb27f590` | Hana: real POST → 409 {"detail":"PRICE_MOVED:4.80"}; toast “That price moved before your pick landed — it’s now 4.80. Tap again to take it.” type=warning, action “Take 4.80”; title contrast 1.07:1 |
+| `current-round--feedback-queued-offline--1280--dark.png` | `/leagues/the-coupon/predictions` | queued-offline (no message shown — DES finding) | 1280 | dark | `dc10f8479f67` | Ivan: context offline, tapped Yes; POSTs sent while offline: 1; toast after 5 s: none; outstanding notice: none |
+| `current-round--feedback-queued-reconnected--1280--dark.png` | `/leagues/the-coupon/predictions` | queued pick sent on reconnect | 1280 | dark | `c2009820c393` | Ivan: back online; POST 201; toast “Grabbed Yes @ 1.80” (success) |
+| `current-round--feedback-busy--390--light.png` | `/leagues/the-coupon/predictions` | busy (PICKS_BUSY) | 390 | light | `a6800d4c3d7b` | Ivan: league budget exhausted by real submissions from Jo, Kai, Lee (the 23rd in busy-run.txt drew PICKS_BUSY); his POST → 429 PICKS_BUSY; toast type=error, no action; title contrast 16.08:1 |
+| `current-round--feedback-busy--390--dark.png` | `/leagues/the-coupon/predictions` | busy (PICKS_BUSY) | 390 | dark | `6d9c86b89b06` | Ivan: league budget exhausted by real submissions from Jo, Kai, Lee (the 23rd in busy-run.txt drew PICKS_BUSY); his POST → 429 PICKS_BUSY; toast type=error, no action; title contrast 1.01:1 |
+| `current-round--feedback-busy--1280--light.png` | `/leagues/the-coupon/predictions` | busy (PICKS_BUSY) | 1280 | light | `c89fbc352d42` | Ivan: league budget exhausted by real submissions from Jo, Kai, Lee (the 23rd in busy-run.txt drew PICKS_BUSY); his POST → 429 PICKS_BUSY; toast type=error, no action; title contrast 16.08:1 |
+| `current-round--feedback-busy--1280--dark.png` | `/leagues/the-coupon/predictions` | busy (PICKS_BUSY) | 1280 | dark | `d250ee60838e` | Ivan: league budget exhausted by real submissions from Jo, Kai, Lee (the 23rd in busy-run.txt drew PICKS_BUSY); his POST → 429 PICKS_BUSY; toast type=error, no action; title contrast 1.01:1 |
+<!-- lens-06 end -->

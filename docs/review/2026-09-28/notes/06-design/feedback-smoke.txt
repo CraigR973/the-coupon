@@ -1,0 +1,8 @@
+reset price: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.3}
+current-round--feedback-confirmed--390--dark.png: http=["201 {\"id\":\"541926ff-a2ae-4733-9ea6-99caf2f81e0d\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"] toast="Grabbed The Draw @ 3.20" type=success action=null gap=15 outstanding=null
+  before tap: bob claims The Draw: 201
+current-round--feedback-conflict--390--dark.png: http=["409 {\"detail\":\"SELECTION_TAKEN\"}"] toast="Someone in your league just grabbed that selection — pick another." type=warning action="Refresh the card" gap=15 outstanding=null
+  before tap: move Chelsea 4.30 -> 4.60: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.6}
+current-round--feedback-price-moved--390--dark.png: http=["409 {\"detail\":\"PRICE_MOVED:4.60\"}"] toast="That price moved before your pick landed — it’s now 4.60. Tap again to take it." type=warning action="Take 4.60" gap=15 outstanding=null
+reset price: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.3}
+current-round--feedback-queued-offline--390--dark.png: http=[] toast=undefined type=undefined action=undefined gap=null outstanding=null

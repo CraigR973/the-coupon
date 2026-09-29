@@ -1,0 +1,77 @@
+{
+ "busyAt": 23,
+ "out": [
+  {
+   "width": 390,
+   "theme": "light",
+   "file": "current-round--feedback-busy--390--light.png",
+   "sha256": "a6800d4c3d7b4574cdfafaf6058a322389c2af14ef9a98a4f702cec64455e169",
+   "responses": [
+    "429 {\"detail\":\"PICKS_BUSY\"}"
+   ],
+   "toast": {
+    "title": "Too many picks are being made in your league right now — your pick wasn’t saved. Try again in a few minutes.",
+    "type": "error",
+    "action": null,
+    "bg": "rgb(255, 240, 240)",
+    "titleColor": "rgb(20, 24, 31)",
+    "gapToTabBar": 15
+   },
+   "titleContrast": 16.08
+  },
+  {
+   "width": 390,
+   "theme": "dark",
+   "file": "current-round--feedback-busy--390--dark.png",
+   "sha256": "6d9c86b89b06800413627a8907ccc73b6e85f202c12bea31be271d411fbad261",
+   "responses": [
+    "429 {\"detail\":\"PICKS_BUSY\"}"
+   ],
+   "toast": {
+    "title": "Too many picks are being made in your league right now — your pick wasn’t saved. Try again in a few minutes.",
+    "type": "error",
+    "action": null,
+    "bg": "rgb(255, 240, 240)",
+    "titleColor": "rgb(240, 244, 255)",
+    "gapToTabBar": 15
+   },
+   "titleContrast": 1.01
+  },
+  {
+   "width": 1280,
+   "theme": "light",
+   "file": "current-round--feedback-busy--1280--light.png",
+   "sha256": "c89fbc352d425ca3d3fef24b2aed32c0a6c80d3288e50eec897d817796ca3cb0",
+   "responses": [
+    "429 {\"detail\":\"PICKS_BUSY\"}"
+   ],
+   "toast": {
+    "title": "Too many picks are being made in your league right now — your pick wasn’t saved. Try again in a few minutes.",
+    "type": "error",
+    "action": null,
+    "bg": "rgb(255, 240, 240)",
+    "titleColor": "rgb(20, 24, 31)",
+    "gapToTabBar": null
+   },
+   "titleContrast": 16.08
+  },
+  {
+   "width": 1280,
+   "theme": "dark",
+   "file": "current-round--feedback-busy--1280--dark.png",
+   "sha256": "d250ee60838e237e184f64b71551c492517d621a734539c220efcc1d337df9e0",
+   "responses": [
+    "429 {\"detail\":\"PICKS_BUSY\"}"
+   ],
+   "toast": {
+    "title": "Too many picks are being made in your league right now — your pick wasn’t saved. Try again in a few minutes.",
+    "type": "error",
+    "action": null,
+    "bg": "rgb(255, 240, 240)",
+    "titleColor": "rgb(240, 244, 255)",
+    "gapToTabBar": null
+   },
+   "titleContrast": 1.01
+  }
+ ]
+}

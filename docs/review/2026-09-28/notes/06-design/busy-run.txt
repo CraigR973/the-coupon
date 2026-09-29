@@ -1,0 +1,30 @@
+free at start: Arsenal/No, Arsenal/Chelsea, Arsenal/The Draw, Arsenal/Arsenal, Forfar Athletic/The Draw, Forfar Athletic/Forfar Athletic
+#1 Jo -> Arsenal/No: 201 "No"
+#2 Kai -> Arsenal/The Draw: 201 "The Draw"
+#3 Lee -> Forfar Athletic/The Draw: 201 "The Draw"
+#4 Jo -> Arsenal/Chelsea: 201 "Chelsea"
+#5 Kai -> Arsenal/Arsenal: 201 "Arsenal"
+#6 Lee -> Forfar Athletic/Forfar Athletic: 201 "Forfar Athletic"
+#7 Jo -> Arsenal/No: 201 "No"
+#8 Kai -> Arsenal/The Draw: 201 "The Draw"
+#9 Lee -> Forfar Athletic/The Draw: 201 "The Draw"
+#10 Jo -> Arsenal/Chelsea: 201 "Chelsea"
+#11 Kai -> Arsenal/Arsenal: 201 "Arsenal"
+#12 Lee -> Forfar Athletic/Forfar Athletic: 201 "Forfar Athletic"
+#13 Jo -> Arsenal/No: 201 "No"
+#14 Kai -> Arsenal/The Draw: 201 "The Draw"
+#15 Lee -> Forfar Athletic/The Draw: 201 "The Draw"
+#16 Jo -> Arsenal/Chelsea: 201 "Chelsea"
+#17 Kai -> Arsenal/Arsenal: 201 "Arsenal"
+#18 Lee -> Forfar Athletic/Forfar Athletic: 201 "Forfar Athletic"
+#19 Jo -> Arsenal/No: 201 "No"
+#20 Kai -> Arsenal/The Draw: 201 "The Draw"
+#21 Lee -> Forfar Athletic/The Draw: 201 "The Draw"
+#22 Jo -> Arsenal/Chelsea: 201 "Chelsea"
+#23 Kai -> Arsenal/Arsenal: 429 "PICKS_BUSY"
+PICKS_BUSY first returned at submission #23 of this script
+Ivan will tap Arsenal/No
+current-round--feedback-busy--390--light.png: http=["429 {\"detail\":\"PICKS_BUSY\"}"] toast="Too many picks are being made in your league right now — your pick wasn’t saved. Try again in a few minutes." type=error action=null contrast=16.08 gap=15
+current-round--feedback-busy--390--dark.png: http=["429 {\"detail\":\"PICKS_BUSY\"}"] toast="Too many picks are being made in your league right now — your pick wasn’t saved. Try again in a few minutes." type=error action=null contrast=1.01 gap=15
+current-round--feedback-busy--1280--light.png: http=["429 {\"detail\":\"PICKS_BUSY\"}"] toast="Too many picks are being made in your league right now — your pick wasn’t saved. Try again in a few minutes." type=error action=null contrast=16.08 gap=null
+current-round--feedback-busy--1280--dark.png: http=["429 {\"detail\":\"PICKS_BUSY\"}"] toast="Too many picks are being made in your league right now — your pick wasn’t saved. Try again in a few minutes." type=error action=null contrast=1.01 gap=null

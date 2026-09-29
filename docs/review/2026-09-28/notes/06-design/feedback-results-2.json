@@ -1,0 +1,515 @@
+[
+ {
+  "log": "reset price: 200 {\"market_id\":\"1.100000001\",\"selection_id\":1002,\"price\":4.3}"
+ },
+ {
+  "state": "feedback-confirmed",
+  "width": 390,
+  "theme": "dark",
+  "persona": "Carol",
+  "target": "Yes",
+  "file": "current-round--feedback-confirmed--390--dark.png",
+  "sha256": "e7f7b9c82a4c15e9007f1a5534416a4c6a6fe31dd4915217e31457732d15d032",
+  "responses": [
+   "201 {\"id\":\"541926ff-a2ae-4733-9ea6-99caf2f81e0d\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"
+  ],
+  "toast": {
+   "title": "Grabbed Yes @ 1.95",
+   "type": "success",
+   "action": null,
+   "rect": [
+    16,
+    715,
+    358,
+    54
+   ],
+   "bg": "rgb(236, 253, 243)",
+   "border": "rgb(211, 253, 229)",
+   "color": "rgb(0, 138, 46)",
+   "titleColor": "rgb(240, 244, 255)",
+   "iconColor": "rgb(0, 138, 46)",
+   "actionBg": null,
+   "actionColor": null
+  },
+  "tabBarTop": 783,
+  "gapToTabBar": 15,
+  "outstanding": null,
+  "offlineBanner": [],
+  "titleContrast": 1.04
+ },
+ {
+  "log": "current-round--feedback-confirmed--390--dark.png: http=[\"201 {\\\"id\\\":\\\"541926ff-a2ae-4733-9ea6-99caf2f81e0d\\\",\\\"league_id\\\":\\\"8d214d2f-273c-4685-b460-3d304f981aaa\\\",\\\"gameweek_id\\\":\\\"501a1a01-\"] toast=\"Grabbed Yes @ 1.95\" type=success action=null gap=15 outstanding=null"
+ },
+ {
+  "log": "  toast colours: bg=rgb(236, 253, 243) title=rgb(240, 244, 255) -> 1.04:1; action bg=null fg=null"
+ },
+ {
+  "log": "  before tap: bob claims Brechin City: 201"
+ },
+ {
+  "state": "feedback-conflict",
+  "width": 390,
+  "theme": "dark",
+  "persona": "Alice",
+  "target": "Brechin City",
+  "file": "current-round--feedback-conflict--390--dark.png",
+  "sha256": "2d93297ae46375f4c8bd392d3e42a39f9b2353b9b5b94a0eda1e12b76a96445c",
+  "responses": [
+   "409 {\"detail\":\"SELECTION_TAKEN\"}"
+  ],
+  "toast": {
+   "title": "Someone in your league just grabbed that selection — pick another.",
+   "type": "warning",
+   "action": "Refresh the card",
+   "rect": [
+    16,
+    676,
+    358,
+    93
+   ],
+   "bg": "rgb(255, 252, 240)",
+   "border": "rgb(253, 245, 211)",
+   "color": "rgb(220, 118, 9)",
+   "titleColor": "rgb(240, 244, 255)",
+   "iconColor": "rgb(220, 118, 9)",
+   "actionBg": "rgb(23, 23, 23)",
+   "actionColor": "rgb(255, 255, 255)"
+  },
+  "tabBarTop": 783,
+  "gapToTabBar": 15,
+  "outstanding": null,
+  "offlineBanner": [],
+  "titleContrast": 1.07
+ },
+ {
+  "log": "current-round--feedback-conflict--390--dark.png: http=[\"409 {\\\"detail\\\":\\\"SELECTION_TAKEN\\\"}\"] toast=\"Someone in your league just grabbed that selection — pick another.\" type=warning action=\"Refresh the card\" gap=15 outstanding=null"
+ },
+ {
+  "log": "  toast colours: bg=rgb(255, 252, 240) title=rgb(240, 244, 255) -> 1.07:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)"
+ },
+ {
+  "log": "  before tap: move Chelsea 4.30 -> 4.60: 200 {\"market_id\":\"1.100000001\",\"selection_id\":1002,\"price\":4.6}"
+ },
+ {
+  "state": "feedback-price-moved",
+  "width": 390,
+  "theme": "dark",
+  "persona": "Hana",
+  "target": "Chelsea",
+  "file": "current-round--feedback-price-moved--390--dark.png",
+  "sha256": "402a620f50d38568467133ce532908247a1477794b86bce80d7dfafd25d428ed",
+  "responses": [
+   "409 {\"detail\":\"PRICE_MOVED:4.60\"}"
+  ],
+  "toast": {
+   "title": "That price moved before your pick landed — it’s now 4.60. Tap again to take it.",
+   "type": "warning",
+   "action": "Take 4.60",
+   "rect": [
+    16,
+    676,
+    358,
+    93
+   ],
+   "bg": "rgb(255, 252, 240)",
+   "border": "rgb(253, 245, 211)",
+   "color": "rgb(220, 118, 9)",
+   "titleColor": "rgb(240, 244, 255)",
+   "iconColor": "rgb(220, 118, 9)",
+   "actionBg": "rgb(23, 23, 23)",
+   "actionColor": "rgb(255, 255, 255)"
+  },
+  "tabBarTop": 783,
+  "gapToTabBar": 15,
+  "outstanding": null,
+  "offlineBanner": [],
+  "titleContrast": 1.07
+ },
+ {
+  "log": "current-round--feedback-price-moved--390--dark.png: http=[\"409 {\\\"detail\\\":\\\"PRICE_MOVED:4.60\\\"}\"] toast=\"That price moved before your pick landed — it’s now 4.60. Tap again to take it.\" type=warning action=\"Take 4.60\" gap=15 outstanding=null"
+ },
+ {
+  "log": "  toast colours: bg=rgb(255, 252, 240) title=rgb(240, 244, 255) -> 1.07:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)"
+ },
+ {
+  "log": "reset price: 200 {\"market_id\":\"1.100000001\",\"selection_id\":1002,\"price\":4.3}"
+ },
+ {
+  "state": "feedback-queued-offline",
+  "width": 390,
+  "theme": "dark",
+  "persona": "Ivan",
+  "target": "Yes",
+  "file": "current-round--feedback-queued-offline--390--dark.png",
+  "sha256": "96273338930e3dba880fff650d973d5e6a92804c458990632a4660b6e690b409",
+  "responses": [
+   "201 {\"id\":\"5af05c53-a828-4e78-8f48-77afcce5bf4a\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"
+  ],
+  "toast": null,
+  "tabBarTop": 783,
+  "gapToTabBar": null,
+  "outstanding": null,
+  "offlineBanner": [
+   "You're offline — some content may be outdated"
+  ],
+  "after5s": {
+   "toast": null,
+   "outstanding": null
+  },
+  "reconnected": {
+   "file": "current-round--feedback-queued-reconnected--390--dark.png",
+   "sha256": "332f8f258101c702c1a0459c77001391679cf10ae7f26b71e624b52b261c5c62",
+   "responses": [
+    "201 {\"id\":\"5af05c53-a828-4e78-8f48-77afcce5bf4a\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"
+   ],
+   "toast": "Grabbed Yes @ 1.80",
+   "type": "success"
+  }
+ },
+ {
+  "log": "current-round--feedback-queued-offline--390--dark.png: http=[] toast=undefined type=undefined action=undefined gap=null outstanding=null"
+ },
+ {
+  "log": "  offline +5s: {\"toast\":null,\"outstanding\":null}; reconnected: {\"file\":\"current-round--feedback-queued-reconnected--390--dark.png\",\"sha256\":\"332f8f258101c702c1a0459c77001391679cf10ae7f26b71e624b52b261c5c62\",\"responses\":[\"201 {\\\"id\\\":\\\"5af05c53-a828-4e78-8f48-77afcce5bf4a\\\",\\\"league_id\\\":\\\"8d214d2f-273c-4685-b460-3d304f981aaa\\\",\\\"gameweek_id\\\":\\\"501a1a01-\"],\"toast\":\"Grabbed Yes @ 1.80\",\"type\":\"success\"}"
+ },
+ {
+  "state": "feedback-confirmed",
+  "width": 1280,
+  "theme": "light",
+  "persona": "Carol",
+  "target": "The Draw",
+  "file": "current-round--feedback-confirmed--1280--light.png",
+  "sha256": "61357294bd95e08199a1bcbb49b58e1b2af8884dfae934035187fe6b0bf89b93",
+  "responses": [
+   "201 {\"id\":\"541926ff-a2ae-4733-9ea6-99caf2f81e0d\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"
+  ],
+  "toast": {
+   "title": "Grabbed The Draw @ 3.20",
+   "type": "success",
+   "action": null,
+   "rect": [
+    892,
+    715,
+    356,
+    54
+   ],
+   "bg": "rgb(236, 253, 243)",
+   "border": "rgb(211, 253, 229)",
+   "color": "rgb(0, 138, 46)",
+   "titleColor": "rgb(20, 24, 31)",
+   "iconColor": "rgb(0, 138, 46)",
+   "actionBg": null,
+   "actionColor": null
+  },
+  "tabBarTop": null,
+  "gapToTabBar": null,
+  "outstanding": null,
+  "offlineBanner": [],
+  "titleContrast": 16.87
+ },
+ {
+  "log": "current-round--feedback-confirmed--1280--light.png: http=[\"201 {\\\"id\\\":\\\"541926ff-a2ae-4733-9ea6-99caf2f81e0d\\\",\\\"league_id\\\":\\\"8d214d2f-273c-4685-b460-3d304f981aaa\\\",\\\"gameweek_id\\\":\\\"501a1a01-\"] toast=\"Grabbed The Draw @ 3.20\" type=success action=null gap=null outstanding=null"
+ },
+ {
+  "log": "  toast colours: bg=rgb(236, 253, 243) title=rgb(20, 24, 31) -> 16.87:1; action bg=null fg=null"
+ },
+ {
+  "log": "  before tap: bob claims The Draw: 201"
+ },
+ {
+  "state": "feedback-conflict",
+  "width": 1280,
+  "theme": "light",
+  "persona": "Alice",
+  "target": "The Draw",
+  "file": "current-round--feedback-conflict--1280--light.png",
+  "sha256": "cc61f7b398452ce8cd79c563acdf9415c93a28e287162ed85b5a84008a377562",
+  "responses": [
+   "409 {\"detail\":\"SELECTION_TAKEN\"}"
+  ],
+  "toast": {
+   "title": "Someone in your league just grabbed that selection — pick another.",
+   "type": "warning",
+   "action": "Refresh the card",
+   "rect": [
+    892,
+    676,
+    356,
+    93
+   ],
+   "bg": "rgb(255, 252, 240)",
+   "border": "rgb(253, 245, 211)",
+   "color": "rgb(220, 118, 9)",
+   "titleColor": "rgb(20, 24, 31)",
+   "iconColor": "rgb(220, 118, 9)",
+   "actionBg": "rgb(23, 23, 23)",
+   "actionColor": "rgb(255, 255, 255)"
+  },
+  "tabBarTop": null,
+  "gapToTabBar": null,
+  "outstanding": null,
+  "offlineBanner": [],
+  "titleContrast": 17.31
+ },
+ {
+  "log": "current-round--feedback-conflict--1280--light.png: http=[\"409 {\\\"detail\\\":\\\"SELECTION_TAKEN\\\"}\"] toast=\"Someone in your league just grabbed that selection — pick another.\" type=warning action=\"Refresh the card\" gap=null outstanding=null"
+ },
+ {
+  "log": "  toast colours: bg=rgb(255, 252, 240) title=rgb(20, 24, 31) -> 17.31:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)"
+ },
+ {
+  "log": "  before tap: move Chelsea 4.30 -> 4.70: 200 {\"market_id\":\"1.100000001\",\"selection_id\":1002,\"price\":4.7}"
+ },
+ {
+  "state": "feedback-price-moved",
+  "width": 1280,
+  "theme": "light",
+  "persona": "Hana",
+  "target": "Chelsea",
+  "file": "current-round--feedback-price-moved--1280--light.png",
+  "sha256": "af744cc63a0d92eff6b9099e0a10f3f50feb0d1b0199dda49122293a1f1382c9",
+  "responses": [
+   "409 {\"detail\":\"PRICE_MOVED:4.70\"}"
+  ],
+  "toast": {
+   "title": "That price moved before your pick landed — it’s now 4.70. Tap again to take it.",
+   "type": "warning",
+   "action": "Take 4.70",
+   "rect": [
+    892,
+    676,
+    356,
+    93
+   ],
+   "bg": "rgb(255, 252, 240)",
+   "border": "rgb(253, 245, 211)",
+   "color": "rgb(220, 118, 9)",
+   "titleColor": "rgb(20, 24, 31)",
+   "iconColor": "rgb(220, 118, 9)",
+   "actionBg": "rgb(23, 23, 23)",
+   "actionColor": "rgb(255, 255, 255)"
+  },
+  "tabBarTop": null,
+  "gapToTabBar": null,
+  "outstanding": null,
+  "offlineBanner": [],
+  "titleContrast": 17.31
+ },
+ {
+  "log": "current-round--feedback-price-moved--1280--light.png: http=[\"409 {\\\"detail\\\":\\\"PRICE_MOVED:4.70\\\"}\"] toast=\"That price moved before your pick landed — it’s now 4.70. Tap again to take it.\" type=warning action=\"Take 4.70\" gap=null outstanding=null"
+ },
+ {
+  "log": "  toast colours: bg=rgb(255, 252, 240) title=rgb(20, 24, 31) -> 17.31:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)"
+ },
+ {
+  "log": "reset price: 200 {\"market_id\":\"1.100000001\",\"selection_id\":1002,\"price\":4.3}"
+ },
+ {
+  "state": "feedback-queued-offline",
+  "width": 1280,
+  "theme": "light",
+  "persona": "Ivan",
+  "target": "Forfar Athletic",
+  "file": "current-round--feedback-queued-offline--1280--light.png",
+  "sha256": "13f70928fb8bbdc328514ae57f3362208a5f5d8474069b654985ad2c89a1527b",
+  "responses": [
+   "201 {\"id\":\"5af05c53-a828-4e78-8f48-77afcce5bf4a\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"
+  ],
+  "toast": null,
+  "tabBarTop": null,
+  "gapToTabBar": null,
+  "outstanding": null,
+  "offlineBanner": [
+   "You're offline — some content may be outdated"
+  ],
+  "after5s": {
+   "toast": null,
+   "outstanding": null
+  },
+  "reconnected": {
+   "file": "current-round--feedback-queued-reconnected--1280--light.png",
+   "sha256": "42cf737da30f558bdcb6570c809cd37100eedf3ba0bd276cd25cf9b43d8d956a",
+   "responses": [
+    "201 {\"id\":\"5af05c53-a828-4e78-8f48-77afcce5bf4a\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"
+   ],
+   "toast": "Grabbed Forfar Athletic @ 2.40",
+   "type": "success"
+  }
+ },
+ {
+  "log": "current-round--feedback-queued-offline--1280--light.png: http=[] toast=undefined type=undefined action=undefined gap=null outstanding=null"
+ },
+ {
+  "log": "  offline +5s: {\"toast\":null,\"outstanding\":null}; reconnected: {\"file\":\"current-round--feedback-queued-reconnected--1280--light.png\",\"sha256\":\"42cf737da30f558bdcb6570c809cd37100eedf3ba0bd276cd25cf9b43d8d956a\",\"responses\":[\"201 {\\\"id\\\":\\\"5af05c53-a828-4e78-8f48-77afcce5bf4a\\\",\\\"league_id\\\":\\\"8d214d2f-273c-4685-b460-3d304f981aaa\\\",\\\"gameweek_id\\\":\\\"501a1a01-\"],\"toast\":\"Grabbed Forfar Athletic @ 2.40\",\"type\":\"success\"}"
+ },
+ {
+  "state": "feedback-confirmed",
+  "width": 1280,
+  "theme": "dark",
+  "persona": "Carol",
+  "target": "Yes",
+  "file": "current-round--feedback-confirmed--1280--dark.png",
+  "sha256": "34d416226c40c378e4db85e9aa0a1fd8dff9403f9b96ab8f31caaef9657d4222",
+  "responses": [
+   "201 {\"id\":\"541926ff-a2ae-4733-9ea6-99caf2f81e0d\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"
+  ],
+  "toast": {
+   "title": "Grabbed Yes @ 1.95",
+   "type": "success",
+   "action": null,
+   "rect": [
+    892,
+    715,
+    356,
+    54
+   ],
+   "bg": "rgb(236, 253, 243)",
+   "border": "rgb(211, 253, 229)",
+   "color": "rgb(0, 138, 46)",
+   "titleColor": "rgb(240, 244, 255)",
+   "iconColor": "rgb(0, 138, 46)",
+   "actionBg": null,
+   "actionColor": null
+  },
+  "tabBarTop": null,
+  "gapToTabBar": null,
+  "outstanding": null,
+  "offlineBanner": [],
+  "titleContrast": 1.04
+ },
+ {
+  "log": "current-round--feedback-confirmed--1280--dark.png: http=[\"201 {\\\"id\\\":\\\"541926ff-a2ae-4733-9ea6-99caf2f81e0d\\\",\\\"league_id\\\":\\\"8d214d2f-273c-4685-b460-3d304f981aaa\\\",\\\"gameweek_id\\\":\\\"501a1a01-\"] toast=\"Grabbed Yes @ 1.95\" type=success action=null gap=null outstanding=null"
+ },
+ {
+  "log": "  toast colours: bg=rgb(236, 253, 243) title=rgb(240, 244, 255) -> 1.04:1; action bg=null fg=null"
+ },
+ {
+  "log": "  before tap: bob claims Brechin City: 201"
+ },
+ {
+  "state": "feedback-conflict",
+  "width": 1280,
+  "theme": "dark",
+  "persona": "Alice",
+  "target": "Brechin City",
+  "file": "current-round--feedback-conflict--1280--dark.png",
+  "sha256": "9d7ea21476924cadf6e8d54c1d2a60c24ce6f8506ecaf17defeb7a90a45e5e61",
+  "responses": [
+   "409 {\"detail\":\"SELECTION_TAKEN\"}"
+  ],
+  "toast": {
+   "title": "Someone in your league just grabbed that selection — pick another.",
+   "type": "warning",
+   "action": "Refresh the card",
+   "rect": [
+    892,
+    676,
+    356,
+    93
+   ],
+   "bg": "rgb(255, 252, 240)",
+   "border": "rgb(253, 245, 211)",
+   "color": "rgb(220, 118, 9)",
+   "titleColor": "rgb(240, 244, 255)",
+   "iconColor": "rgb(220, 118, 9)",
+   "actionBg": "rgb(23, 23, 23)",
+   "actionColor": "rgb(255, 255, 255)"
+  },
+  "tabBarTop": null,
+  "gapToTabBar": null,
+  "outstanding": null,
+  "offlineBanner": [],
+  "titleContrast": 1.07
+ },
+ {
+  "log": "current-round--feedback-conflict--1280--dark.png: http=[\"409 {\\\"detail\\\":\\\"SELECTION_TAKEN\\\"}\"] toast=\"Someone in your league just grabbed that selection — pick another.\" type=warning action=\"Refresh the card\" gap=null outstanding=null"
+ },
+ {
+  "log": "  toast colours: bg=rgb(255, 252, 240) title=rgb(240, 244, 255) -> 1.07:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)"
+ },
+ {
+  "log": "  before tap: move Chelsea 4.30 -> 4.80: 200 {\"market_id\":\"1.100000001\",\"selection_id\":1002,\"price\":4.8}"
+ },
+ {
+  "state": "feedback-price-moved",
+  "width": 1280,
+  "theme": "dark",
+  "persona": "Hana",
+  "target": "Chelsea",
+  "file": "current-round--feedback-price-moved--1280--dark.png",
+  "sha256": "8508bb27f590d7b15eb11e328c789d5504639fb991b56c2f0fbaf2ed741dfded",
+  "responses": [
+   "409 {\"detail\":\"PRICE_MOVED:4.80\"}"
+  ],
+  "toast": {
+   "title": "That price moved before your pick landed — it’s now 4.80. Tap again to take it.",
+   "type": "warning",
+   "action": "Take 4.80",
+   "rect": [
+    892,
+    676,
+    356,
+    93
+   ],
+   "bg": "rgb(255, 252, 240)",
+   "border": "rgb(253, 245, 211)",
+   "color": "rgb(220, 118, 9)",
+   "titleColor": "rgb(240, 244, 255)",
+   "iconColor": "rgb(220, 118, 9)",
+   "actionBg": "rgb(23, 23, 23)",
+   "actionColor": "rgb(255, 255, 255)"
+  },
+  "tabBarTop": null,
+  "gapToTabBar": null,
+  "outstanding": null,
+  "offlineBanner": [],
+  "titleContrast": 1.07
+ },
+ {
+  "log": "current-round--feedback-price-moved--1280--dark.png: http=[\"409 {\\\"detail\\\":\\\"PRICE_MOVED:4.80\\\"}\"] toast=\"That price moved before your pick landed — it’s now 4.80. Tap again to take it.\" type=warning action=\"Take 4.80\" gap=null outstanding=null"
+ },
+ {
+  "log": "  toast colours: bg=rgb(255, 252, 240) title=rgb(240, 244, 255) -> 1.07:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)"
+ },
+ {
+  "log": "reset price: 200 {\"market_id\":\"1.100000001\",\"selection_id\":1002,\"price\":4.3}"
+ },
+ {
+  "state": "feedback-queued-offline",
+  "width": 1280,
+  "theme": "dark",
+  "persona": "Ivan",
+  "target": "Yes",
+  "file": "current-round--feedback-queued-offline--1280--dark.png",
+  "sha256": "dc10f8479f672f7dff22921d3922daaae783a91afb83b13da18fd81d776a05f9",
+  "responses": [
+   "201 {\"id\":\"5af05c53-a828-4e78-8f48-77afcce5bf4a\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"
+  ],
+  "toast": null,
+  "tabBarTop": null,
+  "gapToTabBar": null,
+  "outstanding": null,
+  "offlineBanner": [
+   "You're offline — some content may be outdated"
+  ],
+  "after5s": {
+   "toast": null,
+   "outstanding": null
+  },
+  "reconnected": {
+   "file": "current-round--feedback-queued-reconnected--1280--dark.png",
+   "sha256": "c2009820c393e9fd764336e6c94a6fa7aa337007d8a74efba5922cb387d4e448",
+   "responses": [
+    "201 {\"id\":\"5af05c53-a828-4e78-8f48-77afcce5bf4a\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"
+   ],
+   "toast": "Grabbed Yes @ 1.80",
+   "type": "success"
+  }
+ },
+ {
+  "log": "current-round--feedback-queued-offline--1280--dark.png: http=[] toast=undefined type=undefined action=undefined gap=null outstanding=null"
+ },
+ {
+  "log": "  offline +5s: {\"toast\":null,\"outstanding\":null}; reconnected: {\"file\":\"current-round--feedback-queued-reconnected--1280--dark.png\",\"sha256\":\"c2009820c393e9fd764336e6c94a6fa7aa337007d8a74efba5922cb387d4e448\",\"responses\":[\"201 {\\\"id\\\":\\\"5af05c53-a828-4e78-8f48-77afcce5bf4a\\\",\\\"league_id\\\":\\\"8d214d2f-273c-4685-b460-3d304f981aaa\\\",\\\"gameweek_id\\\":\\\"501a1a01-\"],\"toast\":\"Grabbed Yes @ 1.80\",\"type\":\"success\"}"
+ }
+]

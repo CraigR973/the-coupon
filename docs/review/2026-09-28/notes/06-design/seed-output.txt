@@ -1,0 +1,123 @@
+{
+  "base": {
+    "league_slug": "the-coupon",
+    "gameweek_id": "501a1a01-53bf-4e81-bbb4-729648727743",
+    "players": [
+      "Alice",
+      "Bob",
+      "Carol"
+    ],
+    "football_competitions": [
+      "10932509",
+      "10932510"
+    ]
+  },
+  "extra": {
+    "coupon_round": "501a1a01-53bf-4e81-bbb4-729648727743",
+    "sunday_round": "e18ae236-b497-4b41-9711-3dbbf46fc510",
+    "people": {
+      "Alice": "99fa6c69-e881-447d-81e3-7b8a9e7d1ccb",
+      "Bob": "dc6729a5-3164-48f0-b58c-fd3bcf605369",
+      "Carol": "e0417267-31c0-4cee-92bb-495b389a09ed",
+      "Dave": "51bf6854-80d9-479e-8414-996898835938",
+      "Erin": "b7f70bc7-62ba-4238-b502-bb6abb896b6a",
+      "Hana": "247d1557-cd2e-45a8-abf9-012787caa040",
+      "Ivan": "6a0cfa83-796d-43bb-9334-0fc78bf07dc2",
+      "Jo": "de9a8951-40d1-4867-b3c1-810f8f60cbf9",
+      "Kai": "2a526fde-fbd4-4e3c-a672-a8e1fe3df574",
+      "Lee": "1aface08-163d-494c-a105-4e0ae522bab0"
+    }
+  },
+  "sessions": {
+    "Alice": {
+      "player": {
+        "id": "99fa6c69-e881-447d-81e3-7b8a9e7d1ccb",
+        "display_name": "Alice",
+        "role": "admin",
+        "timezone": "Europe/London",
+        "odds_format": "decimal",
+        "avatar_url": null
+      }
+    },
+    "Bob": {
+      "player": {
+        "id": "dc6729a5-3164-48f0-b58c-fd3bcf605369",
+        "display_name": "Bob",
+        "role": "player",
+        "timezone": "Europe/London",
+        "odds_format": "decimal",
+        "avatar_url": null
+      }
+    },
+    "Carol": {
+      "player": {
+        "id": "e0417267-31c0-4cee-92bb-495b389a09ed",
+        "display_name": "Carol",
+        "role": "player",
+        "timezone": "Europe/London",
+        "odds_format": "decimal",
+        "avatar_url": null
+      }
+    },
+    "Dave": {
+      "player": {
+        "id": "51bf6854-80d9-479e-8414-996898835938",
+        "display_name": "Dave",
+        "role": "player",
+        "timezone": "Europe/London",
+        "odds_format": "decimal",
+        "avatar_url": null
+      }
+    },
+    "Hana": {
+      "player": {
+        "id": "247d1557-cd2e-45a8-abf9-012787caa040",
+        "display_name": "Hana",
+        "role": "player",
+        "timezone": "Europe/London",
+        "odds_format": "decimal",
+        "avatar_url": null
+      }
+    },
+    "Ivan": {
+      "player": {
+        "id": "6a0cfa83-796d-43bb-9334-0fc78bf07dc2",
+        "display_name": "Ivan",
+        "role": "player",
+        "timezone": "Europe/London",
+        "odds_format": "decimal",
+        "avatar_url": null
+      }
+    },
+    "Jo": {
+      "player": {
+        "id": "de9a8951-40d1-4867-b3c1-810f8f60cbf9",
+        "display_name": "Jo",
+        "role": "player",
+        "timezone": "Europe/London",
+        "odds_format": "decimal",
+        "avatar_url": null
+      }
+    },
+    "Kai": {
+      "player": {
+        "id": "2a526fde-fbd4-4e3c-a672-a8e1fe3df574",
+        "display_name": "Kai",
+        "role": "player",
+        "timezone": "Europe/London",
+        "odds_format": "decimal",
+        "avatar_url": null
+      }
+    },
+    "Lee": {
+      "player": {
+        "id": "1aface08-163d-494c-a105-4e0ae522bab0",
+        "display_name": "Lee",
+        "role": "player",
+        "timezone": "Europe/London",
+        "odds_format": "decimal",
+        "avatar_url": null
+      }
+    }
+  }
+}

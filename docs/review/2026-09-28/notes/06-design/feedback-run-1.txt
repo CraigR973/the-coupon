@@ -1,0 +1,49 @@
+reset price: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.3}
+current-round--feedback-confirmed--390--light.png: http=["201 {\"id\":\"541926ff-a2ae-4733-9ea6-99caf2f81e0d\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"] toast="Grabbed Yes @ 1.95" type=success action=null gap=15 outstanding=null
+  toast colours: bg=rgb(236, 253, 243) title=rgb(20, 24, 31) -> 16.87:1; action bg=null fg=null
+  before tap: bob claims Brechin City: 201
+current-round--feedback-conflict--390--light.png: http=["409 {\"detail\":\"SELECTION_TAKEN\"}"] toast="Someone in your league just grabbed that selection — pick another." type=warning action="Refresh the card" gap=15 outstanding=null
+  toast colours: bg=rgb(255, 252, 240) title=rgb(20, 24, 31) -> 17.31:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)
+  before tap: move Chelsea 4.30 -> 4.60: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.6}
+current-round--feedback-price-moved--390--light.png: http=["409 {\"detail\":\"PRICE_MOVED:4.60\"}"] toast="That price moved before your pick landed — it’s now 4.60. Tap again to take it." type=warning action="Take 4.60" gap=15 outstanding=null
+  toast colours: bg=rgb(255, 252, 240) title=rgb(20, 24, 31) -> 17.31:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)
+reset price: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.3}
+current-round--feedback-queued-offline--390--light.png: http=[] toast=undefined type=undefined action=undefined gap=null outstanding=null
+  offline +5s: {"toast":null,"outstanding":null}; reconnected: {"file":"current-round--feedback-queued-reconnected--390--light.png","sha256":"c53ab4df8214e7c421c341701af39cba109feaa7476f719da8494791f2e71c4b","responses":["201 {\"id\":\"5af05c53-a828-4e78-8f48-77afcce5bf4a\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"],"toast":"Grabbed Forfar Athletic @ 2.40","type":"success"}
+current-round--feedback-confirmed--390--dark.png: http=["201 {\"id\":\"541926ff-a2ae-4733-9ea6-99caf2f81e0d\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"] toast="Grabbed The Draw @ 3.20" type=success action=null gap=15 outstanding=null
+  toast colours: bg=rgb(236, 253, 243) title=rgb(240, 244, 255) -> 1.04:1; action bg=null fg=null
+  before tap: bob claims The Draw: 201
+current-round--feedback-conflict--390--dark.png: http=["409 {\"detail\":\"SELECTION_TAKEN\"}"] toast="Someone in your league just grabbed that selection — pick another." type=warning action="Refresh the card" gap=15 outstanding=null
+  toast colours: bg=rgb(255, 252, 240) title=rgb(240, 244, 255) -> 1.07:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)
+  before tap: move Chelsea 4.30 -> 4.70: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.7}
+current-round--feedback-price-moved--390--dark.png: http=["409 {\"detail\":\"PRICE_MOVED:4.70\"}"] toast="That price moved before your pick landed — it’s now 4.70. Tap again to take it." type=warning action="Take 4.70" gap=15 outstanding=null
+  toast colours: bg=rgb(255, 252, 240) title=rgb(240, 244, 255) -> 1.07:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)
+reset price: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.3}
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="selection-114cc2a3-57ac-436b-a766-6ee4ae7c6c81-MATCH_ODDS-HOME"]')
+    - locator resolved to <button disabled type="button" aria-pressed="true" data-testid="selection-114cc2a3-57ac-436b-a766-6ee4ae7c6c81-MATCH_ODDS-HOME" class="flex flex-col items-start gap-0.5 rounded-md px-2.5 py-2 text-left transition-colors border-2 border-success bg-success/20 text-success focus-visible:outline-none focus-visible:shadow-glow">…</button>
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is not enabled
+    - retrying click action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and stable
+      - element is not enabled
+    - retrying click action
+      - waiting 100ms
+    58 × waiting for element to be visible, enabled and stable
+       - element is not enabled
+     - retrying click action
+       - waiting 500ms
+
+    at run (/Users/craigrobinson/the-coupon/docs/review/2026-09-28/notes/06-design/feedback.mjs:97:13)
+    at async file:///Users/craigrobinson/the-coupon/docs/review/2026-09-28/notes/06-design/feedback.mjs:138:3 {
+  name: 'TimeoutError'
+}
+
+Node.js v24.21.0

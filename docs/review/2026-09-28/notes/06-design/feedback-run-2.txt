@@ -1,0 +1,34 @@
+reset price: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.3}
+current-round--feedback-confirmed--390--dark.png: http=["201 {\"id\":\"541926ff-a2ae-4733-9ea6-99caf2f81e0d\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"] toast="Grabbed Yes @ 1.95" type=success action=null gap=15 outstanding=null
+  toast colours: bg=rgb(236, 253, 243) title=rgb(240, 244, 255) -> 1.04:1; action bg=null fg=null
+  before tap: bob claims Brechin City: 201
+current-round--feedback-conflict--390--dark.png: http=["409 {\"detail\":\"SELECTION_TAKEN\"}"] toast="Someone in your league just grabbed that selection — pick another." type=warning action="Refresh the card" gap=15 outstanding=null
+  toast colours: bg=rgb(255, 252, 240) title=rgb(240, 244, 255) -> 1.07:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)
+  before tap: move Chelsea 4.30 -> 4.60: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.6}
+current-round--feedback-price-moved--390--dark.png: http=["409 {\"detail\":\"PRICE_MOVED:4.60\"}"] toast="That price moved before your pick landed — it’s now 4.60. Tap again to take it." type=warning action="Take 4.60" gap=15 outstanding=null
+  toast colours: bg=rgb(255, 252, 240) title=rgb(240, 244, 255) -> 1.07:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)
+reset price: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.3}
+current-round--feedback-queued-offline--390--dark.png: http=[] toast=undefined type=undefined action=undefined gap=null outstanding=null
+  offline +5s: {"toast":null,"outstanding":null}; reconnected: {"file":"current-round--feedback-queued-reconnected--390--dark.png","sha256":"332f8f258101c702c1a0459c77001391679cf10ae7f26b71e624b52b261c5c62","responses":["201 {\"id\":\"5af05c53-a828-4e78-8f48-77afcce5bf4a\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"],"toast":"Grabbed Yes @ 1.80","type":"success"}
+current-round--feedback-confirmed--1280--light.png: http=["201 {\"id\":\"541926ff-a2ae-4733-9ea6-99caf2f81e0d\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"] toast="Grabbed The Draw @ 3.20" type=success action=null gap=null outstanding=null
+  toast colours: bg=rgb(236, 253, 243) title=rgb(20, 24, 31) -> 16.87:1; action bg=null fg=null
+  before tap: bob claims The Draw: 201
+current-round--feedback-conflict--1280--light.png: http=["409 {\"detail\":\"SELECTION_TAKEN\"}"] toast="Someone in your league just grabbed that selection — pick another." type=warning action="Refresh the card" gap=null outstanding=null
+  toast colours: bg=rgb(255, 252, 240) title=rgb(20, 24, 31) -> 17.31:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)
+  before tap: move Chelsea 4.30 -> 4.70: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.7}
+current-round--feedback-price-moved--1280--light.png: http=["409 {\"detail\":\"PRICE_MOVED:4.70\"}"] toast="That price moved before your pick landed — it’s now 4.70. Tap again to take it." type=warning action="Take 4.70" gap=null outstanding=null
+  toast colours: bg=rgb(255, 252, 240) title=rgb(20, 24, 31) -> 17.31:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)
+reset price: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.3}
+current-round--feedback-queued-offline--1280--light.png: http=[] toast=undefined type=undefined action=undefined gap=null outstanding=null
+  offline +5s: {"toast":null,"outstanding":null}; reconnected: {"file":"current-round--feedback-queued-reconnected--1280--light.png","sha256":"42cf737da30f558bdcb6570c809cd37100eedf3ba0bd276cd25cf9b43d8d956a","responses":["201 {\"id\":\"5af05c53-a828-4e78-8f48-77afcce5bf4a\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"],"toast":"Grabbed Forfar Athletic @ 2.40","type":"success"}
+current-round--feedback-confirmed--1280--dark.png: http=["201 {\"id\":\"541926ff-a2ae-4733-9ea6-99caf2f81e0d\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"] toast="Grabbed Yes @ 1.95" type=success action=null gap=null outstanding=null
+  toast colours: bg=rgb(236, 253, 243) title=rgb(240, 244, 255) -> 1.04:1; action bg=null fg=null
+  before tap: bob claims Brechin City: 201
+current-round--feedback-conflict--1280--dark.png: http=["409 {\"detail\":\"SELECTION_TAKEN\"}"] toast="Someone in your league just grabbed that selection — pick another." type=warning action="Refresh the card" gap=null outstanding=null
+  toast colours: bg=rgb(255, 252, 240) title=rgb(240, 244, 255) -> 1.07:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)
+  before tap: move Chelsea 4.30 -> 4.80: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.8}
+current-round--feedback-price-moved--1280--dark.png: http=["409 {\"detail\":\"PRICE_MOVED:4.80\"}"] toast="That price moved before your pick landed — it’s now 4.80. Tap again to take it." type=warning action="Take 4.80" gap=null outstanding=null
+  toast colours: bg=rgb(255, 252, 240) title=rgb(240, 244, 255) -> 1.07:1; action bg=rgb(23, 23, 23) fg=rgb(255, 255, 255)
+reset price: 200 {"market_id":"1.100000001","selection_id":1002,"price":4.3}
+current-round--feedback-queued-offline--1280--dark.png: http=[] toast=undefined type=undefined action=undefined gap=null outstanding=null
+  offline +5s: {"toast":null,"outstanding":null}; reconnected: {"file":"current-round--feedback-queued-reconnected--1280--dark.png","sha256":"c2009820c393e9fd764336e6c94a6fa7aa337007d8a74efba5922cb387d4e448","responses":["201 {\"id\":\"5af05c53-a828-4e78-8f48-77afcce5bf4a\",\"league_id\":\"8d214d2f-273c-4685-b460-3d304f981aaa\",\"gameweek_id\":\"501a1a01-"],"toast":"Grabbed Yes @ 1.80","type":"success"}

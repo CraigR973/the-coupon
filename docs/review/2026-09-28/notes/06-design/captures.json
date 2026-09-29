@@ -1,0 +1,194 @@
+[
+ {
+  "file": "current-round--feedback-confirmed--390--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "confirmed",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Carol: real POST \u2192 201; toast \u201cGrabbed Yes @ 1.95\u201d type=success; title contrast 16.87:1 (feedback-run-1.txt)"
+ },
+ {
+  "file": "current-round--feedback-conflict--390--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "conflict",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Alice: Bob claimed Brechin City over the API (201) after her card loaded; her POST \u2192 409 SELECTION_TAKEN; toast type=warning, action \u201cRefresh the card\u201d; title contrast 17.31:1"
+ },
+ {
+  "file": "current-round--feedback-price-moved--390--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "price-moved",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Hana: fake price moved 4.30 \u2192 4.60 after her card loaded; POST \u2192 409 PRICE_MOVED:4.60; toast type=warning, action \u201cTake 4.60\u201d; title contrast 17.31:1"
+ },
+ {
+  "file": "current-round--feedback-queued-offline--390--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "queued-offline (no message shown \u2014 DES finding)",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Ivan: context offline, tapped Forfar Athletic; POSTs sent while offline: 0; toast after 5 s: none; outstanding notice: none"
+ },
+ {
+  "file": "current-round--feedback-queued-reconnected--390--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "queued pick sent on reconnect",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Ivan: back online; POST 201; toast \u201cGrabbed Forfar Athletic @ 2.40\u201d (success)"
+ },
+ {
+  "file": "current-round--feedback-confirmed--390--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "confirmed",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Carol: real POST \u2192 201 {\"id\":\"541926ff-a2ae-4733-9ea6-99caf; toast \u201cGrabbed Yes @ 1.95\u201d type=success; title contrast 1.04:1"
+ },
+ {
+  "file": "current-round--feedback-conflict--390--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "conflict",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Alice: real POST \u2192 409 {\"detail\":\"SELECTION_TAKEN\"}; toast \u201cSomeone in your league just grabbed that selection \u2014 pick another.\u201d type=warning, action \u201cRefresh the card\u201d; title contrast 1.07:1"
+ },
+ {
+  "file": "current-round--feedback-price-moved--390--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "price-moved",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Hana: real POST \u2192 409 {\"detail\":\"PRICE_MOVED:4.60\"}; toast \u201cThat price moved before your pick landed \u2014 it\u2019s now 4.60. Tap again to take it.\u201d type=warning, action \u201cTake 4.60\u201d; title contrast 1.07:1"
+ },
+ {
+  "file": "current-round--feedback-queued-offline--390--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "queued-offline (no message shown \u2014 DES finding)",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Ivan: context offline, tapped Yes; POSTs sent while offline: 1; toast after 5 s: none; outstanding notice: none"
+ },
+ {
+  "file": "current-round--feedback-queued-reconnected--390--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "queued pick sent on reconnect",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Ivan: back online; POST 201; toast \u201cGrabbed Yes @ 1.80\u201d (success)"
+ },
+ {
+  "file": "current-round--feedback-confirmed--1280--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "confirmed",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Carol: real POST \u2192 201 {\"id\":\"541926ff-a2ae-4733-9ea6-99caf; toast \u201cGrabbed The Draw @ 3.20\u201d type=success; title contrast 16.87:1"
+ },
+ {
+  "file": "current-round--feedback-conflict--1280--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "conflict",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Alice: real POST \u2192 409 {\"detail\":\"SELECTION_TAKEN\"}; toast \u201cSomeone in your league just grabbed that selection \u2014 pick another.\u201d type=warning, action \u201cRefresh the card\u201d; title contrast 17.31:1"
+ },
+ {
+  "file": "current-round--feedback-price-moved--1280--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "price-moved",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Hana: real POST \u2192 409 {\"detail\":\"PRICE_MOVED:4.70\"}; toast \u201cThat price moved before your pick landed \u2014 it\u2019s now 4.70. Tap again to take it.\u201d type=warning, action \u201cTake 4.70\u201d; title contrast 17.31:1"
+ },
+ {
+  "file": "current-round--feedback-queued-offline--1280--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "queued-offline (no message shown \u2014 DES finding)",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Ivan: context offline, tapped Forfar Athletic; POSTs sent while offline: 1; toast after 5 s: none; outstanding notice: none"
+ },
+ {
+  "file": "current-round--feedback-queued-reconnected--1280--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "queued pick sent on reconnect",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Ivan: back online; POST 201; toast \u201cGrabbed Forfar Athletic @ 2.40\u201d (success)"
+ },
+ {
+  "file": "current-round--feedback-confirmed--1280--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "confirmed",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Carol: real POST \u2192 201 {\"id\":\"541926ff-a2ae-4733-9ea6-99caf; toast \u201cGrabbed Yes @ 1.95\u201d type=success; title contrast 1.04:1"
+ },
+ {
+  "file": "current-round--feedback-conflict--1280--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "conflict",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Alice: real POST \u2192 409 {\"detail\":\"SELECTION_TAKEN\"}; toast \u201cSomeone in your league just grabbed that selection \u2014 pick another.\u201d type=warning, action \u201cRefresh the card\u201d; title contrast 1.07:1"
+ },
+ {
+  "file": "current-round--feedback-price-moved--1280--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "price-moved",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Hana: real POST \u2192 409 {\"detail\":\"PRICE_MOVED:4.80\"}; toast \u201cThat price moved before your pick landed \u2014 it\u2019s now 4.80. Tap again to take it.\u201d type=warning, action \u201cTake 4.80\u201d; title contrast 1.07:1"
+ },
+ {
+  "file": "current-round--feedback-queued-offline--1280--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "queued-offline (no message shown \u2014 DES finding)",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Ivan: context offline, tapped Yes; POSTs sent while offline: 1; toast after 5 s: none; outstanding notice: none"
+ },
+ {
+  "file": "current-round--feedback-queued-reconnected--1280--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "queued pick sent on reconnect",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Ivan: back online; POST 201; toast \u201cGrabbed Yes @ 1.80\u201d (success)"
+ },
+ {
+  "file": "current-round--feedback-busy--390--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "busy (PICKS_BUSY)",
+  "width": 390,
+  "theme": "light",
+  "confirmed": "Ivan: league budget exhausted by real submissions from Jo, Kai, Lee (the 23rd in busy-run.txt drew PICKS_BUSY); his POST \u2192 429 PICKS_BUSY; toast type=error, no action; title contrast 16.08:1"
+ },
+ {
+  "file": "current-round--feedback-busy--390--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "busy (PICKS_BUSY)",
+  "width": 390,
+  "theme": "dark",
+  "confirmed": "Ivan: league budget exhausted by real submissions from Jo, Kai, Lee (the 23rd in busy-run.txt drew PICKS_BUSY); his POST \u2192 429 PICKS_BUSY; toast type=error, no action; title contrast 1.01:1"
+ },
+ {
+  "file": "current-round--feedback-busy--1280--light.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "busy (PICKS_BUSY)",
+  "width": 1280,
+  "theme": "light",
+  "confirmed": "Ivan: league budget exhausted by real submissions from Jo, Kai, Lee (the 23rd in busy-run.txt drew PICKS_BUSY); his POST \u2192 429 PICKS_BUSY; toast type=error, no action; title contrast 16.08:1"
+ },
+ {
+  "file": "current-round--feedback-busy--1280--dark.png",
+  "url": "/leagues/the-coupon/predictions",
+  "state": "busy (PICKS_BUSY)",
+  "width": 1280,
+  "theme": "dark",
+  "confirmed": "Ivan: league budget exhausted by real submissions from Jo, Kai, Lee (the 23rd in busy-run.txt drew PICKS_BUSY); his POST \u2192 429 PICKS_BUSY; toast type=error, no action; title contrast 1.01:1"
+ }
+]
