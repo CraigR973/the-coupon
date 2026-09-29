@@ -66,3 +66,20 @@ from images you have opened and from the source:
 - **No recommendation may regress WCAG AA**: compute the contrast of every colour
   you propose against the surfaces it sits on, in both themes, and show the
   numbers.
+
+## Lead's notes at launch (29 Sep ~23:40)
+
+- **The harness `web.sh` was fixed at 18:50.** Its first version ran Vite outside
+  `apps/web`, so Tailwind emitted a 9 KB stylesheet and every capture built with it is
+  unstyled. It now builds from `apps/web` and refuses a stylesheet under 30 KB (45.8 KB is
+  right). Captures whose file name contains `-unstyled-` (lenses 02 and 05) are text
+  evidence only — never judge design from them. Lens 03 used its own `notes/03-ux/build_web.py`.
+- Lens 03's corpus is **in progress** (batch 1: the open-phase states). Start from what is
+  committed; capture what you need yourself rather than waiting.
+- Seen by the lead in an (unstyled) settled-coupon capture: an erased member is shown as
+  **"Former"** on the slate ("taken by Former · 29 Sep", "Picked by Dan, Former") — the
+  first-word shortening applied to "Former member". Judge it as copy.
+- Usage limits are the binding constraint on this review (three interruptions so far):
+  update `progress.md` after every step, commit often, write findings into the lens
+  document as they are verified, and script captures so large outputs are written to files
+  rather than read back.
