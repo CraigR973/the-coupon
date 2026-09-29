@@ -1,0 +1,69 @@
+PyPI pins: 62   npm packages in lockfile: 838   npm runtime closure: 228
+packages with hits: 19   advisories: 40
+
+PyPI cryptography==48.0.1 
+    GHSA-g6cj-pr64-35w5 CVE-2026-69247 [HIGH] fixed=['50.0.0'] cryptography: PKCS#7 EnvelopedData decryption exposes a Bleichenbacher oracle through distinguishable errors a
+    GHSA-jwv3-5hgf-82ww CVE-2026-69249 [HIGH] fixed=['49.0.0'] python-cryptography: Duplicate self-signed intermediates can cause exponential path-building
+    GHSA-m2h6-j472-rp4c CVE-2026-69248 [MODERATE] fixed=['49.0.0'] python-cryptography verifier accepts wildcard DNS names allowing escape from permittedSubtrees
+    PYSEC-2026-3552 CVE-2026-69247 [] fixed=['50.0.0'] cryptography: PKCS#7 EnvelopedData decryption exposes a Bleichenbacher oracle through distinguishable errors a
+    PYSEC-2026-3553 CVE-2026-69249 [] fixed=['49.0.0'] python-cryptography: Duplicate self-signed intermediates can cause exponential path-building
+    PYSEC-2026-3554 CVE-2026-69248 [] fixed=['49.0.0'] python-cryptography verifier accepts wildcard DNS names allowing escape from permittedSubtrees
+PyPI pydantic-settings==2.13.0 
+    GHSA-4xgf-cpjx-pc3j CVE-2026-58203 [MODERATE] fixed=['2.14.2'] pydantic-settings: NestedSecretsSettingsSource follows symlinks outside secrets_dir, enabling local file read 
+npm @babel/core==7.29.0 dev/build
+    GHSA-4x5r-pxfx-6jf8 CVE-2026-49356 [LOW] fixed=['7.29.6', '8.0.0-rc.6'] @babel/core: Arbitrary File Read via sourceMappingURL Comment
+npm @vitest/mocker==2.1.9 dev/build
+    GHSA-82fw-gwwq-j7x9 CVE-2026-84373 [MODERATE] fixed=['4.1.11', '5.0.0-rc.2'] Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock
+npm baseline-browser-mapping==2.10.27 dev/build
+    GHSA-w5vr-8v7q-w6rv CVE-2026-45819 [MODERATE] fixed=['2.11.0'] baseline-browser-mapping process termination on invalid input causes denial of service
+npm brace-expansion==1.1.14 dev/build
+    GHSA-3jxr-9vmj-r5cp CVE-2026-13149 [HIGH] fixed=['1.1.16', '2.1.2', '5.0.7'] brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups
+    GHSA-mh99-v99m-4gvg CVE-2026-14257 [HIGH] fixed=['2.1.3', '3.0.3', '5.0.8'] brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash
+    GHSA-rgw5-rvv9-x895 CVE-2026-69152 [HIGH] fixed=['2.1.4', '3.0.6', '5.0.9'] brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation
+npm brace-expansion==2.1.0 dev/build
+    GHSA-3jxr-9vmj-r5cp CVE-2026-13149 [HIGH] fixed=['1.1.16', '2.1.2', '5.0.7'] brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups
+    GHSA-mh99-v99m-4gvg CVE-2026-14257 [HIGH] fixed=['2.1.3', '3.0.3', '5.0.8'] brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash
+    GHSA-rgw5-rvv9-x895 CVE-2026-69152 [HIGH] fixed=['2.1.4', '3.0.6', '5.0.9'] brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation
+npm brace-expansion==5.0.5 dev/build
+    GHSA-3jxr-9vmj-r5cp CVE-2026-13149 [HIGH] fixed=['1.1.16', '2.1.2', '5.0.7'] brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups
+    GHSA-jxxr-4gwj-5jf2 CVE-2026-45149 [MODERATE] fixed=['5.0.6'] brace-expansion: Large numeric range defeats documented `max` DoS protection
+    GHSA-mh99-v99m-4gvg CVE-2026-14257 [HIGH] fixed=['2.1.3', '3.0.3', '5.0.8'] brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash
+    GHSA-rgw5-rvv9-x895 CVE-2026-69152 [HIGH] fixed=['2.1.4', '3.0.6', '5.0.9'] brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation
+npm browserslist==4.28.2 dev/build
+    GHSA-73wf-gq98-2v4g CVE-2026-73088 [HIGH] fixed=['4.28.7'] Browserslist: Uncaught crash / prototype write via untrusted browserslist-stats.json custom stats (normalizeSt
+    GHSA-c83g-rgw3-j3cx CVE-2026-73089 [HIGH] fixed=['4.28.7'] Browserslist: Unbounded memory growth (no cache eviction) via distinct query results, leading to eventual OOM
+npm esbuild==0.21.5 dev/build
+    GHSA-67mh-4wv8-2f99  [MODERATE] fixed=['0.25.0'] esbuild enables any website to send any requests to the development server and read the response
+npm fast-uri==3.1.2 dev/build
+    GHSA-4c8g-83qw-93j6 CVE-2026-13676 [HIGH] fixed=['2.4.2', '3.1.3', '4.0.1'] fast-uri vulnerable to host confusion via failed IDN canonicalization
+    GHSA-7p8r-x3mc-p8w7 CVE-2026-18446 [HIGH] fixed=['2.4.4', '3.1.5', '4.1.2'] fast-uri vulnerable to host confusion via backslash authority introducer
+    GHSA-f65p-4m7j-42xc CVE-2026-75975 [HIGH] fixed=['2.4.5', '3.1.6', '4.1.3'] fast-uri vulnerable to server-side request forgery via malformed IPv6 normalization
+    GHSA-fph4-wmhf-6fwf CVE-2026-75899 [HIGH] fixed=['2.4.5', '3.1.6', '4.1.3'] fast-uri vulnerable to server-side request forgery via repeated hostname percent-decoding
+    GHSA-jqff-g426-hqxp CVE-2026-76172 [HIGH] fixed=['2.4.5', '3.1.6', '4.1.3'] fast-uri vulnerable to host confusion via percent-encoded scheme normalization
+    GHSA-qw65-cvwx-89v3 CVE-2026-84292 [HIGH] fixed=['2.4.6', '3.1.7', '4.1.4'] fast-uri vulnerable to authority injection via an unvalidated port in serialize
+    GHSA-v2hh-gcrm-f6hx CVE-2026-16221 [HIGH] fixed=['2.4.3', '3.1.4', '4.1.1'] fast-uri vulnerable to host confusion via literal backslash authority delimiter
+npm form-data==4.0.5 dev/build
+    GHSA-hmw2-7cc7-3qxx CVE-2026-12143 [HIGH] fixed=['2.5.6', '3.0.5', '4.0.6'] form-data: CRLF injection in form-data via unescaped multipart field names and filenames
+npm js-yaml==4.1.1 dev/build
+    GHSA-2883-xcg3-v3hh CVE-2026-84375 [HIGH] fixed=['3.15.2', '4.3.2'] js-yaml: maxTotalMergeKeys does not limit CPU use for empty merge sources
+    GHSA-52cp-r559-cp3m CVE-2026-59869 [HIGH] fixed=['3.15.0', '4.3.0'] js-yaml: YAML merge-key chains can force quadratic CPU consumption
+    GHSA-5p4m-2wfm-xmqj  [HIGH] fixed=['3.15.1', '4.3.1'] JS-YAML: Quadratic CPU consumption in !!omap resolution (3.x and 4.x) — CVE-2026-59870 fix not backported
+    GHSA-h67p-54hq-rp68 CVE-2026-53550 [MODERATE] fixed=['3.15.0', '4.2.0'] JS-YAML: Quadratic-complexity DoS in merge key handling via repeated aliases
+npm nanoid==3.3.12 RUNTIME
+    GHSA-28wg-ghj8-5hjv CVE-2026-67214 [HIGH] fixed=['3.3.16', '5.1.16'] nanoid: non-secure generators can loop indefinitely with negative size
+    GHSA-2v37-7h3g-55p8 CVE-2026-67213 [HIGH] fixed=['3.3.18', '5.1.6'] nanoid: custom generators can loop indefinitely when size is zero
+npm postcss==8.5.14 RUNTIME
+    GHSA-fxqj-rqcc-2cmp CVE-2026-69153 [MODERATE] fixed=['8.5.23'] PostCSS: incomplete fix of GHSA-6g55-p6wh-862q — attacker-controlled sourceMappingURL reads arbitrary .map fil
+    GHSA-r28c-9q8g-f849 CVE-2026-73646 [HIGH] fixed=['8.5.18'] PostCSS: Path Traversal in Previous Source Map Auto-Loading (sourceMappingURL) leads to Arbitrary .map File Di
+npm postcss-selector-parser==6.1.2 RUNTIME
+    GHSA-w9m9-85wc-3x92 CVE-2026-9358 [LOW] fixed=['6.1.3', '7.1.3'] postcss-selector-parser allows denial of service through uncontrolled AST recursion
+npm vite==5.4.21 dev/build
+    GHSA-4w7w-66w2-5vf9 CVE-2026-39365 [MODERATE] fixed=['6.4.2', '7.3.2', '8.0.5'] Vite Vulnerable to Path Traversal in Optimized Deps `.map` Handling
+    GHSA-fx2h-pf6j-xcff CVE-2026-53571 [HIGH] fixed=['6.4.3', '7.3.5', '8.0.16'] vite: `server.fs.deny` bypass on Windows alternate paths
+    GHSA-v6wh-96g9-6wx3 CVE-2026-53632 [MODERATE] fixed=['6.4.3', '7.3.5', '8.0.16'] launch-editor: NTLMv2 hash disclosure via UNC path handling on Windows
+npm vitest==2.1.9 dev/build
+    GHSA-5xrq-8626-4rwp CVE-2026-47429 [CRITICAL] fixed=['3.2.6', '4.1.0'] When Vitest UI server is listening, arbitrary file can be read and executed
+    GHSA-82fw-gwwq-j7x9 CVE-2026-84373 [MODERATE] fixed=['4.1.11', '5.0.0-rc.2'] Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock
+npm ws==8.20.0 dev/build
+    GHSA-58qx-3vcg-4xpx CVE-2026-45736 [MODERATE] fixed=['8.20.1'] ws: Uninitialized memory disclosure
+    GHSA-96hv-2xvq-fx4p CVE-2026-48779 [HIGH] fixed=['6.2.4', '7.5.11', '8.21.0'] ws: Memory exhaustion DoS from tiny fragments and data chunks

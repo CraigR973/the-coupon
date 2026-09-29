@@ -47,6 +47,8 @@ the durable login limit was never spent by it; the auth lifecycle was driven ove
 | SEC-12 | earlier | held | Plain HTTP, 127.0.0.1, `[::1]`, 169.254.169.254, 10.0.0.1, a look-alike suffix, userinfo, trailing dot and a prefix look-alike all 422; `web.push.apple.com` 201 |
 | SEC-13 | earlier | held (code) | The service worker's API route keeps `respectNoStore` (`sw.ts:52-63`) and every API response is `no-store` (SEC-11) |
 | SEC-19 | 141 | held | Production web serves a CSP and `frame-ancestors 'none'` + `X-Frame-Options: DENY` (`prod-headers.txt`). Zero CSP violations on production `/login`, and zero across 11 signed-in routes of the local production bundle with production's exact policy injected (connect-src pointed at the local API); a deliberate `fetch` to another origin was blocked and reported, so the listener works (`csp_check.mjs`, `csp-check.txt`, `csp-check-2.txt`). Policy judged below |
+| SEC-21 | 142 | held | Live OSV (29 Sep): exactly the three advisories on `cryptography==48.0.1` (GHSA-g6cj-pr64-35w5 / CVE-2026-69247, GHSA-jwv3-5hgf-82ww / CVE-2026-69249, GHSA-m2h6-j472-rp4c / CVE-2026-69248), each documented as unreachable beside the pin with its id and reasoning (`requirements.in:65-91`); `apps/api/src` still imports `cryptography` nowhere |
+| SEC-22 | 127 (planned) | **not fixed** | Folded into Batch 127 by the 2026-09-13 plan; Batch 127 then left OPS-15 out ("each a major migration"), so no batch carries it. Now 17 npm packages / 32 advisories, all build or test tooling (Vite 5.4.21, Vitest 2.1.9, esbuild 0.21.5, js-yaml, brace-expansion, fast-uri, ws …); none reaches production — see SEC-30 |
 | SEC-23 | 142 | held | Port: `:8443` and `:22` on allowlisted hosts → 422, `:443` accepted. Timeout: `webpush(..., timeout=PUSH_SEND_TIMEOUT_SECONDS)` = 5 s (`push_notification_service.py:42, 76-82`) |
 | SEC-25 | 143 | held | Chromium, desktop account menu: Erin viewed league B (`coupon_last_viewed_league` set) → Log out → localStorage empty → Sadie signed in on the same browser: no league key, "League B" nowhere on her home (`sec25_check.mjs`, `sec25-check.txt`) |
 | SEC-26 | 143 | held | Live, unclaimed invite to a soft-deleted league → `404 League not found` |
@@ -58,6 +60,7 @@ the durable login limit was never spent by it; the auth lifecycle was driven ove
 | SEC-28 | MED | live | verified | The per-source login backoff (Batch 123) never stops a lock: one address still locks any number of accounts |
 | SEC-27 | MED | live | verified | A league admin can still take over a co-admin: demote them, then reset their PIN |
 | SEC-29 | LOW-MED | live | verified | A per-league name can copy someone outside the league, who can then join under the same name |
+| SEC-30 | LOW | tooling | verified | The build-toolchain advisories (SEC-22) were dropped rather than fixed, and have doubled |
 
 ## SEC-28 · MED · live · verified — the per-source backoff arrives after the damage
 
@@ -144,6 +147,40 @@ one name.
 
 **Fix:** check the global display names of *all* profiles (not only current members) when an
 override is set, and on join refuse — or clear — an existing override that now collides.
+
+## SEC-30 · LOW · tooling · verified — the toolchain advisories were dropped, not fixed
+
+A live OSV query (`notes/01-security/osv_query.py` → `osv.txt`, `api.osv.dev/v1/querybatch`)
+over **62 Python pins** (the full `requirements.txt` lock) and **838 npm packages**
+(`pnpm-lock.yaml`) returned **19 packages with hits, 40 advisories, none withdrawn**:
+
+| ecosystem | hits | reachable in production |
+| --- | --- | --- |
+| PyPI `cryptography==48.0.1` | 3 (6 ids with PYSEC aliases) | no — SEC-21, documented and held by owner decision |
+| PyPI `pydantic-settings==2.13.0` | 1, GHSA-4xgf-cpjx-pc3j (symlinks under `secrets_dir`) | no — the app configures no `secrets_dir` |
+| npm, 17 packages | 32 | no |
+
+Every other Python pin — FastAPI, Starlette, httpx, aiohttp, PyJWT, bcrypt, Pillow, SQLAlchemy,
+asyncpg, pywebpush, urllib3, requests — is clean. The npm hits are Vite 5.4.21 (3), Vitest
+2.1.9 (2, one CRITICAL that needs the Vitest UI server listening), `@vitest/mocker`, esbuild
+0.21.5 (dev-server CORS), `@babel/core`, `browserslist`, `baseline-browser-mapping`,
+`brace-expansion` ×3 versions, `fast-uri` (7), `form-data`, `js-yaml` (4), `ws` (2), and
+`postcss` / `postcss-selector-parser` / `nanoid`. The lock graph marks those last three
+runtime, because `tailwindcss-animate` sits in `dependencies` and brings Tailwind in as a
+peer; none of them is in the shipped bundle (a search of the built `assets/*.js` finds
+neither name). Production is a static build, so nothing here is reachable by a member.
+
+Why it is a finding at all: the 2026-09-13 plan said SEC-22 was "folded into Batch 127's
+toolchain refresh", and Batch 127's own row then records "OPS-15 is left out" — so the item
+disappeared between two documents with no batch, decision or acceptance behind it, and the
+count went from 17 advisories to 32.
+
+**Member impact:** none today; the exposure is to the machines that build and test the app
+(a malicious dependency update, or the Vite/Vitest dev servers if ever exposed).
+
+**Fix:** give the toolchain refresh its own batch (Vite 6+, Vitest 3.2.6+/4, which also
+retires esbuild 0.21), or record an explicit owner acceptance so the next scan does not
+re-derive it.
 
 ## Production, read-only
 
