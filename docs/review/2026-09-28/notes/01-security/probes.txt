@@ -285,3 +285,34 @@ POST /api/v1/admin/calendar/extra-weeks as sam {"season": 2026, "starts_on": "20
 POST /api/v1/admin/calendar/extra-weeks as alice {"season": 2026, "starts_on": "2030-01-01"} -> 403 {"detail":"Admin access required"}
 POST /api/v1/admin/calendar/extra-weeks as sam {"season": 2026, "starts_on": "2026-11-11"} -> 200 {"season":2026,"label":"2026/27","week_one_anchor":"2026-08-01","weeks":[{"starts_on":"2026-07-31","label":"1","is_extra":true},{"starts_on":"2026-08-01","label":"1b","is_extra":false},{"starts_on":"2026-08-08","label":"2","is_extra":false},{"starts_on":"2026-08-15","label":"3","is_extra":false},{"starts_on":"2026-08-22","label":"4","is_extra":false},{"starts_on":"2026-08-29","label":"5","is_extra... <2914 bytes>
 POST /api/v1/admin/calendar/extra-weeks as alice {"season": 2026, "starts_on": "2026-11-11"} -> 403 {"detail":"Admin access required"}
+
+## Input bounds: invite display_name_hint (column String(100), schema unbounded)  (29 Sep 14:37:18)
+POST /api/v1/leagues/league-b/invites as dave {"display_name_hint": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"} -> 500 Internal Server Error
+POST /api/v1/leagues/league-b/invites as dave {"display_name_hint": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"} -> 201 {"id":"ae408c24-dbcc-4916-a341-72b1c317e7b7","token":"U_htbW84iseJUWipZBQwnuiMEIV_OzAoOA-SAL5XQZk","display_name_hint":"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh","created_by":"d3cfb63c-1db1-4e2f-bd9a-e3fdafded700","claimed_by":null,"claimed_at":null,"expires_at":"2026-10-06T13:37:19.189257Z","is_active":true,"created_at":"2026-09-29T13:37... <464 bytes>
+
+## IDOR: league-B round id through league A  (29 Sep 14:38:51)
+GET /api/v1/leagues/the-coupon/gameweeks/0feb3eb9-d964-441e-9a0b-661b027421d6/pick as alice -> 200 null
+GET /api/v1/leagues/the-coupon/coupon?gameweek_id=0feb3eb9-d964-441e-9a0b-661b027421d6 as alice -> 404 {"detail":"Gameweek not found"}
+GET /api/v1/leagues/the-coupon/gameweek/current?gameweek_id=0feb3eb9-d964-441e-9a0b-661b027421d6 as alice -> 404 <31 bytes>
+
+## IDOR: a league-B-only member's id through league A's admin routes  (29 Sep 14:38:51)
+POST /api/v1/leagues/the-coupon/members/d3cfb63c-1db1-4e2f-bd9a-e3fdafded700/promote as alice -> 404 {"detail":"Member not found"}
+POST /api/v1/leagues/the-coupon/members/d3cfb63c-1db1-4e2f-bd9a-e3fdafded700/demote as alice -> 404 {"detail":"Member not found"}
+POST /api/v1/leagues/the-coupon/members/d3cfb63c-1db1-4e2f-bd9a-e3fdafded700/reset-pin as alice -> 404 {"detail":"Member not found"}
+DELETE /api/v1/leagues/the-coupon/members/d3cfb63c-1db1-4e2f-bd9a-e3fdafded700 as alice -> 404 {"detail":"Member not found"}
+GET /api/v1/leagues/the-coupon/players/d3cfb63c-1db1-4e2f-bd9a-e3fdafded700/profile as alice -> 404 {"detail":"Player is not in this league"}
+
+## IDOR: league-B invite and league-C join request through league A  (29 Sep 14:38:51)
+DELETE /api/v1/leagues/the-coupon/invites/dbf88d14-66c1-4078-a3ea-282eb845c46b as alice -> 404 {"detail":"Invite not found"}
+POST /api/v1/leagues/the-coupon/join-requests/dd56a5c8-554f-41fb-b6c3-154588aefe91/approve as alice {} -> 404 {"detail":"Pending join request not found"}
+POST /api/v1/leagues/the-coupon/join-requests/dd56a5c8-554f-41fb-b6c3-154588aefe91/reject as alice {} -> 404 {"detail":"Pending join request not found"}
+
+## IDOR: audit isolation  (29 Sep 14:38:51)
+GET /api/v1/leagues/the-coupon/audit-log?page_size=100 as alice -> 200 <1965 bytes>
+  league A audit mentions league B id: False; league-b slug: False; league C id: False
+GET /api/v1/leagues/league-b/audit-log?page_size=100 as dave -> 200 <1077 bytes>
+  league B audit mentions league A id: False; 'the-coupon' slug: False
+
+## IDOR: muting a league you are not in  (29 Sep 14:38:51)
+PATCH /api/v1/notifications/preferences as bob {"league_mutes": {"c95da999-05fe-4ac1-b8e7-c31ac12f2b9f": true}} -> 200 {"global_mute":false,"quiet_hours_start":null,"quiet_hours_end":null,"leagues":[{"league_id":"04093550-0314-43f0-8b4b-f4c2ff9ecdc7","league_name":"The Coupon Test League","muted":false}]}
+  bob's leagues after muting league B: ['The Coupon Test League']

@@ -1,0 +1,13 @@
+derived from ca62213: 5 full names (5 distinct first names)
+  full name #01: 0 tracked files
+  full name #02: 0 tracked files
+  full name #03: 1 tracked files -> ['docs/review/2026-09-28/notes/07-pipeline/scan-test-diffs.txt']
+  full name #04: 0 tracked files
+  full name #05: 0 tracked files
+total tracked files containing a redacted full name: 1
+  surname #01: 1 tracked files -> ['docs/review/2026-09-28/notes/07-pipeline/scan-test-diffs.txt']
+  surname #02: 0 tracked files
+  surname #03: 0 tracked files
+  surname #04: 8 tracked files -> ['apps/api/src/backfill_august_2026.py', 'apps/api/src/services/slate_verification.py', 'apps/api/tests/fixtures/fotmob_payloads.json', 'apps/api/tests/test_slate_verification.py', 'apps/api/tests/test_team_matching.py']
+  surname #05: 0 tracked files
+surnames still present somewhere in the tree: 2 of 5

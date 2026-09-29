@@ -1,8 +1,5 @@
 # 01 — Security
 
-*Draft in progress — sections are filled as each probe is verified. See
-`notes/01-security/progress.md` for state.*
-
 ## Method
 
 A route-by-route authorisation matrix rebuilt from the running app's own route table
@@ -29,7 +26,7 @@ the durable login limit was never spent by it; the auth lifecycle was driven ove
 
 | id | batch | status | evidence (how it was driven) |
 | --- | --- | --- | --- |
-| SEC-15 | 122 | **partial** | League admin → site admin: `403 SITE_ADMIN_RESET_REQUIRED`; → another league's admin: 403; → ordinary member: 200 and the reset claims normally. **But demoting a co-admin first reopens it** — SEC-27 |
+| SEC-15 | 122 | **partial** | League admin → site admin: `403 SITE_ADMIN_RESET_REQUIRED`; → another league's admin: 403; → ordinary member: 200, and the unauthenticated `/auth/pin/set` then accepts a PIN for that name from anyone. **Demoting a co-admin first reopens the admin guard** (SEC-27). The wider residual — any league admin can still take over any *ordinary* member, and that member's other leagues come with the account — is set out under Owner decisions |
 | SEC-18 | 123 | **partial** | Web half held in code (a stored refresh token is spent before the PIN screen, `AuthContext.tsx:118-140`). **API half not effective**: one source locked five accounts; the per-source budget answers 429 only *after* each lock is written — SEC-28 |
 | SEC-16 | 124 | held | Frank joined league B by code, was removed, code rotated (`PRW6H5` → `BWCQ52`); old code 404, `/join` 403 (private). `public_request` league by code → `status: pending`, request listed for the admin, second attempt `409 JOIN_REQUEST_PENDING` |
 | SEC-17 | 125 | held (member writes) | Non-member site admin: pick submit 403, display-name override 403; reads (standings, coupon) 200. League-**admin** writes still carry the site-admin bypass by design — PATCH league, create invite, rotate code all 200, audited as the site admin (see Checked, and Owner decisions) |
@@ -61,6 +58,7 @@ the durable login limit was never spent by it; the auth lifecycle was driven ove
 | SEC-27 | MED | live | verified | A league admin can still take over a co-admin: demote them, then reset their PIN |
 | SEC-29 | LOW-MED | live | verified | A per-league name can copy someone outside the league, who can then join under the same name |
 | SEC-30 | LOW | tooling | verified | The build-toolchain advisories (SEC-22) were dropped rather than fixed, and have doubled |
+| SEC-31 | LOW | live | verified | An invite hint over 100 characters is a 500, not a 422 |
 
 ## SEC-28 · MED · live · verified — the per-source backoff arrives after the damage
 
@@ -182,6 +180,21 @@ count went from 17 advisories to 32.
 retires esbuild 0.21), or record an explicit owner acceptance so the next scan does not
 re-derive it.
 
+## SEC-31 · LOW · live · verified — an over-long invite hint is a 500
+
+`CreateLeagueInviteRequest.display_name_hint` has no `max_length`, and the column is
+`String(100)`. `POST /leagues/league-b/invites` as its admin with a 150-character hint → **500
+Internal Server Error**; with 100 characters → 201 (`probes.txt`, "Input bounds"). League
+admins only, and nothing is stored, so the harm is a spurious 500 on the alert path Batch 57
+spent itself keeping clean. `UpdateLeagueRequest.description` is likewise unbounded (a `Text`
+column, so no 500, but a league admin can store an arbitrarily large string that every
+member's league read returns) — not probed.
+
+**Member impact:** none beyond the admin who typed it; a false 500 in the logs.
+
+**Fix:** `Field(max_length=100)` on the hint and a sensible bound (say 500) on the
+description.
+
 ## Production, read-only
 
 Recorded 29 Sep 14:21 BST, GET only, no credentials (`notes/01-security/prod-headers.txt`).
@@ -217,7 +230,56 @@ Recorded 29 Sep 14:21 BST, GET only, no credentials (`notes/01-security/prod-hea
 
 ## Checked and found nothing material
 
-*(in progress)*
+- **Secrets** (`notes/01-security/secret_scan.py` → `secret-scan.txt`): twelve patterns (JWT
+  secrets, DSNs with passwords, VAPID private keys, PEM private keys, full JWTs, Supabase
+  `sb_secret_`, AWS/R2 access keys and `BACKUP_*`/`R2_*` secrets from Batch 95, odds and
+  football API keys, Betfair credentials, GitHub tokens, generic key assignments) over the
+  tracked tree and **every added line in all 543 commits**. No live secret. Every hit is a
+  placeholder or test value: CI's `postgres:postgres` and `ci-*` JWT secrets, the gate's
+  `l3-*` and this review's `review-*` scratch secrets, `.env.example` `change-me` values, the
+  AWS documentation example key in `test_offsite_backup.py`, and a PEM header around the body
+  `test`. No full JWT anywhere in history. No `BACKUP_*` or `R2_*` value was ever committed.
+  `.env*` files were not read. (This pass's own `probes.txt` holds two scratch-database
+  invite tokens; they open nothing outside the throwaway cluster.)
+- **Name redaction (Batch 155)** (`redaction_check.py` → `redaction-check.txt`, which prints
+  counts, never names): five of the eleven redacted full names could be derived mechanically
+  from Batch 155's own diff; **none is in the application tree or its documents.** One is in
+  this review's own notes — `notes/07-pipeline/scan-test-diffs.txt`, a scan of historical
+  test diffs — see Doc corrections. The one surname with eight other hits is also a football
+  club or place name in fixture data.
+- **Settle and rename notices (Batches 135, 148):** no route takes a notice id. The settle
+  announcement is push-only and triggered by settlement (scheduler or site-admin settle).
+  `GET /me/rename-notice` and `POST /me/rename-notice/seen` act only on the caller: the
+  matrix shows 200/204 for every signed-in role and the code returns early for anyone outside
+  the three hard-coded profile ids, so a member cannot read or dismiss someone else's.
+- **Alarm push (Batch 129):** recipients are `_admin_players` — active, non-deleted
+  `role = admin` profiles only (`notification_triggers.py:42-50`).
+- **Lockout push (Batch 123):** sent once per lock (`just_locked` is true only when
+  `locked_until` was clear), and an expired lock is cleared on the next attempt, so a
+  griefer sustaining a lock causes at most one push per victim per 15 minutes, with tag
+  `account-locked` so a newer one replaces the older on the device. Not observed (the harness
+  has no VAPID keys) — code-level only. Tolerable; SEC-28 is the real fix.
+- **`/me/delete` PIN re-entry:** wrong PINs do not count toward the account lockout; the
+  bound is 5/hour per user, in process memory (it resets on redeploy). It needs a valid access
+  token, and success destroys the account rather than revealing the PIN, so it is not a
+  useful oracle. INFO.
+- **Response compression (Batch 145) and BREACH:** GZip applies only at 4,096 bytes and up.
+  The responses carrying a secret — login, refresh, register — are ~650 bytes and never
+  compressed. More fundamentally, BREACH needs the victim's browser to send authenticated
+  requests on an attacker's behalf and a secret beside attacker-reflected input in the body;
+  the API authenticates by a bearer header a cross-site request cannot attach, and CORS
+  refuses foreign origins. Nothing to do.
+- **Cross-league IDOR** (`s08_idor.py`, `probes.txt` "IDOR"): every id substituted through league A's slug from another league —
+  round (coupon and slate with a league-B `gameweek_id` → 404 "Gameweek not found"), member (promote/demote/remove/reset-pin/profile
+  of a non-member → 404 "Member not found" / "Player is not in this league"), invite and
+  join-request (both filtered by `league_id`), audit (scoped by `target_id` or
+  `league_slug`, and slugs are globally unique, including deleted leagues, and immutable) and
+  notification mutes (only the caller's own memberships are updated). **The 2026-09-13
+  near-miss is unchanged by design:** `GET /leagues/{slug}/gameweeks/{id}/pick` answers `200
+  null` for a round id from another league, exactly as for this league's round with no pick —
+  it leaks nothing, because the query is scoped by league and caller. The id-only routes
+  (`/admin/picks/{id}`, `/admin/results/{id}`, `/admin/players/{id}`, `/admin/invites/{id}`,
+  `/admin/leagues/{id}`) are all site-admin only.
 
 - **Authorisation matrix, 73 routes × 7 roles:** every refusal was a 401/403 from the
   dependency; the three cells the script flagged are all correct behaviour — `PUT /auth/me/pin`
@@ -258,16 +320,77 @@ Recorded 29 Sep 14:21 BST, GET only, no credentials (`notes/01-security/prod-hea
 
 ## Proposed batches
 
-*(in progress)*
+1. **The per-source login backoff never stops a lock** (SEC-28) — API-carrying. Peek at the
+   source bucket before verifying the PIN; test that the fourth victim stays unlocked.
+2. **League-admin PIN resets reach beyond the league** (SEC-27, plus the SEC-15 residual if
+   the owner picks option 2 or 4 below) — API-carrying.
+3. **A per-league name can copy someone outside the league** (SEC-29) — API-carrying.
+4. **Small input and audit hygiene** (SEC-31, the Batch 134 correction's missing
+   `league_slug`, the CSP's per-environment `connect-src` and narrower `img-src`) —
+   API-carrying + web-only halves.
+5. **Build-toolchain refresh** (SEC-30: Vite 6+, Vitest 3.2.6+/4, esbuild via Vite) —
+   tooling, web build only; or an explicit owner acceptance instead.
 
 ## Owner decisions
 
-*(in progress)*
+**A league admin can still take over any ordinary member of their league, and with it the
+member's place in every other league.** Batch 122 closed the reset for site admins and
+league admins only. For everyone else the mechanism is unchanged: a league admin clears the
+PIN, and for 24 hours `/auth/pin/set` accepts a new PIN for that display name from **anyone,
+unauthenticated**. That was reproduced end to end here for members of the attacker's own
+league (Carol; and Hank via SEC-27). The account is global, so the same session is a member
+of every league the victim plays in — reading those leagues, and picking and posting in them
+as the victim — although the attacker has no role there. The cross-league step itself was
+not driven as a separate probe in this pass; it follows directly from the session being the
+victim's account, and no code scopes a session to the league whose admin reset it.
+
+What the victim is told, from the code: **nothing.** `clear_pin` sends no push and writes
+no notice; the audit row is scoped to the resetting league, so only that league's admins can
+see it; the admins of the victim's other leagues see nothing. The victim finds out when their
+PIN stops working. The 2026-09-13 review recorded that the 2026-08-23 owner decision covers
+the reset *mechanism*, not *who may be targeted*; that is still the open question.
+
+| option | cost | what it closes |
+| --- | --- | --- |
+| 1. Accept as is | none | nothing; record it as accepted so reviews stop re-deriving it |
+| 2. League-scoped reset only for members who play in no other active league; everyone else through the site console | small API batch | the reach into other leagues; a league admin keeps self-service for single-league members |
+| 3. Deliver a one-time claim code to the member's own devices by push, required at `/pin/set` | medium; members with no push subscription must fall back to the site console | the unauthenticated claim — nobody but the member's device can finish a reset |
+| 4. Notify on reset and on PIN set: push to the member, and a line in every league they belong to (visible to those admins) | small | makes any abuse visible within minutes; closes nothing by itself |
+| 5. Accept the member's still-valid refresh token as an alternative to the claim window | medium, web + API | the common "forgot PIN but still signed in somewhere" case, not the attack |
+
+**Recommendation: 2 and 4 together**, as one API batch. They remove the cross-league
+reach and make every reset visible to the person it happens to, without taking self-service
+resets away from single-league groups, which is how most leagues here are used. Revisit 3 if
+leagues grow beyond friends.
+
+**Site-admin writes inside a league they have not joined.** Batch 125 split only the member
+dependency; `require_league_admin` still lets a non-member site admin edit settings, create
+invites, rotate the code, promote, remove, reset PINs and approve requests, all attributed in
+the league's audit log. Options: keep (oversight, attributed) / read-only bypass everywhere /
+no bypass. Recommendation: **keep**, and record it as the deliberate scope of Batch 125, since
+the harm SEC-17 named (a pick consuming another member's selection) is closed.
 
 ## Doc corrections
 
-*(in progress)*
+| file | from | to |
+| --- | --- | --- |
+| `docs/review/2026-09-28/notes/07-pipeline/scan-test-diffs.txt` | contains one of the eleven member names Batch 155 redacted (a full name, copied from a historical test diff; not reproduced here) | replace with its "Member X" letter before this branch merges; the owner's decision is that the working tree carries none of them |
+| `docs/review/2026-09-13/08-sequencing.md:194-195` | "SEC-22 … Folded into Batch 127's toolchain refresh as hygiene." | "SEC-22 … planned for Batch 127, which then left OPS-15 out; unfixed — see 2026-09-28 SEC-30." |
+| `docs/BUILD_PLAN.md`, Batch 123 row (~line 4296) | ticked with "per-source backoff alongside the account lock" | add: "The per-source budget is charged after the lock is written and never checked first, so it does not stop a lock — 2026-09-28 SEC-28." |
 
 ## What this pass did not do
 
-*(in progress)*
+- **The cross-league half of the SEC-15 residual was not re-run as its own probe.** The
+  same-league takeover was reproduced twice; the reach into a second league is stated from
+  the code, as above.
+- **Pushes were not observed.** The harness has no VAPID keys, so the lockout push, the
+  settle announcement and the admin alarms were judged from code and route authorisation.
+- **The name-redaction check derived five of the eleven names mechanically** from Batch
+  155's diff; the other six sit in lines that were reworded rather than substituted, and were
+  not recovered, so the tree is proven clean of five, not eleven.
+- `EXTRA_WEEK_LOCKED` could not be reached (the past-date guard answers first); the league
+  `description` bound was not probed; the SEC-18 web half was confirmed in code, not in a
+  browser with an expired access token.
+- Nothing authenticated against production, no provider called, no Supabase or Railway tool
+  used; production reads were the headers, `/api/v1/health`, and the public `/login` page in
+  Chromium.

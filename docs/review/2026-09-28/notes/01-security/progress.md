@@ -34,8 +34,11 @@ joined A; league A description edited by sam).
 | 135/148, 129, 145, lockout push | todo (code-read level) | |
 | prod headers + health | done | prod-headers.txt; sha b08a47f3, migration 026 |
 | CSP check + SEC-10 + SEC-25 | done — all held, in doc | csp-check*.txt, sec25-check.txt |
-| secrets scan + redaction | todo |
-| 01-security.md | todo — start now |
+| secrets scan + redaction | done — no live secret in 543 commits; 5/11 names derivable, none in app tree; one in 07's notes (doc correction) | secret-scan.txt, redaction-check.txt |
+| cross-league IDOR | done — all scoped; `200 null` near-miss unchanged | s08_idor.py |
+| SEC-15 wider residual (lead) | recorded as owner decision; cross-league step reasoned from code, not separately probed | doc Owner decisions |
+| SEC-31 invite hint 500 | done, verified | probes.txt |
+| 01-security.md | **complete** | |
 
 ## Leads still to check
 
@@ -46,5 +49,8 @@ joined A; league A description edited by sam).
 
 ## Exact next step
 
+DONE. Stop the stack and web preview; reply to the lead.
+
+(old) 
 Write 01-security.md skeleton with SEC-27/28/29 and the prior table so far; then 136 deletion
 probes; then headers/OSV/secrets.
