@@ -51,4 +51,5 @@ than warned. The fix direction and the options remain an owner decision.
 | id | checked at | verdict |
 | --- | --- | --- |
 | PIPE-10 | `scripts/ci-local.sh:36` runs `"$ROOT/scripts/assert-quality-guardrails.sh"` from the working tree | confirmed |
-| PIPE-11..19 | evidence files in `notes/07-pipeline/`; commit ids and `gh` output recorded there | to spot-check `gh run list` once more at the end |
+| PIPE-12 | `gh run list --limit 300` (29 Sep 18:40): 72 runs on `main` since 20 Sep, 8 failures — c7a50bb, a689a57, 48b6627, 0ff3e8c, d1b9ee9, 7ef953d (22 Sep), ac54a71, bf97763 (23 Sep). Note: `gh run list --branch main` silently returns only 16 of them, which first read as 6 failures | confirmed |
+| PIPE-11, 13-19 | evidence files in `notes/07-pipeline/`; commit ids recorded there | confirmed by the lens's replays; not re-run by the lead |
