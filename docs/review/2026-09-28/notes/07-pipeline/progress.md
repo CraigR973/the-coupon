@@ -168,3 +168,4 @@ Added 29 Sep 15:00 (verified): PIPE-08 held — every proper-noun token Batch 15
 Doc: complete except PENDING-COMBINED, PIPE-03 row, PENDING-NODB(+DOC), PENDING-TALLY, PENDING-HOOK-CLEAN (15:35). Next: after gate — revert worktree, hook clean run, PIPE-03 rehearsal on alt port, no-DB pytest.
 rehearsal on an alternative port, no-DB pytest split for doc corrections; write the doc.
 - 14:40 combined gate backend: PASS (1350 tests, 0 skipped) over the weakenings; PIPE-12 wording corrected (120-122 were API-only; Group N shipped at 89217f82, the commit that turned CI green).
+- 14:46 no-DB split measured: 800 passed / 550 skipped (nodb-pytest-output.txt); doc corrections filled.

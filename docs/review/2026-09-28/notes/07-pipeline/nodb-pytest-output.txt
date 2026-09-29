@@ -1,0 +1,2 @@
+# pytest -q without DATABASE_URL, clean clone at eb18bcb, gate venv, 29 Sep 2026 ~14:45 BST
+800 passed, 550 skipped, 8 warnings in 100.85s (0:01:40)

@@ -18,4 +18,9 @@ deployment-config
 frontend
   lint                                PASS
   typecheck                           PASS
-  test                                
+  test                                PASS (1204 tests, 0 skipped)
+  build                               PASS
+
+ci-local: PASS (10 checks)
+exit=0
+end 14:34:05

@@ -56,7 +56,7 @@ Scripts and raw output: `notes/07-pipeline/` (`replay_guards.sh`, `gate_probes.s
 | PIPE-03 | 152 | PENDING | |
 | PIPE-04 | 152 | **partial** | Counts are recorded and ratcheted, and a fall, a skip or an xfail fails the gate; lowering the ratchet is refused (probe G03). But a loosened assertion, a swapped-in trivial test, `type: ignore`, `eslint-disable`, `.todo`, and five unprotected config files all pass — and the guardrail can be switched off from the branch. See PIPE-10 |
 | PIPE-05 | 152 | **partial** | Replayed: the guard as it stood refuses all seven API+web batches (123, 124, 143, 156, 157, 136, 148) and passes the other 48. Drift now runs before the push. But existing drift is only reported: a web-only batch over an owed `/ship-prod` passes (probe). See PIPE-14 |
-| PIPE-06 | 153 | **partial** | Figures now carry dates, as the fix asked; they have drifted again — "780 passed, 520 skipped" at 1,300 tests in `AGENTS.md`, `batch-verify.md` and `phase-closeout.md` against a ratchet of 1,350 — and `AGENTS.md` still sends agents to "step 8's push", which is step 9 since Batch 152 inserted the safety step. PENDING-NODB |
+| PIPE-06 | 153 | **partial** | Figures now carry dates, as the fix asked; they have drifted again — "780 passed, 520 skipped" at 1,300 tests in `AGENTS.md`, `batch-verify.md` and `phase-closeout.md` against a ratchet of 1,350 — and `AGENTS.md` still sends agents to "step 8's push", which is step 9 since Batch 152 inserted the safety step. Re-measured at `eb18bcb` without a database: **800 passed, 550 skipped** (29 Sep, 1,350 tests). |
 | PIPE-07 | 154 | **held**, with a leak | `/next-batch-prompt` reads **38.3 KB** today (Batch 154 said 38 KB). But 14.7 KB of the 18.8 KB build-plan head is seven *ticked* rows, because nothing moves a row out when it closes. See PIPE-18 |
 | PIPE-08 | 155 | **held** | Every proper-noun token Batch 155 removed has **zero** hits on `main` (checked by hashing, never printed). History was not rewritten, per the owner's decision |
 | PIPE-09 | 127 | **held** | `ci-local.sh`'s pnpm check evaluated verbatim with a pnpm 9.14.2 shim first on `PATH`: refused, exit 1, "package.json pins '9.15.0'" |
@@ -441,10 +441,14 @@ those files.
 
 ## Doc corrections
 
-For the lead to apply. PENDING-NODB-DOC
+For the lead to apply. The no-database split was re-measured for them: at `eb18bcb`, `pytest -q` with no `DATABASE_URL` is **800 passed, 550 skipped** at 1,350 tests (29 Sep).
 
 | file | from | to |
 | --- | --- | --- |
+| `AGENTS.md` | "so the **520 Postgres-backed tests actually execute**" | "so the **550 Postgres-backed tests actually execute**" |
+| `AGENTS.md` | "Running pytest without `DATABASE_URL` is **780 passed, 520 skipped** (measured 2026-09-24, at 1,300 tests;" | "Running pytest without `DATABASE_URL` is **800 passed, 550 skipped** (measured 2026-09-29, at 1,350 tests;" |
+| `docs/agent-commands/batch-verify.md` | "It is `780 passed, 520 skipped`\n(measured 2026-09-24)," | "It is `800 passed, 550 skipped`\n(measured 2026-09-29)," |
+| `docs/agent-commands/phase-closeout.md` (protected) | "`780 passed, 520 skipped` (2026-09-24)" | "`800 passed, 550 skipped` (2026-09-29)" |
 | `AGENTS.md` | "including step 8's push" | "including step 9's push" |
 | `AGENTS.md` | "**What that push means.** Step 8 pushes `main`" | "**What that push means.** Step 9 pushes `main`" |
 | `AGENTS.md` | "`/group-start <I-Y>`" | "`/group-start <I-Z>`" |
