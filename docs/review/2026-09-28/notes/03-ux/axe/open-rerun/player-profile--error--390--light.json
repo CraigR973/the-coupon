@@ -1,0 +1,55 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "error",
+    "name": "player-profile",
+    "path": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4",
+    "waitMs": 4500,
+    "setup": true,
+    "after": false
+  },
+  "width": 390,
+  "theme": "light",
+  "proof": {
+    "h1": [],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4",
+    "snippet": "THE COUPON AL Player not found This member either isn't in this league or their profile couldn't be loaded. Home Coupon Football Stats Leagues More"
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [
+      {
+        "id": "page-has-heading-one",
+        "impact": "moderate",
+        "nodes": 1,
+        "targets": [
+          {
+            "target": "html",
+            "summary": "Fix all of the following:\n  Page must have a level-one heading",
+            "html": "<html lang=\"en\" class=\"light\" style=\"color-scheme: light;\">"
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 32
+  },
+  "errors": []
+}

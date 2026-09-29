@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "error",
+    "name": "team-season",
+    "path": "/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025",
+    "waitMs": 4500,
+    "setup": true,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Season"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 1,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025",
+    "snippet": "THE COUPON AL TEAM SEASON Season BACK TO TABLE Couldn't load this season Internal Server Error Try again Home Coupon Football Stats Leagues More"
+  },
+  "axe": {
+    "url": "/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

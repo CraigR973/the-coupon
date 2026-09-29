@@ -1,0 +1,60 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "loading",
+    "name": "career-profile",
+    "path": "/profile",
+    "allowSkeleton": true,
+    "axe": true,
+    "setup": true,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "light",
+  "proof": {
+    "h1": [],
+    "mains": 1,
+    "skeletons": 4,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/profile",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL"
+  },
+  "axe": {
+    "url": "/profile",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [
+      {
+        "id": "page-has-heading-one",
+        "impact": "moderate",
+        "nodes": 1,
+        "targets": [
+          {
+            "target": "html",
+            "summary": "Fix all of the following:\n  Page must have a level-one heading",
+            "html": "<html lang=\"en\" class=\"light\" style=\"color-scheme: light;\">"
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      {
+        "id": "aria-prohibited-attr",
+        "nodes": 1
+      },
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 30
+  },
+  "errors": []
+}

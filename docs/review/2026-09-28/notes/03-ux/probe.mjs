@@ -232,8 +232,8 @@ if (section === 'contrast') {
     { id: 'UX-18 locked selection odds', route: '/leagues/sunday-club/predictions', persona: 'Alice', sel: '[data-testid^="selection-"][disabled] .font-mono.text-xs' },
     { id: 'UX-21 player-profile lost row text', route: `/leagues/the-coupon/players/${bob}?season=2025`, persona: 'Alice', sel: '.opacity-60 p' },
     { id: 'UX-21 player-profile lost badge', route: `/leagues/the-coupon/players/${bob}?season=2025`, persona: 'Alice', sel: '.opacity-60 .bg-error\\/20' },
-    { id: 'UX-13 team-season kick-off time', route: teamPath, persona: 'Alice', sel: 'time, [data-testid*="kickoff"]' },
-    { id: 'UX-13 season strip "now" badge', route: '/leagues/the-coupon/leaderboard?season=2025', persona: 'Alice', sel: '[aria-current], [data-current="true"]' },
+    { id: 'UX-13 team-season kick-off time', route: teamPath, persona: 'Alice', sel: '[data-testid^="team-match-"] .w-16' },
+    { id: 'UX-13 season strip "now" badge', route: '/leagues/the-coupon/leaderboard?season=2025', persona: 'Alice', sel: 'button span.uppercase:text-is("now")' },
   ];
   out.contrast = [];
   for (const t of targets) {

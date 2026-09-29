@@ -223,3 +223,97 @@ my-leagues--loading--1280--light	/leagues	Alice	0	{"sk":2,"err":0,"h1":["My Leag
 my-leagues--loading--1280--dark	/leagues	Alice	0	{"sk":2,"err":0,"h1":["My Leagues"],"hs":0}
 my-leagues--error--390--light	/leagues	Alice	0	{"sk":0,"err":0,"h1":["My Leagues"],"hs":0}
 my-leagues--error--390--dark	/leagues	Alice	0	{"sk":0,"err":0,"h1":["My Leagues"],"hs":0}
+my-leagues--error--1280--light	/leagues	Alice	0	{"sk":0,"err":0,"h1":["My Leagues"],"hs":0}
+my-leagues--error--1280--dark	/leagues	Alice	0	{"sk":0,"err":0,"h1":["My Leagues"],"hs":0}
+football--loading--390--light	/football	Alice	0	{"sk":2,"err":0,"h1":["Football Stats"],"hs":0}
+football--loading--390--dark	/football	Alice	0	{"sk":2,"err":0,"h1":["Football Stats"],"hs":0}
+football--loading--1280--light	/football	Alice	0	{"sk":2,"err":0,"h1":["Football Stats"],"hs":0}
+football--loading--1280--dark	/football	Alice	0	{"sk":2,"err":0,"h1":["Football Stats"],"hs":0}
+football--error--390--light	/football	Alice	0	{"sk":0,"err":1,"h1":["Football Stats"],"hs":0}
+football--error--390--dark	/football	Alice	0	{"sk":0,"err":1,"h1":["Football Stats"],"hs":0}
+football--error--1280--light	/football	Alice	0	{"sk":0,"err":1,"h1":["Football Stats"],"hs":0}
+football--error--1280--dark	/football	Alice	0	{"sk":0,"err":1,"h1":["Football Stats"],"hs":0}
+career-profile--loading--390--light	/profile	Alice	0	{"sk":0,"err":0,"h1":["Alice"],"hs":0}
+career-profile--loading--390--dark	/profile	Alice	0	{"sk":0,"err":0,"h1":["Alice"],"hs":0}
+career-profile--loading--1280--light	/profile	Alice	0	{"sk":0,"err":0,"h1":["Alice"],"hs":0}
+career-profile--loading--1280--dark	/profile	Alice	0	{"sk":0,"err":0,"h1":["Alice"],"hs":0}
+career-profile--error--390--light	/profile	Alice	0	{"sk":0,"err":0,"h1":["Alice"],"hs":0}
+career-profile--error--390--dark	/profile	Alice	0	{"sk":0,"err":0,"h1":["Alice"],"hs":0}
+career-profile--error--1280--light	/profile	Alice	0	{"sk":0,"err":0,"h1":["Alice"],"hs":0}
+career-profile--error--1280--dark	/profile	Alice	0	{"sk":0,"err":0,"h1":["Alice"],"hs":0}
+team-season--loading--390--light	/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025	Alice	0	{"sk":2,"err":0,"h1":["Season"],"hs":0}
+team-season--loading--390--dark	/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025	Alice	0	{"sk":2,"err":0,"h1":["Season"],"hs":0}
+team-season--loading--1280--light	/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025	Alice	0	{"sk":2,"err":0,"h1":["Season"],"hs":0}
+team-season--loading--1280--dark	/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025	Alice	0	{"sk":2,"err":0,"h1":["Season"],"hs":0}
+team-season--error--390--light	/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025	Alice	0	{"sk":0,"err":1,"h1":["Season"],"hs":0}
+team-season--error--390--dark	/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025	Alice	0	{"sk":0,"err":1,"h1":["Season"],"hs":0}
+team-season--error--1280--light	/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025	Alice	0	{"sk":0,"err":1,"h1":["Season"],"hs":0}
+team-season--error--1280--dark	/football/teams/3426bd61-7ded-4593-81ac-ed5fab0389b7?competition=10932509&season=2025	Alice	0	{"sk":0,"err":1,"h1":["Season"],"hs":0}
+player-profile--loading--390--light	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":5,"err":0,"h1":[],"hs":0}
+player-profile--loading--390--dark	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":5,"err":0,"h1":[],"hs":0}
+player-profile--loading--1280--light	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":5,"err":0,"h1":[],"hs":0}
+player-profile--loading--1280--dark	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":5,"err":0,"h1":[],"hs":0}
+player-profile--error--390--light	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":0,"err":0,"h1":[],"hs":0}
+player-profile--error--390--dark	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":0,"err":0,"h1":[],"hs":0}
+player-profile--error--1280--light	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":0,"err":0,"h1":[],"hs":0}
+player-profile--error--1280--dark	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":0,"err":0,"h1":[],"hs":0}
+league-members--loading--390--light	/leagues/the-coupon/admin/members	Alice	0	{"sk":3,"err":0,"h1":["Members"],"hs":0}
+league-members--loading--390--dark	/leagues/the-coupon/admin/members	Alice	0	{"sk":3,"err":0,"h1":["Members"],"hs":0}
+league-members--loading--1280--light	/leagues/the-coupon/admin/members	Alice	0	{"sk":3,"err":0,"h1":["Members"],"hs":0}
+league-members--loading--1280--dark	/leagues/the-coupon/admin/members	Alice	0	{"sk":3,"err":0,"h1":["Members"],"hs":0}
+league-members--error--390--light	/leagues/the-coupon/admin/members	Alice	0	{"sk":0,"err":0,"h1":["Members"],"hs":0}
+league-members--error--390--dark	/leagues/the-coupon/admin/members	Alice	0	{"sk":0,"err":0,"h1":["Members"],"hs":0}
+league-members--error--1280--light	/leagues/the-coupon/admin/members	Alice	0	{"sk":0,"err":0,"h1":["Members"],"hs":0}
+league-members--error--1280--dark	/leagues/the-coupon/admin/members	Alice	0	{"sk":0,"err":0,"h1":["Members"],"hs":0}
+league-audit-log--loading--390--light	/leagues/the-coupon/admin/audit-log	Alice	0	{"sk":3,"err":0,"h1":["Activity"],"hs":0}
+league-audit-log--loading--390--dark	/leagues/the-coupon/admin/audit-log	Alice	0	{"sk":3,"err":0,"h1":["Activity"],"hs":0}
+league-audit-log--loading--1280--light	/leagues/the-coupon/admin/audit-log	Alice	0	{"sk":3,"err":0,"h1":["Activity"],"hs":0}
+league-audit-log--loading--1280--dark	/leagues/the-coupon/admin/audit-log	Alice	0	{"sk":3,"err":0,"h1":["Activity"],"hs":0}
+league-audit-log--error--390--light	/leagues/the-coupon/admin/audit-log	Alice	0	{"sk":0,"err":0,"h1":["Activity"],"hs":0}
+league-audit-log--error--390--dark	/leagues/the-coupon/admin/audit-log	Alice	0	{"sk":0,"err":0,"h1":["Activity"],"hs":0}
+league-audit-log--error--1280--light	/leagues/the-coupon/admin/audit-log	Alice	0	{"sk":0,"err":0,"h1":["Activity"],"hs":0}
+league-audit-log--error--1280--dark	/leagues/the-coupon/admin/audit-log	Alice	0	{"sk":0,"err":0,"h1":["Activity"],"hs":0}
+admin-players--loading--390--light	/admin/players	Alice	0	{"sk":3,"err":0,"h1":["Players"],"hs":0}
+admin-players--loading--390--dark	/admin/players	Alice	0	{"sk":3,"err":0,"h1":["Players"],"hs":0}
+admin-players--loading--1280--light	/admin/players	Alice	0	{"sk":3,"err":0,"h1":["Players"],"hs":0}
+admin-players--loading--1280--dark	/admin/players	Alice	0	{"sk":3,"err":0,"h1":["Players"],"hs":0}
+admin-players--error--390--light	/admin/players	Alice	0	{"sk":0,"err":0,"h1":["Players"],"hs":0}
+admin-players--error--390--dark	/admin/players	Alice	0	{"sk":0,"err":0,"h1":["Players"],"hs":0}
+admin-players--error--1280--light	/admin/players	Alice	0	{"sk":0,"err":0,"h1":["Players"],"hs":0}
+admin-players--error--1280--dark	/admin/players	Alice	0	{"sk":0,"err":0,"h1":["Players"],"hs":0}
+admin-dashboard--loading--390--light	/admin/dashboard	Alice	0	{"sk":3,"err":0,"h1":["Dashboard"],"hs":0}
+admin-dashboard--loading--390--dark	/admin/dashboard	Alice	0	{"sk":3,"err":0,"h1":["Dashboard"],"hs":0}
+admin-dashboard--loading--1280--light	/admin/dashboard	Alice	0	{"sk":3,"err":0,"h1":["Dashboard"],"hs":0}
+admin-dashboard--loading--1280--dark	/admin/dashboard	Alice	0	{"sk":3,"err":0,"h1":["Dashboard"],"hs":0}
+admin-dashboard--error--390--light	/admin/dashboard	Alice	0	{"sk":3,"err":0,"h1":["Dashboard"],"hs":0}
+admin-dashboard--error--390--dark	/admin/dashboard	Alice	0	{"sk":3,"err":0,"h1":["Dashboard"],"hs":0}
+admin-dashboard--error--1280--light	/admin/dashboard	Alice	0	{"sk":3,"err":0,"h1":["Dashboard"],"hs":0}
+admin-dashboard--error--1280--dark	/admin/dashboard	Alice	0	{"sk":3,"err":0,"h1":["Dashboard"],"hs":0}
+standings--forced-empty--390--light	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":0,"h1":["The Coupon Test League"],"hs":0}
+standings--forced-empty--390--dark	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":0,"h1":["The Coupon Test League"],"hs":0}
+standings--forced-empty--1280--light	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":0,"h1":["The Coupon Test League"],"hs":0}
+standings--forced-empty--1280--dark	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":0,"h1":["The Coupon Test League"],"hs":0}
+results--forced-empty--390--light	/leagues/the-coupon/predictions/results	Alice	0	{"sk":0,"err":0,"h1":["Season"],"hs":0}
+results--forced-empty--390--dark	/leagues/the-coupon/predictions/results	Alice	0	{"sk":0,"err":0,"h1":["Season"],"hs":0}
+results--forced-empty--1280--light	/leagues/the-coupon/predictions/results	Alice	0	{"sk":0,"err":0,"h1":["Season"],"hs":0}
+results--forced-empty--1280--dark	/leagues/the-coupon/predictions/results	Alice	0	{"sk":0,"err":0,"h1":["Season"],"hs":0}
+my-leagues--forced-empty--390--light	/leagues	Alice	0	{"sk":0,"err":0,"h1":["My Leagues"],"hs":0}
+my-leagues--forced-empty--390--dark	/leagues	Alice	0	{"sk":0,"err":0,"h1":["My Leagues"],"hs":0}
+my-leagues--forced-empty--1280--light	/leagues	Alice	0	{"sk":0,"err":0,"h1":["My Leagues"],"hs":0}
+my-leagues--forced-empty--1280--dark	/leagues	Alice	0	{"sk":0,"err":0,"h1":["My Leagues"],"hs":0}
+football--forced-empty--390--light	/football	Alice	0	{"sk":0,"err":0,"h1":["Football Stats"],"hs":0}
+football--forced-empty--390--dark	/football	Alice	0	{"sk":0,"err":0,"h1":["Football Stats"],"hs":0}
+football--forced-empty--1280--light	/football	Alice	0	{"sk":0,"err":0,"h1":["Football Stats"],"hs":0}
+football--forced-empty--1280--dark	/football	Alice	0	{"sk":0,"err":0,"h1":["Football Stats"],"hs":0}
+home--offline--390--light	/	Alice	0	{"sk":0,"err":0,"h1":["Hi Alice"],"hs":0}
+home--offline--390--dark	/	Alice	0	{"sk":0,"err":0,"h1":["Hi Alice"],"hs":0}
+home--offline--1280--light	/	Alice	0	{"sk":0,"err":0,"h1":["Hi Alice"],"hs":0}
+home--offline--1280--dark	/	Alice	0	{"sk":0,"err":0,"h1":["Hi Alice"],"hs":0}
+current-round--offline--390--light	/leagues/the-coupon/predictions	Alice	0	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+current-round--offline--390--dark	/leagues/the-coupon/predictions	Alice	0	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+current-round--offline--1280--light	/leagues/the-coupon/predictions	Alice	0	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+current-round--offline--1280--dark	/leagues/the-coupon/predictions	Alice	0	{"sk":0,"err":0,"h1":["This week's coupon"],"hs":0}
+standings--offline--390--light	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":0,"h1":["The Coupon Test League"],"hs":0}
+standings--offline--390--dark	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":0,"h1":["The Coupon Test League"],"hs":0}
+standings--offline--1280--light	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":0,"h1":["The Coupon Test League"],"hs":0}
+standings--offline--1280--dark	/leagues/the-coupon/leaderboard	Alice	0	{"sk":0,"err":0,"h1":["The Coupon Test League"],"hs":0}

@@ -1,0 +1,45 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "loading",
+    "name": "admin-players",
+    "path": "/admin/players",
+    "allowSkeleton": true,
+    "axe": true,
+    "setup": true,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Players"
+    ],
+    "mains": 1,
+    "skeletons": 3,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/admin/players",
+    "snippet": "THE COUPON AL SITE ADMIN Players Dashboard Calendar Players Results Sync Invites All leagues Home Coupon Football Stats Leagues More"
+  },
+  "axe": {
+    "url": "/admin/players",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 2
+      }
+    ],
+    "passes": 39
+  },
+  "errors": []
+}

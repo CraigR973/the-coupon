@@ -1,0 +1,43 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "offline",
+    "name": "home",
+    "path": "/",
+    "after": true,
+    "setup": false
+  },
+  "width": 1280,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Hi Alice"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": true,
+    "lockedText": true,
+    "settledText": true,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL You're offline — some content may be outdated THE COUPON · YOUR SEASON Hi Alice 2 leagues, one clear view of every round. 1 league needs a pick The Coupon T"
+  },
+  "axe": {
+    "url": "/",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 11
+      }
+    ],
+    "passes": 38
+  },
+  "errors": []
+}

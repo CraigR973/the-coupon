@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "error",
+    "name": "football",
+    "path": "/football",
+    "waitMs": 4500,
+    "setup": true,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Football Stats"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 1,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/football",
+    "snippet": "THE COUPON AL TABLES & RESULTS Football Stats Tables Results Couldn't load the football data Internal Server Error Try again Home Coupon Football Stats Leagues More"
+  },
+  "axe": {
+    "url": "/football",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 37
+  },
+  "errors": []
+}

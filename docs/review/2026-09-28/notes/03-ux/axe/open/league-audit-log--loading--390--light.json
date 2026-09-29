@@ -1,0 +1,45 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "loading",
+    "name": "league-audit-log",
+    "path": "/leagues/the-coupon/admin/audit-log",
+    "allowSkeleton": true,
+    "axe": true,
+    "setup": true,
+    "after": false
+  },
+  "width": 390,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "Activity"
+    ],
+    "mains": 1,
+    "skeletons": 3,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/admin/audit-log",
+    "snippet": "THE COUPON AL BACK Activity Every admin action recorded for this league — who changed a setting, who was removed, who was let in. Visible to league admins only. Home Coupon Football Stats Leagues More"
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/admin/audit-log",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

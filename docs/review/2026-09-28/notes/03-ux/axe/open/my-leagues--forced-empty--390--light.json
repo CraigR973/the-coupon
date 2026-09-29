@@ -1,0 +1,43 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "forced-empty",
+    "name": "my-leagues",
+    "path": "/leagues",
+    "setup": true,
+    "after": false
+  },
+  "width": 390,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "My Leagues"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/leagues",
+    "snippet": "THE COUPON AL My Leagues Your league hubs, shortcuts, and current standing in one place. Discover Join + New You're not in any leagues yet. Create league Join by code Browse leagues Home Coupon Football Stats Leagues Mor"
+  },
+  "axe": {
+    "url": "/leagues",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 35
+  },
+  "errors": []
+}

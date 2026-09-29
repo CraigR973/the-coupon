@@ -1,0 +1,45 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "loading",
+    "name": "admin-dashboard",
+    "path": "/admin/dashboard",
+    "allowSkeleton": true,
+    "axe": true,
+    "setup": true,
+    "after": false
+  },
+  "width": 390,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "Dashboard"
+    ],
+    "mains": 1,
+    "skeletons": 3,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/admin/dashboard",
+    "snippet": "THE COUPON AL SITE ADMIN Dashboard Dashboard Calendar Players Results Sync Invites All leagues Home Coupon Football Stats Leagues More"
+  },
+  "axe": {
+    "url": "/admin/dashboard",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

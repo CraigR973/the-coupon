@@ -1,0 +1,60 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "loading",
+    "name": "player-profile",
+    "path": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4",
+    "allowSkeleton": true,
+    "axe": true,
+    "setup": true,
+    "after": false
+  },
+  "width": 390,
+  "theme": "light",
+  "proof": {
+    "h1": [],
+    "mains": 1,
+    "skeletons": 5,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4",
+    "snippet": "THE COUPON AL Home Coupon Football Stats Leagues More"
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [
+      {
+        "id": "page-has-heading-one",
+        "impact": "moderate",
+        "nodes": 1,
+        "targets": [
+          {
+            "target": "html",
+            "summary": "Fix all of the following:\n  Page must have a level-one heading",
+            "html": "<html lang=\"en\" class=\"light\" style=\"color-scheme: light;\">"
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      {
+        "id": "aria-prohibited-attr",
+        "nodes": 1
+      },
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 32
+  },
+  "errors": []
+}

@@ -1,0 +1,15 @@
+file	path	persona	violations	proof
+install-gate--mobile-browser--390--light	/login	null	region(m):6	{"sk":0,"err":0,"h1":["One Saturday pick. One shared coupon.","Sign in"],"hs":0}
+install-gate--mobile-browser--390--dark	/login	null	region(m):6	{"sk":0,"err":0,"h1":["One Saturday pick. One shared coupon.","Sign in"],"hs":0}
+player-profile--happy--390--light	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	color-contrast(s):3	{"sk":0,"err":0,"h1":["Bob"],"hs":0}
+player-profile--happy--390--dark	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	color-contrast(s):3	{"sk":0,"err":0,"h1":["Bob"],"hs":0}
+player-profile--happy--1280--light	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	color-contrast(s):4	{"sk":0,"err":0,"h1":["Bob"],"hs":0}
+player-profile--happy--1280--dark	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	color-contrast(s):4	{"sk":0,"err":0,"h1":["Bob"],"hs":0}
+player-profile--loading--390--light	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":5,"err":0,"h1":[],"hs":0}
+player-profile--loading--390--dark	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":5,"err":0,"h1":[],"hs":0}
+player-profile--loading--1280--light	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":5,"err":0,"h1":[],"hs":0}
+player-profile--loading--1280--dark	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":5,"err":0,"h1":[],"hs":0}
+player-profile--error--390--light	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":0,"err":0,"h1":[],"hs":0}
+player-profile--error--390--dark	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":0,"err":0,"h1":[],"hs":0}
+player-profile--error--1280--light	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":0,"err":0,"h1":[],"hs":0}
+player-profile--error--1280--dark	/leagues/the-coupon/players/63cb9150-a1cd-455a-898a-d7fb8b1f47f4	Alice	page-has-heading-one(m):1	{"sk":0,"err":0,"h1":[],"hs":0}

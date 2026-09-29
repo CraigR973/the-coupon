@@ -1,0 +1,43 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "forced-empty",
+    "name": "football",
+    "path": "/football",
+    "setup": true,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "Football Stats"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/football",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL TABLES & RESULTS Football Stats Tables Results No tables yet Tables appear once the football data has been pulled in. We cover every competition a coupon ha"
+  },
+  "axe": {
+    "url": "/football",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 35
+  },
+  "errors": []
+}

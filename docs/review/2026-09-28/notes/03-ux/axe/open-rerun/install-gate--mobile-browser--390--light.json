@@ -1,0 +1,108 @@
+{
+  "job": {
+    "persona": null,
+    "state": "mobile-browser",
+    "name": "install-gate",
+    "path": "/login",
+    "mobileUA": true,
+    "widths": [
+      390
+    ],
+    "setup": false,
+    "after": false
+  },
+  "width": 390,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "One Saturday pick. One shared coupon.",
+      "Sign in"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": true,
+    "hScroll": 0,
+    "url": "/login",
+    "snippet": "THE COUPON One pick. One coupon. Every Saturday. One Saturday pick. One shared coupon. Claim a priced football selection before the weekly lock. No two members can hold the same selection, and a winner scores its frozen "
+  },
+  "axe": {
+    "url": "/login",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [
+      {
+        "id": "region",
+        "impact": "moderate",
+        "nodes": 6,
+        "targets": [
+          {
+            "target": ".space-y-3.text-center",
+            "summary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+            "html": "<div class=\"text-center space-y-3\">",
+            "data": {
+              "isIframe": false
+            }
+          },
+          {
+            "target": ".rounded-xl.py-5.px-5:nth-child(2)",
+            "summary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+            "html": "<div class=\"rounded-xl border border-border bg-surface px-5 py-5 space-y-3\">",
+            "data": {
+              "isIframe": false
+            }
+          },
+          {
+            "target": ".rounded-xl.py-5.px-5:nth-child(3) > .text-sm.font-semibold",
+            "summary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+            "html": "<p class=\"text-sm font-sans font-semibold text-text-primary\">Install on Android</p>",
+            "data": {
+              "isIframe": false
+            }
+          },
+          {
+            "target": "li:nth-child(1) > span",
+            "summary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+            "html": "<span>Open your browser’s menu.</span>",
+            "data": {
+              "isIframe": false
+            }
+          },
+          {
+            "target": "li:nth-child(2) > span",
+            "summary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+            "html": "<span>Choose <strong class=\"text-text-primary\">Add to Home screen</strong> (some browsers call it <strong class=\"text-text-primary\">Install app</strong>), then open the new icon.</span>",
+            "data": {
+              "isIframe": false
+            }
+          },
+          {
+            "target": ".space-y-6 > .text-text-muted.text-xs",
+            "summary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+            "html": "<p class=\"text-center text-xs font-sans text-text-muted\">Once the app is installed, create your account — you choose your own display name and PIN — and join with your invite link or join code.</p>",
+            "data": {
+              "isIframe": false
+            }
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      {
+        "id": "aria-prohibited-attr",
+        "nodes": 2
+      },
+      {
+        "id": "color-contrast",
+        "nodes": 5
+      }
+    ],
+    "passes": 38
+  },
+  "errors": []
+}

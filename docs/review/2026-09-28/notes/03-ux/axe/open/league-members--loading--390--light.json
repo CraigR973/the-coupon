@@ -1,0 +1,45 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "loading",
+    "name": "league-members",
+    "path": "/leagues/the-coupon/admin/members",
+    "allowSkeleton": true,
+    "axe": true,
+    "setup": true,
+    "after": false
+  },
+  "width": 390,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "Members"
+    ],
+    "mains": 1,
+    "skeletons": 3,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues/the-coupon/admin/members",
+    "snippet": "THE COUPON AL BACK Members Home Coupon Football Stats Leagues More"
+  },
+  "axe": {
+    "url": "/leagues/the-coupon/admin/members",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 36
+  },
+  "errors": []
+}

@@ -1,0 +1,13 @@
+file	path	persona	violations	proof
+football--results--390--light	/football?date=2026-05-02	Alice	0	{"sk":0,"err":0,"h1":["Football Stats"],"hs":0}
+football--results--390--dark	/football?date=2026-05-02	Alice	0	{"sk":0,"err":0,"h1":["Football Stats"],"hs":0}
+football--results--1280--light	/football?date=2026-05-02	Alice	0	{"sk":0,"err":0,"h1":["Football Stats"],"hs":0}
+football--results--1280--dark	/football?date=2026-05-02	Alice	0	{"sk":0,"err":0,"h1":["Football Stats"],"hs":0}
+career-profile--loading--390--light	/profile	Alice	page-has-heading-one(m):1	{"sk":4,"err":0,"h1":[],"hs":0}
+career-profile--loading--390--dark	/profile	Alice	page-has-heading-one(m):1	{"sk":4,"err":0,"h1":[],"hs":0}
+career-profile--loading--1280--light	/profile	Alice	page-has-heading-one(m):1	{"sk":4,"err":0,"h1":[],"hs":0}
+career-profile--loading--1280--dark	/profile	Alice	page-has-heading-one(m):1	{"sk":4,"err":0,"h1":[],"hs":0}
+career-profile--error--390--light	/profile	Alice	page-has-heading-one(m):1	{"sk":0,"err":1,"h1":[],"hs":0}
+career-profile--error--390--dark	/profile	Alice	page-has-heading-one(m):1	{"sk":0,"err":1,"h1":[],"hs":0}
+career-profile--error--1280--light	/profile	Alice	page-has-heading-one(m):1	{"sk":0,"err":1,"h1":[],"hs":0}
+career-profile--error--1280--dark	/profile	Alice	page-has-heading-one(m):1	{"sk":0,"err":1,"h1":[],"hs":0}

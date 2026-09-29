@@ -1,0 +1,49 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "loading",
+    "name": "football",
+    "path": "/football",
+    "allowSkeleton": true,
+    "axe": true,
+    "setup": true,
+    "after": false
+  },
+  "width": 390,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Football Stats"
+    ],
+    "mains": 1,
+    "skeletons": 2,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/football",
+    "snippet": "THE COUPON AL TABLES & RESULTS Football Stats Tables Results Home Coupon Football Stats Leagues More"
+  },
+  "axe": {
+    "url": "/football",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "aria-prohibited-attr",
+        "nodes": 1
+      },
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 37
+  },
+  "errors": []
+}

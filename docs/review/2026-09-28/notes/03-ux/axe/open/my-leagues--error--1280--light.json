@@ -1,0 +1,44 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "error",
+    "name": "my-leagues",
+    "path": "/leagues",
+    "waitMs": 4500,
+    "setup": true,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "light",
+  "proof": {
+    "h1": [
+      "My Leagues"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/leagues",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL My Leagues Your league hubs, shortcuts, and current standing in one place. Discover Join + New"
+  },
+  "axe": {
+    "url": "/leagues",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "light",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 33
+  },
+  "errors": []
+}

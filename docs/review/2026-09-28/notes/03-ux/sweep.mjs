@@ -55,7 +55,6 @@ if (PHASE === 'open') {
     ['login', '/login'], ['register', '/register'], ['forgot-pin', '/forgot-pin'],
     ['set-pin', '/set-pin?name=Dana'], ['join', '/join/REVIEWINVITE1'], ['welcome', '/welcome'],
   ]) add({ name, path, persona: null });
-  add({ name: 'join', path: '/join/NOSUCHTOKEN', persona: null, state: 'invalid' });
   add({ name: 'install-gate', path: '/login', persona: null, state: 'mobile-browser', mobileUA: true, widths: [390] });
 
   // member core
@@ -74,7 +73,7 @@ if (PHASE === 'open') {
   add({ name: 'player-profile', path: `/leagues/the-coupon/players/${ids.bob}` });
   add({ name: 'career-profile', path: '/profile' });
   add({ name: 'football', path: '/football' });
-  add({ name: 'football', path: '/football?view=results', state: 'results' });
+  add({ name: 'football', path: '/football?date=2026-05-02', state: 'results' });
   add({ name: 'team-season', path: `/football/teams/${ids.team}?competition=${ids.comp}&season=${ids.season}`, full: true });
   add({ name: 'settings', path: '/settings', full: true });
   add({ name: 'about', path: '/about', full: true });
@@ -103,7 +102,7 @@ if (PHASE === 'open') {
     ['results', '/leagues/the-coupon/predictions/results', 'leagues/the-coupon/results'],
     ['my-leagues', '/leagues', 'leagues/mine'],
     ['football', '/football', 'football/tables'],
-    ['career-profile', '/profile', 'me/profile'],
+    ['career-profile', '/profile', 'me/cross-league-summary'],
     ['team-season', `/football/teams/${ids.team}?competition=${ids.comp}&season=${ids.season}`, `football/teams/${ids.team}/season`],
     ['player-profile', `/leagues/the-coupon/players/${ids.bob}`, `leagues/the-coupon/players/${ids.bob}/profile`],
     ['league-members', '/leagues/the-coupon/admin/members', 'leagues/the-coupon/members'],

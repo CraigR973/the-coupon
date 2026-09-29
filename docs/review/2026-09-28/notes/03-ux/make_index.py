@@ -40,7 +40,7 @@ def confirm(state: str, p: dict) -> str:
 
 rows = []
 by_hash = defaultdict(list)
-for js in sorted(NOTES.glob("axe/*/*.json")):
+for js in sorted(p for p in NOTES.glob("axe/*/*.json") if not p.parent.name.endswith("-rerun")):
     if "-summary" in js.name:
         continue
     j = json.loads(js.read_text())

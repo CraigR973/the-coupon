@@ -1,0 +1,43 @@
+{
+  "job": {
+    "persona": "Alice",
+    "state": "results",
+    "name": "football",
+    "path": "/football?date=2026-05-02",
+    "setup": false,
+    "after": false
+  },
+  "width": 1280,
+  "theme": "dark",
+  "proof": {
+    "h1": [
+      "Football Stats"
+    ],
+    "mains": 1,
+    "skeletons": 0,
+    "errorState": 0,
+    "toasts": 0,
+    "offlineText": false,
+    "lockedText": false,
+    "settledText": false,
+    "emptyText": false,
+    "hScroll": 0,
+    "url": "/football?date=2026-05-02",
+    "snippet": "THE COUPON Home Coupon Football Stats Leagues Settings Alice AL TABLES & RESULTS Football Stats Tables Results Sat 18 Apr 4 Sat 25 Apr 3 Sat 2 May 3 SATURDAY 2 MAY 2026 ENGLISH PREMIER LEAGUE Chelsea FCvArsenal FC Chelse"
+  },
+  "axe": {
+    "url": "/football?date=2026-05-02",
+    "title": "The Coupon",
+    "lang": "en",
+    "htmlClass": "dark",
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ],
+    "passes": 37
+  },
+  "errors": []
+}
