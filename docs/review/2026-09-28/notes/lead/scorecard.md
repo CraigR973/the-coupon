@@ -30,15 +30,15 @@ README's scorecard is built from this table.
 | CORR-17 | LOW | 147 | 02 | held | 02: real trigger across both 2026/27 changes, every round reminded once |
 | CORR-18 | LOW | 157 | 02 | held | 02: fields gone from API and web |
 | void legs | decision | 156 | 02 | partial | 02: coupon right; Results list and home still multiply voids (CORR-21) |
-| UX-12 | MED | 137 | 03 | | |
-| UX-13 | MED | 138 | 03 | | |
-| UX-14 | HIGH | 158 | 03 | | |
-| UX-15 | MED | 167 | 03 | | |
-| UX-16 | MED | 167 | 03 | | |
-| UX-17 | MED | 167 | 03 | | |
-| UX-18 | MED | **no batch** (session-log ~6169) | 03 | | |
-| UX-19 | LOW | 168 | 03 | | |
-| UX-20 | LOW | 168 | 03 | | |
+| UX-12 | MED | 137 | 03 | held | 03: 0 landmark/heading violations in 16 runs |
+| UX-13 | MED | 138 | 03 | held | 03: 5.08 / 5.60:1 rendered |
+| UX-14 | HIGH | 158 | 03 | partial | 03: ring 4.72 / 7.62:1 at 599 of 630 stops; hidden behind tab bar/header (UX-28), not drawn on two controls (UX-29) |
+| UX-15 | MED | 167 | 03 | partial | 03: pick labels fixed; other text clips at 320/390 (UX-32) |
+| UX-16 | MED | 167 | 03 | held | 03: More sheet returns focus; five other dialogs do not (UX-30) |
+| UX-17 | MED | 167 | 03 | held | 03: failures in role=alert, successes in role=status |
+| UX-18 | MED | **no batch** (session-log ~6169) | 03 | not fixed | 03: never batched; lost leg 2.39-3.24:1; same defect on profile (UX-21) |
+| UX-19 | LOW | 168 | 03 | held | 03: both links 24 px |
+| UX-20 | LOW | 168 | 03 | partial | 03: desktop header kept at 200%, but overflows 79 px and hides the account menu (UX-27) |
 | PERF-01 | MED | 144 | 04 | held | 04: 15 → 13 statements, projection |
 | PERF-02 | MED | owner: one worker | 04 | unchanged (decision) | 04: one worker, scheduler in-process |
 | PERF-03 | MED | 145 | 04 | held (local) | 04: 299 KB → 15 KB gzip locally; not checkable read-only in prod |
