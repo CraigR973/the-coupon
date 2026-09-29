@@ -239,4 +239,119 @@ habit, naming the guard's verdict and, for a split-half batch, who scheduled the
 when; the guard refuses a web change while drift reports a shipment owed, unless the same
 acknowledgement is given.
 
-PENDING-SECTIONS-B
+## PIPE-15 · LOW · live · verified — follow-ups recorded in the session log become nobody's work
+
+Agents flag what their row does not cover, as they should — and there it stops. Two since
+`2ce6f42`, neither with a row, and there are no open rows at all:
+
+- **Batch 138:** UX-18's `opacity-60` payout figure on the pick row — "no batch row currently
+  does". Still there: `apps/web/src/components/PickRow.tsx:238`, `lost && 'opacity-60'`.
+- **Batch 131:** a member whose only picks were voided now has a `null` win rate, and
+  `apps/web/src/pages/PlayerProfilePage.tsx:100` tells them "Nothing has settled yet", which is
+  false for them. "Copy is outside this row's scope boundary, so it is left as-is."
+
+**Impact on a member:** small defects an agent found and named stay live indefinitely.
+
+**Fix:** a close-out step — every "not in this batch" or "follow-up" line becomes an unchecked
+row, or is marked accepted, before the push. (The lead should cross-check both items against
+lenses 02 and 03.)
+
+## PIPE-16 · LOW · live · verified — the ratchet counts tests, not what they check
+
+The count is an exact floor, which catches a deleted or skipped test. It cannot see a test
+replaced by a weaker one (the combined gate above swapped two and stayed green), and it
+rewards volume. Batch 161 added ten parametrised cases of
+`bounded = min(unbounded, installation); assert bounded <= installation` — true by
+construction for any input — which is two-thirds of that batch's +15. The behaviour itself is
+tested properly elsewhere (the HTTP test that a second league is refused once the deployment's
+allowance is spent); the tautologies are padding, not harm.
+
+**Fix:** have close-out print the test IDs removed or renamed against `main` (`pytest
+--collect-only -q`, `vitest list`) into the session-log entry, so the owner's after-the-fact
+review sees a swap even when the count holds.
+
+## PIPE-17 · LOW · live · verified — the stop hook speaks at the wrong moment
+
+PIPE-02's text fix held: both hooks now tell an agent to close out a green build batch without
+waiting. But the hook only speaks when the branch is **clean**. In the automatic flow the
+batch's changes stay uncommitted until close-out step 4, so at the moment an agent decides
+whether to close out, the tree is dirty and the hook is silent (re-driven in the worktree:
+no output). It does speak on any clean non-main branch, including a review branch with no
+batch on it — PENDING-HOOK-CLEAN
+
+**Fix:** key the message on an unchecked batch row matching the branch name
+(`feat/batch-N-*`), not on a clean tree.
+
+## PIPE-18 · LOW · live · verified — closed rows accumulate in the "Open batches" head
+
+Batch 154's saving held: `/next-batch-prompt` reads STATUS (6.4 KB), the build plan down to
+`## Closed batches` (18.8 KB), the last session-log section (2.2 KB), its own file and
+`AGENTS.md` — **38.3 KB, about 9,600 tokens**, against 529 KB before Batch 154. But the head's
+"Open batches" section holds seven rows and **all seven are ticked** (115, 140, 148, 149, 150,
+151, 168): 14.7 KB, 78% of the head. `strike-batch.md` ticks a row in place and nothing moves
+it below the heading, so every batch the next review specifies will add to what every
+cold start reads, until someone moves them by hand.
+
+For scale: `docs/BUILD_PLAN.md` grew from 287 KB to 353 KB since `2ce6f42`, and
+`session-log.md` from 271 KB to 541 KB (it now also carries the old STATUS archive). Neither
+is read whole by any workflow; the risk is a tool that loads a file from the top — a 2,000-line
+default read of `session-log.md` is roughly 35k tokens of history before the entry being
+appended. `/batch-start` reads about 22 KB plus its row; `/group-start` about 45-50 KB before
+its first batch (its own file, `09-prompts.md`, the group's section of `08-sequencing.md`,
+STATUS and recent entries).
+
+**Fix:** `strike-batch.md` moves the ticked row under `## Closed batches`; move the seven now.
+
+## PIPE-19 · INFO · live · verified — dormant or stale machinery
+
+- `.github/workflows/claude.yml` is an `@claude` / `auto-fix` issue workflow with
+  `contents: write`, fed by issue text in a **public** repository, and it points at a
+  `prod-monitor` workflow that does not exist. `gh secret list` shows no secrets and every run
+  has been "skipped", so it is inert today; it is template residue from the first commit.
+- 29 of the 130 commits carry no agent trailer — Batches 152, 120-122, 115, Group Z and the
+  out-of-batch fixes — so which agent (or person) built what is not recorded.
+- `/private/tmp/the-coupon-main-batch149` is a leftover worktree, detached at `7a1a7c7`
+  (the Batch 150 close-out); `git worktree list` still lists it. Left untouched.
+- `apps/api/pyproject.toml` `[project]` pins fastapi 0.111.0 and starlette 0.37.2; the gate
+  runs 0.141.1 and 1.6.0 from `requirements-dev.txt`. Unused, but misleading to an agent.
+- `check-closeout-safety.sh` classifies a root `vercel.json` that does not exist (the file is
+  `apps/web/vercel.json`, still covered by `apps/web/*`); `check-deploy-drift.sh`'s tier-3
+  probe still names Batch 51 despite its own comment to keep it current.
+- `2f7d742`'s commit message and docstring credit `_future_window` to Batch 112; it came from
+  the out-of-batch `d1b9ee9`.
+
+## Checked and found nothing material
+
+- **No weakened tests.** Across the 55 code commits: no new `skip`, `xfail`, `.only`, `.todo`
+  or `.skip` in any test (the `pytestmark = skipif(no DATABASE_URL)` hits are the standard
+  Postgres-module pattern, and the gate refuses any skip). Every removed or renamed test was
+  read: Batch 139 (a specified default changed; reported, and a companion test added), 157
+  (the owner dropped the field; the tests now pin its absence), 161 (a property deliberately
+  inverted, 201 → 429, explained in the commit body), 164 (framer-motion removed), 155
+  (renamed during redaction, assertions kept), 150 (first-run home replaced), 115 (a
+  hand-typed round replaced by a database-derived one with a dated floor; the TTL change it
+  needed was owner-approved in the row), `99b5fc9` (a dated tripwire re-measured, which is
+  its purpose). Batch 140 changed an expectation from Alice to Bob in an assertion it had
+  written itself, and said so.
+- **Batch 131 stopped for the owner** as the run order predicted, and its session-log entry
+  quotes the oracle before and after.
+- **The 23 Sep round-population fix (`2f7d742`) is honest:** its own `fix/` branch, as
+  `AGENTS.md` requires for a red baseline; every assertion unchanged; one test added for the
+  helper's invariant.
+- **Batch 166 closing with no code change is honest:** it first parked itself rather than
+  sign in as the owner to measure, then closed on thirteen Lighthouse runs against a seeded
+  local bundle (blocking time 915 → 265 ms median) with the remaining cost attributed to
+  framework boot. Lens 04 re-takes the number.
+- **Suppressions in product code are defensible:** `# type: ignore[assignment]` on a
+  dependency default of `None` in `routers/auth.py` (FastAPI's pattern), and two
+  `react-hooks/exhaustive-deps` disables with stated reasons; `type: ignore` in tests is noise
+  (mypy checks `src` only).
+- **No ratchet was raised without tests.** Every commit that raised a count also added test
+  functions, and the gate's exact match fails a count raised past the real one (probe G14
+  passes the guardrail, then fails the count step).
+- **The 25 ticks dated 23 Sep** match 25 close-out commits dated 23 Sep. Ten batches closed
+  between 01:04 and 03:41 at 12-28 minute intervals, each claiming a full 11-check gate of
+  11-13 minutes; tight, but consistent with first-time passes on a quiet machine.
+- **CI and the local gate agree on versions** (Node 24, pnpm 9.15.0, Python 3.12).
+
+PENDING-SECTIONS-C
