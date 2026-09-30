@@ -56,8 +56,8 @@ ticked rows can collect here until someone moves them below.
 ### Open batches
 
 Batches 169-203 were specified by the 2026-09-28 review (`docs/review/2026-09-28/`,
-grouped in its `08-sequencing.md`, model and effort in `09-prompts.md`). Several wait on an owner
-decision named in their row; none has started.
+grouped in its `08-sequencing.md`, model and effort in `09-prompts.md`). Every owner decision they needed was answered on 2026-09-30 ("yes to all") and is
+recorded in its row; none has started.
 
 - [ ] **Batch 169 — Every toast is unreadable in dark mode, the default theme**
   — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-10 (high impact, live,
@@ -258,6 +258,12 @@ decision named in their row; none has started.
   value for both schemes; installed mode shows a 140 px header; `vite.config.ts` still lists
   the font Batch 164 deleted.
 
+  **Owner decision, 2026-09-30: option (a)** — move the icon, splash and status bar to the app's palette (`#0B0E13` plate, emerald ticket); no navy token.
+
+  **Gate maintenance approved (owner, 2026-09-30):** this batch may change these protected
+  files and no others — `apps/web/vite.config.ts`. Recorded in `scripts/assert-quality-guardrails.sh` by the
+  2026-09-28 review branch.
+
   Owner decision first (brand colour, 06 decision 1). Then: manifest `theme_color` /
   `background_color`, `id: '/'`, screenshots; two `theme-color` metas by colour scheme kept in
   step by `ThemeContext`; a real maskable icon (content inside the safe circle) from
@@ -267,7 +273,7 @@ decision named in their row; none has started.
   Verification: the maskable icon rendered inside circle and squircle masks; manifest
   validated; standalone captures with a real safe-area inset in both themes.
 
-  Scope boundary: the PWA shell. **Web-only — waits on the owner's brand-colour decision.**
+  Scope boundary: the PWA shell. **Web-only — brand colour decided 2026-09-30.**
 
 - [ ] **Batch 179 — A league admin can take over any member of their league, and every other league that member plays in**
   — specified from `docs/review/2026-09-28/01-security.md` (SEC-15 partial, SEC-27 MED) and
@@ -278,22 +284,23 @@ decision named in their row; none has started.
   signed-in session as an ordinary member (Carol) and as a co-admin demoted first (SEC-27:
   demote → reset → set → login). The session is the victim's whole account, so the attacker
   also acts in the victim's *other* leagues, where they hold no role. The victim is told
-  nothing (`credentials.clear_pin` sends no notice) and is simply signed out. The guard's own
+  nothing (`credentials.clear_pin` sends no notice) and is simply signed out — and the attacker,
+  holding the PIN they chose, could then erase the account through `POST /me/delete`. The guard's own
   comment (`league_memberships.py:625-628`) states the invariant it misses: no league admin
   may open the window "on an account whose privileges reach beyond an ordinary membership in
   this league". No web screen calls this route (05, FEAT-A15), yet the register screen tells a
   member "a league admin has to set you a new one".
 
-  **Owner decision first** (README decision 1). Recommended: retire the league-scoped reset
+  **Owner decision, 2026-09-30: option (a)** — retire the league-scoped reset route so every reset goes through the site console; correct the register copy; notify the member on reset and on PIN set.
+
+  Decided 2026-09-30 (README decision 1): retire the league-scoped reset
   route so every reset goes through the site console the owner already uses, correct the
   register screen's copy, and notify the member (push, plus an in-app notice on next sign-in)
-  when a reset is issued and when a PIN is set. The alternative (01's options 2 + 4) keeps the
-  route for members in no other league, refuses it for anyone demoted inside the claim window,
-  and notifies.
+  when a reset is issued and when a PIN is set. (Rejected: 01's options 2 + 4, which kept the
+  route for members in no other league.)
 
-  Verification: a test that a league admin cannot clear an ordinary member's PIN (or, on the
-  alternative, cannot clear a member of another league or anyone demoted inside the window);
-  a test that the member is notified on reset and on set; the site-console reset and its
+  Verification: the league-scoped reset route is gone (404) and no web code calls it; a test
+  that the member is notified on reset and on set; the site-console reset and its
   audit unchanged; the register copy names a path that exists.
 
   Scope boundary: the league-scoped reset and reset notifications. No change to the claim
@@ -324,13 +331,14 @@ decision named in their row; none has started.
   name "Erin" (in another league) and "Sam" (the site admin's); Erin then joined and the roster
   showed two "Erin"s. The route has no web caller at all.
 
-  **Owner decision** (README decision 5). Recommended: remove the per-league name route and its
-  override column's writers, since nothing in the app uses it. Otherwise: check global display
-  names of all profiles when an override is set, and on every join path refuse or clear an
-  override that now collides.
+  **Owner decision, 2026-09-30: remove the per-league name route** and clear existing overrides with a counted data step.
 
-  Verification: on removal, the route 404s and existing overrides are cleared by a data step
-  with a count; otherwise, tests for both collision directions (set-then-join, join-then-set).
+  Decided 2026-09-30 (README decision 5): remove the per-league name route and its
+  override column's writers, since nothing in the app uses it (hardening it instead was the
+  rejected option).
+
+  Verification: the route 404s; existing overrides are cleared by a data step that reports its
+  count; the roster, standings and coupon render global names only.
 
   Scope boundary: the per-league name. **API-carrying.**
 
@@ -381,7 +389,9 @@ decision named in their row; none has started.
   are refused at every settle sweep for ever, their picks pending, with no member told. Both
   rounds in one football week still render the same bare label.
 
-  **Owner decision** on picks already stranded (README decision 3; recommended: void them).
+  **Owner decision, 2026-09-30: void** the picks on any round the settle guard refuses, and stop offering such rounds.
+
+  Decided 2026-09-30 on picks already stranded (README decision 3): void them.
   Then: `sync_slate` does not create a round in a football week where the league already holds
   a settled round or a kept stray; the pick path refuses (`409 ROUND_NOT_SCORING`) any round the
   guard would refuse; an operator path voids a refused round's picks; the second round in a
@@ -403,9 +413,11 @@ decision named in their row; none has started.
   departed member's pick on a round that has not locked stays claimed, so that selection or
   fixture is unavailable to everyone else all week.
 
-  **Owner decision** on unlocked picks (README decision 2; recommended: delete them on leave
+  **Owner decision, 2026-09-30: option (b)** — delete a departed or erased member's picks on rounds not yet locked; keep locked and settled picks.
+
+  Decided 2026-09-30 on unlocked picks (README decision 2): delete them on leave
   and on erasure, keep locked and settled ones — the 2026-09-22 "keep history" decision was
-  about history, and an unlocked pick is not history yet). Then call the completion hook from
+  about history, and an unlocked pick is not history yet. Then call the completion hook from
   `delete_my_account` for each of the member's leagues.
 
   Verification: mirror Batch 130's leave test for self-deletion; a departed member's unlocked
@@ -439,7 +451,9 @@ decision named in their row; none has started.
   neither the correction nor a hand settlement appears in the league's audit log; and a round
   nobody picked never settles, so it is never announced.
 
-  **Owner decision** on scope (README decision 4; recommended: per fixture across leagues).
+  **Owner decision, 2026-09-30: per fixture, across every league**, from the admin Results screen.
+
+  Decided 2026-09-30 on scope (README decision 4): per fixture across leagues.
   Then: a site-admin action on the admin Results screen — pick a settled fixture, enter the
   true score or void and a reason — re-scoring every settled pick on it in every league through
   `resolve_pick`; one audit row per league carrying `league_slug`; a `corrected` flag and
@@ -567,7 +581,9 @@ decision named in their row; none has started.
   push needs the installed app, so about half the league gets none of them. Mute is per league
   or nothing, not per kind.
 
-  **Owner decision** (README decision 9; recommended: build it). Record each league
+  **Owner decision, 2026-09-30: build it** (a 30-day table, a bell on home, per-kind mute if cheap).
+
+  Decided 2026-09-30 (README decision 9): build it. Record each league
   notification per member when sent (a small table, 30 days), show it behind a bell on home,
   mark read on view; per-kind mute if cheap alongside.
 
@@ -584,8 +600,10 @@ decision named in their row; none has started.
   and nothing creates one, so there is no way in at all. The switch's state is already public
   (registration checks it before validating the name, `auth.py:426`).
 
-  **Owner decision** (README decision 10; recommended: a separate unauthenticated
-  `GET /api/v1/auth/signup-status`, leaving `/config` authenticated). Show a closed notice in
+  **Owner decision, 2026-09-30: yes** — a separate unauthenticated `signup-status` route, and an invite may create an account while sign-ups are closed.
+
+  Decided 2026-09-30 (README decision 10): a separate unauthenticated
+  `GET /api/v1/auth/signup-status`, leaving `/config` authenticated. Show a closed notice in
   place of the form, and either let an invite create an account while sign-ups are closed or
   stop telling visitors to ask for one.
 
@@ -612,8 +630,10 @@ decision named in their row; none has started.
   — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-23 (low). `/join/:token`
   lands on "Join the league" without naming the league or the inviter.
 
-  **Owner decision** (README decision 12; recommended: league name, inviter's display name and
-  member count). A public read keyed by the invite token, and the landing page using it.
+  **Owner decision, 2026-09-30: yes** — league name, inviter's display name and member count before sign-in.
+
+  Decided 2026-09-30 (README decision 12): league name, inviter's display name and
+  member count. A public read keyed by the invite token, and the landing page using it.
 
   Verification: a live invite shows the three facts; an expired, used or deleted-league invite
   shows the existing refusal; the read leaks nothing without a valid token.
@@ -629,6 +649,10 @@ decision named in their row; none has started.
   simultaneous weakenings passed with the exact ratchet counts. On 22 Sep the protected smoke
   script changed three times on `fix/` branches the guardrail refuses, with no record of who
   approved it. No batch since 2ce6f42 abused any of this.
+
+  **Gate maintenance approved (owner, 2026-09-30):** this batch may change these protected
+  files and no others — `scripts/assert-quality-guardrails.sh`, `scripts/ci-local.sh`, `scripts/check-closeout-safety.sh`, `docs/agent-commands/phase-closeout.md`. Recorded in `scripts/assert-quality-guardrails.sh` by the
+  2026-09-28 review branch.
 
   Run the guardrail and the count check from `main`'s copy (`git show main:…`); read the approval
   table from `main` and require the approving row to quote the file list; protect by pattern
@@ -655,7 +679,13 @@ decision named in their row; none has started.
   gate (no guardrail, no ratchet, no zero-skip), `main` has no branch protection, and
   `phase-closeout.md` says "Do not poll CI".
 
-  **Owner decision** (README decision 6; recommended: yes). After the push, close-out waits for
+  **Owner decision, 2026-09-30: yes** — close-out waits for CI on the pushed SHA, reversing "Do not poll CI".
+
+  **Gate maintenance approved (owner, 2026-09-30):** this batch may change these protected
+  files and no others — `docs/agent-commands/phase-closeout.md`, `.github/workflows/ci.yml`. Recorded in `scripts/assert-quality-guardrails.sh` by the
+  2026-09-28 review branch.
+
+  Decided 2026-09-30 (README decision 6): yes. After the push, close-out waits for
   the run on the pushed SHA and writes its conclusion into the session-log line; red stops a
   group and is treated as red `main`. Add the guardrail and the count check to CI; fix both
   flakes.
@@ -673,6 +703,10 @@ decision named in their row; none has started.
   157) and stayed broken five days; Batch 149 pushed before running it, and the toast defect it
   then found was live for about 23 minutes.
 
+  **Gate maintenance approved (owner, 2026-09-30):** this batch may change these protected
+  files and no others — `scripts/ci-local.sh`, `.github/workflows/ci.yml`. Recorded in `scripts/assert-quality-guardrails.sh` by the
+  2026-09-28 review branch.
+
   Run the journey in `ci-local.sh` and CI (58 s measured; it needs the seeded e2e server and
   `FRONTEND_ORIGIN`), on its own port with the strict-port pattern Batch 152 established.
 
@@ -688,6 +722,10 @@ decision named in their row; none has started.
   2ce6f42, but only 136 and 148 have a record of the owner scheduling the shipment;
   `--shipment-scheduled` is a plain argument. And the guard only *reports* existing drift: a
   web-only batch whose route an earlier API-only batch added passes while `/ship-prod` is owed.
+
+  **Gate maintenance approved (owner, 2026-09-30):** this batch may change these protected
+  files and no others — `scripts/check-closeout-safety.sh`, `docs/agent-commands/phase-closeout.md`. Recorded in `scripts/assert-quality-guardrails.sh` by the
+  2026-09-28 review branch.
 
   Write a "Close-out safety:" line into every session-log entry naming the guard's verdict
   and, for a split-half batch, who scheduled the shipment and when; refuse a web change while
@@ -706,7 +744,13 @@ decision named in their row; none has started.
   test packages (none in the shipped bundle). Vite 5 → 8, ESLint 8 → 10, Tailwind 3 → 4, Vitest
   2 → 5 are current. `framer-motion` is still a declared dependency though nothing imports it.
 
-  **Owner decision** (README decision 8): refresh, or record an explicit acceptance. If
+  **Owner decision, 2026-09-30: refresh**, one major at a time, dropping `framer-motion`.
+
+  **Gate maintenance approved (owner, 2026-09-30):** this batch may change these protected
+  files and no others — `apps/web/package.json`, `apps/web/vite.config.ts`, `apps/web/.eslintrc.cjs`, `apps/web/tsconfig.json`, `apps/web/tsconfig.node.json`, `apps/web/playwright.prod-bundle.config.ts`. Recorded in `scripts/assert-quality-guardrails.sh` by the
+  2026-09-28 review branch.
+
+  Decided 2026-09-30 (README decision 8): refresh, or record an explicit acceptance. If
   refreshed, one major at a time with the gate green after each, and drop `framer-motion`.
 
   Verification: OSV re-run clean of build-tool advisories; the full gate green; bundle bytes
@@ -725,6 +769,10 @@ decision named in their row; none has started.
   `pyproject.toml` pins fastapi 0.111.0 and starlette 0.37.2 the gate does not use; the drift
   probe still names Batch 51. `ship-prod.md` runs the Railway and Vercel CLIs on Node 20 in nine
   places, including both rollback commands.
+
+  **Gate maintenance approved (owner, 2026-09-30):** this batch may change these protected
+  files and no others — `docs/agent-commands/phase-closeout.md`, `apps/api/pyproject.toml`, `scripts/check-deploy-drift.sh`. Recorded in `scripts/assert-quality-guardrails.sh` by the
+  2026-09-28 review branch.
 
   Add a "Follow-ups" section to the session-log template that close-out copies into rows;
   rewrite 161's tautologies to assert behaviour; fire the hook on the batch branch; delete

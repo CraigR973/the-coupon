@@ -30,7 +30,9 @@ lead registers it as a HIGH finding, for three reasons found in the source:
 
 Same-league takeover was reproduced end to end by lens 01 (Carol; Hank via SEC-27). The reach
 into a second league follows from the session being the victim's account — tokens carry no
-league scope. Rated HIGH by the rubric ("credentials exposed under an unusual but reachable
+league scope. Once in, the attacker also holds the only thing self-service deletion asks for —
+the PIN, which they chose (`me.py:625`; lens 01 verified the PIN check is server-side) — so they
+could erase the account; that step follows from the code and was not driven. Rated HIGH by the rubric ("credentials exposed under an unusual but reachable
 condition"), as 2026-09-13 rated SEC-15 for the same case. Disproof attempted: the 10/hour rate
 limit does not stop a targeted takeover; the audit row is visible only to the resetting league's
 admins; the victim is signed out, not warned.

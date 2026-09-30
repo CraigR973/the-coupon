@@ -102,7 +102,7 @@ New ids continue the 2026-09-13 numbering. Severity for engineering findings; im
 | --- | --- | --- | --- |
 | OPS-13 | HIGH (carried) | **Production has had no backup for 56 days** — the job is built and switched off | owner action |
 | DES-10 | high | Every toast is illegible in dark mode, the default — 1.01-1.07:1, since 28 Sep | 169 |
-| SEC-32 | **HIGH** | A league admin can take over any member of their league, and every other league that member plays in; the member is told nothing | 179 |
+| SEC-32 | **HIGH** | A league admin can take over any member of their league, and every other league that member plays in; the member is told nothing — and, holding the PIN they chose, could delete the account through self-service deletion | 179 |
 | PERF-19 | **HIGH** | Combined odds overflow at 30-50 members: home and results return 500 for the whole league, permanently for history | 183 |
 | PIPE-10 | MED | The gate is judged by the branch's own copy; `exit 0` or a new config file switches checks off — six weakenings at once passed | 198 |
 | PIPE-11 | MED | The protected smoke script changed three times on 22 Sep on branches the guardrail refuses, with no record | 198 |
@@ -170,9 +170,14 @@ an owner action, or an explicit acceptance.
 - **The pick refusals read right** — conflict, price moved, busy each get their own variant and
   the action that follows (once the toasts are legible).
 
-## Owner decisions needed
+## Owner decisions — answered 2026-09-30
 
-Numbered so you can answer "1) yes 2) b …". Each names the batch it unblocks.
+**All thirteen answered "yes to all" by the owner on 30 Sep**, so each recommendation below is
+now the decision. Each is recorded in its batch row ("Owner decision, 2026-09-30"), rejected
+options are struck from the rows so an agent cannot take them, and decision 7's approvals —
+plus the protected files 178 and 202 need under decisions 11 and 8 — are recorded in
+`scripts/assert-quality-guardrails.sh` on this branch. The reasoning is kept as written, so it
+survives rather than being re-derived by the next review.
 
 1. **League-admin PIN resets (SEC-32, Batch 179).** Options: (a) retire the league-scoped route —
    no screen uses it — so every reset goes through your site console, and notify the member on
@@ -262,8 +267,9 @@ Listed in `notes/lead/doc-corrections.md`: the stale gate figures (800 passed / 
 the push is close-out step 9, Group Z exists, batch-verify's single-file commands use the gate's
 venv, STATUS says what the 481 budget omits and what the web serves, LAUNCH_PLAN records Batch
 95, the SEC-22 note in the 2026-09-13 sequencing, a note on Batch 123's row, and the seven ticked
-rows moved out of the build plan's open head. **`phase-closeout.md` is a protected file**, so
-`ci-local.sh` run on this branch fails its guardrail until merged.
+rows moved out of the build plan's open head. **`phase-closeout.md` and, since the 30 Sep decisions,
+`scripts/assert-quality-guardrails.sh` are protected files**, so `ci-local.sh` run on this branch
+fails its guardrail until merged.
 
 ## The documents
 

@@ -46,10 +46,19 @@ fi
 # does. An entry is itself a change to this protected file: add one only with the owner's
 # approval recorded in that batch's row, never on an agent's own judgement.
 #   153, 127 — approved by the owner on 2026-09-24 (see both rows).
+#   178, 198-203 — approved by the owner on 2026-09-30 (review 2026-09-28, decisions 7, 8, 11;
+#   see each row).
 approved_gate_maintenance() {
   case "$1" in
     153) echo "docs/agent-commands/phase-closeout.md scripts/assert-quality-guardrails.sh" ;;
     127) echo ".github/workflows/ci.yml scripts/ci-local.sh apps/web/package.json" ;;
+    178) echo "apps/web/vite.config.ts" ;;
+    198) echo "scripts/assert-quality-guardrails.sh scripts/ci-local.sh scripts/check-closeout-safety.sh docs/agent-commands/phase-closeout.md" ;;
+    199) echo "docs/agent-commands/phase-closeout.md .github/workflows/ci.yml" ;;
+    200) echo "scripts/ci-local.sh .github/workflows/ci.yml" ;;
+    201) echo "scripts/check-closeout-safety.sh docs/agent-commands/phase-closeout.md" ;;
+    202) echo "apps/web/package.json apps/web/vite.config.ts apps/web/.eslintrc.cjs apps/web/tsconfig.json apps/web/tsconfig.node.json apps/web/playwright.prod-bundle.config.ts" ;;
+    203) echo "docs/agent-commands/phase-closeout.md apps/api/pyproject.toml scripts/check-deploy-drift.sh" ;;
   esac
 }
 

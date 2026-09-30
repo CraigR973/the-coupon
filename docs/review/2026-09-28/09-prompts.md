@@ -74,8 +74,9 @@ phase runs at the strictest setting any of its batches asks for.
 
 ### Phase 2 — Gate integrity · Deep · max · deploys nothing
 
-Record the owner's gate-maintenance approval for each in `scripts/assert-quality-guardrails.sh`
-first (decision 7).
+The owner's gate-maintenance approvals for 198-203 (and 178) were recorded in
+`scripts/assert-quality-guardrails.sh` on the review branch (decision 7, 30 Sep), so they take
+effect once that branch is merged.
 
 ```text
 /batch-start 198

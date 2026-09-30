@@ -19,7 +19,7 @@ at `4121cf0`), so no shipment is owed before Group AA starts.
 | **Switch on the weekly backup** (Batch 95 is built and off) | production has had **no backup for 56 days** (since launch, 4 Aug); lens 02 proved the job and its restore against a local fake target, so the remaining work is the bucket, the key and one hand-run. Steps: `docs/runbooks/backup-restore.md` |
 | **Rescope the local agent configuration** (PIPE-01) | unchanged since 30 Jul; this review's own session was offered the Supabase write tools bound to another product |
 | **Do not run the season-calendar backfill until Batch 188 has shipped** | a deleted league's early round would renumber every live league (CORR-25) |
-| Answer the decisions in the README | eleven batches wait on one |
+| ~~Answer the decisions in the README~~ | **answered "yes to all" on 30 Sep**; recorded in each row and, for gate maintenance, in the guardrail |
 
 ## Group AA — Web fixes members meet today · Batches 169, 170, 172, 173, 174 · **web-only** → no shipment
 
