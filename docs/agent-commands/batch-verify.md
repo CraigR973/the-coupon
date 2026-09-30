@@ -15,9 +15,10 @@ Confirm the current branch is not `main`, then run **the whole gate as one comma
 
 That is the gate. It builds a venv from the pins, starts a clean `pgserver`, runs
 `alembic upgrade head`, and then runs ruff, mypy, the **complete** pytest suite, the
-deployment-config assertions, and the frontend's install/lint/typecheck/test/build and
-Playwright deep-link smoke — eleven checks.
-`SKIP_PROD_BUNDLE=1` drops only the Playwright deep-link smoke.
+deployment-config assertions, the frontend's install/lint/typecheck/test/build, the
+Playwright deep-link smoke, and the seeded coupon journey — twelve checks.
+`SKIP_PROD_BUNDLE=1` drops the two browser checks, the smoke and the journey, and a run
+without them cannot stamp a tree for close-out.
 
 **Running pytest without a database is not this gate.** It is `800 passed, 550 skipped`
 (measured 2026-09-29, at 1,350 tests),
@@ -25,7 +26,8 @@ and the skipped set is the HTTP pick flow, settlement, the scheduler jobs, slate
 persistence, seeds and every migration test. Treating the database run as conditional —
 "when database behavior is in scope" — is how a batch reaches `main` without the core of
 the game having executed once, and `/phase-closeout` pushes `main`, which deploys the web
-app. It takes 11 to 13 minutes on this Mac (two runs on 2026-09-24). Run it.
+app. It took 11 to 13 minutes on this Mac (two runs on 2026-09-24) before Batch 200 added
+the journey, which costs about two minutes more. Run it.
 
 The rest of this file is the same checks run individually, for iterating on one file
 before the gate. They are not a substitute for it.
@@ -88,8 +90,16 @@ and run `alembic upgrade head` first, and **start from a clean schema on every r
 the HTTP pick-flow test and the e2e seeder both commit, so a reused cluster fails
 `test_seeds` on the second run for reasons that have nothing to do with your change.
 
-When browser behavior is in scope, run the production-preview Playwright flow and retain
-its screenshots.
+The seeded coupon journey (`apps/web/e2e/coupon-flow.spec.ts`) runs inside the gate and
+in CI's `coupon-journey` job; nobody needs to run it by hand before a push any more. It
+leaves its screenshots, Playwright traces and server logs in
+`apps/web/test-results/coupon-journey/`, which the next run replaces, so copy the
+screenshots a batch cites into `artifacts/batch-N/`. To rerun only the journey while
+iterating (this cannot stamp a tree):
+
+```bash
+/Users/craigrobinson/the-coupon/scripts/ci-local.sh --journey-only
+```
 
 Report every command and result. Do not commit or merge from *this* workflow —
 `/batch-verify` is the standalone gate and stops here. Automatic close-out runs

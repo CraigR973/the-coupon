@@ -102,3 +102,33 @@ jobs:
         env:
           VITE_API_URL: https://api.example.invalid
       - run: scripts/run-prod-bundle-smoke.sh
+
+  # The seeded journey: members claim unique picks, the round locks and settles,
+  # and standings are read through a production bundle and the real API on scratch
+  # PostgreSQL. It runs the local gate's own runner, so the two cannot drift.
+  coupon-journey:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # ci-local.sh builds its pinned venv from requirements-dev.txt with uv.
+      - run: pip install uv==0.11.7
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir apps/web exec playwright install --with-deps chromium
+      - run: scripts/ci-local.sh --journey-only
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coupon-journey
+          path: apps/web/test-results/coupon-journey
+          retention-days: 7

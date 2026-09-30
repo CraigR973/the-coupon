@@ -17,9 +17,24 @@
 # The venv lives outside the repository deliberately: `railway up` uploads the
 # working directory, so a venv inside it would ship to production.
 #
-# Skip the slowest job with:   SKIP_PROD_BUNDLE=1 scripts/ci-local.sh
-# Rebuild the venv from scratch: CI_LOCAL_REBUILD=1 scripts/ci-local.sh
+# Skip both production-bundle browser checks: SKIP_PROD_BUNDLE=1 scripts/ci-local.sh
+# Rebuild the venv from scratch:              CI_LOCAL_REBUILD=1 scripts/ci-local.sh
+# Run only the seeded coupon journey:         scripts/ci-local.sh --journey-only
 set -uo pipefail
+
+# Only the full profile is the gate, and only it can stamp a tree for close-out.
+# GitHub's coupon-journey job runs --journey-only so that it drives this file's
+# journey runner rather than a second copy of it; that profile skips the
+# guardrail because a CI checkout has no local main to judge against.
+PROFILE=full
+case "$#:${1:-}" in
+  0:) ;;
+  1:--journey-only) PROFILE=journey ;;
+  *)
+    echo "usage: scripts/ci-local.sh [--journey-only]" >&2
+    exit 2
+    ;;
+esac
 
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 REQ="$ROOT/apps/api/requirements-dev.txt"
@@ -40,9 +55,11 @@ rm -f "$GATE_STAMP"
 # The branch may propose changes to the gate, but main's guard and approval
 # table judge them. Running from ROOT keeps the pre-Batch-198 guard compatible
 # while this change itself is being verified.
-if ! (cd "$ROOT" && git show main:scripts/assert-quality-guardrails.sh \
-  | COUPON_GUARD_ROOT="$ROOT" bash); then
-  exit 1
+if [[ "$PROFILE" == full ]]; then
+  if ! (cd "$ROOT" && git show main:scripts/assert-quality-guardrails.sh \
+    | COUPON_GUARD_ROOT="$ROOT" bash); then
+    exit 1
+  fi
 fi
 
 read_count() {
@@ -51,6 +68,7 @@ read_count() {
 }
 BACKEND_TEST_COUNT="$(read_count BACKEND_TEST_COUNT)"
 FRONTEND_TEST_COUNT="$(read_count FRONTEND_TEST_COUNT)"
+JOURNEY_TEST_COUNT="$(read_count JOURNEY_TEST_COUNT)"
 
 # step <name> <working-dir> <command...>
 step() {
@@ -71,6 +89,14 @@ test_step() {
   local name="$1" dir="$2" suite="$3" expected="$4"; shift 4
   local summary count skipped
   printf '  %-36s' "$name"
+  # An empty or non-numeric baseline would make every comparison below false and
+  # fall through to PASS, so it is a failure before anything runs.
+  if [[ ! "$expected" =~ ^[0-9]+$ ]]; then
+    echo "FAIL"
+    echo "      scripts/ci-test-counts.env records no $suite test count."
+    FAILED+=("$name (count unrecorded)")
+    return
+  fi
   if ! ( cd "$dir" && "$@" ) >"$LOG" 2>&1; then
     echo "FAIL"
     sed 's/^/      /' "$LOG" | tail -30
@@ -80,6 +106,8 @@ test_step() {
 
   if [[ "$suite" == backend ]]; then
     summary="$(grep -E '[0-9]+ passed' "$LOG" | tail -1)"
+  elif [[ "$suite" == journey ]]; then
+    summary="$(grep -E '^coupon journey: [0-9]+ passed' "$LOG" | tail -1)"
   else
     summary="$(grep -E 'Tests[[:space:]]+[0-9]+ passed' "$LOG" | tail -1)"
   fi
@@ -157,16 +185,17 @@ print(f"python {sys.version.split()[0]} · fastapi {fastapi.__version__} · star
 PY
 echo " · $("$RUFF" --version)"
 
-echo
-echo "backend"
-step "ruff check"          "$ROOT/apps/api" "$RUFF" check .
-step "ruff format --check" "$ROOT/apps/api" "$RUFF" format --check .
-step "mypy src"            "$ROOT/apps/api" env PYTHONPATH="$ROOT/apps/api" "$PYTHON" -m mypy src
+if [[ "$PROFILE" == full ]]; then
+  echo
+  echo "backend"
+  step "ruff check"          "$ROOT/apps/api" "$RUFF" check .
+  step "ruff format --check" "$ROOT/apps/api" "$RUFF" format --check .
+  step "mypy src"            "$ROOT/apps/api" env PYTHONPATH="$ROOT/apps/api" "$PYTHON" -m mypy src
 
-# alembic + pytest need a database. Start from a clean schema: the HTTP pick-flow
-# test commits real rows, so a reused cluster accumulates them across runs.
-test_step "alembic upgrade head + pytest" "$ROOT" backend "$BACKEND_TEST_COUNT" \
-  env COUPON_CI_API="$ROOT/apps/api" "$PYTHON" - <<'PY'
+  # alembic + pytest need a database. Start from a clean schema: the HTTP pick-flow
+  # test commits real rows, so a reused cluster accumulates them across runs.
+  test_step "alembic upgrade head + pytest" "$ROOT" backend "$BACKEND_TEST_COUNT" \
+    env COUPON_CI_API="$ROOT/apps/api" "$PYTHON" - <<'PY'
 import os, shutil, subprocess, sys, tempfile
 import pgserver
 
@@ -188,10 +217,13 @@ try:
 finally:
     shutil.rmtree(pgdata, ignore_errors=True)
 PY
+fi
 
 echo
 echo "node dependencies"
-if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+# GitHub's setup-node has already selected Node 24, so nvm is only for this Mac,
+# whose ambient node is far older.
+if [[ "$(node --version 2>/dev/null)" != v24.* && -s "$HOME/.nvm/nvm.sh" ]]; then
   # shellcheck source=/dev/null
   . "$HOME/.nvm/nvm.sh" && nvm use 24 --silent
 fi
@@ -211,25 +243,200 @@ pinned_pnpm_install() {
 }
 step "pnpm install --frozen-lockfile" "$ROOT" pinned_pnpm_install
 
-echo
-echo "deployment-config"
-step "railway/nixpacks/vercel assertions" "$ROOT" "$PYTHON" scripts/assert-deployment-config.py
+if [[ "$PROFILE" == full ]]; then
+  echo
+  echo "deployment-config"
+  step "railway/nixpacks/vercel assertions" "$ROOT" "$PYTHON" scripts/assert-deployment-config.py
 
-echo
-echo "frontend"
-step "lint"      "$ROOT" pnpm --dir apps/web lint
-step "typecheck" "$ROOT" pnpm --dir apps/web typecheck
-test_step "test" "$ROOT" frontend "$FRONTEND_TEST_COUNT" pnpm --dir apps/web test
-step "build"     "$ROOT" env VITE_API_URL=https://api.example.invalid pnpm --dir apps/web build
+  echo
+  echo "frontend"
+  step "lint"      "$ROOT" pnpm --dir apps/web lint
+  step "typecheck" "$ROOT" pnpm --dir apps/web typecheck
+  test_step "test" "$ROOT" frontend "$FRONTEND_TEST_COUNT" pnpm --dir apps/web test
+  step "build"     "$ROOT" env VITE_API_URL=https://api.example.invalid pnpm --dir apps/web build
+fi
 
-if [[ -z "${SKIP_PROD_BUNDLE:-}" ]]; then
+if [[ "$PROFILE" == full && -z "${SKIP_PROD_BUNDLE:-}" ]]; then
   echo
   echo "prod-bundle"
   step "playwright deep-link smoke" "$ROOT" "$ROOT/scripts/run-prod-bundle-smoke.sh"
 fi
 
+# The one test in which members claim unique picks, the round locks and settles
+# and standings are read, through a production bundle and the real API on scratch
+# PostgreSQL. It sat outside the gate until Batch 200 and rotted for five days.
+# Both servers get ports of their own (the deep-link smoke holds 4173; 5173 and
+# 8000 are the development servers) and must prove they bound them. Playwright
+# runs without retries, and the count check refuses a skipped journey.
+if [[ "$PROFILE" == journey || -z "${SKIP_PROD_BUNDLE:-}" ]]; then
+  echo
+  echo "coupon journey"
+  test_step "playwright coupon journey" "$ROOT" journey "$JOURNEY_TEST_COUNT" \
+    env COUPON_CI_ROOT="$ROOT" "$PYTHON" - <<'PY'
+import json, os, re, shutil, subprocess, sys, tempfile, time, urllib.request
+import pgserver
+
+ROOT = os.environ["COUPON_CI_ROOT"]
+API_DIR = os.path.join(ROOT, "apps", "api")
+WEB_DIR = os.path.join(ROOT, "apps", "web")
+VITE = os.path.join(WEB_DIR, "node_modules", "vite", "bin", "vite.js")
+API_PORT, WEB_PORT = 8174, 4174
+API_URL = f"http://127.0.0.1:{API_PORT}"
+WEB_URL = f"http://127.0.0.1:{WEB_PORT}"
+# Kept after the run for inspection (git ignores it, CI uploads it on failure):
+# Playwright's traces, the journey's screenshots and every server's log.
+RESULTS = os.path.join(WEB_DIR, "test-results", "coupon-journey")
+LOGS = os.path.join(RESULTS, "logs")
+READY_SECONDS = 60
+# No proxy may answer for 127.0.0.1: the probes are about the processes started here.
+opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+servers = []
+
+
+def fail(message, log=None):
+    if log:
+        with open(log, errors="replace") as handle:
+            tail = "".join(handle.readlines()[-25:]).rstrip("\n")
+        if tail:
+            print(tail, flush=True)
+    print(f"coupon journey: {message}", flush=True)
+    sys.exit(1)
+
+
+def run(name, argv, cwd, env):
+    log = os.path.join(LOGS, f"{name}.log")
+    with open(log, "w") as out:
+        code = subprocess.run(argv, cwd=cwd, env=env, stdout=out, stderr=subprocess.STDOUT).returncode
+    if code != 0:
+        fail(f"{name} failed (exit {code})", log)
+
+
+def answers(url):
+    try:
+        with opener.open(url, timeout=2) as response:
+            return response.status == 200
+    except OSError:
+        return False
+
+
+def serve(name, argv, cwd, env, bound, url):
+    # Batch 152's pattern: ready means this server's own log says it bound the
+    # port, the URL answers, and the process is still alive. The log line is what
+    # stops a server already holding the port from passing the probe in the moment
+    # before this one reports the address in use.
+    log = os.path.join(LOGS, f"{name}.log")
+    out = open(log, "w")
+    process = subprocess.Popen(argv, cwd=cwd, env=env, stdout=out, stderr=subprocess.STDOUT)
+    servers.append(process)
+    deadline = time.monotonic() + READY_SECONDS
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            fail(f"{name} exited ({process.returncode}) before it was ready", log)
+        with open(log, errors="replace") as handle:
+            bound_here = re.search(bound, handle.read()) is not None
+        if bound_here and answers(url) and process.poll() is None:
+            return
+        time.sleep(0.25)
+    fail(f"{name} was not ready at {url} within {READY_SECONDS} seconds", log)
+
+
+shutil.rmtree(RESULTS, ignore_errors=True)
+os.makedirs(LOGS)
+work = tempfile.mkdtemp(prefix="coupon-journey-")
+pgdata = tempfile.mkdtemp(prefix="coupon-journey-pg-")
+database = None
+try:
+    database = pgserver.get_server(pgdata, cleanup_mode="delete")
+    database.psql("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
+    api_env = dict(os.environ)
+    api_env["DATABASE_URL"] = database.get_uri().replace("postgresql://", "postgresql+asyncpg://", 1)
+    api_env["JWT_ACCESS_SECRET"] = "ci-access-secret-with-at-least-32-characters"
+    api_env["JWT_REFRESH_SECRET"] = "ci-refresh-secret-with-at-least-32-characters"
+    api_env["SCHEDULER_ENABLED"] = "false"
+    # CORS admits one exact origin; without it every sign-in fails at the preflight.
+    api_env["FRONTEND_ORIGIN"] = WEB_URL
+    api_env["PYTHONPATH"] = "."
+    api_env.pop("ENVIRONMENT", None)
+    run("alembic", [sys.executable, "-m", "alembic", "upgrade", "head"], API_DIR, api_env)
+
+    # A production bundle built for this API, outside apps/web/dist so the gate's own
+    # build is untouched. It runs from apps/web because Tailwind resolves its content
+    # globs from the working directory.
+    bundle = os.path.join(work, "dist")
+    run(
+        "vite-build",
+        ["node", VITE, "build", "--outDir", bundle, "--emptyOutDir"],
+        WEB_DIR,
+        dict(os.environ, VITE_API_URL=API_URL),
+    )
+
+    serve(
+        "api",
+        [sys.executable, "-m", "uvicorn", "tests.e2e_server:app",
+         "--host", "127.0.0.1", "--port", str(API_PORT)],
+        API_DIR,
+        api_env,
+        rf"Uvicorn running on {re.escape(API_URL)}\b",
+        f"{API_URL}/api/v1/health/ready",
+    )
+    serve(
+        "preview",
+        ["node", VITE, "preview", "--outDir", bundle,
+         "--host", "127.0.0.1", "--port", str(WEB_PORT), "--strictPort"],
+        WEB_DIR,
+        dict(os.environ),
+        rf"Local.*{WEB_PORT}",
+        WEB_URL,
+    )
+
+    report = os.path.join(work, "report.json")
+    code = subprocess.run(
+        ["pnpm", "--dir", WEB_DIR, "exec", "playwright", "test", "e2e/coupon-flow.spec.ts",
+         "--config", "playwright.config.ts", "--project", "coupon-flow",
+         "--retries", "0", "--forbid-only", "--reporter", "line,json",
+         "--output", os.path.join(RESULTS, "playwright")],
+        env=dict(
+            os.environ,
+            COUPON_E2E_API_URL=API_URL,
+            COUPON_E2E_WEB_URL=WEB_URL,
+            COUPON_E2E_ARTIFACT_DIR=os.path.join(RESULTS, "screenshots"),
+            PLAYWRIGHT_JSON_OUTPUT_FILE=report,
+        ),
+    ).returncode
+    try:
+        with open(report) as handle:
+            stats = json.load(handle)["stats"]
+    except (OSError, ValueError, KeyError):
+        fail(f"playwright exited {code} without writing a result")
+    print(
+        f"coupon journey: {stats['expected']} passed, {stats['skipped']} skipped, "
+        f"{stats['flaky']} flaky, {stats['unexpected']} failed",
+        flush=True,
+    )
+    if code != 0 or stats["unexpected"] or stats["flaky"]:
+        fail(f"traces, screenshots and server logs are in {RESULTS}")
+finally:
+    for process in servers:
+        process.terminate()
+    for process in servers:
+        try:
+            process.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+    if database is not None:
+        database.cleanup()
+    shutil.rmtree(pgdata, ignore_errors=True)
+    shutil.rmtree(work, ignore_errors=True)
+PY
+fi
+
 echo
 if [[ ${#FAILED[@]} -eq 0 ]]; then
+  if [[ "$PROFILE" == journey ]]; then
+    echo "ci-local: PASS ($PASSED checks; journey-only profile — no close-out stamp)"
+    exit 0
+  fi
   if [[ -n "${SKIP_PROD_BUNDLE:-}" ]]; then
     echo "ci-local: PASS ($PASSED checks; partial profile — no close-out stamp)"
     exit 0
