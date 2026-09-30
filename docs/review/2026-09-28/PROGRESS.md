@@ -24,6 +24,7 @@ Branch `chore/review-2026-09-28`, cut from `main` at `eb18bcb`. Never push, merg
 | 28 Sep ~23:04 → 29 Sep 08:37 | usage limit stopped all four running passes (01, 02, 05, 07) minutes after launch; each had only read its brief and started notes | partial notes committed `fed7399`; stale `sec`/`corr` stacks killed; passes resumed from their transcripts |
 | 29 Sep ~08:50 → 13:36 | usage limit again, ~10 minutes into six parallel passes | notes committed `a1fc4bb`. **Pacing changed: at most three passes at once**, finishing lenses rather than advancing all six; each resume re-sends a whole transcript, so fewer live passes waste less per interruption. Resumed 01, 02, 07 at 13:40 (their `sec`/`corr` stacks left running); 03, 04, 05 queued with stacks stopped |
 | 29 Sep ~15:30? → 18:32 | usage limit, third time, with 03, 04, 05 running (01, 02, 07 had finished at 14:45) | notes committed `98e2284`; stacks left running; 03, 04, 05 resumed 18:35 |
+| 30 Sep ~00:35 → 08:37 | usage limit, fourth time, just as 04 resumed for timings | 04 resumed 08:40 for Lighthouse + timings; lead wrote rows, 08, 09, 10 and the README meanwhile |
 
 ## Harness defect (29 Sep 18:40)
 
@@ -62,12 +63,18 @@ untouched, per the owner's decision.
 - BUILD_PLAN rows from Batch 169
 - applying doc-only corrections on this branch
 
+## Lead's deliverables
+
+| file | state |
+| --- | --- |
+| Batches 169-203 in `docs/BUILD_PLAN.md` | done (`5e196de`) |
+| `08-sequencing.md`, `09-prompts.md` | done |
+| `10-reconciliation.md` | done — SEC-32 raised, DES-16 merged, no withdrawals |
+| `README.md` | done (`238b59e`), pending lens 04's timings |
+| doc corrections | applied, `notes/lead/doc-corrections.md` |
+
 ## Exact next step
 
-Only lens 04's timings remain (running). Lead: write the batch rows (169+) into
-`docs/BUILD_PLAN.md`, then `08-sequencing.md`, `09-prompts.md`, `10-reconciliation.md`
-(from `notes/lead/reconciliation.md`), then `README.md`; fold in 04's timings when they
-land; commit; send the README. Doc corrections applied so far: `notes/lead/doc-corrections.md`.
-When the other passes finish, tell 04 the machine is quiet so it can take timings.
-Then: verify every HIGH+, reconcile, write 08/09/10 and the README. If a subagent is lost, relaunch it pointing at its brief and its
-`notes/<lens>/progress.md`.
+When lens 04 reports its timings: check `04-performance-operations.md` PERF-14 and timing rows,
+update the README's "What this review did not do" first bullet and, if a timing changes a
+finding, the register; commit; send `README.md` to the owner. Do not merge or push.
