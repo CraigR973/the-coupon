@@ -237,8 +237,9 @@
        one surface, and --warning was the worst of them at 2.86 while carrying
        the most important status line the product has ("You haven't grabbed a
        selection yet"). Each is the same hue walked toward black until it clears
-       4.5:1 on --bg, --surface and --surface-elevated alike. */
-    --primary-ink: #047F59;
+       4.5:1 on --bg, --surface and --surface-elevated alike. Primary keeps
+       extra headroom because axe rounds its 12px browser rendering by engine. */
+    --primary-ink: #047857;
     --success-ink: #047F59;
     --warning-ink: #A75B04;
     --accent-ink: #8D6923;
