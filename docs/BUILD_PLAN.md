@@ -55,6 +55,688 @@ ticked rows can collect here until someone moves them below.
 
 ### Open batches
 
+Batches 169-203 were specified by the 2026-09-28 review (`docs/review/2026-09-28/`,
+grouped in its `08-sequencing.md`, model and effort in `09-prompts.md`). Several wait on an owner
+decision named in their row; none has started.
+
+- [ ] **Batch 169 — Every toast is unreadable in dark mode, the default theme**
+  — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-10 (high impact, live,
+  verified). `AppToaster.tsx` renders sonner with `richColors` and no `theme`, so sonner
+  draws its *light* pale fills whatever the app's theme; Batch 149's last commit (`4121cf0`,
+  `index.css:430-434`) then forced every title to `var(--text-primary)`, which is near-white in
+  dark mode. Title contrast measured **1.01-1.07:1** — the lost-claim warning, the price-moved
+  prompt and every failure are illegible in the theme most members use. Shipped by an
+  automatic close-out on 28 Sep.
+
+  Theme the toaster from the app (`theme={resolvedTheme}`), drop `richColors`, and style the
+  five variants on existing tokens — surface-overlay fill, `--text-primary` title, a 3 px
+  left edge and icon in `--success-ink` / `--warning-ink` / `--error-ink` / `--primary-ink`,
+  action button `bg-primary text-on-primary`; delete `index.css:430-434`. Split each message
+  into a title that says what happened and a body that says what to do (`pickErrorMessage`
+  already holds the body text). Values and contrast table: 06, top-ten #1; mockup
+  `notes/06-design/mockups/toasts.html`.
+
+  Verification: rendered-pixel contrast of title (≥4.5:1), body (≥4.5:1) and edge/icon (≥3:1)
+  for all five variants in both themes at 390 and 1280; the role="alert"/"status" split from
+  Batch 167 unchanged; a vitest that fails if the toaster renders without a theme.
+
+  Scope boundary: toast styling and copy structure. No change to when toasts fire.
+  **Web-only — ship first; it reaches members on its own close-out push.**
+
+- [ ] **Batch 170 — The tab bar marks the wrong tab, crushes an icon, and the home figures lose their labels**
+  — specified from `docs/review/2026-09-28/03-ux-accessibility.md`, UX-26, UX-24, UX-32 and
+  UX-27 (LOW, design med, live, verified). The tab bar's "current" marker sits two tabs to the
+  right on every phone screen because the sliding indicator (Batch 164) is `absolute top-0`
+  with no `left-0` (`TabBar.tsx:173`; check `ui/tabs.tsx`, which uses the same hook). "Football
+  Stats" wraps and squashes its icon to 20×8 at 390. Home's stat labels cut off ("PICKS …",
+  "WIN RA…") at 390 and the standings `<h1>` at 320. At 200% zoom on a 1280 viewport the header
+  overflows by 79 px and pushes the account menu off-screen (Batch 168).
+
+  Anchor the indicator; label the tab "Football" with a fixed 20×20 icon; let the stat labels
+  read "Points / Won / Win %" or wrap; let the zoomed header wrap or collapse its secondary
+  items.
+
+  Verification: indicator x equals the active tab's x on every tab at 390 and 1280; icon box
+  20×20; no clipped text at 320 and 390 under the text-spacing override; at 1280 @ 200% the
+  account menu is reachable and the header does not overflow.
+
+  Scope boundary: the tab bar, home's stat labels, the header at zoom. **Web-only.**
+
+- [ ] **Batch 171 — Every translucent colour in the app compiles to nothing, so the header and tab bar have no fill**
+  — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-11 (high impact, live,
+  verified against production's stylesheet). The Tailwind colours are `var(--…)` hex tokens
+  with no `<alpha-value>`, so all **53 opacity-modified utilities (126 uses in 40 files)** —
+  `bg-primary/15`, `border-error/40`, `bg-surface/95` … — are silently dropped: none is in the
+  built CSS (checked against production's `index-*.css`). The header and tab bar are
+  transparent, error panels have no tint, and Batch 138's contrast reasoning assumed chips
+  whose tint never rendered. Switching them on as written would fail AA in 13 places.
+
+  First give `TopBar.tsx:110` and `TabBar.tsx:157` a solid `bg-surface`. Then add RGB channel
+  tokens beside each hex in `index.css` and `rgb(var(--x-rgb) / <alpha-value>)` colours in
+  `tailwind.config.ts`, and in the same batch rewrite the 126 uses to the AA-safe caps in 06's
+  top-ten #3 (text on a tint is `--text-primary`; ink moves to border/icon; tint `/8` light,
+  `/15` dark; chrome `/95`). Add a check that fails when a utility in `src` produces no CSS
+  (a vitest over the built stylesheet is enough — no protected file needed).
+
+  Verification: every opacity utility present in the built CSS; axe `color-contrast` clean in
+  both themes at both widths on every route; rendered contrast of the 13 pairs 06 lists;
+  before/after captures of the header over scrolled content.
+
+  Scope boundary: colour tokens and their utilities. No layout change. **Web-only.**
+
+- [ ] **Batch 172 — Offline, loading and failure states that tell members the wrong thing**
+  — specified from `docs/review/2026-09-28/03-ux-accessibility.md` UX-31 and UX-25 (MED, live,
+  verified) and `06-premium-design.md` DES-17 (med); DES-16 is UX-31. **Offline:** with the app
+  open and the connection gone, tapping a pick gives an endless spinner, every selection
+  disabled, no message and zero requests — TanStack Query's default `networkMode: 'online'`
+  pauses the mutation, so Batch 90's offline branch in `usePickEditor.ts` never runs. The pick
+  lands on reconnect, but the member is never told it is queued. **Failure as empty:** six
+  screens render a 500 as empty, blank or loading — the coupon shows "No coupon this week yet"
+  with the raw text "Internal Server Error" (`CurrentRoundPage.tsx:459-467`), My Leagues and
+  league members show nothing, league activity and site-admin players look empty, the admin
+  dashboard's skeletons never resolve. **Loading as first run:** home tells a member who has
+  leagues "together when your first league begins" while it loads or fails
+  (`DashboardPage.tsx:334`).
+
+  Set `networkMode: 'always'` on the pick mutation (or route the offline case explicitly) so
+  the queued message shows; use `QueryErrorState` with a retry on the round page first, then
+  the other five; give home a neutral subtitle until the summary resolves.
+
+  Verification: Chromium offline mid-session → tap → "queued" message, then reconnect → one
+  POST, the Batch 90 lost-race message still correct; each of the six screens with its main
+  request forced to 500 shows an error with a working retry, distinct from its true empty
+  state (hash-compared); home's loading capture shows no first-run copy.
+
+  Scope boundary: these states. No data-layer redesign. **Web-only.**
+
+- [ ] **Batch 173 — A settled round still reads as a price board, and its losers are dimmed below AA**
+  — specified from `docs/review/2026-09-28/06-premium-design.md` DES-15 and DES-20,
+  `03-ux-accessibility.md` UX-18 (MED, carried from 2026-09-13 and never batched) and UX-21
+  (MED), and `02-correctness.md` CORR-26 (LOW). A lost pick is `opacity-60` on the settled
+  coupon (`PickRow.tsx:238`, 2.39-3.24:1) and on the player profile
+  (`PlayerProfilePage.tsx:160`, 2.24-2.8:1). A lost coupon's headline is the price, the slate
+  still shows potential points on lost and void picks, and the header reads "4 of 3" once a
+  member who picked has left or been erased (`CouponSection.tsx:130` counts today's roster). An
+  erased member appears as "Former" — "taken by Former" — because first-word shortening is
+  applied to "Former member". And a member whose only settled picks were void has a `null` win
+  rate (Batch 131), which `PlayerProfilePage.tsx:98-101` explains as "Nothing has settled yet" —
+  false for them; Batch 131's session log named it and left it (07, PIPE-15).
+
+  Remove the opacity and mark state with ink and text instead; headline a settled coupon with
+  its result ("Coupon lost · 3 of 8 landed") and strike the price; mark settled selections
+  "Won · N pts" / "Lost" / "Void" with no potential points; head a settled coupon with its leg
+  count, not today's roster; never shorten "Former member"; say "Only void picks so far — no win rate yet" when that is
+  the case. Values: 06 top-ten #7, mockup
+  `mockups/settled.html`.
+
+  Verification: axe `color-contrast` clean on the settled coupon and profile in both themes;
+  a settled coupon with a void leg, a departed member and an erased member captured at 390
+  and 1280 reading correctly; the share text unchanged except where it read "N of M".
+
+  Scope boundary: the settled presentation. No scoring change. **Web-only.**
+
+- [ ] **Batch 174 — Keyboard focus hides behind the chrome and falls to the top of the page**
+  — specified from `docs/review/2026-09-28/03-ux-accessibility.md`, UX-28, UX-30, UX-22 (MED)
+  and UX-29, UX-33, UX-23 (LOW), all live and verified. Focus lands behind the tab bar and the
+  sticky header, so on a phone the focused selection buttons are fully hidden (WCAG 2.2
+  2.4.11). Escape on five dialogs (leave league ×3, delete league, delete player) drops focus
+  to `<body>`. The phone install gate is outside any landmark and every Tab stop is on the
+  sign-in form hidden behind it. The focus ring is never drawn on "How scoring works" and is
+  clipped in horizontal scroll strips. Claiming a pick drops focus to the page body. The two
+  profile pages have no `<h1>` while loading or failed.
+
+  `scroll-padding` for the sticky chrome; return focus to the trigger on every dialog, copying
+  the More sheet (Batch 167); make the install gate a landmark and `inert` the form behind it;
+  draw the ring on those controls and inset it in scroll strips; keep focus on the claimed
+  selection; a stable `<h1>` on both profiles in every state.
+
+  Verification: a keyboard walk sign-in → pick at 390 and 1280 with every focused element
+  fully visible (bounding box not under the chrome); Escape on each of the five dialogs returns
+  focus to its trigger; axe `landmark-one-main`/`region` clean on the install gate; keystroke
+  count recorded (32 today).
+
+  Scope boundary: focus management and landmarks. **Web-only.**
+
+- [ ] **Batch 175 — The pick screen hides the prices below the fold and sets them at caption size**
+  — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-13 (high) and DES-14
+  (med); closes the rest of 2026-09-13 DES-02. Every league screen spends most of the first
+  phone screen on navigation — breadcrumb, league switch strip, sub-nav pills — so on the round
+  the first price sits at y=1134 against a visible 783. The price, the number the game is
+  about, is 12 px like the small print around it.
+
+  Replace the breadcrumb, `LeagueSwitchStrip` card and `CouponSubNav` row on the round with one
+  48 px context row; on phones move the coupon accordion below the slate; `TopBar` 52 px and
+  drop the extra `+1rem` at `TopBar.tsx:111`. In `PickCard.tsx` `SelectionButton`: label
+  `text-label` (14/18), price `text-price` (17/20, 600, tabular), one caption meta line,
+  `min-h-[56px]`; add both sizes to `tailwind.config.ts`. Values and contrast: 06 top-ten #4
+  and #5; mockup `mockups/round.html`.
+
+  Verification: first price ≤480 px from the top at 390 in both themes; at 1280 the slate and
+  the status/coupon column side by side; target sizes ≥24 px (44 px on the selection buttons);
+  axe clean; layout shift on load re-measured (0.247 today).
+
+  Scope boundary: the round screen's chrome and selection button. Other league screens adopt
+  the context row in a follow-up. **Web-only.**
+
+- [ ] **Batch 176 — At desktop width a ranking reads in Z order**
+  — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-12 (med, live). Batch
+  140 made standings and results two-column grids at 1280, so rank 1 sits beside rank 2 and a
+  ranking reads left-right-left.
+
+  One column at every width: 52 px rows at 390 (rank · name + form · points 17/600), columns for
+  played / won / average odds at 1280, a 3 px medal bar on ranks 1-3, the member's own row
+  tinted. Same rule for results. Values: 06 top-ten #6; mockup `mockups/standings.html`.
+
+  Verification: captures at 390 and 1280 in both themes; axe clean; the season selector and
+  the Batch 165 query keys unchanged.
+
+  Scope boundary: the standings and results layouts. **Web-only — needs Batch 171's tint
+  tokens for the own-row tint.**
+
+- [ ] **Batch 177 — Small consistency and web-performance residue**
+  — specified from `docs/review/2026-09-28/06-premium-design.md` DES-08 (residue), DES-19,
+  DES-21, DES-22 (low) and `04-performance-operations.md` PERF-16 (partial) and PERF-17 (not
+  fixed). Home draws the statistic figure white where profiles draw it green; Football Stats
+  opens with every table collapsed; the offline banner is off-palette and scrolls away;
+  site-admin tab labels overlap at 390; 42 query keys remain inline outside the Batch 165
+  factory; `/login` still downloads three font files (48.8 KiB, one preloaded).
+
+  Drop home's colour override; open the first football table; a sticky, token-based offline
+  banner; a scrolling admin tab strip; move the remaining keys into `queryKeys`; load only the
+  sign-in screen's one face up front.
+
+  Verification: captures of each; no inline `queryKey: [` left in `src`; cold `/login` font
+  bytes measured before and after.
+
+  Scope boundary: these six. **Web-only.**
+
+- [ ] **Batch 178 — The installed app does not look like the app**
+  — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-18 (med; files and
+  geometry verified, on-device rendering plausible — no WebKit here). The manifest and splash
+  are navy `#071A3D` with paper and gold while the app is near-black with emerald; the
+  "maskable" icon is identical to the plain one, so launchers crop it; `theme-color` is one
+  value for both schemes; installed mode shows a 140 px header; `vite.config.ts` still lists
+  the font Batch 164 deleted.
+
+  Owner decision first (brand colour, 06 decision 1). Then: manifest `theme_color` /
+  `background_color`, `id: '/'`, screenshots; two `theme-color` metas by colour scheme kept in
+  step by `ThemeContext`; a real maskable icon (content inside the safe circle) from
+  `generate-icons.mjs`; `apple-mobile-web-app-status-bar-style` `default`; remove the stale
+  font entry.
+
+  Verification: the maskable icon rendered inside circle and squircle masks; manifest
+  validated; standalone captures with a real safe-area inset in both themes.
+
+  Scope boundary: the PWA shell. **Web-only — waits on the owner's brand-colour decision.**
+
+- [ ] **Batch 179 — A league admin can take over any member of their league, and every other league that member plays in**
+  — specified from `docs/review/2026-09-28/01-security.md` (SEC-15 partial, SEC-27 MED) and
+  the lead's SEC-32 (HIGH, live, verified; `10-reconciliation.md`). Batch 122 refuses a
+  league-scoped reset only when the target is a site admin or a *current* league admin.
+  Everyone else is unchanged: a league admin clears the PIN and for 24 hours the
+  unauthenticated `/auth/pin/set` accepts a new PIN for that name from anyone. Reproduced to a
+  signed-in session as an ordinary member (Carol) and as a co-admin demoted first (SEC-27:
+  demote → reset → set → login). The session is the victim's whole account, so the attacker
+  also acts in the victim's *other* leagues, where they hold no role. The victim is told
+  nothing (`credentials.clear_pin` sends no notice) and is simply signed out. The guard's own
+  comment (`league_memberships.py:625-628`) states the invariant it misses: no league admin
+  may open the window "on an account whose privileges reach beyond an ordinary membership in
+  this league". No web screen calls this route (05, FEAT-A15), yet the register screen tells a
+  member "a league admin has to set you a new one".
+
+  **Owner decision first** (README decision 1). Recommended: retire the league-scoped reset
+  route so every reset goes through the site console the owner already uses, correct the
+  register screen's copy, and notify the member (push, plus an in-app notice on next sign-in)
+  when a reset is issued and when a PIN is set. The alternative (01's options 2 + 4) keeps the
+  route for members in no other league, refuses it for anyone demoted inside the claim window,
+  and notifies.
+
+  Verification: a test that a league admin cannot clear an ordinary member's PIN (or, on the
+  alternative, cannot clear a member of another league or anyone demoted inside the window);
+  a test that the member is notified on reset and on set; the site-console reset and its
+  audit unchanged; the register copy names a path that exists.
+
+  Scope boundary: the league-scoped reset and reset notifications. No change to the claim
+  window or the site console. **API + web (copy only; safe before the API ships).**
+
+- [ ] **Batch 180 — One address can still lock any number of members out of sign-in**
+  — specified from `docs/review/2026-09-28/01-security.md`, SEC-28 (MED, live, verified; SEC-18
+  partial). Batch 123's per-source budget (15 wrong PINs per 15 minutes) is charged by a
+  callable the handler invokes only after the wrong PIN has been counted, the account locked
+  and the transaction committed (`routers/auth.py:329-344`, `rate_limit.py:330-351`); nothing
+  consults it first. From one address, five members were locked; the fourth and fifth got 429
+  and were locked anyway. The batch's test asserts only that some 429 appeared
+  (`tests/test_durable_rate_limit.py:443-463`).
+
+  Peek at the source bucket before verifying the PIN and refuse with 429 when it is spent;
+  keep charging only on failure, so a correct sign-in from a shared address costs nothing.
+
+  Verification: a test that after the source budget is spent the next victim's
+  `failed_login_count` and `locked_until` are unchanged; a test that a correct PIN from that
+  address still signs in; the per-(name, address) limit and the account lock unchanged.
+
+  Scope boundary: the login source limit. No change to the account lock. **API-carrying.**
+
+- [ ] **Batch 181 — A per-league name can copy someone outside the league, and no screen sets one**
+  — specified from `docs/review/2026-09-28/01-security.md` SEC-29 (LOW-MED, live, verified) and
+  `05-feature-gaps.md` FEAT-A15 (LOW). Batch 126 checks an override only against the league's
+  *current* members (`league_memberships.py:364-390`); nothing re-checks on join. Bob took the
+  name "Erin" (in another league) and "Sam" (the site admin's); Erin then joined and the roster
+  showed two "Erin"s. The route has no web caller at all.
+
+  **Owner decision** (README decision 5). Recommended: remove the per-league name route and its
+  override column's writers, since nothing in the app uses it. Otherwise: check global display
+  names of all profiles when an override is set, and on every join path refuse or clear an
+  override that now collides.
+
+  Verification: on removal, the route 404s and existing overrides are cleared by a data step
+  with a count; otherwise, tests for both collision directions (set-then-join, join-then-set).
+
+  Scope boundary: the per-league name. **API-carrying.**
+
+- [ ] **Batch 182 — Input bounds and policy hygiene**
+  — specified from `docs/review/2026-09-28/01-security.md`, SEC-31 (LOW) and the CSP notes
+  (INFO). `display_name_hint` on league invites has no `max_length` against a `String(100)`
+  column, so a 150-character hint is a 500 (`league_memberships.py:438`); a league
+  `description` is unbounded. Production's web CSP allows the *staging* API in `connect-src`
+  and any `*.supabase.co` in `img-src`, because one `vercel.json` serves both environments.
+  `config.py:113-114`'s comment says the manual allowance brings the budget to "460 of 500";
+  it is 481.
+
+  `Field(max_length=100)` on the hint and a bound (500) on the description; split the CSP per
+  environment and narrow `img-src` to the project's storage host; correct the comment.
+
+  Verification: 150-character hint → 422; production headers after the push carry only the
+  production API; the prod-bundle CSP smoke still passes.
+
+  Scope boundary: these bounds, the CSP and one comment. **API + web.**
+
+- [ ] **Batch 183 — A big league's home screen and results history break once the accumulator passes 10^26**
+  — specified from `docs/review/2026-09-28/04-performance-operations.md`, PERF-19 (HIGH, live,
+  verified by the lens and re-run by the lead). `combined_odds` (`services/coupon.py:30-40`)
+  quantizes the product to 2 dp under Python's default 28-digit context; at about 10^26 it
+  raises `decimal.InvalidOperation`, uncaught at all four call sites (home summary
+  `me.py:469, :552`, coupon `coupon.py:179`, results `scoring.py:773`). 30 legs fail at an
+  average price of 7.36, 40 at 4.47, 50 at 3.32; `max_members` allows 50. At the stress shape
+  the home summary and results returned 500 for every member of the big league — permanently
+  for results, since history does not change. Not reachable at today's 13 members.
+
+  Quantize inside `decimal.localcontext()` with enough precision, and decide how an absurd
+  price displays (full, or capped with a marker) — the share text too.
+
+  Verification: a 50-leg test at realistic prices through all four call sites; the home
+  summary and results return 200 at the stress shape; existing coupon tests unchanged.
+
+  Scope boundary: the combined-odds arithmetic and its display. **API-carrying — first in its
+  group.**
+
+- [ ] **Batch 184 — After a window change, a round that can never settle still takes picks, and shares a label**
+  — specified from `docs/review/2026-09-28/02-correctness.md`, CORR-20 (MED, live, verified)
+  and CORR-13 (MED, carried — not fixed by Batch 121). Batch 121's settle guard
+  (`scoring._same_week_round_may_settle`) is right about scoring, but nothing on the offering
+  side knows it: discovery still creates the round, the list shows it, and the pick path checks
+  only status and time. Reproduced two ways — a kept stray Saturday round accepted a new pick
+  after a Saturday→Friday edit; a Friday league moved to Saturday after its week settled got a
+  new Saturday round, labelled like the settled one, that both members picked — and both rounds
+  are refused at every settle sweep for ever, their picks pending, with no member told. Both
+  rounds in one football week still render the same bare label.
+
+  **Owner decision** on picks already stranded (README decision 3; recommended: void them).
+  Then: `sync_slate` does not create a round in a football week where the league already holds
+  a settled round or a kept stray; the pick path refuses (`409 ROUND_NOT_SCORING`) any round the
+  guard would refuse; an operator path voids a refused round's picks; the second round in a
+  week takes a distinct label.
+
+  Verification: both reproductions leave no pickable non-scoring round and one label per week;
+  an already-stranded round's picks void with one audit row and a settle notification; Batch
+  112 and 121's tests unchanged.
+
+  Scope boundary: round offering, the pick refusal, the void path, the label. No change to
+  scoring. **API-carrying.**
+
+- [ ] **Batch 185 — A member who leaves or deletes their account keeps blocking the round they walked away from**
+  — specified from `docs/review/2026-09-28/02-correctness.md`, CORR-19 (MED) and CORR-27 (LOW),
+  live, verified. Self-service deletion (`me.py:625`, Batch 136) never calls
+  `settle_completion_after_roster_change`, which leave, remove and site-admin delete all call
+  (Batch 130): when the last outstanding picker deletes their account the round completes
+  silently and the next pick change is announced as the completing pick. Separately, a
+  departed member's pick on a round that has not locked stays claimed, so that selection or
+  fixture is unavailable to everyone else all week.
+
+  **Owner decision** on unlocked picks (README decision 2; recommended: delete them on leave
+  and on erasure, keep locked and settled ones — the 2026-09-22 "keep history" decision was
+  about history, and an unlocked pick is not history yet). Then call the completion hook from
+  `delete_my_account` for each of the member's leagues.
+
+  Verification: mirror Batch 130's leave test for self-deletion; a departed member's unlocked
+  claim released and claimable by another member; locked and settled picks kept and still
+  summing into standings.
+
+  Scope boundary: roster exits. **API-carrying.**
+
+- [ ] **Batch 186 — The same week's accumulator shows two different prices**
+  — specified from `docs/review/2026-09-28/02-correctness.md`, CORR-21 (LOW, live, verified;
+  void-leg decision partial). Batch 156 excluded void legs in `build_coupon` only; the Results
+  list (`scoring.py:773`) and home's "Last result" (`me.py:469, :552`) still multiply them —
+  54.91 there against 7.44 on the coupon for the same round, and home says "4-fold".
+
+  Filter void legs through one shared helper at every call site and carry `void_leg_count` on
+  `GameweekResult` and `LastResult`; the web's two readers adjust the fold count.
+
+  Verification: one round with two void legs reads the same price and fold count on the
+  coupon, results and home; the web reads the new field as optional so it is safe before the
+  API ships.
+
+  Scope boundary: the three combined-odds call sites. **API + web.**
+
+- [ ] **Batch 187 — A wrong result can only be fixed pick by pick, from curl, with a database read, and nobody is told**
+  — specified from `docs/review/2026-09-28/05-feature-gaps.md` FEAT-A13 (MED) and FEAT-A14
+  (LOW), and `02-correctness.md` CORR-22 and CORR-23 (LOW), all live and verified. Batch 134's
+  correction (`POST /admin/picks/{id}/correct`) scores correctly but has no screen, and no read
+  available to a site admin returns another member's pick id (0 of 17), so using it needs a
+  production database read. It corrects one pick: after fixing Bob's Draw to 1-1, Alice's
+  Arsenal pick on the same fixture still read "won 19". The corrected member is never told;
+  neither the correction nor a hand settlement appears in the league's audit log; and a round
+  nobody picked never settles, so it is never announced.
+
+  **Owner decision** on scope (README decision 4; recommended: per fixture across leagues).
+  Then: a site-admin action on the admin Results screen — pick a settled fixture, enter the
+  true score or void and a reason — re-scoring every settled pick on it in every league through
+  `resolve_pick`; one audit row per league carrying `league_slug`; a `corrected` flag and
+  reason on each pick; the member's settle line re-sent when their result changes; a locked
+  round with no picks flips to settled after its window and is announced.
+
+  Verification: a fixture correction consistent across two leagues' standings, coupons,
+  results and career numbers; idempotent; audited per league and visible in each league's log;
+  one notification per changed member; a no-pick round settles once.
+
+  Scope boundary: correcting settled fixtures and settling empty rounds. **API + web.
+  Rewrites awarded points.**
+
+- [ ] **Batch 188 — Running the season-calendar backfill could renumber every league by one week**
+  — specified from `docs/review/2026-09-28/02-correctness.md`, CORR-25 (LOW, verified on a
+  scratch database). `backfill_season_calendar.plan` joins `leagues` with no `deleted_at`
+  filter (`:61-65`), and the runtime re-anchor reads `gameweeks` the same way, so one early
+  round in a deleted or test league moves week 1 and shifts every live round's label; the dry
+  run never names the row that set the anchor. The owner has not run the backfill yet
+  (STATUS, "Waiting on the owner").
+
+  Filter deleted leagues in `plan`, `reanchor_from_earliest_round` and
+  `ensure_calendar_for_new_season`, and print the round that set each anchor in the dry run.
+
+  Verification: the lens's scratch reproduction (a deleted league with a 1 Aug round) leaves
+  the anchor on the first live Saturday; the dry run names the anchoring round.
+
+  Scope boundary: those three reads and the dry-run output. **API-carrying — ship before the
+  owner runs the backfill.**
+
+- [ ] **Batch 189 — The discovery budget prices the wrong number, and the match-day refresh has no budget**
+  — specified from `docs/review/2026-09-28/02-correctness.md` CORR-24 and
+  `04-performance-operations.md` PERF-21 (MED, live, verified; CORR-15 partial). Batch 133
+  charges each discovery walk `len(set(competition_ids))` (`gameweek.py:1065`), but the job
+  passes the *raw* pool (`scheduler.py:508-522`; the helper's docstring says the caller
+  intersects), while `fetch_slate` walks only the played intersection — 36 charged, 23 walked
+  at the repo's own 27 Sep measurement. So at two windows the run stops at half its budget and
+  never pre-discovers week two; at three the last window is not served. `run_refresh_slate`
+  (`scheduler.py:578-586`) passes no budget at all: 23 requests per window per run, 118 in each
+  of the 09:00 and 11:00 hours at five windows, and a 429 there holds the pick path for five
+  minutes.
+
+  Price each walk at the competitions that will actually be walked, and give the refresh the
+  same budget (or a share of one hourly budget between the two).
+
+  Verification: with a counting fake at production's pool shape (36 raw / 23 played), the
+  daily run serves every window at one, two and three windows inside its budget; the refresh
+  stays inside 100/hour at five windows; Batch 119's per-(window, date) commit rule unchanged.
+
+  Scope boundary: the two jobs' costing. **API-carrying.**
+
+- [ ] **Batch 190 — One pick bucket for the whole deployment refuses picks the plan could afford**
+  — specified from `docs/review/2026-09-28/04-performance-operations.md`, PERF-23 (MED, live,
+  verified hourly). Batch 161's installation bucket and the per-league one are both
+  `50/hour;100/day` (`routers/picks.py:118, 138`) and count submissions, including a changed
+  mind, not provider requests. However many leagues there are, 50 submissions an hour get
+  through in total, and 100 a day — while a measured one-window Saturday spends 289 of 500.
+  Two 25-member leagues sharing a 14:30 lock reach the hourly ceiling. Not reachable at
+  today's 13 members.
+
+  Charge the installation bucket only when the pick path actually goes upstream (the cache
+  knows whether the 60-second price was a hit), and size its day from what the measured day
+  leaves spare.
+
+  Verification: two leagues × 30 members picking in one hour, most from a warm cache, all
+  admitted; a cold-cache burst still bounded by the plan; `PICKS_BUSY` message unchanged.
+
+  Scope boundary: what the installation bucket counts. **API-carrying.**
+
+- [ ] **Batch 191 — A burst of picks in a big league exhausts the database pool and silently drops the alerts**
+  — specified from `docs/review/2026-09-28/04-performance-operations.md`, PERF-20 (MED, live,
+  verified). Batch 162 moved the pick alert after the response into `_announce_after_response`
+  (`routers/picks.py:492-553`), which holds one pooled connection across every send (~9 s at 50
+  members). Batch 146 sized the pool at 5 + 5. Twelve members of a 50-member league submitting
+  at once: 10 answered 201, 2 answered 500 after 10 s (`QueuePool limit … timed out`), and 6 of
+  the 10 fan-outs died acquiring a connection outside the wrapper that swallows failures — 294
+  alerts never sent, nothing retries them. Two batches, each green on its own, combine into it.
+
+  Read recipients and subscriptions up front, release the connection, send without a session,
+  record delivery in a short second transaction; bound concurrent fan-outs below the pool
+  size; catch failures for the whole background task.
+
+  Verification: the lens's burst (12 simultaneous in the 50-member league, sends stubbed at
+  179 ms) — every pick 201, every eligible member alerted exactly once, the pool never
+  exhausted; Batch 107's completion retry unchanged.
+
+  Scope boundary: the pick fan-out's connection use. **API-carrying.**
+
+- [ ] **Batch 192 — The pick screen makes two queries per competition**
+  — specified from `docs/review/2026-09-28/04-performance-operations.md`, PERF-18 (MED, live,
+  verified). `fixture_context` calls `resolve_names` once per competition
+  (`football_data.py:945-952`), each reading aliases then teams: 10 + 2 × competitions
+  statements — 56 at production's 23. Its docstring claims "three queries for a slate of any
+  size". The 2026-09-13 review's "no N+1 anywhere" missed it because its round spanned one
+  competition.
+
+  Resolve every competition's names in two `IN` queries and make the docstring true.
+
+  Verification: the round's statement count flat across 1, 23 and 41 competitions; resolved
+  names identical.
+
+  Scope boundary: name resolution on the slate. **API-carrying.**
+
+- [ ] **Batch 193 — A scheduled job that fires while the worker is busy is dropped**
+  — specified from `docs/review/2026-09-28/04-performance-operations.md`, OPS-17 (MED) and
+  OPS-18 (LOW), carried from 2026-09-13 with no batch. All 13 registered jobs take APScheduler's
+  one-second `misfire_grace_time` (only the switched-off backup sets 3,600); re-driven, a real
+  job due during a 1.5 s busy loop was dropped. Every Saturday hour `lock_gameweeks` and
+  `live_scores` share :00 with discovery, the warm pass, the refresh and settlement at several
+  hours.
+
+  Set `misfire_grace_time` and `coalesce=True` on every job, sized to its cadence, and stagger
+  the ones that share the top of the hour where their order does not matter.
+
+  Verification: a test that each registered job carries a grace time; the busy-loop reproduction
+  runs the job late instead of dropping it; the lock sweep still runs before settlement.
+
+  Scope boundary: job registration. **API-carrying.**
+
+- [ ] **Batch 194 — Half the league never hears what the app announces**
+  — specified from `docs/review/2026-09-28/05-feature-gaps.md`, FEAT-B10 (MED; absence
+  verified, reach plausible) and FEAT-B11 (LOW). Five member-facing push types exist (picks
+  open, reminder, pick made, all picked, round settled), all fire-and-forget: no message table,
+  no inbox, no screen. STATUS records 7 push subscriptions for 13 active accounts, and on iPhone
+  push needs the installed app, so about half the league gets none of them. Mute is per league
+  or nothing, not per kind.
+
+  **Owner decision** (README decision 9; recommended: build it). Record each league
+  notification per member when sent (a small table, 30 days), show it behind a bell on home,
+  mark read on view; per-kind mute if cheap alongside.
+
+  Verification: a member with no subscription sees each event in the app; read state
+  persists; muted kinds are neither pushed nor listed; retention prunes at 30 days.
+
+  Scope boundary: notification history. **Migration + API + web — a migrating shipment needs
+  its recovery note (Batch 128).**
+
+- [ ] **Batch 195 — With sign-ups closed nobody new can get in, and the screen says otherwise**
+  — specified from `docs/review/2026-09-28/05-feature-gaps.md`, FEAT-A12 (LOW, carried, sharper).
+  The register screen does not know the kill switch; with it off a visitor fills the form and
+  only then learns "Ask a league admin for an invite" — but claiming an invite needs an account
+  and nothing creates one, so there is no way in at all. The switch's state is already public
+  (registration checks it before validating the name, `auth.py:426`).
+
+  **Owner decision** (README decision 10; recommended: a separate unauthenticated
+  `GET /api/v1/auth/signup-status`, leaving `/config` authenticated). Show a closed notice in
+  place of the form, and either let an invite create an account while sign-ups are closed or
+  stop telling visitors to ask for one.
+
+  Verification: sign-ups closed → the notice, no form; an invite path that works or no promise
+  of one; sign-ups open → unchanged.
+
+  Scope boundary: the closed-sign-up journey. **API + web.**
+
+- [ ] **Batch 196 — The results history ignores the season, and members cannot share the join code they hold**
+  — specified from `docs/review/2026-09-28/05-feature-gaps.md`, FEAT-B09 (LOW, carried) and
+  FEAT-B12 (LOW). `/results` lists rounds from both seasons and ignores `?season=` while
+  standings split correctly. Every member receives the league's join code from the API but only
+  admins have a screen to share it.
+
+  Honour `?season=` on results and add the season selector the leaderboard has; a share action
+  for the join code on the league screen for members of leagues that allow it.
+
+  Verification: results across a season boundary filter correctly; a member can copy/share the
+  code in a league whose privacy permits joining by code, and not in one that does not.
+
+  Scope boundary: these two. **API + web.**
+
+- [ ] **Batch 197 — An invite link does not say who is inviting you to what**
+  — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-23 (low). `/join/:token`
+  lands on "Join the league" without naming the league or the inviter.
+
+  **Owner decision** (README decision 12; recommended: league name, inviter's display name and
+  member count). A public read keyed by the invite token, and the landing page using it.
+
+  Verification: a live invite shows the three facts; an expired, used or deleted-league invite
+  shows the existing refusal; the read leaks nothing without a valid token.
+
+  Scope boundary: the invite landing. **API + web.**
+
+- [ ] **Batch 198 — The gate is judged by the branch's own copy of the gate**
+  — specified from `docs/review/2026-09-28/07-agent-pipeline.md`, PIPE-10 and PIPE-11 (MED,
+  live, verified; PIPE-04 partial). `ci-local.sh` runs the guardrail from the working tree, and
+  the guardrail's protected list and approval table live inside it: prepending `exit 0` passes;
+  a batch branch can add its own approval line; new `mypy.ini`, nested `.eslintrc`, `ruff.toml`,
+  `vitest.config.ts` or three lines of `conftest.py` each switch a check off. A full gate over six
+  simultaneous weakenings passed with the exact ratchet counts. On 22 Sep the protected smoke
+  script changed three times on `fix/` branches the guardrail refuses, with no record of who
+  approved it. No batch since 2ce6f42 abused any of this.
+
+  Run the guardrail and the count check from `main`'s copy (`git show main:…`); read the approval
+  table from `main` and require the approving row to quote the file list; protect by pattern
+  (`**/conftest.py`, `**/pytest.ini`, `**/mypy.ini`, `**/ruff.toml`, `**/setup.cfg`,
+  `**/.eslintrc*`, `**/.eslintignore`, `**/vitest.config.*`, `**/tsconfig*.json`,
+  `check-migration-recovery.sh`, `AGENTS.md`); make close-out refuse to push a tree without a
+  matching gate-pass stamp.
+
+  **Owner-approved gate maintenance is required** — this batch edits the guardrail and
+  `ci-local.sh`, which the guardrail protects. Record the approval in the guardrail before
+  starting (as for 153 and 127).
+
+  Verification: rehearse each of the lens's 24 weakenings and the six-at-once gate — all
+  refused; a legitimate batch passes; a push without a stamp is refused.
+
+  Scope boundary: the guardrail, the count check, the push precondition. **Tooling-only.**
+
+- [ ] **Batch 199 — CI goes red, close-outs push on red, and nothing reads it**
+  — specified from `docs/review/2026-09-28/07-agent-pipeline.md`, PIPE-12 (MED, live, verified).
+  8 of 72 runs on `main` since 20 Sep failed (confirmed by the lead with `gh run list`):
+  Batches 120-122 closed out and pushed while CI was red; two backend flakes
+  (`test_durable_rate_limit::test_an_unknown_name_is_charged_…`, a `uq_leagues_join_code`
+  collision in `test_scheduler_jobs`) are recorded nowhere. CI runs fewer checks than the local
+  gate (no guardrail, no ratchet, no zero-skip), `main` has no branch protection, and
+  `phase-closeout.md` says "Do not poll CI".
+
+  **Owner decision** (README decision 6; recommended: yes). After the push, close-out waits for
+  the run on the pushed SHA and writes its conclusion into the session-log line; red stops a
+  group and is treated as red `main`. Add the guardrail and the count check to CI; fix both
+  flakes.
+
+  Verification: a rehearsal where a red CI run stops the next batch; CI refuses a skipped test
+  and a lowered ratchet; both flakes pass 50 consecutive runs.
+
+  Scope boundary: close-out's CI step, CI's checks, two tests. **Tooling-only — owner-approved
+  gate maintenance (edits `phase-closeout.md` and `.github/workflows/ci.yml`).**
+
+- [ ] **Batch 200 — The only end-to-end journey runs outside the gate**
+  — specified from `docs/review/2026-09-28/07-agent-pipeline.md`, PIPE-13 (MED, live, verified).
+  `apps/web/e2e/coupon-flow.spec.ts` — unique claims, lock, settle, standings through the real
+  bundle and API — runs in neither `ci-local.sh` nor CI. It broke on 23 Sep (Batches 139 and
+  157) and stayed broken five days; Batch 149 pushed before running it, and the toast defect it
+  then found was live for about 23 minutes.
+
+  Run the journey in `ci-local.sh` and CI (58 s measured; it needs the seeded e2e server and
+  `FRONTEND_ORIGIN`), on its own port with the strict-port pattern Batch 152 established.
+
+  Verification: the gate fails when the journey fails; a rehearsal that breaks the pick flow
+  is caught.
+
+  Scope boundary: running the existing journey. **Tooling-only — owner-approved gate
+  maintenance (`ci-local.sh`, `ci.yml`).**
+
+- [ ] **Batch 201 — The split-half refusal is cleared by a flag with no record, and a two-batch split passes it**
+  — specified from `docs/review/2026-09-28/07-agent-pipeline.md`, PIPE-14 (MED, live, verified;
+  PIPE-05 partial). Replayed, the close-out guard refuses all seven API+web batches since
+  2ce6f42, but only 136 and 148 have a record of the owner scheduling the shipment;
+  `--shipment-scheduled` is a plain argument. And the guard only *reports* existing drift: a
+  web-only batch whose route an earlier API-only batch added passes while `/ship-prod` is owed.
+
+  Write a "Close-out safety:" line into every session-log entry naming the guard's verdict
+  and, for a split-half batch, who scheduled the shipment and when; refuse a web change while
+  drift reports a shipment owed unless the same acknowledgement is given.
+
+  Verification: rehearsals of both shapes refused without the acknowledgement and recorded
+  with it.
+
+  Scope boundary: the close-out guard and its record. **Tooling-only — owner-approved gate
+  maintenance (`check-closeout-safety.sh`, `phase-closeout.md`).**
+
+- [ ] **Batch 202 — The toolchain behind the build is two to four majors behind, with 32 advisories**
+  — specified from `docs/review/2026-09-28/01-security.md` SEC-30 (LOW; SEC-22 not fixed) and
+  `04-performance-operations.md` OPS-15 (LOW) and PERF-22 (LOW). SEC-22 was "folded into Batch
+  127", which then left OPS-15 out, so nothing carried it: 32 npm advisories across 17 build and
+  test packages (none in the shipped bundle). Vite 5 → 8, ESLint 8 → 10, Tailwind 3 → 4, Vitest
+  2 → 5 are current. `framer-motion` is still a declared dependency though nothing imports it.
+
+  **Owner decision** (README decision 8): refresh, or record an explicit acceptance. If
+  refreshed, one major at a time with the gate green after each, and drop `framer-motion`.
+
+  Verification: OSV re-run clean of build-tool advisories; the full gate green; bundle bytes
+  and Lighthouse unchanged or better.
+
+  Scope boundary: the web toolchain. **Tooling — owner-approved (`apps/web/package.json` is
+  protected).**
+
+- [ ] **Batch 203 — Pipeline and operations hygiene**
+  — specified from `docs/review/2026-09-28/07-agent-pipeline.md` PIPE-15, PIPE-16, PIPE-17,
+  PIPE-19 and `04-performance-operations.md` OPS-19 (all LOW or INFO). Follow-ups agents write
+  in the session log become nobody's work (the review has turned today's into rows). Batch 161
+  added ten tests true by construction. The stop hook is silent on a dirty batch branch — the
+  moment close-out is decided — and speaks on branches with no batch. `claude.yml` is template
+  residue with `contents: write` in a public repository (inert: no secrets, every run skipped);
+  `pyproject.toml` pins fastapi 0.111.0 and starlette 0.37.2 the gate does not use; the drift
+  probe still names Batch 51. `ship-prod.md` runs the Railway and Vercel CLIs on Node 20 in nine
+  places, including both rollback commands.
+
+  Add a "Follow-ups" section to the session-log template that close-out copies into rows;
+  rewrite 161's tautologies to assert behaviour; fire the hook on the batch branch; delete
+  `claude.yml`; drop the stale pins; point the drift probe at a recent route; re-test both CLIs
+  on Node 24 and update `ship-prod.md` and STATUS together.
+
+  Verification: each item checked; both rollback commands rehearsed on Node 24 against
+  staging.
+
+  Scope boundary: these hygiene items. **Tooling-only (`phase-closeout.md` edits need
+  owner-approved gate maintenance).**
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

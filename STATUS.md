@@ -72,8 +72,9 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-No build batches are open (2026-09-28). Group Z's five web-only visual-pass batches are
-closed out; Vercel will build the final Batch 149 push from `main`.
+Batches 169-203 are drafted and unstarted (2026-09-30), from the 2026-09-28 review on branch
+`chore/review-2026-09-28`, which the owner has not yet reviewed or merged. Several wait on an
+owner decision; the order is in that review's `08-sequencing.md`.
 
 ## Toolchain
 
