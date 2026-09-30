@@ -60,7 +60,7 @@ grouped in its `08-sequencing.md`, model and effort in `09-prompts.md`). Every o
 recorded in its row; none has started. They run as `/batch-start 169`, then `/group-start` AG,
 AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/group-start.md`).
 
-- [ ] **Batch 169 — Every toast is unreadable in dark mode, the default theme**
+- [x] **Batch 169 — Every toast is unreadable in dark mode, the default theme** ✅ 2026-09-30
   — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-10 (high impact, live,
   verified). `AppToaster.tsx` renders sonner with `richColors` and no `theme`, so sonner
   draws its *light* pale fills whatever the app's theme; Batch 149's last commit (`4121cf0`,

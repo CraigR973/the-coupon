@@ -7512,3 +7512,25 @@ and 1,204 frontend tests passed, 0 skipped; production-bundle deep-link smoke pa
 - **Close-out safety:** web-only; pre-push drift held ten prior web/documentation commits, migration `026` unchanged, so no `/ship-prod` is owed.
 
 **Next:** Group Z is complete; Vercel builds this close-out push from `main`.
+
+## Batch 169 — Every toast is unreadable in dark mode, the default theme
+**Commits:** `fb41a88` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,350 backend
+and 1,212 frontend tests passed, 0 skipped; production-bundle deep-link smoke passed.
+
+### Key facts for future sessions
+- **The toaster follows the resolved app theme.** Sonner no longer applies its light rich-colour
+  palette in dark mode; every variant uses the app overlay, primary/secondary text, a 3px semantic
+  ink edge and icon, and the existing primary action treatment.
+- **Feedback has two useful lines.** Pick success, refusal, failure and offline notices now put the
+  outcome in the title and the member's next action in the body; the assertive error/warning and
+  polite success/info announcement split is unchanged.
+- **Contrast is held in both palettes.** Tests require title and body AA contrast on the toast
+  overlay, 3:1 semantic edge/icon contrast, and an app theme on the toaster rather than
+  `richColors`.
+- **Gate run 1 failed only the ratchet.** The 8 added frontend tests made 1,212 against the
+  recorded 1,204; the upward-only floor was raised and the second full gate passed. No assertion
+  was weakened.
+- **Close-out safety:** web-only; pre-push API drift was 124 commits, none API-bearing, at migration
+  `026`. No `/ship-prod` is owed.
+
+**Next:** `/group-start AG`.

@@ -72,9 +72,9 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Batches 169-203 are drafted and unstarted (2026-09-30), from the 2026-09-28 review, now on
-`main`; every owner decision they needed was answered on 30 Sep. They run as `/batch-start 169`,
-then `/group-start` AG, AA, AC, AD, AE, AB, AF and AH, in that order
+Batches 170-203 are drafted and unstarted (2026-09-30), from the 2026-09-28 review, now on
+`main`; every owner decision they needed was answered on 30 Sep. Batch 169 completed on 30 Sep;
+next is `/group-start AG`, then AA, AC, AD, AE, AB, AF and AH, in that order
 (`docs/agent-commands/group-start.md`; the reasons are in the review's `08-sequencing.md`).
 
 ## Toolchain
@@ -83,7 +83,7 @@ Checked 2026-09-24.
 
 - **The gate is `scripts/ci-local.sh`**: eleven checks and no skips. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,350, frontend 1,204). 11 to 13 minutes on this Mac (11m18s on 2026-09-28), and
+  (backend 1,350, frontend 1,212). 11 to 13 minutes on this Mac (11m18s on 2026-09-28), and
   38 when macOS's storage scan loads it (2026-09-25). Without a database the backend suite is
   800 passed and 550 skipped at 1,350 tests (2026-09-29) — not the gate.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
