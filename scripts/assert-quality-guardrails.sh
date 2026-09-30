@@ -1,53 +1,37 @@
 #!/usr/bin/env bash
 # Refuse a batch that changes the machinery used to judge that same batch.
+#
+# ci-local.sh executes this file from local main, not from the working tree. Keep
+# every trust decision here: a branch may propose the next version of the guard,
+# but it cannot use that proposal to approve itself.
 set -uo pipefail
 
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${COUPON_GUARD_ROOT:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}"
 BASE_REF="main"
 COUNTS_FILE="scripts/ci-test-counts.env"
-PROTECTED=(
-  .github/workflows/ci.yml
-  apps/api/pyproject.toml
-  apps/api/requirements-dev.txt
-  apps/web/.eslintrc.cjs
-  apps/web/package.json
-  apps/web/playwright.prod-bundle.config.ts
-  apps/web/tsconfig.json
-  apps/web/tsconfig.node.json
-  apps/web/vite.config.ts
-  scripts/assert-quality-guardrails.sh
-  scripts/check-closeout-safety.sh
-  scripts/check-deploy-drift.sh
-  scripts/ci-local.sh
-  scripts/run-prod-bundle-smoke.sh
-  docs/agent-commands/phase-closeout.md
-)
 
 if ! git -C "$ROOT" show-ref --verify --quiet "refs/heads/$BASE_REF"; then
   echo "quality guardrails: cannot compare this batch because local main is missing" >&2
   exit 2
 fi
 
-changed_protected="$({
-  git -C "$ROOT" diff --name-only "$BASE_REF" -- "${PROTECTED[@]}"
-  git -C "$ROOT" ls-files --others --exclude-standard -- "${PROTECTED[@]}"
+changed="$({
+  git -C "$ROOT" diff --name-only "$BASE_REF" --
+  git -C "$ROOT" ls-files --others --exclude-standard
 } | sort -u)"
 
 branch="$(git -C "$ROOT" symbolic-ref --short HEAD 2>/dev/null || true)"
 bootstrap=false
 if [[ "$branch" == feat/batch-152-* ]] \
-   && grep -qE '^- \[ \] \*\*Batch 152 ' "$ROOT/docs/BUILD_PLAN.md"; then
+   && git -C "$ROOT" show "$BASE_REF:docs/BUILD_PLAN.md" \
+      | grep -qE '^- \[ \] \*\*Batch 152 '; then
   bootstrap=true
 fi
 
-# Owner-approved gate maintenance. A batch named here may change the protected files
-# listed against it, and no others, while it runs on its own batch branch and its row is
-# still open — so each entry goes inert when the row is ticked, as the Batch 152 bootstrap
-# does. An entry is itself a change to this protected file: add one only with the owner's
-# approval recorded in that batch's row, never on an agent's own judgement.
-#   153, 127 — approved by the owner on 2026-09-24 (see both rows).
-#   178, 198-203 — approved by the owner on 2026-09-30 (review 2026-09-28, decisions 7, 8, 11;
-#   see each row).
+# Owner-approved gate maintenance. This table is trusted only because ci-local
+# runs main's copy of this script. The matching BUILD_PLAN row must also be open
+# on main and quote every approved path, so neither the table nor the evidence
+# can be supplied by the branch they approve.
 approved_gate_maintenance() {
   case "$1" in
     153) echo "docs/agent-commands/phase-closeout.md scripts/assert-quality-guardrails.sh" ;;
@@ -62,25 +46,111 @@ approved_gate_maintenance() {
   esac
 }
 
+main_batch_row() {
+  local batch="$1"
+  git -C "$ROOT" show "$BASE_REF:docs/BUILD_PLAN.md" | awk -v batch="$batch" '
+    $0 ~ "^- \\[[ x]\\] \\*\\*Batch " batch " " { found=1 }
+    found && seen && $0 ~ "^- \\[[ x]\\] \\*\\*Batch [0-9]+ " { exit }
+    found { print; seen=1 }
+  '
+}
+
 branch_batch="$(printf '%s' "$branch" | sed -nE 's#^(feat|fix|chore)/batch-([0-9]+)-.*#\2#p')"
 approved=""
-if [[ -n "$branch_batch" ]] \
-   && grep -qE "^- \[ \] \*\*Batch $branch_batch " "$ROOT/docs/BUILD_PLAN.md"; then
-  approved="$(approved_gate_maintenance "$branch_batch")"
+if [[ -n "$branch_batch" ]]; then
+  row="$(main_batch_row "$branch_batch")"
+  candidate="$(approved_gate_maintenance "$branch_batch")"
+  if printf '%s\n' "$row" | grep -qE "^- \[ \] \*\*Batch $branch_batch " \
+     && printf '%s\n' "$row" | grep -qF '**Gate maintenance approved' \
+     && [[ -n "$candidate" ]]; then
+    approval_complete=true
+    for path in $candidate; do
+      if ! printf '%s\n' "$row" | grep -qF "\`$path\`"; then
+        approval_complete=false
+      fi
+    done
+    if [[ "$approval_complete" == true ]]; then
+      approved="$candidate"
+    fi
+  fi
 fi
 
+is_protected() {
+  case "$1" in
+    .github/workflows/ci.yml|apps/api/pyproject.toml|apps/api/requirements-dev.txt|\
+    apps/web/package.json|apps/web/playwright.prod-bundle.config.ts|apps/web/vite.config.ts|\
+    scripts/assert-quality-guardrails.sh|scripts/check-closeout-safety.sh|\
+    scripts/check-deploy-drift.sh|scripts/check-migration-recovery.sh|scripts/ci-local.sh|\
+    scripts/run-prod-bundle-smoke.sh|docs/agent-commands/phase-closeout.md|AGENTS.md|*/AGENTS.md|\
+    conftest.py|*/conftest.py|pytest.ini|*/pytest.ini|mypy.ini|*/mypy.ini|\
+    .mypy.ini|*/.mypy.ini|ruff.toml|*/ruff.toml|.ruff.toml|*/.ruff.toml|\
+    setup.cfg|*/setup.cfg|.eslintrc*|*/.eslintrc*|.eslintignore|*/.eslintignore|\
+    vitest.config.*|*/vitest.config.*|tsconfig*.json|*/tsconfig*.json)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+protected_changed=""
+while IFS= read -r path; do
+  [[ -z "$path" ]] && continue
+  if is_protected "$path"; then
+    protected_changed+="$path"$'\n'
+  fi
+done <<<"$changed"
+
 unapproved=""
-for path in $changed_protected; do
+while IFS= read -r path; do
+  [[ -z "$path" ]] && continue
   case " $approved " in
     *" $path "*) ;;
     *) unapproved+="$path"$'\n' ;;
   esac
-done
+done <<<"$protected_changed"
 
 if [[ -n "$unapproved" && "$bootstrap" != true ]]; then
   echo "quality guardrails: FAIL — this batch changes its own gate or lint/type configuration:" >&2
   printf '  %s\n' $unapproved >&2
   echo "Move that work to an explicitly approved gate-maintenance batch." >&2
+  exit 1
+fi
+
+# Explicit bypass markers and removed oracles can preserve exact test counts
+# while making the suite green. New tests and stronger assertions remain free
+# to land; weakening an existing oracle requires an owner decision.
+added_lines=""
+removed_test_lines=""
+while IFS= read -r path; do
+  [[ -z "$path" ]] && continue
+  case "$path" in
+    apps/api/src/*|apps/api/tests/*|apps/web/src/*|apps/web/e2e/*) ;;
+    *) continue ;;
+  esac
+  if git -C "$ROOT" ls-files --error-unmatch -- "$path" >/dev/null 2>&1; then
+    added_lines+="$(git -C "$ROOT" diff --unified=0 "$BASE_REF" -- "$path" \
+      | sed -nE '/^\+\+\+ /d; /^\+/{s/^\+//;p;}')"$'\n'
+    case "$path" in
+      apps/api/tests/*|apps/web/src/test/*|apps/web/src/*/__tests__/*|apps/web/e2e/*)
+        removed_test_lines+="$(git -C "$ROOT" diff --unified=0 "$BASE_REF" -- "$path" \
+          | sed -nE '/^--- /d; /^-/{s/^-//;p;}')"$'\n'
+        ;;
+    esac
+  elif [[ -f "$ROOT/$path" ]]; then
+    added_lines+="$(cat "$ROOT/$path")"$'\n'
+  fi
+done <<<"$changed"
+
+if printf '%s\n' "$added_lines" | grep -Eq \
+  'pytest\.mark\.(skip|xfail)|# *type: *ignore|# *noqa|eslint-disable|(^|[^[:alnum:]_])(it|test|describe)\.(skip|todo|only)\(|expect\(true\)\.toBe\(true\)|status_code +in +\([^)]*,[^)]*\)'; then
+  echo "quality guardrails: FAIL — the diff adds a recorded test, type or lint bypass" >&2
+  exit 1
+fi
+
+if printf '%s\n' "$removed_test_lines" | grep -Eq \
+  '^[[:space:]]*((async +)?def +test_|assert +|expect\(|(it|test|describe)(\.(each|only))?\()'; then
+  echo "quality guardrails: FAIL — the diff removes a test, assertion or expectation" >&2
+  echo "Changing an existing oracle requires an owner decision; add stronger coverage instead." >&2
   exit 1
 fi
 
@@ -117,16 +187,26 @@ if git -C "$ROOT" cat-file -e "$BASE_REF:$COUNTS_FILE" 2>/dev/null; then
     echo "  frontend: $base_frontend -> $current_frontend" >&2
     exit 1
   fi
+  if (( current_backend > base_backend )) \
+     && ! printf '%s\n' "$changed" | grep -qE '^apps/api/tests/'; then
+    echo "quality guardrails: FAIL — the backend test ratchet rose without a backend test change" >&2
+    exit 1
+  fi
+  if (( current_frontend > base_frontend )) \
+     && ! printf '%s\n' "$changed" | grep -qE '^apps/web/(src/test/|src/.*/__tests__/|e2e/)'; then
+    echo "quality guardrails: FAIL — the frontend test ratchet rose without a frontend test change" >&2
+    exit 1
+  fi
 elif [[ "$bootstrap" != true ]]; then
   echo "quality guardrails: FAIL — only Batch 152 may introduce $COUNTS_FILE" >&2
   exit 1
 fi
 
-if [[ "$bootstrap" == true && -n "$changed_protected" ]]; then
+if [[ "$bootstrap" == true && -n "$protected_changed" ]]; then
   echo "quality guardrails: PASS — Batch 152 bootstrap changes are explicitly in scope"
-elif [[ -n "$changed_protected" ]]; then
+elif [[ -n "$protected_changed" ]]; then
   echo "quality guardrails: PASS — Batch $branch_batch's owner-approved gate maintenance changes:"
-  printf '  %s\n' $changed_protected
+  printf '  %s\n' $protected_changed
 else
   echo "quality guardrails: PASS — gate and lint/type configuration unchanged"
 fi

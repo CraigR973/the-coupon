@@ -18,10 +18,12 @@ changes beyond the batch, or if the batch row is already ticked.
 2. Run or confirm the complete `/batch-verify N` gate — which means
    `scripts/ci-local.sh`, not pytest on its own. Without a database that suite is
    `800 passed, 550 skipped` (2026-09-29) and the skips are the pick flow, settlement and the
-   scheduler; step 9 below pushes `main`, and Vercel deploys the web app from it, so a
+   scheduler; step 10 below pushes `main`, and Vercel deploys the web app from it, so a
    batch can reach members without the core of the game having run. Record the
    backend and frontend test counts printed by the gate; the close-out report and
-   session-log entry must name both counts, not merely say "green".
+   session-log entry must name both counts, not merely say "green". A green gate
+   writes a pass stamp for the exact Git tree it verified; any later edit makes
+   that stamp ineligible for close-out.
 3. Before any commit, merge, or push, run the close-out safety guard on the
    feature branch:
 
@@ -67,7 +69,17 @@ changes beyond the batch, or if the batch row is already ticked.
 
 8. Refresh `STATUS.md`, stage only the three close-out documents, and commit:
    `docs: close out Batch N — tick BUILD_PLAN + session log`.
-9. Push local `main` to `origin`:
+9. Run the complete `scripts/ci-local.sh` gate once more on clean local `main`.
+   The close-out documents changed the tree after the feature-branch gate, so
+   this run is the proof for the exact tree that will be pushed. Then require its
+   matching stamp:
+
+   ```bash
+   /Users/craigrobinson/the-coupon/scripts/check-closeout-safety.sh N --verify-gate-stamp
+   ```
+
+   Stop if either command fails. Never recreate, copy or edit the stamp by hand.
+10. Push local `main` to `origin`:
 
    ```bash
    git -C /Users/craigrobinson/the-coupon push origin main
@@ -83,7 +95,7 @@ changes beyond the batch, or if the batch row is already ticked.
    before CI has necessarily reported. The API half does not move until `/ship-prod`.
    Nothing here waits for either, which is why step 2 has to be the real gate.
 
-10. Report the pre-push drift result from step 3, the batch's API/web
+11. Report the pre-push drift result from step 3, the batch's API/web
     classification, and whether `/ship-prod` is owed or explicitly scheduled.
     Do not rerun the first drift check only after the deploy: that is too late to
     protect members. Pushing `main` auto-deploys the **web app** through Vercel's

@@ -27,13 +27,21 @@ VENV="${CI_LOCAL_VENV:-$HOME/.cache/the-coupon/ci-local-venv}"
 # Matches actions/setup-python in .github/workflows/ci.yml.
 PY_VERSION="3.12"
 LOG="$(mktemp -t coupon-ci-XXXXXX)"
+GATE_STAMP="$(git -C "$ROOT" rev-parse --absolute-git-dir)/coupon-ci-local.pass"
 FAILED=()
 PASSED=0
 
 cleanup() { rm -f "$LOG"; }
 trap cleanup EXIT
 
-if ! "$ROOT/scripts/assert-quality-guardrails.sh"; then
+# A failed or interrupted run must not leave an older pass reusable.
+rm -f "$GATE_STAMP"
+
+# The branch may propose changes to the gate, but main's guard and approval
+# table judge them. Running from ROOT keeps the pre-Batch-198 guard compatible
+# while this change itself is being verified.
+if ! (cd "$ROOT" && git show main:scripts/assert-quality-guardrails.sh \
+  | COUPON_GUARD_ROOT="$ROOT" bash); then
   exit 1
 fi
 
@@ -222,7 +230,26 @@ fi
 
 echo
 if [[ ${#FAILED[@]} -eq 0 ]]; then
+  if [[ -n "${SKIP_PROD_BUNDLE:-}" ]]; then
+    echo "ci-local: PASS ($PASSED checks; partial profile — no close-out stamp)"
+    exit 0
+  fi
+  gate_index="$(mktemp -t coupon-gate-index-XXXXXX)"
+  rm -f "$gate_index"
+  if ! GIT_INDEX_FILE="$gate_index" git -C "$ROOT" read-tree HEAD \
+     || ! GIT_INDEX_FILE="$gate_index" git -C "$ROOT" add -A \
+     || ! gate_tree="$(GIT_INDEX_FILE="$gate_index" git -C "$ROOT" write-tree)"; then
+    rm -f "$gate_index"
+    echo "ci-local: FAIL — could not hash the verified working tree"
+    exit 1
+  fi
+  rm -f "$gate_index"
+  stamp_tmp="${GATE_STAMP}.tmp.$$"
+  umask 077
+  printf 'version=1\nprofile=full\ntree=%s\n' "$gate_tree" >"$stamp_tmp"
+  mv "$stamp_tmp" "$GATE_STAMP"
   echo "ci-local: PASS ($PASSED checks)"
+  echo "ci-local: stamped verified tree $gate_tree"
   exit 0
 fi
 echo "ci-local: FAIL — ${FAILED[*]}"

@@ -5,17 +5,57 @@ set -uo pipefail
 
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 BATCH="${1:-}"
-SCHEDULED="${2:-}"
+MODE="${2:-}"
+GATE_STAMP="$(git -C "$ROOT" rev-parse --absolute-git-dir)/coupon-ci-local.pass"
 
 if [[ ! "$BATCH" =~ ^[0-9]+$ ]] \
-   || [[ -n "$SCHEDULED" && "$SCHEDULED" != "--shipment-scheduled" ]]; then
-  echo "usage: $0 <numeric-batch> [--shipment-scheduled]" >&2
+   || [[ -n "$MODE" && "$MODE" != "--shipment-scheduled" \
+        && "$MODE" != "--verify-gate-stamp" ]]; then
+  echo "usage: $0 <numeric-batch> [--shipment-scheduled|--verify-gate-stamp]" >&2
   exit 2
 fi
 
 if ! git -C "$ROOT" show-ref --verify --quiet refs/heads/main; then
   echo "close-out safety: local main is missing" >&2
   exit 2
+fi
+
+worktree_tree_hash() {
+  local gate_index gate_tree
+  gate_index="$(mktemp -t coupon-closeout-index-XXXXXX)"
+  rm -f "$gate_index"
+  if ! GIT_INDEX_FILE="$gate_index" git -C "$ROOT" read-tree HEAD \
+     || ! GIT_INDEX_FILE="$gate_index" git -C "$ROOT" add -A \
+     || ! gate_tree="$(GIT_INDEX_FILE="$gate_index" git -C "$ROOT" write-tree)"; then
+    rm -f "$gate_index"
+    return 1
+  fi
+  rm -f "$gate_index"
+  printf '%s\n' "$gate_tree"
+}
+
+current_tree="$(worktree_tree_hash)" || {
+  echo "close-out safety: could not hash the current working tree" >&2
+  exit 2
+}
+stamp_valid=false
+stamped_tree=""
+if [[ -f "$GATE_STAMP" ]] \
+   && [[ "$(wc -l <"$GATE_STAMP" | tr -d ' ')" == 3 ]] \
+   && grep -qxF 'version=1' "$GATE_STAMP" \
+   && grep -qxF 'profile=full' "$GATE_STAMP"; then
+  stamped_tree="$(sed -nE 's/^tree=([0-9a-f]{40})$/\1/p' "$GATE_STAMP")"
+  [[ -n "$stamped_tree" ]] && stamp_valid=true
+fi
+if [[ "$stamp_valid" != true || "$stamped_tree" != "$current_tree" ]]; then
+  echo "close-out safety: REFUSED — the exact tree has no matching ci-local PASS stamp" >&2
+  echo "Run the complete 11-check scripts/ci-local.sh gate against this tree before continuing." >&2
+  exit 1
+fi
+echo "close-out safety: verified ci-local PASS stamp for tree $current_tree"
+
+if [[ "$MODE" == "--verify-gate-stamp" ]]; then
+  exit 0
 fi
 
 changed="$({
@@ -49,7 +89,7 @@ while IFS= read -r path; do
 done <<<"$changed"
 
 if [[ "$api_changed" == true && "$web_changed" == true ]]; then
-  if [[ "$SCHEDULED" != "--shipment-scheduled" ]]; then
+  if [[ "$MODE" != "--shipment-scheduled" ]]; then
     echo >&2
     echo "close-out safety: REFUSED — Batch $BATCH changes both API and web." >&2
     echo "The push would deploy the web half before the API half." >&2
