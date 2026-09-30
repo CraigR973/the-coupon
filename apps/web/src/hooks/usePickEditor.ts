@@ -64,6 +64,7 @@ export type PickRefusalTone = 'warning' | 'error';
 
 export interface PickRefusal {
   tone: PickRefusalTone;
+  title: string;
   message: string;
   /**
    * `refresh-card` — somebody else holds it now, so the card on screen is stale in
@@ -84,6 +85,7 @@ export function pickRefusal(detail: string): PickRefusal {
     case 'FIXTURE_TAKEN':
       return {
         tone: 'warning',
+        title: pickToastTitle(detail),
         message: pickErrorMessage(detail),
         action: 'refresh-card',
       };
@@ -91,48 +93,73 @@ export function pickRefusal(detail: string): PickRefusal {
       if (detail.startsWith(`${PRICE_MOVED}:`)) {
         return {
           tone: 'warning',
+          title: pickToastTitle(detail),
           message: pickErrorMessage(detail),
           action: 'retake-price',
           price: detail.slice(PRICE_MOVED.length + 1),
         };
       }
-      return { tone: 'error', message: pickErrorMessage(detail) };
+      return { tone: 'error', title: pickToastTitle(detail), message: pickErrorMessage(detail) };
     }
   }
 }
 
-/** Turn the backend `detail` code into a player-facing message. */
+/** Turn the backend `detail` code into the instruction beneath a toast title. */
 export function pickErrorMessage(detail: string): string {
   switch (detail) {
     case 'SELECTION_TAKEN':
-      return 'Someone in your league just grabbed that selection — pick another.';
+      return 'That selection is taken now — pick another.';
     case 'FIXTURE_TAKEN':
       return 'Someone in your league already has that game — pick another match.';
     case 'PICKS_LOCKED':
-      return 'Picks are locked for this week.';
+      return 'This round is no longer open for picks.';
     case 'PICKS_NOT_OPEN':
-      return 'Picks haven’t opened for this round yet — check back closer to kick-off.';
+      return 'Check back closer to kick-off.';
     case 'SELECTION_NOT_AVAILABLE':
-      return 'That selection isn’t being priced right now — try another.';
+      return 'That selection is not being priced right now — try another.';
     // Browsing the card falls back to the last known prices; freezing one onto a pick
     // does not, because the price is what a winner is scored on (Batch 48).
     case 'ODDS_UNAVAILABLE':
-      return 'Prices are unavailable right now, so your pick wasn’t saved — try again shortly.';
+      return 'Your pick was not saved — try again shortly.';
     // Batch 89's shared per-league budget. The league, not this member, is what ran out —
     // the copy has to say so, or a member who has picked once today reads it as an
     // accusation and stops trying.
     case 'PICKS_BUSY':
-      return 'Too many picks are being made in your league right now — your pick wasn’t saved. Try again in a few minutes.';
+      return 'Too many picks are being made in your league right now. Try again in a few minutes.';
     default:
       // Batch 114. `PRICE_MOVED:<price>` — the code alone is not an answer, because what
       // the member has to decide is whether to take the *new* number, and they cannot
       // decide that without seeing it. The price rides in the detail because `ApiError`
       // keeps only a string one.
       if (detail.startsWith(`${PRICE_MOVED}:`)) {
-        const moved = detail.slice(PRICE_MOVED.length + 1);
-        return `That price moved before your pick landed — it’s now ${moved}. Tap again to take it.`;
+        return 'Take the new price, or pick something else.';
       }
       return detail || 'Could not save your pick — try again.';
+  }
+}
+
+/** Turn the backend `detail` code into the brief outcome line for a toast. */
+export function pickToastTitle(detail: string): string {
+  switch (detail) {
+    case 'SELECTION_TAKEN':
+      return 'Someone got there first';
+    case 'FIXTURE_TAKEN':
+      return 'That match is taken';
+    case 'PICKS_LOCKED':
+      return 'Picks are locked';
+    case 'PICKS_NOT_OPEN':
+      return 'Picks are not open yet';
+    case 'SELECTION_NOT_AVAILABLE':
+      return 'That selection is unavailable';
+    case 'ODDS_UNAVAILABLE':
+      return 'Prices are unavailable';
+    case 'PICKS_BUSY':
+      return 'Your pick was not saved';
+    default:
+      if (detail.startsWith(`${PRICE_MOVED}:`)) {
+        return `That price moved to ${detail.slice(PRICE_MOVED.length + 1)}`;
+      }
+      return 'Could not save your pick';
   }
 }
 
@@ -331,13 +358,13 @@ export function usePickEditor(
       if (held !== null && matches(held, body)) {
         hold(null);
         invalidate();
-        toast.success(`Your pick did land — ${held.runner_name} is yours.`);
+        toast.success('Your pick did land', { description: `${held.runner_name} is yours.` });
         return;
       }
 
       hold({ key: current.key, state: 'queued', body });
       invalidate();
-      toast.error('Your pick didn’t land — it’s ready to send again.');
+      toast.error('Your pick did not land', { description: 'It is ready to send again.' });
     },
     [slug, gameweekId, hold, invalidate],
   );
@@ -367,7 +394,9 @@ export function usePickEditor(
         setCompletion({ gameweekId: pick.gameweek_id, memberCount: pick.member_count });
         return;
       }
-      toast.success(`Grabbed ${pick.runner_name} @ ${formatOdds(pick.odds, oddsFormat)}`);
+      toast.success(`Grabbed ${pick.runner_name} @ ${formatOdds(pick.odds, oddsFormat)}`, {
+        description: 'Your pick is in. You can change it until the round locks.',
+      });
     },
     onError: (err, body) => {
       // A refusal is an *answer*: the server saw the claim and said no. The member's
@@ -376,7 +405,10 @@ export function usePickEditor(
         hold(null);
         const refusal = pickRefusal(err.message);
         const notify = refusal.tone === 'warning' ? toast.warning : toast.error;
-        notify(refusal.message, actionFor(refusal, body, invalidate, sendRef));
+        notify(refusal.title, {
+          description: refusal.message,
+          ...actionFor(refusal, body, invalidate, sendRef),
+        });
         return;
       }
       if (err instanceof NetworkError && !err.mayHaveLanded) {
@@ -384,14 +416,18 @@ export function usePickEditor(
         // Informational, not an error: nothing failed, the pick is held and it goes
         // the moment the connection does. `OutstandingPickNotice` carries the actions,
         // so this says the one thing the member could not otherwise know and stops.
-        toast.info('You’re offline — we’ll send this pick the moment you’re back.');
+        toast.info('Saved on this phone', {
+          description: 'You’re offline — we’ll send this pick the moment you’re back.',
+        });
         return;
       }
       // Everything else is the unknown case, including a plain `Error` from somewhere
       // that has not been given a type: assume it may have landed. Guessing the safe way
       // costs a check; guessing the other way costs a member their claim.
       hold({ key: keyFor(body), state: 'unconfirmed', body });
-      toast.error('We didn’t hear back — your pick may not have been saved. Checking…');
+      toast.error('We did not hear back', {
+        description: 'Your pick may not have been saved. Checking…',
+      });
       void reconcile(body);
     },
     onSettled: () => setPendingKey(null),

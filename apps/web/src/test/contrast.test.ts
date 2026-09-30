@@ -185,6 +185,19 @@ describe.each([
     expect(failing, `${name}: text tokens below ${AA_NORMAL}:1`).toEqual([]);
   });
 
+  it('keeps every toast pairing legible on its overlay', () => {
+    const text = ['text-primary', 'text-secondary'] as const;
+    const semantic = ['success-ink', 'warning-ink', 'error-ink', 'primary-ink'] as const;
+
+    for (const token of text) {
+      expect(contrast(palette[token], palette['surface-overlay'])).toBeGreaterThanOrEqual(AA_NORMAL);
+    }
+    for (const token of semantic) {
+      expect(contrast(palette[token], palette['surface-overlay'])).toBeGreaterThanOrEqual(AA_NON_TEXT);
+    }
+    expect(contrast(palette['on-primary'], palette.primary)).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
   it('gives every ink token a fill counterpart, so none is orphaned', () => {
     for (const ink of INK) {
       const base = ink.replace(/-ink$/, '');

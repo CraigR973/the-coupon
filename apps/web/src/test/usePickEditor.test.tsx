@@ -18,7 +18,7 @@ vi.mock('sonner', () => ({
 
 import { ApiError, NetworkError, apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
-import { usePickEditor, pickErrorMessage, pickRefusal } from '@/hooks/usePickEditor';
+import { usePickEditor, pickErrorMessage, pickRefusal, pickToastTitle } from '@/hooks/usePickEditor';
 import type { PickResponse } from '@/lib/types';
 
 const mockApiFetch = vi.mocked(apiFetch);
@@ -92,16 +92,16 @@ afterEach(() => {
 
 describe('pickErrorMessage', () => {
   it('maps backend detail codes to friendly copy', () => {
-    expect(pickErrorMessage('SELECTION_TAKEN')).toMatch(/just grabbed/i);
+    expect(pickErrorMessage('SELECTION_TAKEN')).toMatch(/taken now/i);
     // The fixture rule refuses the whole game, not one selection.
     expect(pickErrorMessage('FIXTURE_TAKEN')).toMatch(/already has that game/i);
-    expect(pickErrorMessage('PICKS_LOCKED')).toMatch(/locked/i);
+    expect(pickToastTitle('PICKS_LOCKED')).toMatch(/locked/i);
     // Batch 27's other refusal — "come back later", not "it is over".
-    expect(pickErrorMessage('PICKS_NOT_OPEN')).toMatch(/haven’t opened/i);
+    expect(pickToastTitle('PICKS_NOT_OPEN')).toMatch(/not open/i);
     expect(pickErrorMessage('SELECTION_NOT_AVAILABLE')).toMatch(/priced/i);
     // Batch 48: browsing the card degrades to stale prices, submitting never does —
     // the refusal has to say the pick was not saved, not just that something broke.
-    expect(pickErrorMessage('ODDS_UNAVAILABLE')).toMatch(/wasn’t saved/i);
+    expect(pickErrorMessage('ODDS_UNAVAILABLE')).toMatch(/not saved/i);
     expect(pickErrorMessage('')).toMatch(/could not save/i);
     expect(pickErrorMessage('Some other server message')).toBe('Some other server message');
   });
@@ -110,9 +110,9 @@ describe('pickErrorMessage', () => {
     // The code alone is not an answer: what the member has to decide is whether to take
     // the price that has moved, and they cannot decide that without seeing it.
     const message = pickErrorMessage('PRICE_MOVED:3.50');
-    expect(message).toContain('3.50');
-    expect(message).toMatch(/moved/i);
-    expect(message).toMatch(/tap again/i);
+    expect(pickToastTitle('PRICE_MOVED:3.50')).toContain('3.50');
+    expect(pickToastTitle('PRICE_MOVED:3.50')).toMatch(/moved/i);
+    expect(message).toMatch(/new price/i);
   });
 
   it('names the league, not the member, when Batch 89’s shared budget refuses', () => {
@@ -120,7 +120,7 @@ describe('pickErrorMessage', () => {
     // an accusation makes someone who has picked once today stop trying.
     const message = pickErrorMessage('PICKS_BUSY');
     expect(message).toMatch(/your league/i);
-    expect(message).toMatch(/wasn’t saved/i);
+    expect(pickToastTitle('PICKS_BUSY')).toMatch(/not saved/i);
     expect(message).toMatch(/few minutes/i);
   });
 });
@@ -142,7 +142,10 @@ describe('usePickEditor', () => {
         body: JSON.stringify({ fixture_id: 'fx1', market: 'MATCH_ODDS', outcome: 'HOME' }),
       }),
     );
-    expect(mockToast.success).toHaveBeenCalledWith(expect.stringContaining('Forfar'));
+    expect(mockToast.success).toHaveBeenCalledWith(
+      expect.stringContaining('Forfar'),
+      expect.objectContaining({ description: expect.stringMatching(/change it until/i) }),
+    );
     expect(result.current.outstanding).toBeNull();
   });
 
@@ -212,8 +215,8 @@ describe('usePickEditor', () => {
 
     await waitFor(() => expect(mockToast.warning).toHaveBeenCalled());
     expect(mockToast.warning).toHaveBeenCalledWith(
-      expect.stringMatching(/just grabbed/i),
-      expect.anything(),
+      'Someone got there first',
+      expect.objectContaining({ description: expect.stringMatching(/taken now/i) }),
     );
     expect(mockToast.error).not.toHaveBeenCalled();
     expect(actionOf(warningToasts().at(-1))?.label).toMatch(/refresh/i);
@@ -237,7 +240,9 @@ describe('usePickEditor', () => {
     expect(result.current.outstanding).toMatchObject({ key: 'fx1:MATCH_ODDS:HOME', state: 'queued' });
     // Batch 139: informational, not an error. Nothing failed — the pick is held and it
     // goes the moment the connection does, and `OutstandingPickNotice` owns the actions.
-    expect(mockToast.info).toHaveBeenCalledWith(expect.stringMatching(/offline/i));
+    expect(mockToast.info).toHaveBeenCalledWith('Saved on this phone', {
+      description: expect.stringMatching(/offline/i),
+    });
     expect(mockToast.error).not.toHaveBeenCalled();
 
     mockApiFetch.mockReset();
@@ -246,7 +251,10 @@ describe('usePickEditor', () => {
 
     await waitFor(() => expect(result.current.outstanding).toBeNull());
     expect(submits()).toHaveLength(1);
-    expect(mockToast.success).toHaveBeenCalledWith(expect.stringContaining('Forfar'));
+    expect(mockToast.success).toHaveBeenCalledWith(
+      expect.stringContaining('Forfar'),
+      expect.anything(),
+    );
   });
 
   it('never re-sends a submission that may already have landed — it checks instead', async () => {
@@ -269,7 +277,10 @@ describe('usePickEditor', () => {
     expect(submits()).toHaveLength(1);
     expect(mockApiFetch).toHaveBeenCalledWith(MY_PICK_PATH);
     expect(result.current.outstanding).toBeNull();
-    expect(mockToast.success).toHaveBeenCalledWith(expect.stringMatching(/did land/i));
+    expect(mockToast.success).toHaveBeenCalledWith(
+      'Your pick did land',
+      expect.objectContaining({ description: expect.stringMatching(/is yours/i) }),
+    );
   });
 
   it('reports an unconfirmed claim as unconfirmed while it cannot be checked', async () => {
@@ -284,7 +295,10 @@ describe('usePickEditor', () => {
 
     await waitFor(() => expect(result.current.outstanding).not.toBeNull());
     expect(result.current.outstanding).toMatchObject({ state: 'unconfirmed' });
-    expect(mockToast.error).toHaveBeenCalledWith(expect.stringMatching(/didn’t hear back/i));
+    expect(mockToast.error).toHaveBeenCalledWith(
+      'We did not hear back',
+      expect.objectContaining({ description: expect.stringMatching(/may not have been saved/i) }),
+    );
     // The check failed too, so nothing was re-sent and nothing was claimed either way.
     expect(submits()).toHaveLength(1);
   });
@@ -305,7 +319,10 @@ describe('usePickEditor', () => {
 
     await waitFor(() => expect(result.current.outstanding).toMatchObject({ state: 'queued' }));
     expect(submits()).toHaveLength(1);
-    expect(mockToast.error).toHaveBeenCalledWith(expect.stringMatching(/didn’t land/i));
+    expect(mockToast.error).toHaveBeenCalledWith(
+      'Your pick did not land',
+      expect.objectContaining({ description: expect.stringMatching(/ready to send again/i) }),
+    );
 
     // And only now, on the member's say-so, does it go out again.
     mockApiFetch.mockReset();
@@ -338,8 +355,8 @@ describe('usePickEditor', () => {
     const unknownMessage = errorToasts().at(-1)?.[0];
 
     expect(lostMessage).not.toEqual(unknownMessage);
-    expect(lostMessage).toMatch(/grabbed that selection/i);
-    expect(unknownMessage).toMatch(/may not have been saved/i);
+    expect(lostMessage).toMatch(/got there first/i);
+    expect(unknownMessage).toMatch(/did not hear back/i);
     expect(unknown.result.current.outstanding).toMatchObject({ state: 'unconfirmed' });
   });
 
@@ -418,7 +435,7 @@ describe('pickRefusal', () => {
     const refusal = pickRefusal(detail);
     expect(refusal.tone).toBe(tone);
     expect(refusal.action).toBe(action);
-    // Whatever the tone, the sentence is the one the member has always been shown.
+    expect(refusal.title).toBe(pickToastTitle(detail));
     expect(refusal.message).toBe(pickErrorMessage(detail));
   });
 
@@ -490,6 +507,9 @@ describe('the action a refusal carries', () => {
 
     expect(mockToast.warning).not.toHaveBeenCalled();
     expect(actionOf(errorToasts().at(-1))).toBeUndefined();
-    expect(errorToasts().at(-1)?.[0]).toMatch(/your league/i);
+    expect(errorToasts().at(-1)?.[0]).toBe('Your pick was not saved');
+    expect((errorToasts().at(-1)?.[1] as { description?: string } | undefined)?.description).toMatch(
+      /your league/i,
+    );
   });
 });

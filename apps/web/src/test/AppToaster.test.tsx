@@ -83,4 +83,31 @@ describe('AppToaster', () => {
       ),
     );
   });
+
+  it('uses the resolved app theme rather than Sonner rich colours', async () => {
+    render(<AppToaster />);
+    act(() => toast.success('Saved'));
+
+    await waitFor(() => expect(document.querySelector('[data-sonner-toaster]')).not.toBeNull());
+    const toaster = document.querySelector('[data-sonner-toaster]');
+    expect(toaster?.getAttribute('data-theme')).toBe('dark');
+    expect(toaster?.querySelector('[data-rich-colors="true"]')).toBeNull();
+  });
+
+  it.each(['success', 'warning', 'error', 'info', 'default'] as const)(
+    'gives the %s toast its token-backed semantic edge and icon',
+    async (type) => {
+      render(<AppToaster />);
+      act(() => {
+        if (type === 'default') toast('Saved');
+        else toast[type]('Saved');
+      });
+
+      await waitFor(() => {
+        const visible = document.querySelector('[data-sonner-toast]');
+        expect(visible?.className).toContain('bg-surface-overlay');
+        expect(visible?.className).toContain('border-l-');
+      });
+    },
+  );
 });

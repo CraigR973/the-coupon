@@ -427,12 +427,6 @@
     }
   }
 
-  /* Sonner's stock rich-colour text misses normal-text contrast on several pale
-     light surfaces. The icon, border and background still convey the toast type. */
-  .coupon-toaster [data-rich-colors='true'][data-sonner-toast] [data-title] {
-    color: var(--text-primary) !important;
-  }
-
   /* ── Batch 164: what framer-motion used to do ─────────────────────────────
      107 KB of JavaScript for five transitions, 62% of it unused on home. Each
      one below is the CSS equivalent. They cost nothing at runtime and they obey

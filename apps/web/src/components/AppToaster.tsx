@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Toaster, useSonner } from 'sonner';
+import { useTheme } from '@/contexts/ThemeContext';
 
 /**
  * Sonner's toasts, announced with the urgency each one has earned.
@@ -19,6 +20,7 @@ import { Toaster, useSonner } from 'sonner';
  */
 export function AppToaster() {
   const { toasts } = useSonner();
+  const { resolved } = useTheme();
   const region = useRef<HTMLElement>(null);
 
   // Re-applied on every change rather than once on mount: React only writes an
@@ -39,10 +41,24 @@ export function AppToaster() {
       <Toaster
         ref={region}
         position="bottom-right"
-        richColors
+        theme={resolved}
         closeButton
         className="coupon-toaster"
         mobileOffset={{ bottom: 'calc(var(--tabbar-height) + var(--safe-bottom) + 1rem)' }}
+        toastOptions={{
+          classNames: {
+            toast: 'bg-surface-overlay border-border border-l-[3px] shadow-lg rounded-md',
+            title: 'text-text-primary font-semibold',
+            description: 'text-text-secondary',
+            actionButton: 'bg-primary text-on-primary hover:bg-primary-dark',
+            closeButton: 'border-border bg-surface-overlay text-text-muted hover:text-text-primary',
+            success: 'border-l-[var(--success-ink)] [&_[data-icon]]:text-success',
+            warning: 'border-l-[var(--warning-ink)] [&_[data-icon]]:text-warning',
+            error: 'border-l-[var(--error-ink)] [&_[data-icon]]:text-error',
+            info: 'border-l-[var(--primary-ink)] [&_[data-icon]]:text-primary',
+            default: 'border-l-[var(--primary-ink)] [&_[data-icon]]:text-primary',
+          },
+        }}
       />
       {/* `role="alert"` is assertive by definition, and carrying it on the element
           that is always present — rather than on the message — is what makes an
