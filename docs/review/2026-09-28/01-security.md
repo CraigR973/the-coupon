@@ -59,6 +59,7 @@ the durable login limit was never spent by it; the auth lifecycle was driven ove
 | SEC-29 | LOW-MED | live | verified | A per-league name can copy someone outside the league, who can then join under the same name |
 | SEC-30 | LOW | tooling | verified | The build-toolchain advisories (SEC-22) were dropped rather than fixed, and have doubled |
 | SEC-31 | LOW | live | verified | An invite hint over 100 characters is a 500, not a 422 |
+| SEC-32 | HIGH | live | verified | *(raised by the lead on reconciliation from the owner decision below)* A league admin can take over any ordinary member of their league, and with it every other league that member plays in — see `10-reconciliation.md` |
 
 ## SEC-28 · MED · live · verified — the per-source backoff arrives after the damage
 

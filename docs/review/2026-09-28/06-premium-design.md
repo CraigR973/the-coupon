@@ -80,7 +80,7 @@ toasts illegible — recorded as a new finding (DES-10) because it is a differen
 | DES-12 | med | live | verified | At 1280 the standings and results lists are two-column grids, so a ranking reads in Z order |
 | DES-14 | med | live | verified | The price — the number the game is about — is set at caption size |
 | DES-15 | med | live | verified | A settled round still reads as a price board, and a lost coupon's headline is the price, not the result |
-| DES-16 | med | live | verified | The queued-offline reassurance never appears when the connection drops mid-session — the member gets a spinner |
+| DES-16 | med | live | verified | *(merged into lens 03's UX-31 on reconciliation — one defect)*  The queued-offline reassurance never appears when the connection drops mid-session — the member gets a spinner |
 | DES-17 | med | live | verified | Home tells a member with leagues "together when your first league begins" while it loads and when it fails |
 | DES-18 | med | live | plausible (Android/iOS rendering) / verified (files, geometry) | The installed-app shell does not match the app: navy splash and status bar, a non-maskable "maskable" icon, a 140 px standalone header |
 | DES-19 | low | live | verified | Football Stats opens with every table collapsed |
