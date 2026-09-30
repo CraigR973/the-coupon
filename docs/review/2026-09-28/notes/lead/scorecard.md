@@ -70,15 +70,15 @@ README's scorecard is built from this table.
 | FEAT-B07 | MED-HIGH | 136 | 05 | held | 05 + 01 + 02: export and deletion through Settings in Chromium; history sums |
 | FEAT-B08 | MED | 135 | 05 | held | 05 + 02: both settle paths send once; muted league silent (gap CORR-23) |
 | FEAT-B09 | LOW | carried, no batch | 05 | not fixed | 05: /results ignores season across a boundary |
-| DES-01 | high | 140 | 06 | | |
-| DES-02 | high | 139 | 06 | | |
-| DES-03 | high | 139 | 06 | | |
-| DES-04 | med | 149 | 06 | | |
-| DES-05 | med | 149 | 06 | | |
-| DES-06 | med | 149 | 06 | | |
-| DES-07 | med | 150 | 06 | | |
-| DES-08 | med | 151 | 06 | | |
-| DES-09 | med | 151 | 06 | | |
+| DES-01 | high | 140 | 06 | partial | 06: two columns at 1280, but the round's left column is empty and home still stretched |
+| DES-02 | high | 139 | 06 | partial | 06: first group opens, first price at y=1134 on a 783 screen (DES-13) |
+| DES-03 | high | 139 | 06 | partial | 06: right variant and action per refusal; illegible in dark mode (DES-10) |
+| DES-04 | med | 149 | 06 | held | 06: toasts 15 px above the tab bar, also with a real 34 px inset |
+| DES-05 | med | 149 | 06 | partial | 06: round still shifts on load (CLS 0.247) |
+| DES-06 | med | 149 | 06 | partial | 06 + 03: six screens still show errors as empty (UX-25) |
+| DES-07 | med | 150 | 06 | held | 06: first-run home reaches the fold with a primary action |
+| DES-08 | med | 151 | 06 | partial | 06: home figure white, profiles green; home labels clipped |
+| DES-09 | med | 151 | 06 | held | 06: no text under 12 px on core screens (was 84 nodes ≤11 px) |
 | PIPE-01 | HIGH | owner, by hand | 07 | not fixed | 07: settings.local.json unchanged since 30 Jul; this session was offered the Supabase write tools |
 | PIPE-02 | MED | 153 | 07 | partial | 07: wording fixed; hook silent at the decision moment (PIPE-17) |
 | PIPE-03 | MED | 152 | 07 | held | 07: port held → smoke fails in 1 s |
@@ -97,3 +97,13 @@ README's scorecard is built from this table.
 | FEAT-A02 / OPS-13 backups | built (95), switched off | no backup since launch 4 Aug — 56 days on 29 Sep |
 | FEAT-A09 egress consumer | not done | STATUS; runbook step 5 |
 | PIPE-01 local agent config | not done | settings.local.json mtime 30 Jul |
+
+## Totals (30 Sep)
+
+81 items (SEC-24 withdrawn in 2026-09-13): **46 held · 21 partial · 11 not fixed · 0 regressed**,
+2 unchanged by decision or accepted (PERF-02, CORR-16), 1 pending (PERF-14, Lighthouse).
+Of the 11 not fixed, 2 were ticked by the batch that claimed them (CORR-13 by 121, PERF-17 by
+164); 5 never had a batch (UX-18, OPS-17, OPS-18 omitted; SEC-22 and OPS-15 dropped between the
+plan and Batch 127); 2 were held back deliberately (FEAT-A12, FEAT-B09); 2 are owner actions
+(OPS-13, PIPE-01). New defects introduced by these batches: DES-10 (149), UX-26 (164), UX-27
+(168), PERF-20 (162 with 146).
