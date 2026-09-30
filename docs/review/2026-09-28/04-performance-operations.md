@@ -1,6 +1,6 @@
 # 04 — Performance and operations
 
-Status: **complete except Lighthouse and wall-clock timings**, which wait for a quiet machine (see the end).
+Status: **complete.** Timings and Lighthouse were taken on 30 Sep 08:40-08:52 with the other passes finished, at a 1-minute load of 2.8-4.0 (recorded beside each).
 
 ## Method
 
@@ -42,6 +42,25 @@ Production shape → stress shape. "stmts" is SQL statements on the member's req
 | account export (new) | — | 6 → 6 | 6.1 KB → 1.0 KB; 11 KB → 1.7 KB |
 | pick submit | 12 → 12 | **11** + 3 after the response | 0.5 KB |
 
+Wall clock, over real HTTP to one uvicorn worker on the stress shape, 20 sequential
+calls each (30 Sep 08:51, 1-minute load 2.8-3.0; `timings.json`):
+
+| endpoint | p50 13 Sep | p50 now | p95 now |
+| --- | --- | --- | --- |
+| home summary (3 leagues) | 53 ms | 37 ms | 44 ms |
+| current round (264 fixtures, fully priced) | 34 ms | **153 ms** | 218 ms |
+| standings (12 members; 50 members) | — | 15 ms; 27 ms | 16 ms; 27 ms |
+| rounds list (50-member league) | — | 17 ms | 31 ms |
+| combined coupon | — | 15 ms | 17 ms |
+| 20 concurrent home summaries, each | 1,254 ms | **547 ms** (max 709) | — |
+| pick submit, 12 / 50 members, fan-out after | 33-38 ms, fan-out inline | 157 ms / 43 ms | — |
+
+The slate is slower than 13 Sep because it now carries 264 fully-priced fixtures across
+23 competitions (299 KB of JSON to build and compress, and 56 statements) where 13 Sep's
+spanned one; on a local socket each statement costs well under a millisecond, so against
+production's remote database PERF-18's extra round trips dominate. Timings are indicative;
+the counts are the evidence.
+
 Every count is identical at both shapes **except the slate**, which grows with the
 number of competitions on the card rather than with data volume (PERF-18). The home
 summary at the stress shape returned **500** for a member of the 50-member league
@@ -52,7 +71,7 @@ summary at the stress shape returned **500** for a member of the 50-member leagu
 Production bundle built by the harness against the local API and served by
 `vite preview`; real Chromium (Playwright 1.x, Node 24), service worker blocked for the
 page counts. `notes/04-perf/bundle.mjs` → `bundle.json`; `browser.mjs` →
-`browser-run1.json` (120 s idle) and `browser.json` (render counts).
+`browser-run1.json` (120 s idle) and `browser.json` (render counts). The bundle was built by the corrected harness (`web.sh` after its 18:36 fix): its stylesheet is 45,794 B, not the unstyled 9 KB. `lighthouse.mjs` → `lighthouse.json`: Lighthouse 13.5.0 (npm, scratchpad), Playwright's Chromium 1223, default mobile simulated throttling, signed in as Alice, every run at a 1-minute load of 3.65-3.99.
 
 | | 13 Sep | now |
 | --- | --- | --- |
@@ -63,7 +82,8 @@ page counts. `notes/04-perf/bundle.mjs` → `bundle.json`; `browser.mjs` →
 | API calls per screen | home 2 · round 4 · standings 4 | home 3 (5.9 KiB) · round 5 · standings 5 (13 KiB) |
 | idle requests | 0 in 5 min | **0 in 120 s** on home, the round screen and standings |
 | idle renders per 5 s, round screen | whole screen every second | **5 commits × 1 component** |
-| Lighthouse mobile | 98 · 92 · 95 · 77 | *pending a quiet machine* |
+| Lighthouse mobile, median of 3 (login · home · round · standings) | 98 · 92 · 95 · 77 | **97 · 96 · 93 · 98** |
+| total blocking time, median | standings 915 ms | login 57 · home 193 · round 122 · **standings 166 ms** |
 
 ## The provider budget, measured
 
@@ -131,21 +151,21 @@ leaves out (see Doc corrections).
 | id | batch | verdict | evidence |
 | --- | --- | --- | --- |
 | PERF-01 + OPS-16 | 144 | **held** | home summary 13 statements at both shapes and for 1 or 3 leagues (was 15); one `SELECT DISTINCT gameweeks.starts_on` projection, not whole rounds (`api-*-sql.txt`) |
-| PERF-02 | owner decision (one worker; move the scheduler out before ~10 leagues) | **unchanged, as decided** | still one uvicorn process with the scheduler inside it (`nixpacks.toml` start command, `main.py` lifespan); one live league. Concurrency re-timing *pending a quiet machine* |
+| PERF-02 | owner decision (one worker; move the scheduler out before ~10 leagues) | **unchanged, as decided** | still one uvicorn process with the scheduler inside it (`nixpacks.toml` start command, `main.py` lifespan); one live league. 20 concurrent home summaries over HTTP at the stress shape: **p50 547 ms, max 709 ms each** (was 1,254 ms) against a 37 ms sequential p50 — still a queue, shorter because the request does less (load 2.8, `timings.json`) |
 | PERF-03 | 145 | **held locally; not checkable in production read-only** | 264-fixture slate 299,134 B → 15,202 B with `content-encoding: gzip`, `vary: Accept-Encoding`; responses under 4 KB deliberately uncompressed. Production's only public API responses (`/health`, 82 B) sit below the floor, so no header could prove it (`prod-health-headers.txt`) |
 | PERF-04 | 146 (migration 026) | **held** | the SQL the app actually runs, captured from `retire_stranded_rounds` and the settle sweep at the stress shape and explained: retirement's pick-existence check is an `Index Only Scan using ix_picks_gameweek_id`, the settle sweep's pending-pick read a `Bitmap Index Scan on ix_picks_gameweek_id` — both by the planner's own choice. The 76-row `gameweeks` table is still sequentially scanned, correctly at one page; with seq scans disabled both reads take `ix_gameweeks_starts_on` (`explain-stress.txt`) |
 | PERF-05 | 146 | **held** | pool is 5 + 5 with a 10 s `pool_timeout` (`database.py`), down from 10 + 10 — but see PERF-20 for what now holds a connection |
 | PERF-06 / PERF-07 | 159 | **held at three windows; the cliff moved to four** | counting fake (below): the refresh job walks 23 competitions per window per run, not 41. Three windows: Saturday peak **72/hour**, day **337** (was 145 and 527). Five windows: **118/hour** in both refresh hours — see PERF-21 |
 | PERF-08 | 160 | **held** | across three simulated days at 1, 3 and 5 windows the plan counter's hourly figure equalled the transport's count in **every hour** (0 mismatches), and `requests_made` equalled the transport total (744, 929, 1,118) |
 | PERF-09 | 161 | **held** | the real limiter, charged in the route's order (league bucket, then installation): 1, 2, 5 and 20 leagues × 60 attempts each allow **50 provider-spending submissions in the hour in every case** (was 50 × leagues). `pick-buckets.txt`. The price is PERF-23 |
-| PERF-10 | 162 | **held** | real uvicorn on :8141, every webpush replaced by a 179 ms sleep in the executor (the per-send time implied by 49 sends in 8,759 ms): a pick in the **50-member league answered in 63 ms**, its fan-out finished 9.5 s later; in the 12-member league 213 ms, fan-out 2.2 s later. Each eligible member got **exactly one** send, the picker none (`push-fanout.json`). But see PERF-20 |
+| PERF-10 | 162 | **held** | real uvicorn on :8141, every webpush replaced by a 179 ms sleep in the executor (the per-send time implied by 49 sends in 8,759 ms): a pick in the **50-member league answered in 63 ms**, its fan-out finished 9.5 s later; in the 12-member league 213 ms, fan-out 2.2 s later (load 3.5). Re-taken on the quiet machine (load 2.8): **43 ms at 50 members** with the fan-out 9.3 s behind it, **157 ms at 12** with 2.2 s behind it. Each eligible member got **exactly one** send, the picker none (`push-fanout.json`). But see PERF-20 |
 | PERF-11 | 163 | **held as scoped** | the build's manifest is still every emitted file (83 entries; the plugin prints 745.7 KiB), but `sw.ts` filters it through `isRoleGatedChunk` before `precacheAndRoute`: 13 admin and league-admin chunks (61.5 KiB) are dropped, so a member's service worker fetches **70 entries, 798 KiB on disk** — 55 member-route JS chunks (636 KiB), 9 icons (64 KiB), 3 fonts, the CSS and the shell. That is what Batch 163 asked for (keep the routes every member uses); the saving is 7 %, because the admin chunks were never the bulk (`bundle.json`) |
 | PERF-12 | 164 | **held** | no chunk contains framer-motion or its runtime (`chunks_mentioning_framer_motion: []`); JS is **697.3 KiB raw / 237.6 KiB gzip in 68 chunks** (was 823.6 KB / 278.8 KB in 67). The dependency is still declared (PERF-22) |
 | PERF-13 | 165 | **held** | a stub DevTools hook counting components that actually rendered in each commit (cloned fiber + `PerformedWork`), 3 × 5 s idle on the 264-fixture round screen at 390 px: **5 commits, 1 component each** — the countdown alone (`browser.mjs`, run 2). Home: 5 commits of 3 components. Standings: none |
 | PERF-15 | 165 | **held** | both context values are `useMemo`'d (`AuthContext.tsx:315`, `LeagueContext.tsx:87`) |
 | PERF-16 | 165 | **held for the standings key; factory partial** | `queryKeys.standings.forSeason` keys `'current'` apart from a named season; 42 inline `queryKey: [...]` literals remain outside the factory |
 | PERF-17 | 164 | **not fixed** | cold `/login` still downloads **three font files, 48.8 KiB, one preloaded** (`jetbrains-mono-600`, `outfit-400`, `outfit-600`) — the same payload as 13 Sep. Batch 164 removed a fourth file from the app, not from the sign-in screen (`browser-run1.json`) |
-| PERF-14 | 166 (closed by re-measurement) | *pending a quiet machine* | Lighthouse mobile median of 3 on standings needs a 1-minute load under 4; the machine ran at 4-80 throughout this pass |
+| PERF-14 | 166 (closed by re-measurement) | **held** | Lighthouse mobile, median of 3, standings: **score 98, total blocking time 166 ms** (was 77 and 915 ms; Batch 166 recorded 87 and 265 ms). Every run at a 1-minute load of 3.73-3.97 (`lighthouse.json`) |
 | OPS-11 | 127 | **held** | Node 24 in all three CI jobs (`ci.yml:61,78,97`), in the gate (`ci-local.sh:188`, `nvm use 24`), `.nvmrc` 24 and `apps/web` `engines.node: 24.x`, which is what the Vercel project builds from. Vercel's runtime itself is not observable read-only |
 | OPS-12 | 128 | **held** | rehearsed locally (`ops12-recovery-rehearsal.txt`): `--deployed 026` → PASS, nothing applied; `--deployed 025` → PASS, 026's 99-line plan found; `--deployed 024` → **exit 1**, "025 FAIL — no plan"; `--plan-for 025 026` → exit 1. `ship-prod.md` step 7 runs it and says exit 1 or 2 may not be uploaded past. Enforcement is the workflow's instruction to an agent, not a hook (lens 07's territory) |
 | OPS-13 | 95 (built, switched off) | **not fixed — open across four reviews** | Batch 95's weekly job registers only when `BACKUP_STORAGE` is not `none` (`scheduler.py:1070`, default `none`, `config.py:326`); STATUS (28 Sep) records it off and "no backup yet". Not observable read-only. **RPO today: unbounded** — no durable copy of production has ever existed (Batch 75 removed a nightly dump that only ever wrote to `/tmp`); **RTO: undefined**, because there is nothing to restore. Raised as FEAT-A02 (HIGH) on 26 Aug and OPS-13 (HIGH) on 13 Sep; deferred by the owner since 30 Jul. What remains is owner work, not code: the bucket, the key, the egress check (FEAT-A09's consumer is still unattributed) and one manual run |
@@ -154,10 +174,10 @@ leaves out (see Doc corrections).
 | OPS-17 | none | **not fixed** | `create_scheduler()` started paused: all **13** registered jobs have `misfire_grace_time = 1`; only the switched-off `offsite_backup` sets 3,600 (`jobs.json`). Re-driven: the real `lock_gameweeks` job, due while the loop was busy 0.5 s, ran; busy 1.5 s, it was **dropped** — "was missed by 0:00:01.4" (`misfire-demo.txt`) |
 | OPS-18 | none | **not fixed** | on a Saturday **every hour** at :00 runs `lock_gameweeks` + `live_scores`, and 06:00, 07:00, 09:00, 11:00, 18:00, 20:00 and 22:00 add discovery, the warm pass, the refresh or settle — three jobs in one second. `coalesce=True, max_instances=1` still drops an overrun. At the stress shape with an instant provider the costliest are settle (32 statements, ~1.0 s at load 6) and discovery (19, 88 ms); the rest are 1-2 statements (`jobs.json`) |
 
-Tally of the 23 rows: **held 15** (PERF-01/OPS-16, 04, 05, 06/07, 08, 09, 10, 11, 12, 13,
-15, OPS-11, 12, 14, and PERF-03 locally), **partial 1** (PERF-16), **not fixed 5**
+Tally of the 23 rows: **held 16** (PERF-01/OPS-16, 04, 05, 06/07, 08, 09, 10, 11, 12, 13,
+14, 15, OPS-11, 12, 14, and PERF-03 locally), **partial 1** (PERF-16), **not fixed 5**
 (PERF-17, OPS-13, OPS-15, OPS-17, OPS-18 — the last two never had a batch),
-**unchanged by decision 1** (PERF-02), **pending 1** (PERF-14). None regressed. "Held"
+**unchanged by decision 1** (PERF-02). None regressed. "Held"
 means re-driven against the running scratch stack, the counting fake or real Chromium,
 as each row says.
 
@@ -423,10 +443,9 @@ needs the owner to name the batch.
 
 ## What this pass did not do
 
-- **Lighthouse and wall-clock timings are pending a quiet machine** (PERF-14, PERF-02's
-  concurrency figure): the 1-minute load average ran between 4 and 82 throughout.
-  `lighthouse.mjs` (Lighthouse 13.5.0 under the scratchpad) and `concurrency.py` are
-  ready and gate themselves on load < 4.
+- Timings are one sitting each (Lighthouse median of 3; 20 calls per endpoint), taken on
+  30 Sep at a 1-minute load of 2.8-4.0 after the other passes finished; everything else
+  in this document was measured at loads of 3-82 and rests on counts, not time.
 - No production load, no authenticated production request; compression in production
   could not be confirmed read-only (no public response above 4 KB).
 - **Provider latency is not modelled** — the mock answers instantly and never returns

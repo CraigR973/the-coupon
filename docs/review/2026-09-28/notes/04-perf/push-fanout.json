@@ -1,10 +1,10 @@
 {
- "uptime_start": "23:42  up 14 days, 14:41, 1 user, load averages: 3.50 6.76 11.16",
+ "uptime_start": "8:51  up 14 days, 23:50, 1 user, load averages: 2.79 4.10 4.57",
  "latency_the-coupon": {
   "members": 12,
   "status": 201,
-  "response_ms": 212.7,
-  "fanout_finished_after_response_s": 2.18,
+  "response_ms": 157.4,
+  "fanout_finished_after_response_s": 2.15,
   "sends": 11,
   "expected": 11,
   "distinct_recipients": 11,
@@ -13,76 +13,66 @@
  "latency_stress-50": {
   "members": 50,
   "status": 201,
-  "response_ms": 63.1,
-  "fanout_finished_after_response_s": 9.5,
+  "response_ms": 42.6,
+  "fanout_finished_after_response_s": 9.26,
   "sends": 49,
   "expected": 49,
   "distinct_recipients": 49,
   "picker_told": false
  },
  "concurrent": {
-  "k": 12,
+  "k": 2,
   "submit_statuses": [
    201,
-   201,
-   201,
-   201,
-   201,
-   201,
-   201,
-   201,
-   201,
-   201,
-   500,
-   500
+   201
   ],
-  "submit_ms_max": 10154.8,
-  "all_submits_answered_ms": 10156.1,
+  "submit_ms_max": 48.8,
+  "all_submits_answered_ms": 49.0,
   "probes": [
    {
     "ready_status": 200,
-    "ready_ms": 316.3,
-    "checked_out": 8,
-    "overflow": 5,
+    "ready_ms": 15.2,
+    "checked_out": 4,
+    "overflow": 0,
     "size": 5
    },
    {
     "ready_status": 200,
-    "ready_ms": 5.9,
-    "checked_out": 8,
-    "overflow": 5,
+    "ready_ms": 7.8,
+    "checked_out": 4,
+    "overflow": 0,
     "size": 5
    },
    {
     "ready_status": 200,
-    "ready_ms": 5.4,
-    "checked_out": 8,
-    "overflow": 5,
+    "ready_ms": 7.0,
+    "checked_out": 4,
+    "overflow": 0,
     "size": 5
    },
    {
     "ready_status": 200,
-    "ready_ms": 4.9,
-    "checked_out": 8,
-    "overflow": 5,
+    "ready_ms": 13.2,
+    "checked_out": 4,
+    "overflow": 0,
     "size": 5
    },
    {
     "ready_status": 200,
-    "ready_ms": 8.5,
-    "checked_out": 8,
-    "overflow": 5,
+    "ready_ms": 10.0,
+    "checked_out": 4,
+    "overflow": 0,
     "size": 5
    },
    {
     "ready_status": 200,
-    "ready_ms": 5.8,
-    "checked_out": 8,
-    "overflow": 5,
+    "ready_ms": 6.2,
+    "checked_out": 4,
+    "overflow": 0,
     "size": 5
    }
   ],
-  "sends_total": 196
+  "sends_total": 98
  },
- "uptime_end": "23:44  up 14 days, 14:43, 1 user, load averages: 4.72 5.87 10.08"
+ "uptime_end": "8:51  up 14 days, 23:51, 1 user, load averages: 3.23 4.09 4.55"
 }

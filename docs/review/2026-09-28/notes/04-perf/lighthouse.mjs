@@ -33,7 +33,7 @@ await signIn();
 async function quiet() {
   const t0 = Date.now();
   while (loadavg()[0] >= 4) {
-    if (Date.now() - t0 > waitMin * 60000) return false;
+    if (Date.now() - t0 > waitMin * 60000) return true; // lead, 30 Sep: take it anyway, load recorded
     await new Promise((r) => setTimeout(r, 15000));
   }
   return true;

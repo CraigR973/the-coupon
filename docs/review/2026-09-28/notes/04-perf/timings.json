@@ -1,0 +1,46 @@
+{
+ "sequential": {
+  "home summary (Alice, 3 leagues)": {
+   "status": 200,
+   "p50_ms": 37.2,
+   "p95_ms": 44.4,
+   "uptime": "8:51  up 14 days, 23:50, 1 user, load averages: 3.00 4.23 4.63"
+  },
+  "current round (264 fully priced)": {
+   "status": 200,
+   "p50_ms": 152.6,
+   "p95_ms": 217.8,
+   "uptime": "8:51  up 14 days, 23:50, 1 user, load averages: 2.92 4.19 4.61"
+  },
+  "standings": {
+   "status": 200,
+   "p50_ms": 15.1,
+   "p95_ms": 16.2,
+   "uptime": "8:51  up 14 days, 23:50, 1 user, load averages: 2.92 4.19 4.61"
+  },
+  "standings, stress league": {
+   "status": 200,
+   "p50_ms": 26.6,
+   "p95_ms": 27.4,
+   "uptime": "8:51  up 14 days, 23:50, 1 user, load averages: 2.92 4.19 4.61"
+  },
+  "rounds list, stress league": {
+   "status": 200,
+   "p50_ms": 17.2,
+   "p95_ms": 30.5,
+   "uptime": "8:51  up 14 days, 23:50, 1 user, load averages: 2.76 4.14 4.59"
+  },
+  "combined coupon": {
+   "status": 200,
+   "p50_ms": 14.9,
+   "p95_ms": 17.4,
+   "uptime": "8:51  up 14 days, 23:50, 1 user, load averages: 2.76 4.14 4.59"
+  }
+ },
+ "concurrent_20_home_summaries": {
+  "p50_ms": 547.4,
+  "p95_ms": 705.2,
+  "max_ms": 708.8,
+  "uptime": "8:51  up 14 days, 23:50, 1 user, load averages: 2.76 4.14 4.59"
+ }
+}

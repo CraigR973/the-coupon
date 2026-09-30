@@ -25,7 +25,7 @@ API = "http://127.0.0.1:8140"
 HERE = Path(__file__).resolve().parent
 
 
-async def quiet(max_wait: float = 1200) -> str:
+async def quiet(max_wait: float = 600) -> str:
     t0 = time.time()
     while os.getloadavg()[0] >= 4 and time.time() - t0 < max_wait:
         await asyncio.sleep(15)

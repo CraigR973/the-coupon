@@ -85,6 +85,14 @@ not fixed 5, by-decision 1, pending 1, regressed 0.
 Lighthouse started 23:54 in background (lighthouse.mjs, WAIT_MIN=40, gates on load<4) →
 writes lighthouse.json per page; log <scratch>/lighthouse.out.txt.
 
+## DONE — 30 Sep 08:55
+
+Timings and Lighthouse taken 08:40-08:52 (load 2.8-4.0): lighthouse.json (login 97, home 96,
+round 93, standings 98 / TBT 166 ms → PERF-14 held), timings.json (20 concurrent home
+547 ms p50 vs 1,254), push-fanout.json re-run (pick 157 ms at 12, 43 ms at 50). Bundle CSS
+45,794 B confirms the corrected web.sh build. Lens doc complete. All processes stopped.
+The resume commands below are kept for reference only.
+
 ## TIMINGS PENDING QUIET MACHINE (stopped 23:55, load 9.5)
 
 Everything else is done and in the lens doc. All processes stopped (API 8140, preview

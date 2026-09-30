@@ -1,0 +1,374 @@
+{
+ "lighthouse": "13.5.0",
+ "chromium": "148.0.7778.96",
+ "pages": {
+  "home": {
+   "path": "/",
+   "runs": [
+    {
+     "uptime": "8:44  up 14 days, 23:43, 1 user, load averages: 3.66 4.92 4.90",
+     "final_url": "http://127.0.0.1:4340/",
+     "score": 93,
+     "tbt_ms": 326,
+     "lcp_ms": 298,
+     "fcp_ms": 133,
+     "si_ms": 530,
+     "cls": 0,
+     "mainthread": [
+      [
+       "other",
+       1126
+      ],
+      [
+       "scriptEvaluation",
+       751
+      ],
+      [
+       "styleLayout",
+       484
+      ],
+      [
+       "paintCompositeRender",
+       72
+      ]
+     ]
+    },
+    {
+     "uptime": "8:46  up 14 days, 23:46, 1 user, load averages: 3.70 4.77 4.87",
+     "final_url": "http://127.0.0.1:4340/",
+     "score": 98,
+     "tbt_ms": 161,
+     "lcp_ms": 353,
+     "fcp_ms": 195,
+     "si_ms": 407,
+     "cls": 0,
+     "mainthread": [
+      [
+       "other",
+       792
+      ],
+      [
+       "scriptEvaluation",
+       620
+      ],
+      [
+       "styleLayout",
+       370
+      ],
+      [
+       "paintCompositeRender",
+       71
+      ]
+     ]
+    },
+    {
+     "uptime": "8:47  up 14 days, 23:46, 1 user, load averages: 3.88 4.79 4.87",
+     "final_url": "http://127.0.0.1:4340/",
+     "score": 96,
+     "tbt_ms": 193,
+     "lcp_ms": 164,
+     "fcp_ms": 85,
+     "si_ms": 395,
+     "cls": 0.061,
+     "mainthread": [
+      [
+       "other",
+       825
+      ],
+      [
+       "scriptEvaluation",
+       679
+      ],
+      [
+       "styleLayout",
+       340
+      ],
+      [
+       "paintCompositeRender",
+       134
+      ]
+     ]
+    }
+   ],
+   "median_score": 96,
+   "median_tbt_ms": 193,
+   "median_lcp_ms": 298
+  },
+  "current_round": {
+   "path": "/leagues/the-coupon/predictions",
+   "runs": [
+    {
+     "uptime": "8:47  up 14 days, 23:46, 1 user, load averages: 3.65 4.73 4.85",
+     "final_url": "http://127.0.0.1:4340/leagues/the-coupon/predictions",
+     "score": 95,
+     "tbt_ms": 122,
+     "lcp_ms": 846,
+     "fcp_ms": 734,
+     "si_ms": 734,
+     "cls": 0.118,
+     "mainthread": [
+      [
+       "scriptEvaluation",
+       598
+      ],
+      [
+       "other",
+       427
+      ],
+      [
+       "styleLayout",
+       215
+      ],
+      [
+       "paintCompositeRender",
+       61
+      ]
+     ]
+    },
+    {
+     "uptime": "8:48  up 14 days, 23:47, 1 user, load averages: 3.99 4.69 4.83",
+     "final_url": "http://127.0.0.1:4340/leagues/the-coupon/predictions",
+     "score": 93,
+     "tbt_ms": 202,
+     "lcp_ms": 834,
+     "fcp_ms": 722,
+     "si_ms": 722,
+     "cls": 0.118,
+     "mainthread": [
+      [
+       "other",
+       886
+      ],
+      [
+       "scriptEvaluation",
+       712
+      ],
+      [
+       "styleLayout",
+       263
+      ],
+      [
+       "paintCompositeRender",
+       105
+      ]
+     ]
+    },
+    {
+     "uptime": "8:48  up 14 days, 23:47, 1 user, load averages: 3.99 4.67 4.82",
+     "final_url": "http://127.0.0.1:4340/leagues/the-coupon/predictions",
+     "score": 92,
+     "tbt_ms": 79,
+     "lcp_ms": 989,
+     "fcp_ms": 866,
+     "si_ms": 866,
+     "cls": 0.178,
+     "mainthread": [
+      [
+       "other",
+       687
+      ],
+      [
+       "scriptEvaluation",
+       541
+      ],
+      [
+       "styleLayout",
+       201
+      ],
+      [
+       "paintCompositeRender",
+       88
+      ]
+     ]
+    }
+   ],
+   "median_score": 93,
+   "median_tbt_ms": 122,
+   "median_lcp_ms": 846
+  },
+  "standings": {
+   "path": "/leagues/the-coupon/leaderboard",
+   "runs": [
+    {
+     "uptime": "8:49  up 14 days, 23:48, 1 user, load averages: 3.97 4.68 4.82",
+     "final_url": "http://127.0.0.1:4340/leagues/the-coupon/leaderboard",
+     "score": 98,
+     "tbt_ms": 166,
+     "lcp_ms": 1025,
+     "fcp_ms": 901,
+     "si_ms": 901,
+     "cls": 0,
+     "mainthread": [
+      [
+       "other",
+       890
+      ],
+      [
+       "scriptEvaluation",
+       582
+      ],
+      [
+       "styleLayout",
+       180
+      ],
+      [
+       "paintCompositeRender",
+       51
+      ]
+     ]
+    },
+    {
+     "uptime": "8:49  up 14 days, 23:48, 1 user, load averages: 3.73 4.62 4.80",
+     "final_url": "http://127.0.0.1:4340/leagues/the-coupon/leaderboard",
+     "score": 95,
+     "tbt_ms": 238,
+     "lcp_ms": 799,
+     "fcp_ms": 715,
+     "si_ms": 715,
+     "cls": 0.061,
+     "mainthread": [
+      [
+       "other",
+       691
+      ],
+      [
+       "scriptEvaluation",
+       516
+      ],
+      [
+       "styleLayout",
+       177
+      ],
+      [
+       "paintCompositeRender",
+       79
+      ]
+     ]
+    },
+    {
+     "uptime": "8:49  up 14 days, 23:48, 1 user, load averages: 3.85 4.57 4.77",
+     "final_url": "http://127.0.0.1:4340/leagues/the-coupon/leaderboard",
+     "score": 100,
+     "tbt_ms": 77,
+     "lcp_ms": 858,
+     "fcp_ms": 739,
+     "si_ms": 739,
+     "cls": 0,
+     "mainthread": [
+      [
+       "scriptEvaluation",
+       574
+      ],
+      [
+       "other",
+       449
+      ],
+      [
+       "styleLayout",
+       160
+      ],
+      [
+       "paintCompositeRender",
+       51
+      ]
+     ]
+    }
+   ],
+   "median_score": 98,
+   "median_tbt_ms": 166,
+   "median_lcp_ms": 858
+  },
+  "login": {
+   "path": "/login",
+   "runs": [
+    {
+     "uptime": "8:49  up 14 days, 23:48, 1 user, load averages: 3.71 4.53 4.76",
+     "final_url": "http://127.0.0.1:4340/login",
+     "score": 97,
+     "tbt_ms": 74,
+     "lcp_ms": 1865,
+     "fcp_ms": 1865,
+     "si_ms": 1865,
+     "cls": 0.061,
+     "mainthread": [
+      [
+       "other",
+       335
+      ],
+      [
+       "scriptEvaluation",
+       186
+      ],
+      [
+       "styleLayout",
+       123
+      ],
+      [
+       "paintCompositeRender",
+       53
+      ]
+     ]
+    },
+    {
+     "uptime": "8:50  up 14 days, 23:49, 1 user, load averages: 3.81 4.54 4.76",
+     "final_url": "http://127.0.0.1:4340/login",
+     "score": 97,
+     "tbt_ms": 57,
+     "lcp_ms": 1974,
+     "fcp_ms": 1974,
+     "si_ms": 1974,
+     "cls": 0.059,
+     "mainthread": [
+      [
+       "other",
+       253
+      ],
+      [
+       "scriptEvaluation",
+       186
+      ],
+      [
+       "styleLayout",
+       122
+      ],
+      [
+       "paintCompositeRender",
+       39
+      ]
+     ]
+    },
+    {
+     "uptime": "8:50  up 14 days, 23:49, 1 user, load averages: 3.74 4.48 4.73",
+     "final_url": "http://127.0.0.1:4340/login",
+     "score": 96,
+     "tbt_ms": 26,
+     "lcp_ms": 2143,
+     "fcp_ms": 2061,
+     "si_ms": 2061,
+     "cls": 0.059,
+     "mainthread": [
+      [
+       "other",
+       206
+      ],
+      [
+       "scriptEvaluation",
+       157
+      ],
+      [
+       "styleLayout",
+       123
+      ],
+      [
+       "paintCompositeRender",
+       35
+      ]
+     ]
+    }
+   ],
+   "median_score": 97,
+   "median_tbt_ms": 57,
+   "median_lcp_ms": 1974
+  }
+ }
+}

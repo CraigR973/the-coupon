@@ -1,0 +1,88 @@
+{
+ "uptime_start": "23:42  up 14 days, 14:41, 1 user, load averages: 3.50 6.76 11.16",
+ "latency_the-coupon": {
+  "members": 12,
+  "status": 201,
+  "response_ms": 212.7,
+  "fanout_finished_after_response_s": 2.18,
+  "sends": 11,
+  "expected": 11,
+  "distinct_recipients": 11,
+  "picker_told": false
+ },
+ "latency_stress-50": {
+  "members": 50,
+  "status": 201,
+  "response_ms": 63.1,
+  "fanout_finished_after_response_s": 9.5,
+  "sends": 49,
+  "expected": 49,
+  "distinct_recipients": 49,
+  "picker_told": false
+ },
+ "concurrent": {
+  "k": 12,
+  "submit_statuses": [
+   201,
+   201,
+   201,
+   201,
+   201,
+   201,
+   201,
+   201,
+   201,
+   201,
+   500,
+   500
+  ],
+  "submit_ms_max": 10154.8,
+  "all_submits_answered_ms": 10156.1,
+  "probes": [
+   {
+    "ready_status": 200,
+    "ready_ms": 316.3,
+    "checked_out": 8,
+    "overflow": 5,
+    "size": 5
+   },
+   {
+    "ready_status": 200,
+    "ready_ms": 5.9,
+    "checked_out": 8,
+    "overflow": 5,
+    "size": 5
+   },
+   {
+    "ready_status": 200,
+    "ready_ms": 5.4,
+    "checked_out": 8,
+    "overflow": 5,
+    "size": 5
+   },
+   {
+    "ready_status": 200,
+    "ready_ms": 4.9,
+    "checked_out": 8,
+    "overflow": 5,
+    "size": 5
+   },
+   {
+    "ready_status": 200,
+    "ready_ms": 8.5,
+    "checked_out": 8,
+    "overflow": 5,
+    "size": 5
+   },
+   {
+    "ready_status": 200,
+    "ready_ms": 5.8,
+    "checked_out": 8,
+    "overflow": 5,
+    "size": 5
+   }
+  ],
+  "sends_total": 196
+ },
+ "uptime_end": "23:44  up 14 days, 14:43, 1 user, load averages: 4.72 5.87 10.08"
+}
