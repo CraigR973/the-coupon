@@ -52,7 +52,7 @@ README's scorecard is built from this table.
 | PERF-11 | MED | 163 | 04 | held | 04: SW filters role-gated chunks; 70 entries |
 | PERF-12 | MED | 164 | 04 | held | 04: no framer-motion in any chunk; 697 KiB / 238 KiB gzip |
 | PERF-13 | MED | 165 | 04 | held | 04: countdown no longer re-renders the screen |
-| PERF-14 | MED | 166 (closed by re-measurement) | 04 | pending | 04: Lighthouse needs a quiet machine |
+| PERF-14 | MED | 166 (closed by re-measurement) | 04 | held | 04: Lighthouse standings 98, TBT 166 ms (was 77 / 915) |
 | PERF-15 | LOW | 165 | 04 | held | 04: both contexts memoised |
 | PERF-16 | LOW | 165 | 04 | partial | 04: standings key fixed; 42 inline keys remain |
 | PERF-17 | LOW | 164 | 04 | not fixed | 04: /login still loads 3 fonts, 48.8 KiB |
@@ -100,8 +100,8 @@ README's scorecard is built from this table.
 
 ## Totals (30 Sep)
 
-81 items (SEC-24 withdrawn in 2026-09-13): **46 held · 21 partial · 11 not fixed · 0 regressed**,
-2 unchanged by decision or accepted (PERF-02, CORR-16), 1 pending (PERF-14, Lighthouse).
+81 items (SEC-24 withdrawn in 2026-09-13): **47 held · 21 partial · 11 not fixed · 0 regressed**,
+2 unchanged by decision or accepted (PERF-02, CORR-16).
 Of the 11 not fixed, 2 were ticked by the batch that claimed them (CORR-13 by 121, PERF-17 by
 164); 5 never had a batch (UX-18, OPS-17, OPS-18 omitted; SEC-22 and OPS-15 dropped between the
 plan and Batch 127); 2 were held back deliberately (FEAT-A12, FEAT-B09); 2 are owner actions

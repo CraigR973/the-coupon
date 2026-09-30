@@ -51,7 +51,7 @@ untouched, per the owner's decision.
 | 01 security | **done** 14:45 — 20 held / 3 partial / 1 not fixed; SEC-27..31 | `notes/01-security/` | |
 | 02 correctness | **done** 14:45 — 7 held / 3 partial / 1 not fixed / 1 accepted; CORR-19..27 | `notes/02-correctness/` | |
 | 03 UX / a11y | **done** 30 Sep 00:18 — 9 held / 3 partial / 1 not fixed; UX-21..33; 422 captures | `notes/03-ux/` | |
-| 04 performance / ops | all but timings done 29 Sep 23:55; resumed 30 Sep 00:31 for Lighthouse + timings on the quiet machine | `notes/04-perf/` | |
+| 04 performance / ops | **done** 30 Sep 08:52 — 16 held / 1 partial / 5 not fixed; PERF-18..23, OPS-19; Lighthouse on the quiet machine | `notes/04-perf/` | |
 | 05 feature gaps | **done** ~18:45 — 3 held / 1 partial / 5 not fixed; FEAT-A13..15, B10..12 | `notes/05-features/` | |
 | 06 premium design | **done** 30 Sep 00:28 — 3 held / 6 partial; DES-10..23; top ten + 4 mockups; 99 captures | `notes/06-design/` | |
 | 07 agent pipeline | **done** 14:45 — 4 held / 4 partial / 1 not fixed; PIPE-10..19 | `notes/07-pipeline/` | |
@@ -70,11 +70,10 @@ untouched, per the owner's decision.
 | Batches 169-203 in `docs/BUILD_PLAN.md` | done (`5e196de`) |
 | `08-sequencing.md`, `09-prompts.md` | done |
 | `10-reconciliation.md` | done — SEC-32 raised, DES-16 merged, no withdrawals |
-| `README.md` | done (`238b59e`), pending lens 04's timings |
+| `README.md` | done, timings folded in 30 Sep 08:55 |
 | doc corrections | applied, `notes/lead/doc-corrections.md` |
 
 ## Exact next step
 
-When lens 04 reports its timings: check `04-performance-operations.md` PERF-14 and timing rows,
-update the README's "What this review did not do" first bullet and, if a timing changes a
-finding, the register; commit; send `README.md` to the owner. Do not merge or push.
+**Review complete (30 Sep 08:55).** Awaiting the owner's review of the register and answers to
+the README's decisions. Do not merge, push, `/ship-prod` or `/batch-start` anything until then.

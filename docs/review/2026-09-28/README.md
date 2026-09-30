@@ -65,16 +65,16 @@ Green on `main` `eb18bcb`, run twice:
 
 ## Did the fixes work? The prior-register scorecard
 
-81 items from 2026-09-13 (SEC-24 was withdrawn there), each re-driven against something running:
+81 items from 2026-09-13 (SEC-24 was withdrawn there), each re-driven against something running —
+**47 held, 21 partial, 11 not fixed, 0 regressed**, 2 by decision:
 
 | verdict | count | which |
 | --- | --- | --- |
-| **held** | **46** | the claim race, the stray round's scoring, the lockout push, join codes, site-admin writes, CSP, logout storage, void win rate, extra weeks and the anchor, the DST reminder, rank removed, landmarks, contrast, the toast live regions, every provider-budget fix, compression, indexes, the precache, the animation library, the countdown, Node 24, the migration recovery note, alarm routing, account deletion and export, the settle notice, the rename notice, the gate's port and ratchet, the cold-start trim, the name redaction |
+| **held** | **47** | the claim race, the stray round's scoring, the lockout push, join codes, site-admin writes, CSP, logout storage, void win rate, extra weeks and the anchor, the DST reminder, rank removed, landmarks, contrast, the toast live regions, every provider-budget fix, compression, indexes, the precache, the animation library, the countdown, standings' main-thread cost, Node 24, the migration recovery note, alarm routing, account deletion and export, the settle notice, the rename notice, the gate's port and ratchet, the cold-start trim, the name redaction |
 | **partial** | **21** | SEC-15, SEC-18, SEC-20, CORR-14, CORR-15, void legs, UX-14, UX-15, UX-20, PERF-16, FEAT-A10, PIPE-02, 04, 05, 06, DES-01, 02, 03, 05, 06, 08 |
 | **not fixed** | **11** | CORR-13 and PERF-17 (ticked by 121 and 164, not fixed); UX-18, OPS-17, OPS-18 (never batched); SEC-22, OPS-15 (dropped between the plan and Batch 127); FEAT-A12, FEAT-B09 (held back); OPS-13 backups, PIPE-01 local config (owner actions) |
 | **regressed** | **0** | — |
 | accepted / by decision | 2 | CORR-16, PERF-02 |
-| pending | 1 | PERF-14 (Lighthouse on standings) — see "What this review did not do" |
 
 **The pattern in the partials** is one shape repeated: a fix covers the exact case the finding
 described and misses its neighbour. The admin guard stops a reset of a current admin but not of
@@ -157,8 +157,11 @@ an owner action, or an explicit acceptance.
   byte-identically, and failed safely on every misconfiguration tried. Only switching it on remains.
 - **The provider budget is honest now.** The counter equals a counting fake in every simulated
   hour; three windows went from 145/hour and 527/day to 72 and 337.
-- **The web client got lighter.** 823.6 → 697.3 KiB of JS, no animation library, no admin chunks
-  in the precache, the countdown no longer re-renders the screen, no text under 12 px.
+- **The web client got lighter and faster.** 823.6 → 697.3 KiB of JS, no animation library, no
+  admin chunks in the precache, the countdown no longer re-renders the screen, no text under 12 px.
+  Lighthouse mobile (median of 3, quiet machine): login 97, home 96, round 93, **standings 98 —
+  from 77, blocking time 915 → 166 ms**. A pick now answers in 157 ms at 12 members and 43 ms at
+  50, with every alert still delivered once.
 - **Time is right.** Reminders across both 2026/27 clock changes fire once per round; London, New
   York and Sydney members see correct lock times.
 - **Accessibility basics are complete.** Zero unnamed controls, zero 24 px target failures,
@@ -240,9 +243,9 @@ attribute the storage-egress consumer (FEAT-A09), which the backup's bucket choi
 
 ## What this review did not do
 
-- **Lighthouse and the wall-clock timings** (PERF-14 and lens 04's timing rows) were staged for a
-  quiet machine and were still running when this README was written; `04-performance-operations.md`
-  records their state at the final commit.
+- **Timings are one sitting each** on a shared 4-core Mac (load 2.8-4.0, recorded beside every
+  number), so counts, bytes and plans are the primary evidence; Lighthouse was taken last, on the
+  quiet machine, after the four interruptions.
 - **No real device or screen reader.** WebKit will not install on this Mac, so iOS standalone
   rendering is judged from files and geometry (DES-18).
 - **Pushes were not observed** — the harness has no VAPID keys; who is targeted was counted.
