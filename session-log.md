@@ -7534,3 +7534,24 @@ and 1,212 frontend tests passed, 0 skipped; production-bundle deep-link smoke pa
   `026`. No `/ship-prod` is owed.
 
 **Next:** `/group-start AG`.
+
+## Batch 198 — The gate is judged by the branch's own copy of the gate
+**Commits:** `e865d77` · verified: `scripts/ci-local.sh` PASS (11 checks); 1,350 backend
+and 1,212 frontend tests passed, 0 skipped
+
+### Key facts for future sessions
+- **`main` is the trust anchor.** The local gate executes `main`'s guardrail, approval table and
+  open Batch row; a branch cannot approve itself or disable that check with its own guard edit.
+- **Configuration is protected by pattern.** Nested pytest, mypy, Ruff, ESLint, Vitest and
+  TypeScript overrides, migration-recovery checks and every `AGENTS.md` now reach the guard.
+- **Count-preserving bypasses are refused.** Added skip, xfail, todo, only, type/lint suppression
+  and trivial-oracle forms fail, as do removed tests, assertions and expectations.
+- **A green tree is now evidence.** The complete 11-check gate writes an exact-tree stamp;
+  partial gates do not, stale or malformed stamps fail, and close-out reruns the gate after its
+  documentation commit before pushing.
+- **Attack rehearsal:** G01-G24, self-approval, the six-at-once weakening and a missing stamp all
+  failed in an isolated clone; the legitimate unprotected-change control passed.
+- **Close-out safety:** tooling/docs only; the pre-push API drift check was in sync, so no
+  `/ship-prod` is owed by this batch. The full gate passed first run.
+
+**Next:** Batch 200 — put the existing coupon journey inside the gate and CI.

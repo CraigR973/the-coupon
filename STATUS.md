@@ -72,16 +72,19 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Batches 170-203 are drafted and unstarted (2026-09-30), from the 2026-09-28 review, now on
-`main`; every owner decision they needed was answered on 30 Sep. Batch 169 completed on 30 Sep;
-next is `/group-start AG`, then AA, AC, AD, AE, AB, AF and AH, in that order
-(`docs/agent-commands/group-start.md`; the reasons are in the review's `08-sequencing.md`).
+Batches 170-203 are drafted from the 2026-09-28 review and every owner decision they needed
+was answered on 30 Sep. Batches 169 and 198 completed on 30 Sep; Group AG resumes at Batch 200,
+then 199 and 201 before its `/ship-prod` checkpoint. Groups AA, AC, AD, AE, AB, AF and AH follow
+in that order (`docs/agent-commands/group-start.md`; the reasons are in the review's
+`08-sequencing.md`).
 
 ## Toolchain
 
 Checked 2026-09-24.
 
-- **The gate is `scripts/ci-local.sh`**: eleven checks and no skips. It refuses a test
+- **The gate is `scripts/ci-local.sh`**: eleven checks and no skips. A full green run stamps the
+  exact Git tree; close-out reruns it after the documentation commit and refuses a push without
+  that matching stamp. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
   (backend 1,350, frontend 1,212). 11 to 13 minutes on this Mac (11m18s on 2026-09-28), and
   38 when macOS's storage scan loads it (2026-09-25). Without a database the backend suite is
@@ -93,10 +96,10 @@ Checked 2026-09-24.
   any other pnpm. CI and the Vercel build are Node 24 too (`apps/web` pins `24.x`). The
   ambient `node` is too old for the tooling, and nvm's default alias is still 20.
 - **Scratch PostgreSQL** is pip `pgserver`, started and discarded by the gate.
-- **Protected files**: `scripts/assert-quality-guardrails.sh` fails any batch that edits
-  the gate scripts, the CI workflow, the close-out workflow, `apps/web/package.json`,
-  `apps/api/requirements-dev.txt`, or the lint, type and build configuration — unless the
-  owner has named that batch and those files in the script, while its row is open.
+- **Protected files**: `scripts/ci-local.sh` runs `main`'s guard and owner-approval table, not the
+  branch's. The guard protects gate, close-out, CI, lint, type and test-discovery configuration by
+  pattern; it also refuses recorded skip, suppression and weakened-oracle forms. An approved
+  gate-maintenance batch must have its exact file list quoted in its open row on `main`.
 - **Production reads**: the direct IPv6 database connection works — `railway run` with the
   explicit production selectors, then a local asyncpg script (2026-09-27); `railway ssh`
   worked on 2026-09-26. Both routes have flipped before, so probe rather than trust this

@@ -651,7 +651,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: the invite landing. **API + web (safe before the API ships).**
 
-- [ ] **Batch 198 — The gate is judged by the branch's own copy of the gate**
+- [x] **Batch 198 — The gate is judged by the branch's own copy of the gate** ✅ 2026-09-30
   — specified from `docs/review/2026-09-28/07-agent-pipeline.md`, PIPE-10 and PIPE-11 (MED,
   live, verified; PIPE-04 partial). `ci-local.sh` runs the guardrail from the working tree, and
   the guardrail's protected list and approval table live inside it: prepending `exit 0` passes;
