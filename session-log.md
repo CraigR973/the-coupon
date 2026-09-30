@@ -7555,3 +7555,29 @@ and 1,212 frontend tests passed, 0 skipped
   `/ship-prod` is owed by this batch. The full gate passed first run.
 
 **Next:** Batch 200 — put the existing coupon journey inside the gate and CI.
+
+## Batch 200 — The only end-to-end journey runs outside the gate
+**Commits:** `3b892ad` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,350 backend
+and 1,212 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped
+
+### Key facts for future sessions
+- **The journey is the gate's twelfth check.** It builds a bundle for its own API, serves the
+  seeded e2e API on 8174 and a strict-port preview on 4174, and requires each server's own
+  bind line plus an HTTP answer before Playwright runs, with no retries.
+  `JOURNEY_TEST_COUNT=1` makes a skipped, missing or unrecorded journey fail.
+- **CI runs the same runner.** The `coupon-journey` job calls `ci-local.sh --journey-only`,
+  which skips the guardrail (a CI checkout has no local `main`) and can never stamp. It could
+  not run on GitHub before this push; a CI-shaped local run (Node 24 preselected, `CI=true`)
+  passed in 1m29s.
+- **Evidence:** screenshots, traces and server logs land in `apps/web/test-results/coupon-journey/`,
+  replaced every run; CI uploads that folder on failure. `SKIP_PROD_BUNDLE=1` now drops both
+  browser checks.
+- **Rehearsals, all refused:** a pick request missing its outcome (failed at Alice's first pick),
+  a foreign server answering on 4174 and on 8174 (failed before Playwright ran), `test.fixme()`
+  (0 passed, 1 skipped) and a deleted journey count. Each break was reverted before the gate.
+- **Left stale, protected outside this batch's approval:** `AGENTS.md` still says eleven checks,
+  and `check-closeout-safety.sh` still asks for "the complete 11-check" gate.
+- **Close-out safety:** tooling/docs only; the pre-push drift check was in sync at migration
+  `026`, so no `/ship-prod` is owed by this batch. The full gate passed first run.
+
+**Next:** Batch 199 — close-out waits for CI on the pushed SHA; CI gains the guardrail and ratchet.

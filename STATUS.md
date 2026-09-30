@@ -73,8 +73,8 @@ These are not batches; nothing here will happen unless the owner does it or auth
 ## Open batches
 
 Batches 170-203 are drafted from the 2026-09-28 review and every owner decision they needed
-was answered on 30 Sep. Batches 169 and 198 completed on 30 Sep; Group AG resumes at Batch 200,
-then 199 and 201 before its `/ship-prod` checkpoint. Groups AA, AC, AD, AE, AB, AF and AH follow
+was answered on 30 Sep. Batches 169, 198 and 200 completed on 30 Sep; Group AG resumes at Batch
+199, then 201 before its `/ship-prod` checkpoint. Groups AA, AC, AD, AE, AB, AF and AH follow
 in that order (`docs/agent-commands/group-start.md`; the reasons are in the review's
 `08-sequencing.md`).
 
@@ -82,12 +82,14 @@ in that order (`docs/agent-commands/group-start.md`; the reasons are in the revi
 
 Checked 2026-09-24.
 
-- **The gate is `scripts/ci-local.sh`**: eleven checks and no skips. A full green run stamps the
+- **The gate is `scripts/ci-local.sh`**: twelve checks and no skips, the twelfth being the seeded
+  coupon journey (2026-09-30). GitHub's `coupon-journey` job runs the same runner through
+  `ci-local.sh --journey-only`; its first GitHub run is Batch 200's close-out push. A full green run stamps the
   exact Git tree; close-out reruns it after the documentation commit and refuses a push without
   that matching stamp. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,350, frontend 1,212). 11 to 13 minutes on this Mac (11m18s on 2026-09-28), and
-  38 when macOS's storage scan loads it (2026-09-25). Without a database the backend suite is
+  (backend 1,350, frontend 1,212, journey 1). 13m04s on this Mac with the journey (2026-09-30), and
+  38 minutes when macOS's storage scan loads it (2026-09-25). Without a database the backend suite is
   800 passed and 550 skipped at 1,350 tests (2026-09-29) — not the gate.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
   `apps/api/requirements-dev.txt`: Python 3.12, FastAPI 0.141.1, ruff 0.5.4. app-starter's

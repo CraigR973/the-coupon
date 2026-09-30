@@ -707,7 +707,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: close-out's CI step, CI's checks, two tests. **Tooling-only — owner-approved
   gate maintenance (edits `phase-closeout.md` and `.github/workflows/ci.yml`).**
 
-- [ ] **Batch 200 — The only end-to-end journey runs outside the gate**
+- [x] **Batch 200 — The only end-to-end journey runs outside the gate** ✅ 2026-09-30
   — specified from `docs/review/2026-09-28/07-agent-pipeline.md`, PIPE-13 (MED, live, verified).
   `apps/web/e2e/coupon-flow.spec.ts` — unique claims, lock, settle, standings through the real
   bundle and API — runs in neither `ci-local.sh` nor CI. It broke on 23 Sep (Batches 139 and
