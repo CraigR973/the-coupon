@@ -53,3 +53,29 @@ than warned. The fix direction and the options remain an owner decision.
 | PIPE-10 | `scripts/ci-local.sh:36` runs `"$ROOT/scripts/assert-quality-guardrails.sh"` from the working tree | confirmed |
 | PIPE-12 | `gh run list --limit 300` (29 Sep 18:40): 72 runs on `main` since 20 Sep, 8 failures — c7a50bb, a689a57, 48b6627, 0ff3e8c, d1b9ee9, 7ef953d (22 Sep), ac54a71, bf97763 (23 Sep). Note: `gh run list --branch main` silently returns only 16 of them, which first read as 6 failures | confirmed |
 | PIPE-11, 13-19 | evidence files in `notes/07-pipeline/`; commit ids recorded there | confirmed by the lens's replays; not re-run by the lead |
+
+## 03, 04, 05, 06 (checked 30 Sep ~08:50; code unchanged since the lenses ran — only `docs/` moved)
+
+| id | checked at | verdict |
+| --- | --- | --- |
+| UX-18 | `PickRow.tsx:238` `lost && 'opacity-60'` | confirmed, never batched |
+| UX-21 | `PlayerProfilePage.tsx:160` `pick.status === 'lost' && 'opacity-60'` | confirmed |
+| UX-25 | `CurrentRoundPage.tsx:459-467` — `isError` renders `EmptyState` "No coupon this week yet" with the raw error message | confirmed |
+| UX-26 | `TabBar.tsx:173` indicator `absolute top-0` with no `left-0` | confirmed |
+| UX-31 = DES-16 | no `networkMode` anywhere in `apps/web/src`; TanStack Query's default `online` pauses the pick mutation offline, so `usePickEditor.ts`'s Batch 90 offline branch never runs | confirmed — **one defect, two ids; the register keeps UX-31** |
+| DES-10 | `AppToaster.tsx:40-46` `<Toaster richColors …>` with no `theme` prop (sonner defaults to light), and `index.css:430-434` (from `4121cf0`) forces the title to `var(--text-primary)` — near-white in dark mode, on sonner's pale light-theme fills | confirmed by mechanism; lens 06 measured 1.01-1.07:1 |
+| DES-11 | production stylesheet `index-Br02Ny1y.css` fetched 28 Sep: `bg-primary\/15`, `border-error\/40`, `bg-error\/10` — 0 occurrences each; plain `bg-primary` present; `tailwind.config.ts` colours are `var(--…)` with no `<alpha-value>` | confirmed **against production** |
+| DES-17 | `DashboardPage.tsx:334-337` — first-run copy whenever `leagueCount === 0`, which is also the loading and error value | confirmed |
+| DES-20 | lead saw "taken by Former" / "Picked by Dan, Former" in the (unstyled) settled-coupon capture on 29 Sep | confirmed — the lead's own observation, recorded as DES-20 rather than a second id |
+| PERF-18 | `football_data.py:945-952` — `resolve_names` awaited once per competition in a loop | confirmed |
+| PERF-19 | the arithmetic of `coupon.py:30-40` run verbatim: 30 × 7.40, 40 × 4.50 and 50 × 3.40 raise `decimal.InvalidOperation`; 50 × 3.30 passes | confirmed by the lead |
+| PERF-23 | `routers/picks.py:118, 138` both `"50/hour;100/day"` | confirmed |
+| OPS-17 | `scheduler.py` — `misfire_grace_time` set once (`:1088`, the switched-off backup) | confirmed |
+| FEAT-A13 | `admin.py:1348` correct one pick by id; no web caller | confirmed (lens drive: 0 of 17 reads return another member's pick id) |
+| FEAT-A12 | `auth.py:426` checks the switch before the name | confirmed (lens) |
+
+**Corpus.** Lens 06 found 26 of lens 03's "happy"/"firstrun" captures were taken with the
+browser still offline (banner visible, some content missing). None of lens 03's findings rests
+on them — UX-25's error captures carry no banner — but axe runs on those six screens in that
+state may have under-reported. They are marked in `screenshots/INDEX.md`; lens 06 re-captured
+the screens.
