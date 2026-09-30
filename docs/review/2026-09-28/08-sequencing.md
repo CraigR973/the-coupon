@@ -10,7 +10,7 @@ route the deployed API does not serve is broken in production for the length of 
 and PIPE-14 shows the guard does not stop the two-batch version of that.
 
 **Start from level.** Production and `main` are in sync (API `b08a47f3`, migration 026; web
-at `4121cf0`), so no shipment is owed before Group AA starts.
+at `4121cf0`), so no shipment is owed before Batch 169 starts.
 
 ## What to do before any batch — owner actions, not batches
 
@@ -20,6 +20,42 @@ at `4121cf0`), so no shipment is owed before Group AA starts.
 | **Rescope the local agent configuration** (PIPE-01) | unchanged since 30 Jul; this review's own session was offered the Supabase write tools bound to another product |
 | **Do not run the season-calendar backfill until Batch 188 has shipped** | a deleted league's early round would renumber every live league (CORR-25) |
 | ~~Answer the decisions in the README~~ | **answered "yes to all" on 30 Sep**; recorded in each row and, for gate maintenance, in the guardrail |
+
+## The run order, as `/group-start` runs it (2026-09-30)
+
+At the owner's request (30 Sep) these groups are in the `/group-start` manifest
+(`docs/agent-commands/group-start.md`). With 169 run on its own, every phase in
+`09-prompts.md` after the first is exactly one group, so the whole plan is nine commands:
+
+```text
+/batch-start 169    169
+/group-start AG     198 → 200 → 199 → 201 → /ship-prod
+/group-start AA     172 → 173 → 174 → 170
+/group-start AC     180 → 179 → 181 → 182 → /ship-prod
+/group-start AD     183 → 188 → /ship-prod → 184 → 185 → 186 → 187 → /ship-prod
+/group-start AE     189 → 190 → 191 → 192 → 193 → /ship-prod
+/group-start AB     171 → 175 → 176 → 177 → 178
+/group-start AF     196 → 195 → 197 → /ship-prod → 194 → /ship-prod
+/group-start AH     202 → 203 → /ship-prod
+```
+
+Four things differ from the groups as first drafted below; each is recorded in its group.
+
+- **169 runs alone**, outside AA, so `/group-start AA` cannot carry on into 172 before AG has
+  repaired the gate. The command also refuses any AA-AH group but AG while an AG batch is open.
+- **AG and AH end in a `/ship-prod`.** Neither is application work, but 199 and 203 edit files
+  under `apps/api`, which the drift check counts as reaching the API image — and from Batch 201
+  on, close-out refuses any web change while a shipment is owed.
+- **AD ships after 188** as well as at its end, so 183's HIGH is live and the owner can run the
+  season-calendar backfill four batches sooner.
+- **AF ships before 194** as well as after it, so the review's only migration ships alone.
+
+**Pauses inside a group.** Close-out refuses a batch that changes both API and web until the
+owner schedules the matching `/ship-prod` (`phase-closeout.md` step 3), so AC pauses at 179 and
+182, AD at 186 and 187, and AF at every batch. The shipment scheduled there can be the group's
+next checkpoint: it directly follows 187 and 194; 179 and 186 are specified to work before their
+API half ships, and 195 and 197 are too since 30 Sep; and the web halves of 182 (a CSP change)
+and 196 (a filter the old API ignores, a join code it already returns) break nothing in the gap.
 
 ## Group AA — Web fixes members meet today · Batches 169, 170, 172, 173, 174 · **web-only** → no shipment
 
@@ -35,7 +71,10 @@ at `4121cf0`), so no shipment is owed before Group AA starts.
 the default theme meets on the pick path. 172 next: on a Saturday it is the difference
 between "no coupon this week" and "try again". Each reaches members on its own push.
 
-## Group AG — The pipeline · Batches 198, 200, 199, 201 · **tooling-only, deploys nothing**
+Since 30 Sep, Batch 169 sits outside the `/group-start AA` manifest: it runs as
+`/batch-start 169`, then Group AG, then `/group-start AA` (172 → 173 → 174 → 170).
+
+## Group AG — The pipeline · Batches 198, 200, 199, 201 · **tooling-only** → a behaviour-neutral `/ship-prod`
 
 | batch | finding |
 | --- | --- |
@@ -50,6 +89,14 @@ files, so each needs the owner's gate-maintenance approval recorded in the guard
 it starts (the 127/153 pattern). 200 before 199, because putting the journey in the gate is
 what makes CI's result worth waiting for.
 
+**It still ends in a `/ship-prod`** (30 Sep). 199 fixes two backend tests
+(`apps/api/tests/test_durable_rate_limit.py` and `test_scheduler_jobs.py`), and
+`scripts/check-deploy-drift.sh` counts everything under `apps/api` as reaching the API image, so
+after 199 the drift check reports a shipment owed. 201 then makes close-out refuse any web change
+while one is owed, so without the ship Group AA's first batch would be refused. The shipment
+migrates nothing and changes no behaviour, so its rollback is a plain redeploy; if 199 lands
+without touching `apps/api`, the checkpoint finds drift in sync and passes.
+
 ## Group AC — Security · Batches 180, 179, 181, 182 · **API + web** → `/ship-prod`
 
 | batch | finding |
@@ -59,10 +106,11 @@ what makes CI's result worth waiting for.
 | 181 | SEC-29, FEAT-A15 — per-league names (**owner decision 5**) |
 | 182 | SEC-31, CSP hygiene, one stale comment |
 
-180 needs no decision, so it can start while 179's is pending. 179's web half is copy only and
-safe before the API ships.
+180 first; the decisions 179 and 181 waited on (1 and 5) were answered on 30 Sep. 179's web half
+is copy only and safe before the API ships, and 182's is a CSP change, so both close-out pauses
+can schedule the group's one `/ship-prod`.
 
-## Group AD — Correctness and data · Batches 183, 188, 184, 185, 186, 187 · **API-carrying (186, 187 with web)** → `/ship-prod`
+## Group AD — Correctness and data · Batches 183, 188, 184, 185, 186, 187 · **API-carrying (186, 187 with web)** → `/ship-prod` after 188 and at the end
 
 | batch | finding |
 | --- | --- |
@@ -75,6 +123,11 @@ safe before the API ships.
 
 183 first: it is the HIGH, and it needs no decision. 188 second because it unblocks an owner
 action. 187 last: it rewrites awarded points across leagues and is the largest.
+
+**A `/ship-prod` after 188** (owner, 30 Sep; first drafted as optional): 183 and 188 ship
+together, so the HIGH is live and the backfill unblocked before the four batches that remain,
+which include both of the group's max-effort batches. The closing shipment directly follows 187,
+whose admin action calls a route the deployed API does not yet serve.
 
 ## Group AE — Provider budget and scheduler · Batches 189, 190, 191, 192, 193 · **API-carrying** → `/ship-prod`
 
@@ -103,7 +156,7 @@ together.
 171 first: 176 and 175 use its tint tokens, and it has the widest contrast blast radius, so
 everything after it is measured against the corrected palette.
 
-## Group AF — Member features · Batches 196, 195, 197, 194 · **API + web; 194 migrates** → `/ship-prod`
+## Group AF — Member features · Batches 196, 195, 197, 194 · **API + web; 194 migrates** → `/ship-prod` before 194 and after it
 
 | batch | finding |
 | --- | --- |
@@ -114,8 +167,11 @@ everything after it is measured against the corrected palette.
 
 **194 last and shipped on its own**: it is the review's only migration, so it removes the
 rollback target until the next non-migrating shipment and needs its recovery note (Batch 128).
+The manifest therefore stops for `/ship-prod` after 197 as well as after 194. 195 and 197 each
+add a route their own web half calls; since 30 Sep both rows require that web half to behave as
+today until the route ships, so the three batches before the first stop can share it.
 
-## Group AH — Toolchain and hygiene · Batches 202, 203 · **tooling**
+## Group AH — Toolchain and hygiene · Batches 202, 203 · **tooling** → a behaviour-neutral `/ship-prod`
 
 | batch | finding |
 | --- | --- |
@@ -123,6 +179,11 @@ rollback target until the next non-migrating shipment and needs its recovery not
 | 203 | PIPE-15, 16, 17, 19, OPS-19 — hygiene |
 
 Both touch protected files; 202 is a sequence of majors with the gate green after each.
+
+It ends in a `/ship-prod` for the reason AG does: 203 drops the stale pins in
+`apps/api/pyproject.toml` and rewrites Batch 161's backend tests. That also fixes the order
+inside the group — the close-out guard counts 202 as a web change (`apps/web/package.json` and
+the lockfile), so it must close out before 203 leaves a shipment owed.
 
 ## Accepted with no action (carried)
 

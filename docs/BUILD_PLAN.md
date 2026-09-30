@@ -57,7 +57,8 @@ ticked rows can collect here until someone moves them below.
 
 Batches 169-203 were specified by the 2026-09-28 review (`docs/review/2026-09-28/`,
 grouped in its `08-sequencing.md`, model and effort in `09-prompts.md`). Every owner decision they needed was answered on 2026-09-30 ("yes to all") and is
-recorded in its row; none has started.
+recorded in its row; none has started. They run as `/batch-start 169`, then `/group-start` AG,
+AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/group-start.md`).
 
 - [ ] **Batch 169 — Every toast is unreadable in dark mode, the default theme**
   — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-10 (high impact, live,
@@ -607,10 +608,16 @@ recorded in its row; none has started.
   place of the form, and either let an invite create an account while sign-ups are closed or
   stop telling visitors to ask for one.
 
+  **Safe before the API ships (owner, 2026-09-30):** close-out releases this web half before
+  `/ship-prod` releases the route, and Group AF ships after 197, not after this batch. Against
+  an API without this batch, the register screen and the invite path behave exactly as today —
+  a missing or failed `signup-status` read shows the form, never the closed notice — and a test
+  says so.
+
   Verification: sign-ups closed → the notice, no form; an invite path that works or no promise
   of one; sign-ups open → unchanged.
 
-  Scope boundary: the closed-sign-up journey. **API + web.**
+  Scope boundary: the closed-sign-up journey. **API + web (safe before the API ships).**
 
 - [ ] **Batch 196 — The results history ignores the season, and members cannot share the join code they hold**
   — specified from `docs/review/2026-09-28/05-feature-gaps.md`, FEAT-B09 (LOW, carried) and
@@ -635,10 +642,14 @@ recorded in its row; none has started.
   Decided 2026-09-30 (README decision 12): league name, inviter's display name and
   member count. A public read keyed by the invite token, and the landing page using it.
 
+  **Safe before the API ships (owner, 2026-09-30):** close-out releases this landing page before
+  `/ship-prod` releases the read. When the read is missing or fails, `/join/:token` shows
+  today's landing and the invite still works; a test says so.
+
   Verification: a live invite shows the three facts; an expired, used or deleted-league invite
   shows the existing refusal; the read leaks nothing without a valid token.
 
-  Scope boundary: the invite landing. **API + web.**
+  Scope boundary: the invite landing. **API + web (safe before the API ships).**
 
 - [ ] **Batch 198 — The gate is judged by the branch's own copy of the gate**
   — specified from `docs/review/2026-09-28/07-agent-pipeline.md`, PIPE-10 and PIPE-11 (MED,

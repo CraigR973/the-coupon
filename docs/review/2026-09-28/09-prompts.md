@@ -66,91 +66,80 @@ phase runs at the strictest setting any of its batches asks for.
 
 ## Run order
 
+Since 30 Sep each phase after the first is one `/group-start` group (manifest in
+`docs/agent-commands/group-start.md`), and every stop for `/ship-prod` is a checkpoint in it.
+
 ### Phase 1 — The toast fix · Standard · high · web-only
 
 ```text
 /batch-start 169
 ```
 
-### Phase 2 — Gate integrity · Deep · max · deploys nothing
+### Phase 2 — Gate integrity · Deep · max → a behaviour-neutral `/ship-prod`
 
 The owner's gate-maintenance approvals for 198-203 (and 178) were recorded in
-`scripts/assert-quality-guardrails.sh` on the review branch (decision 7, 30 Sep), so they take
-effect once that branch is merged.
+`scripts/assert-quality-guardrails.sh` on the review branch (decision 7, 30 Sep), and are live
+now that it is on `main`.
 
 ```text
-/batch-start 198
-/batch-start 200
-/batch-start 199
-/batch-start 201
+/group-start AG
 ```
+Group AG is 198 → 200 → 199 → 201, then a `/ship-prod`: 199's two backend test fixes count as
+API changes to the drift check, and from 201 on close-out refuses web work while a shipment is
+owed. The shipment migrates nothing.
 
 ### Phase 3 — Web fixes members meet today · Deep · high · web-only
 
 ```text
-/batch-start 172
-/batch-start 173
-/batch-start 174
-/batch-start 170
+/group-start AA
 ```
+Group AA is 172 → 173 → 174 → 170; its fifth batch, 169, was Phase 1.
 
 ### Phase 4 — Security · Deep · xhigh → `/ship-prod`
 
 ```text
-/batch-start 180
-/batch-start 179
-/batch-start 181
-/batch-start 182
+/group-start AC
 ```
-179 and 181 wait on decisions 1 and 5; 180 does not.
+Group AC is 180 → 179 → 181 → 182. Decisions 1 and 5, which 179 and 181 waited on, were
+answered on 30 Sep.
 
-### Phase 5 — Correctness and data · Deep · max → `/ship-prod`
+### Phase 5 — Correctness and data · Deep · max → `/ship-prod` after 188 and at the end
 
 ```text
-/batch-start 183
-/batch-start 188
-/batch-start 184
-/batch-start 185
-/batch-start 186
-/batch-start 187
+/group-start AD
 ```
-Ship after 188 if the owner wants to run the backfill sooner.
+Group AD is 183 → 188 → `/ship-prod` → 184 → 185 → 186 → 187 → `/ship-prod`. The first shipment
+lets the owner run the backfill four batches sooner (owner, 30 Sep).
 
 ### Phase 6 — Provider budget and scheduler · Deep · xhigh → `/ship-prod`
 
 ```text
-/batch-start 189
-/batch-start 190
-/batch-start 191
-/batch-start 192
-/batch-start 193
+/group-start AE
 ```
+Group AE is 189 → 190 → 191 → 192 → 193.
 
 ### Phase 7 — The visual pass · Standard · high · web-only
 
 ```text
-/batch-start 171
-/batch-start 175
-/batch-start 176
-/batch-start 177
-/batch-start 178
+/group-start AB
 ```
+Group AB is 171 → 175 → 176 → 177 → 178.
 
-### Phase 8 — Member features · Deep · xhigh → `/ship-prod` (194 on its own)
+### Phase 8 — Member features · Deep · xhigh → `/ship-prod` before 194 and after it
 
 ```text
-/batch-start 196
-/batch-start 195
-/batch-start 197
-/batch-start 194
+/group-start AF
 ```
+Group AF is 196 → 195 → 197 → `/ship-prod` → 194 → `/ship-prod`, so the migration ships on its
+own.
 
-### Phase 9 — Toolchain and hygiene · Standard · high
+### Phase 9 — Toolchain and hygiene · Standard · high → a behaviour-neutral `/ship-prod`
 
 ```text
-/batch-start 202
-/batch-start 203
+/group-start AH
 ```
+Group AH is 202 → 203, then a `/ship-prod` for 203's edits under `apps/api` (the stale pins and
+Batch 161's tests).
 
 ## Two things that are not batches
 
@@ -158,8 +147,7 @@ Ship after 188 if the owner wants to run the backfill sooner.
 - **Rescope the local agent configuration** (PIPE-01) — by hand; an agent governed by it
   should not edit it.
 
-Group letters in `08-sequencing.md` (AA-AH) are thematic; this phase order supersedes them
-for ordering. `/group-start` does not accept them yet: `docs/agent-commands/group-start.md`
-validates only I-M and N-Z against the two earlier reviews. Extending it to AA-AH is a small
-edit to that (unprotected) workflow, left for the owner to ask for; until then each phase is
-the `/batch-start` sequence above.
+Group letters in `08-sequencing.md` (AA-AH) are thematic and not in run order: invoke them in
+the phase order above. `/group-start` accepts them since 30 Sep, at the owner's request; its
+manifest in `docs/agent-commands/group-start.md` is the authority on each group's batches and
+checkpoints, and `08-sequencing.md` records why each stop falls where it does.

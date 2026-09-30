@@ -72,9 +72,10 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Batches 169-203 are drafted and unstarted (2026-09-30), from the 2026-09-28 review on branch
-`chore/review-2026-09-28`, which the owner has not yet reviewed or merged. Several wait on an
-owner decision; the order is in that review's `08-sequencing.md`.
+Batches 169-203 are drafted and unstarted (2026-09-30), from the 2026-09-28 review, now on
+`main`; every owner decision they needed was answered on 30 Sep. They run as `/batch-start 169`,
+then `/group-start` AG, AA, AC, AD, AE, AB, AF and AH, in that order
+(`docs/agent-commands/group-start.md`; the reasons are in the review's `08-sequencing.md`).
 
 ## Toolchain
 

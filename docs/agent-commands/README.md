@@ -7,9 +7,9 @@ Normal flow:
 
 ```text
 /next-batch-prompt
-/batch-start <N>       # one batch: branch, implement, verify, close out
+/batch-start <N>             # one batch: branch, implement, verify, close out
     or
-/group-start <I-Z>     # one group: separate batches until a ship checkpoint
+/group-start <I-Z|AA-AH>     # one group: separate batches until a ship checkpoint
 ```
 
 `/batch-verify <N>` still exists standalone for re-running the checks (e.g.
