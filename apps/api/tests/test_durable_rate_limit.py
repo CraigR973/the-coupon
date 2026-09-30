@@ -285,7 +285,7 @@ async def test_a_redeploy_mid_attack_does_not_hand_back_the_login_bucket(
 
 
 async def test_an_unknown_name_is_charged_even_though_the_handler_commits_nothing(
-    client: AsyncClient,
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Why the counter has a session of its own.
 
@@ -293,6 +293,16 @@ async def test_an_unknown_name_is_charged_even_though_the_handler_commits_nothin
     is no profile to update and no transaction to commit. Counted on the request's own
     session the attempt would vanish with it, and name enumeration would be free.
     """
+
+    # Keep all six requests in one fixed window.  The old test occasionally crossed
+    # the epoch-aligned 15-minute boundary between request five and six, correctly
+    # opening a fresh bucket and making a deterministic contract look flaky in CI.
+    class _FixedLimiterClock:
+        @staticmethod
+        def time() -> float:
+            return 2_000_000_000
+
+    monkeypatch.setattr(rate_limit, "time", _FixedLimiterClock)
     unknown = f"nobody-{uuid.uuid4().hex[:8]}"
 
     for _ in range(5):

@@ -45,7 +45,10 @@ changes beyond the batch, or if the batch row is already ticked.
    web-only and tooling/documentation batches add no API shipment. Existing
    drift or an inconclusive live check must be reported even when this batch is
    not split-half.
-4. Stage only the batch's explicit files and create a Conventional Commit.
+4. Stage only the batch's explicit files and create a Conventional Commit. End the commit
+   body with `Coupon-Batch: N`; CI uses that trailer to replay a main push under the batch's
+   trusted gate-maintenance approval rather than trusting the merged workflow to approve
+   itself.
 5. Capture the feature branch and commit SHA, then fast-forward local `main`:
 
    ```bash
@@ -54,12 +57,30 @@ changes beyond the batch, or if the batch row is already ticked.
    ```
 
    Stop on any failure; never force.
-6. Invoke `/strike-batch N`.
-7. Append one lean `session-log.md` section:
+6. Require the feature-branch gate stamp to match this unchanged tree, then push local
+   `main` to `origin`:
+
+   ```bash
+   /Users/craigrobinson/the-coupon/scripts/check-closeout-safety.sh N --verify-gate-stamp
+   git -C /Users/craigrobinson/the-coupon push origin main
+   ```
+
+   This is the implementation push. It must be a plain (non-force) push of `main` only —
+   never push the feature branch, force-push or push another branch. Stop and report if it
+   is rejected; never force past a rejection.
+7. Wait for the `Quality` workflow run whose `headSha` is the exact implementation SHA.
+   Allow up to ten minutes for GitHub to schedule it, then use `gh run watch <run-id>
+   --exit-status`. Read the final `headSha`, `status`, `conclusion` and `url` back with
+   `gh run view`; do not accept a run for a branch name or a later commit. A missing run,
+   GitHub outage, cancellation or any conclusion other than `success` stops close-out and
+   the group. Treat a failure as red `main`: report the failed jobs and repair it through
+   the documented red-baseline workflow, never by carrying on to another batch.
+8. Invoke `/strike-batch N`.
+9. Append one lean `session-log.md` section:
 
    ```text
    ## Batch N — Title
-   **Commits:** <hashes> · verified: <green gates; backend and frontend test counts>
+   **Commits:** <hashes> · verified: <green gates; backend and frontend test counts> · CI: <run URL> PASS for <implementation SHA>
 
    ### Key facts for future sessions
    - <only non-obvious facts, at most six bullets>
@@ -67,39 +88,36 @@ changes beyond the batch, or if the batch row is already ticked.
    **Next:** <first unchecked batch, or launch planning>
    ```
 
-8. Refresh `STATUS.md`, stage only the three close-out documents, and commit:
-   `docs: close out Batch N — tick BUILD_PLAN + session log`.
-9. Run the complete `scripts/ci-local.sh` gate once more on clean local `main`.
-   The close-out documents changed the tree after the feature-branch gate, so
-   this run is the proof for the exact tree that will be pushed. Then require its
-   matching stamp:
+10. Refresh `STATUS.md`, stage only the three close-out documents, and commit with the same
+    `Coupon-Batch: N` trailer: `docs: close out Batch N — tick BUILD_PLAN + session log`.
+11. Run the complete `scripts/ci-local.sh` gate once more on clean local `main`.
+    The close-out documents changed the tree after the feature-branch gate, so
+    this run is the proof for the exact tree that will be pushed. Then require its
+    matching stamp:
 
-   ```bash
-   /Users/craigrobinson/the-coupon/scripts/check-closeout-safety.sh N --verify-gate-stamp
-   ```
+    ```bash
+    /Users/craigrobinson/the-coupon/scripts/check-closeout-safety.sh N --verify-gate-stamp
+    ```
 
-   Stop if either command fails. Never recreate, copy or edit the stamp by hand.
-10. Push local `main` to `origin`:
+    Stop if either command fails. Never recreate, copy or edit the stamp by hand.
+12. Push the close-out document commit to `origin/main`, then wait for the exact-SHA
+    `Quality` run by the same rules as step 7. This second result does not create another
+    document commit: the session log records the implementation run that approved the
+    batch, while this final wait proves the recorded close-out tree is also green before
+    the group continues.
 
-   ```bash
-   git -C /Users/craigrobinson/the-coupon push origin main
-   ```
+    ```bash
+    git -C /Users/craigrobinson/the-coupon push origin main
+    ```
 
-   This must be a plain (non-force) push of `main` only — never push the
-   feature branch, never force-push, never push any other branch. Stop and
-   report if the push is rejected (e.g. `origin/main` has diverged); never
-   force past a rejection.
+    Both pushes must be plain and non-force. **The implementation push deploys.** Vercel
+    builds and releases the web app from `main` on every push, so the frontend half can
+    reach members before CI reports. The API half does not move until `/ship-prod`; this is
+    why the full local gate and exact-tree stamp remain push preconditions.
+13. Report both exact-SHA CI conclusions, the pre-push drift result from step 3, the batch's
+    API/web classification, and whether `/ship-prod` is owed or explicitly scheduled. Do
+    not rerun the first drift check only after the deploy: that is too late to protect
+    members. Pushing `main` auto-deploys the **web app** through Vercel's GitHub integration,
+    but the **API** moves only when `/ship-prod` runs. Do not deploy here.
 
-   **This push deploys.** Vercel builds and releases the web app from `main` on every
-   push, so the frontend half of the batch reaches members within a few minutes and
-   before CI has necessarily reported. The API half does not move until `/ship-prod`.
-   Nothing here waits for either, which is why step 2 has to be the real gate.
-
-11. Report the pre-push drift result from step 3, the batch's API/web
-    classification, and whether `/ship-prod` is owed or explicitly scheduled.
-    Do not rerun the first drift check only after the deploy: that is too late to
-    protect members. Pushing `main` auto-deploys the **web app** through Vercel's
-    GitHub integration, but the **API** moves only when `/ship-prod` runs. Do not
-    deploy here.
-
-Do not poll CI or deploy — those remain separate, explicit actions.
+Do not deploy the API — that remains the separate, explicit `/ship-prod` action.

@@ -115,7 +115,10 @@ async def _seed_league(db: AsyncSession, names: list[str]) -> tuple[dict[str, Pr
     db.add_all(list(players.values()))
     await db.flush()
     league = League(
-        slug=f"cpn-{tag}", name=f"Coupon {tag}", created_by=next(iter(players.values())).id
+        slug=f"cpn-{tag}",
+        name=f"Coupon {tag}",
+        created_by=next(iter(players.values())).id,
+        join_code=tag.upper(),
     )
     db.add(league)
     await db.flush()
@@ -1223,8 +1226,18 @@ async def test_home_and_the_coupon_pick_the_same_round_in_every_state(
     players, playing_league = await _seed_league(session, ["home-vs-coupon"])
     member = next(iter(players.values()))
     tag = uuid.uuid4().hex[:8]
-    stuck_league = League(slug=f"stuck-{tag}", name=f"Stuck {tag}", created_by=member.id)
-    settled_league = League(slug=f"done-{tag}", name=f"Done {tag}", created_by=member.id)
+    stuck_league = League(
+        slug=f"stuck-{tag}",
+        name=f"Stuck {tag}",
+        created_by=member.id,
+        join_code=f"S{tag[:7]}".upper(),
+    )
+    settled_league = League(
+        slug=f"done-{tag}",
+        name=f"Done {tag}",
+        created_by=member.id,
+        join_code=f"D{tag[:7]}".upper(),
+    )
     session.add_all([stuck_league, settled_league])
     await session.flush()
     for league in (stuck_league, settled_league):

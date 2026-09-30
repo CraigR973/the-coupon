@@ -11,48 +11,54 @@ on:
   workflow_dispatch:
 
 jobs:
-  backend:
+  # The same non-browser gate as local close-out: the trusted pre-push guard,
+  # pinned tools, test-count ratchets and zero-skip checks all run here.  The
+  # browser checks stay split below so their evidence remains easy to inspect.
+  gate:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: the_coupon_test
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    defaults:
-      run:
-        working-directory: apps/api
     env:
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/the_coupon_test
-      JWT_ACCESS_SECRET: ci-access-secret-with-at-least-32-characters
-      JWT_REFRESH_SECRET: ci-refresh-secret-with-at-least-32-characters
-      SCHEDULER_ENABLED: "false"
-      PYTHONPATH: .
+      PUSH_BEFORE: ${{ github.event.before }}
+      PULL_BASE: ${{ github.event.pull_request.base.sha }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: apps/api/requirements-dev.txt
-      - run: pip install -r requirements-dev.txt
-      - run: ruff check .
-      - run: ruff format --check .
-      - run: mypy src
-      - run: alembic upgrade head
-      - run: pytest
+          fetch-depth: 0
+      # ci-local judges a branch with the copy of the guard on trusted main.  A
+      # main push is detached and replayed as its recorded Coupon-Batch so an
+      # approved gate-maintenance batch cannot approve itself after the merge.
+      - name: Restore the trusted main comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$GITHUB_SHA"
+          git checkout --detach "$current"
 
-  deployment-config:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF_NAME" == "main" ]]; then
+            base="$PUSH_BEFORE"
+            if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+              base="$current^"
+            fi
+            batch="$(git log -1 --format=%B "$current" | sed -nE 's/^Coupon-Batch: ([0-9]+)$/\1/p' | tail -1)"
+            if [[ -n "$batch" ]]; then
+              replay_branch="feat/batch-${batch}-ci-replay"
+            else
+              replay_branch="ci/main-${GITHUB_RUN_ID}"
+            fi
+          elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            base="$PULL_BASE"
+            replay_branch="${GITHUB_HEAD_REF:-ci/pull-request-${GITHUB_RUN_ID}}"
+          elif [[ "$GITHUB_REF_NAME" != "main" ]]; then
+            base="origin/main"
+            replay_branch="$GITHUB_REF_NAME"
+          else
+            # A manual run on current main verifies the committed tree.  There
+            # is no proposal to compare, so main is its own trusted baseline.
+            base="$current"
+            replay_branch="ci/manual-${GITHUB_RUN_ID}"
+          fi
+
+          git branch -f main "$base"
+          git checkout -B "$replay_branch" "$current"
       - uses: pnpm/action-setup@v4
         with:
           version: 9.15.0
@@ -63,27 +69,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pnpm install --frozen-lockfile
-      - run: python scripts/assert-deployment-config.py
-
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --dir apps/web lint
-      - run: pnpm --dir apps/web typecheck
-      - run: pnpm --dir apps/web test
-      - run: pnpm --dir apps/web build
-        env:
-          VITE_API_URL: https://api.example.invalid
+      - run: pip install uv==0.11.7
+      - run: SKIP_PROD_BUNDLE=1 scripts/ci-local.sh
 
   prod-bundle:
     runs-on: ubuntu-latest
