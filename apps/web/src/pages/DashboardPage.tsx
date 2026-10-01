@@ -254,15 +254,15 @@ function FirstLeaguePrompt() {
         </h2>
         <ol className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="How a Coupon league works">
           <li className="rounded-lg border border-border bg-surface-elevated px-3 py-3">
-            <span className="font-mono text-caption text-primary">01</span>
+            <span className="font-mono text-caption text-text-primary">01</span>
             <p className="mt-1 font-sans text-sm font-semibold text-text-primary">Find your group</p>
           </li>
           <li className="rounded-lg border border-border bg-surface-elevated px-3 py-3">
-            <span className="font-mono text-caption text-primary">02</span>
+            <span className="font-mono text-caption text-text-primary">02</span>
             <p className="mt-1 font-sans text-sm font-semibold text-text-primary">Make one pick</p>
           </li>
           <li className="rounded-lg border border-border bg-surface-elevated px-3 py-3">
-            <span className="font-mono text-caption text-primary">03</span>
+            <span className="font-mono text-caption text-text-primary">03</span>
             <p className="mt-1 font-sans text-sm font-semibold text-text-primary">See the result</p>
           </li>
         </ol>
