@@ -194,10 +194,11 @@
     --text-primary: #14181F;
     --text-secondary: #4B5563;
     /* Was #8A93A1, which failed AA against *every* light surface — 2.79 on
-       --surface-elevated, 3.10 on --surface, 2.91 on --bg. The light palette
-       never got the contrast pass the dark one did. #666F7D clears all four
-       (4.78 / 5.08 / 4.57 / 5.08) and keeps --text-secondary darker than it. */
-    --text-muted: #666F7D;
+       --surface-elevated, 3.10 on --surface, 2.91 on --bg. #666F7D then sat too
+       close to the browser-rendered threshold and failed axe on Linux despite
+       clearing the token calculation. #606976 clears all four with headroom
+       (5.23 / 5.56 / 5.00 / 5.56) and keeps --text-secondary darker than it. */
+    --text-muted: #606976;
     --text-inverse: #FFFFFF;
 
     /* On-brand text — same dark value as dark mode; light primary/accent

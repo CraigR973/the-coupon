@@ -19,6 +19,9 @@ jobs:
     env:
       PUSH_BEFORE: ${{ github.event.before }}
       PULL_BASE: ${{ github.event.pull_request.base.sha }}
+      # GitHub forces ANSI colour even when ci-local redirects Vitest to a log.
+      # Keep the machine-read count summary plain so the ratchet can parse it.
+      FORCE_COLOR: "0"
     steps:
       - uses: actions/checkout@v4
         with:

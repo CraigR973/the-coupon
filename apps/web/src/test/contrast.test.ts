@@ -233,6 +233,12 @@ describe('the regression this file exists for', () => {
     );
   });
 
+  it('keeps light muted text clear of browser contrast rounding', () => {
+    expect(contrast(LIGHT['text-muted'], LIGHT['surface-elevated'])).toBeGreaterThanOrEqual(
+      4.9,
+    );
+  });
+
   it('keeps secondary and muted visually distinct after the correction', () => {
     expect(DARK['text-muted']).not.toEqual(DARK['text-secondary']);
     expect(LIGHT['text-muted']).not.toEqual(LIGHT['text-secondary']);
