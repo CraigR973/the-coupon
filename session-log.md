@@ -7609,3 +7609,25 @@ https://github.com/CraigR973/the-coupon/actions/runs/36853104381 PASS for `0c495
   owed; runtime API code and schema did not change.
 
 **Next:** Batch 201 — make split-half shipment acknowledgements durable and refuse web work while an earlier API shipment is owed.
+
+## Batch 201 — The split-half refusal is cleared by a flag with no record, and a two-batch split passes it
+**Commits:** `4445c40` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,350 backend
+and 1,215 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/36857842524 PASS for `4445c40`
+
+### Key facts for future sessions
+- **A boolean no longer clears the refusal.** Shipment acknowledgement requires both the
+  scheduler identity and a UTC RFC3339 timestamp; the old `--shipment-scheduled` flag fails.
+- **Two-batch splits are covered.** A web-changing batch is refused while deployed-API drift
+  reports an earlier `/ship-prod` debt, even when the current batch has no API diff.
+- **The evidence is durable.** The guard emits one copy-ready `Close-out safety:` verdict, and
+  every session-log entry must preserve its classification, drift result, debt and who/when.
+- **Rehearsals passed.** Direct API+web and web-only-over-debt shapes both refused without an
+  acknowledgement and passed with the scheduler and time recorded; incomplete, malformed and
+  mixed verification arguments failed closed.
+- **Gate:** the full implementation gate passed first run; no product code, schema, API contract
+  or web bundle changed.
+- **Close-out safety:** PASS — tooling/docs; pre-push `/ship-prod` debt present; no application
+  half changed.
+
+**Next:** `/ship-prod` for Group AG; then Group AA, starting with Batch 172.

@@ -30,9 +30,9 @@ Checked 2026-09-28 unless a line says otherwise.
 ## Owed
 
 - **One `/ship-prod` is owed.** Batch 199 changed two backend test files that the Railway image
-  includes, so the drift check reports one API-bearing commit behind `origin/main` at
-  `0c4952a` (2026-10-01). Runtime API code and migration `026` are unchanged; Group AG stops
-  for the shipment after Batch 201.
+  includes, so the drift check reports one API-bearing commit (`2986de3`) between deployed
+  `b08a47f3` and `origin/main` (2026-10-01). Runtime API code and migration `026` are unchanged;
+  Group AG is stopped at its shipment checkpoint.
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
   Railway `e77dde8f-9bf3-4c6c-9080-addf52504307`, the previous `c671ccf9` image — boots
   against the database as it stands. Vercel was already on `b08a47f3` at
@@ -71,8 +71,8 @@ These are not batches; nothing here will happen unless the owner does it or auth
 ## Open batches
 
 Batches 170-203 are drafted from the 2026-09-28 review and every owner decision they needed
-was answered on 30 Sep. Batches 169, 198, 200 and 199 are complete; Group AG resumes at Batch
-201 before its `/ship-prod` checkpoint. Groups AA, AC, AD, AE, AB, AF and AH follow
+was answered on 30 Sep. Group AG is complete and waiting at its `/ship-prod` checkpoint. Groups
+AA, AC, AD, AE, AB, AF and AH follow
 in that order (`docs/agent-commands/group-start.md`; the reasons are in the review's
 `08-sequencing.md`).
 
@@ -111,4 +111,5 @@ Checked 2026-10-01.
   Node 24 (review 2026-09-28, OPS-19). Its stored token is short-lived and refreshed by any `vercel` command, so run
   `vercel whoami` before reading it for a REST call (2026-09-26).
 - **Deploys**: the web app ships on every push to `main`; the API ships only through
-  `/ship-prod`.
+  `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
+  owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.

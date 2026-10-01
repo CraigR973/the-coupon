@@ -727,7 +727,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: running the existing journey. **Tooling-only — owner-approved gate
   maintenance (`ci-local.sh`, `ci.yml`).**
 
-- [ ] **Batch 201 — The split-half refusal is cleared by a flag with no record, and a two-batch split passes it**
+- [x] **Batch 201 — The split-half refusal is cleared by a flag with no record, and a two-batch split passes it** ✅ 2026-10-01
   — specified from `docs/review/2026-09-28/07-agent-pipeline.md`, PIPE-14 (MED, live, verified;
   PIPE-05 partial). Replayed, the close-out guard refuses all seven API+web batches since
   2ce6f42, but only 136 and 148 have a record of the owner scheduling the shipment;
