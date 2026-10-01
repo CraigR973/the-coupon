@@ -7581,3 +7581,31 @@ and 1,212 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 sk
   `026`, so no `/ship-prod` is owed by this batch. The full gate passed first run.
 
 **Next:** Batch 199 — close-out waits for CI on the pushed SHA; CI gains the guardrail and ratchet.
+
+## Batch 199 — CI goes red, close-outs push on red, and nothing reads it
+**Commits:** `2986de3`, `249d65f`, `5760ac2`, `df8a257`, `f5452cb`, `1d1252c`,
+`0c4952a` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,350 backend and 1,215
+frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/36853104381 PASS for `0c4952a`
+
+### Key facts for future sessions
+- **Close-out now waits twice.** The implementation push and the documentation push each
+  require a successful `Quality` run whose `headSha` exactly matches the pushed commit; red,
+  cancelled or missing CI stops the group.
+- **CI runs the real non-browser gate.** Its `gate` job restores trusted `main`, replays the
+  batch trailer, and runs the guardrail, pinned tools, count ratchets, zero-skip checks,
+  database suite and frontend suite. Browser evidence stays in the two separate jobs.
+- **Both recorded flakes are deterministic.** The unknown-name rate-limit test uses a fixed
+  instant and unique identity; scheduler leagues use explicit unique join codes. Each passed
+  50 consecutive isolated runs.
+- **Rehearsals were refused.** A lowered ratchet and a skipped test failed the trusted guard;
+  the next batch was not started while exact-SHA CI was red.
+- **Failures were fixed without weakening checks.** The first local gate required Ruff
+  formatting. Linux then exposed ANSI count parsing, light-theme contrast and axe scans during
+  page-entry opacity; standard colour controls, compliant settled colours and waiting for the
+  transition made the unchanged assertions pass.
+- **Close-out safety:** API-only by path because two backend test files enter the Railway
+  image; the pre-push deployment drift was in sync at migration `026`. `/ship-prod` is now
+  owed; runtime API code and schema did not change.
+
+**Next:** Batch 201 — make split-half shipment acknowledgements durable and refuse web work while an earlier API shipment is owed.

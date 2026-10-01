@@ -681,7 +681,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: the guardrail, the count check, the push precondition. **Tooling-only.**
 
-- [ ] **Batch 199 — CI goes red, close-outs push on red, and nothing reads it**
+- [x] **Batch 199 — CI goes red, close-outs push on red, and nothing reads it** ✅ 2026-10-01
   — specified from `docs/review/2026-09-28/07-agent-pipeline.md`, PIPE-12 (MED, live, verified).
   8 of 72 runs on `main` since 20 Sep failed (confirmed by the lead with `gh run list`):
   Batches 120-122 closed out and pushed while CI was red; two backend flakes

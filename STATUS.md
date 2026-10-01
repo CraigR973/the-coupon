@@ -29,12 +29,10 @@ Checked 2026-09-28 unless a line says otherwise.
 
 ## Owed
 
-- **No `/ship-prod` is owed.** Batch 115 and its 23-competition measurement fix shipped on
-  2026-09-27 as Railway `86f9ba84` (`b08a47f3`); the drift check reports **in sync**, and
-  the budget suite certifies 481 of 500 provider requests for browsing, discovery, the weekly
-  walk, one warm pass and the manual allowance. That is not a ceiling: it omits the
-  twice-daily refresh, settlement and the pick bucket. A measured one-window Saturday is 289
-  (review 2026-09-28, lens 04).
+- **One `/ship-prod` is owed.** Batch 199 changed two backend test files that the Railway image
+  includes, so the drift check reports one API-bearing commit behind `origin/main` at
+  `0c4952a` (2026-10-01). Runtime API code and migration `026` are unchanged; Group AG stops
+  for the shipment after Batch 201.
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
   Railway `e77dde8f-9bf3-4c6c-9080-addf52504307`, the previous `c671ccf9` image — boots
   against the database as it stands. Vercel was already on `b08a47f3` at
@@ -73,22 +71,23 @@ These are not batches; nothing here will happen unless the owner does it or auth
 ## Open batches
 
 Batches 170-203 are drafted from the 2026-09-28 review and every owner decision they needed
-was answered on 30 Sep. Batches 169, 198 and 200 completed on 30 Sep; Group AG resumes at Batch
-199, then 201 before its `/ship-prod` checkpoint. Groups AA, AC, AD, AE, AB, AF and AH follow
+was answered on 30 Sep. Batches 169, 198, 200 and 199 are complete; Group AG resumes at Batch
+201 before its `/ship-prod` checkpoint. Groups AA, AC, AD, AE, AB, AF and AH follow
 in that order (`docs/agent-commands/group-start.md`; the reasons are in the review's
 `08-sequencing.md`).
 
 ## Toolchain
 
-Checked 2026-09-24.
+Checked 2026-10-01.
 
 - **The gate is `scripts/ci-local.sh`**: twelve checks and no skips, the twelfth being the seeded
   coupon journey (2026-09-30). GitHub's `coupon-journey` job runs the same runner through
-  `ci-local.sh --journey-only`; its first GitHub run is Batch 200's close-out push. A full green run stamps the
-  exact Git tree; close-out reruns it after the documentation commit and refuses a push without
-  that matching stamp. It refuses a test
+  `ci-local.sh --journey-only`. The `gate` job runs the same trusted-main guard, ratchets and
+  zero-skip checks as local close-out. A full green run stamps the exact Git tree; close-out
+  reruns it after the documentation commit, refuses a push without that matching stamp, and
+  waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,350, frontend 1,212, journey 1). 13m04s on this Mac with the journey (2026-09-30), and
+  (backend 1,350, frontend 1,215, journey 1). 13m04s on this Mac with the journey (2026-09-30), and
   38 minutes when macOS's storage scan loads it (2026-09-25). Without a database the backend suite is
   800 passed and 550 skipped at 1,350 tests (2026-09-29) — not the gate.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
