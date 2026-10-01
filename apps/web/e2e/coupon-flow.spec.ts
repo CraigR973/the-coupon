@@ -19,6 +19,12 @@ async function setTheme(page: Page, theme: 'light' | 'dark'): Promise<void> {
   await page.evaluate((value) => localStorage.setItem('coupon_theme', value), theme);
   await page.reload();
   await expect(page.locator(`html.${theme}`)).toHaveCount(1);
+  const transition = page.locator('.animate-page-enter');
+  if (await transition.count()) {
+    await transition.evaluate(async (node) => {
+      await Promise.all(node.getAnimations().map((animation) => animation.finished.catch(() => undefined)));
+    });
+  }
 }
 
 async function expectNoColourContrastViolations(page: Page): Promise<void> {
