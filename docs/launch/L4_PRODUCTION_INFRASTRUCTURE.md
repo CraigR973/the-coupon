@@ -3463,3 +3463,55 @@ effective privileges for `anon`, `authenticated` or `PUBLIC`, no schema grants, 
 `026`.
 
 Backup/restore-point identity: **none yet** — Batch 95's backup is still switched off.
+
+### 2026-10-01 — `e287ae29`, Group AG (no migration)
+
+Group AG shipped the release-gate trust anchor, the seeded coupon journey, exact-SHA CI
+waiting and durable split-shipment acknowledgements. Its application image differs because
+the Railway build contains the changed backend tests; runtime API code and schema did not
+change. The exact clean commit passed the local gate (12 checks, 1,350 backend and 1,215
+frontend tests, seeded journey 1, 0 skipped), and exact-SHA GitHub Actions run `36889941120`
+passed all three jobs. The original push run `36887835511` still had one duplicate
+prod-bundle job stuck in GitHub's Chromium installation while the replacement run passed.
+
+Preflight: Supabase `pugujiiojitstkilphrz` was `ACTIVE_HEALTHY` in London; Railway targets
+matched the recorded project, environment, service and domain, `railwayConfigFile` was null,
+and all 13 required variables were present by name. Vercel production held encrypted,
+production-scoped `VITE_API_URL` and `VITE_VAPID_PUBLIC_KEY`. The migration-recovery check
+passed with production and the repository both at `026`, so this shipment applied no
+migration.
+
+The pinned IaC plan reported 0 to add, 2 to change and 0 to destroy against the existing
+`api` service only: it restored `/nixpacks.toml` as the Nixpacks config path and one replica.
+Applying it started redeploy `5f000b0e-c9f0-4da6-b00f-60c2a19b9db8` of the previous image;
+it reached `SUCCESS` before the source upload and is this shipment's plain rollback baseline.
+Railway later marked that superseded deployment `REMOVED`; no migration prevents a plain
+image redeploy against the database as it stands.
+
+Railway `920e285c-00ef-4482-b09d-3d839aef4169`, `SUCCESS`. `/health` returned `200`, SHA
+`e287ae29` and migration `026`; `/health/ready` returned `200`, `db: ok` and `026`.
+Manifest: one replica in `europe-west4-drams3a`, sleep off, restart `ON_FAILURE`, healthcheck
+`/api/v1/health/ready` at 300 seconds, 0.25 vCPU / 500 MB, IPv6 egress on, and Nixpacks with
+`/nixpacks.toml`. The final bounded Railway snapshot held 82 lines: the scheduler's two
+expected start messages, one application-start completion, one Uvicorn listener, zero
+startup or migration failures and zero hits on the five credential/member-data leak
+patterns. Railway classified six normal Alembic/Uvicorn stderr lines as error-level.
+
+Vercel was a no-op: GitHub had already deployed `e287ae29` as
+`dpl_D3qN6ATuXAvAWc3Kb6WGEaENw8yk`, `READY`, and the stable alias pointed to it. Its static
+deployment produced no runtime log lines.
+
+Post-deploy smoke: web root and `/leagues/discover` both returned `200` from one SPA asset
+and retained CSP, `X-Frame-Options`, HSTS, nosniff, referrer, permissions and cache headers.
+Exact-origin CORS returned `200` with credentials; a foreign origin was refused with `400`
+and no `Access-Control-Allow-Origin`. Readiness remained green, and
+`scripts/check-deploy-drift.sh` reported **in sync**. A read-only production transaction
+found RLS enabled and forced on 21 of 21 public tables, no table grants or effective
+privileges for `anon`, `authenticated` or `PUBLIC`, no schema grants, and head `026`.
+
+Two verification helpers failed safely and changed nothing: the first web-asset extractor
+used the wrong path expression, and the direct Supabase hostname did not resolve from the
+local machine. The corrected extractor passed; the database audit used the exact project's
+London session-pooler route in memory and then passed unchanged.
+
+Backup/restore-point identity: **none yet** — Batch 95's backup is still switched off.

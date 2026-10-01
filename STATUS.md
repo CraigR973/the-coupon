@@ -9,13 +9,13 @@ paragraph beneath it. A batch's story belongs in its `session-log.md` entry, not
 
 ## Live
 
-Checked 2026-09-28 unless a line says otherwise.
+Checked 2026-10-01 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `b08a47f3` at migration `026` |
-| API deployment | Railway `86f9ba84-b72d-4791-80ab-c3730ccd9032`, one replica, `europe-west4` |
-| Web | `the-coupon-production.vercel.app` serves `main` at `4121cf0`, Batch 149's last web change — its stylesheet was checked live on 2026-09-28; Vercel builds `main` on every push |
+| API | `api-production-109b1.up.railway.app` serves `e287ae29` at migration `026` |
+| API deployment | Railway `920e285c-00ef-4482-b09d-3d839aef4169`, one replica, `europe-west4` |
+| Web | `the-coupon-production.vercel.app` serves `e287ae29` at Vercel `dpl_D3qN6ATuXAvAWc3Kb6WGEaENw8yk`; Vercel builds `main` on every push |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -29,14 +29,12 @@ Checked 2026-09-28 unless a line says otherwise.
 
 ## Owed
 
-- **One `/ship-prod` is owed.** Batch 199 changed two backend test files that the Railway image
-  includes, so the drift check reports one API-bearing commit (`2986de3`) between deployed
-  `b08a47f3` and `origin/main` (2026-10-01). Runtime API code and migration `026` are unchanged;
-  Group AG is stopped at its shipment checkpoint.
+- **No `/ship-prod` is owed.** Group AG shipped on 2026-10-01 as Railway `920e285c`
+  (`e287ae29`); the drift check reports **in sync**, and migration remains `026`.
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
-  Railway `e77dde8f-9bf3-4c6c-9080-addf52504307`, the previous `c671ccf9` image — boots
-  against the database as it stands. Vercel was already on `b08a47f3` at
-  `dpl_3robg45FXRnNWsmETNvrs1dagtL6`, so the web app did not move during `/ship-prod`.
+  Railway `5f000b0e-c9f0-4da6-b00f-60c2a19b9db8`, the previous image redeployed by the
+  pinned IaC apply — boots against the database as it stands. Vercel was already on
+  `e287ae29` at `dpl_D3qN6ATuXAvAWc3Kb6WGEaENw8yk`, so the web app did not move.
 
 ## Waiting on the owner
 
@@ -71,8 +69,7 @@ These are not batches; nothing here will happen unless the owner does it or auth
 ## Open batches
 
 Batches 170-203 are drafted from the 2026-09-28 review and every owner decision they needed
-was answered on 30 Sep. Group AG is complete and waiting at its `/ship-prod` checkpoint. Groups
-AA, AC, AD, AE, AB, AF and AH follow
+was answered on 30 Sep. Group AG is complete, shipped and verified. Groups AA, AC, AD, AE, AB, AF and AH follow
 in that order (`docs/agent-commands/group-start.md`; the reasons are in the review's
 `08-sequencing.md`).
 
@@ -101,11 +98,12 @@ Checked 2026-10-01.
   branch's. The guard protects gate, close-out, CI, lint, type and test-discovery configuration by
   pattern; it also refuses recorded skip, suppression and weakened-oracle forms. An approved
   gate-maintenance batch must have its exact file list quoted in its open row on `main`.
-- **Production reads**: the direct IPv6 database connection works — `railway run` with the
-  explicit production selectors, then a local asyncpg script (2026-09-27); `railway ssh`
-  worked on 2026-09-26. Both routes have flipped before, so probe rather than trust this
-  line. The Railway CLI's default link is staging, and the Supabase MCP here is a
-  different product — never read Coupon data through it.
+- **Production reads**: use `railway run` with the explicit production selectors and a local
+  asyncpg script. The direct Supabase hostname did not resolve locally on 2026-10-01, so the
+  read-only audit used the exact project's London session-pooler route in memory; `railway ssh`
+  worked on 2026-09-26. Probe rather than trusting either route. The Railway CLI's default
+  link is staging, and the Supabase MCP here is a different product — never read Coupon data
+  through it.
 - **Vercel CLI**: run it with Node 20 first on `PATH` (the ambient `node` is 14 and cannot
   load it). Node 20 is end-of-life; it stays here only until the CLIs are re-tested on
   Node 24 (review 2026-09-28, OPS-19). Its stored token is short-lived and refreshed by any `vercel` command, so run

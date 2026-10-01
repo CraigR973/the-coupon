@@ -7631,3 +7631,32 @@ https://github.com/CraigR973/the-coupon/actions/runs/36857842524 PASS for `4445c
   half changed.
 
 **Next:** `/ship-prod` for Group AG; then Group AA, starting with Batch 172.
+
+## Shipment — 2026-10-01, `e287ae29` (Group AG; no migration)
+**Railway:** `920e285c-00ef-4482-b09d-3d839aef4169` `SUCCESS` · rollback baseline
+`5f000b0e-…` (plain — nothing migrated) · Vercel no-op
+(`dpl_D3qN6ATuXAvAWc3Kb6WGEaENw8yk`, `e287ae29`) · drift **in sync** · exact-SHA CI run
+`36889941120` green · gate 12 checks, backend 1,350, frontend 1,215, journey 1
+
+### Key facts for future sessions
+- **Group AG is fully shipped.** Batches 198, 200, 199 and 201 are checked, the API image
+  now matches `origin/main`, and no `/ship-prod` is owed.
+- **No schema or runtime API change.** Image and database both report migration `026`; the
+  Railway image moved because it includes the backend tests changed by Batch 199.
+- **Production proof:** health and readiness returned `200` for `e287ae29`, the stable web
+  routes served one SPA with the committed headers, exact-origin CORS passed, the foreign
+  origin was refused, and Vercel remained `READY` at the same SHA.
+- **Security proof:** a read-only production transaction found forced RLS on 21 of 21
+  tables and no table or schema grants to `anon`, `authenticated` or `PUBLIC`. The final
+  82-line Railway snapshot contained no startup, migration or leak-pattern finding; the
+  scheduler emitted its two expected start messages. The static Vercel deployment emitted
+  no runtime logs.
+- **IaC and rollback:** the pinned plan was 0 add / 2 change / 0 destroy. Its redeploy
+  `5f000b0e` reached `SUCCESS` before the source upload and is the plain rollback image;
+  Railway later marked the superseded deployment `REMOVED`.
+- **Verification retries:** the first web-asset extractor used the wrong path expression;
+  the direct Supabase hostname did not resolve locally. The corrected extractor passed,
+  and the unchanged read-only database audit passed through the exact project's London
+  session-pooler route.
+
+**Next:** Group AA — Batches 172, 173, 174 and 170.
