@@ -41,7 +41,14 @@ async function expectNoAxeViolations(page: Page): Promise<void> {
     const results = await window.axe.run(document.documentElement);
     return results.violations.map((violation) => ({
       id: violation.id,
-      targets: violation.nodes.flatMap((node) => node.target),
+      nodes: violation.nodes.map((node) => ({
+        targets: node.target,
+        failureSummary: node.failureSummary,
+        checks: [...node.any, ...node.all, ...node.none].map((check) => ({
+          message: check.message,
+          data: check.data,
+        })),
+      })),
     }));
   });
   expect(violations).toEqual([]);
