@@ -22,6 +22,7 @@ jobs:
       # GitHub forces ANSI colour even when ci-local redirects Vitest to a log.
       # Keep the machine-read count summary plain so the ratchet can parse it.
       FORCE_COLOR: "0"
+      NO_COLOR: "1"
     steps:
       - uses: actions/checkout@v4
         with:
