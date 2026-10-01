@@ -514,6 +514,27 @@ describe.each([
       contrast(palette['text-secondary'], palette['surface']),
     );
   });
+
+  it('keeps badge labels readable on every semantic tint', () => {
+    for (const token of [
+      'primary',
+      'accent',
+      'gold',
+      'silver',
+      'bronze',
+      'success',
+      'warning',
+      'error',
+      'live',
+    ]) {
+      const ground = over(palette[token], 0.2, palette['surface']);
+      const ratio = contrast(palette['text-primary'], ground);
+      expect(
+        ratio,
+        `${name}: --text-primary (${palette['text-primary']}) on the ${token} badge (${ground}) is ${ratio.toFixed(2)}:1`,
+      ).toBeGreaterThanOrEqual(AA_NORMAL);
+    }
+  });
 });
 
 describe('the components that dimmed text with opacity', () => {
