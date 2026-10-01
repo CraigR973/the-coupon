@@ -1,17 +1,71 @@
 #!/usr/bin/env bash
-# Pre-push close-out guard: report existing API drift and refuse an API+web
-# batch until the owner has explicitly scheduled the matching /ship-prod.
+# Pre-push close-out guard: report existing API drift and refuse a web release
+# that depends on unshipped API work until the owner has explicitly scheduled
+# the matching /ship-prod. A shipment acknowledgement names who scheduled it
+# and when so close-out can preserve that evidence in session-log.md.
 set -uo pipefail
 
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 BATCH="${1:-}"
-MODE="${2:-}"
 GATE_STAMP="$(git -C "$ROOT" rev-parse --absolute-git-dir)/coupon-ci-local.pass"
+VERIFY_GATE_STAMP=false
+SHIPMENT_SCHEDULED_BY=""
+SHIPMENT_SCHEDULED_AT=""
 
-if [[ ! "$BATCH" =~ ^[0-9]+$ ]] \
-   || [[ -n "$MODE" && "$MODE" != "--shipment-scheduled" \
-        && "$MODE" != "--verify-gate-stamp" ]]; then
-  echo "usage: $0 <numeric-batch> [--shipment-scheduled|--verify-gate-stamp]" >&2
+usage() {
+  echo "usage: $0 <numeric-batch> [--verify-gate-stamp | --shipment-scheduled-by <identity> --shipment-scheduled-at <UTC-RFC3339>]" >&2
+}
+
+if [[ ! "$BATCH" =~ ^[0-9]+$ ]]; then
+  usage
+  exit 2
+fi
+shift
+
+while (( $# > 0 )); do
+  case "$1" in
+    --verify-gate-stamp)
+      VERIFY_GATE_STAMP=true
+      shift
+      ;;
+    --shipment-scheduled-by)
+      [[ $# -ge 2 ]] || { usage; exit 2; }
+      SHIPMENT_SCHEDULED_BY="$2"
+      shift 2
+      ;;
+    --shipment-scheduled-at)
+      [[ $# -ge 2 ]] || { usage; exit 2; }
+      SHIPMENT_SCHEDULED_AT="$2"
+      shift 2
+      ;;
+    *)
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+ACKNOWLEDGED=false
+if [[ -n "$SHIPMENT_SCHEDULED_BY" || -n "$SHIPMENT_SCHEDULED_AT" ]]; then
+  if [[ -z "$SHIPMENT_SCHEDULED_BY" || -z "$SHIPMENT_SCHEDULED_AT" ]]; then
+    echo "close-out safety: shipment acknowledgement requires both who and when" >&2
+    usage
+    exit 2
+  fi
+  if [[ ! "$SHIPMENT_SCHEDULED_BY" =~ ^[[:alnum:]][[:alnum:].@_-]*(\ [[:alnum:].@_-]+)*$ ]] \
+     || (( ${#SHIPMENT_SCHEDULED_BY} > 80 )); then
+    echo "close-out safety: shipment identity must be 1-80 letters, numbers, spaces or . @ _ -" >&2
+    exit 2
+  fi
+  if [[ ! "$SHIPMENT_SCHEDULED_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
+    echo "close-out safety: shipment time must be UTC RFC3339 (YYYY-MM-DDTHH:MM:SSZ)" >&2
+    exit 2
+  fi
+  ACKNOWLEDGED=true
+fi
+
+if [[ "$VERIFY_GATE_STAMP" == true && "$ACKNOWLEDGED" == true ]]; then
+  echo "close-out safety: gate verification and shipment acknowledgement are separate invocations" >&2
   exit 2
 fi
 
@@ -49,12 +103,12 @@ if [[ -f "$GATE_STAMP" ]] \
 fi
 if [[ "$stamp_valid" != true || "$stamped_tree" != "$current_tree" ]]; then
   echo "close-out safety: REFUSED — the exact tree has no matching ci-local PASS stamp" >&2
-  echo "Run the complete 11-check scripts/ci-local.sh gate against this tree before continuing." >&2
+  echo "Run the complete 12-check scripts/ci-local.sh gate against this tree before continuing." >&2
   exit 1
 fi
 echo "close-out safety: verified ci-local PASS stamp for tree $current_tree"
 
-if [[ "$MODE" == "--verify-gate-stamp" ]]; then
+if [[ "$VERIFY_GATE_STAMP" == true ]]; then
   exit 0
 fi
 
@@ -88,22 +142,45 @@ while IFS= read -r path; do
   esac
 done <<<"$changed"
 
+drift_record="pre-push deployed-API state inconclusive"
+case "$drift_status" in
+  0) drift_record="pre-push deployed-API drift in sync" ;;
+  1) drift_record="pre-push /ship-prod debt present" ;;
+esac
+
 if [[ "$api_changed" == true && "$web_changed" == true ]]; then
-  if [[ "$MODE" != "--shipment-scheduled" ]]; then
+  if [[ "$ACKNOWLEDGED" != true ]]; then
     echo >&2
     echo "close-out safety: REFUSED — Batch $BATCH changes both API and web." >&2
     echo "The push would deploy the web half before the API half." >&2
-    echo "Stop until the owner explicitly schedules the matching /ship-prod, then rerun:" >&2
-    echo "  scripts/check-closeout-safety.sh $BATCH --shipment-scheduled" >&2
+    echo "Stop until the owner explicitly schedules the matching /ship-prod." >&2
+    echo "Record who scheduled it and the current UTC time when rerunning the guard." >&2
+    echo "Close-out safety: REFUSED — API+web; shipment acknowledgement missing; $drift_record" >&2
     exit 1
   fi
-  echo "close-out safety: PASS — split-half shipment explicitly scheduled; /ship-prod is owed immediately after push"
+  echo "close-out safety: PASS — API+web shipment explicitly scheduled"
+  echo "Close-out safety: PASS — API+web; shipment scheduled by $SHIPMENT_SCHEDULED_BY at $SHIPMENT_SCHEDULED_AT; $drift_record; /ship-prod owed immediately after push"
+elif [[ "$web_changed" == true && "$drift_status" -eq 1 ]]; then
+  if [[ "$ACKNOWLEDGED" != true ]]; then
+    echo >&2
+    echo "close-out safety: REFUSED — Batch $BATCH changes web while an earlier /ship-prod is owed." >&2
+    echo "The web change may depend on API work that members cannot reach yet." >&2
+    echo "Stop until the owner explicitly schedules the matching /ship-prod." >&2
+    echo "Record who scheduled it and the current UTC time when rerunning the guard." >&2
+    echo "Close-out safety: REFUSED — web-only over existing API debt; shipment acknowledgement missing; $drift_record" >&2
+    exit 1
+  fi
+  echo "close-out safety: PASS — web change over existing API debt; shipment explicitly scheduled"
+  echo "Close-out safety: PASS — web-only over existing API debt; shipment scheduled by $SHIPMENT_SCHEDULED_BY at $SHIPMENT_SCHEDULED_AT; $drift_record; /ship-prod owed immediately after push"
 elif [[ "$api_changed" == true ]]; then
   echo "close-out safety: PASS — API-only batch; /ship-prod will be owed after push"
+  echo "Close-out safety: PASS — API-only; $drift_record; /ship-prod owed after push"
 elif [[ "$web_changed" == true ]]; then
   echo "close-out safety: PASS — web-only batch; no API shipment added"
+  echo "Close-out safety: PASS — web-only; $drift_record; no API shipment added"
 else
   echo "close-out safety: PASS — tooling/docs batch; no application half changed"
+  echo "Close-out safety: PASS — tooling/docs; $drift_record; no application half changed"
 fi
 
 case "$drift_status" in

@@ -33,18 +33,28 @@ changes beyond the batch, or if the batch row is already ticked.
 
    This runs the deployment-drift check while the web app is still untouched,
    classifies the batch's own diff, and refuses an API+web batch because the push
-   would release its web half first. Stop and ask the owner to schedule the
-   matching `/ship-prod`. Only after that explicit instruction, rerun the guard
-   with the acknowledgement below; never infer or add it yourself:
+   would release its web half first. It also refuses a web-changing batch while
+   the drift check says an earlier `/ship-prod` is owed: that earlier API half may
+   be the contract the new web change needs.
+
+   Stop and ask the owner to schedule the matching `/ship-prod`. The old
+   `--shipment-scheduled` boolean is not evidence and is no longer accepted. Only
+   after the owner's explicit instruction, record who scheduled it and when, then
+   rerun with both fields. Never infer the identity, timestamp or decision, and
+   never add them on the owner's behalf:
 
    ```bash
-   /Users/craigrobinson/the-coupon/scripts/check-closeout-safety.sh N --shipment-scheduled
+   /Users/craigrobinson/the-coupon/scripts/check-closeout-safety.sh N \
+     --shipment-scheduled-by "<owner identity>" \
+     --shipment-scheduled-at "<current UTC YYYY-MM-DDTHH:MM:SSZ>"
    ```
 
    API-only batches may continue and report that `/ship-prod` will be owed;
    web-only and tooling/documentation batches add no API shipment. Existing
    drift or an inconclusive live check must be reported even when this batch is
-   not split-half.
+   not split-half. Save the guard's final `Close-out safety:` line. It is the
+   durable verdict that step 9 records; when an acknowledgement was required it
+   includes the scheduler and UTC time.
 4. Stage only the batch's explicit files and create a Conventional Commit. End the commit
    body with `Coupon-Batch: N`; CI uses that trailer to replay a main push under the batch's
    trusted gate-maintenance approval rather than trusting the merged workflow to approve
@@ -83,10 +93,15 @@ changes beyond the batch, or if the batch row is already ticked.
    **Commits:** <hashes> · verified: <green gates; backend and frontend test counts> · CI: <run URL> PASS for <implementation SHA>
 
    ### Key facts for future sessions
-   - <only non-obvious facts, at most six bullets>
+   - <only non-obvious facts, at most five other bullets>
+   - **Close-out safety:** <copy the guard's final verdict after this label>
 
    **Next:** <first unchecked batch, or launch planning>
    ```
+
+   Every batch entry gets exactly one `Close-out safety:` bullet, including
+   tooling/docs-only batches. Preserve the classification, pre-push drift verdict,
+   shipment debt and, when present, scheduler identity and UTC timestamp.
 
 10. Refresh `STATUS.md`, stage only the three close-out documents, and commit with the same
     `Coupon-Batch: N` trailer: `docs: close out Batch N — tick BUILD_PLAN + session log`.
