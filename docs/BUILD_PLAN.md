@@ -125,7 +125,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: colour tokens and their utilities. No layout change. **Web-only.**
 
-- [ ] **Batch 172 — Offline, loading and failure states that tell members the wrong thing**
+- [x] **Batch 172 — Offline, loading and failure states that tell members the wrong thing** ✅ 2026-10-02
   — specified from `docs/review/2026-09-28/03-ux-accessibility.md` UX-31 and UX-25 (MED, live,
   verified) and `06-premium-design.md` DES-17 (med); DES-16 is UX-31. **Offline:** with the app
   open and the connection gone, tapping a pick gives an endless spinner, every selection

@@ -7660,3 +7660,27 @@ https://github.com/CraigR973/the-coupon/actions/runs/36857842524 PASS for `4445c
   session-pooler route.
 
 **Next:** Group AA — Batches 172, 173, 174 and 170.
+
+## Batch 172 — Offline, loading and failure states that tell members the wrong thing
+**Commits:** `011f5ed` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,350 backend
+and 1,226 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/36981470633 PASS for `011f5ed`
+
+### Key facts for future sessions
+- **Offline picks reach the safe queue immediately.** The mutation runs while offline so
+  `apiFetch` can prove the request never left, show the queued notice and send exactly one POST
+  on reconnect; the may-have-landed and lost-race branches are unchanged.
+- **Failed reads no longer look empty.** The current round, My Leagues, league members, league
+  activity, site-admin players and admin dashboard show a retryable error without echoing raw API
+  detail; successful empty states remain distinct and are hash-compared in tests.
+- **Home waits for the truth.** Loading and failed season summaries use neutral hero copy; the
+  first-league message appears only after a successful zero-league response.
+- **Browser proof:** Chromium went offline after loading the round, held the tapped selection with
+  the queued message, then reconnected and observed exactly one pick POST.
+- **Verification retries:** the first focused run used a text selector split across elements and
+  was corrected to assert the rendered state; the first journey-only run never reached tests
+  because `initdb` rejected `C.UTF-8`, then passed unchanged under `en_US.UTF-8`. The complete
+  12-check gate passed first run.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+**Next:** Batch 173 — settled-round presentation.
