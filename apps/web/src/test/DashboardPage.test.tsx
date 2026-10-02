@@ -176,6 +176,31 @@ beforeEach(() => {
 });
 
 describe('DashboardPage', () => {
+  it('uses neutral hero copy until the season summary resolves', async () => {
+    let releaseSummary!: (value: Response) => void;
+    const summaryResponse = new Promise<Response>((resolve) => {
+      releaseSummary = resolve;
+    });
+    vi.stubGlobal('fetch', (url: string) => {
+      if (String(url).includes('/me/cross-league-summary')) return summaryResponse;
+      if (String(url).includes('/leagues/mine')) {
+        return Promise.resolve(new Response(JSON.stringify(LEAGUES), { status: 200 }));
+      }
+      return Promise.resolve(new Response('{}', { status: 200 }));
+    });
+
+    renderPage();
+
+    expect(screen.getByText(/all in one place/i)).toBeInTheDocument();
+    expect(screen.queryByText(/when your first league begins/i)).not.toBeInTheDocument();
+
+    releaseSummary(new Response(JSON.stringify({ ...SUMMARY, leagues_count: 0, per_league: [] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    expect(await screen.findByText(/when your first league begins/i)).toBeInTheDocument();
+  });
+
   it('turns the cross-league season into a home summary', async () => {
     renderPage();
     const summary = await screen.findByTestId('home-season-summary');
@@ -204,6 +229,8 @@ describe('DashboardPage', () => {
 
     renderPage();
     expect(await screen.findByTestId('query-error-state')).toHaveTextContent("Couldn't load your leagues");
+    expect(screen.getByText(/all in one place/i)).toBeInTheDocument();
+    expect(screen.queryByText(/when your first league begins/i)).not.toBeInTheDocument();
     expect(screen.queryByText("You're not in a league yet")).not.toBeInTheDocument();
 
     summary = SUMMARY;

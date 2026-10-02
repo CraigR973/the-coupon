@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/PageHeader';
+import { QueryErrorState } from '@/components/QueryErrorState';
 
 /**
  * What each recorded action is called in a sentence a league admin would use.
@@ -83,7 +84,7 @@ export function LeagueAuditLogPage() {
   const timezone = player?.timezone ?? 'UTC';
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useQuery<LeagueAuditLogResponse>({
+  const { data, isLoading, isError, refetch } = useQuery<LeagueAuditLogResponse>({
     queryKey: ['league-audit-log', slug, page],
     queryFn: () =>
       apiFetch<LeagueAuditLogResponse>(`/api/v1/leagues/${slug}/audit-log?page=${page}`),
@@ -116,7 +117,15 @@ export function LeagueAuditLogPage() {
         </div>
       )}
 
-      {!isLoading && entries.length === 0 && (
+      {isError && (
+        <QueryErrorState
+          title="Couldn't load league activity"
+          description="Check your connection, then try again."
+          onRetry={() => void refetch()}
+        />
+      )}
+
+      {!isLoading && !isError && entries.length === 0 && (
         <Card>
           <CardContent className="pt-8 pb-8 text-center">
             <p className="text-text-secondary font-sans text-sm">
@@ -126,7 +135,7 @@ export function LeagueAuditLogPage() {
         </Card>
       )}
 
-      {entries.length > 0 && (
+      {!isError && entries.length > 0 && (
         <>
           <div className="space-y-2">
             {entries.map((entry) => (

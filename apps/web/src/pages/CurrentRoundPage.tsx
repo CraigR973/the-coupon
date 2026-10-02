@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown } from 'lucide-react';
-import { apiFetch } from '../lib/api';
+import { ApiError, apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
 import { type CountdownParts } from '../hooks/useCountdown';
@@ -40,6 +40,7 @@ import { OutstandingPickNotice } from '../components/OutstandingPickNotice';
 import { CouponCompleteNotice } from '../components/CouponCompleteNotice';
 import { GameweekNav } from '../components/GameweekNav';
 import { EmptyState } from '../components/EmptyState';
+import { QueryErrorState } from '../components/QueryErrorState';
 import { entriesForRound } from '../components/PickRow';
 import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '../lib/utils';
@@ -157,6 +158,7 @@ export function CurrentRoundPage() {
     isLoading,
     isError,
     error,
+    refetch,
   } = useQuery<GameweekSlate>({
     queryKey: gameweekKey(slug, gameweekId),
     queryFn: () =>
@@ -184,6 +186,7 @@ export function CurrentRoundPage() {
   // list. Everything below indexes into `legs`, and a response without one is a round
   // with no coupon rather than a page that throws.
   const coupon = Array.isArray(couponResponse?.legs) ? couponResponse : undefined;
+  const slateNotPublished = error instanceof ApiError && error.status === 404;
 
   // Anchored on the round the slate actually came back with, which on the default view
   // is the API's choice rather than the newest date (see `useGameweekHistory`).
@@ -456,14 +459,18 @@ export function CurrentRoundPage() {
         </div>
       )}
 
-      {isError && (
+      {isError && slateNotPublished && (
         <EmptyState
           title="No coupon this week yet"
-          description={
-            error instanceof Error && error.message !== 'API error 404'
-              ? error.message
-              : "This round's slate hasn't been published yet. Check back soon."
-          }
+          description="This round's slate hasn't been published yet. Check back soon."
+        />
+      )}
+
+      {isError && !slateNotPublished && (
+        <QueryErrorState
+          title="Couldn't load this week's coupon"
+          description="Check your connection, then try again."
+          onRetry={() => void refetch()}
         />
       )}
 

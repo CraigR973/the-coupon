@@ -331,7 +331,11 @@ function HomeHero({
         >
           Hi {displayName}
         </h1>
-        {leagueCount === 0 ? (
+        {!summary ? (
+          <p className="mt-2 max-w-md font-sans text-sm leading-relaxed text-text-secondary">
+            Your picks, deadlines and results — all in one place.
+          </p>
+        ) : leagueCount === 0 ? (
           <p className="mt-2 max-w-md font-sans text-sm leading-relaxed text-text-secondary">
             Your picks, deadlines and results — together when your first league begins.
           </p>

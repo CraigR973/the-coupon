@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/PageHeader';
+import { QueryErrorState } from '@/components/QueryErrorState';
 import {
   Dialog,
   DialogContent,
@@ -40,7 +41,7 @@ export function PlayersPage() {
   const [deleteTarget, setDeleteTarget] = useState<AdminPlayer | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState('');
 
-  const { data: players, isLoading } = useQuery<AdminPlayer[]>({
+  const { data: players, isLoading, isError, refetch } = useQuery<AdminPlayer[]>({
     queryKey: PLAYERS_KEY,
     queryFn: () => apiFetch<AdminPlayer[]>('/api/v1/admin/players'),
   });
@@ -129,6 +130,12 @@ export function PlayersPage() {
             <Skeleton key={i} className="h-20 w-full" />
           ))}
         </div>
+      ) : isError ? (
+        <QueryErrorState
+          title="Couldn't load the players"
+          description="Check your connection, then try again."
+          onRetry={() => void refetch()}
+        />
       ) : visible.length === 0 ? (
         <p className="font-sans text-sm text-text-secondary">No players match that.</p>
       ) : (

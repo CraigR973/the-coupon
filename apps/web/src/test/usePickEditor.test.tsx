@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { createElement, type PropsWithChildren } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('@/lib/api', async () => {
   // `ApiError` / `NetworkError` are the real classes: the hook branches on `instanceof`,
@@ -73,6 +73,10 @@ function submits() {
 
 function setOnline(online: boolean) {
   Object.defineProperty(navigator, 'onLine', { value: online, configurable: true });
+  // Keep TanStack's own connectivity state in step with the browser. Without this the
+  // test can pass while its default mutation mode still pauses before `apiFetch` runs —
+  // the exact endless-spinner failure Batch 172 fixes in Chromium.
+  onlineManager.setOnline(online);
 }
 
 /** Fire the browser's reconnect event, which is what flushes a queued pick. */
@@ -244,6 +248,7 @@ describe('usePickEditor', () => {
       description: expect.stringMatching(/offline/i),
     });
     expect(mockToast.error).not.toHaveBeenCalled();
+    expect(submits()).toHaveLength(1);
 
     mockApiFetch.mockReset();
     mockApiFetch.mockResolvedValue(PICK);

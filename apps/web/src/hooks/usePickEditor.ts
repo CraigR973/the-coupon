@@ -376,6 +376,12 @@ export function usePickEditor(
   const sendRef = useRef<(body: SubmitPickBody) => void>(() => undefined);
 
   const mutation = useMutation({
+    // TanStack's default pauses mutations while the browser reports offline. That is
+    // useful for writes it owns, but this hook owns a more careful queue: `apiFetch`
+    // distinguishes a request that definitely never left from one that may have landed,
+    // and only the former is safe to resend on reconnect. Run the mutation immediately
+    // so that distinction and the queued message can happen while the member is offline.
+    networkMode: 'always',
     mutationFn: (body: SubmitPickBody) =>
       apiFetch<SubmitPickResponse>(`/api/v1/leagues/${slug}/picks`, {
         method: 'POST',

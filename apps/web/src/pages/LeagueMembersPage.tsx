@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/PageHeader';
+import { QueryErrorState } from '@/components/QueryErrorState';
 import { Avatar } from '@/components/ui/avatar';
 import {
   Dialog,
@@ -32,7 +33,7 @@ export function LeagueMembersPage() {
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [leaveConfirm, setLeaveConfirm] = useState('');
 
-  const { data: members, isLoading } = useQuery<LeagueMember[]>({
+  const { data: members, isLoading, isError, refetch } = useQuery<LeagueMember[]>({
     queryKey: ['league-members', slug],
     queryFn: () => apiFetch<LeagueMember[]>(`/api/v1/leagues/${slug}/members`),
   });
@@ -120,7 +121,23 @@ export function LeagueMembersPage() {
         </div>
       )}
 
-      {!isLoading && members && (
+      {isError && (
+        <QueryErrorState
+          title="Couldn't load the members"
+          description="Check your connection, then try again."
+          onRetry={() => void refetch()}
+        />
+      )}
+
+      {!isLoading && !isError && members && members.length === 0 && (
+        <Card>
+          <CardContent className="pb-8 pt-8 text-center">
+            <p className="font-sans text-sm text-text-secondary">No members to show.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {!isLoading && !isError && members && members.length > 0 && (
         <div className="space-y-2">
           {members.map((m) => (
             <Card key={m.id}>

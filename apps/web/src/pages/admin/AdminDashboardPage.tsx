@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/PageHeader';
+import { QueryErrorState } from '@/components/QueryErrorState';
 import { cn } from '@/lib/utils';
 import { AdminNav } from './AdminNav';
 
@@ -24,7 +25,7 @@ function when(iso: string | null): string {
  * a row — so it is safe to leave open on a second screen while the round plays.
  */
 export function AdminDashboardPage() {
-  const { data, isLoading } = useQuery<AdminDashboard>({
+  const { data, isLoading, isError, refetch } = useQuery<AdminDashboard>({
     queryKey: ['admin-dashboard'],
     queryFn: () => apiFetch<AdminDashboard>('/api/v1/admin/dashboard'),
     refetchInterval: 60_000,
@@ -35,12 +36,18 @@ export function AdminDashboardPage() {
       <PageHeader eyebrow="Site admin" title="Dashboard" />
       <AdminNav />
 
-      {isLoading || !data ? (
+      {isLoading ? (
         <div className="space-y-2">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-24 w-full" />
           ))}
         </div>
+      ) : isError || !data ? (
+        <QueryErrorState
+          title="Couldn't load the admin dashboard"
+          description="Check your connection, then try again."
+          onRetry={() => void refetch()}
+        />
       ) : (
         <div className="space-y-5">
           <div className="grid grid-cols-3 gap-2">

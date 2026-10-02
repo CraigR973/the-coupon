@@ -149,8 +149,29 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   expect(seeded.ok(), await seeded.text()).toBeTruthy();
 
   const alice = await login(browser, 'Alice');
+  let alicePickPosts = 0;
+  alice.on('request', (outgoing) => {
+    if (outgoing.method() === 'POST' && outgoing.url().endsWith('/api/v1/leagues/the-coupon/picks')) {
+      alicePickPosts += 1;
+    }
+  });
+
+  // Batch 172. The app is already open when the connection disappears. TanStack must
+  // let the pick hook see that state immediately: it owns the safe queue because it can
+  // tell "never left this device" from "may have landed". Nothing reaches the API while
+  // offline; the browser's reconnect event flushes the held intent exactly once.
+  await alice.context().setOffline(true);
   await alice.getByRole('button', { name: /Arsenal.*1\.90.*win 19 pts/i }).click();
+  await expect(alice.locator('[data-sonner-toast]').last()).toContainText('Saved on this phone');
+  await expect(alice.getByTestId('outstanding-pick-notice')).toHaveAttribute('data-state', 'queued');
+  expect(alicePickPosts).toBe(0);
+  await alice.screenshot({
+    path: join(ARTIFACT_DIR, 'batch-172-offline-pick-queued.png'),
+    fullPage: true,
+  });
+  await alice.context().setOffline(false);
   await expect(alice.getByTestId('my-pick-summary')).toContainText('Arsenal');
+  expect(alicePickPosts).toBe(1);
 
   const bob = await login(browser, 'Bob');
   await bob.getByTestId('competition-10932510').getByRole('button').click();

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createHash } from 'node:crypto';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LeagueProvider } from '@/contexts/LeagueContext';
 import { CurrentRoundPage } from '@/pages/CurrentRoundPage';
@@ -235,6 +236,47 @@ beforeEach(() => {
 });
 
 describe('CurrentRoundPage', () => {
+  it('keeps a failed slate distinct from an unpublished one and retries it', async () => {
+    let slateStatus = 500;
+    vi.stubGlobal('fetch', (url: string) => {
+      if (String(url).includes('/gameweek/current')) {
+        return Promise.resolve({
+          ok: false,
+          status: slateStatus,
+          json: () =>
+            Promise.resolve({
+              detail: slateStatus === 404 ? 'No gameweek yet' : 'Internal Server Error',
+            }),
+        });
+      }
+      if (String(url).includes('/coupon')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(COUPON) });
+      }
+      if (String(url).includes('/gameweeks')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(GAMEWEEKS) });
+      }
+      if (String(url).includes('/leagues/mine')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([MOCK_LEAGUE]) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+
+    const { container } = renderPage();
+
+    expect(await screen.findByTestId('query-error-state')).toHaveTextContent(
+      "Couldn't load this week's coupon",
+    );
+    expect(screen.queryByText('No coupon this week yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('Internal Server Error')).not.toBeInTheDocument();
+    const errorHash = createHash('sha256').update(container.innerHTML).digest('hex');
+
+    slateStatus = 404;
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('No coupon this week yet')).toBeInTheDocument();
+    expect(screen.queryByTestId('query-error-state')).not.toBeInTheDocument();
+    expect(createHash('sha256').update(container.innerHTML).digest('hex')).not.toBe(errorHash);
+  });
+
   it('uses a suffixed deployment week on the round and combined coupon surface', async () => {
     stubSlate({ number: 3, season_week: '5b' });
     renderPage();

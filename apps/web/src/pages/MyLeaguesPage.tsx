@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/PageHeader';
+import { QueryErrorState } from '@/components/QueryErrorState';
 import { useAuth } from '@/contexts/AuthContext';
 import { getLastViewedLeague, sortLeaguesByLastViewed } from '@/lib/leagueRecency';
 import { keys } from '@/lib/queryKeys';
@@ -92,7 +93,7 @@ function LeagueCard({
 }
 
 export function MyLeaguesPage() {
-  const { data: leagues, isLoading } = useQuery<LeagueSummary[]>({
+  const { data: leagues, isLoading, isError, refetch } = useQuery<LeagueSummary[]>({
     queryKey: ['leagues', 'mine'],
     queryFn: () => apiFetch<LeagueSummary[]>('/api/v1/leagues/mine'),
   });
@@ -129,7 +130,15 @@ export function MyLeaguesPage() {
         </div>
       )}
 
-      {!isLoading && leagues && leagues.length === 0 && (
+      {isError && (
+        <QueryErrorState
+          title="Couldn't load your leagues"
+          description="Check your connection, then try again."
+          onRetry={() => void refetch()}
+        />
+      )}
+
+      {!isLoading && !isError && leagues && leagues.length === 0 && (
         <Card>
           <CardContent className="pt-8 pb-8 text-center">
             <p className="text-text-secondary font-sans text-sm mb-4">
@@ -150,7 +159,7 @@ export function MyLeaguesPage() {
         </Card>
       )}
 
-      {!isLoading && leagues && leagues.length > 0 && (
+      {!isLoading && !isError && leagues && leagues.length > 0 && (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {orderedLeagues.map((l) => (
             <LeagueCard key={l.slug} league={l} isLastViewed={lastViewed?.slug === l.slug} />
