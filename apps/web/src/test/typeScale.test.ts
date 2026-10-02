@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { cn } from '@/lib/utils';
 
 const WEB_ROOT = resolve(process.cwd(), 'src');
 const TAILWIND = readFileSync(resolve(process.cwd(), 'tailwind.config.ts'), 'utf8');
@@ -25,5 +26,21 @@ describe('type scale', () => {
     });
 
     expect(undersized).toEqual([]);
+  });
+
+  // The caption reached members at 16px wherever it went through `cn()`: tailwind-merge took
+  // `text-caption` for a colour and dropped it beside a real one — the bottom bar's labels,
+  // the form pips, the header wordmark. The sizes are read from the config, so a new one
+  // cannot be added without being registered with the merge.
+  it('keeps every custom font size beside a text colour, in either order', () => {
+    const block = TAILWIND.match(/fontSize:\s*\{([\s\S]*?)\n\s*\}/)?.[1] ?? '';
+    const sizes = [...block.matchAll(/^\s*['"]?([\w-]+)['"]?\s*:/gm)].map((match) => match[1]);
+    expect(sizes).toContain('caption');
+
+    for (const size of sizes) {
+      const expected = [`text-${size}`, 'text-text-muted'].sort();
+      expect(cn(`text-${size}`, 'text-text-muted').split(' ').sort()).toEqual(expected);
+      expect(cn('text-text-muted', `text-${size}`).split(' ').sort()).toEqual(expected);
+    }
   });
 });

@@ -41,6 +41,48 @@ async function expectNoColourContrastViolations(page: Page): Promise<void> {
   expect(violations).toEqual([]);
 }
 
+/**
+ * The bottom bar at phone width. Its line sits over the current tab, 12px in from each
+ * edge, and every tab keeps a 12px label on one line above a full-size icon. Both went
+ * wrong while this journey was taking these exact screenshots — the line drew from the
+ * bar's centre, two tabs right, and the labels lost their size class and wrapped — so
+ * the bar is measured here rather than only pictured.
+ */
+async function expectTabBarSettled(page: Page, current: string): Promise<void> {
+  const bar = page.getByRole('navigation', { name: 'Primary' });
+  const tab = bar.locator('[aria-current="page"]');
+  await expect(tab).toHaveCount(1);
+  await expect(tab).toContainText(current);
+  const line = bar.getByTestId('tabbar-indicator').locator('span');
+  // The line slides for 260ms after a route change, so wait for it to come to rest.
+  await expect
+    .poll(async () => {
+      const [tabBox, lineBox] = await Promise.all([tab.boundingBox(), line.boundingBox()]);
+      if (!tabBox || !lineBox) return Number.POSITIVE_INFINITY;
+      return Math.max(
+        Math.abs(lineBox.x - (tabBox.x + 12)),
+        Math.abs(lineBox.width - (tabBox.width - 24)),
+      );
+    })
+    .toBeLessThanOrEqual(1);
+  const tabs = await bar.locator('li > a, li > button').evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const label = node.querySelector('span')!;
+      const style = getComputedStyle(label);
+      return {
+        label: label.textContent,
+        fontSize: style.fontSize,
+        lines: Math.round(label.getBoundingClientRect().height / parseFloat(style.lineHeight)),
+        iconHeight: Math.round(node.querySelector('svg')!.getBoundingClientRect().height),
+      };
+    }),
+  );
+  expect(tabs).toHaveLength(5);
+  for (const item of tabs) {
+    expect(item, `${item.label} tab`).toMatchObject({ fontSize: '12px', lines: 1, iconHeight: 20 });
+  }
+}
+
 async function expectNoAxeViolations(page: Page): Promise<void> {
   await page.addScriptTag({ path: AXE_PATH });
   const violations = await page.evaluate(async () => {
@@ -188,6 +230,7 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   for (const theme of ['dark', 'light'] as const) {
     await setTheme(alice, theme);
     await expect(alice.getByTestId('standings')).toContainText('Bob');
+    await expectTabBarSettled(alice, 'Leagues');
     await expect(alice.getByRole('button', { name: 'Copy standings' })).toBeVisible();
     await alice.getByRole('button', { name: 'Copy standings' }).click();
     const toast = alice.locator('[data-sonner-toast]').last();
@@ -258,6 +301,7 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   for (const theme of ['dark', 'light'] as const) {
     await setTheme(alice, theme);
     await expect(alice.getByRole('button', { name: 'Copy result' })).toBeVisible();
+    await expectTabBarSettled(alice, 'Coupon');
     const seasonWeek = alice.getByText('Gameweek 1b');
     await seasonWeek.scrollIntoViewIfNeeded();
     await expect(seasonWeek).toBeInViewport();
@@ -416,6 +460,7 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
     await setTheme(alice, theme);
     await expect(alice.getByTestId('home-hero')).toContainText('Hi Alice');
     await expect(alice.getByTestId('home-season-summary')).toContainText('19');
+    await expectTabBarSettled(alice, 'Home');
     await expectNoAxeViolations(alice);
     await expectNoColourContrastViolations(alice);
     await alice.screenshot({
@@ -425,6 +470,15 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
       path: join(ARTIFACT_DIR, `batch-106-home-single-${theme}-390x844.png`),
     });
   }
+
+  // The old "Football Stats" label only just fit at 390px and wrapped in a 64px tab at
+  // the WCAG reflow width. Enlarged text spacing must not bring the two-line, crushed-icon
+  // failure back either.
+  await alice.setViewportSize({ width: 320, height: 720 });
+  await alice.addStyleTag({
+    content: '* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; }',
+  });
+  await expectTabBarSettled(alice, 'Home');
 
   // Batch 151: the shared statistic component must stay legible and accessible on the
   // desktop surface as well as the phone hero. The review's 1280 captures are the before
@@ -490,6 +544,7 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   // The profile keeps only the meaningful per-league ranks and says why.
   await expect(alice.getByText(/Rank does not average across them/)).toBeVisible();
   await expect(alice.getByTestId('career-league-work-league')).toBeVisible();
+  await expectTabBarSettled(alice, 'More');
   await alice.screenshot({ path: join(ARTIFACT_DIR, 'career-profile.png'), fullPage: true });
 
   // The per-league record is still its own page, reached from the breakdown.

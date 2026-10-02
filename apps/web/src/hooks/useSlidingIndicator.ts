@@ -14,6 +14,13 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react';
  *
  * `useLayoutEffect` rather than `useEffect` so the first paint already has the indicator in
  * the right place; with `useEffect` it flashes at the container's left edge first.
+ *
+ * The style anchors the indicator itself (`left: 0`) rather than leaving it to each caller.
+ * An absolute box with no `left` sits at its static position, which inside a flex container
+ * is wherever `justify-content` would put a lone item. The bottom bar is `justify-around`,
+ * so the line this hook gave it in Batch 164 started at the bar's centre and every tab's
+ * offset was added on top — two tabs to the right on a phone, and off the screen for
+ * Leagues and More.
  */
 export interface IndicatorPlacement {
   /** Attach to the flex container the items live in. Must be positioned. */
@@ -50,7 +57,12 @@ export function useSlidingIndicator(
     }
     const containerBox = container.getBoundingClientRect();
     const activeBox = active.getBoundingClientRect();
-    setBox({ left: activeBox.left - containerBox.left, width: activeBox.width });
+    // From the padding edge, which is where `left: 0` is measured from. The bounding box
+    // starts at the border edge, `clientLeft` further out — the segmented tabs' 1px border.
+    setBox({
+      left: activeBox.left - containerBox.left - container.clientLeft,
+      width: activeBox.width,
+    });
   }, []);
 
   useLayoutEffect(() => {
@@ -71,7 +83,7 @@ export function useSlidingIndicator(
     activeRef,
     measured: box !== null,
     style: box
-      ? { transform: `translateX(${box.left}px)`, width: `${box.width}px` }
-      : { transform: 'translateX(0)', width: 0 },
+      ? { left: 0, transform: `translateX(${box.left}px)`, width: `${box.width}px` }
+      : { left: 0, transform: 'translateX(0)', width: 0 },
   };
 }

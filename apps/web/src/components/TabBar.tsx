@@ -48,7 +48,7 @@ function primaryTabs(slug: string | null): ReadonlyArray<TabDef> {
   return [
     { to: '/', label: 'Home', Icon: Home, match: (p) => p === '/' },
     { to: predictionsPath(slug), label: 'Coupon', Icon: Ticket, match: isCouponPath },
-    { to: FOOTBALL_PATH, label: 'Football Stats', Icon: Goal, match: isFootballPath },
+    { to: FOOTBALL_PATH, label: 'Football', Icon: Goal, match: isFootballPath },
     { to: '/leagues', label: 'Leagues', Icon: Trophy, match: isLeagueHubPath },
   ];
 }
@@ -163,30 +163,36 @@ export function TabBar() {
           className="relative flex items-stretch justify-around h-[60px]"
         >
           {/* Batch 164: one measured indicator rather than a framer-motion `layoutId` on
-              each tab. `inset-x-3` used to inset it within the tab; here the tab's own
-              box is measured, so the inset is applied as a transform offset instead. */}
+              each tab. It is sized to the current tab's whole box, so the 12px inset
+              `inset-x-3` used to give the line is padding here and the line is the inner
+              span — the comment that once said a transform applied it was never true. */}
           <span
             aria-hidden
             data-testid="tabbar-indicator"
             data-measured={indicator.measured}
             style={indicator.style}
-            className="sliding-indicator pointer-events-none absolute top-0 h-0.5 rounded-full bg-primary"
-          />
+            className="sliding-indicator pointer-events-none absolute top-0 h-0.5 px-3"
+          >
+            <span className="block h-full rounded-full bg-primary" />
+          </span>
           {tabs.map((tab) => {
             const { to, label, Icon, isCurrent } = tab;
             const isOverflow = to === '#more';
             const content = (
               <>
+                {/* Keep the icon at 20px and the shortened label on one line at 320px and
+                    under the WCAG text-spacing override. The old two-line label shrank the
+                    icon to a dot because both had to share the bar's fixed height. */}
                 <Icon
                   className={cn(
-                    'h-5 w-5 transition-colors',
+                    'h-5 w-5 shrink-0 transition-colors',
                     isCurrent ? 'text-primary' : 'text-text-muted',
                   )}
                   aria-hidden
                 />
                 <span
                   className={cn(
-                    'text-caption font-medium tracking-tight font-sans',
+                    'whitespace-nowrap text-center text-caption font-medium tracking-tight font-sans',
                     isCurrent ? 'text-primary' : 'text-text-muted',
                   )}
                 >
@@ -221,6 +227,7 @@ export function TabBar() {
                     to={to}
                     ref={isCurrent ? (indicator.activeRef as React.Ref<HTMLAnchorElement>) : undefined}
                     className={baseClass}
+                    aria-label={to === FOOTBALL_PATH ? 'Football Stats' : undefined}
                     aria-current={isCurrent ? 'page' : undefined}
                   >
                     {content}
