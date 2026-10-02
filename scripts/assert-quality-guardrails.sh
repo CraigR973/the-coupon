@@ -46,6 +46,32 @@ approved_gate_maintenance() {
   esac
 }
 
+# An expected-value change is still a weakening until the owner has approved the
+# exact old oracle that may be replaced. Keep these fingerprints in trusted main,
+# bind them to an open BUILD_PLAN row and an exact file list, and ignore only the
+# named removed lines. Every other removed test, assertion or expectation remains
+# a hard failure, including another removal from the same file.
+approved_removed_oracles() {
+  case "$1" in
+    173) cat <<'EOF'
+apps/web/src/test/CouponSection.test.tsx|expect(screen.getByText(/all legs won/i)).toBeTruthy();
+apps/web/src/test/CouponSection.test.tsx|expect(screen.getByText(/not all legs landed/i)).toBeTruthy();
+apps/web/src/test/CouponSection.test.tsx|it('shows what each leg scored', () => {
+apps/web/src/test/CouponSection.test.tsx|expect(screen.getByText('20 pts')).toBeTruthy();
+apps/web/src/test/CouponSection.test.tsx|expect(screen.getByText('0 pts')).toBeTruthy();
+apps/web/src/test/PickRow.test.tsx|expect(within(row).getByText('Won')).toBeTruthy();
+apps/web/src/test/PickRow.test.tsx|expect(within(row).getByText('20 pts')).toBeTruthy();
+EOF
+      ;;
+  esac
+}
+
+approved_oracle_paths() {
+  case "$1" in
+    173) echo "apps/web/src/test/CouponSection.test.tsx apps/web/src/test/PickRow.test.tsx" ;;
+  esac
+}
+
 main_batch_row() {
   local batch="$1"
   git -C "$ROOT" show "$BASE_REF:docs/BUILD_PLAN.md" | awk -v batch="$batch" '
@@ -71,6 +97,26 @@ if [[ -n "$branch_batch" ]]; then
     done
     if [[ "$approval_complete" == true ]]; then
       approved="$candidate"
+    fi
+  fi
+fi
+
+approved_oracles=""
+if [[ -n "$branch_batch" ]]; then
+  row="$(main_batch_row "$branch_batch")"
+  oracle_candidate="$(approved_removed_oracles "$branch_batch")"
+  oracle_paths="$(approved_oracle_paths "$branch_batch")"
+  if printf '%s\n' "$row" | grep -qE "^- \[ \] \*\*Batch $branch_batch " \
+     && printf '%s\n' "$row" | grep -qF '**Oracle changes approved' \
+     && [[ -n "$oracle_candidate" && -n "$oracle_paths" ]]; then
+    approval_complete=true
+    for path in $oracle_paths; do
+      if ! printf '%s\n' "$row" | grep -qF "\`$path\`"; then
+        approval_complete=false
+      fi
+    done
+    if [[ "$approval_complete" == true ]]; then
+      approved_oracles="$oracle_candidate"
     fi
   fi
 fi
@@ -132,8 +178,18 @@ while IFS= read -r path; do
       | sed -nE '/^\+\+\+ /d; /^\+/{s/^\+//;p;}')"$'\n'
     case "$path" in
       apps/api/tests/*|apps/web/src/test/*|apps/web/src/*/__tests__/*|apps/web/e2e/*)
-        removed_test_lines+="$(git -C "$ROOT" diff --unified=0 "$BASE_REF" -- "$path" \
-          | sed -nE '/^--- /d; /^-/{s/^-//;p;}')"$'\n'
+        removed_lines="$(git -C "$ROOT" diff --unified=0 "$BASE_REF" -- "$path" \
+          | sed -nE '/^--- /d; /^-/{s/^-//;p;}')"
+        while IFS= read -r line; do
+          [[ -z "$line" ]] && continue
+          trimmed="$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+          fingerprint="$path|$trimmed"
+          if [[ -n "$approved_oracles" ]] \
+             && printf '%s\n' "$approved_oracles" | grep -Fxq -- "$fingerprint"; then
+            continue
+          fi
+          removed_test_lines+="$line"$'\n'
+        done <<<"$removed_lines"
         ;;
     esac
   elif [[ -f "$ROOT/$path" ]]; then
@@ -209,5 +265,8 @@ elif [[ -n "$protected_changed" ]]; then
   printf '  %s\n' $protected_changed
 else
   echo "quality guardrails: PASS — gate and lint/type configuration unchanged"
+fi
+if [[ -n "$approved_oracles" ]]; then
+  echo "quality guardrails: Batch $branch_batch owner-approved exact oracle replacements applied"
 fi
 echo "quality guardrails: expected tests — backend $current_backend · frontend $current_frontend"

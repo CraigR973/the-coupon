@@ -174,6 +174,11 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   a settled coupon with a void leg, a departed member and an erased member captured at 390
   and 1280 reading correctly; the share text unchanged except where it read "N of M".
 
+  **Oracle changes approved (owner, 2026-10-03):** this batch may replace only the seven
+  existing oracle lines fingerprinted in trusted main, and only in
+  `apps/web/src/test/CouponSection.test.tsx` and `apps/web/src/test/PickRow.test.tsx`.
+  Stronger coverage remains required; this is not a file-wide or reusable waiver.
+
   Scope boundary: the settled presentation. No scoring change. **Web-only.**
 
 - [ ] **Batch 174 — Keyboard focus hides behind the chrome and falls to the top of the page**
