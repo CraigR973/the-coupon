@@ -7684,3 +7684,22 @@ https://github.com/CraigR973/the-coupon/actions/runs/36981470633 PASS for `011f5
 - **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
 
 **Next:** Batch 173 — settled-round presentation.
+
+## Gate maintenance — Batch 173 exact oracle approval
+**Commit:** `11492bc` · owner-approved 3 Oct 2026 · first CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37077293510 FAIL at the expected
+old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
+
+### Key facts for future sessions
+- Batch 173 intentionally replaces seven old oracle lines whose copy and point presentation
+  conflict with its accepted contract. The approval is seven exact fingerprints in two named
+  test files, never a file-wide waiver or an environment flag.
+- A disposable replay passed those seven replacements and still rejected an eighth assertion
+  removal from the same file.
+- The first maintenance push was red because CI correctly restored `d858a5c` as the trusted
+  pre-push `main`; that guard did not contain the new approval and refused its own replacement.
+  The follow-up recovery is documentation-only so CI evaluates it through `11492bc`.
+- No application code, API contract, database schema or production data changed. Vercel rebuilt
+  the existing Batch 172 web tree; `/ship-prod` is not owed.
+
+**Next:** Resume Batch 173 only after the recovery commit's exact-SHA CI is green.
