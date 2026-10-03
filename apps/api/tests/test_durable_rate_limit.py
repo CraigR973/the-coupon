@@ -55,6 +55,31 @@ def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
+class _OneWindow:
+    """A limiter clock that never moves: every charge lands in the same fixed window."""
+
+    @staticmethod
+    def time() -> float:
+        return 2_000_000_000
+
+
+@pytest.fixture(autouse=True)
+def _one_limiter_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hold every test in this module inside one fixed rate-limit window.
+
+    The durable counters use fixed windows aligned to the epoch, so a test that charges a
+    bucket five times and expects the sixth refused fails whenever a quarter-hour (or, for
+    the hourly limits, an hour) boundary falls between them: the sixth opens a fresh window,
+    exactly as it should. That turned the redeploy-mid-attack test red in CI at 20:30 UTC on
+    2026-10-03 — a 423 from the account lock instead of the 429 — and every multi-charge
+    test here carried the same race; the unknown-name test had already been pinned for it.
+
+    Patching the name `src.rate_limit` holds, as the window-roll test does, leaves every
+    other clock alone. A test that needs time to move patches over this one.
+    """
+    monkeypatch.setattr(rate_limit, "time", _OneWindow)
+
+
 @pytest_asyncio.fixture
 async def client() -> AsyncIterator[AsyncClient]:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -490,19 +515,6 @@ ELSEWHERE = {"X-Forwarded-For": "198.51.100.4"}
 #: What the client is shown when the *source* allowance refuses — distinct from the
 #: per-(name, address) limit's ``5 per 15 minute``, so a test can tell which one fired.
 SOURCE_REFUSAL = {"error": "Rate limit exceeded: 15 per 15 minute"}
-
-
-class _OneWindow:
-    """Hold every request in one fixed window, as the unknown-name test above does.
-
-    Each test here spends the allowance across twenty-odd bcrypt checks; an epoch-aligned
-    fifteen-minute boundary falling among them would hand the attacker a fresh fifteen and
-    make a deterministic contract look flaky.
-    """
-
-    @staticmethod
-    def time() -> float:
-        return 2_000_000_000
 
 
 async def _account(profile: Profile) -> tuple[int, datetime | None]:
