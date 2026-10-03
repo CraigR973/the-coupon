@@ -35,7 +35,35 @@ async function setTheme(page: Page, theme: 'light' | 'dark'): Promise<void> {
   }
 }
 
+/**
+ * Wait until nothing on the page is mid-animation before measuring it. Every route fades
+ * in over 220ms (`animate-page-enter`), and after a reload the lazily loaded layout can
+ * mount after `setTheme` has already looked for that fade and found none. axe then reads
+ * colours through a part-transparent page and the faintest text, the muted captions,
+ * drops below AA: CI run 37118741876 failed exactly so on 3 Oct and passed on re-run.
+ * Infinite animations (spinners, skeleton pulses) never finish, so only finite ones are
+ * awaited, and the loop catches one that starts as another ends.
+ */
+async function waitForSettledPage(page: Page): Promise<void> {
+  const unsettled = await page.evaluate(async () => {
+    const running = () =>
+      document.getAnimations().filter((animation) => {
+        const end = animation.effect?.getComputedTiming().endTime;
+        return animation.playState === 'running' && typeof end === 'number' && Number.isFinite(end);
+      });
+    for (let pass = 0; pass < 10; pass += 1) {
+      const animations = running();
+      if (animations.length === 0) return 0;
+      await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+    return running().length;
+  });
+  expect(unsettled, 'the page settles before it is measured').toBe(0);
+}
+
 async function expectNoColourContrastViolations(page: Page): Promise<void> {
+  await waitForSettledPage(page);
   await page.addScriptTag({ path: AXE_PATH });
   const violations = await page.evaluate(async () => {
     const results = await window.axe.run(document.documentElement, {
@@ -155,6 +183,7 @@ async function expectPageTitleWhole(page: Page): Promise<void> {
 }
 
 async function expectNoAxeViolations(page: Page): Promise<void> {
+  await waitForSettledPage(page);
   await page.addScriptTag({ path: AXE_PATH });
   const violations = await page.evaluate(async () => {
     const results = await window.axe.run(document.documentElement);
