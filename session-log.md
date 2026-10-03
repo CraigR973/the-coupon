@@ -8010,3 +8010,7 @@ https://github.com/CraigR973/the-coupon/actions/runs/37155283334 PASS for `88c0f
   owed; it can ride with Group AD's first checkpoint.
 
 **Next:** `/group-start AD`, starting with Batch 183.
+
+**Batch 181's data step, 2026-10-03:** a read-only dry run against production (session pooler,
+`python -m src.clear_league_name_overrides --dry-run`) found **0** stored per-league names, so
+there is nothing to clear and the owner action is closed without an `--apply`.

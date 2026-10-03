@@ -42,9 +42,6 @@ Checked 2026-10-03 unless a line says otherwise.
 
 These are not batches; nothing here will happen unless the owner does it or authorises it.
 
-- **Clear the stored per-league names** (Batch 181, shipped 2026-10-03): against production,
-  `python -m src.clear_league_name_overrides --dry-run`, then `--apply`; it prints the count.
-  Nothing reads them any more, so this is data hygiene, not a fix that waits on it.
 - **The season-calendar backfill.** Production's `season_calendars` table is empty
   (2026-09-24). `python -m src.backfill_season_calendar --dry-run`, review every move,
   then a separately authorised `--apply`; see `docs/backfills/2026-season-calendar.md`.
