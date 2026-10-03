@@ -360,7 +360,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: the per-league name. **API-carrying.**
 
-- [ ] **Batch 182 — Input bounds and policy hygiene**
+- [x] **Batch 182 — Input bounds and policy hygiene** ✅ 2026-10-03
   — specified from `docs/review/2026-09-28/01-security.md`, SEC-31 (LOW) and the CSP notes
   (INFO). `display_name_hint` on league invites has no `max_length` against a `String(100)`
   column, so a 150-character hint is a 500 (`league_memberships.py:438`); a league

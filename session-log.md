@@ -7944,3 +7944,25 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
   tree is the same. The `/ship-prod` owed since Batch 180 is unchanged by this.
 
 **Next:** Resume Batch 182 only after the recovery commit's exact-SHA CI is green.
+
+## Batch 182 — Input bounds and policy hygiene
+**Commits:** `93fb587` (after the approval `543cab4` and recovery `4c2d84e`) · verified:
+`scripts/ci-local.sh` PASS (12 checks); 1,363 backend and 1,266 frontend tests passed, 0 skipped;
+seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37147618611 PASS for `93fb587`
+
+### Key facts for future sessions
+- **Bounds:** an invite's `display_name_hint` is capped at 100 (150 was a 500, now 422) and a league
+  `description` edit at 500, as creation already was; refused writes leave no invite, change or
+  audit row.
+- **The CSP is chosen by host.** `vercel.json` has two `/(.*)` rules: production's applies on every
+  host but `the-coupon-staging.vercel.app` (`missing`), staging's only on it (`has`), so an
+  unexpected host fails closed to production's list. Each names only its own API and Supabase
+  storage host (`pugujiiojitstkilphrz` / `gegcnhoeudpkcoxqcebe`). Production verified after the
+  push: `connect-src` is the production API alone, `img-src` the project's storage alone, and the
+  live bundle calls only that API. Staging gets its policy on the next `/ship-staging`.
+- **The budget comment** in `config.py` now reads 412 and 481 of 500, recomputed from the budget
+  suite's own helpers (252 + 92 + 41 + 27, plus 69).
+- **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-03T15:33:33Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
+
+**Next:** Group AC's checkpoint — `/ship-prod` for Batches 180, 179, 181 and 182; then Group AD.
