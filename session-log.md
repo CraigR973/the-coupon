@@ -7966,3 +7966,24 @@ https://github.com/CraigR973/the-coupon/actions/runs/37147618611 PASS for `93fb5
 - **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-03T15:33:33Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
 
 **Next:** Group AC's checkpoint — `/ship-prod` for Batches 180, 179, 181 and 182; then Group AD.
+
+## Shipment — 2026-10-03, `9be47cef` (Group AC; no migration)
+**Railway:** `dec590b7-865d-4c3a-8c63-4f8e6072bec9` `SUCCESS` · rollback baseline
+`4ee4a962-…` (plain — nothing migrated) · Vercel no-op
+(`dpl_DLAdDUL51W8RUS6Xuw83Si9vMZH1`, `9be47cef`) · drift **in sync** · exact-SHA CI run
+`37148769864` green · gate 12 checks, backend 1,363, frontend 1,266, journey 1
+
+### Key facts for future sessions
+- **Group AC is fully shipped.** Batches 180, 179, 181 and 182 are live, and no `/ship-prod` is
+  owed. The owner scheduled it at 15:33 UTC and invoked it the same evening.
+- **Proven live by behaviour, not just the stamp:** the retired league-reset and
+  per-league-name routes answer `404`, and `/api/v1/me/pin-events` answers `401` without a session.
+- **Production proof:** health and readiness `200` at `9be47cef` / `026`; one SPA asset under the
+  production-only CSP; exact-origin CORS `200` with credentials and a foreign origin refused;
+  RLS forced on 21 of 21 tables with no public-role grants; two clean bounded log snapshots.
+- **IaC and rollback:** the pinned plan was 0 add / 2 change / 0 destroy on `api` only. Its
+  redeploy `4ee4a962` reached `SUCCESS` before the upload and is the plain rollback image.
+- **Database route:** the direct DSN failed locally with `CantChangeRuntimeParamError`; the
+  London session pooler, built in memory, worked both times.
+
+**Next:** the owner's clear-overrides step (Batch 181), then `/group-start AD`.

@@ -9,13 +9,13 @@ paragraph beneath it. A batch's story belongs in its `session-log.md` entry, not
 
 ## Live
 
-Checked 2026-10-01 unless a line says otherwise.
+Checked 2026-10-03 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `e287ae29` at migration `026` |
-| API deployment | Railway `920e285c-00ef-4482-b09d-3d839aef4169`, one replica, `europe-west4` |
-| Web | `the-coupon-production.vercel.app` serves `e287ae29` at Vercel `dpl_D3qN6ATuXAvAWc3Kb6WGEaENw8yk`; Vercel builds `main` on every push |
+| API | `api-production-109b1.up.railway.app` serves `9be47cef` at migration `026` |
+| API deployment | Railway `dec590b7-865d-4c3a-8c63-4f8e6072bec9`, one replica, `europe-west4` |
+| Web | `the-coupon-production.vercel.app` serves `9be47cef` at Vercel `dpl_DLAdDUL51W8RUS6Xuw83Si9vMZH1`; Vercel builds `main` on every push |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -29,25 +29,20 @@ Checked 2026-10-01 unless a line says otherwise.
 
 ## Owed
 
-- **A `/ship-prod` is owed: Group AC's checkpoint** (2026-10-03). Batches 180 (`ff26422`), 179
-  (`cdc0f13`), 181 (`399308c`) and 182 (`93fb587`) are on `main`, but the API still runs
-  `e287ae29` (Group AG, Railway `920e285c`), so none of their API halves is live: the
-  league-scoped PIN reset (SEC-32, HIGH) still answers in production. Nothing migrates. The owner
-  scheduled this shipment on 2026-10-03 at 15:33 UTC. The web halves are live and safe on the
-  old API (179's notice renders nothing; 182's CSP needs nothing new).
-- **Rollback is a plain redeploy.** The last shipment applied no migration, so its baseline —
-  Railway `5f000b0e-c9f0-4da6-b00f-60c2a19b9db8`, the previous image redeployed by the
+- **No `/ship-prod` is owed.** Group AC shipped on 2026-10-03 as Railway `dec590b7`
+  (`9be47cef`); the drift check reports **in sync**, and migration remains `026`.
+- **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
+  Railway `4ee4a962-3a91-449d-b5de-11ca66bdc9f9`, the previous image redeployed by the
   pinned IaC apply — boots against the database as it stands. Vercel was already on
-  `e287ae29` at `dpl_D3qN6ATuXAvAWc3Kb6WGEaENw8yk`, so the web app did not move.
+  `9be47cef` at `dpl_DLAdDUL51W8RUS6Xuw83Si9vMZH1`, so the web app did not move.
 
 ## Waiting on the owner
 
 These are not batches; nothing here will happen unless the owner does it or authorises it.
 
-- **Clear the stored per-league names** (Batch 181), after the shipment that carries it:
+- **Clear the stored per-league names** (Batch 181, shipped 2026-10-03): against production,
   `python -m src.clear_league_name_overrides --dry-run`, then `--apply`; it prints the count.
   Nothing reads them any more, so this is data hygiene, not a fix that waits on it.
-
 - **The season-calendar backfill.** Production's `season_calendars` table is empty
   (2026-09-24). `python -m src.backfill_season_calendar --dry-run`, review every move,
   then a separately authorised `--apply`; see `docs/backfills/2026-season-calendar.md`.
@@ -78,8 +73,8 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 Batches 170-203 are drafted from the 2026-09-28 review and every owner decision they needed
 was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is complete
-(172, 173, 174 and 170, closed 3 Oct; web-only, nothing to ship). Group AC's four batches
-(180, 179, 181, 182) closed 3 Oct; the group completes when its `/ship-prod` is verified. Groups AD,
+(172, 173, 174 and 170, closed 3 Oct; web-only, nothing to ship). Group AC is complete,
+shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Groups AD,
 AE, AB, AF and AH follow in that order (`docs/agent-commands/group-start.md`; the reasons are in
 the review's `08-sequencing.md`).
 
@@ -122,4 +117,4 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** the owner's `/ship-prod` for Group AC; then `/group-start AD`.
+**Next:** `/group-start AD`, starting with Batch 183; and the owner's clear-overrides step.

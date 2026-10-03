@@ -3515,3 +3515,57 @@ local machine. The corrected extractor passed; the database audit used the exact
 London session-pooler route in memory and then passed unchanged.
 
 Backup/restore-point identity: **none yet** — Batch 95's backup is still switched off.
+
+### 2026-10-03 — `9be47cef`, Group AC (no migration)
+
+Group AC shipped the 2026-09-28 review's security batches: the login source allowance read
+before the PIN and charged before the account (180), the league-scoped PIN reset retired with
+push and in-app notices on reset and on PIN set (179), per-league display names removed so every
+surface renders the global name (181), and input bounds with a per-environment CSP (182). The
+exact clean commit passed the local gate (12 checks, 1,363 backend and 1,266 frontend tests,
+seeded journey 1, 0 skipped), and exact-SHA GitHub Actions run `37148769864` passed all three
+jobs.
+
+Preflight: Supabase `pugujiiojitstkilphrz` was `ACTIVE_HEALTHY` in London (`eu-west-2`); Railway
+targets matched the recorded project, environment, service and domain, `railwayConfigFile` was
+null, and all 13 required variables were present by name. Vercel production held encrypted,
+production-scoped `VITE_API_URL` and `VITE_VAPID_PUBLIC_KEY`. The migration-recovery check
+passed with production and the repository both at `026`, so this shipment applied no migration.
+
+The pinned IaC plan reported 0 to add, 2 to change and 0 to destroy against the existing `api`
+service only: the Nixpacks config path, one replica, the restart policy and sleep, each from
+null. Applying it started redeploy `4ee4a962-3a91-449d-b5de-11ca66bdc9f9` of the previous image;
+it reached `SUCCESS` before the source upload and is this shipment's plain rollback baseline.
+Railway then marked it `REMOVED`; nothing migrated, so a plain image redeploy boots against the
+database as it stands.
+
+Railway `dec590b7-865d-4c3a-8c63-4f8e6072bec9`, `SUCCESS`. `/health` returned `200`, SHA
+`9be47cef` and migration `026`; `/health/ready` returned `200`, `db: ok` and `026`. Manifest:
+one replica in `europe-west4-drams3a`, sleep off, restart `ON_FAILURE`, healthcheck
+`/api/v1/health/ready` at 300 seconds, 0.25 vCPU / 500 MB, IPv6 egress on, and Nixpacks with
+`/nixpacks.toml`. Unauthenticated probes proved the new code rather than the new stamp: the
+retired league-reset and per-league-name routes answered `404`, and `/api/v1/me/pin-events`
+answered `401`. Two bounded Railway snapshots (44 and 48 lines) held zero startup or migration
+failures and zero hits on five credential/member-data leak patterns; Railway labelled six normal
+Alembic/Uvicorn stderr lines as error-level. The scheduler logged both start messages,
+registered its 14 jobs and completed the connection warm-up against the database.
+
+Vercel was a no-op: GitHub had already deployed `9be47cef` as
+`dpl_DLAdDUL51W8RUS6Xuw83Si9vMZH1`, `READY`, and the stable alias pointed to it. It serves Batch
+182's production-only CSP: `connect-src` names the production API alone and `img-src` the
+project's own storage host.
+
+Post-deploy smoke: web root and `/leagues/discover` both returned `200` from one SPA asset and
+retained CSP, `X-Frame-Options`, HSTS, nosniff, referrer, permissions and cache headers.
+Exact-origin CORS returned `200` with credentials; a foreign origin was refused with `400` and
+no `Access-Control-Allow-Origin`. Readiness remained green, and `scripts/check-deploy-drift.sh`
+reported **in sync**. A read-only production transaction found RLS enabled and forced on 21 of
+21 public tables, no table grants or effective privileges for `anon`, `authenticated` or
+`PUBLIC`, no schema grants, and head `026`. It ran over the exact project's London session
+pooler, in memory: the direct DSN was refused locally with `CantChangeRuntimeParamError`, before
+and after the deploy.
+
+Backup/restore-point identity: **none yet** — Batch 95's backup is still switched off.
+
+Owner follow-up carried by this shipment (Batch 181): clear the per-league names nothing reads
+any more, `python -m src.clear_league_name_overrides --dry-run` and then `--apply`.
