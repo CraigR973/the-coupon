@@ -7835,3 +7835,23 @@ https://github.com/CraigR973/the-coupon/actions/runs/37130406748 PASS for `ff264
 - **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
 
 **Next:** Batch 179 — retire the league-scoped PIN reset (owner decision 1).
+
+## Gate maintenance — Batch 179 exact oracle approval
+**Commit:** `2516250` · owner-approved 3 Oct 2026 · first CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37133768149 FAIL at the expected
+old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
+
+### Key facts for future sessions
+- Batch 179 retires the league-scoped PIN reset, so nine old oracle lines in
+  `apps/api/tests/test_admin_console.py` go: the retired route's success test (its name and seven
+  asserts) and the two `403 SITE_ADMIN_RESET_REQUIRED` checks, which become 404. The approval is
+  nine exact fingerprints in one file, never a file-wide waiver or an environment flag.
+- Replayed before the push: main's guard passed the rebased Batch 179 branch with the approval
+  applied, and still rejected one extra assertion removal from the same file.
+- The first push was red because CI correctly restored `a312934` as the trusted pre-push `main`;
+  that guard did not contain the new approval and refused its own replacement. This recovery
+  commit is documentation-only, so CI evaluates it through `2516250`.
+- No application code, API contract, database schema or production data changed, and the web
+  tree is the same. The `/ship-prod` Batch 180 left owed is unchanged by this.
+
+**Next:** Resume Batch 179 only after the recovery commit's exact-SHA CI is green.
