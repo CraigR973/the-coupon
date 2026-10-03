@@ -103,6 +103,14 @@ describe('PlayerProfilePage', () => {
     expect(within(stats).getByText('#2')).toBeTruthy();
     expect(within(stats).getByText('75%')).toBeTruthy();
     expect(within(stats).getByText('3/4')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Bob' })).toBeTruthy();
+  });
+
+  it('keeps a route heading while the profile is loading', () => {
+    vi.stubGlobal('fetch', () => new Promise(() => undefined));
+    renderPage();
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Player profile' })).toBeTruthy();
   });
 
   it('lists settled picks with their points and result', async () => {
@@ -160,6 +168,7 @@ describe('PlayerProfilePage', () => {
     stubFetch(null);
     renderPage();
     expect(await screen.findByText('Player not found')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Player profile' })).toBeTruthy();
   });
 
   // ── Batch 30: the record's links stay inside the league it is viewed through ──

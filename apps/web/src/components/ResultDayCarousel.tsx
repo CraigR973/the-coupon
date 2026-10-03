@@ -109,7 +109,7 @@ export function ResultDayCarousel({ days, selected, onSelect }: Props) {
           aria-label="Choose a result day"
           aria-orientation="horizontal"
           onKeyDown={onKeyDown}
-          className="-mx-1 flex-1 snap-x snap-mandatory overflow-x-auto px-1"
+          className="-mx-1 flex-1 snap-x snap-mandatory overflow-x-auto px-1 py-1.5"
           data-testid="result-day-strip"
         >
           <div className="flex min-w-max items-center gap-2">

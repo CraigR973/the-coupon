@@ -106,4 +106,32 @@ describe('LeagueActionsMenu', () => {
     expect(await screen.findByRole('dialog')).toBeTruthy();
     expect(screen.getByPlaceholderText(/type league name to confirm/i)).toBeTruthy();
   });
+
+  it.each([
+    ['leave', /leave league/i],
+    ['delete', /delete league/i],
+  ])('returns focus to League actions after the admin %s dialog closes', async (_action, title) => {
+    const user = userEvent.setup();
+    renderMenu(true);
+
+    await user.click(trigger());
+    await user.click(screen.getByRole('menuitem', { name: new RegExp(_action, 'i') }));
+    expect(await screen.findByRole('heading', { name: title })).toBeTruthy();
+
+    await user.keyboard('{Escape}');
+
+    expect(trigger()).toHaveFocus();
+  });
+
+  it('returns focus to the member Leave button after its dialog closes', async () => {
+    const user = userEvent.setup();
+    renderMenu(false);
+    const leave = screen.getByRole('button', { name: /leave/i });
+
+    await user.click(leave);
+    expect(await screen.findByRole('heading', { name: /leave league/i })).toBeTruthy();
+    await user.keyboard('{Escape}');
+
+    expect(leave).toHaveFocus();
+  });
 });

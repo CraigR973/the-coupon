@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
@@ -32,6 +32,8 @@ export function LeagueMembersPage() {
   const [removeConfirm, setRemoveConfirm] = useState('');
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [leaveConfirm, setLeaveConfirm] = useState('');
+  const removeTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const leaveTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const { data: members, isLoading, isError, refetch } = useQuery<LeagueMember[]>({
     queryKey: ['league-members', slug],
@@ -109,7 +111,13 @@ export function LeagueMembersPage() {
           <PageHeader title="Members" back={{ to: `/leagues/${slug}`, label: 'Back' }} />
         </div>
         {myMembership && (
-          <Button size="sm" variant="outline" className="shrink-0 text-error border-error/40 hover:bg-error/10" onClick={() => setShowLeaveDialog(true)}>
+          <Button
+            ref={leaveTriggerRef}
+            size="sm"
+            variant="outline"
+            className="shrink-0 text-error border-error/40 hover:bg-error/10"
+            onClick={() => setShowLeaveDialog(true)}
+          >
             Leave league
           </Button>
         )}
@@ -187,7 +195,11 @@ export function LeagueMembersPage() {
                             variant="ghost"
                             className="text-xs h-7 px-2 text-error hover:bg-error/10"
                             disabled={actingOn === m.id}
-                            onClick={() => { setRemoveTarget(m); setRemoveConfirm(''); }}
+                            onClick={(event) => {
+                              removeTriggerRef.current = event.currentTarget;
+                              setRemoveTarget(m);
+                              setRemoveConfirm('');
+                            }}
                           >
                             Remove
                           </Button>
@@ -203,6 +215,7 @@ export function LeagueMembersPage() {
       )}
 
       <Dialog
+        restoreFocusRef={removeTriggerRef}
         open={!!removeTarget}
         onOpenChange={(open) => { if (!open) { setRemoveTarget(null); setRemoveConfirm(''); } }}
       >
@@ -239,6 +252,7 @@ export function LeagueMembersPage() {
       </Dialog>
 
       <Dialog
+        restoreFocusRef={leaveTriggerRef}
         open={showLeaveDialog}
         onOpenChange={(open) => { if (!open) { setShowLeaveDialog(false); setLeaveConfirm(''); } }}
       >

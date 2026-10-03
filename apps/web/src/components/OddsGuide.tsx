@@ -52,13 +52,17 @@ export function OddsGuide({ storageKey = DEFAULT_STORAGE_KEY, defaultOpen = fals
   }
 
   return (
-    <div className="mb-4 overflow-hidden rounded-lg border border-border bg-surface">
+    <div className="mb-4 rounded-lg border border-border bg-surface">
       <button
         type="button"
         onClick={toggle}
         aria-expanded={open}
         aria-controls="odds-guide-body"
-        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow"
+        className={cn(
+          'flex w-full items-center justify-between px-4 py-3 text-left transition-colors',
+          'hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow',
+          open ? 'rounded-t-lg' : 'rounded-lg',
+        )}
       >
         <div className="flex items-center gap-2">
           <p className="font-mono text-caption uppercase tracking-[0.25em] text-text-muted">How scoring works</p>

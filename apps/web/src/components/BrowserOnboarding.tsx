@@ -33,10 +33,9 @@ import { brand } from '@/theme/tokens';
  */
 export function BrowserOnboarding({ landmark = false }: { landmark?: boolean }) {
   const { isIos, isIosSafari, isAndroid, isMobile, canInstall, prompt } = useInstallPrompt();
-  // This component is a whole screen on `/welcome` and inside `/join/:token`, and a
-  // full-screen overlay *on top of* another route everywhere else
-  // (`InstallPromptController`). Only the first two may claim the document's `<main>`;
-  // the overlay covers routes that already have one, and two <main>s is its own defect.
+  // This component is a whole screen on `/welcome` and inside `/join/:token`. The
+  // global install gate also renders it as `<main>` while `InstallPromptController`
+  // makes the covered route inert, so only this landmark remains navigable.
   const Root = landmark ? 'main' : 'div';
 
   return (

@@ -118,6 +118,163 @@ async function expectDesktopColumns(left: Locator, right: Locator): Promise<void
   expect(Math.abs(leftBox!.y - rightBox!.y)).toBeLessThanOrEqual(12);
 }
 
+async function expectFocusedElementUnobscured(page: Page): Promise<void> {
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  );
+  const proof = await page.evaluate(() => {
+    const element = document.activeElement as HTMLElement | null;
+    if (!element || element === document.body) return null;
+    const rect = element.getBoundingClientRect();
+    const visibleRect = (candidate: Element | null) => {
+      if (!(candidate instanceof HTMLElement)) return null;
+      const style = getComputedStyle(candidate);
+      if (style.display === 'none' || style.visibility === 'hidden') return null;
+      const box = candidate.getBoundingClientRect();
+      return box.width > 0 && box.height > 0 ? box : null;
+    };
+    const headerElement = document.querySelector('header');
+    const tabBarElement = document.querySelector('nav[aria-label="Primary"]');
+    const header = visibleRect(headerElement);
+    const tabBar = visibleRect(tabBarElement);
+    const topLimit = headerElement?.contains(element) ? 0 : (header?.bottom ?? 0);
+    const bottomLimit = tabBarElement?.contains(element)
+      ? window.innerHeight
+      : (tabBar?.top ?? window.innerHeight);
+    const insetX = Math.min(6, rect.width / 4);
+    const insetY = Math.min(6, rect.height / 4);
+    const points = [
+      [rect.left + rect.width / 2, rect.top + insetY],
+      [rect.right - insetX, rect.top + rect.height / 2],
+      [rect.left + rect.width / 2, rect.top + rect.height / 2],
+      [rect.left + rect.width / 2, rect.bottom - insetY],
+      [rect.left + insetX, rect.top + rect.height / 2],
+    ];
+    const hitTargets = points.map(([x, y]) => {
+      const hit = document.elementFromPoint(x, y);
+      return {
+        covered: hit !== element && (hit === null || !element.contains(hit)),
+        target: hit?.getAttribute('aria-label') ?? hit?.textContent?.trim() ?? hit?.tagName ?? null,
+      };
+    });
+    let clippingAncestor: HTMLElement | null = element.parentElement;
+    while (clippingAncestor) {
+      const overflowX = getComputedStyle(clippingAncestor).overflowX;
+      if (overflowX === 'auto' || overflowX === 'scroll') break;
+      clippingAncestor = clippingAncestor.parentElement;
+    }
+    const clippingRect = clippingAncestor?.getBoundingClientRect();
+    return {
+      label: element.getAttribute('aria-label') ?? element.textContent?.trim() ?? element.tagName,
+      top: rect.top,
+      bottom: rect.bottom,
+      topLimit,
+      bottomLimit,
+      hitTested: hitTargets.every(({ covered }) => !covered),
+      hitTargets,
+      shadow: getComputedStyle(element).boxShadow,
+      clippingRoom: clippingRect
+        ? Math.min(rect.top - clippingRect.top, clippingRect.bottom - rect.bottom)
+        : null,
+    };
+  });
+
+  expect(proof).not.toBeNull();
+  expect(proof!.top, `${proof!.label} clears the sticky header`).toBeGreaterThanOrEqual(
+    proof!.topLimit - 0.5,
+  );
+  expect(proof!.bottom, `${proof!.label} clears the fixed tab bar`).toBeLessThanOrEqual(
+    proof!.bottomLimit + 0.5,
+  );
+  expect(
+    proof!.hitTested,
+    `${proof!.label} is not covered (${JSON.stringify(proof!.hitTargets)})`,
+  ).toBe(true);
+  if (proof!.clippingRoom !== null) {
+    expect(proof!.clippingRoom, `${proof!.label} has room for its focus shadow`).toBeGreaterThanOrEqual(
+      5,
+    );
+  }
+}
+
+async function keyboardLoginAndClaim(
+  browser: Browser,
+  viewport: { width: number; height: number },
+): Promise<number> {
+  const context = await browser.newContext({ viewport });
+  const page = await context.newPage();
+  let keystrokes = 0;
+  const tab = async () => {
+    await page.keyboard.press('Tab');
+    keystrokes += 1;
+    await expectFocusedElementUnobscured(page);
+  };
+  const press = async (key: string) => {
+    await page.keyboard.press(key);
+    keystrokes += 1;
+  };
+  const type = async (value: string) => {
+    await page.keyboard.type(value);
+    keystrokes += value.length;
+  };
+
+  await page.goto('/login');
+  await tab();
+  await expect(page.getByLabel('Display name')).toBeFocused();
+  await type('Carol');
+  await tab();
+  await expect(page.getByLabel('PIN digit 1')).toBeFocused();
+  for (const [index, digit] of [...'1234'].entries()) {
+    await type(digit);
+    await expect(page.getByLabel(`PIN digit ${Math.min(index + 2, 4)}`)).toBeFocused();
+  }
+  await tab();
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeFocused();
+  await press('Enter');
+  await expect(page).toHaveURL('/');
+
+  const couponDestination =
+    viewport.width >= 640
+      ? page.getByRole('link', { name: 'Coupon', exact: true })
+      : page.getByTestId('home-card-the-coupon').locator('button').first();
+  await expect(couponDestination).toBeVisible();
+  for (
+    let step = 0;
+    step < 20 && !(await couponDestination.evaluate((node) => node === document.activeElement));
+    step += 1
+  ) {
+    await tab();
+  }
+  await expect(couponDestination).toBeFocused();
+  await press('Enter');
+  await expect(page).toHaveURL('/leagues/the-coupon/predictions');
+
+  const selection = page.getByTestId(/selection-.*-MATCH_ODDS-HOME/);
+  await expect(selection).toBeVisible();
+  await expect(selection).toHaveAccessibleName(/Arsenal.*1\.90.*win 19 pts/i);
+  const scoring = page.getByRole('button', { name: /how scoring works/i });
+  let sawScoringGuide = false;
+  for (let step = 0; step < 30 && !(await selection.evaluate((node) => node === document.activeElement)); step += 1) {
+    await tab();
+    if (await scoring.evaluate((node) => node === document.activeElement)) {
+      sawScoringGuide = true;
+      const shadow = await scoring.evaluate((node) => getComputedStyle(node).boxShadow);
+      expect(shadow).not.toBe('none');
+    }
+  }
+  expect(sawScoringGuide).toBe(true);
+  await expect(selection).toBeFocused();
+  await press('Enter');
+  await expect(selection).toHaveAttribute('aria-pressed', 'true');
+  await expect(selection).toBeFocused();
+  await page.screenshot({
+    path: join(ARTIFACT_DIR, `batch-174-keyboard-${viewport.width}x${viewport.height}.png`),
+    fullPage: true,
+  });
+  await context.close();
+  return keystrokes;
+}
+
 async function login(browser: Browser, displayName: string): Promise<Page> {
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -152,6 +309,47 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   // Batch 173 phone/desktop, light/dark accessibility matrix on a loaded local machine.
   test.setTimeout(240_000);
   mkdirSync(ARTIFACT_DIR, { recursive: true });
+
+  // Batch 174. Rehearse the complete keyboard path at both product widths before
+  // resetting the disposable domain for the retained product journey. The review recorded
+  // 32 desktop keystrokes against a round with Older gameweek and Copy text controls. This
+  // canonical seed has neither, while explicitly focusing Sign in adds one: 31. The phone
+  // header omits desktop links, so its equivalent walk is 28.
+  for (const viewport of [
+    { width: 390, height: 844, keystrokes: 28 },
+    { width: 1280, height: 800, keystrokes: 31 },
+  ]) {
+    const keyboardSeed = await request.post(`${API}/__e2e/seed`);
+    expect(keyboardSeed.ok(), await keyboardSeed.text()).toBeTruthy();
+    expect(await keyboardLoginAndClaim(browser, viewport)).toBe(viewport.keystrokes);
+  }
+
+  // The phone install gate is the only navigable page while it covers sign-in: the
+  // instructions own the main landmark and the route underneath is inert.
+  const installContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    userAgent:
+      'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36',
+  });
+  const installPage = await installContext.newPage();
+  await installPage.goto('/login');
+  await expect(installPage.getByTestId('app-content')).toHaveAttribute('inert', '');
+  await expect(
+    installPage.getByRole('heading', { level: 1, name: /one saturday pick/i }),
+  ).toBeVisible();
+  await installPage.addScriptTag({ path: AXE_PATH });
+  const installViolations = await installPage.evaluate(async () => {
+    const results = await window.axe.run(document.documentElement, {
+      runOnly: { type: 'rule', values: ['landmark-one-main', 'region'] },
+    });
+    return results.violations.map((violation) => violation.id);
+  });
+  expect(installViolations).toEqual([]);
+  await installPage.keyboard.press('Tab');
+  expect(
+    await installPage.getByTestId('app-content').evaluate((node) => node.contains(document.activeElement)),
+  ).toBe(false);
+  await installContext.close();
 
   const seeded = await request.post(`${API}/__e2e/seed`);
   expect(seeded.ok(), await seeded.text()).toBeTruthy();

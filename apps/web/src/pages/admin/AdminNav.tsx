@@ -21,7 +21,7 @@ const TABS = [
 
 export function AdminNav() {
   return (
-    <nav aria-label="Site admin" className="mb-5 flex gap-1 overflow-x-auto">
+    <nav aria-label="Site admin" className="mb-5 flex gap-1 overflow-x-auto py-1.5">
       {TABS.map(({ to, label }) => (
         <NavLink
           key={to}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -54,6 +54,8 @@ export function LeagueActionsMenu({
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [isLeaving, setIsLeaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const actionsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const memberLeaveTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   async function handleLeaveLeague() {
     setIsLeaving(true);
@@ -119,7 +121,13 @@ export function LeagueActionsMenu({
         <div className={cn('flex items-center', className)}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="gap-1.5" aria-label="League actions">
+              <Button
+                ref={actionsTriggerRef}
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                aria-label="League actions"
+              >
                 <MoreHorizontal className="h-4 w-4" aria-hidden />
                 Manage
               </Button>
@@ -176,6 +184,7 @@ export function LeagueActionsMenu({
       ) : (
         <div className={cn('flex items-center', className)}>
           <Button
+            ref={memberLeaveTriggerRef}
             size="sm"
             variant="outline"
             className="gap-1.5"
@@ -188,6 +197,7 @@ export function LeagueActionsMenu({
       )}
 
       <Dialog
+        restoreFocusRef={isAdmin ? actionsTriggerRef : memberLeaveTriggerRef}
         open={showLeaveDialog}
         onOpenChange={(open) => {
           if (!open) {
@@ -235,6 +245,7 @@ export function LeagueActionsMenu({
       </Dialog>
 
       <Dialog
+        restoreFocusRef={actionsTriggerRef}
         open={showDeleteDialog}
         onOpenChange={(open) => {
           if (!open) {

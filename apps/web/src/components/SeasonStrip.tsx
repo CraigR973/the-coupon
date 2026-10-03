@@ -49,7 +49,7 @@ export function SeasonStrip({ seasons, selected, onSelect, className }: Props) {
           Past seasons
         </span>
       </div>
-      <nav className="-mx-1 overflow-x-auto scroll-smooth" aria-label="Choose season">
+      <nav className="-mx-1 overflow-x-auto py-1.5 scroll-smooth" aria-label="Choose season">
         <div className="flex min-w-max gap-2 px-1">
           {seasons.map((entry) => {
             const isSelected = entry.is_current ? selected === null : selected === entry.season;

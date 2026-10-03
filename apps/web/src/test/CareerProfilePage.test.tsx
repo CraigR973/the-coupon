@@ -91,6 +91,24 @@ describe('CareerProfilePage', () => {
     expect(stats.textContent).toContain('57');
     expect(stats.textContent).toContain('60%');
     expect(stats.textContent).toContain('3/5');
+    expect(screen.getByRole('heading', { level: 1, name: 'Alice' })).toBeTruthy();
+  });
+
+  it('keeps its route heading while the summary is loading', () => {
+    vi.stubGlobal('fetch', () => new Promise(() => undefined));
+    renderPage();
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Alice' })).toBeTruthy();
+  });
+
+  it('keeps its route heading when the summary fails', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) }),
+    );
+    renderPage();
+
+    expect(await screen.findByText("Couldn't load your record")).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Alice' })).toBeTruthy();
   });
 
   it('breaks rank down per league rather than only averaging it', async () => {

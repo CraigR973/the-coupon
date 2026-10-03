@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -40,6 +40,7 @@ export function PlayersPage() {
   const [actingOn, setActingOn] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminPlayer | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState('');
+  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const { data: players, isLoading, isError, refetch } = useQuery<AdminPlayer[]>({
     queryKey: PLAYERS_KEY,
@@ -188,7 +189,8 @@ export function PlayersPage() {
                             variant="ghost"
                             className="text-error"
                             disabled={busy}
-                            onClick={() => {
+                            onClick={(event) => {
+                              deleteTriggerRef.current = event.currentTarget;
                               setDeleteTarget(p);
                               setDeleteConfirm('');
                             }}
@@ -207,7 +209,11 @@ export function PlayersPage() {
         </ul>
       )}
 
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <Dialog
+        restoreFocusRef={deleteTriggerRef}
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete {deleteTarget?.display_name}?</DialogTitle>

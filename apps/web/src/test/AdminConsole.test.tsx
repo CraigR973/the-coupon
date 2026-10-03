@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PlayersPage } from '@/pages/admin/AdminPlayersPage';
@@ -118,6 +119,18 @@ describe('the admin players screen', () => {
     expect(
       screen.getByRole('button', { name: /delete player/i }).hasAttribute('disabled'),
     ).toBe(false);
+  });
+
+  it('returns focus to the Delete control when its dialog closes', async () => {
+    const user = userEvent.setup();
+    apiFetch.mockResolvedValue([player()]);
+    renderPlayers();
+    const deleteButton = await screen.findByRole('button', { name: /delete/i });
+
+    await user.click(deleteButton);
+    await user.keyboard('{Escape}');
+
+    expect(deleteButton).toHaveFocus();
   });
 
   it('floats the member the reset notification named to the top', async () => {

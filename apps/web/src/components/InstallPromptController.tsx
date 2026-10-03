@@ -1,3 +1,4 @@
+import { useEffect, type RefObject } from 'react';
 import { Home } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
@@ -16,16 +17,16 @@ const SELF_MANAGED = ['/join/', '/welcome'];
  */
 function PostInstallScreen() {
   return (
-    <div className="min-h-screen bg-bg flex flex-col items-center justify-center p-6 pt-safe pb-safe">
+    <main className="min-h-screen bg-bg flex flex-col items-center justify-center p-6 pt-safe pb-safe">
       <div className="w-full max-w-sm space-y-8 text-center">
         <Brand variant="splash" />
         <div className="rounded-xl border border-border bg-surface px-6 py-6 space-y-4">
           <div className="h-14 w-14 rounded-full bg-success/10 flex items-center justify-center mx-auto">
             <Home className="h-7 w-7 text-success" aria-hidden />
           </div>
-          <h2 className="text-lg font-semibold text-text-primary font-sans">
+          <h1 className="text-lg font-semibold text-text-primary font-sans">
             The Coupon is installed!
-          </h2>
+          </h1>
           <p className="text-sm font-sans text-text-secondary leading-relaxed">
             Tap the <strong className="text-text-primary">The Coupon icon</strong> on your home
             screen to open the app and get started.
@@ -35,7 +36,7 @@ function PostInstallScreen() {
           </p>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -53,12 +54,25 @@ function PostInstallScreen() {
  * justInstalled (Android, still in browser) → PostInstallScreen
  * Everything else on mobile browser → BrowserOnboarding
  */
-export function InstallPromptController() {
+export function InstallPromptController({
+  backgroundRef,
+}: {
+  backgroundRef: RefObject<HTMLElement | null>;
+}) {
   const { pathname } = useLocation();
   const { isInstalled, justInstalled, isMobile } = useInstallPrompt();
+  const selfManaged = SELF_MANAGED.some((prefix) => pathname.startsWith(prefix));
+  const blocksApp = isMobile && !selfManaged && (justInstalled || !isInstalled);
+
+  useEffect(() => {
+    const background = backgroundRef.current;
+    if (!background) return;
+    background.toggleAttribute('inert', blocksApp);
+    return () => background.removeAttribute('inert');
+  }, [backgroundRef, blocksApp]);
 
   if (!isMobile) return null;
-  if (SELF_MANAGED.some((prefix) => pathname.startsWith(prefix))) return null;
+  if (selfManaged) return null;
 
   // Android: install just completed but user is still in the browser tab
   if (justInstalled) {
@@ -73,7 +87,7 @@ export function InstallPromptController() {
 
   return (
     <div className="fixed inset-0 z-[70] overflow-y-auto bg-bg">
-      <BrowserOnboarding />
+      <BrowserOnboarding landmark />
     </div>
   );
 }

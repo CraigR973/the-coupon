@@ -23,7 +23,7 @@ const FIXTURE: FixtureSlate = {
 
 function renderCard(overrides: Partial<React.ComponentProps<typeof PickCard>> = {}) {
   const onGrab = vi.fn();
-  render(
+  const view = render(
     <PickCard
       fixture={FIXTURE}
       timezone="UTC"
@@ -36,7 +36,7 @@ function renderCard(overrides: Partial<React.ComponentProps<typeof PickCard>> = 
       {...overrides}
     />,
   );
-  return { onGrab };
+  return { ...view, onGrab };
 }
 
 describe('PickCard', () => {
@@ -63,6 +63,58 @@ describe('PickCard', () => {
     const draw = screen.getByTestId('selection-fx1-MATCH_ODDS-DRAW');
     expect(draw.getAttribute('aria-pressed')).toBe('true');
     expect(draw.textContent).toContain('your pick');
+  });
+
+  it('keeps the submitted selection focused while it becomes the current pick', () => {
+    const { rerender, onGrab } = renderCard();
+    const home = screen.getByTestId('selection-fx1-MATCH_ODDS-HOME') as HTMLButtonElement;
+    home.focus();
+
+    rerender(
+      <PickCard
+        fixture={FIXTURE}
+        timezone="UTC"
+        locked={false}
+        pendingKey="fx1:MATCH_ODDS:HOME"
+        outstanding={null}
+        busy
+        oddsFormat="decimal"
+        onGrab={onGrab}
+      />,
+    );
+    expect(home).toHaveFocus();
+    expect(home.disabled).toBe(false);
+    expect(home.getAttribute('aria-disabled')).toBe('true');
+
+    const claimedFixture: FixtureSlate = {
+      ...FIXTURE,
+      selections: FIXTURE.selections.map((selection) =>
+        selection.outcome === 'HOME'
+          ? {
+              ...selection,
+              mine: true,
+              taken_by_player_id: 'p1',
+              taken_by_name: 'Alice Adams',
+            }
+          : selection,
+      ),
+    };
+    rerender(
+      <PickCard
+        fixture={claimedFixture}
+        timezone="UTC"
+        locked={false}
+        pendingKey={null}
+        outstanding={null}
+        busy={false}
+        oddsFormat="decimal"
+        onGrab={onGrab}
+      />,
+    );
+    expect(home).toHaveFocus();
+    expect(home.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(home);
+    expect(onGrab).not.toHaveBeenCalled();
   });
 
   it('still shows the points on the caller’s own claimed selection', () => {

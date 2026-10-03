@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Suspense, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { installResumeRefetch } from './lib/resumeRefetch';
@@ -136,18 +136,23 @@ function LeagueHomeRedirect() {
 }
 
 export function App() {
+  const appContentRef = useRef<HTMLDivElement | null>(null);
+
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
             <UpdateBanner />
-            <InstallPromptController />
+            <InstallPromptController backgroundRef={appContentRef} />
             <NotificationsPromptController />
             <AppToaster />
-            <ErrorBoundary>
-              <Suspense fallback={<RouteFallback />}>
-                <Routes>
+            {/* Only the routed page goes inert under the phone install gate. The update
+                banner sits above the gate (z-80 over z-70) and must stay tappable. */}
+            <div ref={appContentRef} data-testid="app-content">
+              <ErrorBoundary>
+                <Suspense fallback={<RouteFallback />}>
+                  <Routes>
                   {/* Public routes (no auth, no league context) */}
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/register" element={<RegisterPage />} />
@@ -286,9 +291,10 @@ export function App() {
                   </Route>
 
                   <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </Suspense>
-            </ErrorBoundary>
+                  </Routes>
+                </Suspense>
+              </ErrorBoundary>
+            </div>
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>

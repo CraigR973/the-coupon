@@ -77,7 +77,7 @@ export function LeagueSwitchStrip({ currentSlug, className }: Props) {
       </div>
       <nav
         ref={navRef}
-        className="-mx-1 overflow-x-auto scroll-smooth"
+        className="-mx-1 overflow-x-auto py-1.5 scroll-smooth"
         aria-label="Switch league"
         data-testid="league-switch-scroll"
         onScroll={persistScrollPosition}

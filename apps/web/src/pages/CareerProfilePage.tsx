@@ -32,7 +32,7 @@ export function CareerProfilePage() {
   if (isLoading) {
     return (
       <div className="space-y-6" aria-label="Loading profile">
-        <Skeleton className="h-16 w-full rounded-lg" />
+        <PageHeader title={player?.displayName ?? 'Your record'} eyebrow="Your record" />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-[88px] rounded-lg" />
@@ -44,11 +44,14 @@ export function CareerProfilePage() {
 
   if (isError || !data) {
     return (
-      <QueryErrorState
-        title="Couldn't load your record"
-        description="Please try again shortly."
-        onRetry={() => void refetch()}
-      />
+      <div className="space-y-6">
+        <PageHeader title={player?.displayName ?? 'Your record'} eyebrow="Your record" />
+        <QueryErrorState
+          title="Couldn't load your record"
+          description="Please try again shortly."
+          onRetry={() => void refetch()}
+        />
+      </div>
     );
   }
 

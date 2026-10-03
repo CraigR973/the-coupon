@@ -295,6 +295,17 @@
   html {
     background-color: var(--bg);
     -webkit-tap-highlight-color: transparent;
+    /* Keep browser-driven focus scrolling clear of the sticky phone header and
+       fixed tab bar, including enough breathing room for the outer focus halo.
+       Desktop has no bottom bar and uses the compact 56px header. */
+    scroll-padding-top: calc(5rem + var(--safe-top) + 0.5rem);
+    scroll-padding-bottom: calc(var(--tabbar-height) + var(--safe-bottom) + 0.5rem);
+  }
+  @media (min-width: 640px) {
+    html {
+      scroll-padding-top: calc(var(--header-height) + var(--safe-top) + 0.5rem);
+      scroll-padding-bottom: 0;
+    }
   }
   html.dark { color-scheme: dark; }
   html.light { color-scheme: light; }

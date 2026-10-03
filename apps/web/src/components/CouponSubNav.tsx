@@ -34,7 +34,7 @@ const ITEMS: ReadonlyArray<{ section: PredictionsSection; label: string; exact: 
  */
 export function CouponSubNav({ slug }: { slug: string }) {
   return (
-    <nav className="-mx-4 mb-5 overflow-x-auto sm:mx-0" aria-label="Coupon sections">
+    <nav className="-mx-4 mb-5 overflow-x-auto py-1.5 sm:mx-0" aria-label="Coupon sections">
       <div className="flex min-w-max gap-1.5 px-4 sm:px-0">
         {ITEMS.map(({ section, label, exact }) => (
           <NavLink

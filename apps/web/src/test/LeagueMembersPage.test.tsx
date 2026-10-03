@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { LeagueProvider } from '@/contexts/LeagueContext';
 import { LeagueMembersPage } from '@/pages/LeagueMembersPage';
 
@@ -102,5 +103,33 @@ describe('LeagueMembersPage', () => {
         expect.objectContaining({ method: 'POST' }),
       );
     });
+  });
+
+  it('returns focus to the controls that opened its leave and remove dialogs', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', (url: string) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve(
+            String(url).includes('/leagues/mine')
+              ? [{ slug: 'the-coupon', name: 'The Coupon' }]
+              : MEMBERS,
+          ),
+      }),
+    );
+    renderPage();
+    await screen.findByText('Test Player');
+
+    const leave = screen.getByRole('button', { name: /leave league/i });
+    await user.click(leave);
+    await user.keyboard('{Escape}');
+    expect(leave).toHaveFocus();
+
+    const remove = screen.getByRole('button', { name: 'Remove' });
+    await user.click(remove);
+    await user.keyboard('{Escape}');
+    expect(remove).toHaveFocus();
   });
 });

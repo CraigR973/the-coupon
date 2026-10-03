@@ -49,7 +49,11 @@ export function PlayerProfilePage() {
   if (isLoading) {
     return (
       <div className="space-y-6" aria-label="Loading profile">
-        <Skeleton className="h-16 w-full rounded-lg" />
+        <PageHeader
+          title="Player profile"
+          eyebrow="Member record"
+          back={{ to: `/leagues/${slug}/leaderboard`, label: 'Leaderboard' }}
+        />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-[88px] rounded-lg" />
@@ -61,10 +65,17 @@ export function PlayerProfilePage() {
 
   if (isError || !profile) {
     return (
-      <EmptyState
-        title="Player not found"
-        description="This member either isn't in this league or their profile couldn't be loaded."
-      />
+      <div className="space-y-6">
+        <PageHeader
+          title="Player profile"
+          eyebrow="Member record"
+          back={{ to: `/leagues/${slug}/leaderboard`, label: 'Leaderboard' }}
+        />
+        <EmptyState
+          title="Player not found"
+          description="This member either isn't in this league or their profile couldn't be loaded."
+        />
+      </div>
     );
   }
 

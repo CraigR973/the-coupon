@@ -334,6 +334,7 @@ function SelectionButton({
   const takenByOther = sel.taken_by_player_id !== null && !sel.mine;
   const takenAtLabel = takenByOther ? takenAt(sel.taken_at, timezone) : null;
   const grabbable = !locked && !sel.mine && !takenByOther && !busy;
+  const preservesClaimFocus = sel.mine || pending || unresolved !== null;
   const settledStatus = settledLeg?.status === 'pending' ? null : settledLeg?.status;
   const settledTone =
     settledStatus === 'won'
@@ -345,10 +346,13 @@ function SelectionButton({
   return (
     <button
       type="button"
-      disabled={!grabbable}
+      disabled={!grabbable && !preservesClaimFocus}
+      aria-disabled={!grabbable}
       // `sel.odds` is what this button is rendering two lines below, so the price sent is
       // by construction the one the member is looking at.
-      onClick={() => onGrab(fixture.fixture_id, sel.market, sel.outcome, sel.odds)}
+      onClick={() => {
+        if (grabbable) onGrab(fixture.fixture_id, sel.market, sel.outcome, sel.odds);
+      }}
       aria-pressed={sel.mine}
       data-testid={`selection-${fixture.fixture_id}-${sel.market}-${sel.outcome}`}
       className={cn(
