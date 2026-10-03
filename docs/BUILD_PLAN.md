@@ -84,7 +84,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: toast styling and copy structure. No change to when toasts fire.
   **Web-only — ship first; it reaches members on its own close-out push.**
 
-- [ ] **Batch 170 — The tab bar marks the wrong tab, crushes an icon, and the home figures lose their labels**
+- [x] **Batch 170 — The tab bar marks the wrong tab, crushes an icon, and the home figures lose their labels** ✅ 2026-10-03
   — specified from `docs/review/2026-09-28/03-ux-accessibility.md`, UX-26, UX-24, UX-32 and
   UX-27 (LOW, design med, live, verified). The tab bar's "current" marker sits two tabs to the
   right on every phone screen because the sliding indicator (Batch 164) is `absolute top-0`

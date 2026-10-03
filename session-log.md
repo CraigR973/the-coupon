@@ -7762,3 +7762,29 @@ https://github.com/CraigR973/the-coupon/actions/runs/37115303043 PASS for `027d9
 - **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
 
 **Next:** Batch 170 — the tab bar, home's stat labels and the header at zoom.
+
+## Batch 170 — The tab bar marks the wrong tab, crushes an icon, and the home figures lose their labels
+**Commits:** `5b343ff` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,350 backend
+and 1,249 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37117692032 PASS for `5b343ff`
+
+### Key facts for future sessions
+- **Half of this batch shipped early and unrecorded.** `956429b` (2 Oct, no batch trailer)
+  anchored the indicator inside `useSlidingIndicator`, so `ui/tabs` was fixed too, and
+  relabelled the tab "Football". This batch only proves it: all five tabs at 390, the Football
+  page's segmented tabs at 390 and 1280, and every tab icon 20×20.
+- **Home figures wrap; they never truncate.** Compact `StatCard` labels drop `truncate`, track
+  at 0.12em below `sm` with 10px side padding, and hold the figures to the bottom so they stay
+  level. The row's other option ("Won", "Win %") would replace two `DashboardPage.test.tsx`
+  oracles, which needs owner approval, so "or wrap" was taken.
+- **The zoomed header sheds secondary items below `md`.** Settings (also in the account menu)
+  hides, Football Stats reads "Football" with the full name kept as its accessible name, and
+  links never wrap. The name beside the avatar now waits for `lg`, because names run to 32
+  characters. Measured with no overflow at 640, 768 and 1024; only a name of 32 "W"s still
+  overflows, at about 1024.
+- **Still truncating, out of scope:** the home league card's title and its "Last result"
+  heading at 320, and `PageHeader` titles everywhere but standings (`wrapTitle` is opt-in).
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+**Next:** Group AA is complete. Group AC follows: Batch 180 — one address can still lock any
+number of members out of sign-in.
