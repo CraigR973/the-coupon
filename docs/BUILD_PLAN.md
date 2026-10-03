@@ -336,7 +336,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: the login source limit. No change to the account lock. **API-carrying.**
 
-- [ ] **Batch 181 — A per-league name can copy someone outside the league, and no screen sets one**
+- [x] **Batch 181 — A per-league name can copy someone outside the league, and no screen sets one** ✅ 2026-10-03
   — specified from `docs/review/2026-09-28/01-security.md` SEC-29 (LOW-MED, live, verified) and
   `05-feature-gaps.md` FEAT-A15 (LOW). Batch 126 checks an override only against the league's
   *current* members (`league_memberships.py:364-390`); nothing re-checks on join. Bob took the

@@ -7901,3 +7901,27 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
   tree is the same. The `/ship-prod` owed since Batch 180 is unchanged by this.
 
 **Next:** Resume Batch 181 only after the recovery commit's exact-SHA CI is green.
+
+## Batch 181 — A per-league name can copy someone outside the league, and no screen sets one
+**Commits:** `399308c` (after the approval `9a3254d` and recovery `3dd0602`) · verified:
+`scripts/ci-local.sh` PASS (12 checks); 1,361 backend and 1,262 frontend tests passed, 0 skipped;
+seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37140769916 PASS for `399308c`
+
+### Key facts for future sessions
+- **The per-league name route is gone (404)**, and every reader of `display_name_override` now
+  renders the global name: roster, league page, standings, results, notification targets and the
+  pick alert (whose `_league_display_name` lookup is deleted). The coupon already did. Tests pin
+  all of these with an old override still stored.
+- **The data step is an owner action:** `python -m src.clear_league_name_overrides --dry-run`,
+  then `--apply`, after this ships. It sets the column to `NULL` on every row, left memberships
+  included, touches nothing else, and prints the count. The column itself stays (no migration).
+- **Twenty-six old oracle lines were replaced under the owner's exact approval**; the count held
+  at 1,361 because the replacements cover real behaviour (pick alert, left rows, nothing else
+  touched). Found on the way: the guard never inspects a test file deleted outright — flagged as a
+  separate gate-maintenance task, not fixed here.
+- `routers.leagues.require_league_member_write` now has no route; it stays as the documented door
+  for league-scoped writes, and two write-access tests call it directly.
+- **Close-out safety:** PASS — API-only; pre-push /ship-prod debt present; /ship-prod owed after push
+
+**Next:** Batch 182 — input bounds and policy hygiene (then Group AC's `/ship-prod`).
