@@ -1126,7 +1126,7 @@ async def get_league(
         members_out = [
             MemberInfo(
                 id=str(row[1].id),
-                display_name=public_name(row[0].display_name_override or row[1].display_name),
+                display_name=public_name(row[1].display_name),
                 role=row[0].role.value,
                 joined_at=row[0].joined_at,
                 avatar_url=row[1].avatar_url,

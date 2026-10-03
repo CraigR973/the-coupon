@@ -1,4 +1,4 @@
-"""League membership management: list, promote, demote, remove, display-name, invites."""
+"""League membership management: list, promote, demote, remove, invites."""
 
 import uuid
 from datetime import timedelta
@@ -7,12 +7,12 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser, generate_join_code, generate_opaque_token
 from src.database import get_db
-from src.display_name import public_name, validated_display_name
+from src.display_name import public_name
 from src.models.invite import Invite
 from src.models.league import League, LeaguePrivacy
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
@@ -22,7 +22,6 @@ from src.rate_limit import limiter, per_user_key
 from src.routers.leagues import (
     LeagueAdminDep,
     LeagueMemberDep,
-    LeagueMemberWriteDep,
     MemberInfo,
     _active_admin_count,
     _active_member_count,
@@ -206,7 +205,7 @@ async def list_members(
     return [
         MemberInfo(
             id=str(row[1].id),
-            display_name=public_name(row[0].display_name_override or row[1].display_name),
+            display_name=public_name(row[1].display_name),
             role=row[0].role.value,
             joined_at=row[0].joined_at,
             avatar_url=row[1].avatar_url,
@@ -345,87 +344,17 @@ async def remove_member(
 
 
 # ---------------------------------------------------------------------------
-# PUT /api/v1/leagues/{slug}/members/me/display-name
+# There is no per-league display name (Batch 181)
 # ---------------------------------------------------------------------------
-
-
-class DisplayNameRequest(BaseModel):
-    #: Still bounded at the column's width here; the real bound is
-    #: `MAX_DISPLAY_NAME_LENGTH`, applied in the handler so the refusal says which rule
-    #: was broken rather than answering a bare pydantic error.
-    display_name_override: str | None = Field(default=None, max_length=100)
-
-
-#: Refused because somebody in this league already reads as that name.
-NAME_TAKEN_IN_LEAGUE = "NAME_TAKEN_IN_LEAGUE"
-
-
-async def _effective_name_taken(
-    league_id: uuid.UUID,
-    candidate: str,
-    exclude_player_id: uuid.UUID,
-    db: AsyncSession,
-) -> bool:
-    """Whether any *other* active member of this league already reads as ``candidate``.
-
-    The effective name is the override when there is one and the profile's global name
-    otherwise — which is what the roster, the standings and the coupon all render, so it
-    is the thing that has to be unique. Compared case-insensitively for the same reason
-    registration does: Postgres would hold "Dave" and "dave" side by side, and on a
-    league table they are one person twice.
-    """
-    effective = func.coalesce(LeagueMembership.display_name_override, Profile.display_name)
-    clash = await db.execute(
-        select(LeagueMembership.id)
-        .join(Profile, Profile.id == LeagueMembership.player_id)
-        .where(
-            LeagueMembership.league_id == league_id,
-            LeagueMembership.player_id != exclude_player_id,
-            LeagueMembership.deleted_at.is_(None),
-            Profile.deleted_at.is_(None),
-            func.lower(effective) == candidate.lower(),
-        )
-        .limit(1)
-    )
-    return clash.scalar_one_or_none() is not None
-
-
-@router.put("/{slug}/members/me/display-name", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("30/hour", key_func=per_user_key)
-async def set_my_display_name(
-    request: Request,
-    slug: str,
-    body: DisplayNameRequest,
-    # A write, so no site-admin bypass (Batch 125). It previously answered 404 through
-    # its own membership lookup, which is the right outcome reached the confusing way.
-    member_ctx: LeagueMemberWriteDep,
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> None:
-    player, league = member_ctx
-    membership = await _resolve_active_membership(league.id, player.id, db)
-    if membership is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membership not found")
-
-    if body.display_name_override is None:
-        # Clearing always works, and is deliberately not checked for a clash. The name it
-        # falls back to is the profile's own, which registration keeps globally unique,
-        # and no override can be set to another member's effective name any more. A
-        # clash could only come from data written before this batch, and refusing the
-        # clear would trap that member with an override they cannot remove.
-        membership.display_name_override = None
-    else:
-        # Batch 126. This stored whatever it was sent, bounded only by the column's 100
-        # characters — no charset, no normalisation, no uniqueness — while the roster,
-        # the standings and the coupon all render it. Two members could appear under one
-        # name, and the owner's text-only decision makes the name the whole of a
-        # member's identity.
-        name = validated_display_name(body.display_name_override)
-        if await _effective_name_taken(league.id, name, player.id, db):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=NAME_TAKEN_IN_LEAGUE)
-        membership.display_name_override = name
-
-    membership.updated_at = _now()
-    await db.commit()
+#
+# ``PUT /{slug}/members/me/display-name`` let a member read under a different name in one
+# league. Batch 126 checked the name only against the league's *current* members, so it
+# could copy someone outside the league — the site admin's name, or a friend's before they
+# joined, after which the roster showed two people under one name (review 2026-09-28,
+# SEC-29). No screen ever called it. The owner's decision (30 Sep, decision 5) removes it
+# rather than hardening it: every league renders the member's global name, which
+# registration keeps unique, and ``python -m src.clear_league_name_overrides`` clears the
+# overrides already stored.
 
 
 # ---------------------------------------------------------------------------

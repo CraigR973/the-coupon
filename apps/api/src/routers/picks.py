@@ -42,9 +42,7 @@ from src.deps import LeagueMemberDep, LeagueMemberWriteDep, OddsProviderDep
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekFixture
 from src.models.league import League, PickScope
-from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome
-from src.models.profile import Profile
 from src.rate_limit import consume_shared_limit, limiter, per_user_key
 from src.services.gameweek import (
     PICKABLE_STATES,
@@ -421,7 +419,8 @@ async def submit_pick(
     # and be retried, so it commits alone; and the ordinary alert must not be able to undo
     # either. One `try` around all three would tie the durable record to the outcome of a
     # webpush call, which is the exact coupling the row exists to break.
-    picker_name = await _league_display_name(db, league.id, player)
+    # Batch 181: every league calls a member by their own name, so the alert does too.
+    picker_name = player.display_name
 
     # Batch 116. What the alert calls the selection, in the words the coupon uses. It
     # interpolated `pick.runner_name`, which is composed from the market alone — a team
@@ -578,24 +577,6 @@ async def _announce(
         await db.rollback()
         return None
     return result
-
-
-async def _league_display_name(db: AsyncSession, league_id: uuid.UUID, player: Profile) -> str:
-    """What this league calls the picker — the override when set, else their profile name.
-
-    The alert has to read the way the leaderboard does; a member who set an override in
-    one league is that name to everybody in it.
-    """
-    override = (
-        await db.execute(
-            select(LeagueMembership.display_name_override).where(
-                LeagueMembership.league_id == league_id,
-                LeagueMembership.player_id == player.id,
-                LeagueMembership.deleted_at.is_(None),
-            )
-        )
-    ).scalar_one_or_none()
-    return override or player.display_name
 
 
 # ── Read: my pick for a gameweek ──────────────────────────────────────────────

@@ -1586,8 +1586,8 @@ class NotificationTarget(BaseModel):
     """
 
     player_id: str
-    #: The name this league knows them by — the override when set, so an alert reads the
-    #: way the leaderboard does.
+    #: The member's own name, which is what every league shows since Batch 181 retired the
+    #: per-league override — so an alert reads the way the leaderboard does.
     display_name: str
     timezone: str
     league_id: str
@@ -1648,7 +1648,7 @@ async def _targets(
     excluding: uuid.UUID | None,
 ) -> list[NotificationTarget]:
     """The one query behind both. See :func:`notification_targets`."""
-    display_name = func.coalesce(LeagueMembership.display_name_override, Profile.display_name)
+    display_name = Profile.display_name
     rows = await db.execute(
         select(
             LeagueMembership.player_id,

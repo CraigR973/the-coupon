@@ -23,6 +23,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 import pytest_asyncio
+from fastapi import HTTPException
 from fastapi.routing import APIRoute
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
@@ -36,6 +37,7 @@ from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile, UserRole
 from src.routers.leagues import require_league_member as leagues_read_member
+from src.routers.leagues import require_league_member_write as leagues_write_member
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -107,21 +109,23 @@ async def test_a_non_member_site_admin_is_refused_on_the_pick_path(client: Async
         assert rows.scalars().all() == []
 
 
-async def test_a_non_member_site_admin_is_refused_on_the_per_league_display_name(
-    client: AsyncClient,
-) -> None:
-    """The other write that reached through the bypass."""
+async def test_the_league_write_dependency_refuses_a_non_member_site_admin() -> None:
+    """The other write that reached through the bypass, asked of its dependency directly.
+
+    That write was the per-league display name, and Batch 181 removed its route. The
+    dependency stays — it is the door a league-scoped write must use — so it is held to
+    its rule without one.
+    """
     member = await _profile()
     league = await _league(member)
     site_admin = await _profile(UserRole.admin)
 
-    refused = await client.put(
-        f"/api/v1/leagues/{league.slug}/members/me/display-name",
-        json={"display_name_override": "Gatecrasher"},
-        headers=_auth(site_admin),
-    )
+    async with AsyncSessionLocal() as session:
+        with pytest.raises(HTTPException) as refused:
+            await leagues_write_member(slug=league.slug, player=site_admin, db=session)
 
-    assert refused.status_code == 403, refused.text
+    assert refused.value.status_code == 403
+    assert refused.value.detail == "League membership required"
 
 
 # ── The half that must not have moved ─────────────────────────────────────────
@@ -155,21 +159,20 @@ async def test_an_ordinary_non_member_is_still_refused_on_reads(client: AsyncCli
     assert response.status_code == 403, response.text
 
 
-async def test_a_real_member_still_reaches_the_write_paths(client: AsyncClient) -> None:
+async def test_a_real_member_still_reaches_the_write_paths() -> None:
     """The write variant must refuse non-members, not members.
 
-    The display-name write is the one of the two that needs no slate, so it is the one
-    that can prove the dependency admits a genuine member.
+    The display-name write was the one of the two that needed no slate, so it proved the
+    dependency admits a genuine member. Batch 181 removed that route, so the dependency is
+    asked directly.
     """
     member = await _profile()
     league = await _league(member)
 
-    accepted = await client.put(
-        f"/api/v1/leagues/{league.slug}/members/me/display-name",
-        json={"display_name_override": f"Ace {uuid.uuid4().hex[:4]}"},
-        headers=_auth(member),
-    )
-    assert accepted.status_code == 204, accepted.text
+    async with AsyncSessionLocal() as session:
+        admitted = await leagues_write_member(slug=league.slug, player=member, db=session)
+
+    assert [admitted[0].id, admitted[1].id] == [member.id, league.id]
 
 
 # ── The guard, so the next write cannot pick the wrong door ───────────────────
