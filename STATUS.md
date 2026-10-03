@@ -29,8 +29,10 @@ Checked 2026-10-03 unless a line says otherwise.
 
 ## Owed
 
-- **No `/ship-prod` is owed.** Group AC shipped on 2026-10-03 as Railway `dec590b7`
-  (`9be47cef`); the drift check reports **in sync**, and migration remains `026`.
+- **A behaviour-neutral `/ship-prod` is owed** (2026-10-03). Group AC shipped as Railway
+  `dec590b7` (`9be47cef`) and was verified in sync; the test-only fix `88c0f75` that followed
+  sits under `apps/api`, so the drift check counts it as reaching the image. Nothing runtime or
+  schema changed; it can ride with Group AD's first checkpoint (after Batch 188).
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
   Railway `4ee4a962-3a91-449d-b5de-11ca66bdc9f9`, the previous image redeployed by the
   pinned IaC apply — boots against the database as it stands. Vercel was already on

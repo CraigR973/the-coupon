@@ -7987,3 +7987,26 @@ https://github.com/CraigR973/the-coupon/actions/runs/37147618611 PASS for `93fb5
   London session pooler, built in memory, worked both times.
 
 **Next:** the owner's clear-overrides step (Batch 181), then `/group-start AD`.
+
+## Fix — the durable rate-limit tests could straddle a window boundary
+**Commits:** `88c0f75` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,363 backend and 1,266
+frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37155283334 PASS for `88c0f75`
+
+### Key facts for future sessions
+- **The flake:** the shipment-record commit `d1fbb6b` failed CI run 37151551891 on
+  `test_a_redeploy_mid_attack_does_not_hand_back_the_login_bucket` — a 423 from the account lock
+  where the 429 was expected. The durable counters use epoch-aligned fixed windows; a boundary
+  (20:30 UTC) fell between the fifth and sixth attempt, so the sixth opened a fresh window.
+- **Proof:** a disposable probe whose limiter clock crosses the boundary before the sixth attempt
+  reproduced the exact 423 and body. Every multi-charge test in the module carried the same race;
+  only the unknown-name test had been pinned.
+- **Fixed where the clock is read:** an autouse fixture pins `src.rate_limit.time` for the whole
+  module, so no other clock moves and the window-roll test still patches over it. No assertion
+  changed; the guard saw additions only.
+- **Disk:** the first gate rerun failed `ENOSPC` with 76 MiB free; the owner approved purging pip's
+  download cache (364 MB, via pip 24 — the system pip 21 cannot see `http-v2`), and the rerun passed.
+- **Drift:** the change is test-only but under `apps/api`, so a behaviour-neutral `/ship-prod` is
+  owed; it can ride with Group AD's first checkpoint.
+
+**Next:** `/group-start AD`, starting with Batch 183.
