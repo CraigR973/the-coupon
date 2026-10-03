@@ -375,6 +375,12 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Verification: 150-character hint → 422; production headers after the push carry only the
   production API; the prod-bundle CSP smoke still passes.
 
+  **Oracle changes approved (owner, 2026-10-03):** this batch may replace only the one
+  existing oracle line fingerprinted in trusted main, and only in
+  `apps/web/src/test/csp.test.ts` — production's policy allowing the staging API, which flips
+  to not allowing it. Stronger coverage remains required; this is not a file-wide or reusable
+  waiver.
+
   Scope boundary: these bounds, the CSP and one comment. **API + web.**
 
 - [ ] **Batch 183 — A big league's home screen and results history break once the accumulator passes 10^26**

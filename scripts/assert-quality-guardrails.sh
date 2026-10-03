@@ -104,6 +104,10 @@ apps/api/tests/test_league_write_access.py|async def test_a_non_member_site_admi
 apps/api/tests/test_league_write_access.py|async def test_a_real_member_still_reaches_the_write_paths(client: AsyncClient) -> None:
 EOF
       ;;
+    182) cat <<'EOF'
+apps/web/src/test/csp.test.ts|expect(connect).toContain('https://api-production-0641.up.railway.app');
+EOF
+      ;;
   esac
 }
 
@@ -112,6 +116,7 @@ approved_oracle_paths() {
     173) echo "apps/web/src/test/CouponSection.test.tsx apps/web/src/test/PickRow.test.tsx" ;;
     179) echo "apps/api/tests/test_admin_console.py" ;;
     181) echo "apps/api/tests/test_league_display_name.py apps/api/tests/test_league_write_access.py" ;;
+    182) echo "apps/web/src/test/csp.test.ts" ;;
   esac
 }
 
