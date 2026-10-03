@@ -89,6 +89,9 @@ export function LeaderboardPage() {
     <div>
       <PageHeader
         title={league?.name ?? 'Standings'}
+        /* Batch 170. A league's name is its members' own words and can be long; at 320 it
+           was cut off. An <h1> wraps rather than truncates. */
+        wrapTitle
         /* The season is named up here as well as in the strip: a member who has followed
            an archived link needs to know which table they are reading without having to
            work it out from the standings themselves. */

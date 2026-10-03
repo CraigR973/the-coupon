@@ -213,6 +213,20 @@ describe('DashboardPage', () => {
     expect(summary.textContent).toContain('Win rate60%');
   });
 
+  it('lets the hero figure labels wrap rather than cutting them off (Batch 170)', async () => {
+    renderPage();
+    const summary = await screen.findByTestId('home-season-summary');
+    const labels = Array.from(summary.querySelectorAll('dt'));
+    expect(labels.map((label) => label.textContent)).toEqual(['Points', 'Picks won', 'Win rate']);
+    for (const label of labels) {
+      expect(label.className.split(' ')).not.toContain('truncate');
+      // Phones track at the WCAG text-spacing value so one word always fits at 320.
+      expect(label.className.split(' ')).toContain('tracking-[0.12em]');
+      // The size class must survive `cn`, which once merged it away as a second colour.
+      expect(label.className.split(' ')).toContain('text-caption');
+    }
+  });
+
   it('keeps a failed home request distinct from no leagues and retries it', async () => {
     let summary: CrossLeagueSummary | null = null;
     vi.stubGlobal('fetch', (url: string) => {

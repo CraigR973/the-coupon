@@ -24,6 +24,13 @@ import { cn } from '@/lib/utils';
 interface DesktopNavItem {
   to: string;
   label: string;
+  /**
+   * What the link reads below `md`. The full label stays its accessible name, so the
+   * visible word is still part of what a screen reader or voice control hears.
+   */
+  shortLabel?: string;
+  /** Shown from `md` up only; the account menu carries the same destination. */
+  wideOnly?: boolean;
   /** Whether this entry owns `pathname`. */
   match: (pathname: string) => boolean;
 }
@@ -33,11 +40,12 @@ function desktopNav(slug: string | null): ReadonlyArray<DesktopNavItem> {
   return [
     { to: '/', label: 'Home', match: (p) => p === '/' },
     { to: predictionsPath(slug), label: 'Coupon', match: isCouponPath },
-    { to: FOOTBALL_PATH, label: 'Football Stats', match: isFootballPath },
+    { to: FOOTBALL_PATH, label: 'Football Stats', shortLabel: 'Football', match: isFootballPath },
     { to: '/leagues', label: 'Leagues', match: isLeagueHubPath },
     {
       to: '/settings',
       label: 'Settings',
+      wideOnly: true,
       match: (p) => p === '/settings' || p.startsWith('/settings/'),
     },
   ];
@@ -74,7 +82,7 @@ export function TopBar() {
         aria-label={`Account menu (${player.displayName})`}
         className="inline-flex items-center gap-2 press-down rounded-full focus-visible:outline-none focus-visible:shadow-glow"
       >
-        <span className="hidden sm:inline text-sm text-text-secondary font-sans">
+        <span className="hidden lg:inline text-sm text-text-secondary font-sans">
           {player.displayName}
         </span>
         <Avatar name={player.displayName} size="sm" src={player.avatarUrl} />
@@ -130,21 +138,35 @@ export function TopBar() {
           <Brand variant="compact" size={46} />
         </NavLink>
 
+        {/* Batch 170. A 1280 display at 200% zoom is 640 CSS px, the bottom of this
+            layout, where the five links overflowed the bar and pushed the account menu off
+            screen. Below `md` the bar sheds what has another way in: Settings (also in the
+            account menu) and "Stats". The name beside the avatar waits for `lg`, because
+            names run to 32 characters. Links never wrap, so the bar stays one 56px row. */}
         <nav aria-label="Main navigation" className="hidden sm:flex items-center gap-1 flex-1">
           {navItems.map((item) => (
             <Link
               key={item.label}
               to={item.to}
               aria-current={item.match(pathname) ? 'page' : undefined}
+              aria-label={item.shortLabel ? item.label : undefined}
               className={cn(
-                'px-3 py-1.5 rounded-sm text-sm font-medium font-sans tracking-tight transition-colors press-down',
+                'whitespace-nowrap px-3 py-1.5 rounded-sm text-sm font-medium font-sans tracking-tight transition-colors press-down',
                 'focus-visible:outline-none focus-visible:shadow-glow',
+                item.wideOnly && 'hidden md:block',
                 item.match(pathname)
                   ? 'bg-primary/15 text-primary'
                   : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated',
               )}
             >
-              {item.label}
+              {item.shortLabel ? (
+                <>
+                  <span className="md:hidden">{item.shortLabel}</span>
+                  <span className="hidden md:inline">{item.label}</span>
+                </>
+              ) : (
+                item.label
+              )}
             </Link>
           ))}
         </nav>

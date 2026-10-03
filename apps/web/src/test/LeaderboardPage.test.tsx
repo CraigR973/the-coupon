@@ -127,6 +127,15 @@ describe('LeaderboardPage — the season archive', () => {
     stubAuth();
   });
 
+  it('wraps the league name rather than cutting off the page title (Batch 170)', async () => {
+    stubFetch();
+    renderPage();
+
+    const title = await screen.findByRole('heading', { level: 1, name: MOCK_LEAGUE.name });
+    expect(title.className.split(' ')).not.toContain('truncate');
+    expect(title.className.split(' ')).toContain('break-words');
+  });
+
   it('opens on the season being played, and asks for it without a query string', async () => {
     stubFetch();
     renderPage();

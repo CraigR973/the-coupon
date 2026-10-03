@@ -82,13 +82,76 @@ async function expectTabBarSettled(page: Page, current: string): Promise<void> {
         fontSize: style.fontSize,
         lines: Math.round(label.getBoundingClientRect().height / parseFloat(style.lineHeight)),
         iconHeight: Math.round(node.querySelector('svg')!.getBoundingClientRect().height),
+        iconWidth: Math.round(node.querySelector('svg')!.getBoundingClientRect().width),
       };
     }),
   );
   expect(tabs).toHaveLength(5);
   for (const item of tabs) {
     expect(item, `${item.label} tab`).toMatchObject({ fontSize: '12px', lines: 1, iconHeight: 20 });
+    expect(item.iconWidth, `${item.label} icon is 20px square`).toBe(20);
   }
+}
+
+/** WCAG 2.2 SC 1.4.12's text-spacing override, as the reflow spec applies it. */
+const TEXT_SPACING_OVERRIDE =
+  '* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }';
+
+/**
+ * Batch 170. The segmented tabs share the bottom bar's indicator hook, so an unanchored
+ * indicator would draw their pill beside the chosen tab just as it drew the bar's line
+ * two tabs right. Each tab is chosen in turn and the pill must sit exactly over it.
+ */
+async function expectSegmentedTabsSettled(page: Page): Promise<void> {
+  const list = page.getByRole('tablist');
+  const pill = list.getByTestId('tab-indicator');
+  for (const name of ['Results', 'Tables']) {
+    const tab = list.getByRole('tab', { name });
+    await tab.click();
+    await expect(tab).toHaveAttribute('aria-selected', 'true');
+    await expect
+      .poll(async () => {
+        const [tabBox, pillBox] = await Promise.all([tab.boundingBox(), pill.boundingBox()]);
+        if (!tabBox || !pillBox) return Number.POSITIVE_INFINITY;
+        return Math.max(Math.abs(pillBox.x - tabBox.x), Math.abs(pillBox.width - tabBox.width));
+      })
+      .toBeLessThanOrEqual(1);
+  }
+}
+
+/**
+ * Batch 170. Each home figure is a third of the hero. Its label may wrap but must not be
+ * cut, and the three figures stay level whichever labels take two lines.
+ */
+async function expectHomeFiguresLegible(page: Page): Promise<void> {
+  const summary = page.getByTestId('home-season-summary');
+  await expect(summary).toBeVisible();
+  const figures = await summary.evaluate((list) =>
+    Array.from(list.querySelectorAll('dt')).map((term) => ({
+      label: term.textContent,
+      overflow: term.scrollWidth - term.clientWidth,
+      textOverflow: getComputedStyle(term).textOverflow,
+      valueTop: Math.round(term.parentElement!.querySelector('dd')!.getBoundingClientRect().top),
+    })),
+  );
+  expect(figures.map((figure) => figure.label)).toEqual(['Points', 'Picks won', 'Win rate']);
+  for (const figure of figures) {
+    expect(figure.overflow, `${figure.label} fits its card`).toBeLessThanOrEqual(0);
+    expect(figure.textOverflow, `${figure.label} is never cut short`).not.toBe('ellipsis');
+  }
+  expect(new Set(figures.map((figure) => figure.valueTop)).size, 'the figures stay level').toBe(1);
+}
+
+/** Batch 170. The standings title is the league's own name, so it wraps rather than cuts. */
+async function expectPageTitleWhole(page: Page): Promise<void> {
+  const title = page.locator('main h1');
+  await expect(title).toBeVisible();
+  const fit = await title.evaluate((node) => ({
+    overflow: node.scrollWidth - node.clientWidth,
+    textOverflow: getComputedStyle(node).textOverflow,
+  }));
+  expect(fit.overflow, 'the league name fits its heading').toBeLessThanOrEqual(0);
+  expect(fit.textOverflow, 'the league name is never cut short').not.toBe('ellipsis');
 }
 
 async function expectNoAxeViolations(page: Page): Promise<void> {
@@ -897,6 +960,47 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
     });
   }
 
+  // Batch 170. At exactly 1280 @ 200% the brand, five links and the account menu did not
+  // fit: every signed-in page scrolled 47px sideways and the menu sat past the right edge.
+  // Below `md` Settings is left to the account menu and Football Stats reads Football; the
+  // name beside the avatar waits for `lg`. 768 is the same display at about 167%, the
+  // narrowest width that shows all five links in full.
+  for (const [width, linkCount] of [[768, 5], [640, 4]] as const) {
+    await alice.setViewportSize({ width, height: 400 });
+    for (const path of ['/', '/leagues/the-coupon/predictions', '/leagues/the-coupon/leaderboard']) {
+      await alice.goto(path);
+      const nav = alice.getByRole('navigation', { name: 'Main navigation' });
+      await expect(nav.getByRole('link', { name: 'Football Stats' })).toHaveText(
+        width < 768 ? 'Football' : 'Football Stats',
+        { useInnerText: true },
+      );
+      const fit = await alice.evaluate(() => {
+        const header = document.querySelector('header')!;
+        return {
+          page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          header: header.scrollWidth - header.clientWidth,
+          linkHeights: Array.from(header.querySelectorAll('nav[aria-label="Main navigation"] a'))
+            .filter((link) => getComputedStyle(link).display !== 'none')
+            .map((link) => Math.round(link.getBoundingClientRect().height)),
+        };
+      });
+      expect(fit.page, `${path} at ${width} does not scroll sideways`).toBe(0);
+      expect(fit.header, `${path} at ${width} header fits`).toBe(0);
+      expect(fit.linkHeights, `${path} at ${width} link count`).toHaveLength(linkCount);
+      expect(new Set(fit.linkHeights).size, `${path} at ${width} links on one line`).toBe(1);
+    }
+  }
+  const accountMenu = alice.getByRole('button', { name: 'Account menu (Alice)' });
+  const accountBox = await accountMenu.boundingBox();
+  expect(accountBox).not.toBeNull();
+  expect(accountBox!.x + accountBox!.width).toBeLessThanOrEqual(640);
+  await accountMenu.click();
+  await expect(alice.getByRole('menuitem', { name: 'Settings' })).toBeVisible();
+  await expect(alice.getByRole('menuitem', { name: 'Log out' })).toBeVisible();
+  await alice.keyboard.press('Escape');
+  await expect(alice.getByRole('menuitem', { name: 'Log out' })).toBeHidden();
+  await alice.screenshot({ path: join(ARTIFACT_DIR, 'batch-170-zoom-header-640x400.png') });
+
   await alice.goto('/settings');
   const aboutLink = alice.getByRole('link', { name: 'About & scoring rules' });
   await expect(aboutLink).toBeVisible();
@@ -981,6 +1085,12 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
     });
   }
 
+  // Batch 170: the fifth tab, and the segmented control that shares the bar's indicator.
+  await alice.goto('/football');
+  await expectTabBarSettled(alice, 'Football');
+  await expectSegmentedTabsSettled(alice);
+  await alice.goto('/');
+
   // The old "Football Stats" label only just fit at 390px and wrapped in a 64px tab at
   // the WCAG reflow width. Enlarged text spacing must not bring the two-line, crushed-icon
   // failure back either.
@@ -989,6 +1099,24 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
     content: '* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; }',
   });
   await expectTabBarSettled(alice, 'Home');
+
+  // Batch 170. The home figures and the standings title at the reflow width and at 390,
+  // with and without the text-spacing override: either may wrap, neither may be cut.
+  for (const width of [320, 390]) {
+    await alice.setViewportSize({ width, height: 720 });
+    for (const spaced of [false, true]) {
+      await alice.goto('/');
+      if (spaced) await alice.addStyleTag({ content: TEXT_SPACING_OVERRIDE });
+      await expectHomeFiguresLegible(alice);
+      await alice.screenshot({
+        path: join(ARTIFACT_DIR, `batch-170-home-${width}${spaced ? '-spaced' : ''}.png`),
+      });
+      await alice.goto('/leagues/the-coupon/leaderboard');
+      if (spaced) await alice.addStyleTag({ content: TEXT_SPACING_OVERRIDE });
+      await expectPageTitleWhole(alice);
+    }
+  }
+  await alice.goto('/');
 
   // Batch 151: the shared statistic component must stay legible and accessible on the
   // desktop surface as well as the phone hero. The review's 1280 captures are the before
@@ -1003,6 +1131,10 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
       path: join(ARTIFACT_DIR, `batch-151-home-${theme}-1280x800.png`),
     });
   }
+  // Batch 170: the segmented tabs at desktop width too, where the bottom bar is gone.
+  await alice.goto('/football');
+  await expectSegmentedTabsSettled(alice);
+  await alice.goto('/');
   await alice.setViewportSize({ width: 390, height: 844 });
 
   const created = await alice.evaluate(async (api) => {
