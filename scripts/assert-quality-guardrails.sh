@@ -75,6 +75,35 @@ apps/api/tests/test_admin_console.py|assert refused.status_code == 403, refused.
 apps/api/tests/test_admin_console.py|assert refused.json()["detail"] == "SITE_ADMIN_RESET_REQUIRED"
 EOF
       ;;
+    181) cat <<'EOF'
+apps/api/tests/test_league_display_name.py|assert accepted.status_code == 204, accepted.text
+apps/api/tests/test_league_display_name.py|assert again.status_code == 204, again.text
+apps/api/tests/test_league_display_name.py|assert allowed.status_code == 204, allowed.text
+apps/api/tests/test_league_display_name.py|assert await _override_of(league.id, impersonator.id) is None
+apps/api/tests/test_league_display_name.py|assert await _override_of(league.id, member.id) == "Gaffer"
+apps/api/tests/test_league_display_name.py|assert await _override_of(league.id, member.id) == "The Gaffer"
+apps/api/tests/test_league_display_name.py|assert await _override_of(league.id, member.id) is None
+apps/api/tests/test_league_display_name.py|assert claimed.status_code == 204, claimed.text
+apps/api/tests/test_league_display_name.py|assert cleared.status_code == 204, cleared.text
+apps/api/tests/test_league_display_name.py|assert first.status_code == 204
+apps/api/tests/test_league_display_name.py|assert refused.json()["detail"] == NAME_TAKEN_IN_LEAGUE
+apps/api/tests/test_league_display_name.py|assert refused.status_code == 409
+apps/api/tests/test_league_display_name.py|assert refused.status_code == 409, refused.text
+apps/api/tests/test_league_display_name.py|assert refused.status_code == 422, (repr(bad), refused.status_code, refused.text)
+apps/api/tests/test_league_display_name.py|async def test_a_free_name_is_accepted_and_stored_normalised(client: AsyncClient) -> None:
+apps/api/tests/test_league_display_name.py|async def test_an_override_colliding_with_another_members_name_is_refused(
+apps/api/tests/test_league_display_name.py|async def test_an_override_colliding_with_another_members_override_is_refused(
+apps/api/tests/test_league_display_name.py|async def test_clearing_the_override_still_works(client: AsyncClient) -> None:
+apps/api/tests/test_league_display_name.py|async def test_keeping_your_own_override_is_not_a_collision_with_yourself(
+apps/api/tests/test_league_display_name.py|async def test_the_charset_rules_are_the_registration_ones(client: AsyncClient) -> None:
+apps/api/tests/test_league_display_name.py|async def test_the_collision_check_ignores_case_and_padding(client: AsyncClient) -> None:
+apps/api/tests/test_league_display_name.py|async def test_the_same_name_is_free_in_a_different_league(client: AsyncClient) -> None:
+apps/api/tests/test_league_write_access.py|assert accepted.status_code == 204, accepted.text
+apps/api/tests/test_league_write_access.py|assert refused.status_code == 403, refused.text
+apps/api/tests/test_league_write_access.py|async def test_a_non_member_site_admin_is_refused_on_the_per_league_display_name(
+apps/api/tests/test_league_write_access.py|async def test_a_real_member_still_reaches_the_write_paths(client: AsyncClient) -> None:
+EOF
+      ;;
   esac
 }
 
@@ -82,6 +111,7 @@ approved_oracle_paths() {
   case "$1" in
     173) echo "apps/web/src/test/CouponSection.test.tsx apps/web/src/test/PickRow.test.tsx" ;;
     179) echo "apps/api/tests/test_admin_console.py" ;;
+    181) echo "apps/api/tests/test_league_display_name.py apps/api/tests/test_league_write_access.py" ;;
   esac
 }
 

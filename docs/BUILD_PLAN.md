@@ -352,6 +352,12 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Verification: the route 404s; existing overrides are cleared by a data step that reports its
   count; the roster, standings and coupon render global names only.
 
+  **Oracle changes approved (owner, 2026-10-03):** this batch may replace only the twenty-six
+  existing oracle lines fingerprinted in trusted main, and only in
+  `apps/api/tests/test_league_display_name.py` (the removed route's eight tests) and
+  `apps/api/tests/test_league_write_access.py` (the two that used it as their example write).
+  Stronger coverage remains required; this is not a file-wide or reusable waiver.
+
   Scope boundary: the per-league name. **API-carrying.**
 
 - [ ] **Batch 182 — Input bounds and policy hygiene**
