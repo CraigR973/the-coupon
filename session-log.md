@@ -7925,3 +7925,22 @@ https://github.com/CraigR973/the-coupon/actions/runs/37140769916 PASS for `39930
 - **Close-out safety:** PASS — API-only; pre-push /ship-prod debt present; /ship-prod owed after push
 
 **Next:** Batch 182 — input bounds and policy hygiene (then Group AC's `/ship-prod`).
+
+## Gate maintenance — Batch 182 exact oracle approval
+**Commit:** `543cab4` · owner-approved 3 Oct 2026 · first CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37146305348 FAIL at the expected
+old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
+
+### Key facts for future sessions
+- Batch 182 gives production and staging separate CSPs, so one old oracle line in
+  `apps/web/src/test/csp.test.ts` flips: production's policy allowing the staging API. One exact
+  fingerprint in one file, never a waiver.
+- Replayed before the push: main's guard passed the rebased Batch 182 branch with the approval
+  applied, and still rejected one extra assertion removal from the same file.
+- The first push was red because CI correctly restored `e239d9b` as the trusted pre-push `main`;
+  that guard did not contain the new approval and refused its own replacement. This recovery
+  commit is documentation-only, so CI evaluates it through `543cab4`.
+- No application code, API contract, database schema or production data changed, and the web
+  tree is the same. The `/ship-prod` owed since Batch 180 is unchanged by this.
+
+**Next:** Resume Batch 182 only after the recovery commit's exact-SHA CI is green.
