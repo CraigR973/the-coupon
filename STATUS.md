@@ -29,10 +29,11 @@ Checked 2026-10-01 unless a line says otherwise.
 
 ## Owed
 
-- **A `/ship-prod` is owed** (2026-10-03). Batch 180 is on `main` (`ff26422`) but the API
-  still runs `e287ae29` (Group AG, Railway `920e285c`), so its fix is not live yet. It migrates
-  nothing. Group AC's shipment after Batch 182 is the planned one; 179 and 182 each need it
-  scheduled by the owner at close-out, because both carry a web half.
+- **A `/ship-prod` is owed** (2026-10-03). Batches 180 (`ff26422`) and 179 (`cdc0f13`) are on
+  `main` but the API still runs `e287ae29` (Group AG, Railway `920e285c`), so neither fix is live:
+  the league-scoped PIN reset (SEC-32, HIGH) still answers in production. Nothing migrates. The
+  owner scheduled Group AC's shipment on 2026-10-03 at 15:33 UTC for 179 and 182; it is due at
+  the group's checkpoint after 182, or sooner to close SEC-32.
 - **Rollback is a plain redeploy.** The last shipment applied no migration, so its baseline —
   Railway `5f000b0e-c9f0-4da6-b00f-60c2a19b9db8`, the previous image redeployed by the
   pinned IaC apply — boots against the database as it stands. Vercel was already on
@@ -73,7 +74,7 @@ These are not batches; nothing here will happen unless the owner does it or auth
 Batches 170-203 are drafted from the 2026-09-28 review and every owner decision they needed
 was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is complete
 (172, 173, 174 and 170, closed 3 Oct; web-only, nothing to ship). Group AC is under way: 180
-closed 3 Oct (API-only, not yet shipped), then 179, 181, 182 and its `/ship-prod`. Groups AD,
+and 179 closed 3 Oct (neither shipped yet), then 181, 182 and its `/ship-prod`. Groups AD,
 AE, AB, AF and AH follow in that order (`docs/agent-commands/group-start.md`; the reasons are in
 the review's `08-sequencing.md`).
 
@@ -88,7 +89,7 @@ Checked 2026-10-03.
   reruns it after the documentation commit, refuses a push without that matching stamp, and
   waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,353, frontend 1,249, journey 1). 13m04s on this Mac with the journey (2026-09-30), and
+  (backend 1,361, frontend 1,262, journey 1). 13m04s on this Mac with the journey (2026-09-30), and
   38 minutes when macOS's storage scan loads it (2026-09-25). Without a database the backend suite is
   800 passed and 550 skipped at 1,350 tests (2026-09-29) — not the gate.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
@@ -116,4 +117,4 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Batch 179 — retire the league-scoped PIN reset and tell members when their PIN is reset or set.
+**Next:** Batch 181 — remove the per-league name route and clear existing overrides.

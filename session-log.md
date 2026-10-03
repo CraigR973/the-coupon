@@ -7855,3 +7855,29 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
   tree is the same. The `/ship-prod` Batch 180 left owed is unchanged by this.
 
 **Next:** Resume Batch 179 only after the recovery commit's exact-SHA CI is green.
+
+## Batch 179 — A league admin can take over any member of their league, and every other league that member plays in
+**Commits:** `cdc0f13` (after the approval `2516250` and recovery `2a58225`) · verified:
+`scripts/ci-local.sh` PASS (12 checks); 1,361 backend and 1,262 frontend tests passed, 0 skipped;
+seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37135202951 PASS for `cdc0f13`
+
+### Key facts for future sessions
+- **The league-scoped reset is gone (404); the site console is the only reset.** A route walk
+  test asserts the console's is the only `…/reset-pin` path the app serves, and the SEC-27
+  demote-then-reset case is pinned too. Nine old oracle lines were replaced under the owner's
+  exact approval; a negative probe still refused a tenth.
+- **The member is told twice.** A push on reset ("choose a new one — the reset lasts 24 hours")
+  and on PIN set ("if that wasn't you, use Forgot PIN?"), best-effort after the commit and
+  subject to quiet hours and mutes like the lockout push. `GET /api/v1/me/pin-events` lists the
+  member's own resets and sets from 30 days (their requests excluded), and the new `PinNotice`
+  dialog shows the unseen ones on the next load with a session.
+- **"Seen" is remembered per device (localStorage), not on the account**, so whoever signs in
+  after a takeover cannot clear the member's own record; a new phone shows the last 30 days once.
+  The web half is therefore more than the row's "copy only": a dialog that renders nothing on
+  the old API. Not checked in a browser; unit tests and axe cover it, and the journey passed.
+- **Register copy** now sends a member who forgets their PIN to "Forgot PIN?" on the sign-in
+  screen instead of a league admin.
+- **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-03T15:33:33Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
+
+**Next:** Batch 181 — remove the per-league name route and clear existing overrides.

@@ -281,7 +281,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: the PWA shell. **Web-only — brand colour decided 2026-09-30.**
 
-- [ ] **Batch 179 — A league admin can take over any member of their league, and every other league that member plays in**
+- [x] **Batch 179 — A league admin can take over any member of their league, and every other league that member plays in** ✅ 2026-10-03
   — specified from `docs/review/2026-09-28/01-security.md` (SEC-15 partial, SEC-27 MED) and
   the lead's SEC-32 (HIGH, live, verified; `10-reconciliation.md`). Batch 122 refuses a
   league-scoped reset only when the target is a site admin or a *current* league admin.
