@@ -181,7 +181,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: the settled presentation. No scoring change. **Web-only.**
 
-- [ ] **Batch 174 — Keyboard focus hides behind the chrome and falls to the top of the page**
+- [x] **Batch 174 — Keyboard focus hides behind the chrome and falls to the top of the page** ✅ 2026-10-03
   — specified from `docs/review/2026-09-28/03-ux-accessibility.md`, UX-28, UX-30, UX-22 (MED)
   and UX-29, UX-33, UX-23 (LOW), all live and verified. Focus lands behind the tab bar and the
   sticky header, so on a phone the focused selection buttons are fully hidden (WCAG 2.2

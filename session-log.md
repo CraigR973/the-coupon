@@ -7737,3 +7737,28 @@ https://github.com/CraigR973/the-coupon/actions/runs/37081385064 PASS for `ff546
 - **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
 
 **Next:** Batch 174 — focus management and landmarks.
+
+## Batch 174 — Keyboard focus hides behind the chrome and falls to the top of the page
+**Commits:** `027d9f2` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,350 backend
+and 1,246 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37115303043 PASS for `027d9f2`
+
+### Key facts for future sessions
+- **Focus stays visible and comes back.** `scroll-padding` clears the sticky header and the
+  phone tab bar with an 8px halo margin; every state-driven confirmation dialog (the review's
+  five plus Remove member) returns focus to its opener through `restoreFocusRef` on the shared
+  `Dialog`; a claimed or in-flight selection stays focusable through `aria-disabled`.
+- **The phone install gate is the page.** It renders the only `<main>` and `<h1>` and makes the
+  routed page `inert`. The update banner, toaster and notifications prompt stay outside that
+  wrapper: the first version put the banner inside it, so "Update now" showed over the gate but
+  could not be tapped. Review caught it before close-out; a unit test renders the real `App`.
+- **Keyboard walk: 28 keystrokes at 390, 31 at 1280** from signed-out `/login` to a saved pick,
+  each focused element hit-tested at five points against the header and tab bar. The review's
+  32 included "Older gameweek" and "Copy text" stops this seed lacks; focusing Sign in adds one.
+- **Journey retries were mostly the new probe's own.** Rounded input corners and controls inside
+  the header read as obscured; a genuine 1px overlap of the first selection with the tab bar
+  added the halo margin; the claim's changing accessible name needed a stable locator; the
+  desktop walk first took the phone-only home card. Prettier is not installed here.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+**Next:** Batch 170 — the tab bar, home's stat labels and the header at zoom.
