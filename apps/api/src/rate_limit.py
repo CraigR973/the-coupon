@@ -13,7 +13,7 @@ import json
 import time
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 import jwt
 import structlog
@@ -23,7 +23,7 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from slowapi.wrappers import Limit
-from sqlalchemy import case
+from sqlalchemy import case, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -181,6 +181,13 @@ PIN_RESET_REQUEST_LIMIT = "3/hour"
 #: it. Fifteen wrong PINs in fifteen minutes is three accounts' worth of the existing
 #: allowance, which is well beyond fumbling and well short of a leaderboard.
 #:
+#: Batch 180. Once it is spent, *every* sign-in from that address waits for the window —
+#: refused before the PIN is checked, so nothing more reaches an account. That includes a
+#: correct PIN: admitting the right answer while refusing the wrong ones would leave a
+#: spent address an oracle whose guesses count against nobody, which is the same reason
+#: Batch 123 never admits a correct PIN during an account lock. The cost falls on whoever
+#: shares the attacker's address, for at most one window, and not on the members named.
+#:
 #: Deliberately *alongside* the account lock rather than instead of it. Removing the
 #: account lock would reopen unlimited guessing from a rotating source, which is the
 #: thing it exists to stop.
@@ -223,6 +230,44 @@ def _window_bounds(item: RateLimitItem) -> tuple[datetime, datetime]:
         datetime.fromtimestamp(start, UTC).replace(tzinfo=None),
         datetime.fromtimestamp(start + span, UTC).replace(tzinfo=None),
     )
+
+
+async def spent_durable_limit(
+    session: AsyncSession, key: str, limit_value: str
+) -> RateLimitItem | None:
+    """The window a further hit would be refused by, read without charging one.
+
+    Batch 180. :func:`charge_durable_limit` answers only by counting, so a limit charged
+    after the work it guards can only report what has already happened: Batch 123's
+    source budget refused the fourth account it was asked about *after* locking it.
+    Reading first lets a caller turn a request away before it does anything at all.
+
+    "Spent" is the charge's own threshold seen one hit earlier — a window already holding
+    ``amount`` hits refuses the next one. A row whose window has rolled holds nothing for
+    the current one, which is the upsert's reset read the other way round.
+
+    Advisory when requests race: two of them can both read room for one more. A caller
+    that must never let more than the limit through charges as well, before the thing
+    the limit guards — the charge's upsert is atomic, and it stays the authority.
+
+    The read is committed before returning, so this session holds no pooled connection
+    through whatever the caller does next.
+    """
+    spent: RateLimitItem | None = None
+    for item in parse_many(limit_value):
+        window_start, _ = _window_bounds(item)
+        hits = await session.scalar(
+            select(RateLimitCounter.hits).where(
+                RateLimitCounter.bucket_key == durable_bucket_key(key),
+                RateLimitCounter.limit_item == item.key_for(),
+                RateLimitCounter.window_start >= window_start,
+            )
+        )
+        if hits is not None and hits >= item.amount:
+            spent = item
+            break
+    await session.commit()
+    return spent
 
 
 async def consume_durable_limit(session: AsyncSession, key: str, limit_value: str) -> bool:
@@ -303,6 +348,11 @@ async def enforce_durable_limit(
     refused_by = await charge_durable_limit(session, key, limit_value)
     if refused_by is None:
         return
+    _refuse(request, key, refused_by)
+
+
+def _refuse(request: Request, key: str, refused_by: RateLimitItem) -> NoReturn:
+    """Raise the 429 :func:`enforce_durable_limit` documents, for whichever window refused."""
     request.state.view_rate_limit = (refused_by, [key, ""])
     log.warning("durable ratelimit exceeded", limit=str(refused_by), path=request.url.path)
     raise RateLimitExceeded(Limit(refused_by, lambda: key, None, False, None, None, None, 1, False))
@@ -333,22 +383,32 @@ async def login_failure_charger(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_limiter_db)],
 ) -> Callable[[], Awaitable[None]]:
-    """Hand the login handler a way to spend one of this source's wrong-PIN allowance.
+    """Turn away a source whose wrong-PIN allowance is spent, then hand the handler the charge.
 
-    A callable rather than a plain dependency because the charge has to happen **after**
-    the PIN has been checked: a dependency runs before the handler and would charge
-    correct sign-ins too, which is exactly the shared-address failure this limit is
-    shaped to avoid.
+    Two halves, and Batch 180 is their order. The allowance is **read before the PIN is
+    checked**, because Batch 123 only ever charged it — after the failure had been written
+    to the account — so an exhausted source still locked every member it named and merely
+    read 429 instead of 401. Refused here, a request reaches neither the PIN check nor
+    the account. See ``LOGIN_SOURCE_FAILURE_LIMIT`` for why a correct PIN waits too.
 
-    It rides on the limiter's own session for the same reason
-    :func:`enforce_login_limit` does — the handler commits the failed-attempt count and
-    then raises, and a charge inside that transaction would be at the mercy of it.
+    The charge is a callable rather than a plain dependency because it has to happen
+    **after** the PIN has been checked: a dependency runs before the handler and would
+    charge correct sign-ins too, which is exactly the shared-address failure this limit
+    is shaped to avoid. The handler makes it *before* writing the failure to the account,
+    and a failure it refuses never gets there. The read above is only advisory when
+    requests race — a burst can all read room for one more — and the charge's atomic
+    upsert is what holds a source to its fifteen whatever the timing.
+
+    Both ride on the limiter's own session for the same reason :func:`enforce_login_limit`
+    does: a charge inside the handler's transaction would be at the mercy of it.
     """
+    key = login_source_key(request)
+    spent = await spent_durable_limit(session, key, LOGIN_SOURCE_FAILURE_LIMIT)
+    if spent is not None:
+        _refuse(request, key, spent)
 
     async def charge() -> None:
-        await enforce_durable_limit(
-            request, session, login_source_key(request), LOGIN_SOURCE_FAILURE_LIMIT
-        )
+        await enforce_durable_limit(request, session, key, LOGIN_SOURCE_FAILURE_LIMIT)
 
     return charge
 

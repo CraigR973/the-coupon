@@ -15,6 +15,7 @@ Postgres-backed: the durable half has no meaning without the table it lives in.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from collections.abc import AsyncIterator
@@ -471,3 +472,184 @@ async def test_one_source_cannot_work_a_leaderboard_five_names_at_a_time() -> No
 
     # Four accounts is twenty wrong PINs against a budget of fifteen.
     assert refusals > 0
+
+
+# ── Batch 180 — read before the PIN, charged before the account ───────────────
+#
+# Batch 123's budget was charged only after a failure had been written to the account,
+# so an address past its fifteen still locked every member it named and merely read 429
+# instead of 401 (review 2026-09-28, SEC-28). These pin the order that makes it hold: a
+# spent address is refused before any PIN is checked, and a failure the allowance refuses
+# never reaches an account, however the requests interleave.
+
+#: The attacking address and somewhere else. ``client_address`` reads the rightmost
+#: ``X-Forwarded-For`` hop, which is what Railway's proxy writes in production.
+ATTACKER = {"X-Forwarded-For": "203.0.113.66"}
+ELSEWHERE = {"X-Forwarded-For": "198.51.100.4"}
+
+#: What the client is shown when the *source* allowance refuses — distinct from the
+#: per-(name, address) limit's ``5 per 15 minute``, so a test can tell which one fired.
+SOURCE_REFUSAL = {"error": "Rate limit exceeded: 15 per 15 minute"}
+
+
+class _OneWindow:
+    """Hold every request in one fixed window, as the unknown-name test above does.
+
+    Each test here spends the allowance across twenty-odd bcrypt checks; an epoch-aligned
+    fifteen-minute boundary falling among them would hand the attacker a fresh fifteen and
+    make a deterministic contract look flaky.
+    """
+
+    @staticmethod
+    def time() -> float:
+        return 2_000_000_000
+
+
+async def _account(profile: Profile) -> tuple[int, datetime | None]:
+    """The lock state as the database holds it, read on a fresh session."""
+    async with AsyncSessionLocal() as s:
+        row = (
+            await s.execute(
+                select(Profile.failed_login_count, Profile.locked_until).where(
+                    Profile.id == profile.id
+                )
+            )
+        ).one()
+    return row.failed_login_count, row.locked_until
+
+
+async def _wrong_pins(client: AsyncClient, victim: Profile, attempts: int) -> list[int]:
+    """``attempts`` wrong PINs at one member from the attacking address, in order."""
+    statuses = []
+    for _ in range(attempts):
+        response = await client.post(
+            "/api/v1/auth/login",
+            json={"display_name": victim.display_name, "pin": "0000"},
+            headers=ATTACKER,
+        )
+        statuses.append(response.status_code)
+    return statuses
+
+
+async def test_a_spent_address_cannot_lock_the_next_member(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SEC-28 as the review reproduced it: five wrong PINs at each of five members.
+
+    The first three members take the fifteen failures the address is allowed and are
+    locked by them — the account lock is unchanged. The fourth and fifth are refused
+    before their PINs are checked: before this batch both were locked anyway, behind a
+    429. Now their accounts are exactly as they were, the refusals spent nothing, and
+    either member can sign in from anywhere else.
+    """
+    monkeypatch.setattr(rate_limit, "time", _OneWindow)
+    victims = [await _profile() for _ in range(5)]
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        for victim in victims[:3]:
+            assert await _wrong_pins(client, victim, 5) == [401] * 5
+        for victim in victims[3:]:
+            for _ in range(5):
+                refused = await client.post(
+                    "/api/v1/auth/login",
+                    json={"display_name": victim.display_name, "pin": "0000"},
+                    headers=ATTACKER,
+                )
+                assert refused.status_code == 429, refused.text
+                assert refused.json() == SOURCE_REFUSAL
+
+        for victim in victims[:3]:
+            count, locked_until = await _account(victim)
+            assert count == 5
+            assert locked_until is not None
+        for victim in victims[3:]:
+            assert await _account(victim) == (0, None)
+        assert await _source_hits() == 15
+
+        elsewhere = await client.post(
+            "/api/v1/auth/login",
+            json={"display_name": victims[3].display_name, "pin": "8351"},
+            headers=ELSEWHERE,
+        )
+        assert elsewhere.status_code == 200, elsewhere.text
+
+
+async def test_a_correct_pin_from_that_address_signs_in_until_the_allowance_is_spent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The household behind one address: a right PIN costs nothing, right up to the edge.
+
+    Fourteen wrong PINs leave one failure of room. A member signing in correctly from the
+    same address is let in and spends none of it, so the fifteenth wrong PIN is still an
+    ordinary 401. After that the address is spent and the same member's correct PIN waits
+    for the window like everything else from it — admitting the right answer while
+    refusing the wrong ones would leave a spent address an oracle whose guesses count
+    against nobody. The refusal is the address's, not the member's.
+    """
+    monkeypatch.setattr(rate_limit, "time", _OneWindow)
+    member = await _profile()
+    first, second, third = [await _profile() for _ in range(3)]
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        assert await _wrong_pins(client, first, 5) == [401] * 5
+        assert await _wrong_pins(client, second, 5) == [401] * 5
+        assert await _wrong_pins(client, third, 4) == [401] * 4
+        assert await _source_hits() == 14
+
+        signed_in = await client.post(
+            "/api/v1/auth/login",
+            json={"display_name": member.display_name, "pin": "8351"},
+            headers=ATTACKER,
+        )
+        assert signed_in.status_code == 200, signed_in.text
+        assert await _source_hits() == 14
+
+        assert await _wrong_pins(client, third, 1) == [401]
+        assert await _source_hits() == 15
+
+        waits = await client.post(
+            "/api/v1/auth/login",
+            json={"display_name": member.display_name, "pin": "8351"},
+            headers=ATTACKER,
+        )
+        assert waits.status_code == 429, waits.text
+        assert waits.json() == SOURCE_REFUSAL
+        assert await _account(member) == (0, None)
+
+        elsewhere = await client.post(
+            "/api/v1/auth/login",
+            json={"display_name": member.display_name, "pin": "8351"},
+            headers=ELSEWHERE,
+        )
+        assert elsewhere.status_code == 200, elsewhere.text
+
+
+async def test_a_burst_from_one_address_cannot_outrun_its_allowance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The read before the PIN is advisory when requests race; the charge is not.
+
+    Four members are attacked at once, five wrong PINs each, so requests read room in the
+    allowance before others have charged it. Each failure is charged before it reaches an
+    account and the charge's upsert is atomic, so exactly fifteen land whatever the
+    interleaving: twenty requests never put more than fifteen failures on the four
+    accounts between them, nor lock more than three. Charged after the write, as Batch
+    123 was, or guarded by the read alone, a burst writes failures past the fifteen.
+
+    Each member's five run in order, so the per-account count is exact: it is the source
+    allowance under test here, not concurrent updates to one member's row.
+    """
+    monkeypatch.setattr(rate_limit, "time", _OneWindow)
+    victims = [await _profile() for _ in range(4)]
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        bursts = await asyncio.gather(*(_wrong_pins(client, victim, 5) for victim in victims))
+
+    statuses = [status for burst in bursts for status in burst]
+    assert set(statuses) <= {401, 429}, statuses
+    assert statuses.count(401) == 15, statuses
+    assert statuses.count(429) == 5, statuses
+
+    accounts = [await _account(victim) for victim in victims]
+    assert sum(count for count, _ in accounts) == 15, accounts
+    assert sum(1 for _, locked_until in accounts if locked_until is not None) <= 3, accounts

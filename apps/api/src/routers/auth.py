@@ -263,8 +263,10 @@ async def login(
     # wait for a deploy, five more. Same limit, same key, same 429; the count now sits in
     # Postgres and outlives the process. See `src.rate_limit.LOGIN_LIMIT`.
     _limit: DurableLoginLimit = None,
-    # Batch 123. Spent only on a wrong PIN, keyed by source address alone, so one
-    # address cannot work a whole leaderboard five attempts at a time.
+    # Batch 123, made to hold by Batch 180. Keyed by source address alone and spent only
+    # by a wrong PIN, so one address cannot work a whole leaderboard five attempts at a
+    # time: resolving it turns away an address whose allowance is already spent, before
+    # the PIN is checked, and the handler charges it before a failure reaches the account.
     charge_failure: ChargeLoginFailure = None,  # type: ignore[assignment]
 ) -> TokenResponse:
     result = await db.execute(
@@ -311,22 +313,36 @@ async def login(
             detail="Too many failed attempts. Try again later.",
         )
 
-    # A lockout that has expired gives the counter back, not one attempt.
-    #
-    # `failed_login_count` used to reset only on a *successful* login, so once it
-    # reached MAX_FAILED_ATTEMPTS the expiry of `locked_until` bought exactly one guess:
-    # a wrong answer took the count to six, which is still >= the maximum, and re-locked
-    # for another window. Forever, at one attempt per fifteen minutes. That is punishing
-    # to an attacker and fatal to a member who has simply forgotten four digits — and
-    # until this batch the "forgot PIN" path notified nobody, so there was no way back.
-    #
-    # The window is what bounds brute force, and it is unchanged: five attempts per
-    # fifteen minutes is 20/hour whatever this line does.
-    if user.locked_until is not None:
-        user.failed_login_count = 0
-        user.locked_until = None
-
     if not verify_pin(body.pin, user.pin_hash):
+        # Batch 180. The source allowance is charged *before* the failure reaches the
+        # account, and a failure it refuses never does: the 429 raises out of here with
+        # nothing written. Batch 123 charged after the commit below, so a source past its
+        # fifteen still locked every member it named.
+        #
+        # The read is rolled back first — it holds nothing to write — so this request is
+        # not sitting on one pooled connection while the limiter's session waits for
+        # another. Rolling back forgets the account, so it is read again once the charge
+        # has landed, which is also the freshest count the update below can start from.
+        await db.rollback()
+        await charge_failure()
+        await db.refresh(user)
+
+        # A lockout that has expired gives the counter back, not one attempt.
+        #
+        # `failed_login_count` used to reset only on a *successful* login, so once it
+        # reached MAX_FAILED_ATTEMPTS the expiry of `locked_until` bought exactly one
+        # guess: a wrong answer took the count to six, which is still >= the maximum, and
+        # re-locked for another window. Forever, at one attempt per fifteen minutes. That
+        # is punishing to an attacker and fatal to a member who has simply forgotten four
+        # digits — and until this batch the "forgot PIN" path notified nobody, so there
+        # was no way back. (The success path below clears both fields itself.)
+        #
+        # The window is what bounds brute force, and it is unchanged: five attempts per
+        # fifteen minutes is 20/hour whatever this line does. A lock still running here
+        # was set by a request racing this one, and is left to run.
+        if user.locked_until is not None and user.locked_until <= now:
+            user.failed_login_count = 0
+            user.locked_until = None
         user.failed_login_count += 1
         just_locked = False
         if user.failed_login_count >= MAX_FAILED_ATTEMPTS:
@@ -339,9 +355,6 @@ async def login(
         # was not them, so they can wait it out rather than reset a PIN that works.
         if just_locked:
             await _notify_lockout(db, user, now + LOCKOUT_DURATION)
-        # Charged after the PIN check and only on a failure, so a correct sign-in from a
-        # shared address never spends it. See `LOGIN_SOURCE_FAILURE_LIMIT`.
-        await charge_failure()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     if user.failed_login_count or user.locked_until is not None:
