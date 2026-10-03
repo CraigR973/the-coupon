@@ -70,13 +70,13 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 Batches 170-203 are drafted from the 2026-09-28 review and every owner decision they needed
 was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is in progress:
-Batch 172 is complete and Batch 173 is next, followed by 174 and 170. Groups AC, AD, AE, AB,
-AF and AH then follow in that order (`docs/agent-commands/group-start.md`; the reasons are in
+Batches 172 and 173 are complete, with 174 and 170 next. Groups AC, AD, AE, AB, AF and AH
+then follow in that order (`docs/agent-commands/group-start.md`; the reasons are in
 the review's `08-sequencing.md`).
 
 ## Toolchain
 
-Checked 2026-10-01.
+Checked 2026-10-03.
 
 - **The gate is `scripts/ci-local.sh`**: twelve checks and no skips, the twelfth being the seeded
   coupon journey (2026-09-30). GitHub's `coupon-journey` job runs the same runner through
@@ -85,7 +85,7 @@ Checked 2026-10-01.
   reruns it after the documentation commit, refuses a push without that matching stamp, and
   waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,350, frontend 1,226, journey 1). 13m04s on this Mac with the journey (2026-09-30), and
+  (backend 1,350, frontend 1,232, journey 1). 13m04s on this Mac with the journey (2026-09-30), and
   38 minutes when macOS's storage scan loads it (2026-09-25). Without a database the backend suite is
   800 passed and 550 skipped at 1,350 tests (2026-09-29) — not the gate.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
@@ -113,4 +113,4 @@ Checked 2026-10-01.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Group AA continues with Batch 173 — settled-round presentation.
+**Next:** Group AA continues with Batch 174 — focus management and landmarks.

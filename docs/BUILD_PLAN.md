@@ -150,7 +150,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: these states. No data-layer redesign. **Web-only.**
 
-- [ ] **Batch 173 — A settled round still reads as a price board, and its losers are dimmed below AA**
+- [x] **Batch 173 — A settled round still reads as a price board, and its losers are dimmed below AA** ✅ 2026-10-03
   — specified from `docs/review/2026-09-28/06-premium-design.md` DES-15 and DES-20,
   `03-ux-accessibility.md` UX-18 (MED, carried from 2026-09-13 and never batched) and UX-21
   (MED), and `02-correctness.md` CORR-26 (LOW). A lost pick is `opacity-60` on the settled

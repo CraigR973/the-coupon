@@ -7703,3 +7703,37 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
   the existing Batch 172 web tree; `/ship-prod` is not owed.
 
 **Next:** Resume Batch 173 only after the recovery commit's exact-SHA CI is green.
+
+## Batch 173 — A settled round still reads as a price board, and its losers are dimmed below AA
+**Commits:** `ff54667` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,350 backend
+and 1,232 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37081385064 PASS for `ff54667`
+
+### Key facts for future sessions
+- **Settled rounds now read as results.** Coupons lead with won/lost and landed-leg counts,
+  use their historical leg count, strike lost prices and label every leg Won/Lost/Void without
+  potential points; lost rows keep full contrast, erased players stay `Former member`, and
+  void-only profiles explain why no win rate exists. Scoring and share wording are unchanged
+  except that the latter now uses the correct historical N/M source.
+- **Browser proof covers the presentation matrix.** Phone and desktop captures in both themes
+  covered settled coupons and profiles, including a void leg, departed member and erased
+  member; axe and colour checks passed. The settled-leg join is a memoised map rather than a
+  repeated scan.
+- **Journey retries repaired only the harness.** A focused fixture incorrectly marked another
+  player's pick as the current member's and was corrected; the first browser run raced changing
+  source, one fresh run saw Chromium discard Bob's successful login as
+  `ERR_NETWORK_IO_SUSPENDED`, same-URL navigation made no request, and route counters raced
+  React effects. A clean rerun, `reload`, polled counters and a 240-second ceiling replaced the
+  stale run, no-request path, race and post-matrix 120-second timeout; the next journey passed.
+- **The oracle exception stayed exact and fail-closed.** The first full gate stopped on seven
+  intentional old-oracle removals. Owner approval named only those fingerprints in two files;
+  a disposable negative probe still rejected an eighth removal. The approval commit's first CI
+  was red because the old trusted guard correctly refused its own replacement, then the
+  documentation attestation recovered `main` at exact-SHA CI run `37079840543`.
+- **Other verification failures were environmental.** Recovery gate attempt one hit the
+  unrelated durable rate-limit test; that exact test passed on a clean database and the full
+  retry passed. One trace write hit `ENOSPC`; only regenerable mypy and editor-updater caches
+  were removed, after which the complete Batch 173 gate passed without weaker checks.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+**Next:** Batch 174 — focus management and landmarks.
