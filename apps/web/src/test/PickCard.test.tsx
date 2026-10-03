@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { PickCard } from '@/components/PickCard';
-import type { FixtureSlate, FormMatch, TeamContext } from '@/lib/types';
+import type { CouponLeg, FixtureSlate, FormMatch, TeamContext } from '@/lib/types';
 
 const FIXTURE: FixtureSlate = {
   fixture_id: 'fx1',
@@ -153,6 +153,86 @@ describe('PickCard', () => {
     expect(screen.getByText('1/1')).toBeTruthy();
     expect(screen.getByText('5/2')).toBeTruthy();
     expect(screen.queryByText('2.00')).toBeNull();
+  });
+});
+
+describe('PickCard — settled selections', () => {
+  const leg = (overrides: Partial<CouponLeg>): CouponLeg => ({
+    player_id: 'p2',
+    player_name: 'Bob Baker',
+    fixture_id: 'fx1',
+    home: 'Forfar',
+    away: 'Brechin',
+    competition: 'Scottish League 2',
+    market: 'MATCH_ODDS',
+    outcome: 'AWAY',
+    runner_name: 'Brechin',
+    odds: 3.2,
+    status: 'lost',
+    points_awarded: 0,
+    ...overrides,
+  });
+
+  it('shows the result instead of potential points for won, lost and void claims', () => {
+    renderCard({
+      locked: true,
+      settledLegs: [
+        leg({
+          player_id: 'p1',
+          player_name: 'Alice Adams',
+          outcome: 'DRAW',
+          runner_name: 'The Draw',
+          odds: 3.5,
+          status: 'won',
+          points_awarded: 35,
+        }),
+        leg({}),
+        leg({
+          player_id: 'p3',
+          player_name: 'Cara Cole',
+          market: 'BOTH_TEAMS_TO_SCORE',
+          outcome: 'YES',
+          runner_name: 'Yes',
+          odds: 1.8,
+          status: 'void',
+          points_awarded: 0,
+        }),
+      ],
+    });
+
+    expect(screen.getByTestId('selection-fx1-MATCH_ODDS-DRAW').textContent).toContain(
+      'Won · 35 pts · your pick',
+    );
+    const lost = screen.getByTestId('selection-fx1-MATCH_ODDS-AWAY');
+    expect(lost.textContent).toContain('Lost · Bob');
+    expect(lost.textContent).not.toContain('32 pts');
+    const voided = screen.getByTestId('selection-fx1-BOTH_TEAMS_TO_SCORE-YES');
+    expect(voided.textContent).toContain('Void · Cara');
+    expect(voided.textContent).not.toContain('18 pts');
+  });
+
+  it('never shortens the anonymised holder name', () => {
+    const selections = FIXTURE.selections.map((selection) =>
+      selection.outcome === 'AWAY'
+        ? { ...selection, taken_by_name: 'Former member' }
+        : selection,
+    );
+    renderCard({
+      fixture: {
+        ...FIXTURE,
+        selections,
+        mine: false,
+        taken_by_names: ['Alice Adams', 'Former member'],
+      },
+      locked: true,
+      settledLegs: [leg({ player_name: 'Former member' })],
+    });
+    expect(screen.getByTestId('selection-fx1-MATCH_ODDS-AWAY').textContent).toContain(
+      'Lost · Former member',
+    );
+    expect(screen.getByTestId('fixture-claimed-fx1').textContent).toContain(
+      'Picked by Alice, Former member',
+    );
   });
 });
 

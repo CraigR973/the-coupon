@@ -119,6 +119,7 @@ describe('PlayerProfilePage', () => {
     expect(lost.textContent).toContain('Both teams score');
     expect(lost.textContent).toContain('Scottish League Two');
     expect(lost.textContent).toContain('Lost');
+    expect(lost.className).not.toContain('opacity-60');
   });
 
   it('shows an untested record rather than a zero win rate', async () => {
@@ -134,6 +135,25 @@ describe('PlayerProfilePage', () => {
     expect(within(stats).getByText('—')).toBeTruthy();
     expect(screen.getByText(/a win rate appears after the first result/i)).toBeTruthy();
     expect(screen.getByText('No settled picks yet')).toBeTruthy();
+  });
+
+  it('explains a void-only record without claiming nothing settled', async () => {
+    stubFetch({
+      ...PROFILE,
+      picks_played: 1,
+      picks_won: 0,
+      win_rate_pct: null,
+      history: [
+        {
+          ...PROFILE.history[0],
+          status: 'void',
+          points_awarded: 0,
+        },
+      ],
+    });
+    renderPage();
+    expect(await screen.findByText('Only void picks so far — no win rate yet')).toBeTruthy();
+    expect(screen.queryByText(/nothing has settled yet/i)).toBeNull();
   });
 
   it('reports a player who is not in this league', async () => {

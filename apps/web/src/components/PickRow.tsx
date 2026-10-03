@@ -179,10 +179,9 @@ export interface PickRowProps {
 /**
  * One row of the coupon section's member list.
  *
- * Colour never carries a fact on its own here: `Live` is a word, the status is a word,
- * and a lost leg dims *in addition to* saying so. That is the rule Batch 72 set when the
- * same row started showing half-time scores, and it is why the `Live` badge exists at all
- * — 2-1 at half time and 2-1 at full time are opposite news to whoever holds that pick.
+ * Colour never carries a fact on its own here: `Live` is a word and the settled status is
+ * a word. Lost legs keep full opacity because dimming the whole row also dims already-tuned
+ * secondary text below AA contrast.
  *
  * ## What may be clipped, and what may not (Batch 105)
  *
@@ -210,7 +209,6 @@ export function PickRow({
     : null;
   const score = showScore ? scoreline(entry) : null;
   const running = isLive(entry);
-  const lost = settled && entry.status === 'lost';
 
   // The person leads a row with nothing claimed on it whichever hierarchy is asked for:
   // a coupon row's heading is normally the bet, and a member who has taken none has no
@@ -235,7 +233,6 @@ export function PickRow({
         lead === 'player'
           ? 'items-start border-b border-border/50 px-4 py-2.5 last:border-b-0'
           : 'items-start rounded-lg border border-border bg-surface p-3',
-        lost && 'opacity-60',
         lead === 'selection' && entry.is_mine && 'border-primary',
         className,
       )}
@@ -298,12 +295,11 @@ export function PickRow({
           </span>
         )}
         {settled && entry.status && (
-          <Badge variant={STATUS_VARIANT[entry.status]}>{pickStatusLabel(entry.status)}</Badge>
-        )}
-        {settled && entry.points_awarded != null && (
-          <span className="font-mono text-caption tabular-nums text-text-muted">
-            {entry.points_awarded} pts
-          </span>
+          <Badge variant={STATUS_VARIANT[entry.status]}>
+            {entry.status === 'won' && entry.points_awarded != null
+              ? `Won · ${entry.points_awarded} pts`
+              : pickStatusLabel(entry.status)}
+          </Badge>
         )}
       </div>
     </li>

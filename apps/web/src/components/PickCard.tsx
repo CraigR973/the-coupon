@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Check, CloudOff, HelpCircle, Loader2 } from 'lucide-react';
 import type { OutstandingPick, OutstandingState } from '@/hooks/usePickEditor';
 import type {
+  CouponLeg,
   FixtureSlate,
   OddsFormat,
   PickMarket,
@@ -31,8 +32,10 @@ const OUTCOME_ORDER: Record<PickOutcome, number> = {
 };
 const MARKET_ORDER: PickMarket[] = ['MATCH_ODDS', 'BOTH_TEAMS_TO_SCORE'];
 
-function firstName(name: string): string {
-  return name.trim().split(/\s+/)[0] || name;
+function shortHolderName(name: string): string {
+  const normalised = name.trim();
+  if (normalised === 'Former member') return normalised;
+  return normalised.split(/\s+/)[0] || name;
 }
 
 /**
@@ -124,6 +127,8 @@ export interface PickCardProps {
   busy: boolean;
   /** The member's odds notation. Display only. */
   oddsFormat: OddsFormat;
+  /** Settled claims on this fixture, joined from the coupon response by the page. */
+  settledLegs?: readonly CouponLeg[];
   /**
    * `odds` is the price this button was rendering when it was tapped (Batch 114) — the
    * number the member actually chose, which the API holds the submission to.
@@ -145,6 +150,7 @@ export function PickCard({
   outstanding,
   busy,
   oddsFormat,
+  settledLegs = [],
   onGrab,
 }: PickCardProps) {
   const kickoffLocal = formatInstant(fixture.kickoff_utc, timezone, 'EEE d MMM, HH:mm') ?? '';
@@ -160,6 +166,9 @@ export function PickCard({
     byMarket.set(sel.market, bucket);
   }
   const markets = MARKET_ORDER.filter((m) => byMarket.has(m));
+  const settledBySelection = new Map(
+    settledLegs.map((leg) => [selectionKey(leg.market, leg.outcome), leg]),
+  );
   const claimed = fixture.taken_by_names.length > 0;
   // Either club may be unresolved, and a resolved one may have nothing worth showing
   // (a cup has no table; a promoted side starts a season with no form). Nothing to
@@ -246,7 +255,7 @@ export function PickCard({
           {fixture.mine ? (
             <span className="text-success">Your game</span>
           ) : (
-            <>Picked by {fixture.taken_by_names.map(firstName).join(', ')}</>
+            <>Picked by {fixture.taken_by_names.map(shortHolderName).join(', ')}</>
           )}
         </p>
       )}
@@ -283,6 +292,7 @@ export function PickCard({
                       }
                       oddsFormat={oddsFormat}
                       timezone={timezone}
+                      settledLeg={settledBySelection.get(selectionKey(sel.market, sel.outcome))}
                       onGrab={onGrab}
                     />
                   ))}
@@ -305,6 +315,7 @@ function SelectionButton({
   unresolved,
   oddsFormat,
   timezone,
+  settledLeg,
   onGrab,
 }: {
   fixture: FixtureSlate;
@@ -316,12 +327,20 @@ function SelectionButton({
   unresolved: OutstandingState | null;
   oddsFormat: OddsFormat;
   timezone: string;
+  settledLeg?: CouponLeg;
   onGrab: (fixtureId: string, market: PickMarket, outcome: PickOutcome, odds: number) => void;
 }) {
   const label = outcomeLabel(sel.market, sel.outcome, fixture.home, fixture.away);
   const takenByOther = sel.taken_by_player_id !== null && !sel.mine;
   const takenAtLabel = takenByOther ? takenAt(sel.taken_at, timezone) : null;
   const grabbable = !locked && !sel.mine && !takenByOther && !busy;
+  const settledStatus = settledLeg?.status === 'pending' ? null : settledLeg?.status;
+  const settledTone =
+    settledStatus === 'won'
+      ? 'text-success-ink'
+      : settledStatus === 'lost'
+        ? 'text-error-ink'
+        : 'text-text-muted';
 
   return (
     <button
@@ -334,7 +353,13 @@ function SelectionButton({
       data-testid={`selection-${fixture.fixture_id}-${sel.market}-${sel.outcome}`}
       className={cn(
         'flex flex-col items-start gap-0.5 rounded-md px-2.5 py-2 text-left transition-colors',
-        sel.mine
+        settledStatus === 'won'
+          ? 'cursor-not-allowed border border-success bg-surface text-text-primary'
+          : settledStatus === 'lost'
+            ? 'cursor-not-allowed border border-error bg-surface text-text-primary'
+            : settledStatus === 'void'
+              ? 'cursor-not-allowed border border-border bg-surface-elevated text-text-primary'
+              : sel.mine
           ? 'border-2 border-success bg-success/20 text-success'
           : takenByOther
             ? 'cursor-not-allowed border border-border/50 bg-surface opacity-55'
@@ -364,14 +389,36 @@ function SelectionButton({
           </span>
         )}
       </span>
-      <span className="text-caption font-mono uppercase tracking-wide text-text-muted">
+      <span
+        className={cn(
+          'text-caption font-mono uppercase tracking-wide text-text-muted',
+          settledStatus && 'font-sans normal-case tracking-normal',
+          settledStatus && settledTone,
+        )}
+      >
         {unresolved !== null ? (
           <span className="text-amber-300">
             {unresolved === 'queued' ? 'waiting to send' : 'unconfirmed'}
           </span>
+        ) : settledStatus ? (
+          <>
+            {settledStatus === 'won' && settledLeg?.points_awarded != null
+              ? `Won · ${settledLeg.points_awarded} pts`
+              : settledStatus === 'won'
+                ? 'Won'
+                : settledStatus === 'lost'
+                  ? 'Lost'
+                  : 'Void'}
+            {' · '}
+            {sel.mine
+              ? 'your pick'
+              : shortHolderName(
+                  settledLeg?.player_name ?? sel.taken_by_name ?? 'someone',
+                )}
+          </>
         ) : takenByOther ? (
           <>
-            taken by {firstName(sel.taken_by_name ?? 'someone')}
+            taken by {shortHolderName(sel.taken_by_name ?? 'someone')}
             {takenAtLabel ? <span className="normal-case"> · {takenAtLabel}</span> : null}
             {' · '}
             {potentialPoints(sel.odds)} pts

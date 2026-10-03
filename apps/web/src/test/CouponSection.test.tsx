@@ -166,7 +166,9 @@ describe('CouponSection', () => {
       }),
       { phase: 'settled' },
     );
-    expect(screen.getByText(/all legs won/i)).toBeTruthy();
+    expect(screen.getByTestId('coupon-result-headline')).toHaveTextContent(
+      'Coupon won · 2 of 2 landed',
+    );
     expect(screen.getAllByText('Won').length).toBeGreaterThan(0);
   });
 
@@ -182,7 +184,10 @@ describe('CouponSection', () => {
       }),
       { phase: 'settled' },
     );
-    expect(screen.getByText(/not all legs landed/i)).toBeTruthy();
+    expect(screen.getByTestId('coupon-result-headline')).toHaveTextContent(
+      'Coupon lost · 1 of 2 landed',
+    );
+    expect(screen.getByText('3.50').tagName).toBe('S');
   });
 });
 
@@ -293,10 +298,21 @@ describe('a settled round', () => {
     expect(screen.queryByText(/Celtic \d+–\d+ Rangers/)).toBeNull();
   });
 
-  it('shows what each leg scored', () => {
+  it('shows points only for a winning leg', () => {
     renderSection(settledCoupon(), { phase: 'settled' });
-    expect(screen.getByText('20 pts')).toBeTruthy();
-    expect(screen.getByText('0 pts')).toBeTruthy();
+    expect(screen.getByText('Won · 20 pts')).toBeTruthy();
+    expect(screen.queryByText('0 pts')).toBeNull();
+  });
+
+  it("uses the settled round's leg count rather than today's smaller roster", () => {
+    renderSection(settledCoupon(), { phase: 'settled', memberCount: 1, open: false });
+    expect(screen.getByTestId('coupon-toggle').textContent).toContain('2 picks');
+    expect(screen.getByTestId('coupon-toggle').textContent).not.toContain('2 of 1');
+  });
+
+  it('keeps lost legs at full opacity so their tuned text remains AA', () => {
+    renderSection(settledCoupon(), { phase: 'settled' });
+    expect(screen.getByTestId('acca-leg-1').className).not.toContain('opacity-60');
   });
 
   it("marks the reader's own leg and nobody else's", () => {

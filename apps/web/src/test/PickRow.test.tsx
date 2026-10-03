@@ -90,9 +90,23 @@ describe('PickRow', () => {
       </ol>,
     );
     const row = screen.getByTestId('row');
-    expect(within(row).getByText('Won')).toBeTruthy();
-    expect(within(row).getByText('20 pts')).toBeTruthy();
+    expect(within(row).getByText('Won · 20 pts')).toBeTruthy();
     expect(row.textContent).toContain('Forfar 2–1 Brechin');
+  });
+
+  it('uses text and ink for a loss without dimming the row or printing zero points', () => {
+    const [entry] = entriesFromLegs([
+      { ...SETTLED_LEG, status: 'lost', points_awarded: 0 },
+    ]);
+    render(
+      <ol>
+        <PickRow entry={entry} oddsFormat="decimal" lead="selection" settled testId="row" />
+      </ol>,
+    );
+    const row = screen.getByTestId('row');
+    expect(within(row).getByText('Lost')).toBeTruthy();
+    expect(row.textContent).not.toContain('0 pts');
+    expect(row.className).not.toContain('opacity-60');
   });
 
   it('reads the same seven facts out of a member and out of a leg', () => {

@@ -7,7 +7,6 @@ import { COUPON_SECTION_ID } from '../lib/leagues';
 /** What the header's `aria-controls` points at — the part that folds. */
 const COUPON_LEGS_ID = 'coupon-legs';
 import { buildCouponShareText, buildSettledResultShareText, voidLegLabel } from '../lib/share';
-import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { EmptyState } from './EmptyState';
 import { isLive, PickRow, type PickEntry } from './PickRow';
@@ -89,6 +88,12 @@ export function CouponSection({
   //: the field yet — which is also the right answer for a round with no voids.
   const voidLegs = coupon?.void_leg_count ?? 0;
   const pricedLegs = legCount - voidLegs;
+  const settledOutcome =
+    coupon?.all_won === true
+      ? { label: 'Coupon won', colour: 'text-success-ink' }
+      : coupon?.all_won === false
+        ? { label: 'Coupon lost', colour: 'text-error-ink' }
+        : { label: 'Coupon settled', colour: 'text-text-primary' };
 
   async function copyShareText() {
     if (!coupon) return;
@@ -127,7 +132,11 @@ export function CouponSection({
           </span>
           <span className="flex shrink-0 items-center gap-2">
             <span className="font-mono text-caption tabular-nums text-text-muted">
-              {entries.length > 0 ? `${legCount} of ${memberCount}` : 'No picks yet'}
+              {entries.length > 0
+                ? settled
+                  ? `${legCount} ${legCount === 1 ? 'pick' : 'picks'}`
+                  : `${legCount} of ${memberCount}`
+                : 'No picks yet'}
             </span>
             <ChevronDown
               className={cn('h-4 w-4 text-text-muted transition-transform', open && 'rotate-180')}
@@ -148,14 +157,42 @@ export function CouponSection({
         <div className="mb-3 rounded-lg border border-border bg-surface p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className="font-mono text-caption uppercase tracking-[0.25em] text-text-muted">
-                {settled
-                  ? `${landed} of ${coupon.leg_count} landed`
-                  : `${pricedLegs}-fold accumulator`}
-              </p>
-              <p className="mt-1 text-3xl font-semibold tabular-nums text-text-primary">
-                {formatOdds(coupon.combined_odds, oddsFormat)}
-              </p>
+              {settled ? (
+                <>
+                  <p
+                    className="flex flex-wrap items-baseline gap-x-2 font-sans text-2xl font-semibold"
+                    data-testid="coupon-result-headline"
+                  >
+                    <span className={settledOutcome.colour}>{settledOutcome.label}</span>
+                    <span className="text-base font-normal text-text-secondary">
+                      {' · '}
+                      {landed} of {coupon.leg_count} landed
+                    </span>
+                  </p>
+                  <p
+                    className={cn(
+                      'mt-1 font-mono text-xl tabular-nums',
+                      coupon.all_won ? 'text-text-primary' : 'text-text-secondary',
+                    )}
+                  >
+                    {coupon.all_won === false ? (
+                      <s>{formatOdds(coupon.combined_odds, oddsFormat)}</s>
+                    ) : (
+                      formatOdds(coupon.combined_odds, oddsFormat)
+                    )}{' '}
+                    <span className="font-sans text-xs text-text-muted">combined odds</span>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-mono text-caption uppercase tracking-[0.25em] text-text-muted">
+                    {pricedLegs}-fold accumulator
+                  </p>
+                  <p className="mt-1 text-3xl font-semibold tabular-nums text-text-primary">
+                    {formatOdds(coupon.combined_odds, oddsFormat)}
+                  </p>
+                </>
+              )}
               {/* The one place this surface states it. The pasted text says it once too,
                   at the bottom, and nothing else on the screen repeats it. */}
               <p className="mt-0.5 break-words font-sans text-xs text-text-muted">
@@ -175,11 +212,6 @@ export function CouponSection({
               )}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-              {settled && coupon.all_won !== null && (
-                <Badge variant={coupon.all_won ? 'success' : 'muted'}>
-                  {coupon.all_won ? 'All legs won 🎉' : 'Not all legs landed'}
-                </Badge>
-              )}
               <Button type="button" variant="outline" size="sm" onClick={copyShareText}>
                 <Copy className="h-3.5 w-3.5" aria-hidden />
                 {settled ? 'Copy result' : 'Copy text'}

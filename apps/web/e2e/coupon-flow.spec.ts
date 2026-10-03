@@ -2,6 +2,14 @@ import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Browser, type Locator, type Page, type Route } from '@playwright/test';
+import type {
+  Coupon,
+  CouponLeg,
+  FixtureSlate,
+  GameweekSlate,
+  PlayerProfile,
+  SelectionOption,
+} from '../src/lib/types';
 
 const API = process.env.COUPON_E2E_API_URL ?? 'http://127.0.0.1:8000';
 const ARTIFACT_DIR =
@@ -140,9 +148,9 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
 }) => {
   // This is the retained full product journey: three members, two themes, live axe
   // scans and responsive screenshots against the production bundle. Its individual waits
-  // keep the normal short failure signal; the journey itself needs headroom on a
-  // loaded local machine.
-  test.setTimeout(120_000);
+  // keep the normal short failure signal; the journey itself needs headroom for the
+  // Batch 173 phone/desktop, light/dark accessibility matrix on a loaded local machine.
+  test.setTimeout(240_000);
   mkdirSync(ARTIFACT_DIR, { recursive: true });
 
   const seeded = await request.post(`${API}/__e2e/seed`);
@@ -288,9 +296,10 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   await alice.goto('/leagues/the-coupon/predictions/coupon');
   await expect(alice).toHaveURL('/leagues/the-coupon/predictions#coupon');
   await expect(alice.getByTestId('coupon-section')).toBeVisible();
-  await expect(alice.getByText('2 of 2 landed')).toBeVisible();
+  await expect(alice.getByTestId('coupon-result-headline')).toHaveText(
+    'Coupon won · 2 of 2 landed',
+  );
   await expect(alice.getByText('4.56')).toBeVisible();
-  await expect(alice.getByText('All legs won 🎉')).toBeVisible();
   await expect(alice.getByTestId('acca-leg-0')).toContainText('Won');
   await expect(alice.getByTestId('acca-leg-1')).toContainText('Won');
   // Carol never picked, so she is in the list and not in the fold.
@@ -357,6 +366,288 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
       path: join(ARTIFACT_DIR, `batch-140-round-${theme}-1280x800.png`),
     });
   }
+
+  // Batch 173. The production-shaped journey has three active members and two winning
+  // legs. Route the two already-authenticated reads through a settled presentation
+  // fixture so the browser also proves the states production history can carry but this
+  // small seed cannot: a void leg, a departed member and an erased member. The app still
+  // joins the slate to the coupon exactly as it does in production; only the response
+  // bodies are widened for this visual contract.
+  const visualSeed = (await alice.evaluate(async (api) => {
+    const token = localStorage.getItem('coupon_access');
+    const headers = { Authorization: `Bearer ${token}` };
+    const [slateResponse, couponResponse] = await Promise.all([
+      fetch(`${api}/api/v1/leagues/the-coupon/gameweek/current`, { headers }),
+      fetch(`${api}/api/v1/leagues/the-coupon/coupon`, { headers }),
+    ]);
+    return {
+      slate: await slateResponse.json(),
+      coupon: await couponResponse.json(),
+    };
+  }, API)) as { slate: GameweekSlate; coupon: Coupon };
+
+  const primaryFixture = visualSeed.slate.fixtures.find(
+    (fixture) => fixture.selections.length >= 3,
+  );
+  const secondaryFixture = visualSeed.slate.fixtures.find(
+    (fixture) => fixture.fixture_id !== primaryFixture?.fixture_id && fixture.selections.length > 0,
+  );
+  expect(primaryFixture).toBeDefined();
+  expect(secondaryFixture).toBeDefined();
+  const [homeSelection, drawSelection, awaySelection] = primaryFixture!.selections;
+  const bobSelection = secondaryFixture!.selections.find((selection) =>
+    ['DRAW', 'AWAY', 'NO'].includes(selection.outcome),
+  );
+  expect(bobSelection).toBeDefined();
+  const aliceLeg = visualSeed.coupon.legs.find((leg) => leg.player_name === 'Alice');
+  const bobLeg = visualSeed.coupon.legs.find((leg) => leg.player_name === 'Bob');
+  expect(aliceLeg).toBeDefined();
+  expect(bobLeg).toBeDefined();
+
+  const visualLeg = (
+    fixture: FixtureSlate,
+    selection: SelectionOption,
+    playerId: string,
+    playerName: string,
+    status: CouponLeg['status'],
+    points: number | null,
+  ): CouponLeg => ({
+    player_id: playerId,
+    player_name: playerName,
+    fixture_id: fixture.fixture_id,
+    home: fixture.home,
+    away: fixture.away,
+    competition: fixture.competition,
+    market: selection.market,
+    outcome: selection.outcome,
+    runner_name: selection.runner_name,
+    odds: selection.odds,
+    status,
+    points_awarded: points,
+    home_goals: status === 'void' ? null : 2,
+    away_goals: status === 'void' ? null : 1,
+    score_is_final: true,
+  });
+  const visualLegs: CouponLeg[] = [
+    visualLeg(
+      primaryFixture!,
+      homeSelection,
+      aliceLeg!.player_id,
+      'Alice',
+      'won',
+      Math.round(homeSelection.odds * 10),
+    ),
+    visualLeg(primaryFixture!, drawSelection, 'departed-player', 'Dana Departed', 'lost', 0),
+    visualLeg(primaryFixture!, awaySelection, 'erased-player', 'Former member', 'void', 0),
+    visualLeg(secondaryFixture!, bobSelection!, bobLeg!.player_id, 'Bob', 'lost', 0),
+  ];
+  const visualCombinedOdds = Number(
+    visualLegs
+      .filter((leg) => leg.status !== 'void')
+      .reduce((product, leg) => product * leg.odds, 1)
+      .toFixed(2),
+  );
+  const assignmentKey = (fixtureId: string, selection: SelectionOption) =>
+    `${fixtureId}:${selection.market}:${selection.outcome}`;
+  const visualAssignments = new Map(
+    visualLegs.map((leg) => [
+      `${leg.fixture_id}:${leg.market}:${leg.outcome}`,
+      { playerId: leg.player_id, playerName: leg.player_name },
+    ]),
+  );
+
+  let settledSlateHits = 0;
+  let settledCouponHits = 0;
+  const settledSlateRoute = async (route: Route) => {
+    settledSlateHits += 1;
+    const response = await route.fetch();
+    const slate = (await response.json()) as GameweekSlate;
+    await route.fulfill({
+      response,
+      json: {
+        ...slate,
+        fixtures: slate.fixtures.map((fixture) => {
+          const assignedNames = new Set<string>();
+          const selections = fixture.selections.map((selection) => {
+            const assignment = visualAssignments.get(assignmentKey(fixture.fixture_id, selection));
+            if (!assignment) {
+              return {
+                ...selection,
+                taken_by_player_id: null,
+                taken_by_name: null,
+                mine: false,
+              };
+            }
+            assignedNames.add(assignment.playerName);
+            return {
+              ...selection,
+              taken_by_player_id: assignment.playerId,
+              taken_by_name: assignment.playerName,
+              mine: assignment.playerId === aliceLeg!.player_id,
+            };
+          });
+          return {
+            ...fixture,
+            selections,
+            taken_by_names: [...assignedNames],
+            mine: selections.some((selection) => selection.mine),
+          };
+        }),
+      },
+    });
+  };
+  const settledCouponRoute = async (route: Route) => {
+    settledCouponHits += 1;
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      json: {
+        ...visualSeed.coupon,
+        status: 'settled',
+        leg_count: visualLegs.length,
+        combined_odds: visualCombinedOdds,
+        legs: visualLegs,
+        all_won: false,
+        void_leg_count: 1,
+      } satisfies Coupon,
+    });
+  };
+  const settledSlatePattern = /\/api\/v1\/leagues\/the-coupon\/gameweek\/current(?:\?.*)?$/;
+  const settledCouponPattern = /\/api\/v1\/leagues\/the-coupon\/coupon(?:\?.*)?$/;
+  const aliceContext = alice.context();
+  await aliceContext.route(settledSlatePattern, settledSlateRoute);
+  await aliceContext.route(settledCouponPattern, settledCouponRoute);
+  await alice.reload();
+  await expect.poll(() => settledSlateHits).toBeGreaterThan(0);
+  await expect.poll(() => settledCouponHits).toBeGreaterThan(0);
+  const resultHeadline = alice.getByTestId('coupon-result-headline');
+  await expect(resultHeadline).toHaveText('Coupon lost · 1 of 4 landed');
+  await expect(alice.getByTestId('coupon-toggle')).toContainText('4 picks');
+  await expect(alice.getByTestId('coupon-toggle')).not.toContainText('4 of 3');
+  await expect(alice.getByTestId('coupon-section')).toContainText('Dana Departed');
+  await expect(alice.getByTestId('coupon-section')).toContainText('Former member');
+  await expect(
+    alice.getByTestId(
+      `selection-${primaryFixture!.fixture_id}-${drawSelection.market}-${drawSelection.outcome}`,
+    ),
+  ).toContainText('Lost · Dana');
+  const voidSelection = alice.getByTestId(
+    `selection-${primaryFixture!.fixture_id}-${awaySelection.market}-${awaySelection.outcome}`,
+  );
+  await expect(voidSelection).toContainText('Void · Former member');
+  await expect(voidSelection).not.toContainText(/\d+ pts/);
+
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 1280, height: 800 },
+  ]) {
+    await alice.setViewportSize(viewport);
+    for (const theme of ['dark', 'light'] as const) {
+      await setTheme(alice, theme);
+      await expect(resultHeadline).toHaveText('Coupon lost · 1 of 4 landed');
+      await expectNoColourContrastViolations(alice);
+      await expectNoAxeViolations(alice);
+      await alice.screenshot({
+        path: join(
+          ARTIFACT_DIR,
+          `batch-173-settled-${theme}-${viewport.width}x${viewport.height}.png`,
+        ),
+        fullPage: true,
+      });
+    }
+  }
+
+  let showVoidOnlyProfile = false;
+  const voidOnlyProfileRoute = async (route: Route) => {
+    const response = await route.fetch();
+    const profile = (await response.json()) as PlayerProfile;
+    await route.fulfill({
+      response,
+      json: {
+        ...profile,
+        total_points: 0,
+        picks_played: showVoidOnlyProfile ? 1 : 2,
+        picks_won: 0,
+        win_rate_pct: showVoidOnlyProfile ? null : 0,
+        picks_priced: showVoidOnlyProfile ? 0 : 1,
+        cumulative_odds: showVoidOnlyProfile ? 0 : visualLegs[3].odds,
+        average_odds: showVoidOnlyProfile ? null : visualLegs[3].odds,
+        points_per_pick: 0,
+        best_return: showVoidOnlyProfile ? null : 0,
+        longshot_picks: showVoidOnlyProfile || visualLegs[3].odds < 3 ? 0 : 1,
+        favourite_picks: showVoidOnlyProfile || visualLegs[3].odds >= 3 ? 0 : 1,
+        longshot_odds: 3,
+        history: [
+          {
+            gameweek_id: visualSeed.coupon.gameweek_id,
+            starts_on: visualSeed.slate.starts_on,
+            fixture_id: visualLegs[2].fixture_id,
+            home: visualLegs[2].home,
+            away: visualLegs[2].away,
+            competition: visualLegs[2].competition,
+            market: visualLegs[2].market,
+            outcome: visualLegs[2].outcome,
+            runner_name: visualLegs[2].runner_name,
+            odds: visualLegs[2].odds,
+            status: 'void',
+            points_awarded: 0,
+          },
+          ...(!showVoidOnlyProfile
+            ? [
+                {
+                  gameweek_id: 'batch-173-previous',
+                  starts_on: '2026-08-01',
+                  fixture_id: visualLegs[3].fixture_id,
+                  home: visualLegs[3].home,
+                  away: visualLegs[3].away,
+                  competition: visualLegs[3].competition,
+                  market: visualLegs[3].market,
+                  outcome: visualLegs[3].outcome,
+                  runner_name: visualLegs[3].runner_name,
+                  odds: visualLegs[3].odds,
+                  status: 'lost',
+                  points_awarded: 0,
+                } as const,
+              ]
+            : []),
+        ],
+      } satisfies PlayerProfile,
+    });
+  };
+  const aliceProfilePattern = new RegExp(
+    `/api/v1/leagues/the-coupon/players/${aliceLeg!.player_id}/profile(?:\\?.*)?$`,
+  );
+  await aliceContext.route(aliceProfilePattern, voidOnlyProfileRoute);
+  await alice.goto(`/leagues/the-coupon/players/${aliceLeg!.player_id}`);
+  const lostHistory = alice.getByTestId(`history-${visualLegs[3].fixture_id}`);
+  await expect(lostHistory).toContainText('Lost');
+  await expect(lostHistory).not.toHaveClass(/opacity-60/);
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 1280, height: 800 },
+  ]) {
+    await alice.setViewportSize(viewport);
+    for (const theme of ['dark', 'light'] as const) {
+      await setTheme(alice, theme);
+      await expect(alice.getByTestId('profile-stats')).toContainText('0%');
+      await expectNoColourContrastViolations(alice);
+      await expectNoAxeViolations(alice);
+      await alice.screenshot({
+        path: join(
+          ARTIFACT_DIR,
+          `batch-173-profile-${theme}-${viewport.width}x${viewport.height}.png`,
+        ),
+        fullPage: true,
+      });
+    }
+  }
+  showVoidOnlyProfile = true;
+  await alice.reload();
+  await expect(alice.getByText('Only void picks so far — no win rate yet')).toBeVisible();
+  await expectNoColourContrastViolations(alice);
+  await aliceContext.unroute(aliceProfilePattern, voidOnlyProfileRoute);
+  await aliceContext.unroute(settledSlatePattern, settledSlateRoute);
+  await aliceContext.unroute(settledCouponPattern, settledCouponRoute);
 
   await alice.goto('/leagues/the-coupon/leaderboard');
   const standings = alice.getByTestId('standings');

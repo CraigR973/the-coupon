@@ -14,7 +14,6 @@ import { PickShapeGrid, hasPickShape } from '../components/PickShapeLine';
 import { Avatar } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
-import { cn } from '../lib/utils';
 
 const STATUS_VARIANT: Record<PickStatus, 'success' | 'error' | 'muted' | 'default'> = {
   won: 'success',
@@ -70,6 +69,8 @@ export function PlayerProfilePage() {
   }
 
   const isSelf = profile.player_id === player?.id;
+  const onlyVoidPicks =
+    profile.history.length > 0 && profile.history.every((pick) => pick.status === 'void');
 
   return (
     <div className="space-y-7">
@@ -97,7 +98,9 @@ export function PlayerProfilePage() {
         </div>
         {profile.win_rate_pct === null && (
           <p className="mt-2 font-sans text-xs text-text-muted">
-            Nothing has settled yet — a win rate appears after the first result.
+            {onlyVoidPicks
+              ? 'Only void picks so far — no win rate yet'
+              : 'Nothing has settled yet — a win rate appears after the first result.'}
           </p>
         )}
       </section>
@@ -155,10 +158,7 @@ function HistoryRow({
 }) {
   return (
     <li
-      className={cn(
-        'flex items-center gap-3 rounded-lg border border-border bg-surface p-3',
-        pick.status === 'lost' && 'opacity-60',
-      )}
+      className="flex items-center gap-3 rounded-lg border border-border bg-surface p-3"
       data-testid={`history-${pick.fixture_id}`}
     >
       <div className="min-w-0 flex-1">

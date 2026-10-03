@@ -253,6 +253,16 @@ export function CurrentRoundPage() {
     () => entriesForRound(coupon, slate?.members ?? [], player?.id),
     [coupon, slate?.members, player?.id],
   );
+  const settledLegsByFixture = useMemo(() => {
+    const byFixture = new Map<string, Coupon['legs']>();
+    if (phase !== 'settled' || !coupon) return byFixture;
+    for (const leg of coupon.legs) {
+      const legs = byFixture.get(leg.fixture_id) ?? [];
+      legs.push(leg);
+      byFixture.set(leg.fixture_id, legs);
+    }
+    return byFixture;
+  }, [coupon, phase]);
 
   const mine: MyClaim | null = myPick
     ? {
@@ -388,6 +398,7 @@ export function CurrentRoundPage() {
               outstanding={outstanding}
               busy={isSubmitting}
               oddsFormat={oddsFormat}
+              settledLegsByFixture={settledLegsByFixture}
               onGrab={submit}
             />
           ))}
@@ -508,6 +519,7 @@ function CompetitionSection({
   outstanding,
   busy,
   oddsFormat,
+  settledLegsByFixture,
   onGrab,
 }: {
   group: CompetitionGroup;
@@ -518,6 +530,7 @@ function CompetitionSection({
   outstanding: OutstandingPick | null;
   busy: boolean;
   oddsFormat: OddsFormat;
+  settledLegsByFixture: ReadonlyMap<string, Coupon['legs']>;
   onGrab: (fixtureId: string, market: PickMarket, outcome: PickOutcome) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -557,6 +570,7 @@ function CompetitionSection({
               outstanding={outstanding}
               busy={busy}
               oddsFormat={oddsFormat}
+              settledLegs={settledLegsByFixture.get(fixture.fixture_id)}
               onGrab={onGrab}
             />
           ))}
