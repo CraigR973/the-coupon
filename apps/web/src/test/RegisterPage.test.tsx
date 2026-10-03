@@ -91,6 +91,15 @@ describe('RegisterPage', () => {
     expect(screen.getByText(/there is no email\s+reset/i)).toBeTruthy();
   });
 
+  it('names the way back that exists, not a league admin who can no longer reset PINs', () => {
+    // Batch 179 retired the league-scoped reset: every reset is asked for at "Forgot PIN?"
+    // and done by the site admin.
+    renderRegisterAt();
+    const copy = screen.getByText(/there is no email\s+reset/i);
+    expect(copy.textContent).toMatch(/“Forgot PIN\?” on the sign-in screen/);
+    expect(copy.textContent).not.toMatch(/league admin/i);
+  });
+
   it('refuses a mismatched confirmation without calling the API', async () => {
     const fetchMock = makeFetchMock();
     vi.stubGlobal('fetch', fetchMock);

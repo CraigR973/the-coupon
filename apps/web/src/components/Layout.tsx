@@ -5,6 +5,7 @@ import { OfflineBanner } from './OfflineBanner';
 import { ErrorBoundary } from './ErrorBoundary';
 import { PageTransition } from './PageTransition';
 import { RenameNotice } from './RenameNotice';
+import { PinNotice } from './PinNotice';
 
 export function Layout() {
   const location = useLocation();
@@ -21,6 +22,7 @@ export function Layout() {
       </main>
       <TabBar />
       <RenameNotice />
+      <PinNotice />
     </div>
   );
 }

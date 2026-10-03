@@ -1,12 +1,19 @@
 """What happens to a member's sessions when their credential changes.
 
-One module, because the rule is one rule and it has three callers: a member changing
-their own PIN, a site admin resetting someone's, and a league admin doing the same.
-Batch 56 established it for the first — the old behaviour wrote the new hash and left
-every existing refresh token renewing itself for thirty days, so the session the member
-was trying to shut out outlived the credential it was opened with. An admin-issued reset
-is the same act performed by somebody else and inherits the same rule; the second and
-third callers were each written separately, and one of them forgot.
+One module, because the rule is one rule. It had three callers: a member changing their
+own PIN, a site admin resetting someone's, and a league admin doing the same. Batch 56
+established it for the first — the old behaviour wrote the new hash and left every
+existing refresh token renewing itself for thirty days, so the session the member was
+trying to shut out outlived the credential it was opened with. An admin-issued reset is
+the same act performed by somebody else and inherits the same rule; the second and third
+callers were each written separately, and one of them forgot. Batch 179 retired the third
+(the league admin's), so every reset now comes from the site console.
+
+**And the member is told (Batch 179).** A reset opens a window in which anyone who names
+the account can choose its PIN, and until this batch the member heard about neither the
+reset nor the PIN being set — they found out when their PIN stopped working. Both now push
+to the member's devices, and the app shows the last thirty days of them on its next load
+with a session (:func:`recent_pin_events`).
 """
 
 from __future__ import annotations
@@ -14,12 +21,16 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import structlog
 from sqlalchemy import desc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.notification import ActionType, ActorType, AuditLog
 from src.models.profile import Profile
 from src.models.refresh_token import RefreshToken
+from src.services.push_notification_service import send_notification
+
+log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 #: How long a cleared credential stays claimable after the admin clears it.
 #:
@@ -142,3 +153,95 @@ async def pin_reset_is_claimable(db: AsyncSession, target: Profile, now: datetim
     if newest.changes.get("stage") != STAGE_RESET:
         return False
     return now - newest.timestamp <= PIN_RESET_CLAIM_WINDOW
+
+
+# ── Telling the member (Batch 179) ─────────────────────────────────────────────
+
+#: What a member's devices are told when a reset is issued. It asks them to act, because
+#: the reset is a race: until the member chooses a PIN, whoever names the account first at
+#: ``/auth/pin/set`` chooses it for them.
+PIN_RESET_PUSH_TITLE = "Your PIN was reset"
+PIN_RESET_PUSH_BODY = (
+    "An admin cleared your PIN and signed you out. Sign in with your name to choose a new "
+    "one — the reset lasts 24 hours."
+)
+
+#: What they are told when a PIN is set. The member who just chose it reads this as a
+#: receipt; a member who did not is reading the only warning they will get.
+PIN_SET_PUSH_TITLE = "A new PIN was set"
+PIN_SET_PUSH_BODY = (
+    "A new PIN was chosen for your account. If that wasn't you, use “Forgot PIN?” on "
+    "the sign-in screen to ask an admin to reset it."
+)
+
+#: How far back the app's notice reads. Long enough to cover a member who does not open
+#: the app for a few weeks, short enough that a new phone is not shown last season's reset.
+PIN_EVENT_LOOKBACK = timedelta(days=30)
+
+#: The most events the notice lists. A reset and a set are one journey; five journeys in
+#: a month is already something the site admin should be asking about.
+PIN_EVENT_LIMIT = 10
+
+
+async def _push_to_member(
+    db: AsyncSession, member: Profile, title: str, body: str, kind: str
+) -> int:
+    """Best-effort, like the lockout push: a delivery failure must not fail the reset or set
+    it reports, which has already been committed by the time this runs."""
+    try:
+        return await send_notification(
+            db,
+            member.id,
+            title,
+            body,
+            data={"type": kind, "url": "/login"},
+            tag=kind.replace("_", "-"),
+            timezone_name=member.timezone,
+        )
+    except Exception:  # Deliberately broad: the change stands whether or not this lands.
+        log.warning("pin notification failed", kind=kind, user_id=str(member.id))
+        return 0
+
+
+async def notify_pin_reset(db: AsyncSession, member: Profile) -> int:
+    """Push the member that their PIN was cleared. Returns how many devices were reached.
+
+    Push subscriptions belong to the member, not to a session, so this reaches the very
+    devices the reset just signed out.
+    """
+    return await _push_to_member(db, member, PIN_RESET_PUSH_TITLE, PIN_RESET_PUSH_BODY, "pin_reset")
+
+
+async def notify_pin_set(db: AsyncSession, member: Profile) -> int:
+    """Push the member that a PIN was chosen for them. Returns how many devices were reached."""
+    return await _push_to_member(db, member, PIN_SET_PUSH_TITLE, PIN_SET_PUSH_BODY, "pin_set")
+
+
+async def recent_pin_events(
+    db: AsyncSession, member_id: uuid.UUID, now: datetime
+) -> list[tuple[str, datetime]]:
+    """This member's resets and PIN sets in the last :data:`PIN_EVENT_LOOKBACK`, newest first.
+
+    Read from the audit rows the reset journey already writes, so there is nothing new to
+    keep in step: a ``reset`` row for every reset (site console, and league admins before
+    Batch 179) and a ``set`` row for every PIN chosen at ``/auth/pin/set``. The member's own
+    ``requested`` rows are left out — they know they asked.
+
+    Which of these a device has already shown is the *device's* to remember, not a row
+    here. A marker on the account would be cleared by whoever signs in first, and after a
+    takeover that is the attacker; remembered per device, the member's own phone still
+    shows them everything the next time it is theirs again.
+    """
+    rows = await db.execute(
+        select(AuditLog.changes, AuditLog.timestamp)
+        .where(
+            AuditLog.action_type == ActionType.player_pin_reset,
+            AuditLog.target_table == "profiles",
+            AuditLog.target_id == member_id,
+            AuditLog.timestamp >= now - PIN_EVENT_LOOKBACK,
+            AuditLog.changes["stage"].astext.in_([STAGE_RESET, STAGE_SET]),
+        )
+        .order_by(desc(AuditLog.timestamp))
+        .limit(PIN_EVENT_LIMIT)
+    )
+    return [(changes["stage"], timestamp) for changes, timestamp in rows.all()]

@@ -1,4 +1,4 @@
-"""League membership management: list, promote, demote, remove, display-name, invites, PIN reset."""
+"""League membership management: list, promote, demote, remove, display-name, invites."""
 
 import uuid
 from datetime import timedelta
@@ -17,7 +17,7 @@ from src.models.invite import Invite
 from src.models.league import League, LeaguePrivacy
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.notification import ActionType
-from src.models.profile import Profile, UserRole
+from src.models.profile import Profile
 from src.rate_limit import limiter, per_user_key
 from src.routers.leagues import (
     LeagueAdminDep,
@@ -33,7 +33,6 @@ from src.routers.leagues import (
     _upsert_membership,
 )
 from src.schemas import UtcDatetime
-from src.services.credentials import STAGE_RESET, clear_pin, pin_reset_audit
 from src.services.notification_triggers import (
     notify_member_joined,
     settle_completion_after_roster_change,
@@ -554,101 +553,18 @@ async def revoke_league_invite(
 
 
 # ---------------------------------------------------------------------------
-# POST /api/v1/leagues/{slug}/members/{player_id}/reset-pin
+# There is no league-scoped PIN reset (Batch 179)
 # ---------------------------------------------------------------------------
-
-
-class LeagueResetPinResponse(BaseModel):
-    """What the reset did.
-
-    ``temp_pin`` is kept, always ``null``, and is the shape of the answer rather than a
-    value: it was a four-digit PIN this endpoint minted and returned for the admin to read
-    out. Dropping the field outright would break any client still reading it during the
-    window where Vercel has the new web app and Railway still has the old API — the trap
-    Batches 38, 41 and 48 each recorded — so it goes null first and can be removed once
-    both halves have shipped.
-    """
-
-    temp_pin: str | None = None
-    pin_cleared: bool = True
-    sessions_revoked: int = 0
-
-
-@router.post(
-    "/{slug}/members/{target_player_id}/reset-pin",
-    response_model=LeagueResetPinResponse,
-)
-@limiter.limit("10/hour", key_func=per_user_key)
-async def reset_member_pin(
-    request: Request,
-    slug: str,
-    target_player_id: uuid.UUID,
-    admin_ctx: LeagueAdminDep,
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> LeagueResetPinResponse:
-    """Clear a member's PIN. The league-admin half of the same act the site console does.
-
-    **This used to mint a temporary PIN and leave every session alive.** Two defects in
-    one endpoint: a secret the admin had to read out — writable down, shareable, reusable,
-    and chosen by somebody other than the member — and no revocation, so a session opened
-    under the old PIN kept renewing itself for thirty days past the reset. Batch 56
-    established that a credential change revokes; this endpoint predated it and was never
-    brought along, which is precisely the failure mode the shared
-    :func:`~src.services.credentials.clear_pin` now exists to prevent.
-
-    The member chooses their own at ``/auth/pin/set``, bounded by
-    ``PIN_RESET_CLAIM_WINDOW`` — which is why the audit row below is written at stage
-    ``reset`` rather than under ``league_member_pin_reset``: that value carries no stage,
-    and the window is read from the stage.
-    """
-    player, league = admin_ctx
-
-    # Confirm target is an active member
-    membership = await _resolve_active_membership(league.id, target_player_id, db)
-    if membership is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
-
-    # Load the profile
-    result = await db.execute(
-        select(Profile).where(
-            Profile.id == target_player_id,
-            Profile.deleted_at.is_(None),
-        )
-    )
-    target = result.scalar_one_or_none()
-    if target is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player not found")
-
-    # A cleared PIN can be claimed without authentication for the next 24 hours. A
-    # league admin must therefore never be able to open that window on an account whose
-    # privileges reach beyond an ordinary membership in this league. Keep one response
-    # for both cases so it says where the reset belongs without disclosing which global
-    # privilege the target holds.
-    target_admin_membership = await db.scalar(
-        select(LeagueMembership.id)
-        .where(
-            LeagueMembership.player_id == target.id,
-            LeagueMembership.role == LeagueMemberRole.admin,
-            LeagueMembership.deleted_at.is_(None),
-        )
-        .limit(1)
-    )
-    if target.role is UserRole.admin or target_admin_membership is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="SITE_ADMIN_RESET_REQUIRED",
-        )
-
-    revoked = await clear_pin(db, target)
-    db.add(pin_reset_audit(player, target, STAGE_RESET, {"league_slug": slug}))
-    await db.commit()
-    log.info(
-        "pin cleared by league admin",
-        target=str(target_player_id),
-        league=slug,
-        sessions_revoked=revoked,
-    )
-    return LeagueResetPinResponse(sessions_revoked=revoked)
+#
+# ``POST /{slug}/members/{player_id}/reset-pin`` let a league admin clear a member's PIN,
+# and a cleared PIN is claimable at the unauthenticated ``/auth/pin/set`` by whoever names
+# the account first for the next 24 hours. Batch 122 refused it for site admins and current
+# league admins only, so any league admin — and anyone can create a league — could take
+# over every ordinary member of their league, and with the account every other league that
+# member plays in (review 2026-09-28, SEC-32; demote-then-reset reopened even the admin
+# guard, SEC-27). No screen ever called it. The owner's decision (30 Sep, option a) retires
+# it: every reset now goes through the site console, ``POST /api/v1/admin/players/{id}/
+# reset-pin``, and the member is told when one is issued and when a PIN is set.
 
 
 # ---------------------------------------------------------------------------

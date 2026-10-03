@@ -696,6 +696,20 @@ export interface RenameNoticeState {
   notice: { title: string; body: string } | null;
 }
 
+/**
+ * `GET /api/v1/me/pin-events` (Batch 179): the member's own PIN resets and sets from the last
+ * thirty days, newest first. `reset` is an admin clearing the PIN; `set` is a PIN being chosen
+ * at `/auth/pin/set` — by the member, or by whoever named the account first.
+ */
+export interface PinEvent {
+  kind: 'reset' | 'set';
+  at: string;
+}
+
+export interface PinEvents {
+  events: PinEvent[];
+}
+
 // ---------------------------------------------------------------------------
 // Leagues (the social "leaderboard" layer — kept from the shared spine).
 // ---------------------------------------------------------------------------

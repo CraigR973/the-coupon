@@ -136,7 +136,8 @@ export function RegisterPage() {
                 />
                 <p className="text-xs font-sans text-text-muted">
                   Your PIN is the only way back into your account — there is no email
-                  reset. Forget it and a league admin has to set you a new one.
+                  reset. Forget it and tap “Forgot PIN?” on the sign-in screen to ask an
+                  admin for a reset.
                 </p>
               </div>
 

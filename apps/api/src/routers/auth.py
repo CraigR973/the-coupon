@@ -54,6 +54,7 @@ from src.services.avatar_storage import (
 from src.services.credentials import (
     STAGE_REQUESTED,
     STAGE_SET,
+    notify_pin_set,
     pin_reset_audit,
     pin_reset_is_claimable,
     revoke_all_refresh_tokens,
@@ -824,6 +825,10 @@ async def set_pin_after_reset(
     Every refusal is the same message and the same status, so the endpoint cannot be used
     to sort display names into "mid-reset" and "not". A caller who genuinely is mid-reset
     already learned that from ``/login``.
+
+    Whoever sets it, the member's devices are pushed once it has committed (Batch 179):
+    the member who chose it reads a receipt, and a member who did not is told while there
+    is still something to do about it.
     """
     refusal = HTTPException(
         status_code=status.HTTP_409_CONFLICT,
@@ -860,6 +865,7 @@ async def set_pin_after_reset(
     db.add(pin_reset_audit(user, user, STAGE_SET))
     await db.commit()
     log.info("pin set after reset", user_id=str(user.id), sessions_revoked=revoked)
+    await notify_pin_set(db, user)
 
 
 # ---------------------------------------------------------------------------

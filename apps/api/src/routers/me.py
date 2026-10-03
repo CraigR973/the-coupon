@@ -14,7 +14,7 @@ number of queries whether the caller is in one league or six — none of them pe
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -36,6 +36,7 @@ from src.schemas import UtcDatetime
 from src.services.account_erasure import SoleAdminError, erase_account, export_account
 from src.services.avatar_storage import AvatarStorage, avatar_storage
 from src.services.coupon import combined_odds
+from src.services.credentials import recent_pin_events
 from src.services.football_provider import season_for
 from src.services.gameweek import PICKABLE_STATES, current_round_order
 from src.services.rename_notice import (
@@ -692,3 +693,36 @@ async def acknowledge_rename_notice(user: CurrentUser, db: Db) -> None:
     """
     if await acknowledge_in_app_notice(db, user):
         await db.commit()
+
+
+# ── The member's own PIN resets and sets (Batch 179) ───────────────────────────
+
+
+class PinEventOut(BaseModel):
+    """One step of a reset journey: ``reset`` when an admin cleared the PIN, ``set`` when one
+    was chosen at ``/auth/pin/set``."""
+
+    kind: Literal["reset", "set"]
+    at: UtcDatetime
+
+
+class PinEvents(BaseModel):
+    events: list[PinEventOut]
+
+
+@router.get("/pin-events", response_model=PinEvents)
+async def get_pin_events(user: CurrentUser, db: Db) -> PinEvents:
+    """The caller's resets and PIN sets from the last thirty days, newest first.
+
+    The app shows them the next time it loads with a session, so a member who was not
+    reached by push — no subscription, or quiet hours — still hears that their PIN was
+    reset or chosen. Which of them a device has already shown is remembered on the device;
+    see :func:`~src.services.credentials.recent_pin_events` for why not here.
+    """
+    now = datetime.now(UTC).replace(tzinfo=None)
+    return PinEvents(
+        events=[
+            PinEventOut(kind="reset" if stage == "reset" else "set", at=at)
+            for stage, at in await recent_pin_events(db, user.id, now)
+        ]
+    )

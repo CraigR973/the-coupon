@@ -10,8 +10,9 @@ What these hold to:
 
 * the journey end to end — member asks, admin is paged at a screen that exists, admin
   clears the PIN, member chooses a new one and signs in;
-* an admin reset **revokes every refresh token**, on both admin surfaces, because it is
-  one rule and the league-admin endpoint predated it and never obeyed it;
+* an admin reset **revokes every refresh token**, because it is one rule — and since
+  Batch 179 the site console is the only place a reset can come from: the league-admin
+  endpoint, which predated the rule and never obeyed it, is retired;
 * a cleared PIN is not a blank one — login refuses it outright rather than admitting
   anything, and it stops being claimable once the window closes;
 * every endpoint on ``/api/v1/admin`` refuses a non-admin caller — asserted by walking
@@ -41,12 +42,20 @@ from src.main import app
 from src.models.invite import Invite
 from src.models.league import League
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
-from src.models.notification import ActionType, AuditLog
+from src.models.notification import ActionType, ActorType, AuditLog
 from src.models.profile import Profile, UserRole
 from src.models.refresh_token import RefreshToken
 from src.routers.admin import router as admin_router
 from src.routers.auth import PIN_NOT_SET
-from src.services.credentials import PIN_RESET_CLAIM_WINDOW, STAGE_RESET
+from src.services.credentials import (
+    PIN_EVENT_LOOKBACK,
+    PIN_RESET_CLAIM_WINDOW,
+    PIN_RESET_PUSH_BODY,
+    PIN_RESET_PUSH_TITLE,
+    PIN_SET_PUSH_BODY,
+    PIN_SET_PUSH_TITLE,
+    STAGE_RESET,
+)
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -258,12 +267,13 @@ async def test_an_admin_reset_revokes_every_session_the_old_pin_opened(
     assert (await _reload(member.id)).pin_hash is None
 
 
-async def test_the_league_admin_reset_obeys_the_same_rule(client: AsyncClient) -> None:
-    """The endpoint that predated the rule and never obeyed it.
+async def test_the_league_admin_reset_is_gone(client: AsyncClient) -> None:
+    """Batch 179 (SEC-32, owner decision 1): no league admin can clear anyone's PIN.
 
-    ``POST /leagues/{slug}/members/{id}/reset-pin`` minted a temporary four-digit PIN and
-    returned it for the admin to read out, and revoked nothing. Both halves are the
-    reason ``services/credentials.clear_pin`` exists rather than a second implementation.
+    A cleared PIN is claimable at the unauthenticated ``/auth/pin/set`` for 24 hours, so
+    the league-scoped route let any league admin — and anyone can create a league — take
+    over an ordinary member of their league, and with the account every other league that
+    member plays in. It is a 404 now, and the member keeps their PIN and their session.
     """
     owner = await _profile()
     member = await _profile()
@@ -273,23 +283,23 @@ async def test_the_league_admin_reset_obeys_the_same_rule(client: AsyncClient) -
         await session.commit()
     await _live_session(member.id)
 
-    response = await client.post(
+    gone = await client.post(
         f"/api/v1/leagues/{league.slug}/members/{member.id}/reset-pin", headers=_auth(owner)
     )
 
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["temp_pin"] is None, "no minted secret, and the field kept null for the deploy gap"
-    assert body["pin_cleared"] is True
-    assert body["sessions_revoked"] == 1
-    assert await _live_session_count(member.id) == 0
-    assert (await _reload(member.id)).pin_hash is None
+    assert gone.status_code == 404, gone.text
+    assert (await _reload(member.id)).pin_hash is not None
+    assert await _live_session_count(member.id) == 1
 
 
 async def test_a_league_admin_cannot_open_a_site_admins_pin_claim_window(
     client: AsyncClient,
 ) -> None:
-    """The exact takeover: the target is only an ordinary member of this league."""
+    """The exact takeover: the target is only an ordinary member of this league.
+
+    Batch 122 answered this with 403 ``SITE_ADMIN_RESET_REQUIRED``; since Batch 179 there is
+    no league-scoped route to refuse it, so it is a 404 and the console is the only way.
+    """
     attacker = await _profile()
     target = await _profile(UserRole.admin)
     site_operator = await _profile(UserRole.admin)
@@ -304,13 +314,12 @@ async def test_a_league_admin_cannot_open_a_site_admins_pin_claim_window(
         headers=_auth(attacker),
     )
 
-    assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == "SITE_ADMIN_RESET_REQUIRED"
+    assert refused.status_code == 404, refused.text
     assert (await _reload(target.id)).pin_hash is not None
     assert await _live_session_count(target.id) == 1
 
     # The same target remains resettable through the site console, which owns privileged
-    # account recovery and is deliberately unchanged by this batch.
+    # account recovery and is deliberately unchanged — and is now where every reset happens.
     reset = await client.post(
         f"/api/v1/admin/players/{target.id}/reset-pin",
         headers=_auth(site_operator),
@@ -338,10 +347,228 @@ async def test_a_league_admin_cannot_reset_an_admin_of_another_league(
         headers=_auth(attacker),
     )
 
-    assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == "SITE_ADMIN_RESET_REQUIRED"
+    assert refused.status_code == 404, refused.text
     assert (await _reload(target.id)).pin_hash is not None
     assert await _live_session_count(target.id) == 1
+
+
+async def test_a_demoted_co_admin_cannot_be_reset_by_the_league(client: AsyncClient) -> None:
+    """SEC-27 as reproduced: demote a co-admin, then reset them. The reset has nowhere to go."""
+    owner = await _profile()
+    co_admin = await _profile()
+    league = await _league_for(owner)
+    async with AsyncSessionLocal() as session:
+        session.add(
+            LeagueMembership(
+                league_id=league.id, player_id=co_admin.id, role=LeagueMemberRole.admin
+            )
+        )
+        await session.commit()
+    await _live_session(co_admin.id)
+
+    demoted = await client.post(
+        f"/api/v1/leagues/{league.slug}/members/{co_admin.id}/demote", headers=_auth(owner)
+    )
+    assert demoted.status_code == 204, demoted.text
+    gone = await client.post(
+        f"/api/v1/leagues/{league.slug}/members/{co_admin.id}/reset-pin", headers=_auth(owner)
+    )
+    assert gone.status_code == 404, gone.text
+    assert (await _reload(co_admin.id)).pin_hash is not None
+    assert await _live_session_count(co_admin.id) == 1
+
+
+def test_no_route_resets_a_pin_outside_the_site_console() -> None:
+    """Walked rather than listed, so a league-scoped reset cannot return under a new path.
+
+    Walked by structure, as ``test_wire_datetimes._api_routes`` explains: fastapi 0.141
+    mounts an included router instead of copying its routes onto the app, so a flat
+    ``app.routes`` holds none of the API at all and this would pass on nothing.
+    """
+    resets: set[str] = set()
+    walked: set[int] = set()
+    pending = list(app.routes)
+    while pending:
+        route = pending.pop()
+        if id(route) in walked:
+            continue
+        walked.add(id(route))
+        path = getattr(route, "path", None)
+        if isinstance(path, str) and path.endswith("/reset-pin"):
+            resets.add(path)
+        nested = getattr(route, "routes", None) or getattr(
+            getattr(route, "original_router", None), "routes", None
+        )
+        pending.extend(nested or [])
+
+    assert len(walked) > 50, "the walk found almost nothing; the app's shape has changed"
+    assert sorted(resets) == ["/api/v1/admin/players/{player_id}/reset-pin"]
+
+
+# A reset clears the PIN and signs the member out everywhere, and for the next 24 hours
+# whoever names the account first at the unauthenticated ``/auth/pin/set`` chooses the new
+# one. Until Batch 179 the member heard about neither step: ``clear_pin`` sent nothing and
+# neither did ``/auth/pin/set``, so a member whose PIN somebody else had chosen found out when
+# theirs stopped working (review 2026-09-28, SEC-32). Now both steps push to the member's
+# devices, and the app lists the last thirty days of them on its next load with a session.
+
+
+Sent = list[tuple[uuid.UUID, str, str, dict[str, object]]]
+
+
+def _capture_pushes(monkeypatch: pytest.MonkeyPatch) -> Sent:
+    """Every push the credential journey sends, in order, without a VAPID key in sight."""
+    sent: Sent = []
+
+    async def _capture(
+        _session: object, user_id: uuid.UUID, title: str, body: str, **kwargs: object
+    ) -> int:
+        sent.append((user_id, title, body, kwargs))
+        return 1
+
+    monkeypatch.setattr("src.services.credentials.send_notification", _capture)
+    return sent
+
+
+async def _reset(client: AsyncClient, admin: Profile, member: Profile) -> None:
+    response = await client.post(
+        f"/api/v1/admin/players/{member.id}/reset-pin", headers=_auth(admin)
+    )
+    assert response.status_code == 200, response.text
+
+
+async def _set(client: AsyncClient, member: Profile, pin: str = "4072") -> None:
+    response = await client.post(
+        "/api/v1/auth/pin/set", json={"display_name": member.display_name, "pin": pin}
+    )
+    assert response.status_code == 204, response.text
+
+
+# ── Telling the member (Batch 179): push, the moment it happens ──────────────
+
+
+async def test_a_reset_pushes_the_member_and_nobody_else(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The member is asked to choose their PIN now, because the window is a race."""
+    sent = _capture_pushes(monkeypatch)
+    admin = await _profile(UserRole.admin)
+    member = await _profile()
+
+    await _reset(client, admin, member)
+
+    assert len(sent) == 1
+    user_id, title, body, kwargs = sent[0]
+    assert user_id == member.id
+    assert (title, body) == (PIN_RESET_PUSH_TITLE, PIN_RESET_PUSH_BODY)
+    assert "24 hours" in body
+    assert kwargs["tag"] == "pin-reset"
+    assert kwargs["data"] == {"type": "pin_reset", "url": "/login"}
+
+
+async def test_setting_the_pin_pushes_the_member(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Whoever sets it — the member reads a receipt; anyone else is caught while it matters."""
+    admin = await _profile(UserRole.admin)
+    member = await _profile()
+    await _reset(client, admin, member)
+    sent = _capture_pushes(monkeypatch)
+
+    await _set(client, member)
+
+    assert len(sent) == 1
+    user_id, title, body, kwargs = sent[0]
+    assert user_id == member.id
+    assert (title, body) == (PIN_SET_PUSH_TITLE, PIN_SET_PUSH_BODY)
+    assert "Forgot PIN?" in body
+    assert kwargs["tag"] == "pin-set"
+    assert kwargs["data"] == {"type": "pin_set", "url": "/login"}
+
+
+async def test_a_failed_push_never_undoes_the_reset_or_the_set(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Best-effort: both changes have committed before the push is attempted."""
+
+    async def _broken(*_args: object, **_kwargs: object) -> int:
+        raise RuntimeError("push service down")
+
+    monkeypatch.setattr("src.services.credentials.send_notification", _broken)
+    admin = await _profile(UserRole.admin)
+    member = await _profile()
+
+    await _reset(client, admin, member)
+    assert (await _reload(member.id)).pin_hash is None
+
+    await _set(client, member)
+    assert (await _reload(member.id)).pin_hash is not None
+
+    signed_in = await client.post(
+        "/api/v1/auth/login", json={"display_name": member.display_name, "pin": "4072"}
+    )
+    assert signed_in.status_code == 200, signed_in.text
+
+
+# ── In the app, for the member push did not reach ──────────────────────────────
+
+
+async def test_the_app_lists_the_members_own_resets_and_sets_newest_first(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Their own request is left out (they know they asked), and so is anyone else's reset."""
+    _capture_pushes(monkeypatch)
+    admin = await _profile(UserRole.admin)
+    member = await _profile()
+    bystander = await _profile()
+
+    asked = await client.post(
+        "/api/v1/auth/pin/reset-request", json={"display_name": member.display_name}
+    )
+    assert asked.status_code == 200, asked.text
+    await _reset(client, admin, member)
+    await _set(client, member)
+    await _reset(client, admin, bystander)
+
+    listed = await client.get("/api/v1/me/pin-events", headers=_auth(member))
+
+    assert listed.status_code == 200, listed.text
+    events = listed.json()["events"]
+    assert [event["kind"] for event in events] == ["set", "reset"]
+    assert all(event["at"].endswith("Z") for event in events)
+    assert events[0]["at"] > events[1]["at"]
+
+
+async def test_the_app_forgets_a_reset_after_thirty_days(client: AsyncClient) -> None:
+    """A new phone is not shown last season's reset."""
+    admin = await _profile(UserRole.admin)
+    member = await _profile()
+    now = datetime.now(UTC).replace(tzinfo=None)
+    async with AsyncSessionLocal() as session:
+        for age in (PIN_EVENT_LOOKBACK + timedelta(hours=1), timedelta(days=2)):
+            session.add(
+                AuditLog(
+                    actor_id=admin.id,
+                    actor_type=ActorType.admin,
+                    action_type=ActionType.player_pin_reset,
+                    target_table="profiles",
+                    target_id=member.id,
+                    changes={"stage": STAGE_RESET, "display_name": member.display_name},
+                    timestamp=now - age,
+                )
+            )
+        await session.commit()
+
+    listed = await client.get("/api/v1/me/pin-events", headers=_auth(member))
+
+    assert listed.status_code == 200, listed.text
+    assert [event["kind"] for event in listed.json()["events"]] == ["reset"]
+
+
+async def test_the_list_needs_a_session(client: AsyncClient) -> None:
+    """It names when an account was open to claiming, so only its owner may read it."""
+    response = await client.get("/api/v1/me/pin-events")
+    assert response.status_code == 401, response.text
 
 
 # ── A cleared PIN is the absence of one, not a blank one ───────────────────────

@@ -58,6 +58,7 @@ from src.services.admin_ops import (
 from src.services.credentials import (
     STAGE_RESET,
     clear_pin,
+    notify_pin_reset,
     pin_reset_audit,
     revoke_all_refresh_tokens,
 )
@@ -324,12 +325,16 @@ async def reset_player_pin(
     No temporary PIN is minted and nothing is returned for the admin to read out — the
     owner's decision on 2026-08-23, and the point of it is that no secret passes through
     a third person. The whole of what this does lives in
-    :func:`~src.services.credentials.clear_pin`, shared with the league-admin reset,
-    because "an admin reset revokes every session" is a rule and a rule with two
-    implementations is a rule with one bug.
+    :func:`~src.services.credentials.clear_pin`, because "an admin reset revokes every
+    session" is a rule and a rule with two implementations is a rule with one bug. Since
+    Batch 179 this is the only reset there is: the league-admin one is retired.
 
     The audit row is what makes the cleared state claimable: ``/auth/pin/set`` reads it
     for the window, so a reset that is not recorded is a reset that cannot be used.
+
+    The member is pushed once it has committed (Batch 179). Until then a reset reached them
+    as a PIN that had stopped working, and the window it opens is claimable by whoever
+    names the account first — so the push asks them to choose their new PIN now.
     """
     player = await _load_player(db, player_id)
     if player.deleted_at is not None:
@@ -344,6 +349,7 @@ async def reset_player_pin(
         admin_id=str(admin.id),
         sessions_revoked=revoked,
     )
+    await notify_pin_reset(db, player)
     return ResetPinResult(pin_cleared=True, sessions_revoked=revoked)
 
 
