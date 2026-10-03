@@ -7881,3 +7881,23 @@ https://github.com/CraigR973/the-coupon/actions/runs/37135202951 PASS for `cdc0f
 - **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-03T15:33:33Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
 
 **Next:** Batch 181 — remove the per-league name route and clear existing overrides.
+
+## Gate maintenance — Batch 181 exact oracle approval
+**Commit:** `9a3254d` · owner-approved 3 Oct 2026 · first CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37139460598 FAIL at the expected
+old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
+
+### Key facts for future sessions
+- Batch 181 removes the per-league display-name route, so twenty-six old oracle lines go: the
+  route's eight tests in `apps/api/tests/test_league_display_name.py` (eight names, fourteen
+  asserts) and the two tests in `apps/api/tests/test_league_write_access.py` that used it as
+  their example write (two names, two asserts). Exact fingerprints in two files, never a waiver.
+- Replayed before the push: main's guard passed the rebased Batch 181 branch with the approval
+  applied, and still rejected one extra assertion removal from the write-access file.
+- The first push was red because CI correctly restored `558ea33` as the trusted pre-push `main`;
+  that guard did not contain the new approval and refused its own replacement. This recovery
+  commit is documentation-only, so CI evaluates it through `9a3254d`.
+- No application code, API contract, database schema or production data changed, and the web
+  tree is the same. The `/ship-prod` owed since Batch 180 is unchanged by this.
+
+**Next:** Resume Batch 181 only after the recovery commit's exact-SHA CI is green.
