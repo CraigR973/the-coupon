@@ -63,12 +63,25 @@ apps/web/src/test/PickRow.test.tsx|expect(within(row).getByText('Won')).toBeTrut
 apps/web/src/test/PickRow.test.tsx|expect(within(row).getByText('20 pts')).toBeTruthy();
 EOF
       ;;
+    179) cat <<'EOF'
+apps/api/tests/test_admin_console.py|async def test_the_league_admin_reset_obeys_the_same_rule(client: AsyncClient) -> None:
+apps/api/tests/test_admin_console.py|assert response.status_code == 200, response.text
+apps/api/tests/test_admin_console.py|assert body["temp_pin"] is None, "no minted secret, and the field kept null for the deploy gap"
+apps/api/tests/test_admin_console.py|assert body["pin_cleared"] is True
+apps/api/tests/test_admin_console.py|assert body["sessions_revoked"] == 1
+apps/api/tests/test_admin_console.py|assert await _live_session_count(member.id) == 0
+apps/api/tests/test_admin_console.py|assert (await _reload(member.id)).pin_hash is None
+apps/api/tests/test_admin_console.py|assert refused.status_code == 403, refused.text
+apps/api/tests/test_admin_console.py|assert refused.json()["detail"] == "SITE_ADMIN_RESET_REQUIRED"
+EOF
+      ;;
   esac
 }
 
 approved_oracle_paths() {
   case "$1" in
     173) echo "apps/web/src/test/CouponSection.test.tsx apps/web/src/test/PickRow.test.tsx" ;;
+    179) echo "apps/api/tests/test_admin_console.py" ;;
   esac
 }
 

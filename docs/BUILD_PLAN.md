@@ -309,6 +309,12 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   that the member is notified on reset and on set; the site-console reset and its
   audit unchanged; the register copy names a path that exists.
 
+  **Oracle changes approved (owner, 2026-10-03):** this batch may replace only the nine
+  existing oracle lines fingerprinted in trusted main, and only in
+  `apps/api/tests/test_admin_console.py` — the retired route's success test and the two
+  `403 SITE_ADMIN_RESET_REQUIRED` checks, which become 404. Stronger coverage remains
+  required; this is not a file-wide or reusable waiver.
+
   Scope boundary: the league-scoped reset and reset notifications. No change to the claim
   window or the site console. **API + web (copy only; safe before the API ships).**
 
