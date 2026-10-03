@@ -110,8 +110,8 @@ class Settings(BaseSettings):
     #
     # The **daily** cap sets these, not the hourly one. At the measured 264 / 89 shape, a
     # fully saturated day costs 252 browsing requests. Discovery, the weekly catalogue
-    # release and one cold warm pass bring that to 400; the whole manual admin allowance
-    # brings it to 460 of 500. The final hour costs 18 browsing requests, leaving the
+    # release and one cold warm pass bring that to 412; the whole manual admin allowance
+    # brings it to 481 of 500. The final hour costs 18 browsing requests, leaving the
     # fifty-request pick reserve intact. Browsed prices trade freshness for that margin;
     # the one price frozen onto a pick is still re-fetched at the 60-second tier and a
     # movement is refused explicitly rather than silently scored.

@@ -304,3 +304,58 @@ class TestPayload:
         assert entry["changes"] == {"player_id": str(member.id)}
         assert entry["actor_name"] == admin.display_name
         assert entry["target_table"] == "league_memberships"
+
+
+class TestInputBounds:
+    """Batch 182 (SEC-31): two writes were bounded by nothing but their columns.
+
+    A refused write must leave nothing behind — no invite, no change, and no audit row
+    claiming something happened.
+    """
+
+    async def test_an_overlong_invite_hint_is_a_422_and_writes_nothing(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        """It was a 500: 150 characters reached a ``String(100)`` column unchecked."""
+        league, admin, _ = await _league_with_admin_and_member(session, "hint")
+
+        refused = await client.post(
+            f"/api/v1/leagues/{league.slug}/invites",
+            json={"display_name_hint": "h" * 150},
+            headers=_auth(admin),
+        )
+        accepted = await client.post(
+            f"/api/v1/leagues/{league.slug}/invites",
+            json={"display_name_hint": "h" * 100},
+            headers=_auth(admin),
+        )
+
+        assert refused.status_code == 422, refused.text
+        assert accepted.status_code == 201, accepted.text
+        assert accepted.json()["display_name_hint"] == "h" * 100
+        trail = await client.get(f"/api/v1/leagues/{league.slug}/audit-log", headers=_auth(admin))
+        actions = [entry["action_type"] for entry in trail.json()["entries"]]
+        assert actions == ["league_invite_created"]
+
+    async def test_an_overlong_description_edit_is_refused_like_creation(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        """Creation already stopped at 500; an edit could store any length."""
+        league, admin, _ = await _league_with_admin_and_member(session, "desc")
+
+        refused = await client.patch(
+            f"/api/v1/leagues/{league.slug}",
+            json={"description": "d" * 501},
+            headers=_auth(admin),
+        )
+        accepted = await client.patch(
+            f"/api/v1/leagues/{league.slug}",
+            json={"description": "d" * 500},
+            headers=_auth(admin),
+        )
+
+        assert refused.status_code == 422, refused.text
+        assert accepted.status_code == 200, accepted.text
+        assert accepted.json()["description"] == "d" * 500
+        trail = await client.get(f"/api/v1/leagues/{league.slug}/audit-log", headers=_auth(admin))
+        assert [entry["action_type"] for entry in trail.json()["entries"]] == ["league_updated"]

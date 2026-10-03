@@ -374,7 +374,9 @@ class CreateLeagueRequest(BaseModel):
 
 class UpdateLeagueRequest(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=100)
-    description: str | None = None
+    #: The same 500 creation allows (Batch 182). The column is ``Text``, so nothing else
+    #: bounded an edit, and every member's league page renders it.
+    description: str | None = Field(default=None, max_length=500)
     privacy: LeaguePrivacy | None = None
     max_members: int | None = Field(default=None, ge=2, le=50)
     pick_scope: PickScope | None = None

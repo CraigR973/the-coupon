@@ -363,7 +363,9 @@ async def remove_member(
 
 
 class CreateLeagueInviteRequest(BaseModel):
-    display_name_hint: str | None = None
+    #: Bounded at the column's width (Batch 182). Unbounded, a 150-character hint reached
+    #: ``String(100)`` and came back as a 500 rather than the 422 it is.
+    display_name_hint: str | None = Field(default=None, max_length=100)
     expires_in_days: int | None = Field(default=7, ge=1, le=30)
 
 

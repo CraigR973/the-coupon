@@ -17,8 +17,18 @@ import { describe, it, expect } from 'vitest';
  */
 
 const WEB = process.cwd();
+interface HostCondition {
+  type: string;
+  value: string;
+}
+interface HeaderRule {
+  source: string;
+  has?: HostCondition[];
+  missing?: HostCondition[];
+  headers: { key: string; value: string }[];
+}
 const VERCEL = JSON.parse(readFileSync(resolve(WEB, 'vercel.json'), 'utf8')) as {
-  headers: { source: string; headers: { key: string; value: string }[] }[];
+  headers: HeaderRule[];
 };
 const INDEX_HTML = readFileSync(resolve(WEB, 'index.html'), 'utf8');
 
@@ -65,8 +75,9 @@ describe('the shipped Content-Security-Policy', () => {
   it('names the API origin explicitly rather than allowing any https', () => {
     const connect = directives(policy!)['connect-src'];
     expect(connect).toContain('https://api-production-109b1.up.railway.app');
-    // One static file serves the production and staging Vercel projects.
-    expect(connect).toContain('https://api-production-0641.up.railway.app');
+    // Batch 182: one static file still serves the production and staging Vercel projects,
+    // but each now gets its own policy, so production no longer reaches the staging API.
+    expect(connect).not.toContain('https://api-production-0641.up.railway.app');
     expect(connect).not.toMatch(/https:\/\/\*|\bhttps:(\s|$)/);
   });
 
@@ -75,6 +86,60 @@ describe('the shipped Content-Security-Policy', () => {
     expect(script).not.toContain("'unsafe-inline'");
     expect(script).not.toContain("'unsafe-eval'");
     expect(script.replace(/'sha256-[^']+'/g, '').trim()).toBe("'self'");
+  });
+});
+
+/**
+ * Batch 182. One `vercel.json` serves both Vercel projects, so production's policy used to
+ * allow the staging API and any Supabase project's images. Each environment now gets its own
+ * policy by host: staging's is chosen only on the staging project's host, and production's
+ * everywhere else — so an unexpected host fails closed to production's narrower list rather
+ * than open to staging's.
+ */
+describe('the policy is chosen per environment', () => {
+  const STAGING_HOST = 'the-coupon-staging.vercel.app';
+  const rootRules = VERCEL.headers.filter((entry) => entry.source === '/(.*)');
+  const production = rootRules[0];
+  const staging = rootRules.find((rule) => rule.has !== undefined);
+  const csp = (rule: HeaderRule | undefined) =>
+    directives(rule!.headers.find((entry) => entry.key === 'Content-Security-Policy')!.value);
+
+  it('is two rules split on the staging host, so exactly one applies to any request', () => {
+    expect(rootRules).toHaveLength(2);
+    expect(production.has).toBeUndefined();
+    expect(production.missing).toEqual([{ type: 'host', value: STAGING_HOST }]);
+    expect(staging?.has).toEqual([{ type: 'host', value: STAGING_HOST }]);
+    expect(staging?.missing).toBeUndefined();
+  });
+
+  it("gives staging its own API and storage host, and production none of staging's", () => {
+    expect(csp(staging)['connect-src']).toBe(
+      "'self' https://api-production-0641.up.railway.app",
+    );
+    expect(csp(staging)['img-src']).toBe(
+      "'self' data: blob: https://gegcnhoeudpkcoxqcebe.supabase.co",
+    );
+    expect(csp(production)['connect-src']).toBe(
+      "'self' https://api-production-109b1.up.railway.app",
+    );
+  });
+
+  it("allows images only from this project's storage, not any Supabase project", () => {
+    expect(csp(production)['img-src']).toBe(
+      "'self' data: blob: https://pugujiiojitstkilphrz.supabase.co",
+    );
+    expect(csp(production)['img-src']).not.toContain('*');
+  });
+
+  it('differs between the two only in the hosts it names', () => {
+    const rest = (rule: HeaderRule | undefined) => {
+      const { 'connect-src': _connect, 'img-src': _img, ...others } = csp(rule);
+      return others;
+    };
+    expect(rest(staging)).toEqual(rest(production));
+    const others = (rule: HeaderRule | undefined) =>
+      rule!.headers.filter((entry) => entry.key !== 'Content-Security-Policy');
+    expect(others(staging)).toEqual(others(production));
   });
 });
 
