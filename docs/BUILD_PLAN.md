@@ -312,7 +312,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: the league-scoped reset and reset notifications. No change to the claim
   window or the site console. **API + web (copy only; safe before the API ships).**
 
-- [ ] **Batch 180 — One address can still lock any number of members out of sign-in**
+- [x] **Batch 180 — One address can still lock any number of members out of sign-in** ✅ 2026-10-03
   — specified from `docs/review/2026-09-28/01-security.md`, SEC-28 (MED, live, verified; SEC-18
   partial). Batch 123's per-source budget (15 wrong PINs per 15 minutes) is charged by a
   callable the handler invokes only after the wrong PIN has been counted, the account locked

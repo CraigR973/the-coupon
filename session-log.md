@@ -7809,3 +7809,29 @@ https://github.com/CraigR973/the-coupon/actions/runs/37124102247 PASS for `4eb57
 - **Close-out safety:** PASS — tooling/docs; pre-push deployed-API drift in sync; no application half changed
 
 **Next:** Group AC, starting with Batch 180.
+
+## Batch 180 — One address can still lock any number of members out of sign-in
+**Commits:** `ff26422` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,353 backend
+and 1,249 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37130406748 PASS for `ff26422`
+
+### Key facts for future sessions
+- **A spent address is refused before any PIN is checked.** The login's source-charger
+  dependency now reads `login-src:<address>` first; once 15 wrong PINs have come from it in the
+  window, every sign-in from it gets the source 429 (`15 per 15 minute`), a correct PIN included —
+  admitting one would leave a spent address an uncounted guessing oracle. Correct sign-ins still
+  spend nothing, and the per-(name, address) limit and the account lock are unchanged.
+- **The charge moved before the account write.** A wrong PIN rolls back its read (so the request
+  holds no pooled connection while the limiter takes one), charges the allowance, re-reads the
+  account and only then counts the failure; a refused charge raises with the account untouched.
+  The read alone is advisory under concurrency: a peek-only variant let a four-member burst write
+  17 failures on every run, where the shipped order writes exactly 15.
+- **Three new tests, each failing on the old code first:** the review's five-victim repro (the
+  fourth and fifth untouched, and still able to sign in elsewhere), the 14-wrong → correct →
+  15th-wrong → refused edge from one address, and the concurrent burst.
+- **Still open, out of scope:** `failed_login_count` is a read-modify-write in Python, so
+  concurrent wrong PINs at one member can under-count; the per-(name, address) limit still
+  bounds them. The scope boundary was "no change to the account lock".
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+**Next:** Batch 179 — retire the league-scoped PIN reset (owner decision 1).
