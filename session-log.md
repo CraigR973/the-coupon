@@ -7788,3 +7788,24 @@ https://github.com/CraigR973/the-coupon/actions/runs/37117692032 PASS for `5b343
 
 **Next:** Group AA is complete. Group AC follows: Batch 180 — one address can still lock any
 number of members out of sign-in.
+
+## Fix — the journey's axe checks could read a page still fading in
+**Commits:** `4eb57a4` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,350 backend
+and 1,249 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37124102247 PASS for `4eb57a4`
+
+### Key facts for future sessions
+- **The flake:** Batch 170's close-out commit `beb2c0e` failed CI attempt 1 (run 37118741876)
+  on one muted caption in Batch 173's settled-round matrix, then passed on re-run unchanged.
+  `setTheme` reloads and waits for `.animate-page-enter` only if it already exists; the lazily
+  loaded layout mounts later, so axe could sample the 220ms fade, where the faintest text
+  reads below AA.
+- **Fixed where the measuring happens.** `waitForSettledPage` awaits every finite running
+  animation (spinners and skeleton pulses are infinite and skipped) at the start of both axe
+  helpers, loops until none remain, and fails if the page never settles. No assertion changed.
+- **Proof:** with the fade slowed to 800ms the old harness failed at the same line as CI and
+  the fixed one passed; a probe with a 3s fade went from 39 colour violations mid-fade to none
+  after the wait.
+- **Close-out safety:** PASS — tooling/docs; pre-push deployed-API drift in sync; no application half changed
+
+**Next:** Group AC, starting with Batch 180.
