@@ -428,7 +428,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: round offering, the pick refusal, the void path, the label. No change to
   scoring. **API-carrying.**
 
-- [ ] **Batch 185 — A member who leaves or deletes their account keeps blocking the round they walked away from**
+- [x] **Batch 185 — A member who leaves or deletes their account keeps blocking the round they walked away from** ✅ 2026-10-04
   — specified from `docs/review/2026-09-28/02-correctness.md`, CORR-19 (MED) and CORR-27 (LOW),
   live, verified. Self-service deletion (`me.py:625`, Batch 136) never calls
   `settle_completion_after_roster_change`, which leave, remove and site-admin delete all call

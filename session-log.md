@@ -8110,3 +8110,26 @@ https://github.com/CraigR973/the-coupon/actions/runs/37240942502 PASS for `a8aae
 - **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
 
 **Next:** Batch 185 (Group AD).
+
+## Batch 185 — A member who leaves or deletes their account keeps blocking the round they walked away from
+**Commits:** `6893f20` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,384 backend
+and 1,270 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37244891648 PASS for `6893f20`
+
+### Key facts for future sessions
+- **Every roster exit releases open claims.** `release_unlocked_picks` deletes a member's picks
+  on rounds still pickable with the deadline ahead, inside the departure's transaction: leave,
+  league-admin removal, site-admin delete and self-erasure. Locked and settled picks stay, and an
+  erased member's settled points still sum into the table (memberships are kept).
+- **Removal and site-admin delete were included on purpose:** the owner decision names "a departed
+  or erased member" and the scope boundary is roster exits, so all four doors behave alike.
+- **Self-deletion now completes the round (CORR-19):** league ids are read before the erasure and
+  `settle_completion_after_roster_change` runs for each after the commit, as the other three doors
+  have since Batch 130; a later pick change no longer re-completes the round.
+- **Failures on the way:** the first full gate failed `test_stored_anchor_survives_a_later_added_earlier_round`
+  because this batch's committed history rounds sat in season 2026, and round labels read every
+  date of a season deployment-wide. Moving them to an unused season (2062) fixed it; no assertion
+  changed. Committed test rows belong in a season nothing else asserts labels for.
+- **Close-out safety:** PASS — API-only; pre-push /ship-prod debt present; /ship-prod owed after push
+
+**Next:** Batch 186 (Group AD).
