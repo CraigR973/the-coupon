@@ -262,5 +262,7 @@ async def test_the_label_read_asks_for_dates_rather_than_rounds(
     assert len(reads) == 1
     flat = " ".join(reads[0].split()).upper()
     assert "GAMEWEEKS.ID" not in flat, f"the label read still hydrates whole rounds: {flat}"
-    assert flat.count("GAMEWEEKS.") == 3, f"one projected column and two bounds: {flat}"
+    assert flat.count("GAMEWEEKS.STARTS_ON") == 3, f"one projected column and two bounds: {flat}"
+    assert "JOIN LEAGUES ON LEAGUES.ID = GAMEWEEKS.LEAGUE_ID" in flat
+    assert "LEAGUES.DELETED_AT IS NULL" in flat
     assert member is not None

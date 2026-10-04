@@ -40,6 +40,9 @@ class CalendarChange:
     season: int
     anchor: date
     already_stored: bool
+    anchor_league: str | None
+    anchor_league_slug: str | None
+    anchor_starts_on: date | None
 
 
 @dataclass(frozen=True)
@@ -58,30 +61,52 @@ class RoundChange:
 async def plan(db: AsyncSession) -> tuple[list[CalendarChange], list[RoundChange]]:
     rows = (
         await db.execute(
-            select(Gameweek, League.name, func.count(Pick.id))
+            select(Gameweek, League.name, League.slug, func.count(Pick.id))
             .join(League, League.id == Gameweek.league_id)
             .outerjoin(Pick, Pick.gameweek_id == Gameweek.id)
-            .group_by(Gameweek.id, League.name)
+            .where(League.deleted_at.is_(None))
+            .group_by(Gameweek.id, League.name, League.slug)
             .order_by(Gameweek.starts_on, League.name)
         )
     ).all()
     if not rows:
         raise BackfillError("no rounds exist; there is no season anchor to derive")
 
-    by_season: dict[int, list[tuple[Gameweek, str, int]]] = {}
-    for gameweek, league_name, pick_count in rows:
+    by_season: dict[int, list[tuple[Gameweek, str, str, int]]] = {}
+    for gameweek, league_name, league_slug, pick_count in rows:
         by_season.setdefault(season_for(gameweek.starts_on), []).append(
-            (gameweek, league_name, pick_count)
+            (gameweek, league_name, league_slug, pick_count)
         )
 
     calendars: list[CalendarChange] = []
     round_changes: list[RoundChange] = []
     for season, season_rows in sorted(by_season.items()):
         stored = await db.get(SeasonCalendar, season)
+        anchor_row = min(
+            season_rows,
+            key=lambda row: (
+                canonical_saturday(row[0].starts_on),
+                row[0].starts_on,
+                row[1],
+                row[2],
+                str(row[0].id),
+            ),
+        )
         anchor = (
             stored.week_one_anchor
             if stored is not None
-            else min(canonical_saturday(gameweek.starts_on) for gameweek, _, _ in season_rows)
+            else canonical_saturday(anchor_row[0].starts_on)
+        )
+        matching_anchor_rows = [
+            row for row in season_rows if canonical_saturday(row[0].starts_on) == anchor
+        ]
+        source = (
+            min(
+                matching_anchor_rows,
+                key=lambda row: (row[0].starts_on, row[1], row[2], str(row[0].id)),
+            )
+            if matching_anchor_rows
+            else None
         )
         calendar = stored or SeasonCalendar(
             season=season,
@@ -89,10 +114,19 @@ async def plan(db: AsyncSession) -> tuple[list[CalendarChange], list[RoundChange
             extra_weeks=[],
         )
         calendars.append(
-            CalendarChange(season=season, anchor=anchor, already_stored=stored is not None)
+            CalendarChange(
+                season=season,
+                anchor=anchor,
+                already_stored=stored is not None,
+                anchor_league=source[1] if source is not None else None,
+                anchor_league_slug=source[2] if source is not None else None,
+                anchor_starts_on=source[0].starts_on if source is not None else None,
+            )
         )
-        labels = labels_for_dates(calendar, {gameweek.starts_on for gameweek, _, _ in season_rows})
-        for gameweek, league_name, pick_count in season_rows:
+        labels = labels_for_dates(
+            calendar, {gameweek.starts_on for gameweek, _, _, _ in season_rows}
+        )
+        for gameweek, league_name, _league_slug, pick_count in season_rows:
             now = labels[gameweek.starts_on]
             was = (
                 now
@@ -140,7 +174,16 @@ def _describe(calendars: list[CalendarChange], rounds: list[RoundChange]) -> str
     lines = ["season calendars:"]
     for calendar in calendars:
         verb = "already stored" if calendar.already_stored else "would store"
-        lines.append(f"    {calendar.season}: week 1 = {calendar.anchor} ({verb})")
+        source = (
+            "anchor round: "
+            f"{calendar.anchor_league} [{calendar.anchor_league_slug}] · "
+            f"{calendar.anchor_starts_on}"
+            if calendar.anchor_league is not None
+            and calendar.anchor_league_slug is not None
+            and calendar.anchor_starts_on is not None
+            else "anchor round: not present among live leagues"
+        )
+        lines.append(f"    {calendar.season}: week 1 = {calendar.anchor} ({verb}; {source})")
     lines.append("round labels that move:")
     moving = [round_change for round_change in rounds if round_change.changing]
     if not moving:

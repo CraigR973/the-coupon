@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import AsyncIterator, Collection, Sequence
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -39,6 +39,7 @@ from src.services.season_calendar import (
     calendar_for,
     canonical_saturday,
     declare_extra_week,
+    ensure_calendar_for_new_season,
     labels_for_dates,
     labels_for_gameweeks,
     move_anchor,
@@ -451,6 +452,83 @@ async def test_the_anchor_is_the_earliest_saturday_whatever_the_discovery_order(
     assert calendar is not None
     assert calendar.week_one_anchor == date(2031, 8, 2), "the anchor did not come back"
     assert calendar.week_one_anchor < late
+
+
+async def test_a_deleted_leagues_earlier_round_does_not_move_the_anchor(
+    session: AsyncSession,
+) -> None:
+    _, live = await _league(session)
+    _, deleted = await _league(session)
+    deleted.deleted_at = datetime(2051, 8, 1)
+    early = date(2051, 8, 3)
+    later = early + timedelta(weeks=1)
+    live_anchor = canonical_saturday(later)
+    assert canonical_saturday(early) < live_anchor
+    calendar = SeasonCalendar(season=2051, week_one_anchor=live_anchor, extra_weeks=[])
+    session.add(calendar)
+    await _round(session, deleted, early)
+    await _round(session, live, later)
+    await session.flush()
+
+    assert await reanchor_from_earliest_round(session, 2051) is None
+    assert calendar.week_one_anchor == live_anchor
+
+
+async def test_a_deleted_leagues_date_does_not_add_a_suffix_to_a_live_week(
+    session: AsyncSession,
+) -> None:
+    _, live = await _league(session)
+    _, deleted = await _league(session)
+    deleted.deleted_at = datetime(2052, 8, 1)
+    early = date(2052, 8, 3)
+    later = early + timedelta(weeks=1)
+    session.add(
+        SeasonCalendar(
+            season=2052,
+            week_one_anchor=canonical_saturday(later),
+            extra_weeks=[],
+        )
+    )
+    await _round(session, deleted, early)
+    live_round = await _round(session, live, later)
+    await session.flush()
+
+    assert await labels_for_gameweeks(session, [live_round]) == {live_round.id: "1"}
+
+
+async def test_a_deleted_leagues_settlement_does_not_block_a_live_reanchor(
+    session: AsyncSession,
+) -> None:
+    _, live = await _league(session)
+    _, deleted = await _league(session)
+    deleted.deleted_at = datetime(2053, 8, 1)
+    early = date(2053, 8, 2)
+    later = early + timedelta(weeks=1)
+    early_anchor = canonical_saturday(early)
+    late_anchor = canonical_saturday(later)
+    calendar = SeasonCalendar(season=2053, week_one_anchor=late_anchor, extra_weeks=[])
+    session.add(calendar)
+    await _round(session, live, early)
+    await _round(session, deleted, later, status=GameweekStatus.settled)
+    await session.flush()
+
+    assert await reanchor_from_earliest_round(session, 2053) is calendar
+    assert calendar.week_one_anchor == early_anchor
+
+
+async def test_only_deleted_rounds_leave_a_new_season_empty_for_anchoring(
+    session: AsyncSession,
+) -> None:
+    _, deleted = await _league(session)
+    deleted.deleted_at = datetime(2054, 8, 1)
+    await _round(session, deleted, date(2054, 8, 1))
+    await session.flush()
+
+    live_start = date(2054, 8, 8)
+    calendar = await ensure_calendar_for_new_season(session, live_start)
+
+    assert calendar is not None
+    assert calendar.week_one_anchor == canonical_saturday(live_start)
 
 
 async def test_the_anchor_never_moves_after_a_settlement(session: AsyncSession) -> None:

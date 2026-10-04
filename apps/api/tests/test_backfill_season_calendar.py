@@ -13,7 +13,7 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import hash_pin
-from src.backfill_season_calendar import apply, plan
+from src.backfill_season_calendar import _describe, apply, plan
 from src.database import AsyncSessionLocal
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus
@@ -133,6 +133,43 @@ async def test_dry_run_names_only_the_two_visible_moves_and_writes_nothing(
         (mccann.name, ANCHOR + timedelta(weeks=4), "3", "5"),
     ]
     assert {round_.id: round_.number for round_ in rounds} == before
+
+
+async def test_a_deleted_leagues_round_cannot_set_the_anchor_or_enter_the_dry_run(
+    session: AsyncSession,
+) -> None:
+    hibs, _mccann, _rounds = await _seed_production_shape(session)
+    deleted = League(
+        slug=f"deleted-{uuid.uuid4().hex[:8]}",
+        name="Deleted test league",
+        created_by=hibs.created_by,
+        deleted_at=datetime(2040, 8, 1),
+    )
+    session.add(deleted)
+    await session.flush()
+    session.add(
+        Gameweek(
+            league_id=deleted.id,
+            starts_on=ANCHOR - timedelta(weeks=1),
+            number=1,
+            status=GameweekStatus.settled,
+            locks_at_utc=datetime(2040, 7, 28, 13, 30),
+        )
+    )
+    await session.flush()
+
+    calendars, changes = await plan(session)
+
+    calendar = next(change for change in calendars if change.season == SEASON)
+    assert calendar.anchor == ANCHOR
+    assert calendar.anchor_league == hibs.name
+    assert calendar.anchor_league_slug == hibs.slug
+    assert calendar.anchor_starts_on == ANCHOR
+    assert deleted.name not in {change.league for change in changes}
+    assert (
+        f"{SEASON}: week 1 = {ANCHOR} "
+        f"(would store; anchor round: {hibs.name} [{hibs.slug}] · {ANCHOR})"
+    ) in _describe(calendars, changes)
 
 
 async def test_apply_stores_only_the_calendar_even_for_a_settled_pick(

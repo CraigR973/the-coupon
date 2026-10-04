@@ -19,6 +19,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.gameweek import Gameweek, GameweekStatus
+from src.models.league import League
 from src.models.pick import Pick
 from src.models.season_calendar import SeasonCalendar
 from src.services.football_provider import season_for
@@ -131,7 +132,12 @@ async def ensure_calendar_for_new_season(
     count = await db.scalar(
         select(func.count())
         .select_from(Gameweek)
-        .where(Gameweek.starts_on >= first_day, Gameweek.starts_on <= last_day)
+        .join(League, League.id == Gameweek.league_id)
+        .where(
+            Gameweek.starts_on >= first_day,
+            Gameweek.starts_on <= last_day,
+            League.deleted_at.is_(None),
+        )
     )
     if count:
         return None
@@ -186,7 +192,14 @@ class SeasonLabels:
             for season in calendars
         ]
         days = (
-            (await db.execute(select(Gameweek.starts_on).where(or_(*clauses)).distinct()))
+            (
+                await db.execute(
+                    select(Gameweek.starts_on)
+                    .join(League, League.id == Gameweek.league_id)
+                    .where(or_(*clauses), League.deleted_at.is_(None))
+                    .distinct()
+                )
+            )
             .scalars()
             .all()
         )
@@ -377,8 +390,12 @@ async def reanchor_from_earliest_round(db: AsyncSession, season: int) -> SeasonC
         return None
     first_day, last_day = season_bounds(season)
     earliest = await db.scalar(
-        select(func.min(Gameweek.starts_on)).where(
-            Gameweek.starts_on >= first_day, Gameweek.starts_on <= last_day
+        select(func.min(Gameweek.starts_on))
+        .join(League, League.id == Gameweek.league_id)
+        .where(
+            Gameweek.starts_on >= first_day,
+            Gameweek.starts_on <= last_day,
+            League.deleted_at.is_(None),
         )
     )
     if earliest is None:
@@ -389,10 +406,12 @@ async def reanchor_from_earliest_round(db: AsyncSession, season: int) -> SeasonC
     settled = await db.scalar(
         select(func.count())
         .select_from(Gameweek)
+        .join(League, League.id == Gameweek.league_id)
         .where(
             Gameweek.starts_on >= first_day,
             Gameweek.starts_on <= last_day,
             Gameweek.status == GameweekStatus.settled,
+            League.deleted_at.is_(None),
         )
     )
     if settled:
