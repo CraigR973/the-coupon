@@ -53,6 +53,7 @@ from src.models.profile import OddsFormat, Profile
 from src.models.rate_limit import RateLimitCounter
 from src.models.refresh_token import RefreshToken
 from src.services.avatar_storage import AvatarStorage
+from src.services.gameweek import release_unlocked_picks
 
 
 class SoleAdminError(Exception):
@@ -163,6 +164,10 @@ async def erase_account(db: AsyncSession, member: Profile, storage: AvatarStorag
     # name they chose for each league.
     for membership in memberships:
         membership.display_name_override = None
+
+    # Batch 185. A pick on a round still open is a claim, not history: it goes, so the
+    # selection is free for the members still playing. Locked and settled picks stay.
+    await release_unlocked_picks(db, member.id)
 
     await db.execute(delete(LeagueJoinRequest).where(LeagueJoinRequest.player_id == member.id))
     await db.execute(delete(RefreshToken).where(RefreshToken.user_id == member.id))

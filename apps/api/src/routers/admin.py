@@ -65,7 +65,7 @@ from src.services.credentials import (
 from src.services.discovery_health import discovery_health
 from src.services.football_provider import current_season
 from src.services.football_week import UNDECLARED_SAME_WEEK_ROUND, settle_refusal
-from src.services.gameweek import PICKABLE_STATES
+from src.services.gameweek import PICKABLE_STATES, release_unlocked_picks
 from src.services.notification_triggers import (
     announce_round_settled,
     settle_completion_after_roster_change,
@@ -399,9 +399,10 @@ async def delete_player(request: Request, player_id: uuid.UUID, admin: AdminUser
     """Remove a member from the product without removing them from its history.
 
     A **soft** delete (owner, 2026-08-23): ``deleted_at`` is stamped, the profile is
-    deactivated and every session is revoked, and their picks stay exactly where they
-    are so past leaderboards read as they were played. A hard delete would silently
-    rewrite settled weeks other members remember.
+    deactivated and every session is revoked, and their locked and settled picks stay
+    exactly where they are so past leaderboards read as they were played. A hard delete
+    would silently rewrite settled weeks other members remember. A pick on a round still
+    open is a claim rather than history, and is released (Batch 185).
 
     **Their display name stays reserved**, and that is a consequence rather than an
     oversight. ``display_name`` is globally unique and is the login identifier, and Batch
@@ -425,6 +426,8 @@ async def delete_player(request: Request, player_id: uuid.UUID, admin: AdminUser
     player.is_active = False
     player.updated_at = _now()
     revoked = await revoke_all_refresh_tokens(db, player.id)
+    # Batch 185. Every league they were in loses their open claims; their history stays.
+    await release_unlocked_picks(db, player.id)
     db.add(
         _audit(
             admin,

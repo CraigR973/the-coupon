@@ -41,6 +41,7 @@ from src.services.gameweek import (
     PopulatedRounds,
     populate_cadence_rounds,
     rederive_claim_periods,
+    release_unlocked_picks,
     uk_today,
 )
 from src.services.notification_triggers import (
@@ -1766,6 +1767,10 @@ async def leave_league(
 
     membership.deleted_at = _now()
     membership.updated_at = _now()
+    # Batch 185. Their claims on rounds still open go with them, so nobody else is kept
+    # off a selection all week by somebody who will never play it. Locked and settled
+    # picks stay: those are history.
+    await release_unlocked_picks(db, player.id, [league.id])
     db.add(_audit(player, ActionType.member_left, "league_memberships", league.id))
     await db.commit()
     log.info("left league", league_id=str(league.id), player_id=str(player.id))

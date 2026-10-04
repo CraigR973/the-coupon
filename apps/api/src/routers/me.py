@@ -39,6 +39,7 @@ from src.services.coupon import combined_odds
 from src.services.credentials import recent_pin_events
 from src.services.football_provider import season_for
 from src.services.gameweek import PICKABLE_STATES, current_round_order
+from src.services.notification_triggers import settle_completion_after_roster_change
 from src.services.rename_notice import (
     NOTICE_TITLE,
     acknowledge_in_app_notice,
@@ -630,7 +631,10 @@ async def delete_my_account(
     db: Db,
     storage: Annotated[AvatarStorage, Depends(avatar_storage)],
 ) -> None:
-    """Delete the caller's account now. Their picks stay, anonymously; nothing else does.
+    """Delete the caller's account now. Their locked and settled picks stay, anonymously.
+
+    Nothing else does — not even a pick on a round still open, which is a claim on the
+    week rather than history (Batch 185).
 
     **403, not 401, for a wrong PIN.** The web client reads any 401 as an expired session
     and signs the member out after a refresh, which is the wrong answer to a typo on this
@@ -647,6 +651,18 @@ async def delete_my_account(
         )
     if not verify_pin(body.pin, user.pin_hash):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="That PIN isn't right.")
+    # Read before the erasure, as the site-admin delete reads its member's leagues.
+    league_ids = list(
+        (
+            await db.execute(
+                select(LeagueMembership.league_id).where(
+                    LeagueMembership.player_id == user.id,
+                    LeagueMembership.deleted_at.is_(None),
+                )
+            )
+        ).scalars()
+    )
+    player_id = user.id
     try:
         await erase_account(db, user, storage)
     except SoleAdminError as refused:
@@ -659,7 +675,13 @@ async def delete_my_account(
             ),
         ) from None
     await db.commit()
-    log.info("account erased by its member", player_id=str(user.id))
+    log.info("account erased by its member", player_id=str(player_id))
+    # Batch 185 (CORR-19). Batch 130 wired this into leaving, removal and the site-admin
+    # delete; the self-service door added two days later never called it. A member who was
+    # the last one yet to pick completes the round by going, and the league is told now —
+    # not when somebody next moves a pick and is credited with completing it.
+    for league_id in league_ids:
+        await settle_completion_after_roster_change(db, league_id)
 
 
 # ── The rename notice (Batch 148) ───────────────────────────────────────────────

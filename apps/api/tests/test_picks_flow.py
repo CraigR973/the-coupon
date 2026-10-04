@@ -3483,3 +3483,245 @@ async def test_a_round_after_its_week_already_scored_refuses_picks(
     r = await _submit(client, league.slug, bob, fixture_id, "MATCH_ODDS", "HOME")
 
     assert r.status_code == 409 and r.json()["detail"] == "ROUND_NOT_SCORING"
+
+
+# ── Batch 185: a member who goes gives up their open claims ───────────────────
+#
+# Owner decision, 2026-09-30 (README decision 2): delete a departed or erased member's
+# picks on rounds not yet locked; keep locked and settled picks.
+
+#: Where the hand-built history goes: a season nothing else in the suite plays. These rows
+#: commit, and a round label is a deployment-wide read — a round placed in the canned
+#: slate's own season moves every week-1 label other modules assert.
+_HISTORY_SATURDAY = date(2062, 3, 4)
+
+
+async def _held_pick(
+    session: AsyncSession,
+    league: League,
+    player: Profile,
+    starts_on: date,
+    *,
+    round_status: GameweekStatus,
+    pick_status: PickStatus,
+    points: int | None,
+    locks_at: datetime,
+) -> Pick:
+    """A pick already on a round in the given state — history, or a claim the lock froze."""
+    gameweek, fixture = await _round_with_one_fixture(
+        session,
+        league,
+        starts_on,
+        locks_at=locks_at,
+        event_id=f"b185-{uuid.uuid4().hex[:10]}",
+        home="Forfar Athletic",
+        away="Brechin City",
+        competition="Scottish League Two",
+        competition_id="10932510",
+    )
+    gameweek.status = round_status
+    pick = Pick(
+        league_id=league.id,
+        gameweek_id=gameweek.id,
+        fixture_id=fixture.id,
+        player_id=player.id,
+        market=PickMarket.MATCH_ODDS,
+        outcome=PickOutcome.HOME,
+        runner_name="Forfar Athletic",
+        odds_at_pick=Decimal("2.50"),
+        status=pick_status,
+        points_awarded=points,
+        pick_scope=league.pick_scope,
+    )
+    session.add(pick)
+    await session.commit()
+    await session.refresh(pick)
+    return pick
+
+
+async def test_deleting_your_own_account_completes_the_round_over_http(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """CORR-19: the Batch 130 leave test, through the self-service door Batch 136 added.
+
+    The last member yet to pick deletes their account: the round completes then, crediting
+    nobody — and a later pick change is an ordinary move, not a second completion naming
+    whoever touched it.
+    """
+    from src.models.gameweek_completion import GameweekCompletion
+
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (picker, leaver), league = await _seed_league(session, ["picker", "eraser"])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+
+    placed = await _submit(
+        client, league.slug, picker, fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME"
+    )
+    assert placed.status_code == 201, placed.text
+
+    gone = await client.post("/api/v1/me/delete", json={"pin": "1234"}, headers=_auth(leaver))
+    assert gone.status_code == 204, gone.text
+
+    async def completions() -> list[GameweekCompletion]:
+        async with AsyncSessionLocal() as session:
+            rows = await session.execute(
+                select(GameweekCompletion).where(GameweekCompletion.gameweek_id == gameweek.id)
+            )
+            return list(rows.scalars().all())
+
+    stored = await completions()
+    assert len(stored) == 1, "deleting the account did not complete the round"
+    assert stored[0].final_picker_id is None, "the round credited a member who did not pick"
+    assert stored[0].member_count == 1
+
+    moved = await _submit(
+        client, league.slug, picker, fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "AWAY"
+    )
+    assert moved.status_code == 201, moved.text
+    assert len(await completions()) == 1, "a later pick change completed the round again"
+
+
+async def test_a_leavers_open_claim_is_free_for_everyone_else(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """CORR-27: the selection a leaver held is claimable the moment they go."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (hank, ivy), league = await _seed_league(session, ["hank", "ivy"])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    arsenal = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    held = await _submit(client, league.slug, hank, arsenal, "MATCH_ODDS", "HOME")
+    blocked = await _submit(client, league.slug, ivy, arsenal, "MATCH_ODDS", "HOME")
+    gone = await client.delete(f"/api/v1/leagues/{league.slug}/membership", headers=_auth(hank))
+    claimed = await _submit(client, league.slug, ivy, arsenal, "MATCH_ODDS", "HOME")
+
+    assert held.status_code == 201, held.text
+    assert blocked.status_code == 409 and blocked.json()["detail"] == "SELECTION_TAKEN"
+    assert gone.status_code == 204, gone.text
+    assert claimed.status_code == 201, claimed.text
+
+
+async def test_an_erased_members_open_claim_is_released_and_their_history_kept(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Erasure releases the open claim — the whole game, under fixture scope — and nothing else.
+
+    The settled win and the pick a lock already froze stay on the member's (now anonymous)
+    row, and the settled points still sum into the league's table.
+    """
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (hank, ivy), league = await _seed_league(session, ["hankfx", "ivyfx"])
+        league.pick_scope = PickScope.fixture
+        await session.commit()
+        settled = await _held_pick(
+            session,
+            league,
+            hank,
+            _HISTORY_SATURDAY,
+            round_status=GameweekStatus.settled,
+            pick_status=PickStatus.won,
+            points=25,
+            locks_at=_now() - timedelta(days=14),
+        )
+        frozen = await _held_pick(
+            session,
+            league,
+            hank,
+            _HISTORY_SATURDAY + timedelta(weeks=1),
+            round_status=GameweekStatus.locked,
+            pick_status=PickStatus.pending,
+            points=None,
+            locks_at=_now() - timedelta(hours=1),
+        )
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+    arsenal = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    held = await _submit(client, league.slug, hank, arsenal, "MATCH_ODDS", "HOME")
+    blocked = await _submit(client, league.slug, ivy, arsenal, "MATCH_ODDS", "AWAY")
+    gone = await client.post("/api/v1/me/delete", json={"pin": "1234"}, headers=_auth(hank))
+    claimed = await _submit(client, league.slug, ivy, arsenal, "MATCH_ODDS", "AWAY")
+
+    assert held.status_code == 201, held.text
+    assert blocked.status_code == 409 and blocked.json()["detail"] == "FIXTURE_TAKEN"
+    assert gone.status_code == 204, gone.text
+    assert claimed.status_code == 201, claimed.text
+    async with AsyncSessionLocal() as session:
+        kept = {
+            pick.gameweek_id: (pick.status, pick.points_awarded)
+            for pick in (
+                await session.execute(select(Pick).where(Pick.player_id == hank.id))
+            ).scalars()
+        }
+        table = await scoring.standings(session, league.id, season=season_for(_HISTORY_SATURDAY))
+    assert kept == {
+        settled.gameweek_id: (PickStatus.won, 25),
+        frozen.gameweek_id: (PickStatus.pending, None),
+    }
+    assert {row.player_id: row.total_points for row in table}[str(hank.id)] == 25
+
+
+async def test_removal_and_a_site_admin_delete_release_open_claims_too(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Every roster exit, not only the two a member chooses: removed and deleted alike."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (admin, removed, deleted), league = await _seed_league(
+            session, ["exitadmin", "removed", "deleted"]
+        )
+        membership = (
+            await session.execute(
+                select(LeagueMembership).where(
+                    LeagueMembership.league_id == league.id,
+                    LeagueMembership.player_id == admin.id,
+                )
+            )
+        ).scalar_one()
+        membership.role = LeagueMemberRole.admin
+        site_admin = Profile(
+            display_name=f"site-{uuid.uuid4().hex[:8]}",
+            pin_hash=hash_pin("1234"),
+            role=UserRole.admin,
+        )
+        session.add(site_admin)
+        await session.commit()
+        frozen = await _held_pick(
+            session,
+            league,
+            deleted,
+            _HISTORY_SATURDAY + timedelta(weeks=1),
+            round_status=GameweekStatus.locked,
+            pick_status=PickStatus.pending,
+            points=None,
+            locks_at=_now() - timedelta(hours=1),
+        )
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+
+    first = await _submit(
+        client, league.slug, removed, fixtures[SAMPLE_EPL_EVENT_ID], "MATCH_ODDS", "HOME"
+    )
+    second = await _submit(
+        client, league.slug, deleted, fixtures[SAMPLE_SL2_EVENT_ID], "MATCH_ODDS", "HOME"
+    )
+    assert (first.status_code, second.status_code) == (201, 201)
+
+    out = await client.delete(
+        f"/api/v1/leagues/{league.slug}/members/{removed.id}", headers=_auth(admin)
+    )
+    erased = await client.delete(f"/api/v1/admin/players/{deleted.id}", headers=_auth(site_admin))
+    assert (out.status_code, erased.status_code) == (204, 204)
+
+    async with AsyncSessionLocal() as session:
+        open_round = (
+            await session.execute(select(Pick.player_id).where(Pick.gameweek_id == gameweek.id))
+        ).scalars()
+        still_frozen = await session.get(Pick, frozen.id)
+    assert list(open_round) == [], "a departed member still holds a claim on the open round"
+    assert still_frozen is not None and still_frozen.status is PickStatus.pending

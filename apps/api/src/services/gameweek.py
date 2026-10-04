@@ -1539,6 +1539,54 @@ async def current_open_gameweeks(db: AsyncSession, now: datetime) -> list[Gamewe
     return list(result.scalars().all())
 
 
+async def release_unlocked_picks(
+    db: AsyncSession,
+    player_id: uuid.UUID,
+    league_ids: Collection[uuid.UUID] | None = None,
+    *,
+    now: datetime | None = None,
+) -> int:
+    """Delete a departing member's picks on rounds that have not locked. Batch 185.
+
+    Owner decision, 2026-09-30 (README decision 2): a member who leaves a league, is
+    removed from it, or has their account deleted gives up their **unlocked** picks and
+    keeps the rest. An unlocked pick is a claim on the week's land-grab, not history, and a
+    claim held by somebody who will never play it blocked that selection — or under
+    ``fixture`` scope the whole game — for everyone else all week (CORR-27). The
+    2026-09-22 "keep history" decision is about history: a locked or settled pick stays,
+    and still sums into every table it was earned in.
+
+    "Not locked" is the same instant :func:`_drop_voided_fixtures` uses — the deadline
+    still ahead — and the round still in a pickable state, so a round settled early by
+    hand is history too. ``league_ids`` narrows it to the leagues being left; ``None``
+    means every league, for an account that is going altogether.
+
+    Returns how many picks went. Flushes nothing and commits nothing — the caller owns the
+    transaction, so the departure and the release land together; and the caller re-runs
+    :func:`~src.services.notification_triggers.settle_completion_after_roster_change`
+    after its commit, as it already does for the roster change itself.
+    """
+    if league_ids is not None and not league_ids:
+        return 0
+    moment = _naive_utc(now) if now is not None else _utc_now()
+    unlocked = select(Gameweek.id).where(
+        Gameweek.status.in_(PICKABLE_STATES),
+        Gameweek.locks_at_utc > moment,
+    )
+    conditions = [Pick.player_id == player_id, Pick.gameweek_id.in_(unlocked)]
+    if league_ids is not None:
+        conditions.append(Pick.league_id.in_(list(league_ids)))
+    result = await db.execute(delete(Pick).where(*conditions))
+    released = result.rowcount or 0
+    if released:
+        log.info(
+            "released a departing member's unlocked picks",
+            player_id=str(player_id),
+            picks=released,
+        )
+    return released
+
+
 class RoundProgress(BaseModel):
     """How much of a round's coupon is filled — the ``3/12`` a pick alert prints. Batch 107.
 

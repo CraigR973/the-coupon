@@ -32,6 +32,7 @@ from src.routers.leagues import (
     _upsert_membership,
 )
 from src.schemas import UtcDatetime
+from src.services.gameweek import release_unlocked_picks
 from src.services.notification_triggers import (
     notify_member_joined,
     settle_completion_after_roster_change,
@@ -316,6 +317,8 @@ async def remove_member(
         )
     membership.deleted_at = _now()
     membership.updated_at = _now()
+    # Batch 185. A removed member's open claims are released like a leaver's.
+    await release_unlocked_picks(db, target_player_id, [league.id])
     db.add(
         _audit(
             player,
