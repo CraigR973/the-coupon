@@ -43,7 +43,7 @@ from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
 from src.models.league import League
 from src.models.league_membership import LeagueMembership
-from src.models.notification import PushSubscription
+from src.models.notification import ActionType, AuditLog, PushSubscription
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile, UserRole
 from src.services.admin_ops import settlement_from_score, voided_settlement
@@ -494,6 +494,217 @@ async def test_a_failed_announcement_leaves_a_hand_entered_settlement_standing(
         assert stored is not None and stored.status is GameweekStatus.settled
         pick = (await db.execute(select(Pick).where(Pick.gameweek_id == gameweek.id))).scalar_one()
         assert (pick.status, pick.points_awarded) == (PickStatus.won, 25)
+
+
+# ── A round that can never score (Batch 184) ───────────────────────────────────
+
+
+VOID = "/api/v1/admin/results/{}/void-non-scoring"
+
+
+async def _stray_week(
+    *, scored: bool, stray_locked: bool = True
+) -> tuple[Profile, League, Gameweek, Gameweek, list[Profile]]:
+    """A Friday league whose week holds its Friday round and a kept Saturday stray.
+
+    Committed. Two members hold picks on the stray and a third holds nothing — the shape a
+    mid-week Saturday-to-Friday edit leaves (CORR-20). ``scored`` settles the Friday round
+    first, which is what the void waits for.
+    """
+    friday = date(2060, 3, 5)
+    async with AsyncSessionLocal() as db:
+        admin = await _profile(db, "admin", role=UserRole.admin)
+        league = await _league(db, admin, "Friday League")
+        league.slate_start_weekday = 4
+        league.slate_end_weekday = 4
+        people = [await _profile(db, f"member{i}") for i in range(3)]
+        for person in people:
+            await _join(db, league, person)
+        current = Gameweek(
+            league_id=league.id,
+            starts_on=friday,
+            number=1,
+            status=GameweekStatus.settled if scored else GameweekStatus.locked,
+            locks_at_utc=_now() - timedelta(hours=26),
+        )
+        stray = Gameweek(
+            league_id=league.id,
+            starts_on=friday + timedelta(days=1),
+            number=2,
+            status=GameweekStatus.locked if stray_locked else GameweekStatus.open,
+            locks_at_utc=_now() + (timedelta(hours=-4) if stray_locked else timedelta(hours=4)),
+        )
+        db.add_all([current, stray])
+        await db.flush()
+        forfar = await _fixture(db, "Forfar Athletic", "Brechin City")
+        db.add(GameweekFixture(gameweek_id=stray.id, fixture_id=forfar.id))
+        await db.flush()
+        await _pick(db, stray, forfar, people[0], PickOutcome.HOME, "2.50")
+        await _pick(db, stray, forfar, people[1], PickOutcome.AWAY, "3.10")
+        await db.commit()
+        return admin, league, current, stray, people
+
+
+async def test_a_round_that_can_never_score_is_voided_audited_and_announced(
+    client: AsyncClient,
+) -> None:
+    """The owner's decision on stranded picks: void, one audit row, and the league told.
+
+    Each member hears the settle line the app already uses for a called-off match — "void,
+    no points" — and the member with no pick hears that too. Voiding again is refused:
+    the round has settled, and nothing is said twice.
+    """
+    admin, league, _current, stray, (home, away, idle) = await _stray_week(scored=True)
+    body = {"reason": "Saturday stray left by the window edit"}
+
+    sent: list[dict[str, Any]] = []
+    with patch(SEND, new=_recorder(sent)):
+        first = await client.post(VOID.format(stray.id), json=body, headers=_auth(admin))
+        again = await client.post(VOID.format(stray.id), json=body, headers=_auth(admin))
+
+    assert first.status_code == 200, first.text
+    assert first.json() == {
+        "gameweek_id": str(stray.id),
+        "refusal": "undeclared_same_week_round",
+        "picks_voided": 2,
+    }
+    assert again.status_code == 409
+    assert sorted(message["user_id"] for message in sent) == sorted([home.id, away.id, idle.id])
+    by_member = {message["user_id"]: message for message in sent}
+    assert by_member[home.id]["body"].endswith(
+        "Your pick, Forfar Athletic (v Brechin City), was void — no points."
+    )
+    assert by_member[away.id]["body"].endswith(
+        "Your pick, Brechin City (at Forfar Athletic), was void — no points."
+    )
+    assert by_member[idle.id]["body"].endswith("You had no pick this round.")
+
+    async with AsyncSessionLocal() as db:
+        stored = await db.get(Gameweek, stray.id)
+        assert stored is not None and stored.status is GameweekStatus.settled
+        assert stored.settled_at is not None
+        picks = (await db.execute(select(Pick).where(Pick.gameweek_id == stray.id))).scalars()
+        assert sorted((pick.status, pick.points_awarded) for pick in picks) == [
+            (PickStatus.void, 0),
+            (PickStatus.void, 0),
+        ]
+        rows = list(
+            (await db.execute(select(AuditLog).where(AuditLog.target_id == stray.id))).scalars()
+        )
+    assert len(rows) == 1
+    (row,) = rows
+    assert (row.action_type, row.target_table, row.actor_id) == (
+        ActionType.league_updated,
+        "gameweeks",
+        admin.id,
+    )
+    assert row.changes == {
+        "action": "non_scoring_round_voided",
+        "league_slug": league.slug,
+        "starts_on": "2060-03-06",
+        "refusal": "undeclared_same_week_round",
+        "picks_voided": 2,
+        "reason": "Saturday stray left by the window edit",
+    }
+    trail = await client.get(f"/api/v1/leagues/{league.slug}/audit-log", headers=_auth(admin))
+    assert trail.status_code == 200
+    assert [entry["id"] for entry in trail.json()["entries"]] == [str(row.id)]
+
+
+async def test_the_void_waits_for_the_weeks_scoring_round(client: AsyncClient) -> None:
+    """Settling the stray first would make it the settled sibling that refuses the Friday.
+
+    So until the week's own round has settled the void is refused and nothing moves. The
+    operator's list says which round is which.
+    """
+    admin, league, current, stray, _people = await _stray_week(scored=False)
+
+    listed = await client.get("/api/v1/admin/results/pending", headers=_auth(admin))
+    sent: list[dict[str, Any]] = []
+    with patch(SEND, new=_recorder(sent)):
+        response = await client.post(
+            VOID.format(stray.id), json={"reason": "too early"}, headers=_auth(admin)
+        )
+
+    assert listed.status_code == 200
+    assert {
+        entry["gameweek_id"]: entry["settle_refusal"]
+        for entry in listed.json()
+        if entry["league_slug"] == league.slug
+    } == {str(current.id): None, str(stray.id): "undeclared_same_week_round"}
+    assert response.status_code == 409 and response.json()["detail"] == "WEEK_STILL_SCORING"
+    assert sent == []
+    async with AsyncSessionLocal() as db:
+        stored = await db.get(Gameweek, stray.id)
+        assert stored is not None and stored.status is GameweekStatus.locked
+        statuses = (
+            await db.execute(select(Pick.status).where(Pick.gameweek_id == stray.id))
+        ).scalars()
+        assert list(statuses) == [PickStatus.pending, PickStatus.pending]
+
+
+async def test_only_a_refused_locked_round_is_voided_and_only_by_the_operator(
+    client: AsyncClient,
+) -> None:
+    """Not a way to cancel a week: a round that can score, or has not locked, is refused."""
+    admin, _league_row, current, stray, (member, _away, _idle) = await _stray_week(scored=False)
+    _, _other, _scored, open_stray, _people = await _stray_week(scored=True, stray_locked=False)
+    body = {"reason": "checking the refusals"}
+
+    can_score = await client.post(VOID.format(current.id), json=body, headers=_auth(admin))
+    not_locked = await client.post(VOID.format(open_stray.id), json=body, headers=_auth(admin))
+    not_operator = await client.post(VOID.format(stray.id), json=body, headers=_auth(member))
+
+    assert can_score.status_code == 409 and can_score.json()["detail"] == "ROUND_CAN_SCORE"
+    assert not_locked.status_code == 409 and not_locked.json()["detail"] == "ROUND_NOT_LOCKED"
+    assert not_operator.status_code == 403
+
+
+async def test_a_round_refused_because_its_week_already_scored_is_voided_at_once(
+    client: AsyncClient,
+) -> None:
+    """The second shape: the league's own Saturday, after an undeclared Friday settled.
+
+    Nothing in its week is left to score, so there is nothing to wait for.
+    """
+    saturday = date(2060, 3, 13)
+    async with AsyncSessionLocal() as db:
+        admin = await _profile(db, "admin", role=UserRole.admin)
+        league = await _league(db, admin, "Saturday League")
+        member = await _profile(db, "member")
+        await _join(db, league, member)
+        db.add(
+            Gameweek(
+                league_id=league.id,
+                starts_on=saturday - timedelta(days=1),
+                number=1,
+                status=GameweekStatus.settled,
+                locks_at_utc=_now() - timedelta(hours=30),
+            )
+        )
+        refused = Gameweek(
+            league_id=league.id,
+            starts_on=saturday,
+            number=2,
+            status=GameweekStatus.locked,
+            locks_at_utc=_now() - timedelta(hours=4),
+        )
+        db.add(refused)
+        await db.flush()
+        fixture = await _fixture(db, "Arbroath", "Montrose")
+        db.add(GameweekFixture(gameweek_id=refused.id, fixture_id=fixture.id))
+        await db.flush()
+        await _pick(db, refused, fixture, member, PickOutcome.HOME, "1.95")
+        await db.commit()
+
+    with patch(SEND, new=_recorder([])):
+        response = await client.post(
+            VOID.format(refused.id), json={"reason": "week already scored"}, headers=_auth(admin)
+        )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["refusal"] == "undeclared_sibling_already_settled"
+    assert response.json()["picks_voided"] == 1
 
 
 # ── What the round is called ───────────────────────────────────────────────────

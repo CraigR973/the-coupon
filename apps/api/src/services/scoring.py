@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -29,12 +29,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.display_name import public_name_sql
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus
-from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile
 from src.services.coupon import combined_odds
 from src.services.football_provider import current_season
+from src.services.football_week import settle_refusal
 from src.services.odds_provider import (
     EventSettlement,
     Market,
@@ -42,8 +42,6 @@ from src.services.odds_provider import (
     Outcome,
 )
 from src.services.season_calendar import (
-    canonical_saturday,
-    extra_weeks_between,
     labels_for_gameweeks,
     season_bounds,
 )
@@ -88,59 +86,24 @@ async def _same_week_round_may_settle(db: AsyncSession, gameweek: Gameweek) -> b
     same-week duplicate is refused. A lone off-cadence round is also kept, because a
     later settings edit cannot retrospectively invalidate a week with no replacement.
     """
-    saturday = canonical_saturday(gameweek.starts_on)
-    week_start = saturday - timedelta(days=3)
-    week_end = saturday + timedelta(days=3)
-    rows = await db.execute(
-        select(Gameweek)
-        .where(
-            Gameweek.league_id == gameweek.league_id,
-            Gameweek.starts_on >= week_start,
-            Gameweek.starts_on <= week_end,
-        )
-        .order_by(Gameweek.starts_on, Gameweek.id)
-    )
-    same_week = list(rows.scalars().all())
-    if len(same_week) <= 1:
-        return True
-
-    league = await db.get(League, gameweek.league_id)
-    if league is None:  # pragma: no cover — the foreign key makes this unreachable
-        return False
-    extra_dates = await extra_weeks_between(db, week_start, week_end)
-    intentional = {
-        candidate.id
-        for candidate in same_week
-        if candidate.starts_on.weekday() == league.slate_start_weekday
-        or candidate.starts_on in extra_dates
-    }
-    undeclared = [candidate for candidate in same_week if candidate.id not in intentional]
-    if not undeclared:
-        return True
-
-    # Never add a second score after an undeclared sibling has already settled. Correcting
-    # awarded points is an explicit admin operation, not something a routine sweep guesses.
-    undeclared_settled = [
-        candidate for candidate in undeclared if candidate.status is GameweekStatus.settled
-    ]
-    reason = None
-    if gameweek.id not in intentional:
-        reason = "undeclared_same_week_round"
-    elif undeclared_settled:
-        reason = "undeclared_sibling_already_settled"
-    if reason is None:
+    # Batch 184. The verdict itself now lives in `services/football_week.py`, because the
+    # places that *offer* a round — discovery, the pick path, the operator's void — have
+    # to ask the same question, and a second copy of the rule is how they drifted apart.
+    # What stays here is the operational error, which only a settlement attempt should log.
+    refusal = await settle_refusal(db, gameweek)
+    if refusal is None:
         return True
 
     log.error(
         "same-football-week settlement refused",
-        reason=reason,
+        reason=refusal.reason,
         league_id=str(gameweek.league_id),
         gameweek_id=str(gameweek.id),
         starts_on=gameweek.starts_on.isoformat(),
-        football_week_start=week_start.isoformat(),
-        competing_gameweek_ids=[str(candidate.id) for candidate in same_week],
+        football_week_start=refusal.football_week_start.isoformat(),
+        competing_gameweek_ids=[str(gameweek_id) for gameweek_id in refusal.competing_gameweek_ids],
         intentional_gameweek_ids=[
-            str(candidate.id) for candidate in same_week if candidate.id in intentional
+            str(gameweek_id) for gameweek_id in refusal.intentional_gameweek_ids
         ],
     )
     return False

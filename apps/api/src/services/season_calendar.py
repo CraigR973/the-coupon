@@ -76,18 +76,10 @@ def _occurrence(calendar: SeasonCalendar, day: date) -> date:
     return day if day in set(calendar.extra_weeks) else canonical_saturday(day)
 
 
-def labels_for_dates(calendar: SeasonCalendar, round_dates: Collection[date]) -> dict[date, str]:
-    """Public week values for dates in one season.
-
-    The canonical Saturday is the regular occurrence. Declared extra dates join it in
-    chronological order, so an extra Wednesday is the bare number and the weekend is
-    ``b``; an extra Sunday is ``b``. Dates before a stored anchor stay in week 1 and are
-    separated the same way rather than moving the anchor.
-    """
-    dates = set(round_dates)
-    numbers = {day: week_number(calendar.week_one_anchor, day) for day in dates}
+def _week_occurrences(calendar: SeasonCalendar, numbers: dict[date, int]) -> dict[int, set[date]]:
+    """Every occurrence a week's label is ordered over: its canonical Saturday, its
+    declared extras, and the occurrence each labelled date falls on."""
     occurrences: dict[int, set[date]] = {}
-
     for number in set(numbers.values()):
         occurrences.setdefault(number, set()).add(
             calendar.week_one_anchor + timedelta(weeks=number - 1)
@@ -98,6 +90,20 @@ def labels_for_dates(calendar: SeasonCalendar, round_dates: Collection[date]) ->
         occurrences[number].add(calendar.week_one_anchor + timedelta(weeks=number - 1))
     for day, number in numbers.items():
         occurrences.setdefault(number, set()).add(_occurrence(calendar, day))
+    return occurrences
+
+
+def labels_for_dates(calendar: SeasonCalendar, round_dates: Collection[date]) -> dict[date, str]:
+    """Public week values for dates in one season.
+
+    The canonical Saturday is the regular occurrence. Declared extra dates join it in
+    chronological order, so an extra Wednesday is the bare number and the weekend is
+    ``b``; an extra Sunday is ``b``. Dates before a stored anchor stay in week 1 and are
+    separated the same way rather than moving the anchor.
+    """
+    dates = set(round_dates)
+    numbers = {day: week_number(calendar.week_one_anchor, day) for day in dates}
+    occurrences = _week_occurrences(calendar, numbers)
 
     ordinals = {
         (number, occurrence): ordinal
@@ -165,10 +171,27 @@ class SeasonLabels:
     not re-queried. The cache is therefore only valid while the rounds it covers are
     unchanged: build one per read request and let it go. A request that *creates* rounds
     must not share one across that write.
+
+    **One league, one label per round** (Batch 184, CORR-13). A label names a date's
+    football week, so two rounds of the *same* league in one week — a stray kept by a
+    window edit beside the round the league now plays — used to read as two "Gameweek 1"
+    entries. Within a league the earlier round keeps the week's label and each later one
+    takes the next suffix the week has not used. In both shapes a window edit leaves, the
+    later round is the one that cannot score, and a settled round keeps the name members
+    were told. Only a label two dates share deployment-wide can collide inside a league, so
+    the league read this needs runs only then: never for a deployment whose leagues share
+    one weekday.
     """
 
     def __init__(self) -> None:
         self._by_season: dict[int, dict[date, str]] = {}
+        # Batch 184. Per season: each labelled date's week number, how many occurrences
+        # that week's labels already run to, and the labels more than one date shares.
+        self._numbers: dict[int, dict[date, int]] = {}
+        self._occurrence_counts: dict[int, dict[int, int]] = {}
+        self._shared: dict[int, dict[str, set[date]]] = {}
+        # Each (league, season)'s rounds on those shared dates, read once per request.
+        self._league_rounds: dict[tuple[uuid.UUID, int], set[date]] = {}
 
     async def _resolve(self, db: AsyncSession, seasons: Collection[int]) -> None:
         missing = [season for season in seasons if season not in self._by_season]
@@ -209,19 +232,101 @@ class SeasonLabels:
             if season in dates_by_season:
                 dates_by_season[season].add(day)
         for season, calendar in calendars.items():
-            self._by_season[season] = labels_for_dates(calendar, dates_by_season[season])
+            labels = labels_for_dates(calendar, dates_by_season[season])
+            self._by_season[season] = labels
+            numbers = {
+                day: week_number(calendar.week_one_anchor, day) for day in dates_by_season[season]
+            }
+            self._numbers[season] = numbers
+            self._occurrence_counts[season] = {
+                number: len(values)
+                for number, values in _week_occurrences(calendar, numbers).items()
+            }
+            dates_by_label: dict[str, set[date]] = {}
+            for day, label in labels.items():
+                dates_by_label.setdefault(label, set()).add(day)
+            self._shared[season] = {
+                label: days for label, days in dates_by_label.items() if len(days) > 1
+            }
 
     async def of(self, db: AsyncSession, gameweeks: Sequence[Any]) -> dict[uuid.UUID, str]:
         """Label these rounds, resolving only the seasons this request has not seen."""
         if not gameweeks:
             return {}
         await self._resolve(db, {season_for(gameweek.starts_on) for gameweek in gameweeks})
-        return {
+        labels = {
             gameweek.id: self._by_season[season][gameweek.starts_on]
             for gameweek in gameweeks
             if (season := season_for(gameweek.starts_on)) in self._by_season
             and gameweek.starts_on in self._by_season[season]
         }
+        await self._separate_same_week_rounds(db, gameweeks, labels)
+        return labels
+
+    async def _separate_same_week_rounds(
+        self, db: AsyncSession, gameweeks: Sequence[Any], labels: dict[uuid.UUID, str]
+    ) -> None:
+        """Give a league's later round in a shared week its own label, in place."""
+        ambiguous: list[tuple[Any, int]] = []
+        for gameweek in gameweeks:
+            season = season_for(gameweek.starts_on)
+            if labels.get(gameweek.id) in self._shared.get(season, {}):
+                ambiguous.append((gameweek, season))
+        if not ambiguous:
+            return
+
+        missing = {(gameweek.league_id, season) for gameweek, season in ambiguous}
+        missing -= self._league_rounds.keys()
+        if missing:
+            for key in missing:
+                self._league_rounds[key] = set()
+            shared_dates = sorted(
+                {
+                    day
+                    for _, season in missing
+                    for days in self._shared[season].values()
+                    for day in days
+                }
+            )
+            rows = await db.execute(
+                select(Gameweek.league_id, Gameweek.starts_on).where(
+                    Gameweek.league_id.in_(sorted({league_id for league_id, _ in missing})),
+                    Gameweek.starts_on.in_(shared_dates),
+                )
+            )
+            for league_id, day in rows.all():
+                key = (league_id, season_for(day))
+                if key in missing:
+                    self._league_rounds[key].add(day)
+
+        for gameweek, season in ambiguous:
+            labels[gameweek.id] = self._separated(gameweek.league_id, season, gameweek.starts_on)
+
+    def _separated(self, league_id: uuid.UUID, season: int, day: date) -> str:
+        """``day``'s label among its league's rounds in the same football week."""
+        labels = self._by_season[season]
+        numbers = self._numbers[season]
+        number = numbers[day]
+        week = sorted(
+            candidate
+            for candidate in self._league_rounds[(league_id, season)] | {day}
+            if numbers.get(candidate) == number
+        )
+        seen: set[str] = set()
+        ordinal = self._occurrence_counts[season].get(number, 1)
+        separated = labels[day]
+        for candidate in week:
+            base = labels[candidate]
+            if base in seen:
+                ordinal += 1
+                label = format_week(number, ordinal)
+            else:
+                seen.add(base)
+                label = base
+            if candidate == day:
+                separated = label
+                break
+        return separated
 
 
 async def labels_for_gameweeks(db: AsyncSession, gameweeks: Sequence[Any]) -> dict[uuid.UUID, str]:

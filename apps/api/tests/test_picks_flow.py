@@ -3390,3 +3390,96 @@ async def test_a_round_of_nothing_but_voids_prices_at_one(
     assert coupon.leg_count == 2
     assert coupon.void_leg_count == 2
     assert coupon.combined_odds == 1.00
+
+
+# ── Batch 184: a round that can never score takes no picks ────────────────────
+
+
+async def test_a_stray_round_beside_the_weeks_round_refuses_picks(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """CORR-20's first shape, as it already exists in a database: a kept Saturday stray.
+
+    The league plays Friday now; the Saturday round from before the edit is still open.
+    The guard will never settle it, so a pick on it is refused at the door — while the
+    Friday round beside it, the week's real one, takes picks as before.
+    """
+    client, fake = client_and_fake
+    friday = date(2059, 10, 3)
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["friday"])
+        league.slate_start_weekday = 4
+        league.slate_end_weekday = 4
+        await session.commit()
+        _, scoring_fixture = await _round_with_one_fixture(
+            session,
+            league,
+            friday,
+            locks_at=_now() + timedelta(hours=2),
+            event_id=SAMPLE_EPL_EVENT_ID,
+            home="Arsenal",
+            away="Chelsea",
+            competition="English Premier League",
+            competition_id="10932509",
+        )
+        _, stray_fixture = await _round_with_one_fixture(
+            session,
+            league,
+            friday + timedelta(days=1),
+            locks_at=_now() + timedelta(hours=3),
+            event_id=f"b184-stray-{uuid.uuid4().hex[:8]}",
+            home="Forfar Athletic",
+            away="Brechin City",
+            competition="Scottish League Two",
+            competition_id="10932510",
+        )
+        scoring_id, stray_id = str(scoring_fixture.id), str(stray_fixture.id)
+
+    refused = await _submit(client, league.slug, alice, stray_id, "MATCH_ODDS", "HOME")
+    accepted = await _submit(client, league.slug, alice, scoring_id, "MATCH_ODDS", "HOME")
+
+    assert refused.status_code == 409 and refused.json()["detail"] == "ROUND_NOT_SCORING"
+    assert accepted.status_code == 201, accepted.text
+
+
+async def test_a_round_after_its_week_already_scored_refuses_picks(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """CORR-20's second shape: the Friday round settled, then the league moved to Saturday.
+
+    That week's Saturday is on the league's cadence, but an undeclared sibling has already
+    scored, so the guard refuses it for ever. Members can no longer pick on it.
+    """
+    client, fake = client_and_fake
+    saturday = date(2059, 10, 11)
+    async with AsyncSessionLocal() as session:
+        (bob,), league = await _seed_league(session, ["saturday"])
+        played, _ = await _round_with_one_fixture(
+            session,
+            league,
+            saturday - timedelta(days=1),
+            locks_at=_now() - timedelta(days=1),
+            event_id=f"b184-played-{uuid.uuid4().hex[:8]}",
+            home="Arbroath",
+            away="Montrose",
+            competition="Scottish League Two",
+            competition_id="10932510",
+        )
+        played.status = GameweekStatus.settled
+        await session.commit()
+        _, fixture = await _round_with_one_fixture(
+            session,
+            league,
+            saturday,
+            locks_at=_now() + timedelta(hours=2),
+            event_id=SAMPLE_EPL_EVENT_ID,
+            home="Arsenal",
+            away="Chelsea",
+            competition="English Premier League",
+            competition_id="10932509",
+        )
+        fixture_id = str(fixture.id)
+
+    r = await _submit(client, league.slug, bob, fixture_id, "MATCH_ODDS", "HOME")
+
+    assert r.status_code == 409 and r.json()["detail"] == "ROUND_NOT_SCORING"

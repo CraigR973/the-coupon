@@ -64,6 +64,7 @@ from src.services.credentials import (
 )
 from src.services.discovery_health import discovery_health
 from src.services.football_provider import current_season
+from src.services.football_week import UNDECLARED_SAME_WEEK_ROUND, settle_refusal
 from src.services.gameweek import PICKABLE_STATES
 from src.services.notification_triggers import (
     announce_round_settled,
@@ -1126,6 +1127,11 @@ class PendingRound(BaseModel):
     status: str
     locks_at_utc: UtcDatetime
     fixtures: list[PendingFixture]
+    #: Batch 184. Why the settle guard refuses this round, or ``null`` when it can settle.
+    #: A refused round never settles on its own or by hand; its way out is
+    #: ``POST /results/{id}/void-non-scoring``. Defaulted so a client that predates it
+    #: still parses the list.
+    settle_refusal: str | None = None
 
 
 class ManualResult(BaseModel):
@@ -1203,6 +1209,11 @@ async def pending_results(request: Request, admin: AdminUser, db: Db) -> list[Pe
             )
         )
 
+    refusals: dict[uuid.UUID, str | None] = {}
+    for gameweek, _, _ in rounds:
+        refusal = await settle_refusal(db, gameweek)
+        refusals[gameweek.id] = refusal.reason if refusal is not None else None
+
     return [
         PendingRound(
             league_slug=slug,
@@ -1212,6 +1223,7 @@ async def pending_results(request: Request, admin: AdminUser, db: Db) -> list[Pe
             status=gameweek.status.value,
             locks_at_utc=gameweek.locks_at_utc,
             fixtures=by_round.get(gameweek.id, []),
+            settle_refusal=refusals[gameweek.id],
         )
         for gameweek, slug, name in rounds
     ]
@@ -1321,6 +1333,132 @@ async def settle_manually(
         gameweek_id=str(gameweek_id),
         picks_resolved=resolved,
         settled=final_status is GameweekStatus.settled,
+    )
+
+
+class NonScoringVoid(BaseModel):
+    """Why the operator is voiding a round that can never score. Batch 184."""
+
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class NonScoringVoidResult(BaseModel):
+    gameweek_id: str
+    #: What the settle guard said about the round — the evidence the void was taken on.
+    refusal: str
+    picks_voided: int
+
+
+@router.post("/results/{gameweek_id}/void-non-scoring", response_model=NonScoringVoidResult)
+@limiter.limit("20/hour", key_func=per_user_key)
+async def void_non_scoring_round(
+    request: Request,
+    gameweek_id: uuid.UUID,
+    body: NonScoringVoid,
+    admin: AdminUser,
+    db: Db,
+) -> NonScoringVoidResult:
+    """Void every pick on a round the settle guard refuses, and settle it. Batch 184.
+
+    Owner decision, 2026-09-30 (README decision 3): the picks on a round the guard will
+    never settle are **void**, not left pending for ever. A window edit can leave two
+    rounds in one football week, and Batch 121's guard scores only one of them; the other
+    was refused at every sweep, its picks pending indefinitely and nobody told. Discovery
+    no longer creates such a round and the pick path no longer takes picks on one, so this
+    is for the rounds that already exist.
+
+    **Only what the guard refuses.** A round that can still settle goes through manual
+    settlement or the sweep, never here — this endpoint is not a way to cancel a week.
+    Every pending pick becomes ``void`` at no points, which is the state a postponed match
+    already leaves and every surface already reads ("void — no points"); the round flips to
+    ``settled`` and is announced exactly as a settled round is (Batch 135), so each member
+    hears what happened to their pick.
+
+    **Never before the week's scoring round has settled.** Settling an *undeclared* round
+    makes it a settled undeclared sibling, which is precisely what refuses the league's own
+    round for the rest of time. So while an intentional round in the same week is still
+    unsettled this refuses with ``WEEK_STILL_SCORING``, and the operator comes back once the
+    week has scored. Nor before the round's own deadline: a round settles after it locks.
+
+    One audit row, ``league_updated`` against ``gameweeks`` like manual settlement, naming
+    the league's slug so it appears in that league's own log (Batch 94).
+    """
+    gameweek = (
+        await db.execute(select(Gameweek).where(Gameweek.id == gameweek_id).with_for_update())
+    ).scalar_one_or_none()
+    if gameweek is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Round not found")
+    if gameweek.status == GameweekStatus.settled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="That round has already settled.",
+        )
+    if gameweek.locks_at_utc > _now():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="ROUND_NOT_LOCKED")
+    refusal = await settle_refusal(db, gameweek)
+    if refusal is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="ROUND_CAN_SCORE")
+    if refusal.reason == UNDECLARED_SAME_WEEK_ROUND:
+        still_scoring = await db.scalar(
+            select(func.count())
+            .select_from(Gameweek)
+            .where(
+                Gameweek.id.in_(refusal.intentional_gameweek_ids),
+                Gameweek.status != GameweekStatus.settled,
+            )
+        )
+        if still_scoring:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="WEEK_STILL_SCORING")
+
+    league = await db.get(League, gameweek.league_id)
+    if league is None:  # pragma: no cover — the foreign key guarantees it
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="League not found")
+    pending = (
+        (
+            await db.execute(
+                select(Pick).where(
+                    Pick.gameweek_id == gameweek.id, Pick.status == PickStatus.pending
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for pick in pending:
+        pick.status = PickStatus.void
+        pick.points_awarded = 0
+    gameweek.status = GameweekStatus.settled
+    gameweek.settled_at = _now()
+    db.add(
+        _audit(
+            admin,
+            ActionType.league_updated,
+            "gameweeks",
+            gameweek.id,
+            {
+                "action": "non_scoring_round_voided",
+                "league_slug": league.slug,
+                "starts_on": gameweek.starts_on.isoformat(),
+                "refusal": refusal.reason,
+                "picks_voided": len(pending),
+                "reason": body.reason,
+            },
+        )
+    )
+    refusal_reason = refusal.reason
+    await db.commit()
+    log.info(
+        "non-scoring round voided by hand",
+        gameweek_id=str(gameweek_id),
+        admin_id=str(admin.id),
+        refusal=refusal_reason,
+        picks_voided=len(pending),
+    )
+    # After the commit, as manual settlement does: it commits or discards its own work and
+    # never raises, so a dead push service cannot undo the void.
+    await announce_round_settled(db, gameweek_id)
+    return NonScoringVoidResult(
+        gameweek_id=str(gameweek_id), refusal=refusal_reason, picks_voided=len(pending)
     )
 
 

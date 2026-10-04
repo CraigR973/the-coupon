@@ -10,16 +10,24 @@ from decimal import Decimal
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import hash_pin
 from src.database import AsyncSessionLocal
 from src.models.fixture import Fixture
-from src.models.gameweek import Gameweek, GameweekStatus
+from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
 from src.models.league import League
 from src.models.pick import Pick, PickMarket, PickOutcome
 from src.models.profile import Profile, UserRole
 from src.models.season_calendar import SeasonCalendar
+from src.services.football_week import (
+    UNDECLARED_SAME_WEEK_ROUND,
+    UNDECLARED_SIBLING_ALREADY_SETTLED,
+    WOULD_STRAND_KEPT_ROUND,
+    new_round_refusal,
+    settle_refusal,
+)
 from src.services.gameweek import (
     discover_fixtures,
     populate_cadence_rounds,
@@ -560,3 +568,180 @@ async def test_the_anchor_only_ever_moves_earlier(session: AsyncSession) -> None
     calendar = await calendar_for(session, 2026)
     assert calendar is not None
     assert calendar.week_one_anchor == date(2026, 8, 1)
+
+
+# ── One round per league per football week (Batch 184) ───────────────────────
+
+
+async def _league_rounds(db: AsyncSession, league: League) -> list[Gameweek]:
+    rows = await db.execute(
+        select(Gameweek).where(Gameweek.league_id == league.id).order_by(Gameweek.starts_on)
+    )
+    return list(rows.scalars().all())
+
+
+async def _claim(db: AsyncSession, league: League, gameweek: Gameweek) -> Pick:
+    """One member's pick on ``gameweek`` — what keeps a stray from being retired."""
+    tag = uuid.uuid4().hex[:8]
+    member = Profile(display_name=f"claim-{tag}", pin_hash=hash_pin("1234"), role=UserRole.player)
+    day = gameweek.starts_on
+    fixture = Fixture(
+        provider_event_id=f"claim-{tag}",
+        home="Forfar",
+        away="Brechin",
+        kickoff_utc=datetime(day.year, day.month, day.day, 14),
+        competition="Played League",
+        competition_id="played-league",
+    )
+    db.add_all([member, fixture])
+    await db.flush()
+    db.add(GameweekFixture(gameweek_id=gameweek.id, fixture_id=fixture.id))
+    pick = Pick(
+        league_id=league.id,
+        gameweek_id=gameweek.id,
+        fixture_id=fixture.id,
+        player_id=member.id,
+        market=PickMarket.MATCH_ODDS,
+        outcome=PickOutcome.HOME,
+        runner_name="Forfar",
+        odds_at_pick=Decimal("2.00"),
+    )
+    db.add(pick)
+    await db.flush()
+    return pick
+
+
+async def test_a_mid_week_move_to_friday_keeps_the_picked_saturday_as_the_weeks_round(
+    session: AsyncSession,
+) -> None:
+    """CORR-20's first reproduction: a Saturday league moves to Friday on the Wednesday.
+
+    The Saturday round already holds a pick, so retirement keeps it — and discovery used
+    to create the new Friday beside it. The guard then refused the Saturday at every
+    sweep while it went on taking picks. Now the week is played on the round it already
+    has: no Friday this week, the Friday cadence from the next, and the Saturday — the
+    week's only round — is one the guard lets score.
+    """
+    _, league = await _league(session, weekday=5)
+    session.add(SeasonCalendar(season=2055, week_one_anchor=date(2055, 8, 7), extra_weeks=[]))
+    await session.flush()
+    saturday = date(2055, 10, 2)
+    friday = saturday - timedelta(days=1)
+    wednesday = saturday - timedelta(days=3)
+    provider = _Provider()
+
+    await discover_fixtures(session, provider, [league], saturday - timedelta(days=5), 1)
+    (kept,) = await _league_rounds(session, league)
+    assert kept.starts_on == saturday
+    await _claim(session, league, kept)
+
+    league.slate_start_weekday = 4
+    league.slate_end_weekday = 4
+    await session.flush()
+    await discover_fixtures(session, provider, [league], wednesday, 2)
+    # The settings edit's own rebuild takes the same path, and refuses the same round.
+    await populate_cadence_rounds(session, provider, league, wednesday, 2)
+
+    rounds = await _league_rounds(session, league)
+    assert [round_.starts_on for round_ in rounds] == [saturday, friday + timedelta(weeks=1)]
+    assert await settle_refusal(session, kept) is None, "the week's only round scores"
+    assert await labels_for_gameweeks(session, rounds) == {rounds[0].id: "9", rounds[1].id: "10"}
+
+
+async def test_a_move_to_saturday_after_fridays_round_settled_adds_no_second_round(
+    session: AsyncSession,
+) -> None:
+    """CORR-20's second reproduction: the Friday round settles, then the league moves.
+
+    Discovery used to create that week's Saturday, labelled like the settled Friday and
+    open for picks, which the guard then refused for ever because an undeclared sibling
+    had already scored. Now the settled Friday stays the week's one round.
+    """
+    _, league = await _league(session, weekday=4)
+    session.add(SeasonCalendar(season=2056, week_one_anchor=date(2056, 8, 5), extra_weeks=[]))
+    await session.flush()
+    saturday = date(2056, 10, 7)
+    friday = saturday - timedelta(days=1)
+    provider = _Provider()
+
+    await discover_fixtures(session, provider, [league], friday - timedelta(days=4), 1)
+    (played,) = await _league_rounds(session, league)
+    assert played.starts_on == friday
+    played.status = GameweekStatus.settled
+    league.slate_start_weekday = 5
+    league.slate_end_weekday = 5
+    await session.flush()
+
+    await discover_fixtures(session, provider, [league], friday, 2)
+
+    rounds = await _league_rounds(session, league)
+    assert [round_.starts_on for round_ in rounds] == [friday, saturday + timedelta(weeks=1)]
+    assert await labels_for_gameweeks(session, rounds) == {rounds[0].id: "10", rounds[1].id: "11"}
+
+
+async def test_a_new_round_is_refused_only_beside_an_undeclared_one(
+    session: AsyncSession,
+) -> None:
+    """The guard's question, asked before the row exists — and Batch 113's extras untouched."""
+    _, league = await _league(session, weekday=5)
+    saturday = date(2057, 10, 6)
+    extra_tuesday = saturday + timedelta(days=3)
+    session.add(
+        SeasonCalendar(season=2057, week_one_anchor=date(2057, 8, 4), extra_weeks=[extra_tuesday])
+    )
+    await _round(session, league, saturday, status=GameweekStatus.settled)
+    kept_stray = saturday + timedelta(weeks=2, days=-1)
+    settled_stray = saturday + timedelta(weeks=3, days=-1)
+    await _round(session, league, kept_stray)
+    await _round(session, league, settled_stray, status=GameweekStatus.settled)
+    await session.flush()
+
+    # A declared extra beside a settled cadence round is intentional on both sides.
+    assert await new_round_refusal(session, league, extra_tuesday) is None
+    assert await new_round_refusal(session, league, saturday + timedelta(weeks=1)) is None
+    assert (
+        await new_round_refusal(session, league, saturday + timedelta(weeks=2))
+        == WOULD_STRAND_KEPT_ROUND
+    )
+    assert (
+        await new_round_refusal(session, league, saturday + timedelta(weeks=3))
+        == UNDECLARED_SIBLING_ALREADY_SETTLED
+    )
+    assert (
+        await new_round_refusal(session, league, saturday - timedelta(days=1))
+        == UNDECLARED_SAME_WEEK_ROUND
+    )
+
+
+async def test_a_leagues_second_round_in_one_week_takes_its_own_label(
+    session: AsyncSession,
+) -> None:
+    """CORR-13: two rounds of one league in one week no longer both read "Gameweek 10".
+
+    The earlier round keeps the week's label, so a settled round keeps the name members
+    were told; the later one takes the next suffix. Another league's round on the same
+    Saturday still shares the public number, which is what the calendar is for.
+    """
+    _, friday_league = await _league(session, weekday=4)
+    _, saturday_league = await _league(session, weekday=5)
+    session.add(SeasonCalendar(season=2058, week_one_anchor=date(2058, 8, 3), extra_weeks=[]))
+    saturday = date(2058, 10, 5)
+    friday = saturday - timedelta(days=1)
+    current = await _round(session, friday_league, friday)
+    stray = await _round(session, friday_league, saturday)
+    elsewhere = await _round(session, saturday_league, saturday)
+    played = await _round(
+        session, saturday_league, friday + timedelta(weeks=1), status=GameweekStatus.settled
+    )
+    after_it = await _round(session, saturday_league, saturday + timedelta(weeks=1))
+    await session.flush()
+
+    assert await labels_for_gameweeks(session, [current, stray, elsewhere, played, after_it]) == {
+        current.id: "10",
+        stray.id: "10b",
+        elsewhere.id: "10",
+        played.id: "11",
+        after_it.id: "11b",
+    }
+    # Labelling one round alone reads its league's week, not just the rows it was handed.
+    assert await labels_for_gameweeks(session, [stray]) == {stray.id: "10b"}

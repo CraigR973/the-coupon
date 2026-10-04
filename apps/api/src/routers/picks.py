@@ -7,7 +7,8 @@ authoritative rather than client-supplied, and it enforces both game rules:
 * the claim period — after the league's announced opening (``PICKS_NOT_OPEN``) and
   before the deadline (``PICKS_LOCKED``);
 * one pick per member per round (a re-pick updates in place, freeing the old selection);
-* no two members holding the same claim (first-come; a taken claim → 409).
+* no two members holding the same claim (first-come; a taken claim → 409);
+* no pick on a round the settle guard would never score (``ROUND_NOT_SCORING``, Batch 184).
 
 How much a claim covers is the league's ``pick_scope``: one ``(fixture, market,
 outcome)`` under the original ``selection`` rule, or the entire game under ``fixture``.
@@ -44,6 +45,7 @@ from src.models.gameweek import Gameweek, GameweekFixture
 from src.models.league import League, PickScope
 from src.models.pick import Pick, PickMarket, PickOutcome
 from src.rate_limit import consume_shared_limit, limiter, per_user_key
+from src.services.football_week import settle_refusal
 from src.services.gameweek import (
     PICKABLE_STATES,
     RoundProgress,
@@ -157,6 +159,13 @@ PICKS_BUSY = "PICKS_BUSY"
 #: seeing it. A refusal rather than a silent freeze: the price is what a winner is scored
 #: on, and scoring somebody on a number they never saw is the thing this exists to stop.
 PRICE_MOVED = "PRICE_MOVED"
+
+#: What a member is told when the round they are picking on can never score (Batch 184).
+#:
+#: A window edit can leave two rounds in one football week, and the settle guard scores
+#: only one of them (Batch 121). Picking on the other used to succeed and then wait,
+#: pending, for a settlement that would never come; now it is refused at the door.
+ROUND_NOT_SCORING = "ROUND_NOT_SCORING"
 
 
 def _now() -> datetime:
@@ -274,6 +283,18 @@ async def submit_pick(
     refusal = pick_refusal(gameweek, _now())
     if refusal is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=refusal)
+
+    # Batch 184 (CORR-20). A round the settle guard refuses can never score, so a pick on
+    # it is a pick that would sit pending for ever. Asked after the clock, because a round
+    # that is over is over whatever else is true of it, and before anything is charged.
+    if await settle_refusal(db, gameweek) is not None:
+        log.info(
+            "pick refused: the round cannot score",
+            league_id=str(league.id),
+            gameweek_id=str(gameweek.id),
+            player_id=str(player.id),
+        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=ROUND_NOT_SCORING)
 
     # The league may offer only a subset of the two markets. A market it does not offer
     # is refused here as well as hidden from the slate, so the rule holds even if a

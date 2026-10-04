@@ -34,6 +34,7 @@ from src.models.pick import Pick
 from src.models.profile import Profile
 from src.services.competitions import MEASURED_PLAYED_CATALOGUE as MEASURED_CATALOGUE
 from src.services.football_provider import FootballDataProvider, current_season, season_for
+from src.services.football_week import new_round_refusal
 from src.services.odds_provider import (
     UK_TZ,
     OddsProvider,
@@ -573,6 +574,10 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
     it. This is the only place the selection is applied, so two leagues sharing a window
     but not a selection still cost one fetch and simply link different subsets of it.
 
+    Nor is a round created where the settle guard would refuse it, or refuse the round the
+    week already has (Batch 184; :func:`~src.services.football_week.new_round_refusal`).
+    ``None`` again, and again any existing round is left alone.
+
     Both ends of the claim period — ``locks_at_utc`` and ``picks_open_at_utc`` — are
     written when the round is created and never re-derived **here**, so topping up a
     round's card cannot move a deadline as a side effect. Restamping them is a deliberate
@@ -609,6 +614,22 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
         # Keyed on the *playable* fixtures rather than every selected one: a date whose
         # whole card is called off is a date with no round, not a round with no fixtures.
         if not playable:
+            return None
+        # Batch 184 (CORR-20). Never create a round the settle guard would refuse, or one
+        # that would make it refuse the week's existing round. After a mid-week window
+        # edit the league may already hold this football week's round on its old day — a
+        # stray kept because it holds picks, or one that has already settled — and a
+        # second round beside it is a round that can never settle: it took picks, refused
+        # them at every sweep, and left them pending for ever. The week is played on the
+        # round it already has; the new cadence starts the following week.
+        refusal = await new_round_refusal(db, league, slate.starts_on)
+        if refusal is not None:
+            log.info(
+                "round not created: its football week already has the league's round",
+                league_id=str(league.id),
+                starts_on=slate.starts_on.isoformat(),
+                reason=refusal,
+            )
             return None
         # A genuinely new season establishes its deployment-wide anchor only after this
         # league has proved it has something to play. A migrated season with historical
