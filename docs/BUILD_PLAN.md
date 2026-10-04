@@ -402,7 +402,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: the combined-odds arithmetic and its display. **API-carrying — first in its
   group.**
 
-- [ ] **Batch 184 — After a window change, a round that can never settle still takes picks, and shares a label**
+- [x] **Batch 184 — After a window change, a round that can never settle still takes picks, and shares a label** ✅ 2026-10-04
   — specified from `docs/review/2026-09-28/02-correctness.md`, CORR-20 (MED, live, verified)
   and CORR-13 (MED, carried — not fixed by Batch 121). Batch 121's settle guard
   (`scoring._same_week_round_may_settle`) is right about scoring, but nothing on the offering

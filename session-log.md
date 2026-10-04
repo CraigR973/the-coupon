@@ -8084,3 +8084,29 @@ then Batch 184.
   redeploy `dfc17de3` reached `SUCCESS` before the upload and is the plain rollback image.
 
 **Next:** Batch 184, continuing Group AD.
+
+## Batch 184 — After a window change, a round that can never settle still takes picks, and shares a label
+**Commits:** `a8aaea7` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,380 backend
+and 1,270 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37240942502 PASS for `a8aaea7`
+
+### Key facts for future sessions
+- **One rule, four askers.** Batch 121's guard verdict now lives in `services/football_week.py`
+  (`settle_refusal`, unchanged); the sweep logs it, `sync_slate` asks `new_round_refusal` before
+  creating a round, the pick path refuses with `409 ROUND_NOT_SCORING`, and the operator void
+  accepts only what it refuses. Declared calendar extras are never refused.
+- **The week is played on the round it already has.** After a mid-week edit, a picked stray
+  (or a settled sibling) blocks the new cadence round for that week only; the stray is then the
+  week's lone round and scores. Both CORR-20 reproductions now leave one round per week.
+- **Operator path:** `POST /api/v1/admin/results/{id}/void-non-scoring` (site admin, reason
+  required) voids pending picks at 0, settles, writes one `league_updated`/`gameweeks` audit row
+  with `league_slug`, and announces the settle line. It refuses `WEEK_STILL_SCORING` until the
+  week's intentional round has settled, and `ROUND_NOT_LOCKED`/`ROUND_CAN_SCORE` otherwise;
+  `GET /admin/results/pending` carries `settle_refusal`.
+- **Labels:** a league's later round in a shared week takes the next unused suffix (`10b`); the
+  extra league read runs only when two dates share a label deployment-wide, so production's
+  one-weekday shape pays nothing. The web shows the raw `ROUND_NOT_SCORING` code if a member
+  ever meets one (no web copy in this API-only batch); no gate failures on the way.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+**Next:** Batch 185 (Group AD).

@@ -29,10 +29,11 @@ Checked 2026-10-04 unless a line says otherwise.
 
 ## Owed
 
-- **No `/ship-prod` is owed.** Group AD's first checkpoint shipped on 2026-10-04 as Railway
-  `2fb09b79` (`bb09760b`): the test-only fix `88c0f75`, Batch 183's combined-odds arithmetic and
-  Batch 188's live-league-only season-calendar reads. The drift check reports **in sync**, and
-  migration remains `026`.
+- **A `/ship-prod` is owed for Batch 184** (`a8aaea7`, 2026-10-04): non-scoring rounds are no
+  longer created or pickable, the operator void route and distinct same-week labels. It is
+  API-only and migrates nothing; it rides with Group AD's closing checkpoint after Batch 187.
+  Group AD's first checkpoint shipped on 2026-10-04 as Railway `2fb09b79` (`bb09760b`):
+  Batch 183's combined-odds arithmetic and Batch 188's season-calendar reads.
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
   Railway `dfc17de3-9a7e-4b1a-9a3c-911a8539db77`, the previous image redeployed by the
   pinned IaC apply — boots against the database as it stands. Vercel was already on
@@ -75,8 +76,8 @@ Batches 170-203 are drafted from the 2026-09-28 review and every owner decision 
 was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is complete
 (172, 173, 174 and 170, closed 3 Oct; web-only, nothing to ship). Group AC is complete,
 shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Group AD's first
-checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188); Batches 184-187 follow, then its
-closing `/ship-prod`. Groups AE, AB, AF and AH follow
+checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188); Batch 184 closed on 4 Oct;
+Batches 185-187 follow, then its closing `/ship-prod`. Groups AE, AB, AF and AH follow
 (`docs/agent-commands/group-start.md`).
 
 ## Toolchain
@@ -119,4 +120,4 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Batch 184, continuing Group AD; and the owner's season-calendar backfill, now unblocked.
+**Next:** Batch 185, continuing Group AD; and the owner's season-calendar backfill, now unblocked.
