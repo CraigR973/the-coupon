@@ -8014,3 +8014,26 @@ https://github.com/CraigR973/the-coupon/actions/runs/37155283334 PASS for `88c0f
 **Batch 181's data step, 2026-10-03:** a read-only dry run against production (session pooler,
 `python -m src.clear_league_name_overrides --dry-run`) found **0** stored per-league names, so
 there is nothing to clear and the owner action is closed without an `--apply`.
+
+## Batch 183 — A big league's home screen and results history break once the accumulator passes 10^26
+**Commits:** `b2220c8` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,365 backend
+and 1,270 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37191645577 PASS for `b2220c8`
+
+### Key facts for future sessions
+- **The product and final quantize share a data-sized decimal context.** Budgeting precision
+  from the operands prevents both the old `InvalidOperation` and an earlier rounded product;
+  `3.32` to the fiftieth now ends in `.99`, not a rounded `.00`.
+- **All four API reads are pinned at the 50-member stress shape:** coupon, results, home's
+  current round and home's last result return 200 and the same finite value.
+- **Presentation caps at `1,000,000+`.** The API contract stays numeric; every combined-price
+  screen and both share texts use one formatter, while individual leg odds stay exact.
+- **Failures on the way:** the first Dashboard test exposed that current coupon figures are
+  intentionally hidden until lock, so its fixture was corrected to the locked state; the first
+  full gate hit the host's invalid `C.UTF-8` in both pgserver checks and passed unchanged under
+  the documented `en_US.UTF-8`. An attempted Prettier pass found no installed Prettier command;
+  pinned ruff, ESLint, typecheck and the gate supplied formatting/static proof.
+- **Scope held:** void-leg filtering remains Batch 186; no response field or scoring rule changed.
+- **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-04T09:15:56Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
+
+**Next:** Batch 188, then Group AD's first `/ship-prod` checkpoint.

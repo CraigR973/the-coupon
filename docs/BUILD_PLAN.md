@@ -383,7 +383,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: these bounds, the CSP and one comment. **API + web.**
 
-- [ ] **Batch 183 — A big league's home screen and results history break once the accumulator passes 10^26**
+- [x] **Batch 183 — A big league's home screen and results history break once the accumulator passes 10^26** ✅ 2026-10-04
   — specified from `docs/review/2026-09-28/04-performance-operations.md`, PERF-19 (HIGH, live,
   verified by the lens and re-run by the lead). `combined_odds` (`services/coupon.py:30-40`)
   quantizes the product to 2 dp under Python's default 28-digit context; at about 10^26 it

@@ -29,10 +29,10 @@ Checked 2026-10-03 unless a line says otherwise.
 
 ## Owed
 
-- **A behaviour-neutral `/ship-prod` is owed** (2026-10-03). Group AC shipped as Railway
-  `dec590b7` (`9be47cef`) and was verified in sync; the test-only fix `88c0f75` that followed
-  sits under `apps/api`, so the drift check counts it as reaching the image. Nothing runtime or
-  schema changed; it can ride with Group AD's first checkpoint (after Batch 188).
+- **A `/ship-prod` is owed and scheduled after Batch 188** (2026-10-04). Craig Robinson
+  scheduled it at `2026-10-04T09:15:56Z`. It carries the test-only fix `88c0f75` and Batch
+  183's high-precision combined-odds arithmetic; no migration is involved. Batch 183's web
+  formatter is backward-compatible with the deployed API and caps presentation at `1,000,000+`.
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
   Railway `4ee4a962-3a91-449d-b5de-11ca66bdc9f9`, the previous image redeployed by the
   pinned IaC apply — boots against the database as it stands. Vercel was already on
@@ -73,9 +73,9 @@ These are not batches; nothing here will happen unless the owner does it or auth
 Batches 170-203 are drafted from the 2026-09-28 review and every owner decision they needed
 was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is complete
 (172, 173, 174 and 170, closed 3 Oct; web-only, nothing to ship). Group AC is complete,
-shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Groups AD,
-AE, AB, AF and AH follow in that order (`docs/agent-commands/group-start.md`; the reasons are in
-the review's `08-sequencing.md`).
+shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Group AD is in
+progress: Batch 183 closed on 4 Oct, Batch 188 is next, then the scheduled `/ship-prod`
+checkpoint. Groups AE, AB, AF and AH follow (`docs/agent-commands/group-start.md`).
 
 ## Toolchain
 
@@ -116,4 +116,4 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** `/group-start AD`, starting with Batch 183; and the owner's clear-overrides step.
+**Next:** Continue Group AD with Batch 188, then stop for its scheduled `/ship-prod` checkpoint.
