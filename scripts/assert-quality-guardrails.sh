@@ -108,6 +108,10 @@ EOF
 apps/web/src/test/csp.test.ts|expect(connect).toContain('https://api-production-0641.up.railway.app');
 EOF
       ;;
+    188) cat <<'EOF'
+apps/api/tests/test_cross_league_summary_cost.py|assert flat.count("GAMEWEEKS.") == 3, f"one projected column and two bounds: {flat}"
+EOF
+      ;;
   esac
 }
 
@@ -117,6 +121,7 @@ approved_oracle_paths() {
     179) echo "apps/api/tests/test_admin_console.py" ;;
     181) echo "apps/api/tests/test_league_display_name.py apps/api/tests/test_league_write_access.py" ;;
     182) echo "apps/web/src/test/csp.test.ts" ;;
+    188) echo "apps/api/tests/test_cross_league_summary_cost.py" ;;
   esac
 }
 

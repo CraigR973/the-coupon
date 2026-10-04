@@ -505,6 +505,12 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Verification: the lens's scratch reproduction (a deleted league with a 1 Aug round) leaves
   the anchor on the first live Saturday; the dry run names the anchoring round.
 
+  **Oracle changes approved (owner, 2026-10-04):** this batch may replace only the one
+  existing query-shape oracle line fingerprinted in trusted main, and only in
+  `apps/api/tests/test_cross_league_summary_cost.py`. The replacement must assert the
+  projected date count, the exact live-league join and the deleted-league filter; this is not
+  a file-wide or reusable waiver.
+
   Scope boundary: those three reads and the dry-run output. **API-carrying — ship before the
   owner runs the backfill.**
 
