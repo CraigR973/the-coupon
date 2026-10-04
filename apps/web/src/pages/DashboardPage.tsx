@@ -12,7 +12,13 @@ import type {
   OddsFormat,
   PerLeagueSummary,
 } from '../lib/types';
-import { fixtureContext, formatOdds, outcomeLabel, roundName } from '../lib/coupon';
+import {
+  fixtureContext,
+  formatCombinedOdds,
+  formatOdds,
+  outcomeLabel,
+  roundName,
+} from '../lib/coupon';
 import { HOME_CARD_STATE, homeCardState, showsCouponFigures } from '../lib/home';
 import { predictionsPath } from '../lib/leagues';
 import { formatCalendarDate, formatInstant, parseInstant } from '../lib/time';
@@ -566,7 +572,7 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
             </span>
             {showFigures && (
               <span className="tabular-nums">
-                {round.leg_count}-fold · {formatOdds(round.combined_odds, oddsFormat)}
+                {round.leg_count}-fold · {formatCombinedOdds(round.combined_odds, oddsFormat)}
               </span>
             )}
           </div>
@@ -753,10 +759,10 @@ function LastResultPanel({ round, form }: { round: LastRoundView; form?: FormRou
       <div className="mt-1 flex items-end justify-between gap-3">
         <p className="font-sans text-sm text-text-muted">
           {round.picksWon === null
-            ? `${round.legCount}-fold · ${formatOdds(round.combinedOdds, oddsFormat)}`
+            ? `${round.legCount}-fold · ${formatCombinedOdds(round.combinedOdds, oddsFormat)}`
             : round.legCount === 0
               ? 'Nobody picked this round'
-              : `${round.picksWon} of ${round.legCount} ${round.legCount === 1 ? 'pick' : 'picks'} landed · ${round.legCount}-fold · ${formatOdds(round.combinedOdds, oddsFormat)}`}
+              : `${round.picksWon} of ${round.legCount} ${round.legCount === 1 ? 'pick' : 'picks'} landed · ${round.legCount}-fold · ${formatCombinedOdds(round.combinedOdds, oddsFormat)}`}
         </p>
         <PickFormLine form={form} className="shrink-0" />
       </div>

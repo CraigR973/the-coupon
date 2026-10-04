@@ -26,6 +26,10 @@ def test_combined_odds_empty_is_one() -> None:
     assert combined_odds([]) == Decimal("1.00")
 
 
+def test_combined_odds_keeps_every_cent_past_the_default_context() -> None:
+    assert combined_odds([Decimal("3.32")] * 50) == Decimal("113999825143316519753879208.99")
+
+
 @pytest.mark.parametrize(
     ("odds", "expected"),
     [

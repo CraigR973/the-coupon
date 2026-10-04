@@ -455,6 +455,23 @@ function withResult(result: Partial<import('@/lib/types').LastResult> = {}): Cro
   };
 }
 
+it('marks astronomical prices on both the current and last-round figures', async () => {
+  const summary = withResult({ combined_odds: 1.1399982514331652e26 });
+  summary.per_league[0] = {
+    ...summary.per_league[0],
+    current_round: {
+      ...summary.per_league[0].current_round!,
+      status: 'locked',
+      combined_odds: 1.1399982514331652e26,
+    },
+  };
+  stubFetch(summary);
+  renderPage();
+
+  const card = await screen.findByTestId('home-card-the-coupon');
+  expect(card.textContent?.match(/1,000,000\+/g)).toHaveLength(2);
+});
+
 describe('the week just gone', () => {
   it('says the pick came in, what it scored, and how many landed', async () => {
     stubFetch(withResult());

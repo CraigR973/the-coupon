@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, localcontext
 
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -34,10 +34,25 @@ def combined_odds(odds: Sequence[Decimal]) -> Decimal:
     ``build_coupon`` filters before it gets here, so this stays the arithmetic and the
     rule about void lives with the data that knows about it.
     """
-    product = Decimal(1)
-    for value in odds:
-        product *= value
-    return product.quantize(_TWO_DP, rounding=ROUND_HALF_UP)
+    # The default Decimal context has 28 significant digits. A 30-50 member league can
+    # cross that boundary even though every individual price fits NUMERIC(6, 2), and the
+    # final quantize then raises InvalidOperation. Keep both the multiplication and the
+    # quantize in one context: wrapping only the latter prevents the 500 but preserves a
+    # product that was already rounded on the way there.
+    #
+    # Multiplying finite decimals needs at most the sum of their coefficient digits.
+    # ``adjusted() + 1`` also budgets integer zeroes implied by a positive exponent, and
+    # two more places cover the final money-style scale. This is deliberately derived
+    # from the values rather than from today's 50-member limit.
+    required_precision = 2 + sum(
+        max(len(value.as_tuple().digits), value.adjusted() + 1) for value in odds
+    )
+    with localcontext() as context:
+        context.prec = max(context.prec, 3, required_precision)
+        product = Decimal(1)
+        for value in odds:
+            product *= value
+        return product.quantize(_TWO_DP, rounding=ROUND_HALF_UP)
 
 
 class CouponLeg(BaseModel):

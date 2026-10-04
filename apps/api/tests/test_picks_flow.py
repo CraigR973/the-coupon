@@ -1120,6 +1120,96 @@ async def test_results_lists_only_settled_gameweeks_with_winner_and_outcome(
     assert row["picks_won"] == 1, "Alice's Arsenal landed and Bob's Brechin did not"
 
 
+async def test_a_fifty_leg_price_survives_every_coupon_summary(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Batch 183: one huge acca must not permanently 500 any read of the round."""
+    client, _ = client_and_fake
+    tag = uuid.uuid4().hex[:8]
+    pin_hash = hash_pin("1234")
+    async with AsyncSessionLocal() as session:
+        players = [
+            Profile(
+                display_name=f"stress-{index:02d}-{tag}",
+                pin_hash=pin_hash,
+                role=UserRole.player,
+            )
+            for index in range(50)
+        ]
+        session.add_all(players)
+        await session.flush()
+        league = League(
+            slug=f"stress-{tag}",
+            name=f"Stress {tag}",
+            created_by=players[0].id,
+            max_members=50,
+        )
+        session.add(league)
+        await session.flush()
+        session.add_all(
+            LeagueMembership(league_id=league.id, player_id=player.id) for player in players
+        )
+        gameweek = Gameweek(
+            league_id=league.id,
+            starts_on=SAMPLE_SATURDAY,
+            number=1,
+            status=GameweekStatus.settled,
+            locks_at_utc=_now() - timedelta(hours=2),
+            settled_at=_now(),
+        )
+        session.add(gameweek)
+        await session.flush()
+
+        fixtures = [
+            Fixture(
+                provider_event_id=f"stress-{tag}-{index:02d}",
+                home=f"Home {index:02d}",
+                away=f"Away {index:02d}",
+                kickoff_utc=_now() - timedelta(hours=1, minutes=index),
+                competition="Stress league",
+                competition_id="stress-league",
+            )
+            for index in range(50)
+        ]
+        session.add_all(fixtures)
+        await session.flush()
+        session.add_all(
+            GameweekFixture(gameweek_id=gameweek.id, fixture_id=fixture.id) for fixture in fixtures
+        )
+        session.add_all(
+            Pick(
+                league_id=league.id,
+                gameweek_id=gameweek.id,
+                fixture_id=fixture.id,
+                player_id=player.id,
+                market=PickMarket.MATCH_ODDS,
+                outcome=PickOutcome.HOME,
+                runner_name=fixture.home,
+                odds_at_pick=Decimal("3.32"),
+                points_awarded=33,
+                status=PickStatus.won,
+                pick_scope=PickScope.selection,
+            )
+            for player, fixture in zip(players, fixtures, strict=True)
+        )
+        await session.commit()
+
+    coupon = await client.get(f"/api/v1/leagues/{league.slug}/coupon", headers=_auth(players[0]))
+    results = await client.get(f"/api/v1/leagues/{league.slug}/results", headers=_auth(players[0]))
+    home = await client.get("/api/v1/me/cross-league-summary", headers=_auth(players[0]))
+    assert coupon.status_code == results.status_code == home.status_code == 200
+
+    expected = float(Decimal("113999825143316519753879208.99"))
+    home_league = {row["slug"]: row for row in home.json()["per_league"]}[league.slug]
+    prices = {
+        "coupon": coupon.json()["combined_odds"],
+        "results": results.json()[0]["combined_odds"],
+        "home current round": home_league["current_round"]["combined_odds"],
+        "home last result": home_league["last_result"]["combined_odds"],
+    }
+    assert prices == {surface: expected for surface in prices}
+
+
 # ── Batch 67: what a round looks like once it has been played ──────────────────
 #
 # `CombinedAccaView` showed a won/lost badge per leg and an "All legs won" line, which is

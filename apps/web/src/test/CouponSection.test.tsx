@@ -114,6 +114,17 @@ describe('CouponSection', () => {
     expect(screen.getByRole('button', { name: /copy text/i })).toBeTruthy();
   });
 
+  it('marks an astronomical combined price on screen and in both share texts', () => {
+    const huge = coupon({ combined_odds: 1.1399982514331652e26 });
+    renderSection(huge);
+
+    expect(screen.getByText('1,000,000+')).toBeTruthy();
+    expect(buildCouponShareText(huge)).toContain('2-fold accumulator @ 1,000,000+');
+    expect(buildSettledResultShareText(huge)).toContain(
+      '2-fold accumulator @ 1,000,000+',
+    );
+  });
+
   /**
    * Batch 105. The fold, the combined price and the frozen-price sentence were printed
    * on both coupon screens and inside the pasted text, so a member reading one round saw

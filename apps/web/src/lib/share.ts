@@ -1,6 +1,6 @@
 /** Plain-text clipboard payloads for the coupon and standings surfaces. */
 
-import { formatOdds, pickStatusLabel, selectionSummary } from './coupon';
+import { formatCombinedOdds, formatOdds, pickStatusLabel, selectionSummary } from './coupon';
 import type { Coupon, Standing } from './types';
 
 /**
@@ -26,7 +26,7 @@ function foldLine(coupon: Coupon, memberCount?: number): string {
   // different and one that is explainable.
   const voided = coupon.void_leg_count ?? 0;
   const priced = coupon.leg_count - voided;
-  const fold = `${priced}-fold accumulator @ ${formatOdds(coupon.combined_odds)}`;
+  const fold = `${priced}-fold accumulator @ ${formatCombinedOdds(coupon.combined_odds)}`;
   const voidNote = voided > 0 ? ` — ${voidLegLabel(voided)} void, not in the price` : '';
   const missing = memberCount == null ? 0 : memberCount - coupon.leg_count;
   const missingNote =

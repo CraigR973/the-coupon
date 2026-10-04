@@ -65,6 +65,19 @@ export function formatOdds(odds: number, format: OddsFormat = 'decimal'): string
 }
 
 /**
+ * A combined accumulator price that stays readable when a large league multiplies beyond
+ * useful browser precision. The API still carries the calculated value; only presentation
+ * is capped, with the marker making that explicit. Individual-leg prices continue through
+ * `formatOdds`, where a cap would hide real scoring information.
+ */
+export function formatCombinedOdds(odds: number, format: OddsFormat = 'decimal'): string {
+  if (odds >= 1_000_000) {
+    return format === 'fractional' ? '999,999+/1' : '1,000,000+';
+  }
+  return formatOdds(odds, format);
+}
+
+/**
  * Points a winning pick at these odds scores. Mirrors the backend rule
  * `round(odds × 10)` (half-up) so the UI's "win = N pts" matches settlement.
  */

@@ -1,7 +1,7 @@
 import { ChevronDown, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Coupon, OddsFormat } from '../lib/types';
-import { formatOdds, type RoundPhase } from '../lib/coupon';
+import { formatCombinedOdds, type RoundPhase } from '../lib/coupon';
 import { COUPON_SECTION_ID } from '../lib/leagues';
 
 /** What the header's `aria-controls` points at — the part that folds. */
@@ -176,9 +176,9 @@ export function CouponSection({
                     )}
                   >
                     {coupon.all_won === false ? (
-                      <s>{formatOdds(coupon.combined_odds, oddsFormat)}</s>
+                      <s>{formatCombinedOdds(coupon.combined_odds, oddsFormat)}</s>
                     ) : (
-                      formatOdds(coupon.combined_odds, oddsFormat)
+                      formatCombinedOdds(coupon.combined_odds, oddsFormat)
                     )}{' '}
                     <span className="font-sans text-xs text-text-muted">combined odds</span>
                   </p>
@@ -189,7 +189,7 @@ export function CouponSection({
                     {pricedLegs}-fold accumulator
                   </p>
                   <p className="mt-1 text-3xl font-semibold tabular-nums text-text-primary">
-                    {formatOdds(coupon.combined_odds, oddsFormat)}
+                    {formatCombinedOdds(coupon.combined_odds, oddsFormat)}
                   </p>
                 </>
               )}

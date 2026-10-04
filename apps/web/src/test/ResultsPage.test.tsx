@@ -123,6 +123,16 @@ describe('ResultsPage', () => {
     expect(other.textContent).toContain('Coupon lost');
   });
 
+  it('marks an astronomical combined price instead of printing false precision', async () => {
+    stubFetch({
+      results: [{ ...RESULTS[0], combined_odds: 1.1399982514331652e26 }],
+    });
+    renderPage();
+    const row = await screen.findByTestId('result-gw-2');
+    expect(row.textContent).toContain('1,000,000+');
+    expect(row.textContent).not.toContain('e+');
+  });
+
   it('opens that week\'s combined coupon on tap, at this league\'s address', async () => {
     renderPage();
     const row = await screen.findByTestId('result-gw-1');

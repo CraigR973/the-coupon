@@ -4,7 +4,7 @@ import { apiFetch } from '../lib/api';
 import { useLeague } from '../contexts/LeagueContext';
 import { useOddsFormat } from '../hooks/useOddsFormat';
 import { useRouteLeague } from '../hooks/useRouteLeague';
-import { formatOdds, roundName } from '../lib/coupon';
+import { formatCombinedOdds, roundName } from '../lib/coupon';
 import { couponSectionPath } from '../lib/leagues';
 import { formatCalendarDate } from '../lib/time';
 import type { GameweekResult } from '../lib/types';
@@ -144,7 +144,7 @@ export function ResultsPage() {
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="font-mono text-caption tabular-nums text-text-muted">
-                      {formatOdds(result.combined_odds, oddsFormat)}
+                      {formatCombinedOdds(result.combined_odds, oddsFormat)}
                     </span>
                     {result.all_won !== null && (
                       <Badge variant={result.all_won ? 'success' : 'muted'}>

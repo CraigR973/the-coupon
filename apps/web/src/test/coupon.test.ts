@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  formatCombinedOdds,
   formatOdds,
   toFractional,
   potentialPoints,
@@ -30,6 +31,15 @@ describe('formatOdds', () => {
   it('renders fractional odds when asked', () => {
     expect(formatOdds(2.5, 'fractional')).toBe('3/2');
     expect(formatOdds(13, 'fractional')).toBe('12/1');
+  });
+});
+
+describe('formatCombinedOdds', () => {
+  it('keeps ordinary prices and marks the readable cap in either notation', () => {
+    expect(formatCombinedOdds(999_999.99)).toBe('999999.99');
+    expect(formatCombinedOdds(1_000_000)).toBe('1,000,000+');
+    expect(formatCombinedOdds(1e26)).toBe('1,000,000+');
+    expect(formatCombinedOdds(1e26, 'fractional')).toBe('999,999+/1');
   });
 });
 
