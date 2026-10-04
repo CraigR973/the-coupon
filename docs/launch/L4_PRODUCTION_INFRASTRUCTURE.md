@@ -3569,3 +3569,51 @@ Backup/restore-point identity: **none yet** — Batch 95's backup is still switc
 
 Owner follow-up carried by this shipment (Batch 181): clear the per-league names nothing reads
 any more, `python -m src.clear_league_name_overrides --dry-run` and then `--apply`.
+
+### 2026-10-04 — `bb09760b`, Group AD's first checkpoint (no migration)
+
+Group AD's first shipment carried Batch 183's high-precision combined-odds arithmetic (the
+accumulator no longer raises past 10^26 at the 50-member stress shape), Batch 188's
+live-league-only season-calendar reads, and the test-only rate-limit window fix `88c0f75`. It
+unblocks the owner's season-calendar backfill. The exact clean commit passed the local gate
+(12 checks, 1,370 backend and 1,270 frontend tests, seeded journey 1, 0 skipped), and
+exact-SHA GitHub Actions run `37233222755` had passed for `bb09760b`. Shipped by the agent under
+the owner's standing instruction of 2026-10-04T21:43:04Z.
+
+Preflight: Supabase `pugujiiojitstkilphrz` was `ACTIVE_HEALTHY` in London (`eu-west-2`); Railway
+targets matched the recorded project, environment, service and domain, `railwayConfigFile` was
+null, and all 13 required variables were present by name. Vercel production held encrypted,
+production-scoped `VITE_API_URL` and `VITE_VAPID_PUBLIC_KEY`. The migration-recovery check
+passed with production and the repository both at `026`, so this shipment applied no migration.
+
+The pinned IaC plan reported 0 to add, 2 to change and 0 to destroy against the existing `api`
+service only: the Nixpacks config path, one replica, the restart policy and sleep, each from
+null. Applying it started redeploy `dfc17de3-9a7e-4b1a-9a3c-911a8539db77` of the previous image;
+it reached `SUCCESS` before the source upload and is this shipment's plain rollback baseline.
+
+Railway `2fb09b79-5b70-461a-97f1-4ecc3afc5895`, `SUCCESS`. `/health` returned `200`, SHA
+`bb09760b` and migration `026`; `/health/ready` returned `200`, `db: ok` and `026`. Manifest:
+one replica in `europe-west4-drams3a`, sleep off, restart `ON_FAILURE`, healthcheck
+`/api/v1/health/ready` at 300 seconds, 0.25 vCPU / 500 MB, IPv6 egress on, and Nixpacks with
+`/nixpacks.toml`. The bounded Railway snapshot (41 lines) held zero startup or migration
+failures and zero hits on five credential/member-data leak patterns; Railway labelled six normal
+Alembic/Uvicorn stderr lines as error-level. The scheduler logged both start messages,
+registered its 14 jobs and ran the connection warm-up.
+
+Vercel was a no-op: GitHub had already deployed `bb09760b` as
+`dpl_HSQysSgYpBR6hSiXpaHnvVGpfHUw`, `READY`, and the stable alias pointed to it.
+
+Post-deploy smoke: web root and `/leagues/discover` both returned `200` from one SPA asset and
+retained CSP, `X-Frame-Options`, HSTS, nosniff, referrer, permissions and cache headers.
+Exact-origin CORS returned `200` with credentials; a foreign origin was refused with `400` and
+no `Access-Control-Allow-Origin`. Readiness remained green, and `scripts/check-deploy-drift.sh`
+reported **in sync**. A read-only production transaction over the exact project's London session
+pooler, built in memory, found RLS enabled and forced on 21 of 21 public tables, no table grants
+or effective privileges for `anon`, `authenticated` or `PUBLIC`, no schema grants, and head
+`026`.
+
+Backup/restore-point identity: **none yet** — Batch 95's backup is still switched off.
+
+Owner follow-up carried by this shipment (Batch 188): the season-calendar backfill may now run —
+`python -m src.backfill_season_calendar --dry-run`, review, then a separately authorised
+`--apply`.

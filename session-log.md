@@ -8065,3 +8065,22 @@ https://github.com/CraigR973/the-coupon/actions/runs/37231325958 PASS for `3efc3
 
 **Next:** Group AD's scheduled `/ship-prod` checkpoint for `88c0f75`, `b2220c8` and `3efc31b`;
 then Batch 184.
+
+## Shipment — 2026-10-04, `bb09760b` (Group AD's first checkpoint; no migration)
+**Railway:** `2fb09b79-5b70-461a-97f1-4ecc3afc5895` `SUCCESS` · rollback baseline
+`dfc17de3-…` (plain — nothing migrated) · Vercel no-op
+(`dpl_HSQysSgYpBR6hSiXpaHnvVGpfHUw`, `bb09760b`) · drift **in sync** · exact-SHA CI run
+`37233222755` green · gate 12 checks, backend 1,370, frontend 1,270, journey 1
+
+### Key facts for future sessions
+- **Batches 183 and 188 are live**, with the test-only fix `88c0f75`; no `/ship-prod` is owed.
+  Shipped by the agent under the owner's standing overnight instruction of 2026-10-04T21:43:04Z.
+- **The season-calendar backfill is unblocked**: a deleted league can no longer move week 1. It
+  stays an owner action (dry run, review, separately authorised apply).
+- **Production proof:** health and readiness `200` at `bb09760b` / `026`; one SPA asset; exact-origin
+  CORS `200` with credentials and a foreign origin refused; RLS forced on 21 of 21 tables with no
+  public-role grants; a clean 41-line log snapshot with both scheduler start messages.
+- **IaC and rollback:** the pinned plan was 0 add / 2 change / 0 destroy on `api` only. Its
+  redeploy `dfc17de3` reached `SUCCESS` before the upload and is the plain rollback image.
+
+**Next:** Batch 184, continuing Group AD.
