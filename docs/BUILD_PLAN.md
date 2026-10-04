@@ -491,7 +491,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: correcting settled fixtures and settling empty rounds. **API + web.
   Rewrites awarded points.**
 
-- [ ] **Batch 188 — Running the season-calendar backfill could renumber every league by one week**
+- [x] **Batch 188 — Running the season-calendar backfill could renumber every league by one week** ✅ 2026-10-04
   — specified from `docs/review/2026-09-28/02-correctness.md`, CORR-25 (LOW, verified on a
   scratch database). `backfill_season_calendar.plan` joins `leagues` with no `deleted_at`
   filter (`:61-65`), and the runtime re-anchor reads `gameweeks` the same way, so one early

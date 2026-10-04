@@ -8037,3 +8037,31 @@ https://github.com/CraigR973/the-coupon/actions/runs/37191645577 PASS for `b2220
 - **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-04T09:15:56Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
 
 **Next:** Batch 188, then Group AD's first `/ship-prod` checkpoint.
+
+## Batch 188 — Running the season-calendar backfill could renumber every league by one week
+**Commits:** `3efc31b` (after oracle approval `7601b35`) · verified:
+`scripts/ci-local.sh` PASS (12 checks); 1,370 backend and 1,270 frontend tests passed, 0 skipped;
+seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37231325958 PASS for `3efc31b`
+
+### Key facts for future sessions
+- **Deleted leagues cannot shape the shared calendar.** Backfill planning, initial calendar
+  creation, automatic re-anchoring, its settled-round guard and runtime suffix enumeration all
+  join a live league before considering a round.
+- **The dry run names its evidence.** Each season prints the live league name, slug and round date
+  that supplies the anchor; a previously stored anchor with no matching live round says so rather
+  than inventing provenance.
+- **One cost oracle changed with exact owner approval.** Its raw table-reference count was
+  replaced by stronger checks for the date projection, exact league join and deleted-league
+  predicate; every other oracle removal remains blocked.
+- **Failures on the way:** the first full gate found four new tests colliding with committed
+  stress-test seasons and the obsolete cost oracle. Unique seasons fixed the isolation; a clean
+  focused database run passed 8 tests. The guard then stopped the approved oracle until its exact
+  fingerprint was committed to trusted `main`; the final full gate and exact-SHA CI passed.
+- **Owner boundary remains:** existing stored anchors are not rewritten automatically. Production
+  still requires the documented dry run, review and separately authorised apply after this API
+  shipment.
+- **Close-out safety:** PASS — API-only; pre-push /ship-prod debt present; /ship-prod owed after push
+
+**Next:** Group AD's scheduled `/ship-prod` checkpoint for `88c0f75`, `b2220c8` and `3efc31b`;
+then Batch 184.

@@ -29,10 +29,11 @@ Checked 2026-10-03 unless a line says otherwise.
 
 ## Owed
 
-- **A `/ship-prod` is owed and scheduled after Batch 188** (2026-10-04). Craig Robinson
-  scheduled it at `2026-10-04T09:15:56Z`. It carries the test-only fix `88c0f75` and Batch
-  183's high-precision combined-odds arithmetic; no migration is involved. Batch 183's web
-  formatter is backward-compatible with the deployed API and caps presentation at `1,000,000+`.
+- **A `/ship-prod` is owed and scheduled now that Batch 188 is closed** (2026-10-04). Craig
+  Robinson scheduled it at `2026-10-04T09:15:56Z`. It carries the test-only fix `88c0f75`,
+  Batch 183's high-precision combined-odds arithmetic and Batch 188's live-league-only season
+  calendar reads; no migration is involved. Batch 183's web formatter is backward-compatible
+  with the deployed API and caps presentation at `1,000,000+`.
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
   Railway `4ee4a962-3a91-449d-b5de-11ca66bdc9f9`, the previous image redeployed by the
   pinned IaC apply — boots against the database as it stands. Vercel was already on
@@ -73,9 +74,10 @@ These are not batches; nothing here will happen unless the owner does it or auth
 Batches 170-203 are drafted from the 2026-09-28 review and every owner decision they needed
 was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is complete
 (172, 173, 174 and 170, closed 3 Oct; web-only, nothing to ship). Group AC is complete,
-shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Group AD is in
-progress: Batch 183 closed on 4 Oct, Batch 188 is next, then the scheduled `/ship-prod`
-checkpoint. Groups AE, AB, AF and AH follow (`docs/agent-commands/group-start.md`).
+shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Group AD is paused
+at its first scheduled `/ship-prod` checkpoint after Batches 183 and 188 closed on 4 Oct;
+Batches 184-187 follow the shipment. Groups AE, AB, AF and AH follow
+(`docs/agent-commands/group-start.md`).
 
 ## Toolchain
 
@@ -88,9 +90,10 @@ Checked 2026-10-03.
   reruns it after the documentation commit, refuses a push without that matching stamp, and
   waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,363, frontend 1,266, journey 1). 13m04s on this Mac with the journey (2026-09-30), and
-  38 minutes when macOS's storage scan loads it (2026-09-25). Without a database the backend suite is
-  800 passed and 550 skipped at 1,350 tests (2026-09-29) — not the gate.
+  (backend 1,370, frontend 1,270, journey 1; checked 2026-10-04). 13m04s on this Mac
+  with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
+  (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
+  1,350 tests (2026-09-29) — not the gate.
 - **Backend** runs from the gate's own venv, `~/.cache/the-coupon/ci-local-venv`, built from
   `apps/api/requirements-dev.txt`: Python 3.12, FastAPI 0.141.1, ruff 0.5.4. app-starter's
   venv cannot import the suite.
@@ -116,4 +119,4 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Continue Group AD with Batch 188, then stop for its scheduled `/ship-prod` checkpoint.
+**Next:** Run Group AD's scheduled `/ship-prod` checkpoint, then continue with Batch 184.
