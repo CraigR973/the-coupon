@@ -101,12 +101,51 @@ if [[ -f "$GATE_STAMP" ]] \
   stamped_tree="$(sed -nE 's/^tree=([0-9a-f]{40})$/\1/p' "$GATE_STAMP")"
   [[ -n "$stamped_tree" ]] && stamp_valid=true
 fi
-if [[ "$stamp_valid" != true || "$stamped_tree" != "$current_tree" ]]; then
+if [[ "$stamp_valid" != true ]]; then
   echo "close-out safety: REFUSED — the exact tree has no matching ci-local PASS stamp" >&2
   echo "Run the complete 12-check scripts/ci-local.sh gate against this tree before continuing." >&2
   exit 1
 fi
-echo "close-out safety: verified ci-local PASS stamp for tree $current_tree"
+
+stamped_type="$(git -C "$ROOT" cat-file -t "$stamped_tree" 2>/dev/null || true)"
+if [[ "$stamped_type" != tree ]]; then
+  echo "close-out safety: REFUSED — the stamped tree object is missing or invalid" >&2
+  echo "Run the complete 12-check scripts/ci-local.sh gate against this tree before continuing." >&2
+  exit 1
+fi
+
+if [[ "$stamped_tree" == "$current_tree" ]]; then
+  echo "close-out safety: verified ci-local PASS stamp for identical tree $current_tree"
+else
+  if ! changed_since_stamp="$(git -C "$ROOT" diff --name-only "$stamped_tree" "$current_tree" --)" \
+     || [[ -z "$changed_since_stamp" ]]; then
+    echo "close-out safety: REFUSED — the stamped and current trees could not be compared" >&2
+    echo "Run the complete 12-check scripts/ci-local.sh gate against this tree before continuing." >&2
+    exit 1
+  fi
+
+  disallowed_since_stamp=""
+  while IFS= read -r path; do
+    case "$path" in
+      docs/BUILD_PLAN.md|session-log.md|STATUS.md) ;;
+      *) disallowed_since_stamp+="$path"$'\n' ;;
+    esac
+  done <<<"$changed_since_stamp"
+
+  if [[ -n "$disallowed_since_stamp" ]]; then
+    echo "close-out safety: REFUSED — the current tree differs from the ci-local PASS stamp outside the three close-out documents:" >&2
+    while IFS= read -r path; do
+      [[ -n "$path" ]] && printf '  %s\n' "$path" >&2
+    done <<<"$disallowed_since_stamp"
+    echo "Run the complete 12-check scripts/ci-local.sh gate against this tree before continuing." >&2
+    exit 1
+  fi
+
+  echo "close-out safety: verified ci-local PASS stamp; the current tree differs only in close-out documents:"
+  while IFS= read -r path; do
+    printf '  %s\n' "$path"
+  done <<<"$changed_since_stamp"
+fi
 
 if [[ "$VERIFY_GATE_STAMP" == true ]]; then
   exit 0

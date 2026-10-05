@@ -105,16 +105,25 @@ changes beyond the batch, or if the batch row is already ticked.
 
 10. Refresh `STATUS.md`, stage only the three close-out documents, and commit with the same
     `Coupon-Batch: N` trailer: `docs: close out Batch N — tick BUILD_PLAN + session log`.
-11. Run the complete `scripts/ci-local.sh` gate once more on clean local `main`.
-    The close-out documents changed the tree after the feature-branch gate, so
-    this run is the proof for the exact tree that will be pushed. Then require its
-    matching stamp:
+11. Ask the stamp guard whether clean local `main` differs from the feature-branch gate only
+    in the three close-out documents (`docs/BUILD_PLAN.md`, `session-log.md` and `STATUS.md`):
 
     ```bash
     /Users/craigrobinson/the-coupon/scripts/check-closeout-safety.sh N --verify-gate-stamp
     ```
 
-    Stop if either command fails. Never recreate, copy or edit the stamp by hand.
+    An identical tree passes. A tree whose every difference is one of those three documents
+    also passes and names the accepted paths: reuse the complete feature-branch gate and do not
+    rerun it. Any other difference, a missing or malformed stamp, a missing stamped tree object,
+    or a stamp from `SKIP_PROD_BUNDLE=1` refuses. On refusal, run the complete gate once against
+    the current tree and require the new exact-tree stamp before continuing:
+
+    ```bash
+    /Users/craigrobinson/the-coupon/scripts/ci-local.sh
+    /Users/craigrobinson/the-coupon/scripts/check-closeout-safety.sh N --verify-gate-stamp
+    ```
+
+    Stop if that gate or verification fails. Never recreate, copy or edit the stamp by hand.
 12. Push the close-out document commit to `origin/main`, then wait for the exact-SHA
     `Quality` run by the same rules as step 7. This second result does not create another
     document commit: the session log records the implementation run that approved the
