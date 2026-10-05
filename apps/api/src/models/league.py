@@ -68,6 +68,15 @@ DEFAULT_OFFERED_MARKETS: tuple[PickMarket, ...] = (
 )
 
 
+def _new_join_code() -> str:
+    """The code a league inserted without one gets: the same one its creation route sets."""
+    # Deferred: ``src.auth`` imports the models package, so importing it at module level
+    # here would be circular.
+    from src.auth import generate_join_code
+
+    return generate_join_code()
+
+
 class League(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     __tablename__ = "leagues"
     __table_args__ = (
@@ -167,10 +176,18 @@ class League(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("profiles.id"), nullable=False
     )
+    # Every creation route sets this from ``generate_join_code``; the column default is
+    # what an insert that sets nothing gets. That used to be the database's alone — six
+    # hex digits from ``random()``, 16.8 million values and no retry — and the test suite
+    # inserts about two hundred committed leagues that way, so two of them could draw the
+    # same code (CI run 37247946337, ``uq_leagues_join_code``). The ORM now supplies the
+    # product's own code, from ``secrets`` over the 32-letter alphabet; the server default
+    # stays for raw SQL, because changing it is a migration.
     join_code: Mapped[str | None] = mapped_column(
         String(8),
         nullable=True,
         unique=True,
+        default=_new_join_code,
         server_default=sa.text("upper(substr(md5(random()::text), 1, 6))"),
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
