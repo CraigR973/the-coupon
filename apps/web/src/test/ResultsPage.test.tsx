@@ -165,6 +165,21 @@ describe('ResultsPage', () => {
     expect(row.textContent).toContain('2 of 3 landed');
   });
 
+  it('says how many legs were void, since the price beside it leaves them out (Batch 186)', async () => {
+    stubFetch({ results: [{ ...RESULTS[0], leg_count: 4, void_leg_count: 2, combined_odds: 7.13 }] });
+    renderPage();
+    const row = await screen.findByTestId('result-gw-2');
+    expect(row.textContent).toContain('2 of 4 landed·2 void');
+    expect(row.textContent).toContain('7.13');
+  });
+
+  it('says nothing about voids when there were none, or the API does not say', async () => {
+    renderPage();
+    // Neither row carries `void_leg_count`: one predates it, one simply had no voids.
+    const list = await screen.findByTestId('results-list');
+    expect(list.textContent).not.toContain('void');
+  });
+
   it('renders the row unchanged against an API that does not send the count', async () => {
     renderPage();
     // `gw-1` carries no `picks_won`, the shape a deployed API predating Batch 79 sends.

@@ -32,7 +32,7 @@ from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile
-from src.services.coupon import combined_odds
+from src.services.coupon import accumulator
 from src.services.football_provider import current_season
 from src.services.football_week import settle_refusal
 from src.services.odds_provider import (
@@ -673,6 +673,9 @@ class GameweekResult(BaseModel):
     #: *not every* leg, so five of six and none of six read identically. Optional with a
     #: default because the web app deploys ahead of the API.
     picks_won: int = 0
+    #: How many of ``leg_count`` were voided and so left out of ``combined_odds``, as on
+    #: the coupon (Batch 186). Optional with a default for the same reason.
+    void_leg_count: int = 0
 
 
 async def gameweek_results(db: AsyncSession, league_id: uuid.UUID) -> list[GameweekResult]:
@@ -721,6 +724,7 @@ async def gameweek_results(db: AsyncSession, league_id: uuid.UUID) -> list[Gamew
     for gw_id, (starts_on, picks) in by_gameweek.items():
         top_points = max((p for _, p, _, _ in picks), default=0)
         winner_names = sorted({name for name, p, _, _ in picks if p == top_points})
+        price = accumulator((odds, status_) for _, _, status_, odds in picks)
         results.append(
             GameweekResult(
                 gameweek_id=str(gw_id),
@@ -729,7 +733,8 @@ async def gameweek_results(db: AsyncSession, league_id: uuid.UUID) -> list[Gamew
                 winner_names=winner_names,
                 winner_points=top_points,
                 leg_count=len(picks),
-                combined_odds=float(combined_odds([odds for _, _, _, odds in picks])),
+                combined_odds=float(price.combined_odds),
+                void_leg_count=price.void_leg_count,
                 all_won=all(status_ == PickStatus.won for _, _, status_, _ in picks)
                 if picks
                 else None,

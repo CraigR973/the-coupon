@@ -572,7 +572,10 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
             </span>
             {showFigures && (
               <span className="tabular-nums">
-                {round.leg_count}-fold · {formatCombinedOdds(round.combined_odds, oddsFormat)}
+                {/* Batch 186: the fold counts the legs the price is a product of, as the
+                    coupon's does — a voided leg is on the coupon but not in the price. */}
+                {round.leg_count - (round.void_leg_count ?? 0)}-fold ·{' '}
+                {formatCombinedOdds(round.combined_odds, oddsFormat)}
               </span>
             )}
           </div>
@@ -627,6 +630,8 @@ interface LastRoundView {
   /** `null` when the source could not say how many landed. */
   picksWon: number | null;
   combinedOdds: number;
+  /** How many of `legCount` the price leaves out as void (Batch 186); 0 when not sent. */
+  voidLegCount: number;
 }
 
 /**
@@ -652,6 +657,7 @@ function lastRoundView(entry: PerLeagueSummary): LastRoundView | null {
       legCount: result.leg_count,
       picksWon: result.picks_won,
       combinedOdds: result.combined_odds,
+      voidLegCount: result.void_leg_count ?? 0,
     };
   }
   const round = entry.current_round;
@@ -667,6 +673,7 @@ function lastRoundView(entry: PerLeagueSummary): LastRoundView | null {
     legCount: round.leg_count,
     picksWon: null,
     combinedOdds: round.combined_odds,
+    voidLegCount: round.void_leg_count ?? 0,
   };
 }
 
@@ -696,6 +703,9 @@ function lastRoundView(entry: PerLeagueSummary): LastRoundView | null {
 function LastResultPanel({ round, form }: { round: LastRoundView; form?: FormRound[] }) {
   const oddsFormat = useOddsFormat();
   const { movement, mine } = round;
+  // Batch 186. The fold is the number of legs the price is a product of, as on the
+  // coupon: "2 of 4 picks landed · 2-fold" when two legs were void, never "4-fold".
+  const foldCount = round.legCount - round.voidLegCount;
 
   return (
     <div className="border-t border-border px-5 py-4" data-testid="last-result">
@@ -759,10 +769,10 @@ function LastResultPanel({ round, form }: { round: LastRoundView; form?: FormRou
       <div className="mt-1 flex items-end justify-between gap-3">
         <p className="font-sans text-sm text-text-muted">
           {round.picksWon === null
-            ? `${round.legCount}-fold · ${formatCombinedOdds(round.combinedOdds, oddsFormat)}`
+            ? `${foldCount}-fold · ${formatCombinedOdds(round.combinedOdds, oddsFormat)}`
             : round.legCount === 0
               ? 'Nobody picked this round'
-              : `${round.picksWon} of ${round.legCount} ${round.legCount === 1 ? 'pick' : 'picks'} landed · ${round.legCount}-fold · ${formatCombinedOdds(round.combinedOdds, oddsFormat)}`}
+              : `${round.picksWon} of ${round.legCount} ${round.legCount === 1 ? 'pick' : 'picks'} landed · ${foldCount}-fold · ${formatCombinedOdds(round.combinedOdds, oddsFormat)}`}
         </p>
         <PickFormLine form={form} className="shrink-0" />
       </div>

@@ -483,6 +483,23 @@ describe('the week just gone', () => {
     expect(panel.textContent).toContain('4 of 6 picks landed');
   });
 
+  it('folds only the legs its price is a product of, as the coupon does (Batch 186)', async () => {
+    stubFetch(withResult({ leg_count: 4, picks_won: 1, void_leg_count: 2, combined_odds: 7.13 }));
+    renderPage();
+    const panel = await screen.findByTestId('last-result');
+    expect(panel.textContent).toContain('1 of 4 picks landed · 2-fold · 7.13');
+    expect(panel.textContent).not.toContain('4-fold');
+  });
+
+  it('folds every leg against an API that does not send the void count', async () => {
+    // `withResult()` carries no `void_leg_count` — what the deployed API sends before
+    // Batch 186 ships — and a round with no voids folds every leg either way.
+    stubFetch(withResult());
+    renderPage();
+    const panel = await screen.findByTestId('last-result');
+    expect(panel.textContent).toContain('4 of 6 picks landed · 6-fold');
+  });
+
   it('reads a rise in words as well as in colour', async () => {
     stubFetch(withResult());
     renderPage();
@@ -770,6 +787,22 @@ describe('a league card’s state', () => {
     // The fold is frozen now, so this is the one state where it is a fact about today.
     expect(card.textContent).toContain('3-fold');
     expect(card.textContent).toContain('12.50');
+  });
+
+  it('leaves a voided leg out of a live round’s fold (Batch 186)', async () => {
+    stubFetch(
+      onlyFirst({
+        current_round: {
+          ...SUMMARY.per_league[0].current_round!,
+          status: 'locked',
+          void_leg_count: 1,
+        },
+      }),
+    );
+    renderPage();
+    const card = await screen.findByTestId('home-card-the-coupon');
+    expect(card.textContent).toContain('2-fold');
+    expect(card.textContent).not.toContain('3-fold');
   });
 
   it('says a league is between rounds when its round has settled', async () => {

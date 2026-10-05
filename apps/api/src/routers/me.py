@@ -35,7 +35,7 @@ from src.rate_limit import limiter, per_user_key
 from src.schemas import UtcDatetime
 from src.services.account_erasure import SoleAdminError, erase_account, export_account
 from src.services.avatar_storage import AvatarStorage, avatar_storage
-from src.services.coupon import combined_odds
+from src.services.coupon import accumulator
 from src.services.credentials import recent_pin_events
 from src.services.football_provider import season_for
 from src.services.gameweek import PICKABLE_STATES, current_round_order
@@ -120,6 +120,10 @@ class CurrentRound(BaseModel):
     leg_count: int
     combined_odds: float
     my_pick: MyPick | None
+    #: How many of ``leg_count`` were voided and so left out of ``combined_odds`` (Batch
+    #: 186), so the card's fold counts the legs its price is a product of, as the coupon's
+    #: does. Optional with a default: the web app deploys ahead of the API.
+    void_leg_count: int = 0
 
 
 class LastResult(BaseModel):
@@ -144,6 +148,9 @@ class LastResult(BaseModel):
     #: How many of those legs landed. ``all_won`` alone cannot tell five of six from none.
     picks_won: int
     combined_odds: float
+    #: How many of ``leg_count`` were voided and so left out of ``combined_odds``, as on
+    #: the coupon (Batch 186). Optional with a default: the web app deploys ahead.
+    void_leg_count: int = 0
     all_won: bool | None
     my_pick: MyPick | None
     #: Places gained over this round — positive up, negative down, ``None`` when the
@@ -439,12 +446,12 @@ async def _latest_rounds(
         )
     ).all()
 
-    legs: dict[uuid.UUID, list[Decimal]] = {}
+    legs: dict[uuid.UUID, list[tuple[Decimal, PickStatus]]] = {}
     my_picks: dict[uuid.UUID, MyPick] = {}
     for pick, fixture in pick_rows:
         if pick.league_id != league_of[pick.gameweek_id]:
             continue
-        legs.setdefault(pick.gameweek_id, []).append(pick.odds_at_pick)
+        legs.setdefault(pick.gameweek_id, []).append((pick.odds_at_pick, pick.status))
         if pick.player_id == player_id:
             my_picks[pick.gameweek_id] = MyPick(
                 fixture_id=str(fixture.id),
@@ -458,6 +465,7 @@ async def _latest_rounds(
             )
 
     season_weeks = await labels.of(db, gameweek_rows)
+    prices = {row.id: accumulator(legs.get(row.id, [])) for row in gameweek_rows}
     return {
         row.league_id: CurrentRound(
             gameweek_id=str(row.id),
@@ -468,7 +476,8 @@ async def _latest_rounds(
             locks_at_utc=row.locks_at_utc,
             picks_open_at_utc=row.picks_open_at_utc,
             leg_count=len(legs.get(row.id, [])),
-            combined_odds=float(combined_odds(legs.get(row.id, []))),
+            combined_odds=float(prices[row.id].combined_odds),
+            void_leg_count=prices[row.id].void_leg_count,
             my_pick=my_picks.get(row.id),
         )
         for row in gameweek_rows
@@ -521,13 +530,13 @@ async def _last_results(
         )
     ).all()
 
-    legs: dict[uuid.UUID, list[Decimal]] = {}
+    legs: dict[uuid.UUID, list[tuple[Decimal, PickStatus]]] = {}
     statuses: dict[uuid.UUID, list[PickStatus]] = {}
     my_picks: dict[uuid.UUID, MyPick] = {}
     for pick, fixture in pick_rows:
         if pick.league_id != league_of[pick.gameweek_id]:
             continue
-        legs.setdefault(pick.gameweek_id, []).append(pick.odds_at_pick)
+        legs.setdefault(pick.gameweek_id, []).append((pick.odds_at_pick, pick.status))
         statuses.setdefault(pick.gameweek_id, []).append(pick.status)
         if pick.player_id == player_id:
             my_picks[pick.gameweek_id] = MyPick(
@@ -543,6 +552,7 @@ async def _last_results(
             )
 
     season_weeks = await labels.of(db, gameweek_rows)
+    prices = {row.id: accumulator(legs.get(row.id, [])) for row in gameweek_rows}
     return {
         row.league_id: LastResult(
             gameweek_id=str(row.id),
@@ -551,7 +561,8 @@ async def _last_results(
             season_week=season_weeks.get(row.id),
             leg_count=len(legs.get(row.id, [])),
             picks_won=sum(1 for s in statuses.get(row.id, []) if s is PickStatus.won),
-            combined_odds=float(combined_odds(legs.get(row.id, []))),
+            combined_odds=float(prices[row.id].combined_odds),
+            void_leg_count=prices[row.id].void_leg_count,
             # Mirrors `gameweek_results`: a round nobody picked on is vacuously settled
             # and has no coupon outcome, rather than a true one over an empty set.
             all_won=(

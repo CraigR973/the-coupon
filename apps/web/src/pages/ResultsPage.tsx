@@ -136,6 +136,15 @@ export function ResultsPage() {
                         {result.picks_won} of {result.leg_count} landed
                       </>
                     )}
+                    {/* Batch 186. The price beside this row now leaves voided legs out, as
+                        the coupon's does, so the row says how many — the coupon it opens
+                        says the same. Absent on an API that predates the field. */}
+                    {(result.void_leg_count ?? 0) > 0 && (
+                      <>
+                        <span className="mx-1.5">·</span>
+                        {result.void_leg_count} void
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">

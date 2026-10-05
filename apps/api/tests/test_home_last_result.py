@@ -482,3 +482,56 @@ async def test_rank_movement_is_unaffected_by_the_run_now_being_default(
 
     assert entry["last_result"]["rank_movement"] == 1
     assert [r["status"] for r in entry["recent_form"]] == ["won", "lost"]
+
+
+# ── Batch 186: one round, one price ───────────────────────────────────────────
+
+
+async def test_one_round_with_two_void_legs_reads_the_same_everywhere(
+    session: AsyncSession, client: AsyncClient
+) -> None:
+    """CORR-21: the coupon, the Results list and both home cards price the same legs.
+
+    Four legs, two of them void. Every surface used to agree on the coupon's 7.13 or not —
+    the Results list and home multiplied the voids back in for 53.01. Now each prices the
+    two legs that ran, and says how many it left out, so the fold is 2 everywhere.
+    """
+    alice, bob, carol, dave = [
+        await _profile(session, name) for name in ("alice", "bob", "carol", "dave")
+    ]
+    league = await _league(session, alice, [alice, bob, carol, dave])
+    settled = await _round(
+        session,
+        league,
+        starts_on=_settled_day(1),
+        status=GameweekStatus.settled,
+        locks_at=_now() - timedelta(days=2),
+    )
+    await _pick(session, league, settled, alice, status=PickStatus.won, odds="3.75", points=38)
+    await _pick(session, league, settled, bob, status=PickStatus.lost, odds="1.90", points=0)
+    await _pick(session, league, settled, carol, status=PickStatus.void, odds="3.10", points=0)
+    await _pick(session, league, settled, dave, status=PickStatus.void, odds="2.40", points=0)
+    await session.commit()
+
+    coupon = await client.get(
+        f"/api/v1/leagues/{league.slug}/coupon",
+        params={"gameweek_id": str(settled.id)},
+        headers=_auth(alice),
+    )
+    results = await client.get(f"/api/v1/leagues/{league.slug}/results", headers=_auth(alice))
+    entry = await _summary(client, alice)
+
+    assert coupon.status_code == 200 and results.status_code == 200
+    (row,) = results.json()
+    surfaces = {
+        "coupon": coupon.json(),
+        "results": row,
+        "last_result": entry["last_result"],
+        "current_round": entry["current_round"],
+    }
+    for name, surface in surfaces.items():
+        assert (surface["leg_count"], surface["void_leg_count"], surface["combined_odds"]) == (
+            4,
+            2,
+            7.13,
+        ), name

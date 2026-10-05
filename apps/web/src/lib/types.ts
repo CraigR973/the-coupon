@@ -385,6 +385,12 @@ export interface GameweekResult {
    * API; absent means the row shows the coupon outcome alone, as it did before.
    */
   picks_won?: number;
+  /**
+   * How many of `leg_count` were voided and so left out of `combined_odds`, as on the
+   * coupon (Batch 186). Optional: the web app deploys ahead of the API, and absent reads
+   * as none — which is also the right answer for a round with no voids.
+   */
+  void_leg_count?: number;
 }
 
 // ── Seasons — GET /leagues/{slug}/seasons ─────────────────────────────────
@@ -561,6 +567,12 @@ export interface LastResult {
   /** How many legs landed. `all_won` alone cannot tell five of six from none of six. */
   picks_won: number;
   combined_odds: number;
+  /**
+   * How many of `leg_count` were voided and so left out of `combined_odds`, as on the
+   * coupon (Batch 186). Optional: the web app deploys ahead of the API, and absent reads
+   * as none — which is also the right answer for a round with no voids.
+   */
+  void_leg_count?: number;
   all_won: boolean | null;
   my_pick: MyPick | null;
   /** Places gained over this round — positive up, null when there was no table before. */
@@ -593,6 +605,12 @@ export interface CurrentRound {
   /** The whole league's acca for the round, not just the caller's leg. */
   leg_count: number;
   combined_odds: number;
+  /**
+   * How many of `leg_count` were voided and so left out of `combined_odds`, as on the
+   * coupon (Batch 186). Optional: the web app deploys ahead of the API, and absent reads
+   * as none — which is also the right answer for a round with no voids.
+   */
+  void_leg_count?: number;
   /** null while the caller has yet to claim a selection this round. */
   my_pick: MyPick | null;
 }
