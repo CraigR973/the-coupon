@@ -825,7 +825,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: these hygiene items. **Tooling-only (`phase-closeout.md` edits need
   owner-approved gate maintenance).**
 
-- [ ] **Batch 204 — A documentation-only close-out commit reruns the whole twelve-check gate**
+- [x] **Batch 204 — A documentation-only close-out commit reruns the whole twelve-check gate ✅ 2026-10-05**
   — from the 2026-10-04 overnight run. Close-out runs the complete `scripts/ci-local.sh` twice
   per batch: on the feature branch, and again at `phase-closeout.md` step 11 after the close-out
   commit, although that commit may touch only `docs/BUILD_PLAN.md`, `session-log.md` and

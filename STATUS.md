@@ -77,8 +77,8 @@ was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is 
 shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Group AD's first
 checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188), and its closing checkpoint
 shipped on 5 Oct as `546db3f` (Batches 184-187 and fix `f0710b0`); Group AD is complete. Batch
-204 (docs-only close-out fast path, owner-approved gate maintenance) runs on its own in the next
-stage. Groups AE, AB, AF and AH follow (`docs/agent-commands/group-start.md`).
+204 (docs-only close-out fast path, owner-approved gate maintenance) is complete. Groups AE, AB,
+AF and AH follow (`docs/agent-commands/group-start.md`).
 
 ## Toolchain
 
@@ -87,11 +87,11 @@ Checked 2026-10-03.
 - **The gate is `scripts/ci-local.sh`**: twelve checks and no skips, the twelfth being the seeded
   coupon journey (2026-09-30). GitHub's `coupon-journey` job runs the same runner through
   `ci-local.sh --journey-only`. The `gate` job runs the same trusted-main guard, ratchets and
-  zero-skip checks as local close-out. A full green run stamps the exact Git tree; close-out
-  reruns it after the documentation commit, refuses a push without that matching stamp, and
-  waits for both pushed SHAs to pass CI before the group continues. It refuses a test
+  zero-skip checks as local close-out. A full green run stamps the exact Git tree; close-out reuses
+  that stamp when only `docs/BUILD_PLAN.md`, `session-log.md` and `STATUS.md` changed, otherwise it
+  reruns the gate, and waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,395, frontend 1,281, journey 1; checked 2026-10-05). 13m04s on this Mac
+  (backend 1,395, frontend 1,291, journey 1; checked 2026-10-05). 13m04s on this Mac
   with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
   (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
   1,350 tests (2026-09-29) — not the gate.
@@ -120,4 +120,4 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Batch 204 on its own in a fresh stage, then Group AE — one stage per session (owner, 2026-10-05); and the owner's season-calendar backfill, now unblocked.
+**Next:** Group AE in a fresh stage — one stage per session (owner, 2026-10-05); and the owner's season-calendar backfill, now unblocked.

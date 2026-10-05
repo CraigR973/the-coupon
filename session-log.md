@@ -8235,3 +8235,33 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
   trees are unchanged, and the preceding Group AD shipment remains in sync.
 
 **Next:** Resume Batch 204's implementation from the trusted attestation commit.
+
+## Batch 204 — A documentation-only close-out commit reruns the whole twelve-check gate
+**Commits:** `27c98c2` (approval), `c6bc998` (attestation), `07d73bb` (implementation) ·
+verified: `scripts/ci-local.sh` PASS (12 checks); 1,395 backend and 1,291 frontend tests
+passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · implementation CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37377836762 PASS for `07d73bb`
+
+### Key facts for future sessions
+- **Close-out reuses exact proof only for its three records.** The stamp checker accepts either
+  the identical verified tree or a tree whose entire diff is `docs/BUILD_PLAN.md`,
+  `session-log.md` and `STATUS.md`, and names the accepted documents. Any other path refuses.
+- **Invalid proof stays closed.** Missing, truncated or malformed stamps, partial-gate stamps,
+  missing Git tree objects and differences under application, script or command-document paths
+  refuse. Phase close-out runs the full gate only after that refusal; both exact-SHA CI waits stay.
+- **The regression suite uses real temporary Git repositories.** Ten tests cover both accepted
+  cases and every required refusal. The frontend ratchet is now 1,291.
+- **Failures on the way:** the first focused run collected no tests because jsdom made
+  `import.meta.url` non-file; resolving the fixture from the repository working directory fixed
+  collection. The next run failed all ten because this Mac's Git lacks
+  `git init --initial-branch`; plain init followed by branch creation fixed the harness. No
+  expectation changed. The approval run twice lost queued jobs at GitHub's 15-minute boundary;
+  isolated evidence plus the attestation's exact-SHA run
+  https://github.com/CraigR973/the-coupon/actions/runs/37374352392 supplied all three green jobs.
+- **Close-out housekeeping:** archiving the temporary attestation worktree removed its directory
+  but left stale Git metadata, which blocked the first checkout of `main`; verifying the path was
+  absent and pruning that one stale registration fixed it without touching repository content.
+- **Close-out safety:** PASS — tooling and tests only; the close-out tree differs from the stamped
+  tree only in the three allowed records; no `/ship-prod` is owed.
+
+**Next:** Group AE in a fresh stage.
