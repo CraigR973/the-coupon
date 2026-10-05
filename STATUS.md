@@ -29,10 +29,11 @@ Checked 2026-10-04 unless a line says otherwise.
 
 ## Owed
 
-- **A `/ship-prod` is owed for Batches 184 and 185** (`a8aaea7`, `6893f20`; 4-5 Oct): non-scoring
+- **A `/ship-prod` is owed for Batches 184 and 185 and fix `f0710b0`** (4-5 Oct): non-scoring
   rounds are no longer created or pickable, with an operator void route and distinct same-week
-  labels; departing members release their open claims and self-deletion completes the round.
-  Both are API-only and migrate nothing; they ride with Group AD's closing checkpoint after 187.
+  labels; departing members release their open claims and self-deletion completes the round; a
+  league inserted without a join code takes the product's own generator. None migrates; they ride
+  with Group AD's closing checkpoint after 187.
   Group AD's first checkpoint shipped on 2026-10-04 as Railway `2fb09b79` (`bb09760b`):
   Batch 183's combined-odds arithmetic and Batch 188's season-calendar reads.
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —

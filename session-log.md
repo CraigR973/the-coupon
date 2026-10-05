@@ -8133,3 +8133,23 @@ https://github.com/CraigR973/the-coupon/actions/runs/37244891648 PASS for `6893f
 - **Close-out safety:** PASS — API-only; pre-push /ship-prod debt present; /ship-prod owed after push
 
 **Next:** Batch 186 (Group AD).
+
+## Fix — two test leagues could draw the same join code
+**Commits:** `f0710b0` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,388 backend and
+1,275 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37249797190 PASS for `f0710b0`
+
+### Key facts for future sessions
+- **The red:** Batch 186's implementation push `311a7c0` failed CI run 37247946337 in the
+  unchanged `test_declared_extra_is_kept_then_withdrawn_extra_is_retired`, on
+  `uq_leagues_join_code` (code `485D80`). Not Batch 186's code.
+- **The cause:** a league inserted without a code took only the database default
+  `upper(substr(md5(random()::text), 1, 6))` — 16.8 million values, no retry — and one suite run
+  commits 206 leagues, 190 on that default. Production's creation route always sets its own code.
+- **Proof:** seeding Postgres' `random()` before two ORM inserts reproduces the exact
+  IntegrityError on demand; the new regression test drives that and fails on the old model.
+- **The fix:** the ORM column defaults to `generate_join_code()` (secrets, 32-letter alphabet,
+  ~1.07 billion values); the server default stays for raw SQL because changing it is a migration.
+  No assertion changed. It sits under `apps/api`, so it rides with Group AD's closing `/ship-prod`.
+
+**Next:** finish Batch 186's close-out (its implementation CI was the red run above), then Batch 187.
