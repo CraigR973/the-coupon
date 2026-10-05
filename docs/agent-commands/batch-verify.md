@@ -29,6 +29,23 @@ the game having executed once, and `/phase-closeout` pushes `main`, which deploy
 app. It took 11 to 13 minutes on this Mac (two runs on 2026-09-24) before Batch 200 added
 the journey, which costs about two minutes more. Run it.
 
+**Committed test data leaks into later modules.** The suite runs on one database and the
+HTTP tests commit, while several reads are deployment-wide. A new test's committed row can
+therefore fail an *unchanged* test in a module that runs after it — three gate or CI failures
+on 2026-10-04 came from exactly this. Before the gate, check every row a new test commits:
+
+- **Round dates** feed the season labels, which read every live date in a season. Put
+  committed history in a season nothing else labels (2059 onwards), or use
+  `tests/season_dates.py`'s `season_anchor` when the test needs the season being played.
+  Never add committed rounds to the July–September 2026 weeks the calendar tests assert.
+- **Fixture competition ids** feed the pool `test_request_budget.py` caps at the measured
+  catalogue. Reuse a fixed id (`scotland-league-two`, `b135`, `10932510`); never one per call.
+- **Locks about three hours ahead** fall in the pick-reminder window, which is read
+  deployment-wide; use two hours.
+- A focused run in a different module order can fail for reasons the gate never sees (the
+  pool narrows to whatever was committed first; the first sync creates a season calendar).
+  Only the full gate's order decides.
+
 The rest of this file is the same checks run individually, for iterating on one file
 before the gate. They are not a substitute for it.
 

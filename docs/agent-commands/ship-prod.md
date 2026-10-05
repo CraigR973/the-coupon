@@ -111,6 +111,22 @@ tick on GitHub: Actions is not always scheduling runs (a major outage on
 *missing* run reads the same as a passing one unless you look for it. Confirm a
 run exists for the commit being shipped — not merely that none failed.
 
+**When close-out has already proved this exact tree, reuse that run** (owner,
+2026-10-05). Close-out ends with a complete `scripts/ci-local.sh` run that stamps
+the tree it pushes, so a shipment made straight after it would only repeat the same
+12 checks on the same tree, about 13 minutes. Ask the guard first:
+
+```bash
+/Users/craigrobinson/the-coupon/scripts/check-closeout-safety.sh <last closed batch> --verify-gate-stamp
+```
+
+In this mode the batch number only satisfies the usage line; the check is the tree.
+If it prints `verified ci-local PASS stamp for tree …`, that run is this section's
+proof: record the tree hash in the shipment report and do not rerun. If it refuses
+— a shipment-record commit since, another branch gated since, or a stamp from a run
+without the browser checks — run `scripts/ci-local.sh` as above. Either way the
+exact-SHA run on GitHub is still required.
+
 Do not run the test suite, destructive probes, or rollback rehearsals against
 production. The owner performs any required live Betfair probe.
 

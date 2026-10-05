@@ -825,6 +825,38 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: these hygiene items. **Tooling-only (`phase-closeout.md` edits need
   owner-approved gate maintenance).**
 
+- [ ] **Batch 204 — A documentation-only close-out commit reruns the whole twelve-check gate**
+  — from the 2026-10-04 overnight run. Close-out runs the complete `scripts/ci-local.sh` twice
+  per batch: on the feature branch, and again at `phase-closeout.md` step 11 after the close-out
+  commit, although that commit may touch only `docs/BUILD_PLAN.md`, `session-log.md` and
+  `STATUS.md`. The second run re-proves code the first already proved — about 13 minutes a
+  batch, roughly 3.5 hours across the batches still open.
+
+  **Owner decision, 2026-10-05:** when a tree differs from the stamped tree only in those three
+  files, the stamp check accepts the existing stamp instead of a rerun.
+
+  Then: `scripts/check-closeout-safety.sh`'s stamp check passes when the current tree equals the
+  stamped tree, or when every path in `git diff --name-only <stamped tree> <current tree>` is
+  exactly one of `docs/BUILD_PLAN.md`, `session-log.md` or `STATUS.md`, and it says which case
+  applied. Any other difference, a missing or malformed stamp, a stamp whose tree object is gone,
+  or one from a `SKIP_PROD_BUNDLE` run still refuses. Step 11 runs the gate only when that check
+  refuses. Both exact-SHA CI waits are unchanged.
+
+  Verification: tests that drive the guard against real trees — an identical tree passes; a
+  three-document difference passes and names the documents; a difference in any other path
+  (`docs/agent-commands/`, `apps/`, `scripts/`) refuses; a partial stamp and a skipped-browser
+  stamp refuse.
+
+  **Gate maintenance approved (owner, 2026-10-05):** this batch may change these protected
+  files and no others — `scripts/check-closeout-safety.sh`, `docs/agent-commands/phase-closeout.md`.
+  Main's guard must carry the matching `approved_gate_maintenance` entry before the batch branch
+  is gated, recorded by the approval-then-attestation sequence Batch 182 used (`543cab4`,
+  `4c2d84e`).
+
+  Scope boundary: the stamp check and step 11's wording. No change to `ci-local.sh`, the stamp
+  format, CI, or the first gate. Runs on its own, after Group AD's closing `/ship-prod` and before
+  Group AE. **Tooling-only; nothing reaches the API image or the web app.**
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

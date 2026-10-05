@@ -81,8 +81,8 @@ was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is 
 (172, 173, 174 and 170, closed 3 Oct; web-only, nothing to ship). Group AC is complete,
 shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Group AD's first
 checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188); Batches 184, 185 and
-186 closed on 4-5 Oct; Batch 187 follows, then its closing `/ship-prod`. Groups AE, AB, AF and AH follow
-(`docs/agent-commands/group-start.md`).
+186 closed on 4-5 Oct; Batch 187 follows, then its closing `/ship-prod`. Batch 204 (docs-only close-out fast path, owner-approved gate maintenance) runs on its own
+after that shipment. Groups AE, AB, AF and AH follow (`docs/agent-commands/group-start.md`).
 
 ## Toolchain
 
@@ -124,4 +124,4 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Batch 187, continuing Group AD; and the owner's season-calendar backfill, now unblocked.
+**Next:** Batch 187's close-out (its code is on `main` at `6838be5`, CI green) and Group AD's closing `/ship-prod`, then Batch 204 on its own, then Group AE — one stage per session (owner, 2026-10-05); and the owner's season-calendar backfill, now unblocked.
