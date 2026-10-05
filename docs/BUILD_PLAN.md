@@ -450,7 +450,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: roster exits. **API-carrying.**
 
-- [ ] **Batch 186 — The same week's accumulator shows two different prices**
+- [x] **Batch 186 — The same week's accumulator shows two different prices** ✅ 2026-10-05
   — specified from `docs/review/2026-09-28/02-correctness.md`, CORR-21 (LOW, live, verified;
   void-leg decision partial). Batch 156 excluded void legs in `build_coupon` only; the Results
   list (`scoring.py:773`) and home's "Last result" (`me.py:469, :552`) still multiply them —

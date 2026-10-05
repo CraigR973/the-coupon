@@ -8153,3 +8153,23 @@ https://github.com/CraigR973/the-coupon/actions/runs/37249797190 PASS for `f0710
   No assertion changed. It sits under `apps/api`, so it rides with Group AD's closing `/ship-prod`.
 
 **Next:** finish Batch 186's close-out (its implementation CI was the red run above), then Batch 187.
+
+## Batch 186 — The same week's accumulator shows two different prices
+**Commits:** `311a7c0` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,387 backend
+and 1,275 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37247946337 **FAILED** for `311a7c0` on a
+pre-existing join-code collision in an unchanged test, not this batch; repaired by fix `f0710b0`,
+whose run https://github.com/CraigR973/the-coupon/actions/runs/37249797190 PASSED on a tree
+containing `311a7c0`
+
+### Key facts for future sessions
+- **One price rule.** `accumulator()` in `services/coupon.py` leaves void legs out and counts them;
+  the coupon, the Results list and home's current and last rounds all price through it, so one
+  round reads the same price everywhere (7.13, not 53.01, in the test's production-shaped round).
+- **`void_leg_count` rides on `GameweekResult`, `LastResult` and `CurrentRound`** (optional, default
+  0). `CurrentRound` was included because home's live card prints a fold too.
+- **The web reads it as optional:** home's two cards fold `leg_count - void_leg_count`, and a
+  Results row adds "N void"; an API without the field renders exactly as before.
+- **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-04T21:43:04Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
+
+**Next:** Batch 187 (Group AD), then Group AD's closing `/ship-prod`.

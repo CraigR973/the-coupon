@@ -29,11 +29,13 @@ Checked 2026-10-04 unless a line says otherwise.
 
 ## Owed
 
-- **A `/ship-prod` is owed for Batches 184 and 185 and fix `f0710b0`** (4-5 Oct): non-scoring
-  rounds are no longer created or pickable, with an operator void route and distinct same-week
-  labels; departing members release their open claims and self-deletion completes the round; a
-  league inserted without a join code takes the product's own generator. None migrates; they ride
-  with Group AD's closing checkpoint after 187.
+- **A `/ship-prod` is owed for Batches 184, 185 and 186 and fix `f0710b0`** (4-5 Oct), scheduled
+  by Craig Robinson at `2026-10-04T21:43:04Z`: non-scoring rounds are no longer created or pickable,
+  with an operator void route and distinct same-week labels; departing members release their open
+  claims and self-deletion completes the round; every surface prices void legs as the coupon does;
+  a league inserted without a join code takes the product's own generator. None migrates; they
+  ride with Group AD's closing checkpoint after 187. Batch 186's web half is live and reads the new
+  field as optional, so it is safe on the deployed API.
   Group AD's first checkpoint shipped on 2026-10-04 as Railway `2fb09b79` (`bb09760b`):
   Batch 183's combined-odds arithmetic and Batch 188's season-calendar reads.
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
@@ -78,8 +80,8 @@ Batches 170-203 are drafted from the 2026-09-28 review and every owner decision 
 was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is complete
 (172, 173, 174 and 170, closed 3 Oct; web-only, nothing to ship). Group AC is complete,
 shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Group AD's first
-checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188); Batches 184 and 185
-closed on 4-5 Oct; Batches 186-187 follow, then its closing `/ship-prod`. Groups AE, AB, AF and AH follow
+checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188); Batches 184, 185 and
+186 closed on 4-5 Oct; Batch 187 follows, then its closing `/ship-prod`. Groups AE, AB, AF and AH follow
 (`docs/agent-commands/group-start.md`).
 
 ## Toolchain
@@ -122,4 +124,4 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Batch 186, continuing Group AD; and the owner's season-calendar backfill, now unblocked.
+**Next:** Batch 187, continuing Group AD; and the owner's season-calendar backfill, now unblocked.
