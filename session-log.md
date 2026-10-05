@@ -8215,3 +8215,23 @@ https://github.com/CraigR973/the-coupon/actions/runs/37254298110 PASS for `6838b
   redeploy `b52f0a9c` reached `SUCCESS` before the source upload and is the plain rollback image.
 
 **Next:** Batch 204 on its own in a fresh stage; do not begin it in this stage.
+
+## Gate maintenance — Batch 204 close-out stamp approval
+**Commit:** `27c98c2` · owner-approved 5 Oct 2026 · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37369609498 failed at the expected
+old-trusted-guard comparison; production-bundle smoke and seeded coupon journey passed
+
+### Key facts for future sessions
+- Batch 204 may change only `scripts/check-closeout-safety.sh` and
+  `docs/agent-commands/phase-closeout.md` among protected files. Trusted `main` now carries that
+  exact approval while the BUILD_PLAN row remains open.
+- The isolated gate replayed the push against `d81796a` and correctly refused the approval
+  commit's change to `scripts/assert-quality-guardrails.sh`; the production-bundle smoke and seeded
+  journey passed in isolated reruns for the same exact SHA.
+- The original run and first full rerun lost queued jobs at GitHub's 15-minute scheduler boundary.
+  Those cancellations ran no project step; isolating the gate and journey supplied the missing
+  evidence without changing the commit.
+- No application code, API contract, database schema or production data changed. The web and API
+  trees are unchanged, and the preceding Group AD shipment remains in sync.
+
+**Next:** Resume Batch 204's implementation from the trusted attestation commit.
