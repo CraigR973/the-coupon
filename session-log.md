@@ -8194,3 +8194,24 @@ https://github.com/CraigR973/the-coupon/actions/runs/37254298110 PASS for `6838b
 - **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-04T21:43:04Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
 
 **Next:** Group AD's closing `/ship-prod` checkpoint.
+
+## Shipment — 2026-10-05, `546db3f` (Group AD's closing checkpoint; no migration)
+**Railway:** `9d341cd1-ce34-49f5-8d79-4f9ddd942a71` `SUCCESS` · rollback baseline
+`b52f0a9c-…` (plain — nothing migrated) · Vercel no-op
+(`dpl_BMP3eppfrqFGwL4t6i6dL2ZdxNer`, `546db3f`) · drift **in sync** · exact-SHA CI run
+`37308471050` green · gate 12 checks, backend 1,395, frontend 1,281, journey 1
+
+### Key facts for future sessions
+- **Group AD is fully live.** Batches 183, 188 and 184-187 are shipped, with the test-only
+  rate-limit fix `88c0f75` and join-code fix `f0710b0`; no `/ship-prod` is owed. Shipped by the
+  agent under the owner's standing instruction of `2026-10-05T11:57:48Z`.
+- **Batch 187 is live by behaviour, not only the stamp:** its settled-fixtures admin route returns
+  `401` without a session, proving the protected route exists rather than the old `404`.
+- **Production proof:** health and readiness `200` at `546db3f` / `026`; one SPA asset; exact-origin
+  CORS `200` with credentials and a foreign origin refused; RLS forced on 21 of 21 tables with no
+  public-role grants; clean bounded Railway and Vercel log snapshots; the scheduler started its 13
+  jobs and completed connection warm-ups.
+- **IaC and rollback:** the pinned plan was 0 add / 2 safe changes / 0 destroy on `api` only. Its
+  redeploy `b52f0a9c` reached `SUCCESS` before the source upload and is the plain rollback image.
+
+**Next:** Batch 204 on its own in a fresh stage; do not begin it in this stage.

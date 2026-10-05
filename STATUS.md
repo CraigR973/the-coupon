@@ -13,9 +13,9 @@ Checked 2026-10-05 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `bb09760b` at migration `026` |
-| API deployment | Railway `2fb09b79-5b70-461a-97f1-4ecc3afc5895`, one replica, `europe-west4` |
-| Web | `the-coupon-production.vercel.app` serves `bb09760b` at Vercel `dpl_HSQysSgYpBR6hSiXpaHnvVGpfHUw`; Vercel builds `main` on every push |
+| API | `api-production-109b1.up.railway.app` serves `546db3f` at migration `026` |
+| API deployment | Railway `9d341cd1-ce34-49f5-8d79-4f9ddd942a71`, one replica, `europe-west4` |
+| Web | `the-coupon-production.vercel.app` serves `546db3f` at Vercel `dpl_BMP3eppfrqFGwL4t6i6dL2ZdxNer`; Vercel builds `main` on every push |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -29,20 +29,14 @@ Checked 2026-10-05 unless a line says otherwise.
 
 ## Owed
 
-- **A `/ship-prod` is owed for Batches 184, 185, 186 and 187 and fix `f0710b0`** (4-5 Oct), scheduled
-  by Craig Robinson at `2026-10-04T21:43:04Z`: non-scoring rounds are no longer created or pickable,
-  with an operator void route and distinct same-week labels; departing members release their open
-  claims and self-deletion completes the round; every surface prices void legs as the coupon does;
-  one result correction re-scores the fixture across every league and empty locked rounds settle;
-  a league inserted without a join code takes the product's own generator. None migrates; they
-  ride with Group AD's closing checkpoint after 187. Batch 186's web half is live and reads the new
-  field as optional; Batch 187's web half is live but its admin action needs the owed API route.
-  Group AD's first checkpoint shipped on 2026-10-04 as Railway `2fb09b79` (`bb09760b`):
-  Batch 183's combined-odds arithmetic and Batch 188's season-calendar reads.
+- **No `/ship-prod` is owed.** Group AD's closing checkpoint shipped on 2026-10-05 as Railway
+  `9d341cd1` (`546db3f`): Batches 184-187 and fix `f0710b0` are live, drift is **in sync**, and
+  migration remains `026`. Group AD's first checkpoint remains the 2026-10-04 shipment of Batches
+  183 and 188 as Railway `2fb09b79` (`bb09760b`).
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
-  Railway `dfc17de3-9a7e-4b1a-9a3c-911a8539db77`, the previous image redeployed by the
+  Railway `b52f0a9c-78dc-4eec-a52b-f765be3e6865`, the previous image redeployed by the
   pinned IaC apply — boots against the database as it stands. Vercel was already on
-  `bb09760b` at `dpl_HSQysSgYpBR6hSiXpaHnvVGpfHUw`, so the web app did not move.
+  `546db3f` at `dpl_BMP3eppfrqFGwL4t6i6dL2ZdxNer`, so the web app did not move.
 
 ## Waiting on the owner
 
@@ -81,9 +75,10 @@ Batches 170-203 are drafted from the 2026-09-28 review and every owner decision 
 was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is complete
 (172, 173, 174 and 170, closed 3 Oct; web-only, nothing to ship). Group AC is complete,
 shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Group AD's first
-checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188); Batches 184, 185 and
-187 closed on 4-5 Oct; Group AD's closing `/ship-prod` follows. Batch 204 (docs-only close-out fast path, owner-approved gate maintenance) runs on its own
-after that shipment. Groups AE, AB, AF and AH follow (`docs/agent-commands/group-start.md`).
+checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188), and its closing checkpoint
+shipped on 5 Oct as `546db3f` (Batches 184-187 and fix `f0710b0`); Group AD is complete. Batch
+204 (docs-only close-out fast path, owner-approved gate maintenance) runs on its own in the next
+stage. Groups AE, AB, AF and AH follow (`docs/agent-commands/group-start.md`).
 
 ## Toolchain
 
@@ -125,4 +120,4 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Group AD's closing `/ship-prod`, then Batch 204 on its own, then Group AE — one stage per session (owner, 2026-10-05); and the owner's season-calendar backfill, now unblocked.
+**Next:** Batch 204 on its own in a fresh stage, then Group AE — one stage per session (owner, 2026-10-05); and the owner's season-calendar backfill, now unblocked.

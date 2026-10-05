@@ -3617,3 +3617,55 @@ Backup/restore-point identity: **none yet** — Batch 95's backup is still switc
 Owner follow-up carried by this shipment (Batch 188): the season-calendar backfill may now run —
 `python -m src.backfill_season_calendar --dry-run`, review, then a separately authorised
 `--apply`.
+
+### 2026-10-05 — `546db3f`, Group AD's closing checkpoint (no migration)
+
+Group AD's closing shipment carried Batch 184's non-scoring-round refusal and operator void,
+Batch 185's roster-exit pick release and completion, Batch 186's shared void-leg pricing, Batch
+187's fixture-wide result correction and empty-round settlement, and the join-code default fix
+`f0710b0`. The exact clean commit passed the local gate (12 checks, 1,395 backend and 1,281
+frontend tests, seeded journey 1, 0 skipped); its verified tree was
+`a839d6834171002a0dc3ed38b7b1c09e234f6364`, so `/ship-prod` reused that proof rather than
+repeating the gate. Exact-SHA GitHub Actions run `37308471050` passed all three jobs for
+`546db3f`. Shipped by the agent under the owner's standing instruction of
+`2026-10-05T11:57:48Z`.
+
+Preflight: Supabase `pugujiiojitstkilphrz` was `ACTIVE_HEALTHY` in London (`eu-west-2`);
+Railway targets matched the recorded project, environment, service and domain,
+`railwayConfigFile` was null, and all 13 required variables were present by name. The
+non-secret runtime checks confirmed production, `oddsapi` / Bet365 and the scheduler enabled.
+Vercel production held encrypted, production-scoped `VITE_API_URL` and
+`VITE_VAPID_PUBLIC_KEY`; its stable alias was already `READY` at `546db3f`.
+`check-migration-recovery.sh` exited 0 with production and the repository both at `026`, so this
+shipment applied no migration.
+
+The pinned IaC plan reported 0 to add, 2 safe changes and 0 to destroy against the existing
+`api` service only: the Nixpacks config path, one replica, restart policy and sleep fields that
+Railway leaves null at the service-instance layer. Applying it created redeploy
+`b52f0a9c-78dc-4eec-a52b-f765be3e6865` of the previous image; it reached `SUCCESS` before the
+source upload and is this shipment's plain rollback baseline.
+
+Railway `9d341cd1-ce34-49f5-8d79-4f9ddd942a71`, `SUCCESS`. `/health` returned `200`, SHA
+`546db3f` and migration `026`; `/health/ready` returned `200`, `db: ok` and `026`. Manifest:
+one replica in `europe-west4-drams3a`, sleep off, restart `ON_FAILURE`, healthcheck
+`/api/v1/health/ready` at 300 seconds, 0.25 vCPU / 500 MB, IPv6 egress on, and Nixpacks with
+`/nixpacks.toml`. The final bounded Railway snapshot held 57 lines, zero startup or migration
+failures and zero credential/member-data leak hits; its six error-level lines were two normal
+Alembic and four normal Uvicorn startup lines. The scheduler started its 13 jobs and completed
+two connection warm-ups. The protected Batch 187 settled-fixtures route returned `401` without
+a session, proving the new route is live rather than the old `404`.
+
+Vercel was a no-op: GitHub had already deployed `546db3f` as
+`dpl_BMP3eppfrqFGwL4t6i6dL2ZdxNer`, `READY`, and the stable alias pointed to it. Its static
+deployment produced no runtime log lines.
+
+Post-deploy smoke: web root and `/leagues/discover` both returned `200` from one SPA asset and
+retained CSP, `X-Frame-Options`, HSTS, nosniff, referrer, permissions and cache headers.
+Exact-origin CORS returned `200` with credentials; a foreign origin was refused with `400` and
+no `Access-Control-Allow-Origin`. Readiness remained green, and `scripts/check-deploy-drift.sh`
+reported **in sync**. A read-only production transaction over the exact project's London session
+pooler, built in memory after the direct IPv6 hostname did not resolve locally, found RLS enabled
+and forced on 21 of 21 public tables, no table grants or effective privileges for `anon`,
+`authenticated` or `PUBLIC`, no schema grants, and head `026`.
+
+Backup/restore-point identity: **none yet** — Batch 95's backup is still switched off.
