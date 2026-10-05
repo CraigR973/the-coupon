@@ -344,6 +344,13 @@ export interface CouponLeg {
    * member their pick has landed when it has not.
    */
   score_is_final?: boolean;
+  /**
+   * Batch 187. True when a site admin corrected this pick's result after it settled, with
+   * the reason they gave. Optional: the web app deploys ahead of the API, and absent reads
+   * as never corrected.
+   */
+  corrected?: boolean;
+  correction_reason?: string | null;
 }
 
 export interface Coupon {
@@ -1045,6 +1052,37 @@ export interface AdminPendingRound {
   status: GameweekStatus;
   locks_at_utc: string;
   fixtures: AdminPendingFixture[];
+  /** Batch 184. Why the settle guard refuses this round; absent or null when it can settle. */
+  settle_refusal?: string | null;
+}
+
+/** A recently settled fixture, as the result-correction list shows it (Batch 187). */
+export interface AdminSettledFixture {
+  fixture_id: string;
+  home: string;
+  away: string;
+  competition: string;
+  kickoff_utc: string;
+  /** Settled picks on it, across every live league. */
+  settled_picks: number;
+  /** The leagues holding them, by name. */
+  leagues: string[];
+}
+
+/** What a per-fixture correction changed (Batch 187). */
+export interface AdminFixtureCorrection {
+  fixture_id: string;
+  picks_checked: number;
+  changed: {
+    pick_id: string;
+    league_slug: string;
+    status_before: PickStatus;
+    points_before: number | null;
+    status: PickStatus;
+    points: number | null;
+  }[];
+  leagues_audited: string[];
+  members_told: number;
 }
 
 export interface AdminCalendarWeek {

@@ -5,7 +5,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
 import { SyncPage } from '@/pages/admin/AdminSyncPage';
 import { AdminResultsPage } from '@/pages/admin/AdminResultsPage';
-import type { AdminDashboard, AdminPendingRound, AdminSyncJobs } from '@/lib/types';
+import type {
+  AdminDashboard,
+  AdminFixtureCorrection,
+  AdminPendingRound,
+  AdminSettledFixture,
+  AdminSyncJobs,
+} from '@/lib/types';
 
 /**
  * Batch 69 — the operational screens.
@@ -326,5 +332,112 @@ describe('the manual results screen', () => {
     renderPage(<AdminResultsPage />);
 
     expect(await screen.findByText(/every locked round has settled/i)).toBeTruthy();
+  });
+});
+
+// ── Correcting a settled result (Batch 187) ─────────────────────────────────
+
+const SETTLED: AdminSettledFixture[] = [
+  {
+    fixture_id: 'fx9',
+    home: 'Forfar',
+    away: 'Brechin',
+    competition: 'Scottish League Two',
+    kickoff_utc: '2027-03-06T15:00:00Z',
+    settled_picks: 4,
+    leagues: ['First League', 'Second League'],
+  },
+];
+
+const CORRECTED: AdminFixtureCorrection = {
+  fixture_id: 'fx9',
+  picks_checked: 4,
+  changed: [
+    { pick_id: 'p1', league_slug: 'first', status_before: 'won', points_before: 25, status: 'lost', points: 0 },
+    { pick_id: 'p2', league_slug: 'first', status_before: 'lost', points_before: 0, status: 'won', points: 34 },
+    { pick_id: 'p3', league_slug: 'second', status_before: 'won', points_before: 18, status: 'lost', points: 0 },
+  ],
+  leagues_audited: ['first', 'second'],
+  members_told: 3,
+};
+
+function correctionApi(outcome: AdminFixtureCorrection = CORRECTED) {
+  apiFetch.mockImplementation(async (path: string) => {
+    if (path.endsWith('/settled-fixtures')) return SETTLED;
+    if (path.endsWith('/correct')) return outcome;
+    return [];
+  });
+}
+
+describe('correcting a settled result', () => {
+  it('stays closed until asked, then lists the recent settled matches', async () => {
+    correctionApi();
+
+    renderPage(<AdminResultsPage />);
+    await screen.findByText(/every locked round has settled/i);
+    expect(apiFetch.mock.calls.some(([path]) => String(path).endsWith('/settled-fixtures'))).toBe(
+      false,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /find a match to correct/i }));
+
+    const list = await screen.findByTestId('settled-fixtures');
+    expect(list.textContent).toContain('Forfar v Brechin');
+    expect(list.textContent).toContain('4 settled pick(s)');
+    expect(list.textContent).toContain('First League, Second League');
+  });
+
+  it('sends the score and the reason once, for the match, and says what changed', async () => {
+    correctionApi();
+
+    renderPage(<AdminResultsPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /find a match to correct/i }));
+    fireEvent.change(await screen.findByLabelText('Forfar final goals'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText('Brechin final goals'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/why forfar v brechin is being corrected/i), {
+      target: { value: 'Finished 1-1, not 2-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /correct result/i }));
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    const call = apiFetch.mock.calls.find(([path]) => String(path).endsWith('/correct'));
+    expect(call?.[0]).toBe('/api/v1/admin/fixtures/fx9/correct');
+    expect(JSON.parse(String(call![1].body))).toEqual({
+      home_goals: 1,
+      away_goals: 1,
+      reason: 'Finished 1-1, not 2-1',
+    });
+    expect(toastSuccess).toHaveBeenCalledWith(
+      '3 pick(s) re-scored across 2 league(s) · 3 member(s) told',
+    );
+  });
+
+  it('will not send a correction without a reason', async () => {
+    correctionApi();
+
+    renderPage(<AdminResultsPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /find a match to correct/i }));
+    fireEvent.click(await screen.findByLabelText(/not played/i));
+    fireEvent.click(screen.getByRole('button', { name: /correct result/i }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect(apiFetch.mock.calls.some(([path]) => String(path).endsWith('/correct'))).toBe(false);
+  });
+
+  it('says plainly when the result entered changed nothing', async () => {
+    correctionApi({ ...CORRECTED, changed: [], leagues_audited: [], members_told: 0 });
+
+    renderPage(<AdminResultsPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /find a match to correct/i }));
+    fireEvent.click(await screen.findByLabelText(/not played/i));
+    fireEvent.change(screen.getByLabelText(/why forfar v brechin is being corrected/i), {
+      target: { value: 'Checking it again' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /correct result/i }));
+
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith(
+        'Nothing changed — every settled pick already had that result',
+      ),
+    );
   });
 });

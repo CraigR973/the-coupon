@@ -707,6 +707,74 @@ async def test_a_round_refused_because_its_week_already_scored_is_voided_at_once
     assert response.json()["picks_voided"] == 1
 
 
+# ── A round nobody picked on (Batch 187) ───────────────────────────────────────
+
+
+#: A Saturday in a season no other test labels, so a committed round here moves nothing.
+EMPTY_DAY = date(2023, 11, 4)
+
+
+async def test_a_round_nobody_picked_settles_once_after_its_window(session: AsyncSession) -> None:
+    """CORR-23: a locked round with no picks was never settled, told or listed.
+
+    It now settles at the first sweep after its window closes — not at the lock, because
+    "settled" says the week is over — is announced like any other round, and is never
+    selected again.
+    """
+    owner = await _profile(session, "owner")
+    league = await _league(session, owner, "Quiet League")
+    first, second = await _profile(session, "first"), await _profile(session, "second")
+    await _join(session, league, first)
+    await _join(session, league, second)
+    gameweek = Gameweek(
+        league_id=league.id,
+        starts_on=EMPTY_DAY,
+        number=9,
+        status=GameweekStatus.locked,
+        locks_at_utc=datetime(2023, 11, 4, 14, 30),
+    )
+    session.add(gameweek)
+    await session.flush()
+
+    sent: list[dict[str, Any]] = []
+    with patch(SEND, new=_recorder(sent)):
+        # 14:45 — the deadline has gone but the 15:00 window is still being played.
+        with patch("src.services.scoring._now", return_value=datetime(2023, 11, 4, 14, 45)):
+            assert await _sweep(session, [league], _Results()) is True
+        assert gameweek.status is GameweekStatus.locked
+        assert sent == []
+
+        # After the window: settled, and both members told they had no pick.
+        with patch("src.services.scoring._now", return_value=datetime(2023, 11, 4, 18, 0)):
+            assert await _sweep(session, [league], _Results()) is True
+            assert gameweek.status is GameweekStatus.settled
+            assert sorted(message["user_id"] for message in sent) == sorted([first.id, second.id])
+            assert all(message["body"].endswith("You had no pick this round.") for message in sent)
+
+            # The next sweep does not select it again, and says nothing.
+            assert await _sweep(session, [league], _Results()) is True
+    assert len(sent) == 2
+    assert gameweek.settled_at is not None
+
+
+async def test_a_hand_settlement_appears_in_its_leagues_log(client: AsyncClient) -> None:
+    """FEAT-A14: the row named no league, so the league never saw its round settled by hand."""
+    admin, league, gameweek, fixture, _people = await _committed_round(1)
+    payload = {"results": [{"fixture_id": str(fixture.id), "home_goals": 2, "away_goals": 1}]}
+
+    with patch(SEND, new=_recorder([])):
+        settled = await client.post(
+            f"/api/v1/admin/results/{gameweek.id}/settle", json=payload, headers=_auth(admin)
+        )
+    trail = await client.get(f"/api/v1/leagues/{league.slug}/audit-log", headers=_auth(admin))
+
+    assert settled.status_code == 200, settled.text
+    rows = [entry for entry in trail.json()["entries"] if entry["target_id"] == str(gameweek.id)]
+    assert len(rows) == 1
+    assert rows[0]["changes"]["action"] == "manual_settlement"
+    assert rows[0]["changes"]["league_slug"] == league.slug
+
+
 # ── What the round is called ───────────────────────────────────────────────────
 
 

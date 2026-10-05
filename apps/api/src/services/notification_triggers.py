@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.fixture import Fixture
-from src.models.gameweek import Gameweek
+from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.gameweek_completion import GameweekCompletion
 from src.models.notification import ActionType, ActorType, AuditLog
 from src.models.pick import Pick, PickStatus
@@ -26,7 +26,12 @@ from src.models.profile import Profile, UserRole
 from src.rate_limit import consume_durable_limit
 from src.services.discovery_health import DiscoveryHealth
 from src.services.fotmob_health import FotMobAlert
-from src.services.gameweek import RoundProgress, members_missing_picks, notification_targets
+from src.services.gameweek import (
+    NotificationTarget,
+    RoundProgress,
+    members_missing_picks,
+    notification_targets,
+)
 from src.services.push_notification_service import send_notification
 from src.services.round_completion import (
     claim_pending_completion,
@@ -660,5 +665,80 @@ async def announce_round_settled(session: AsyncSession, gameweek_id: uuid.UUID) 
         return told
     except Exception:
         log.exception("round settlement announcement failed", gameweek_id=str(gameweek_id))
+        await session.rollback()
+        return 0
+
+
+# ── A corrected result (Batch 187) ────────────────────────────────────────────
+
+
+#: What opens a re-sent settle line, so the member reads it as a change, not a repeat.
+CORRECTION_PREFIX = "Result corrected."
+
+
+async def announce_corrected_results(session: AsyncSession, pick_ids: Sequence[uuid.UUID]) -> int:
+    """Re-send each member whose result a correction changed their settle line. Batch 187.
+
+    CORR-22: Batch 135 tells a member their result when a round settles, and a correction
+    rewrote that result afterwards and said nothing — so the one member whose points moved
+    was the one person who would not look. Each changed pick on a **settled** round now
+    re-sends :func:`_settled_body`, opened with :data:`CORRECTION_PREFIX` and tagged
+    exactly as the original so it replaces that entry in the tray. A pick on a round still
+    settling is left alone: the round's own settle line will carry the corrected result.
+
+    The same recipients rule as every league trigger — the member still active, still in
+    the league, the league not muted — through
+    :func:`~src.services.gameweek.notification_targets`, with ``league_id`` passed so
+    ``send_notification``'s mute gate is the authority.
+
+    Returns how many members were told. Commits its own work and swallows its own failures,
+    like :func:`announce_round_settled`: the correction has already committed.
+    """
+    if not pick_ids:
+        return 0
+    try:
+        rows = (
+            await session.execute(
+                select(Pick, Fixture, Gameweek)
+                .join(Fixture, Fixture.id == Pick.fixture_id)
+                .join(Gameweek, Gameweek.id == Pick.gameweek_id)
+                .where(Pick.id.in_(list(pick_ids)))
+            )
+        ).all()
+        settled = [
+            (pick, fixture, gw) for pick, fixture, gw in rows if gw.status is GameweekStatus.settled
+        ]
+        labels = await labels_for_gameweeks(session, [gw for _, _, gw in settled])
+        targets: dict[uuid.UUID, dict[str, NotificationTarget]] = {}
+        told = 0
+        for pick, fixture, gameweek in settled:
+            if gameweek.id not in targets:
+                targets[gameweek.id] = {
+                    member.player_id: member
+                    for member in await notification_targets(session, gameweek)
+                }
+            member = targets[gameweek.id].get(str(pick.player_id))
+            if member is None:
+                continue
+            label = round_name(labels.get(gameweek.id), gameweek.number, gameweek.starts_on)
+            await send_notification(
+                session,
+                pick.player_id,
+                member.league_name,
+                f"{CORRECTION_PREFIX} {_settled_body(label, (pick, fixture))}",
+                data={
+                    "type": "result_corrected",
+                    "league_id": str(gameweek.league_id),
+                    "url": coupon_section_url(member.league_slug, gameweek.id),
+                },
+                tag=f"round-settled-{gameweek.league_id}-{gameweek.id}",
+                timezone_name=member.timezone,
+                league_id=gameweek.league_id,
+            )
+            told += 1
+        await session.commit()
+        return told
+    except Exception:
+        log.exception("correction announcement failed", picks=len(pick_ids))
         await session.rollback()
         return 0

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
-import type { AdminPendingRound } from '@/lib/types';
+import type { AdminFixtureCorrection, AdminPendingRound, AdminSettledFixture } from '@/lib/types';
 import { formatCalendarDate, formatInstant } from '@/lib/time';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,10 @@ import { PageHeader } from '@/components/PageHeader';
 import { AdminNav } from './AdminNav';
 
 const PENDING_KEY = ['admin-pending-results'];
+const SETTLED_KEY = ['admin-settled-fixtures'];
 
 type Entry = { home: string; away: string; void: boolean };
+type Correction = Entry & { reason: string };
 
 function when(iso: string): string {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -190,6 +192,183 @@ export function AdminResultsPage() {
           ))}
         </ul>
       )}
+
+      <CorrectSettledResult />
     </div>
+  );
+}
+
+/** What the admin is told a correction did — the only feedback before the coupon reloads. */
+function correctionSummary(outcome: AdminFixtureCorrection): string {
+  if (outcome.changed.length === 0) {
+    return 'Nothing changed — every settled pick already had that result';
+  }
+  const leagues = outcome.leagues_audited.length;
+  return (
+    `${outcome.changed.length} pick(s) re-scored across ${leagues} league(s)` +
+    ` · ${outcome.members_told} member(s) told`
+  );
+}
+
+/**
+ * Correct a fixture the provider settled wrongly — once, for every league (Batch 187).
+ *
+ * Owner decision, 2026-09-30: per fixture, across every league. The old tool corrected
+ * one pick by an id nothing on screen showed, so a wrong result meant a database read,
+ * and fixing one member's pick left everyone else on the same match with the old answer.
+ * The admin picks the match, enters the true score (or that it was not played) and a
+ * reason; the API re-scores every settled pick on it, audits each league and tells each
+ * member whose result moved.
+ */
+function CorrectSettledResult() {
+  const queryClient = useQueryClient();
+  // Closed until asked for: a correction is rare, and the list of every settled match in
+  // the last sixty days is not what this screen is for on an ordinary Saturday.
+  const [open, setOpen] = useState(false);
+  const [entries, setEntries] = useState<Record<string, Correction>>({});
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const { data: fixtures, isLoading } = useQuery<AdminSettledFixture[]>({
+    queryKey: SETTLED_KEY,
+    queryFn: () => apiFetch<AdminSettledFixture[]>('/api/v1/admin/results/settled-fixtures'),
+    enabled: open,
+  });
+
+  function entryFor(fixtureId: string): Correction {
+    return entries[fixtureId] ?? { home: '', away: '', void: false, reason: '' };
+  }
+
+  function update(fixtureId: string, patch: Partial<Correction>) {
+    setEntries((current) => ({ ...current, [fixtureId]: { ...entryFor(fixtureId), ...patch } }));
+  }
+
+  async function correct(fixture: AdminSettledFixture) {
+    const entry = entryFor(fixture.fixture_id);
+    if (!entry.void && (entry.home === '' || entry.away === '')) {
+      toast.error('Enter the final score, or mark it not played');
+      return;
+    }
+    if (entry.reason.trim().length < 3) {
+      toast.error('Say why the result is being corrected');
+      return;
+    }
+    const result = entry.void
+      ? { void: true }
+      : { home_goals: Number(entry.home), away_goals: Number(entry.away) };
+
+    setSaving(fixture.fixture_id);
+    try {
+      const outcome = await apiFetch<AdminFixtureCorrection>(
+        `/api/v1/admin/fixtures/${fixture.fixture_id}/correct`,
+        { method: 'POST', body: JSON.stringify({ ...result, reason: entry.reason.trim() }) },
+      );
+      toast.success(correctionSummary(outcome));
+      void queryClient.invalidateQueries({ queryKey: SETTLED_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not correct that result');
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  return (
+    <section className="mt-8" aria-labelledby="correct-heading">
+      <h2 id="correct-heading" className="font-sans text-base font-semibold text-text-primary">
+        Correct a settled result
+      </h2>
+      <p className="mt-1 font-sans text-sm text-text-secondary">
+        Every settled pick on the match is re-scored, in every league, and each member whose
+        result changes is told.
+      </p>
+
+      {!open ? (
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-3"
+          aria-expanded={false}
+          onClick={() => setOpen(true)}
+        >
+          Find a match to correct
+        </Button>
+      ) : isLoading ? (
+        <Skeleton className="mt-3 h-32 w-full" />
+      ) : !fixtures?.length ? (
+        <p className="mt-3 font-sans text-sm text-text-secondary">
+          No settled matches in the last 60 days.
+        </p>
+      ) : (
+        <ul className="mt-3 space-y-3" data-testid="settled-fixtures">
+          {fixtures.map((fixture) => {
+            const entry = entryFor(fixture.fixture_id);
+            return (
+              <li key={fixture.fixture_id}>
+                <Card>
+                  <CardContent className="space-y-2 p-4">
+                    <p className="font-sans text-sm font-medium text-text-primary">
+                      {fixture.home} v {fixture.away}
+                    </p>
+                    <p className="font-sans text-xs text-text-muted">
+                      {fixture.competition} · {when(fixture.kickoff_utc)} ·{' '}
+                      {fixture.settled_picks} settled pick(s) · {fixture.leagues.join(', ')}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        aria-label={`${fixture.home} final goals`}
+                        inputMode="numeric"
+                        className="w-16"
+                        disabled={entry.void}
+                        value={entry.home}
+                        onChange={(e) =>
+                          update(fixture.fixture_id, {
+                            home: e.target.value.replace(/\D/g, '').slice(0, 2),
+                          })
+                        }
+                      />
+                      <span className="font-mono text-text-muted">–</span>
+                      <Input
+                        aria-label={`${fixture.away} final goals`}
+                        inputMode="numeric"
+                        className="w-16"
+                        disabled={entry.void}
+                        value={entry.away}
+                        onChange={(e) =>
+                          update(fixture.fixture_id, {
+                            away: e.target.value.replace(/\D/g, '').slice(0, 2),
+                          })
+                        }
+                      />
+                      <label className="flex items-center gap-1.5 font-sans text-xs text-text-secondary">
+                        <input
+                          type="checkbox"
+                          checked={entry.void}
+                          onChange={(e) => update(fixture.fixture_id, { void: e.target.checked })}
+                        />
+                        Not played
+                      </label>
+                    </div>
+                    <Input
+                      aria-label={`Why ${fixture.home} v ${fixture.away} is being corrected`}
+                      placeholder="Why it is being corrected"
+                      maxLength={500}
+                      value={entry.reason}
+                      onChange={(e) => update(fixture.fixture_id, { reason: e.target.value })}
+                    />
+                    <Button
+                      size="sm"
+                      disabled={saving !== null}
+                      onClick={() => void correct(fixture)}
+                    >
+                      {saving === fixture.fixture_id ? 'Correcting…' : 'Correct result'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

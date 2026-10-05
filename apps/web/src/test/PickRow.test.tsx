@@ -94,6 +94,29 @@ describe('PickRow', () => {
     expect(row.textContent).toContain('Forfar 2–1 Brechin');
   });
 
+  it('says a result was corrected, and why (Batch 187)', () => {
+    const [entry] = entriesFromLegs([
+      { ...SETTLED_LEG, corrected: true, correction_reason: 'Finished 1-1, not 2-1' },
+    ]);
+    render(
+      <ol>
+        <PickRow entry={entry} oddsFormat="decimal" lead="selection" settled testId="row" />
+      </ol>,
+    );
+    const note = within(screen.getByTestId('row')).getByTestId('leg-corrected');
+    expect(note.textContent).toBe('Result corrected · Finished 1-1, not 2-1');
+  });
+
+  it('says nothing about corrections on a leg the API does not mark', () => {
+    const [entry] = entriesFromLegs([SETTLED_LEG]);
+    render(
+      <ol>
+        <PickRow entry={entry} oddsFormat="decimal" lead="selection" settled testId="row" />
+      </ol>,
+    );
+    expect(within(screen.getByTestId('row')).queryByTestId('leg-corrected')).toBeNull();
+  });
+
   it('uses text and ink for a loss without dimming the row or printing zero points', () => {
     const [entry] = entriesFromLegs([
       { ...SETTLED_LEG, status: 'lost', points_awarded: 0 },

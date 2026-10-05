@@ -14,12 +14,13 @@ from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal, localcontext
 
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.display_name import public_name_sql
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus
+from src.models.notification import ActionType, AuditLog
 from src.models.pick import Pick, PickStatus
 from src.models.profile import Profile
 from src.services.gameweek import is_in_play
@@ -117,6 +118,12 @@ class CouponLeg(BaseModel):
     #: on a round being played; a screen that renders a running score the same way it
     #: renders a final one tells a member their pick has landed when it has not.
     score_is_final: bool = True
+    #: Batch 187. True when a site admin corrected this pick's result after it settled —
+    #: through the per-fixture correction or Batch 134's per-pick one — with the reason
+    #: they gave. Read from the audit rows those corrections write, so no column and no
+    #: migration; optional with defaults because the web app deploys ahead of the API.
+    corrected: bool = False
+    correction_reason: str | None = None
 
 
 class Coupon(BaseModel):
@@ -176,6 +183,15 @@ async def build_coupon(db: AsyncSession, league_id: uuid.UUID, gameweek: Gamewee
         else {}
     )
 
+    corrections = await _corrections(
+        db,
+        league_id,
+        [
+            (pick.id, pick.fixture_id)
+            for pick, _, _ in rows
+            if pick.status is not PickStatus.pending
+        ],
+    )
     legs: list[CouponLeg] = []
     priced: list[tuple[Decimal, PickStatus]] = []
     for pick, fixture, player_name in rows:
@@ -209,6 +225,8 @@ async def build_coupon(db: AsyncSession, league_id: uuid.UUID, gameweek: Gamewee
                 home_goals=score.home_goals if score else None,
                 away_goals=score.away_goals if score else None,
                 score_is_final=score.final if score else True,
+                corrected=pick.id in corrections,
+                correction_reason=corrections.get(pick.id),
             )
         )
 
@@ -226,3 +244,50 @@ async def build_coupon(db: AsyncSession, league_id: uuid.UUID, gameweek: Gamewee
         all_won=all_won,
         void_leg_count=price.void_leg_count,
     )
+
+
+async def _corrections(
+    db: AsyncSession, league_id: uuid.UUID, settled: Sequence[tuple[uuid.UUID, uuid.UUID]]
+) -> dict[uuid.UUID, str | None]:
+    """Which of these settled picks a site admin corrected, and the latest reason given.
+
+    Batch 187 (FEAT-A14): a corrected result was invisible on the pick itself. The two
+    correction paths already write an audit row naming what they changed — a per-fixture
+    correction one row per league listing each pick it moved, Batch 134's per-pick one a
+    row against the pick — so the flag is read from those rather than stored, which needs
+    no migration and cannot disagree with the audit trail. A fixture-level row marks only
+    the picks it lists: a pick the correction re-scored to the same result was confirmed,
+    not corrected. ``settled`` pairs each pick with its fixture; an empty list costs nothing.
+    """
+    if not settled:
+        return {}
+    pick_ids = {pick_id for pick_id, _ in settled}
+    fixture_ids = {fixture_id for _, fixture_id in settled}
+    rows = await db.execute(
+        select(AuditLog.target_table, AuditLog.target_id, AuditLog.changes)
+        .where(
+            AuditLog.action_type == ActionType.league_updated,
+            or_(
+                and_(AuditLog.target_table == "picks", AuditLog.target_id.in_(pick_ids)),
+                and_(
+                    AuditLog.target_table == "fixtures",
+                    AuditLog.target_id.in_(fixture_ids),
+                    AuditLog.changes["league_id"].astext == str(league_id),
+                ),
+            ),
+        )
+        .order_by(AuditLog.timestamp, AuditLog.id)
+    )
+    reasons: dict[uuid.UUID, str | None] = {}
+    for target_table, target_id, changes in rows.all():
+        if not changes:
+            continue
+        reason = changes.get("reason")
+        if target_table == "picks" and changes.get("action") == "pick_corrected":
+            reasons[target_id] = reason
+        elif target_table == "fixtures" and changes.get("action") == "fixture_corrected":
+            for entry in changes.get("picks", []):
+                pick_id = uuid.UUID(entry["pick_id"])
+                if pick_id in pick_ids:
+                    reasons[pick_id] = reason
+    return reasons

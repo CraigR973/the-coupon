@@ -24,7 +24,8 @@ without one.
 """
 
 import uuid
-from datetime import UTC, date, datetime
+from collections import defaultdict
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
 import structlog
@@ -67,6 +68,7 @@ from src.services.football_provider import current_season
 from src.services.football_week import UNDECLARED_SAME_WEEK_ROUND, settle_refusal
 from src.services.gameweek import PICKABLE_STATES, release_unlocked_picks
 from src.services.notification_triggers import (
+    announce_corrected_results,
     announce_round_settled,
     settle_completion_after_roster_change,
 )
@@ -1303,6 +1305,7 @@ async def settle_manually(
     # `gameweek.status` to "not settled", and `settle_gameweek` is exactly the call that
     # can have made it settled since.
     final_status = GameweekStatus(gameweek.status.value)
+    league = await db.get(League, gameweek.league_id)
     db.add(
         _audit(
             admin,
@@ -1314,6 +1317,9 @@ async def settle_manually(
             gameweek.id,
             {
                 "action": "manual_settlement",
+                # Batch 187 (FEAT-A14). The league's own log finds a row by its slug, and
+                # this one named no league, so a league never saw its round settled by hand.
+                "league_slug": league.slug if league is not None else None,
                 "fixtures": len(settlements),
                 "picks_resolved": resolved,
             },
@@ -1594,3 +1600,264 @@ async def correct_pick(
         status=result.status,
     )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Correcting a settled fixture, across every league (Batch 187)
+# ---------------------------------------------------------------------------
+
+
+#: How far back the correction screen lists settled fixtures. A wrong result is found the
+#: weekend it happens or soon after; a season's worth would bury the one that matters.
+SETTLED_FIXTURE_DAYS = 60
+
+#: The most fixtures the list returns, newest first.
+SETTLED_FIXTURE_LIMIT = 100
+
+
+class SettledFixture(BaseModel):
+    """A fixture with settled picks on it — what a result correction is made against."""
+
+    fixture_id: str
+    home: str
+    away: str
+    competition: str
+    kickoff_utc: UtcDatetime
+    #: Settled picks on it, across every live league.
+    settled_picks: int
+    #: The live leagues holding them, by name.
+    leagues: list[str]
+
+
+@router.get("/results/settled-fixtures", response_model=list[SettledFixture])
+@limiter.limit("60/minute", key_func=per_user_key)
+async def settled_fixtures(request: Request, admin: AdminUser, db: Db) -> list[SettledFixture]:
+    """Recently settled fixtures, newest first — the list the correction is chosen from.
+
+    FEAT-A13: the only correction tool took a pick id that no read available to a site
+    admin returned, so using it needed a production database read. A fixture is what an
+    admin actually knows is wrong, and it is the unit the correction now works on.
+    """
+    since = _now() - timedelta(days=SETTLED_FIXTURE_DAYS)
+    rows = (
+        await db.execute(
+            select(Fixture, League.name, func.count(Pick.id))
+            .join(Pick, Pick.fixture_id == Fixture.id)
+            .join(League, League.id == Pick.league_id)
+            .where(
+                Pick.status != PickStatus.pending,
+                League.deleted_at.is_(None),
+                Fixture.kickoff_utc >= since,
+            )
+            .group_by(Fixture.id, League.name)
+        )
+    ).all()
+    by_fixture: dict[uuid.UUID, tuple[Fixture, list[str], int]] = {}
+    for fixture, league_name, count in rows:
+        _, names, total = by_fixture.get(fixture.id, (fixture, [], 0))
+        by_fixture[fixture.id] = (fixture, [*names, league_name], total + count)
+    ordered = sorted(
+        by_fixture.values(), key=lambda entry: (entry[0].kickoff_utc, entry[0].home), reverse=True
+    )
+    return [
+        SettledFixture(
+            fixture_id=str(fixture.id),
+            home=fixture.home,
+            away=fixture.away,
+            competition=fixture.competition,
+            kickoff_utc=fixture.kickoff_utc,
+            settled_picks=total,
+            leagues=sorted(names),
+        )
+        for fixture, names, total in ordered[:SETTLED_FIXTURE_LIMIT]
+    ]
+
+
+class FixtureCorrection(BaseModel):
+    """The true result of a settled fixture, and why it is being corrected. Batch 187.
+
+    A **score** or a void, as manual settlement and the per-pick correction take, never a
+    verdict: both markets follow from a score, and asking an admin to restate them is
+    asking for arithmetic the code can do.
+    """
+
+    home_goals: int | None = Field(default=None, ge=0, le=99)
+    away_goals: int | None = Field(default=None, ge=0, le=99)
+    void: bool = False
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class CorrectedPick(BaseModel):
+    pick_id: str
+    league_slug: str
+    status_before: str
+    points_before: int | None
+    status: str
+    points: int | None
+
+
+class FixtureCorrectionResult(BaseModel):
+    fixture_id: str
+    #: Settled picks on the fixture across every live league — every one was re-scored.
+    picks_checked: int
+    #: The picks whose result moved. Empty on a repeat: the correction is idempotent.
+    changed: list[CorrectedPick]
+    #: The leagues whose audit log gained a row, one row each.
+    leagues_audited: list[str]
+    #: Members re-sent their settle line because their result changed.
+    members_told: int
+
+
+@router.post("/fixtures/{fixture_id}/correct", response_model=FixtureCorrectionResult)
+@limiter.limit("20/hour", key_func=per_user_key)
+async def correct_fixture(
+    request: Request,
+    fixture_id: uuid.UUID,
+    body: FixtureCorrection,
+    admin: AdminUser,
+    db: Db,
+) -> FixtureCorrectionResult:
+    """Re-score every settled pick on a fixture, in every league, from its true result.
+
+    Owner decision, 2026-09-30 (README decision 4): a wrong result is corrected **per
+    fixture, across every league**, from the admin Results screen. Batch 134's correction
+    fixed one pick: after Bob's Draw was corrected to a 1-1, Alice's Arsenal pick on the
+    same match still read "won 19", and the same fixture sits on every league's card
+    (FEAT-A13). Here the score is entered once and every settled pick on the match is
+    re-scored through :func:`~src.services.scoring.resolve_pick` — the one scoring rule —
+    so a corrected pick and a provider-settled one are indistinguishable in ``picks``.
+
+    **Idempotent.** Only a pick whose status or points move is written; a repeat changes
+    nothing, writes no audit row and tells nobody. Pending picks are left to settlement.
+
+    **Audited per league** (FEAT-A14): one ``league_updated`` row per league whose picks
+    moved, against ``fixtures``, naming the league's slug so it appears in that league's
+    own log, with the result entered, the reason and each pick's before and after. It is
+    also what marks a pick ``corrected`` on the coupon — no column, so no migration.
+
+    **The member is told** (CORR-22): each member whose result changed on a settled round
+    is re-sent their settle line, tagged like the original so it replaces it in the tray.
+
+    Nothing else needs recomputing: standings, results, form and career figures are read
+    from ``picks`` on every request.
+    """
+    fixture = await db.get(Fixture, fixture_id)
+    if fixture is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixture not found")
+    if body.void:
+        settlement = voided_settlement(fixture.provider_event_id)
+        entered: dict[str, object] = {"void": True}
+    elif body.home_goals is None or body.away_goals is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="A correction needs both scores, or void.",
+        )
+    else:
+        settlement = settlement_from_score(
+            fixture.provider_event_id, body.home_goals, body.away_goals
+        )
+        entered = {"home_goals": body.home_goals, "away_goals": body.away_goals}
+
+    # Locked while they are rewritten, so two admins correcting the same match — or this
+    # and a per-pick correction — cannot interleave.
+    rows = (
+        await db.execute(
+            select(Pick, League.slug)
+            .join(League, League.id == Pick.league_id)
+            .where(
+                Pick.fixture_id == fixture.id,
+                Pick.status != PickStatus.pending,
+                League.deleted_at.is_(None),
+            )
+            .order_by(League.slug, Pick.id)
+            .with_for_update(of=Pick)
+        )
+    ).all()
+    if not rows:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="That fixture has no settled picks to correct.",
+        )
+
+    changed: list[CorrectedPick] = []
+    by_league: dict[tuple[uuid.UUID, str], list[dict[str, object]]] = defaultdict(list)
+    changed_ids: list[uuid.UUID] = []
+    for pick, league_slug in rows:
+        resolution = resolve_pick(pick.market, pick.outcome, pick.odds_at_pick, settlement)
+        if resolution is None:  # pragma: no cover — a score or a void settles every market
+            continue
+        before_status, before_points = pick.status, pick.points_awarded
+        if (resolution.status, resolution.points) == (before_status, before_points):
+            continue
+        pick.status = resolution.status
+        pick.points_awarded = resolution.points
+        changed_ids.append(pick.id)
+        changed.append(
+            CorrectedPick(
+                pick_id=str(pick.id),
+                league_slug=league_slug,
+                status_before=before_status.value,
+                points_before=before_points,
+                status=resolution.status.value,
+                points=resolution.points,
+            )
+        )
+        by_league[(pick.league_id, league_slug)].append(
+            {
+                "pick_id": str(pick.id),
+                "gameweek_id": str(pick.gameweek_id),
+                "before": {"status": before_status.value, "points": before_points},
+                "after": {"status": resolution.status.value, "points": resolution.points},
+            }
+        )
+
+    if not changed:
+        await db.rollback()  # release the row locks; nothing to write
+        return FixtureCorrectionResult(
+            fixture_id=str(fixture_id),
+            picks_checked=len(rows),
+            changed=[],
+            leagues_audited=[],
+            members_told=0,
+        )
+
+    match = f"{fixture.home} v {fixture.away}"
+    for (league_id, league_slug), picks in by_league.items():
+        db.add(
+            _audit(
+                admin,
+                ActionType.league_updated,
+                "fixtures",
+                fixture.id,
+                {
+                    "action": "fixture_corrected",
+                    "league_slug": league_slug,
+                    "league_id": str(league_id),
+                    "fixture": match,
+                    "result": entered,
+                    "reason": body.reason,
+                    "picks": picks,
+                },
+            )
+        )
+    leagues_audited = sorted(league_slug for _, league_slug in by_league)
+    checked = len(rows)
+    await db.commit()
+    log.info(
+        "fixture corrected",
+        fixture_id=str(fixture_id),
+        admin_id=str(admin.id),
+        picks_checked=checked,
+        picks_changed=len(changed),
+        leagues=leagues_audited,
+    )
+    # After the commit, as every settle announcement is: it commits or discards its own
+    # work and never raises, so a dead push service cannot undo a correction.
+    told = await announce_corrected_results(db, changed_ids)
+    return FixtureCorrectionResult(
+        fixture_id=str(fixture_id),
+        picks_checked=checked,
+        changed=changed,
+        leagues_audited=leagues_audited,
+        members_told=told,
+    )

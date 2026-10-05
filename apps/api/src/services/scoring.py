@@ -29,12 +29,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.display_name import public_name_sql
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus
+from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile
 from src.services.coupon import accumulator
 from src.services.football_provider import current_season
 from src.services.football_week import settle_refusal
+from src.services.gameweek import window_for
 from src.services.odds_provider import (
     EventSettlement,
     Market,
@@ -249,19 +251,75 @@ async def settle_gameweeks_via_provider(
     rather than the number of leagues holding them, which is the rule
     :func:`~src.services.gameweek.discover_fixtures` already applies to slate windows.
 
+    A round nobody picked on has nothing to ask the provider about, and it is settled here
+    too once its window has closed (Batch 187); see :func:`_settle_empty_rounds`.
+
     Returns the count resolved per gameweek id; a round with nothing pending is absent.
     Flushes but does not commit — the job owns the transaction.
     """
     by_gameweek = await pending_event_ids(db, gameweeks)
     event_ids = list(dict.fromkeys(eid for ids in by_gameweek.values() for eid in ids))
-    if not event_ids:
-        return {}
-    settlements = await provider.settle(event_ids)
-    return {
-        gameweek.id: await settle_gameweek(db, gameweek, settlements)
-        for gameweek in gameweeks
-        if gameweek.id in by_gameweek
-    }
+    resolved: dict[uuid.UUID, int] = {}
+    if event_ids:
+        settlements = await provider.settle(event_ids)
+        resolved = {
+            gameweek.id: await settle_gameweek(db, gameweek, settlements)
+            for gameweek in gameweeks
+            if gameweek.id in by_gameweek
+        }
+    await _settle_empty_rounds(
+        db, [gameweek for gameweek in gameweeks if gameweek.id not in by_gameweek]
+    )
+    return resolved
+
+
+async def _settle_empty_rounds(db: AsyncSession, gameweeks: Sequence[Gameweek]) -> None:
+    """Settle each round nobody picked on, once its play window has closed. Batch 187.
+
+    CORR-23: the sweep asked the provider only about rounds with pending picks, so a
+    locked round with no picks at all was never flipped to ``settled``. Its members were
+    never told "You had no pick this round", it never reached the Results list, and every
+    sweep selected it again for ever. It is rare in a live league — every member has to
+    miss the deadline — which is exactly why nothing noticed.
+
+    **After the window, not after the lock.** A round with no picks has no result to wait
+    for, but "settled" is a statement that the week is over, and the deadline is not the
+    end of the games. :meth:`~src.services.odds_provider.SlateWindow.closes_at` is.
+
+    Through :func:`settle_gameweek` with no results, so the flip, ``settled_at`` and the
+    settle guard are the ordinary ones and the caller announces it like any other round. A
+    round the guard refuses is skipped *quietly* rather than logged at every sweep: with no
+    picks there is nothing stranded, and Batch 184's operator void is its way out.
+    """
+    candidates = [
+        gameweek for gameweek in gameweeks if gameweek.status is not GameweekStatus.settled
+    ]
+    if not candidates:
+        return
+    picked = set(
+        (
+            await db.execute(
+                select(Pick.gameweek_id)
+                .where(Pick.gameweek_id.in_([gameweek.id for gameweek in candidates]))
+                .distinct()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    now = _now()
+    for gameweek in candidates:
+        if gameweek.id in picked or gameweek.locks_at_utc > now:
+            continue
+        league = await db.get(League, gameweek.league_id)
+        if league is None or league.deleted_at is not None:
+            continue
+        closes_at = window_for(league).closes_at(gameweek.starts_on)
+        if closes_at.astimezone(UTC).replace(tzinfo=None) > now:
+            continue
+        if await settle_refusal(db, gameweek) is not None:
+            continue
+        await settle_gameweek(db, gameweek, [])
 
 
 async def settle_gameweek_via_provider(

@@ -39,6 +39,9 @@ export interface PickEntry {
   home_goals?: number | null;
   away_goals?: number | null;
   score_is_final?: boolean;
+  /** Batch 187. A site admin corrected this result after it settled, and why. */
+  corrected?: boolean;
+  correction_reason?: string | null;
 }
 
 export interface PickSelection {
@@ -100,6 +103,8 @@ export function entriesFromLegs(legs: CouponLeg[], myPlayerId?: string): PickEnt
     home_goals: leg.home_goals,
     away_goals: leg.away_goals,
     score_is_final: leg.score_is_final,
+    corrected: leg.corrected,
+    correction_reason: leg.correction_reason,
   }));
 }
 
@@ -280,6 +285,14 @@ export function PickRow({
             </span>
             {running && <Badge variant="live">Live</Badge>}
           </div>
+        )}
+
+        {/* Batch 187. A result changed after the member was told it says so on the leg, so
+            a pick that read "won" yesterday and "lost" today is explained, not a mystery. */}
+        {entry.corrected && (
+          <p className="break-words font-sans text-xs text-text-secondary" data-testid="leg-corrected">
+            Result corrected{entry.correction_reason ? ` · ${entry.correction_reason}` : ''}
+          </p>
         )}
       </div>
 
