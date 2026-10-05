@@ -8173,3 +8173,24 @@ containing `311a7c0`
 - **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-04T21:43:04Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
 
 **Next:** Batch 187 (Group AD), then Group AD's closing `/ship-prod`.
+
+## Batch 187 — A wrong result can only be fixed pick by pick, from curl, with a database read, and nobody is told
+**Commits:** `6838be5` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,395 backend
+and 1,281 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37254298110 PASS for `6838be5`
+
+### Key facts for future sessions
+- **One correction covers the fixture.** The site-admin Results screen accepts a final score or
+  void plus a reason, then re-scores every settled pick on that fixture in every live league through
+  the existing scoring rule; an identical repeat changes nothing and sends nothing.
+- **The correction is visible and attributable.** Each affected league gets one audit row carrying
+  `league_slug`; changed members get one replacement settle notification; coupon legs carry the
+  corrected flag and reason without a schema migration.
+- **Empty rounds finish once.** The settlement sweep now settles and announces a locked round with
+  no picks after its window closes, while rounds the existing settlement guard refuses stay pending.
+- **Failure on the way:** the first gate failed `test_request_budget`'s pool check because the new
+  correction tests gave each fixture its own competition id. One fixed id for those fixtures kept
+  the committed test data inside the measured catalogue; no assertion changed, and attempt 2 passed.
+- **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-04T21:43:04Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
+
+**Next:** Group AD's closing `/ship-prod` checkpoint.

@@ -465,7 +465,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: the three combined-odds call sites. **API + web.**
 
-- [ ] **Batch 187 — A wrong result can only be fixed pick by pick, from curl, with a database read, and nobody is told**
+- [x] **Batch 187 — A wrong result can only be fixed pick by pick, from curl, with a database read, and nobody is told** ✅ 2026-10-05
   — specified from `docs/review/2026-09-28/05-feature-gaps.md` FEAT-A13 (MED) and FEAT-A14
   (LOW), and `02-correctness.md` CORR-22 and CORR-23 (LOW), all live and verified. Batch 134's
   correction (`POST /admin/picks/{id}/correct`) scores correctly but has no screen, and no read

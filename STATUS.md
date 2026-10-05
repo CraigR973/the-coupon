@@ -9,7 +9,7 @@ paragraph beneath it. A batch's story belongs in its `session-log.md` entry, not
 
 ## Live
 
-Checked 2026-10-04 unless a line says otherwise.
+Checked 2026-10-05 unless a line says otherwise.
 
 | | |
 | --- | --- |
@@ -29,13 +29,14 @@ Checked 2026-10-04 unless a line says otherwise.
 
 ## Owed
 
-- **A `/ship-prod` is owed for Batches 184, 185 and 186 and fix `f0710b0`** (4-5 Oct), scheduled
+- **A `/ship-prod` is owed for Batches 184, 185, 186 and 187 and fix `f0710b0`** (4-5 Oct), scheduled
   by Craig Robinson at `2026-10-04T21:43:04Z`: non-scoring rounds are no longer created or pickable,
   with an operator void route and distinct same-week labels; departing members release their open
   claims and self-deletion completes the round; every surface prices void legs as the coupon does;
+  one result correction re-scores the fixture across every league and empty locked rounds settle;
   a league inserted without a join code takes the product's own generator. None migrates; they
   ride with Group AD's closing checkpoint after 187. Batch 186's web half is live and reads the new
-  field as optional, so it is safe on the deployed API.
+  field as optional; Batch 187's web half is live but its admin action needs the owed API route.
   Group AD's first checkpoint shipped on 2026-10-04 as Railway `2fb09b79` (`bb09760b`):
   Batch 183's combined-odds arithmetic and Batch 188's season-calendar reads.
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
@@ -81,7 +82,7 @@ was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is 
 (172, 173, 174 and 170, closed 3 Oct; web-only, nothing to ship). Group AC is complete,
 shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Group AD's first
 checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188); Batches 184, 185 and
-186 closed on 4-5 Oct; Batch 187 follows, then its closing `/ship-prod`. Batch 204 (docs-only close-out fast path, owner-approved gate maintenance) runs on its own
+187 closed on 4-5 Oct; Group AD's closing `/ship-prod` follows. Batch 204 (docs-only close-out fast path, owner-approved gate maintenance) runs on its own
 after that shipment. Groups AE, AB, AF and AH follow (`docs/agent-commands/group-start.md`).
 
 ## Toolchain
@@ -95,7 +96,7 @@ Checked 2026-10-03.
   reruns it after the documentation commit, refuses a push without that matching stamp, and
   waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,370, frontend 1,270, journey 1; checked 2026-10-04). 13m04s on this Mac
+  (backend 1,395, frontend 1,281, journey 1; checked 2026-10-05). 13m04s on this Mac
   with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
   (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
   1,350 tests (2026-09-29) — not the gate.
@@ -124,4 +125,4 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Batch 187's close-out (its code is on `main` at `6838be5`, CI green) and Group AD's closing `/ship-prod`, then Batch 204 on its own, then Group AE — one stage per session (owner, 2026-10-05); and the owner's season-calendar backfill, now unblocked.
+**Next:** Group AD's closing `/ship-prod`, then Batch 204 on its own, then Group AE — one stage per session (owner, 2026-10-05); and the owner's season-calendar backfill, now unblocked.
