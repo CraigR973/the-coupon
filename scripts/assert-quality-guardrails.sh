@@ -43,6 +43,7 @@ approved_gate_maintenance() {
     201) echo "scripts/check-closeout-safety.sh docs/agent-commands/phase-closeout.md" ;;
     202) echo "apps/web/package.json apps/web/vite.config.ts apps/web/.eslintrc.cjs apps/web/tsconfig.json apps/web/tsconfig.node.json apps/web/playwright.prod-bundle.config.ts" ;;
     203) echo "docs/agent-commands/phase-closeout.md apps/api/pyproject.toml scripts/check-deploy-drift.sh" ;;
+    204) echo "scripts/check-closeout-safety.sh docs/agent-commands/phase-closeout.md" ;;
   esac
 }
 
