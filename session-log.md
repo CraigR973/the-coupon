@@ -8287,3 +8287,20 @@ https://github.com/CraigR973/the-coupon/actions/runs/37439545681 PASS for `d26c2
 - **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
 
 **Next:** Batch 190 (Group AE).
+
+## Gate maintenance — Batch 190 oracle-replacement approval
+**Commit:** `a14c1f9` · owner-approved 6 Oct 2026 · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37447732229 failed at the expected
+old-trusted-guard comparison; production-bundle smoke and seeded coupon journey passed
+
+### Key facts for future sessions
+- Batch 190 may replace only the equality assertion that made the installation and per-league
+  pick limits identical, and only in `apps/api/tests/test_request_budget.py`. Every other removed
+  oracle remains blocked.
+- The replacement must retain the 50-request hour, derive the 211-request day from the measured
+  289-request Saturday, and add warm-cache and cold-cache request-path coverage.
+- The gate replayed the push against `9fc1232` and refused only the approval commit's protected
+  guard change. The production-bundle smoke and seeded journey passed at the exact approval SHA.
+- No application code, API contract, database schema or production data changed.
+
+**Next:** Implement Batch 190 from this trusted attestation state.
