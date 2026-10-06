@@ -40,6 +40,7 @@ from src.services.backup_storage import (
     S3BackupStore,
     backup_target_from_settings,
 )
+from src.services.competitions import played
 from src.services.discovery_health import discovery_health
 from src.services.football_data import backfill_season, season_or_default, sync_football_data
 from src.services.football_session import football_session
@@ -505,7 +506,7 @@ async def run_discover_fixtures() -> bool:
         football = await football_session.acquire()
         async with AsyncSessionLocal() as session:
             leagues = await active_leagues(session)
-            pooled = await pooled_competition_ids(session)
+            pooled = set(played(await pooled_competition_ids(session)))
             gameweeks = await discover_fixtures(
                 session,
                 provider,
@@ -569,13 +570,17 @@ async def run_refresh_slate() -> bool:
 
     The narrowing is the same ratchet with the same release: an empty pool is a deployment
     with nothing to narrow by, and walks everything so it can bootstrap.
+
+    The refresh shares discovery's per-run budget. Five windows at the measured 23 played
+    competitions cannot fit inside a 100-request hour, so the same date-ranked stop keeps
+    the job inside the plan instead of relying on the provider's ``429``.
     """
     try:
         provider = await odds_session.acquire()
         football = await football_session.acquire()
         async with AsyncSessionLocal() as session:
             leagues = await active_leagues(session)
-            pooled = await pooled_competition_ids(session)
+            pooled = set(played(await pooled_competition_ids(session)))
             # Horizon of 1: only the round about to be played.
             gameweeks = await discover_fixtures(
                 session,
@@ -586,6 +591,7 @@ async def run_refresh_slate() -> bool:
                 football=football,
                 competition_ids=pooled or None,
                 commit_each=True,
+                request_budget=settings.discovery_request_budget,
             )
             refreshed = len(gameweeks)
             await session.commit()

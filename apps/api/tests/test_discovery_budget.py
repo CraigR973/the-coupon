@@ -28,10 +28,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from src.auth import hash_pin
+from src.config import settings
 from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
 from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.profile import Profile, UserRole
+from src.services.competitions import played
 from src.services.gameweek import (
     discover_fixtures,
     fixtures_for,
@@ -70,6 +72,13 @@ SATURDAYS = (date(2026, 10, 3), date(2026, 10, 10), date(2026, 10, 17))
 #: and some never have, which is the whole of the daily run's narrowing.
 CARRIES = ("scotland-premiership", "england-championship")
 BARREN = ("wales-welsh-cup", "scotland-challenge-cup", "england-efl-cup")
+
+# The production fixture-pool shape measured on 27 Sep: 36 raw competition ids, of
+# which the product trim keeps 23. The dropped ids use a real rejected prefix so this
+# test exercises the same rule as the provider instead of teaching a fake its own list.
+PRODUCTION_PLAYED = tuple(f"england-league-{index}" for index in range(23))
+PRODUCTION_DROPPED = tuple(f"northern-ireland-league-{index}" for index in range(13))
+PRODUCTION_RAW_POOL = (*PRODUCTION_PLAYED, *PRODUCTION_DROPPED)
 
 
 def _kickoff(starts_on: date) -> datetime:
@@ -154,6 +163,28 @@ class _CatalogueProvider(OddsProvider):
             for event_id in event_ids
             if self.priced is None or event_id in self.priced
         ]
+
+
+class _ProductionPoolProvider(_CatalogueProvider):
+    """Count the requests the real provider sends after its product trim."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.requests_made = 0
+
+    async def fetch_slate(
+        self,
+        window: SlateWindow,
+        starts_on: date,
+        *,
+        competition_ids: Collection[str] | None = None,
+    ) -> Slate:
+        narrowed = PRODUCTION_RAW_POOL if competition_ids is None else competition_ids
+        walked = tuple(played(narrowed))
+        self.requests_made += len(set(walked))
+        self.slate_calls.append((starts_on, tuple(sorted(narrowed))))
+        self.slate_windows.append(window)
+        return Slate(starts_on=starts_on, fixtures=[])
 
 
 @pytest_asyncio.fixture
@@ -824,3 +855,95 @@ async def test_no_budget_walks_everything_as_it_always_did(
     )
 
     assert len(unbounded.slate_calls) == len(bounded.slate_calls)
+
+
+# ── Batch 189: budget the competitions the provider actually walks ────────────
+
+
+async def _distinct_windows(db: AsyncSession, count: int) -> list[League]:
+    """Create up to five leagues whose windows cannot collapse into one walk."""
+    leagues: list[League] = []
+    for weekday in range(count):
+        league = await _league(db)
+        league.slate_start_weekday = weekday
+        league.slate_start_minute = 15 * 60
+        league.slate_end_weekday = weekday
+        league.slate_end_minute = 15 * 60
+        leagues.append(league)
+    await db.flush()
+    assert len({window_for(league) for league in leagues}) == count
+    return leagues
+
+
+async def _run_production_pool_job(
+    session: AsyncSession,
+    provider: OddsProvider,
+    leagues: list[League],
+    *,
+    refresh: bool,
+) -> bool:
+    """Run one real scheduler job against the reviewed 36-id raw pool."""
+    from unittest.mock import AsyncMock, patch
+
+    from src import scheduler
+
+    class _Ctx:
+        async def __aenter__(self) -> AsyncSession:
+            return session
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+    with (
+        patch.object(scheduler.odds_session, "acquire", new=AsyncMock(return_value=provider)),
+        patch.object(scheduler.football_session, "acquire", new=AsyncMock(return_value=None)),
+        patch.object(scheduler, "AsyncSessionLocal", return_value=_Ctx()),
+        patch.object(scheduler, "active_leagues", new=AsyncMock(return_value=leagues)),
+        patch.object(
+            scheduler,
+            "pooled_competition_ids",
+            new=AsyncMock(return_value=set(PRODUCTION_RAW_POOL)),
+        ),
+        patch.object(scheduler, "_uk_today", return_value=SATURDAYS[0]),
+        patch.object(scheduler, "report_discovery_silence", new=AsyncMock(return_value=True)),
+        patch.object(
+            scheduler,
+            "report_football_provider_health",
+            new=AsyncMock(return_value=True),
+        ),
+    ):
+        job = scheduler.run_refresh_slate if refresh else scheduler.run_discover_fixtures
+        return await job()
+
+
+@pytest.mark.parametrize("window_count", [1, 2, 3])
+async def test_daily_budget_prices_the_played_intersection_and_serves_every_window(
+    committing_session: AsyncSession, window_count: int
+) -> None:
+    """The 36-id pool costs 23 requests, so every near window fits at 1, 2 and 3."""
+    assert len(PRODUCTION_RAW_POOL) == 36
+    assert len(set(played(PRODUCTION_RAW_POOL))) == 23
+    leagues = await _distinct_windows(committing_session, window_count)
+    provider = _ProductionPoolProvider()
+
+    assert await _run_production_pool_job(committing_session, provider, leagues, refresh=False)
+
+    assert set(provider.slate_windows) == {window_for(league) for league in leagues}
+    assert provider.requests_made == {1: 46, 2: 69, 3: 69}[window_count]
+    assert provider.requests_made <= settings.discovery_request_budget
+    for _, narrowed in provider.slate_calls:
+        assert narrowed is not None
+        assert set(narrowed) == set(PRODUCTION_PLAYED)
+
+
+async def test_refresh_job_stops_inside_the_hourly_budget_at_five_windows(
+    committing_session: AsyncSession,
+) -> None:
+    """The unbudgeted five-window refresh cost 115 requests in a 100-request hour."""
+    leagues = await _distinct_windows(committing_session, 5)
+    provider = _ProductionPoolProvider()
+    assert await _run_production_pool_job(committing_session, provider, leagues, refresh=True)
+
+    assert provider.requests_made == 3 * len(PRODUCTION_PLAYED)
+    assert provider.requests_made <= settings.discovery_request_budget
+    assert provider.requests_made <= settings.odds_hourly_request_limit

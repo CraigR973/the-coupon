@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from zoneinfo import ZoneInfo
@@ -361,6 +362,7 @@ async def test_run_discover_fixtures_walks_the_horizon_and_commits() -> None:
     assert discover.await_args.args[4] == settings.slate_horizon_weeks
     assert discover.await_args.kwargs["competition_ids"] == pooled
     assert discover.await_args.kwargs["commit_each"] is True
+    assert discover.await_args.kwargs["request_budget"] == settings.discovery_request_budget
 
 
 @pytest.mark.asyncio
@@ -494,6 +496,36 @@ async def test_run_refresh_slate_narrows_to_the_pool_like_the_daily_run() -> Non
         assert await run_refresh_slate() is True
 
     assert discover.await_args.kwargs["competition_ids"] == pooled
+    assert discover.await_args.kwargs["request_budget"] == settings.discovery_request_budget
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("job", [run_discover_fixtures, run_refresh_slate])
+async def test_budgeted_slate_jobs_intersect_the_raw_pool_with_the_product_trim(
+    job: Callable[[], Awaitable[bool]],
+) -> None:
+    """A raw pool entry the deployment does not play is neither fetched nor priced."""
+    session = AsyncMock()
+    raw_pool = {
+        "scotland-premiership",
+        "england-championship",
+        "northern-ireland-premiership",
+    }
+    played_pool = {"scotland-premiership", "england-championship"}
+    with (
+        patch("src.scheduler.odds_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.football_session.acquire", new=AsyncMock(return_value=MagicMock())),
+        patch("src.scheduler.AsyncSessionLocal", return_value=_Ctx(session)),
+        patch("src.scheduler.active_leagues", new=AsyncMock(return_value=[MagicMock()])),
+        patch("src.scheduler.pooled_competition_ids", new=AsyncMock(return_value=raw_pool)),
+        patch("src.scheduler.report_discovery_silence", new=AsyncMock(return_value=False)),
+        patch("src.scheduler.report_football_provider_health", new=AsyncMock(return_value=False)),
+        patch("src.scheduler.discover_fixtures", new=AsyncMock(return_value=[])) as discover,
+    ):
+        assert await job() is True
+
+    assert discover.await_args.kwargs["competition_ids"] == played_pool
+    assert discover.await_args.kwargs["request_budget"] == settings.discovery_request_budget
 
 
 @pytest.mark.asyncio

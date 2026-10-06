@@ -1081,8 +1081,10 @@ async def discover_fixtures(
     schedule = [entry for rank in ranked for entry in rank]
 
     # What one ``(window, date)`` walk costs: one ``/events`` per competition it is
-    # narrowed to. An un-narrowed walk pays for the catalogue, and the measured figure is
-    # the honest stand-in for a number this function cannot ask the provider for.
+    # narrowed to. Callers must pass the effective set the provider will walk; the
+    # scheduler intersects its raw pool with the product trim before arriving here. An
+    # un-narrowed walk pays for the played catalogue, where the dated measurement is the
+    # honest stand-in for a number this function cannot ask the provider for.
     per_walk = len(set(competition_ids)) if competition_ids is not None else MEASURED_CATALOGUE
     spent = 0
 
