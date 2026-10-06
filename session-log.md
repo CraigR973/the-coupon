@@ -8294,9 +8294,9 @@ https://github.com/CraigR973/the-coupon/actions/runs/37447732229 failed at the e
 old-trusted-guard comparison; production-bundle smoke and seeded coupon journey passed
 
 ### Key facts for future sessions
-- Batch 190 may replace only the equality assertion that made the installation and per-league
-  pick limits identical, and only in `apps/api/tests/test_request_budget.py`. Every other removed
-  oracle remains blocked.
+- Batch 190 may replace only the two assertions that made the installation and per-league pick
+  limits identical and judged the installation day against the older synthetic saturation model,
+  and only in `apps/api/tests/test_request_budget.py`. Every other removed oracle remains blocked.
 - The replacement must retain the 50-request hour, derive the 211-request day from the measured
   289-request Saturday, and add warm-cache and cold-cache request-path coverage.
 - The gate replayed the push against `9fc1232` and refused only the approval commit's protected

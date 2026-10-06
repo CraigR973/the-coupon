@@ -114,6 +114,7 @@ apps/api/tests/test_cross_league_summary_cost.py|assert flat.count("GAMEWEEKS.")
 EOF
       ;;
     190) cat <<'EOF'
+apps/api/tests/test_request_budget.py|assert _pick_installation_limits()["day"] <= spare
 apps/api/tests/test_request_budget.py|assert _pick_installation_limits() == _pick_shared_limits()
 EOF
       ;;
