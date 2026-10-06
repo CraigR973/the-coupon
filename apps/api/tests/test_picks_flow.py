@@ -14,12 +14,15 @@ from __future__ import annotations
 
 import asyncio
 import os
+import threading
 import time
 import uuid
+from collections import Counter
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
@@ -30,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import create_access_token, hash_pin
 from src.config import settings
-from src.database import AsyncSessionLocal
+from src.database import AsyncSessionLocal, engine
 from src.deps import get_odds_provider, get_optional_odds_provider
 from src.main import app
 from src.models.fixture import Fixture
@@ -38,6 +41,7 @@ from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
 from src.models.league import League, PickScope
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.match import Match
+from src.models.notification import PushSubscription
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile, UserRole
 from src.models.team import Team
@@ -54,7 +58,13 @@ from src.services.betfair import (
     FakeBetfair,
 )
 from src.services.football_provider import season_for
-from src.services.gameweek import fixtures_for, members_missing_picks, sync_slate, window_for
+from src.services.gameweek import (
+    RoundProgress,
+    fixtures_for,
+    members_missing_picks,
+    sync_slate,
+    window_for,
+)
 from src.services.odds_cache import CachingOddsProvider
 from src.services.odds_provider import (
     Competition,
@@ -3338,6 +3348,136 @@ async def test_every_eligible_member_still_gets_exactly_one_alert(
     assert set(told) == expected, "the audience changed"
     assert len(told) == len(expected), "somebody was told twice"
     assert players[0].id not in told, "the picker was told about their own pick"
+
+
+# ── Batch 191: push delivery no longer owns a pooled connection ───────────────
+
+
+async def _add_push_subscriptions(players: Sequence[Profile]) -> dict[uuid.UUID, str]:
+    endpoints = {player.id: f"https://push.test/{player.id}" for player in players}
+    async with AsyncSessionLocal() as session:
+        session.add_all(
+            PushSubscription(
+                user_id=player.id,
+                subscription={"endpoint": endpoints[player.id], "keys": {}},
+                is_active=True,
+            )
+            for player in players
+        )
+        await session.commit()
+    return endpoints
+
+
+async def test_twelve_big_league_picks_do_not_exhaust_the_pool_or_drop_alerts(
+    client_and_many_counted: tuple[AsyncClient, _ManyPricedOdds, CachingOddsProvider],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The PERF-20 reproduction: 12 fan-outs, 50 members and realistic send latency."""
+    client, _, _ = client_and_many_counted
+    tag = uuid.uuid4().hex[:8]
+    events = [f"b191-burst-{tag}-{index}" for index in range(12)]
+    async with AsyncSessionLocal() as session:
+        players, league = await _seed_league(session, [f"burst-{i}" for i in range(50)])
+        _, fixtures = await _open_many_fixture_gameweek(session, league, events)
+    endpoints = await _add_push_subscriptions(players)
+
+    sent: list[str] = []
+
+    def _slow_send(subscription_data: dict[str, Any], _payload: str) -> None:
+        time.sleep(0.179)
+        sent.append(str(subscription_data["endpoint"]))
+
+    monkeypatch.setattr(settings, "vapid_private_key", "batch-191-private")
+    monkeypatch.setattr(settings, "vapid_public_key", "batch-191-public")
+    monkeypatch.setattr("src.services.push_notification_service._send_push_sync", _slow_send)
+
+    responses = await asyncio.gather(
+        *(
+            _submit(client, league.slug, player, fixture_id, "MATCH_ODDS", "HOME")
+            for player, fixture_id in zip(players[:12], fixtures, strict=True)
+        )
+    )
+
+    assert [response.status_code for response in responses] == [201] * 12
+    expected = {
+        endpoint: 11 if player.id in {picker.id for picker in players[:12]} else 12
+        for player, endpoint in ((player, endpoints[player.id]) for player in players)
+    }
+    assert Counter(sent) == Counter(expected)
+    assert len(sent) == 12 * 49
+    assert engine.pool.checkedout() == 0
+
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(League).where(League.id == league.id).values(deleted_at=_now())
+        )
+        await session.commit()
+
+
+async def test_a_blocked_push_holds_no_database_connection(
+    client_and_many_counted: tuple[AsyncClient, _ManyPricedOdds, CachingOddsProvider],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The phase boundary, independent of timing: the sender blocks while the pool is free."""
+    client, _, _ = client_and_many_counted
+    tag = uuid.uuid4().hex[:8]
+    async with AsyncSessionLocal() as session:
+        players, league = await _seed_league(session, ["blocked-picker", "blocked-recipient"])
+        _, (fixture_id,) = await _open_many_fixture_gameweek(
+            session, league, [f"b191-blocked-{tag}"]
+        )
+    await _add_push_subscriptions(players)
+
+    started = threading.Event()
+    release = threading.Event()
+
+    def _blocked_send(_subscription_data: dict[str, Any], _payload: str) -> None:
+        started.set()
+        assert release.wait(timeout=10), "the test never released the push sender"
+
+    monkeypatch.setattr(settings, "vapid_private_key", "batch-191-private")
+    monkeypatch.setattr(settings, "vapid_public_key", "batch-191-public")
+    monkeypatch.setattr("src.services.push_notification_service._send_push_sync", _blocked_send)
+
+    submission = asyncio.create_task(
+        _submit(client, league.slug, players[0], fixture_id, "MATCH_ODDS", "HOME")
+    )
+    assert await asyncio.to_thread(started.wait, 10), "the push sender never started"
+    assert engine.pool.checkedout() == 0, "webpush still owns a pooled connection"
+    release.set()
+    response = await submission
+    assert response.status_code == 201, response.text
+    assert engine.pool.checkedout() == 0
+
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(League).where(League.id == league.id).values(deleted_at=_now())
+        )
+        await session.commit()
+
+
+async def test_background_session_acquisition_failure_is_swallowed() -> None:
+    """The catch-all starts outside session acquisition, where six PERF-20 tasks died."""
+    from src.routers.picks import _announce_after_response
+
+    with (
+        patch("src.routers.picks.AsyncSessionLocal", side_effect=RuntimeError("pool unavailable")),
+        patch("src.routers.picks.log.exception") as failed,
+    ):
+        await _announce_after_response(
+            league_id=uuid.uuid4(),
+            gameweek_id=uuid.uuid4(),
+            all_picked=False,
+            completed_now=False,
+            picker_id=uuid.uuid4(),
+            picker_name="Picker",
+            selection="Home",
+            odds=Decimal("2.00"),
+            moved=False,
+            progress=RoundProgress(picked_count=1, member_count=2, all_picked=False),
+        )
+
+    failed.assert_called_once()
 
 
 # ── Batch 130: the wiring, not just the rule ─────────────────────────────────

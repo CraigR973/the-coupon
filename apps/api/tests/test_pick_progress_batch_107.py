@@ -758,6 +758,59 @@ async def test_completing_the_round_replaces_the_ordinary_alert(
 
 
 @pytest.mark.asyncio
+async def test_the_phased_completion_retries_after_delivery_fails(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """Batch 191 releases the row lock while sending without weakening Batch 107's retry."""
+    client, fake = client_and_fake
+    league, gameweek, (alice, bob) = await _seeded_round(fake, 2)
+    fixture_id = await _epl_fixture_id(gameweek)
+
+    with patch(
+        "src.services.notification_triggers.send_notification", new=AsyncMock(return_value=1)
+    ):
+        first = await _submit(client, league, alice, fixture_id, "HOME")
+    assert first.status_code == 201, first.text
+
+    with (
+        patch(
+            "src.services.notification_triggers.send_notification",
+            new=AsyncMock(return_value=1),
+        ),
+        patch(
+            "src.routers.picks.deliver_prepared_fanout",
+            new=AsyncMock(side_effect=RuntimeError("push gateway down")),
+        ),
+    ):
+        completed = await _submit(client, league, bob, fixture_id, "AWAY")
+    assert completed.status_code == 201, completed.text
+
+    async with AsyncSessionLocal() as db:
+        stored = (
+            await db.execute(
+                select(GameweekCompletion).where(GameweekCompletion.gameweek_id == gameweek.id)
+            )
+        ).scalar_one()
+        assert stored.delivered_at is None
+
+    with patch(
+        "src.services.notification_triggers.send_notification", new=AsyncMock(return_value=1)
+    ):
+        retried = await _submit(client, league, bob, fixture_id, "DRAW")
+    assert retried.status_code == 201, retried.text
+
+    async with AsyncSessionLocal() as db:
+        delivered_at = (
+            await db.execute(
+                select(GameweekCompletion.delivered_at).where(
+                    GameweekCompletion.gameweek_id == gameweek.id
+                )
+            )
+        ).scalar_one()
+    assert delivered_at is not None
+
+
+@pytest.mark.asyncio
 async def test_a_pick_changed_after_the_coupon_filled_is_an_ordinary_alert(
     client_and_fake: tuple[AsyncClient, FakeBetfair],
 ) -> None:

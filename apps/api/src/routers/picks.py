@@ -23,6 +23,7 @@ actually go upstream. A spent allowance is refused with ``PICKS_BUSY`` (429) rat
 served a price the endpoint could not confirm.
 """
 
+import asyncio
 import uuid
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
@@ -52,7 +53,14 @@ from src.services.gameweek import (
     pick_refusal,
     round_progress,
 )
-from src.services.notification_triggers import announce_all_picked, notify_pick_made
+from src.services.notification_triggers import (
+    DeliveredFanout,
+    PreparedFanout,
+    deliver_prepared_fanout,
+    prepare_all_picked_fanout,
+    prepare_pick_made_fanout,
+    record_prepared_fanout,
+)
 from src.services.odds_provider import OddsProviderError, Selection
 from src.services.round_completion import record_completion
 from src.services.selection_text import selection_summary
@@ -62,6 +70,18 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1/leagues", tags=["picks"])
 
 Db = Annotated[AsyncSession, Depends(get_db)]
+
+# Batch 191. One worker means an in-process bound is the deployment-wide bound. Four
+# leaves six of the 5 + 5 pool slots for submissions, health checks and scheduler work;
+# each fan-out uses a connection only for its short prepare and record phases.
+_PICK_FANOUT_LIMIT = 4
+_pick_fanout_slots = asyncio.Semaphore(_PICK_FANOUT_LIMIT)
+
+# Releasing the database row lock before webpush is what frees the pool. This process lock
+# preserves the completion event's single active sender across that gap. A crash can still
+# retry an event whose pushes ran but whose delivered stamp did not commit — the same
+# at-least-once edge the former transaction had on a partial fan-out.
+_completion_fanout_locks: dict[uuid.UUID, asyncio.Lock] = {}
 
 #: How often one member may submit or change a pick.
 #:
@@ -480,6 +500,13 @@ async def submit_pick(
             is True
         )
 
+    # ``round_progress`` opened a fresh read transaction after the pick commit. FastAPI
+    # keeps yielded dependencies alive until background tasks finish, so leaving that
+    # transaction open would make the request itself hold one connection throughout the
+    # fan-out even though the fan-out's own phases are detached. There are no pending
+    # writes here; ending it releases the connection before the task is scheduled.
+    await db.commit()
+
     # Batch 162. The fan-out itself now runs *after* the response, not before it.
     #
     # Measured: 49 sequential sends taking 8,759 ms on a fifty-member league, about 1.7
@@ -521,55 +548,141 @@ async def _announce_after_response(
     moved: bool,
     progress: RoundProgress,
 ) -> None:
-    """Both announcements, on a session of their own, once the member has their answer.
+    """Prepare, send and record both announcements after the response.
 
-    A session of its own because the request's is closed by the time this runs — and
-    because a notification must not be able to touch the transaction the pick landed in,
-    which was already the rule when this ran inline.
-
-    Identifiers rather than ORM objects for the same reason: the instances the handler
-    held belong to a session that no longer exists.
+    No ORM object crosses a phase. Preparation copies the audience, subscriptions and
+    payload, then closes its session. Webpush runs without a session. Outcome recording
+    opens a short second transaction. The semaphore covers the whole task so a lock-time
+    burst cannot turn those short phases into pool exhaustion.
     """
+    try:
+        async with _pick_fanout_slots:
+            if all_picked:
+                completion_lock = _completion_fanout_locks.setdefault(gameweek_id, asyncio.Lock())
+                async with completion_lock:
+                    await _run_fanout_safely(
+                        "all-picked alert failed",
+                        league_id,
+                        gameweek_id,
+                        _run_completion_fanout(gameweek_id),
+                    )
+
+            # The completion **replaces** the ordinary alert rather than accompanying it —
+            # one event reaches the tray, not two. A submission that merely arrived into
+            # an already-full coupon is ordinary and still announces itself at `12/12`.
+            if not completed_now:
+                await _run_fanout_safely(
+                    "pick alert failed",
+                    league_id,
+                    gameweek_id,
+                    _run_pick_fanout(
+                        gameweek_id=gameweek_id,
+                        picker_id=picker_id,
+                        picker_name=picker_name,
+                        selection=selection,
+                        odds=odds,
+                        moved=moved,
+                        progress=progress,
+                    ),
+                )
+    except Exception:
+        # Includes semaphore entry and any future setup added above the per-fan-out
+        # wrappers. The pick has committed and no alert failure may escape this task.
+        log.exception(
+            "pick announcement task failed",
+            league_id=str(league_id),
+            gameweek_id=str(gameweek_id),
+        )
+
+
+async def _prepare_completion_fanout(gameweek_id: uuid.UUID) -> PreparedFanout | None:
     async with AsyncSessionLocal() as db:
-        league = await db.get(League, league_id)
         gameweek = await db.get(Gameweek, gameweek_id)
-        if league is None or gameweek is None:
-            # Deleted between the claim and the fan-out. Nothing to announce and nobody
-            # to announce it to.
-            return
+        if gameweek is None:
+            return None
+        prepared = await prepare_all_picked_fanout(db, gameweek)
+        await db.commit()
+        return prepared
 
-        if all_picked:
-            # Attempted on every submission into a full coupon, not only the completing
-            # one. That is the retry: a fan-out that failed earlier leaves `delivered_at`
-            # null, and the next pick on the round is what picks it back up.
-            await _announce(
-                db,
-                "all-picked alert failed",
-                league,
-                gameweek,
-                announce_all_picked(db, gameweek),
-            )
 
-        # The completion **replaces** the ordinary alert rather than accompanying it — one
-        # event reached the tray, not two. A submission that merely arrived into an
-        # already-full coupon is an ordinary pick and still announces itself, at `12/12`.
-        if not completed_now:
-            await _announce(
-                db,
-                "pick alert failed",
-                league,
-                gameweek,
-                notify_pick_made(
-                    db,
-                    gameweek,
-                    picker_id=picker_id,
-                    picker_name=picker_name,
-                    selection=selection,
-                    odds=odds,
-                    moved=moved,
-                    progress=progress,
-                ),
-            )
+async def _prepare_pick_fanout(
+    *,
+    gameweek_id: uuid.UUID,
+    picker_id: uuid.UUID,
+    picker_name: str,
+    selection: str,
+    odds: Decimal,
+    moved: bool,
+    progress: RoundProgress,
+) -> PreparedFanout | None:
+    async with AsyncSessionLocal() as db:
+        gameweek = await db.get(Gameweek, gameweek_id)
+        if gameweek is None:
+            return None
+        prepared = await prepare_pick_made_fanout(
+            db,
+            gameweek,
+            picker_id=picker_id,
+            picker_name=picker_name,
+            selection=selection,
+            odds=odds,
+            moved=moved,
+            progress=progress,
+        )
+        await db.commit()
+        return prepared
+
+
+async def _record_fanout(delivered: DeliveredFanout) -> None:
+    async with AsyncSessionLocal() as db:
+        await record_prepared_fanout(db, delivered)
+        await db.commit()
+
+
+async def _run_completion_fanout(gameweek_id: uuid.UUID) -> None:
+    prepared = await _prepare_completion_fanout(gameweek_id)
+    if prepared is None:
+        return
+    delivered = await deliver_prepared_fanout(prepared)
+    await _record_fanout(delivered)
+
+
+async def _run_pick_fanout(
+    *,
+    gameweek_id: uuid.UUID,
+    picker_id: uuid.UUID,
+    picker_name: str,
+    selection: str,
+    odds: Decimal,
+    moved: bool,
+    progress: RoundProgress,
+) -> None:
+    prepared = await _prepare_pick_fanout(
+        gameweek_id=gameweek_id,
+        picker_id=picker_id,
+        picker_name=picker_name,
+        selection=selection,
+        odds=odds,
+        moved=moved,
+        progress=progress,
+    )
+    if prepared is None:
+        return
+    delivered = await deliver_prepared_fanout(prepared)
+    await _record_fanout(delivered)
+
+
+async def _run_fanout_safely(
+    what: str,
+    league_id: uuid.UUID,
+    gameweek_id: uuid.UUID,
+    work: Coroutine[Any, Any, None],
+) -> None:
+    """Swallow every phase's failure after the pick has committed."""
+    try:
+        await work
+    except Exception:
+        log.exception(what, league_id=str(league_id), gameweek_id=str(gameweek_id))
 
 
 T = TypeVar("T")

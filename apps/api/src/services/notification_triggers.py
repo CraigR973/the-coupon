@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -32,7 +33,15 @@ from src.services.gameweek import (
     members_missing_picks,
     notification_targets,
 )
-from src.services.push_notification_service import send_notification
+from src.services.push_notification_service import (
+    PreparedNotification,
+    PushDeliveryReport,
+    collect_notification_intents,
+    deliver_prepared_notification,
+    prepare_collected_notifications,
+    record_notification_outcomes,
+    send_notification,
+)
 from src.services.round_completion import (
     claim_pending_completion,
     complete_rounds_after_roster_change,
@@ -42,6 +51,23 @@ from src.services.season_calendar import labels_for_gameweeks
 from src.services.selection_text import selection_summary
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class PreparedFanout:
+    """One trigger's copied push plans, with no live ORM state attached."""
+
+    notifications: tuple[PreparedNotification, ...]
+    targeted: int
+    completion_id: uuid.UUID | None = None
+
+
+@dataclass(frozen=True)
+class DeliveredFanout:
+    """A prepared fan-out and the session-free outcomes it produced."""
+
+    prepared: PreparedFanout
+    reports: tuple[PushDeliveryReport, ...]
 
 
 async def _admin_players(session: AsyncSession) -> Sequence[Profile]:
@@ -417,6 +443,38 @@ async def notify_pick_made(
     return told
 
 
+async def prepare_pick_made_fanout(
+    session: AsyncSession,
+    gameweek: Gameweek,
+    picker_id: uuid.UUID,
+    picker_name: str,
+    selection: str,
+    odds: Decimal,
+    *,
+    moved: bool,
+    progress: RoundProgress,
+) -> PreparedFanout:
+    """Run the ordinary trigger as a read-only preparation phase.
+
+    The trigger above remains the single authority for audience, copy, tags and mute
+    policy. Inside the collector, its ``send_notification`` calls copy subscriptions and
+    payloads rather than touching the network.
+    """
+    with collect_notification_intents() as intents:
+        targeted = await notify_pick_made(
+            session,
+            gameweek,
+            picker_id=picker_id,
+            picker_name=picker_name,
+            selection=selection,
+            odds=odds,
+            moved=moved,
+            progress=progress,
+        )
+    notifications = await prepare_collected_notifications(session, intents)
+    return PreparedFanout(notifications=tuple(notifications), targeted=targeted)
+
+
 def _completion_body(completion: GameweekCompletion) -> str:
     """``Dave picked Arsenal @ 1.80 · 12/12 picked — all picks are in``.
 
@@ -515,6 +573,17 @@ async def announce_all_picked(session: AsyncSession, gameweek: Gameweek) -> int 
     if completion is None:
         return None
 
+    told = await _send_all_picked(session, gameweek, completion)
+    mark_delivered(completion)
+    return told
+
+
+async def _send_all_picked(
+    session: AsyncSession,
+    gameweek: Gameweek,
+    completion: GameweekCompletion,
+) -> int:
+    """Send the claimed completion; its caller decides when it is durable."""
     body = _completion_body(completion)
     told = 0
     for member in await notification_targets(session, gameweek):
@@ -533,9 +602,43 @@ async def announce_all_picked(session: AsyncSession, gameweek: Gameweek) -> int 
             league_id=uuid.UUID(member.league_id),
         )
         told += 1
-
-    mark_delivered(completion)
     return told
+
+
+async def prepare_all_picked_fanout(
+    session: AsyncSession, gameweek: Gameweek
+) -> PreparedFanout | None:
+    """Claim and prepare a completion without stamping it delivered yet."""
+    completion = await claim_pending_completion(session, gameweek)
+    if completion is None:
+        return None
+    with collect_notification_intents() as intents:
+        targeted = await _send_all_picked(session, gameweek, completion)
+    notifications = await prepare_collected_notifications(session, intents)
+    return PreparedFanout(
+        notifications=tuple(notifications),
+        targeted=targeted,
+        completion_id=completion.id,
+    )
+
+
+async def deliver_prepared_fanout(prepared: PreparedFanout) -> DeliveredFanout:
+    """Perform a whole fan-out sequentially, with no session in scope."""
+    reports = []
+    for notification in prepared.notifications:
+        reports.append(await deliver_prepared_notification(notification))
+    return DeliveredFanout(prepared=prepared, reports=tuple(reports))
+
+
+async def record_prepared_fanout(session: AsyncSession, delivered: DeliveredFanout) -> None:
+    """Persist delivery outcomes and, only then, finish a completion event."""
+    await record_notification_outcomes(session, delivered.reports)
+    completion_id = delivered.prepared.completion_id
+    if completion_id is None:
+        return
+    completion = await session.get(GameweekCompletion, completion_id, with_for_update=True)
+    if completion is not None and completion.delivered_at is None:
+        mark_delivered(completion)
 
 
 # ── The round has settled (Batch 135) ─────────────────────────────────────────

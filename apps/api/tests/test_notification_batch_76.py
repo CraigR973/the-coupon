@@ -29,7 +29,7 @@ from src.database import AsyncSessionLocal
 from src.models.gameweek import Gameweek, GameweekStatus
 from src.models.league import League
 from src.models.league_membership import LeagueMembership
-from src.models.notification import PushSubscription
+from src.models.notification import NotificationPreferences, PushSubscription
 from src.models.profile import Profile, UserRole
 from src.services.gameweek import (
     RoundProgress,
@@ -37,9 +37,12 @@ from src.services.gameweek import (
     notification_targets,
 )
 from src.services.notification_triggers import (
+    deliver_prepared_fanout,
     notify_member_joined,
     notify_pick_made,
     notify_picks_open,
+    prepare_pick_made_fanout,
+    record_prepared_fanout,
 )
 from src.services.push_notification_service import send_notification
 
@@ -433,6 +436,61 @@ async def test_the_pick_alert_collapses_per_league_and_round(session: AsyncSessi
         )
 
     assert send.await_args_list[0].kwargs["tag"] == f"pick-made-{league.id}-{gameweek.id}"
+
+
+@pytest.mark.asyncio
+async def test_the_phased_pick_fanout_preserves_mutes_and_records_delivery(
+    session: AsyncSession,
+) -> None:
+    """Batch 191's bulk preparation keeps both mute layers and second-phase bookkeeping."""
+    owner = await _profile(session, "owner")
+    picker = await _profile(session, "picker")
+    loud = await _profile(session, "loud")
+    league_muted = await _profile(session, "league-muted")
+    globally_muted = await _profile(session, "globally-muted")
+    league = await _league(session, owner, "2-1 Hibs")
+    await _join(session, league, picker)
+    await _join(session, league, loud)
+    await _join(session, league, league_muted, muted=True)
+    await _join(session, league, globally_muted)
+    gameweek = await _round(session, league, locks_in=timedelta(hours=4))
+
+    subscriptions: dict[uuid.UUID, PushSubscription] = {}
+    for member in (loud, league_muted, globally_muted):
+        subscription = PushSubscription(
+            user_id=member.id,
+            subscription={"endpoint": f"https://example.test/{member.id}", "keys": {}},
+            is_active=True,
+        )
+        subscriptions[member.id] = subscription
+        session.add(subscription)
+    session.add(NotificationPreferences(user_id=globally_muted.id, global_mute=True))
+    await session.flush()
+
+    with (
+        patch.object(settings, "vapid_private_key", "priv"),
+        patch.object(settings, "vapid_public_key", "pub"),
+        patch("src.services.push_notification_service._send_push_sync") as push,
+    ):
+        prepared = await prepare_pick_made_fanout(
+            session,
+            gameweek,
+            picker_id=picker.id,
+            picker_name="Dave",
+            selection="Arsenal to win",
+            odds=Decimal("1.80"),
+            moved=False,
+            progress=_progress(3, 12),
+        )
+        delivered = await deliver_prepared_fanout(prepared)
+        await record_prepared_fanout(session, delivered)
+        await session.flush()
+
+    assert prepared.targeted == 2, "league mute is removed by the audience query"
+    assert push.call_count == 1, "global mute is removed by bulk delivery preparation"
+    assert subscriptions[loud.id].last_used_at is not None
+    assert subscriptions[league_muted.id].last_used_at is None
+    assert subscriptions[globally_muted.id].last_used_at is None
 
 
 # ── Batch 85: the fourth trigger, which Batch 76 missed ────────────────────────

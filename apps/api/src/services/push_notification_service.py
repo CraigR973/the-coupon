@@ -15,9 +15,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import partial
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -41,6 +45,75 @@ _FAIL_THRESHOLD = 3
 #: it, for as long as it chose. Healthy services answer in well under a second; five is
 #: generous to them and still bounds the rest.
 PUSH_SEND_TIMEOUT_SECONDS = 5.0
+
+
+@dataclass(frozen=True)
+class PreparedPush:
+    """One copied subscription and payload, safe to carry outside a DB session."""
+
+    subscription_id: UUID
+    user_id: UUID
+    endpoint: str
+    keys: tuple[tuple[str, str], ...]
+    payload: str
+
+
+@dataclass(frozen=True)
+class PreparedNotification:
+    """All subscription sends for one member, prepared in the read transaction."""
+
+    pushes: tuple[PreparedPush, ...]
+    attempted_at: datetime
+
+
+@dataclass(frozen=True)
+class NotificationIntent:
+    """One trigger call captured before its policy and subscriptions are read in bulk."""
+
+    user_id: UUID
+    payload: str
+    timezone_name: str
+    now: datetime
+    league_id: UUID | None
+
+
+@dataclass(frozen=True)
+class PushDeliveryOutcome:
+    """The session-free result later written in one short transaction."""
+
+    subscription_id: UUID
+    status: Literal["sent", "failed", "timeout", "unexpected"]
+
+
+@dataclass(frozen=True)
+class PushDeliveryReport:
+    outcomes: tuple[PushDeliveryOutcome, ...]
+    attempted_at: datetime
+
+    @property
+    def sent(self) -> int:
+        return sum(outcome.status == "sent" for outcome in self.outcomes)
+
+
+_notification_intents: ContextVar[list[NotificationIntent] | None] = ContextVar(
+    "prepared_notifications", default=None
+)
+
+
+@contextmanager
+def collect_notification_intents() -> Iterator[list[NotificationIntent]]:
+    """Turn ``send_notification`` calls into immutable plans for this task.
+
+    Notification triggers keep one source for recipients, copy and mute semantics. The
+    pick path runs those same triggers inside this collector, commits and closes the read
+    session, then delivers the returned plans without a database connection.
+    """
+    collected: list[NotificationIntent] = []
+    token = _notification_intents.set(collected)
+    try:
+        yield collected
+    finally:
+        _notification_intents.reset(token)
 
 
 def _utc_now() -> datetime:
@@ -83,6 +156,259 @@ def _send_push_sync(subscription_data: dict[str, Any], payload: str) -> None:
     )
 
 
+def _payload_json(
+    title: str,
+    body: str,
+    data: dict[str, Any] | None,
+    tag: str | None,
+) -> str:
+    payload_obj: dict[str, Any] = {"title": title, "body": body, "data": data or {}}
+    if tag is not None:
+        payload_obj["tag"] = tag
+    return json.dumps(payload_obj)
+
+
+def _prepared_pushes(
+    *,
+    user_id: UUID,
+    payload: str,
+    subscriptions: Sequence[PushSubscription],
+) -> tuple[PreparedPush, ...]:
+    return tuple(
+        PreparedPush(
+            subscription_id=sub.id,
+            user_id=user_id,
+            endpoint=str(sub.subscription.get("endpoint", "")),
+            keys=tuple(
+                sorted(
+                    (str(key), str(value))
+                    for key, value in sub.subscription.get("keys", {}).items()
+                )
+            ),
+            payload=payload,
+        )
+        for sub in subscriptions
+    )
+
+
+async def _prepare_notification(
+    session: AsyncSession,
+    user_id: UUID,
+    title: str,
+    body: str,
+    data: dict[str, Any] | None = None,
+    tag: str | None = None,
+    timezone_name: str = "UTC",
+    now_utc: datetime | None = None,
+    league_id: UUID | None = None,
+) -> tuple[PreparedNotification, list[PushSubscription]]:
+    """Read delivery policy and copy subscriptions into a session-free plan."""
+    now = now_utc.replace(tzinfo=None) if now_utc is not None else _utc_now()
+    empty = PreparedNotification(pushes=(), attempted_at=now)
+
+    if not settings.vapid_private_key or not settings.vapid_public_key:
+        log.debug("VAPID keys not configured — skipping push", user_id=str(user_id))
+        return empty, []
+
+    local_current = _local_now(timezone_name, now)
+
+    if league_id is not None:
+        muted = await session.execute(
+            select(LeagueMembership.notification_muted).where(
+                LeagueMembership.league_id == league_id,
+                LeagueMembership.player_id == user_id,
+                LeagueMembership.deleted_at.is_(None),
+            )
+        )
+        if muted.scalar_one_or_none() is True:
+            log.debug(
+                "notification suppressed by league mute",
+                user_id=str(user_id),
+                league_id=str(league_id),
+            )
+            return empty, []
+
+    prefs_result = await session.execute(
+        select(NotificationPreferences).where(NotificationPreferences.user_id == user_id)
+    )
+    prefs = prefs_result.scalar_one_or_none()
+
+    if prefs is not None and (prefs.global_mute or _is_quiet(prefs, local_current)):
+        log.debug("notification suppressed by preferences", user_id=str(user_id))
+        return empty, []
+
+    subs_result = await session.execute(
+        select(PushSubscription).where(
+            PushSubscription.user_id == user_id,
+            PushSubscription.is_active.is_(True),
+        )
+    )
+    subscriptions = list(subs_result.scalars().all())
+    if not subscriptions:
+        return empty, []
+
+    pushes = _prepared_pushes(
+        user_id=user_id,
+        payload=_payload_json(title, body, data, tag),
+        subscriptions=subscriptions,
+    )
+    return PreparedNotification(pushes=pushes, attempted_at=now), subscriptions
+
+
+async def prepare_collected_notifications(
+    session: AsyncSession,
+    intents: Sequence[NotificationIntent],
+) -> tuple[PreparedNotification, ...]:
+    """Resolve a trigger's audience policy and subscriptions in three bulk reads."""
+    if not intents or not settings.vapid_private_key or not settings.vapid_public_key:
+        return ()
+
+    user_ids = {intent.user_id for intent in intents}
+    league_ids = {intent.league_id for intent in intents if intent.league_id is not None}
+
+    muted_pairs: set[tuple[UUID, UUID]] = set()
+    if league_ids:
+        muted_rows = await session.execute(
+            select(LeagueMembership.league_id, LeagueMembership.player_id).where(
+                LeagueMembership.league_id.in_(league_ids),
+                LeagueMembership.player_id.in_(user_ids),
+                LeagueMembership.deleted_at.is_(None),
+                LeagueMembership.notification_muted.is_(True),
+            )
+        )
+        muted_pairs = {(row.league_id, row.player_id) for row in muted_rows.all()}
+
+    preferences = {
+        prefs.user_id: prefs
+        for prefs in (
+            (
+                await session.execute(
+                    select(NotificationPreferences).where(
+                        NotificationPreferences.user_id.in_(user_ids)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    }
+    subscriptions_by_user: dict[UUID, list[PushSubscription]] = {}
+    subscriptions = (
+        (
+            await session.execute(
+                select(PushSubscription).where(
+                    PushSubscription.user_id.in_(user_ids),
+                    PushSubscription.is_active.is_(True),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for subscription in subscriptions:
+        subscriptions_by_user.setdefault(subscription.user_id, []).append(subscription)
+
+    plans: list[PreparedNotification] = []
+    for intent in intents:
+        if intent.league_id is not None and (intent.league_id, intent.user_id) in muted_pairs:
+            continue
+        prefs = preferences.get(intent.user_id)
+        local_current = _local_now(intent.timezone_name, intent.now)
+        if prefs is not None and (prefs.global_mute or _is_quiet(prefs, local_current)):
+            continue
+        member_subscriptions = subscriptions_by_user.get(intent.user_id, [])
+        if not member_subscriptions:
+            continue
+        plans.append(
+            PreparedNotification(
+                pushes=_prepared_pushes(
+                    user_id=intent.user_id,
+                    payload=intent.payload,
+                    subscriptions=member_subscriptions,
+                ),
+                attempted_at=intent.now,
+            )
+        )
+    return tuple(plans)
+
+
+async def deliver_prepared_notification(plan: PreparedNotification) -> PushDeliveryReport:
+    """Deliver a copied plan without touching a session or the connection pool."""
+    outcomes: list[PushDeliveryOutcome] = []
+    loop = asyncio.get_running_loop()
+    for push in plan.pushes:
+        subscription_data: dict[str, Any] = {
+            "endpoint": push.endpoint,
+            "keys": dict(push.keys),
+        }
+        try:
+            await loop.run_in_executor(
+                None, partial(_send_push_sync, subscription_data, push.payload)
+            )
+            status: Literal["sent", "failed", "timeout", "unexpected"] = "sent"
+        except WebPushException as exc:
+            status = "failed"
+            log.warning(
+                "push send failed",
+                user_id=str(push.user_id),
+                subscription_id=str(push.subscription_id),
+                error=str(exc),
+            )
+        except requests.exceptions.Timeout:
+            status = "timeout"
+            log.warning(
+                "push send timed out",
+                user_id=str(push.user_id),
+                subscription_id=str(push.subscription_id),
+                timeout_s=PUSH_SEND_TIMEOUT_SECONDS,
+            )
+        except Exception as exc:
+            status = "unexpected"
+            log.error("unexpected push error", error=str(exc))
+        outcomes.append(PushDeliveryOutcome(subscription_id=push.subscription_id, status=status))
+    return PushDeliveryReport(outcomes=tuple(outcomes), attempted_at=plan.attempted_at)
+
+
+def _apply_delivery_outcomes(
+    subscriptions: Sequence[PushSubscription],
+    reports: Sequence[PushDeliveryReport],
+) -> None:
+    by_id = {subscription.id: subscription for subscription in subscriptions}
+    for report in reports:
+        for outcome in report.outcomes:
+            subscription = by_id.get(outcome.subscription_id)
+            if subscription is None:
+                continue
+            if outcome.status == "sent":
+                subscription.failed_send_count = 0
+                subscription.last_used_at = report.attempted_at
+            elif outcome.status == "failed":
+                subscription.failed_send_count = (subscription.failed_send_count or 0) + 1
+                if subscription.failed_send_count >= _FAIL_THRESHOLD:
+                    subscription.is_active = False
+                    log.info(
+                        "push subscription auto-disabled",
+                        subscription_id=str(subscription.id),
+                        fail_count=subscription.failed_send_count,
+                    )
+
+
+async def record_notification_outcomes(
+    session: AsyncSession,
+    reports: Sequence[PushDeliveryReport],
+) -> None:
+    """Persist copied delivery results after sending, under short row locks."""
+    subscription_ids = {
+        outcome.subscription_id for report in reports for outcome in report.outcomes
+    }
+    if not subscription_ids:
+        return
+    result = await session.execute(
+        select(PushSubscription).where(PushSubscription.id.in_(subscription_ids)).with_for_update()
+    )
+    _apply_delivery_outcomes(list(result.scalars().all()), reports)
+
+
 async def send_notification(
     session: AsyncSession,
     user_id: UUID,
@@ -117,101 +443,31 @@ async def send_notification(
     themselves to active members, and a member who has left a league mid-round should
     still be told their pick was returned.
     """
-    if not settings.vapid_private_key or not settings.vapid_public_key:
-        log.debug("VAPID keys not configured — skipping push", user_id=str(user_id))
-        return 0
-
-    now = now_utc.replace(tzinfo=None) if now_utc is not None else _utc_now()
-    local_current = _local_now(timezone_name, now)
-
-    # ── Check the per-league mute ─────────────────────────────────────────────
-    # Before the global preferences, because it is the more specific opt-out and answers
-    # from one indexed row. A caller that passes no `league_id` is saying the message is
-    # not about a league — an admin alert, say — and there is nothing to check.
-    if league_id is not None:
-        muted = await session.execute(
-            select(LeagueMembership.notification_muted).where(
-                LeagueMembership.league_id == league_id,
-                LeagueMembership.player_id == user_id,
-                LeagueMembership.deleted_at.is_(None),
+    collector = _notification_intents.get()
+    if collector is not None:
+        now = now_utc.replace(tzinfo=None) if now_utc is not None else _utc_now()
+        collector.append(
+            NotificationIntent(
+                user_id=user_id,
+                payload=_payload_json(title, body, data, tag),
+                timezone_name=timezone_name,
+                now=now,
+                league_id=league_id,
             )
         )
-        if muted.scalar_one_or_none() is True:
-            log.debug(
-                "notification suppressed by league mute",
-                user_id=str(user_id),
-                league_id=str(league_id),
-            )
-            return 0
-
-    # ── Check preferences ─────────────────────────────────────────────────────
-    prefs_result = await session.execute(
-        select(NotificationPreferences).where(NotificationPreferences.user_id == user_id)
-    )
-    prefs = prefs_result.scalar_one_or_none()
-
-    suppressed = False
-    if prefs is not None:
-        suppressed = prefs.global_mute or _is_quiet(prefs, local_current)
-
-    if suppressed:
-        log.debug("notification suppressed by preferences", user_id=str(user_id))
         return 0
 
-    # ── Fetch active subscriptions ────────────────────────────────────────────
-    subs_result = await session.execute(
-        select(PushSubscription).where(
-            PushSubscription.user_id == user_id,
-            PushSubscription.is_active.is_(True),
-        )
+    plan, subscriptions = await _prepare_notification(
+        session,
+        user_id,
+        title,
+        body,
+        data=data,
+        tag=tag,
+        timezone_name=timezone_name,
+        now_utc=now_utc,
+        league_id=league_id,
     )
-    subscriptions = list(subs_result.scalars().all())
-
-    if not subscriptions:
-        return 0
-
-    payload_obj: dict[str, Any] = {"title": title, "body": body, "data": data or {}}
-    if tag is not None:
-        payload_obj["tag"] = tag
-    payload = json.dumps(payload_obj)
-    sent = 0
-
-    loop = asyncio.get_event_loop()
-    for sub in subscriptions:
-        sub_info: dict[str, Any] = {
-            "endpoint": sub.subscription.get("endpoint", ""),
-            "keys": sub.subscription.get("keys", {}),
-        }
-        try:
-            await loop.run_in_executor(None, partial(_send_push_sync, sub_info, payload))
-            sub.failed_send_count = 0
-            sub.last_used_at = now
-            sent += 1
-        except WebPushException as exc:
-            log.warning(
-                "push send failed",
-                user_id=str(user_id),
-                subscription_id=str(sub.id),
-                error=str(exc),
-            )
-            sub.failed_send_count = (sub.failed_send_count or 0) + 1
-            if sub.failed_send_count >= _FAIL_THRESHOLD:
-                sub.is_active = False
-                log.info(
-                    "push subscription auto-disabled",
-                    subscription_id=str(sub.id),
-                    fail_count=sub.failed_send_count,
-                )
-        except requests.exceptions.Timeout:
-            # The push service did not answer in time. Not counted towards auto-disable: a
-            # slow or hung push service is theirs to fix, not proof the subscription is dead.
-            log.warning(
-                "push send timed out",
-                user_id=str(user_id),
-                subscription_id=str(sub.id),
-                timeout_s=PUSH_SEND_TIMEOUT_SECONDS,
-            )
-        except Exception as exc:
-            log.error("unexpected push error", error=str(exc))
-
-    return sent
+    report = await deliver_prepared_notification(plan)
+    _apply_delivery_outcomes(subscriptions, [report])
+    return report.sent
