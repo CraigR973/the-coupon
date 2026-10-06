@@ -8304,3 +8304,18 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - No application code, API contract, database schema or production data changed.
 
 **Next:** Implement Batch 190 from this trusted attestation state.
+
+## Gate maintenance — Batch 190 oracle-approval correction
+**Commit:** `57bcdeb` · owner-approved 6 Oct 2026 · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37473337603 failed at the expected
+old-trusted-guard comparison; production-bundle smoke and seeded coupon journey passed
+
+### Key facts for future sessions
+- The first approval record captured only the old equality assertion. The owner's decision covered
+  both obsolete Batch 161 assertions, so trusted main now also fingerprints the old synthetic
+  installation-day assertion. No other oracle is approved for removal.
+- The gate replayed the correction against `7d7f079` and refused only the protected guard change.
+  The production-bundle smoke and seeded journey passed at the exact correction SHA.
+- No application code, API contract, database schema or production data changed.
+
+**Next:** Implement Batch 190 from the corrected trusted attestation state.
