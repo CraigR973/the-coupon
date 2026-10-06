@@ -8347,3 +8347,37 @@ https://github.com/CraigR973/the-coupon/actions/runs/37476733209 PASS for `387a1
 
 **Next:** Batch 191 — release database connections before sending pick notifications and bound
 concurrent fan-outs below the pool size.
+
+## Batch 191 — Release the database before sending pick notifications
+**Commit:** `ea5833d` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,412 backend
+and 1,291 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37542909038 PASS for `ea5833d`
+
+### Key facts for future sessions
+- **A slow push no longer owns a pooled connection.** The request closes its final read
+  transaction before scheduling work. The fan-out then bulk-loads recipients, preferences and
+  subscriptions, sends from immutable in-memory work with no session, and records delivery in one
+  short transaction. Four whole fan-outs may run concurrently, below the 5 + 5 connection pool.
+- **Notification behaviour is unchanged.** Existing league/global mutes, copy, tags and recipient
+  rules remain the source of truth. Completion still stamps only after delivery and retries after a
+  failed send. Its database claim is released before webpush; the existing one-worker deployment
+  uses a process-local per-gameweek lock to keep one active completion sender. A crash after send
+  but before the stamp retains the former at-least-once retry edge.
+- **The production-shaped proof passes.** Twelve simultaneous picks in a 50-member league all
+  return 201, deliver all 588 eligible alerts exactly once, and return the pool to zero checked-out
+  connections. A blocked sender proves no connection stays checked out during webpush; session
+  acquisition failures are swallowed by the whole background task; completion failure and retry,
+  league/global mute filtering and delivery bookkeeping all pass.
+- **Design decisions:** whole fan-outs are bounded at four rather than parallelising individual
+  sends; external calls stay outside transactions; recipient data is bulk-read rather than N+1;
+  there is no outbox, pool-size, schema, public API, copy, tag or web change.
+- **Failures on the way:** the first focused database invocation could not start PostgreSQL under
+  `C.UTF-8`; the documented `en_US.UTF-8` locale fixed the environment. The first code run had two
+  failures: the 12-pick burst still exhausted the pool because preparation made three queries per
+  recipient and the request's final read transaction survived into the background task, while the
+  blocked-sender proof saw one checked-out connection. Bulk-loading the three datasets and
+  committing that final read before scheduling fixed both; the same seven focused tests passed.
+  Pinned Ruff then found two new source files to format; formatting them changed no expectation.
+- **Close-out safety:** PASS — API-only; pre-push /ship-prod debt present; /ship-prod owed after push
+
+**Next:** Batch 192 — resolve every competition's slate names in two flat queries.

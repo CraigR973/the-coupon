@@ -559,7 +559,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: what the installation bucket counts. **API-carrying.**
 
-- [ ] **Batch 191 — A burst of picks in a big league exhausts the database pool and silently drops the alerts**
+- [x] **Batch 191 — A burst of picks in a big league exhausts the database pool and silently drops the alerts** ✅ 2026-10-06
   — specified from `docs/review/2026-09-28/04-performance-operations.md`, PERF-20 (MED, live,
   verified). Batch 162 moved the pick alert after the response into `_announce_after_response`
   (`routers/picks.py:492-553`), which holds one pooled connection across every send (~9 s at 50
