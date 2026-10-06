@@ -8381,3 +8381,28 @@ https://github.com/CraigR973/the-coupon/actions/runs/37542909038 PASS for `ea583
 - **Close-out safety:** PASS — API-only; pre-push /ship-prod debt present; /ship-prod owed after push
 
 **Next:** Batch 192 — resolve every competition's slate names in two flat queries.
+
+## Batch 192 — Resolve slate names in flat queries
+**Commit:** `c45db3a` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,416 backend
+and 1,291 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37546311895 PASS for `c45db3a`
+
+### Key facts for future sessions
+- **Name resolution is flat across the whole slate.** One composite alias query and, only for
+  unseen names, one competition-wide candidate query replace two reads per competition. The
+  production shape falls from 46 name-resolution reads at 23 competitions to two; learned slates
+  take three total reads including standings and form, and unseen names add one flat fourth read.
+- **Competition remains part of identity.** Alias lookups key on competition plus normalised name,
+  fuzzy candidates stay grouped by competition, and learned aliases flush together without
+  re-pointing an existing/manual alias. The single-competition helper delegates to the same path.
+- **The proof covers scale and meaning.** Name resolution executes exactly two statements at 1,
+  23 and 41 competitions. Two clubs reached through the same `Bangor` spelling in different
+  competitions retain their own ids, names and table positions; the existing alias-learning,
+  ambiguity, degradation, table-position and form tests remain green.
+- **Design decisions:** no schema, public API, provider, table/form, fixture-omission or web change;
+  unseen names still degrade to no context and the caller still owns the transaction. The pinned
+  formatter reformatted two touched files before verification; the full gate passed on attempt 1
+  with no test or assertion changed to reach green.
+- **Close-out safety:** PASS — API-only; pre-push /ship-prod debt present; /ship-prod owed after push
+
+**Next:** Batch 193 — make scheduled jobs survive a briefly busy worker.

@@ -578,7 +578,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: the pick fan-out's connection use. **API-carrying.**
 
-- [ ] **Batch 192 — The pick screen makes two queries per competition**
+- [x] **Batch 192 — The pick screen makes two queries per competition** ✅ 2026-10-07
   — specified from `docs/review/2026-09-28/04-performance-operations.md`, PERF-18 (MED, live,
   verified). `fixture_context` calls `resolve_names` once per competition
   (`football_data.py:945-952`), each reading aliases then teams: 10 + 2 × competitions
