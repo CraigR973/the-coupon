@@ -8265,3 +8265,25 @@ https://github.com/CraigR973/the-coupon/actions/runs/37377836762 PASS for `07d73
   tree only in the three allowed records; no `/ship-prod` is owed.
 
 **Next:** Group AE in a fresh stage.
+
+## Batch 189 — The discovery budget prices the wrong number, and the match-day refresh has no budget
+**Commits:** `d26c2bd` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,401 backend
+and 1,291 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37439545681 PASS for `d26c2bd`
+
+### Key facts for future sessions
+- **The provider and the budget now walk the same set.** Both scheduled jobs intersect the raw
+  36-competition fixture pool with the product trim before discovery, so one walk is priced at
+  the 23 competitions actually requested rather than 36.
+- **Refresh now degrades before the provider refuses it.** It shares the 90-request discovery
+  ceiling; at five windows it serves three nearest windows for 69 requests rather than attempting
+  115 inside a 100-request hour. The daily run serves every nearest window at one, two and three
+  windows, and Batch 119's per-(window, date) commit rule is unchanged.
+- **Failures on the way:** gate attempt 1 rejected edits to existing scheduler assertions as an
+  oracle replacement; restoring them unchanged and adding separate stronger coverage passed. A
+  `C.UTF-8` environment run could not initialise PostgreSQL, so the documented `en_US.UTF-8`
+  locale supplied the clean rerun. That run passed 1,401 backend tests but rejected the stale
+  1,395 ratchet; raising it to the exact new count made the final 12-check run pass.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+**Next:** Batch 190 (Group AE).

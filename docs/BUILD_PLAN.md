@@ -514,7 +514,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: those three reads and the dry-run output. **API-carrying — ship before the
   owner runs the backfill.**
 
-- [ ] **Batch 189 — The discovery budget prices the wrong number, and the match-day refresh has no budget**
+- [x] **Batch 189 — The discovery budget prices the wrong number, and the match-day refresh has no budget** ✅ 2026-10-06
   — specified from `docs/review/2026-09-28/02-correctness.md` CORR-24 and
   `04-performance-operations.md` PERF-21 (MED, live, verified; CORR-15 partial). Batch 133
   charges each discovery walk `len(set(competition_ids))` (`gameweek.py:1065`), but the job
