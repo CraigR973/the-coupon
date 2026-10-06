@@ -113,6 +113,10 @@ EOF
 apps/api/tests/test_cross_league_summary_cost.py|assert flat.count("GAMEWEEKS.") == 3, f"one projected column and two bounds: {flat}"
 EOF
       ;;
+    190) cat <<'EOF'
+apps/api/tests/test_request_budget.py|assert _pick_installation_limits() == _pick_shared_limits()
+EOF
+      ;;
   esac
 }
 
@@ -123,6 +127,7 @@ approved_oracle_paths() {
     181) echo "apps/api/tests/test_league_display_name.py apps/api/tests/test_league_write_access.py" ;;
     182) echo "apps/web/src/test/csp.test.ts" ;;
     188) echo "apps/api/tests/test_cross_league_summary_cost.py" ;;
+    190) echo "apps/api/tests/test_request_budget.py" ;;
   esac
 }
 

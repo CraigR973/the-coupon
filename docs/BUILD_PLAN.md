@@ -551,6 +551,12 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Verification: two leagues × 30 members picking in one hour, most from a warm cache, all
   admitted; a cold-cache burst still bounded by the plan; `PICKS_BUSY` message unchanged.
 
+  **Oracle changes approved (owner, 2026-10-06):** this batch may replace only the one
+  existing equality assertion fingerprinted in trusted main, and only in
+  `apps/api/tests/test_request_budget.py`. The replacement must preserve the 50-request
+  hourly bound, derive the 211-request day from the measured 289-request Saturday, and add
+  warm-cache and cold-cache request-path coverage; this is not a file-wide or reusable waiver.
+
   Scope boundary: what the installation bucket counts. **API-carrying.**
 
 - [ ] **Batch 191 — A burst of picks in a big league exhausts the database pool and silently drops the alerts**
