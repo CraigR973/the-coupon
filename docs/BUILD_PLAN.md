@@ -535,7 +535,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: the two jobs' costing. **API-carrying.**
 
-- [ ] **Batch 190 — One pick bucket for the whole deployment refuses picks the plan could afford**
+- [x] **Batch 190 — One pick bucket for the whole deployment refuses picks the plan could afford** ✅ 2026-10-06
   — specified from `docs/review/2026-09-28/04-performance-operations.md`, PERF-23 (MED, live,
   verified hourly). Batch 161's installation bucket and the per-league one are both
   `50/hour;100/day` (`routers/picks.py:118, 138`) and count submissions, including a changed

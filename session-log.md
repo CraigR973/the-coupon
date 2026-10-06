@@ -8319,3 +8319,31 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - No application code, API contract, database schema or production data changed.
 
 **Next:** Implement Batch 190 from the corrected trusted attestation state.
+
+## Batch 190 — Charge the installation pick budget only on upstream price fetches
+**Commit:** `387a12d` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,407 backend
+and 1,291 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37476733209 PASS for `387a12d`
+
+### Key facts for future sessions
+- **Warm prices no longer spend the shared provider budget.** The per-member and per-league
+  submission limits are unchanged. The installation limit is charged under the cache lock only
+  when a stale price is about to reach the upstream provider, so refused fetches never call it and
+  failed upstream calls still consume the request they attempted.
+- **The provider ceiling now matches the measured plan.** The installation bucket remains 50 per
+  hour and is 211 per day: the 500-request provider allowance less the measured 289-request
+  Saturday. Two leagues with 30 warm-cache picks each are admitted; a 60-pick cold burst makes 50
+  upstream calls and refuses 10 with the unchanged `PICKS_BUSY` response.
+- **The approved oracle replacement stayed exact.** Only the two owner-approved Batch 161
+  assertions in `test_request_budget.py` changed: the old synthetic installation-day bound and the
+  old equality with the per-league submission limit. Every other protected oracle remained intact.
+- **Failures on the way:** the first trusted approval recorded only one of the two approved
+  assertions; `57bcdeb` corrected that record and `5830205` attested it. The first database-focused
+  cleanup physically deleted leagues and hit the membership foreign key; using the product's soft
+  delete made the clean rerun pass. Full-gate attempt 1 failed pinned Ruff formatting for the new
+  flow test; the pinned formatter fixed it, and the complete second run passed without changing an
+  expectation.
+- **Close-out safety:** PASS — API-only; pre-push /ship-prod debt present; /ship-prod owed after push
+
+**Next:** Batch 191 — release database connections before sending pick notifications and bound
+concurrent fan-outs below the pool size.
