@@ -17,14 +17,14 @@ The refusal is ``SELECTION_TAKEN`` or ``FIXTURE_TAKEN`` accordingly.
 The unique constraints on ``picks`` are the race backstop — a concurrent grab that slips
 past the pre-check trips ``IntegrityError`` and is reported as a conflict.
 
-Submitting also spends the odds provider's rate-limited quota, once per submission, so
-the endpoint carries two limits rather than one: ``PICK_SUBMIT_LIMIT`` per member and
-``PICK_SUBMIT_SHARED_LIMIT`` per league. A league that has spent its share is refused
-with ``PICKS_BUSY`` (429) rather than served a price it could not confirm.
+Submitting may spend the odds provider's rate-limited quota. The member and league limits
+count submissions, while the installation limit counts only pick-time cache misses that
+actually go upstream. A spent allowance is refused with ``PICKS_BUSY`` (429) rather than
+served a price the endpoint could not confirm.
 """
 
 import uuid
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Any, TypeVar
@@ -120,24 +120,18 @@ PICK_SUBMIT_SHARED_LIMIT = "50/hour;100/day"
 #: The bucket every pick submission in one league is charged to, whichever member asked.
 PICK_SUBMIT_SHARED_SCOPE = "pick-submit-provider-budget"
 
-#: How much of the provider's hour and day **the whole deployment's** pick submissions
-#: may spend, charged beneath the per-league bucket above (Batch 161).
+#: How much of the provider's hour and day **the whole deployment's** pick path may spend,
+#: charged only when the price cache is about to go upstream (Batch 190).
 #:
-#: The same numbers, because they were always a statement about the *installation* that
-#: happened to be keyed per league: `50/hour` is what the hour leaves once the measured
-#: peak browsing hour is subtracted, and peak browsing does not grow with the number of
-#: leagues any more than it grows with membership — the slate cache collapses every
-#: reader into one sweep. So the figure the per-league bucket was derived from is the
-#: figure the installation gets, and this is where it belongs.
+#: `50/hour` remains the measured peak-hour spare. `211/day` is the 500-request plan less
+#: the measured 289-request one-window Saturday. Unlike the per-league submission bucket,
+#: this one measures provider work: a changed mind served by the 60-second cache is free.
 #:
-#: Today's deployment runs one league, so both buckets are the same size and every
-#: submission charges both: the experience is bit-for-bit what it was. The difference
-#: appears at the second league, which is the point — a league's share is now bounded by
-#: what the deployment actually has left rather than by what it would have left if it
-#: were the only one.
-PICK_SUBMIT_INSTALLATION_LIMIT = "50/hour;100/day"
+#: Admission happens under the cache's refill lock immediately before the provider call.
+#: That order is what makes a simultaneous cold burst exact rather than retrospective.
+PICK_SUBMIT_INSTALLATION_LIMIT = "50/hour;211/day"
 
-#: The bucket every pick submission in the deployment is charged to.
+#: The bucket every real pick-time upstream request in the deployment is charged to.
 PICK_SUBMIT_INSTALLATION_SCOPE = "pick-submit-installation-budget"
 
 #: One bucket for the whole deployment, so the key is a constant rather than an identity.
@@ -321,19 +315,17 @@ async def submit_pick(
         )
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=PICKS_BUSY)
 
-    # Beneath the league's own bucket, and charged second on purpose (Batch 161). A
-    # league already at its ceiling is refused above without touching the installation's
-    # allowance, which is correct — nothing went upstream. The reverse order would
-    # over-charge the scarce bucket to protect the abundant one.
-    #
-    # When the installation refuses, the league bucket has been charged for a submission
-    # that did not happen. That over-count is the safe direction and the one this file
-    # already chose for the per-league bucket: it can never under-count real spend.
-    if not consume_shared_limit(
-        PICK_SUBMIT_INSTALLATION_KEY,
-        PICK_SUBMIT_INSTALLATION_LIMIT,
-        PICK_SUBMIT_INSTALLATION_SCOPE,
-    ):
+    # The installation bucket sits beneath the league's submission bucket, but the cache
+    # invokes it only for a real miss, under its refill lock and immediately before the
+    # provider call. A warm pick spends no installation capacity; a refused cold pick
+    # never reaches upstream. The league bucket remains submission-based by design.
+    def consume_installation_budget() -> None:
+        if consume_shared_limit(
+            PICK_SUBMIT_INSTALLATION_KEY,
+            PICK_SUBMIT_INSTALLATION_LIMIT,
+            PICK_SUBMIT_INSTALLATION_SCOPE,
+        ):
+            return
         log.warning(
             "pick refused: the deployment's share of the provider budget is spent",
             league_id=str(league.id),
@@ -342,7 +334,14 @@ async def submit_pick(
         )
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=PICKS_BUSY)
 
-    selection = await _snapshot_selection(provider, fixture, body.market, body.outcome, body.odds)
+    selection = await _snapshot_selection(
+        provider,
+        fixture,
+        body.market,
+        body.outcome,
+        body.odds,
+        before_upstream=consume_installation_budget,
+    )
 
     # And again, because the line above left the process. `_snapshot_selection` is an
     # outbound HTTP call to a third party on the request path, and the deadline it was
@@ -727,6 +726,8 @@ async def _snapshot_selection(
     market: PickMarket,
     outcome: PickOutcome,
     displayed: Decimal | None = None,
+    *,
+    before_upstream: Callable[[], None],
 ) -> Selection:
     """Fetch the fixture's odds and return the chosen priced selection.
 
@@ -754,8 +755,10 @@ async def _snapshot_selection(
     # The one price that gets frozen onto a scored pick, so it buys freshness the
     # browse path cannot afford — but for a single fixture, which is one request.
     try:
-        odds = await provider.fetch_odds(
-            [fixture.provider_event_id], max_age_seconds=settings.odds_cache_pick_ttl_seconds
+        odds = await provider.fetch_odds_for_pick(
+            [fixture.provider_event_id],
+            max_age_seconds=settings.odds_cache_pick_ttl_seconds,
+            before_upstream=before_upstream,
         )
     except OddsProviderError as exc:
         log.warning(

@@ -56,7 +56,14 @@ from src.services.betfair import (
 from src.services.football_provider import season_for
 from src.services.gameweek import fixtures_for, members_missing_picks, sync_slate, window_for
 from src.services.odds_cache import CachingOddsProvider
-from src.services.odds_provider import Competition, FixtureOdds, OddsProviderAPIError
+from src.services.odds_provider import (
+    Competition,
+    FixtureOdds,
+    Market,
+    OddsProviderAPIError,
+    Outcome,
+    Selection,
+)
 from src.services.team_matching import normalise_name
 from tests.season_dates import same_weekday_in_current_season
 
@@ -2763,6 +2770,163 @@ class _CountedOdds(FakeBetfair):
     ) -> list[FixtureOdds]:
         self.odds_calls += 1
         return await super().fetch_odds(event_ids, max_age_seconds=max_age_seconds)
+
+
+class _ManyPricedOdds(_CountedOdds):
+    """A counted provider with one unique priced selection for every requested event."""
+
+    async def fetch_odds(
+        self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
+    ) -> list[FixtureOdds]:
+        self.odds_calls += 1
+        return [
+            FixtureOdds(
+                provider_event_id=event_id,
+                home=f"Home {event_id}",
+                away=f"Away {event_id}",
+                selections=[
+                    Selection(
+                        market=Market.MATCH_ODDS,
+                        outcome=Outcome.HOME,
+                        runner_name=f"Home {event_id}",
+                        price=Decimal("2.00"),
+                    )
+                ],
+            )
+            for event_id in event_ids
+        ]
+
+
+@pytest_asyncio.fixture
+async def client_and_many_counted() -> (
+    AsyncIterator[tuple[AsyncClient, _ManyPricedOdds, CachingOddsProvider]]
+):
+    stub = _ManyPricedOdds.with_sample_data()
+    assert isinstance(stub, _ManyPricedOdds)
+    cached = CachingOddsProvider(stub, ttl_seconds=3600.0)
+    app.dependency_overrides[get_odds_provider] = lambda: cached
+    app.dependency_overrides[get_optional_odds_provider] = lambda: cached
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client, stub, cached
+    app.dependency_overrides.pop(get_odds_provider, None)
+    app.dependency_overrides.pop(get_optional_odds_provider, None)
+
+
+async def _open_many_fixture_gameweek(
+    session: AsyncSession, league: League, event_ids: Sequence[str]
+) -> tuple[Gameweek, list[str]]:
+    """Open one round over arbitrary pooled fixtures and return their database ids."""
+    gameweek = Gameweek(
+        league_id=league.id,
+        starts_on=date(2070, 8, 2),
+        status=GameweekStatus.open,
+        locks_at_utc=_now() + timedelta(hours=2),
+    )
+    session.add(gameweek)
+    await session.flush()
+
+    existing = await session.execute(
+        select(Fixture).where(Fixture.provider_event_id.in_(event_ids))
+    )
+    by_event = {fixture.provider_event_id: fixture for fixture in existing.scalars()}
+    for index, event_id in enumerate(event_ids):
+        if event_id in by_event:
+            continue
+        fixture = Fixture(
+            provider_event_id=event_id,
+            home=f"Home {index}",
+            away=f"Away {index}",
+            kickoff_utc=datetime(2070, 8, 2, 14, 0),
+            competition="Batch 190 League",
+            competition_id="batch-190-league",
+        )
+        session.add(fixture)
+        by_event[event_id] = fixture
+    await session.flush()
+
+    for event_id in event_ids:
+        session.add(GameweekFixture(gameweek_id=gameweek.id, fixture_id=by_event[event_id].id))
+    await session.commit()
+    return gameweek, [str(by_event[event_id].id) for event_id in event_ids]
+
+
+async def test_two_thirty_member_leagues_can_pick_from_one_warm_cache(
+    client_and_many_counted: tuple[AsyncClient, _ManyPricedOdds, CachingOddsProvider],
+) -> None:
+    client, stub, cached = client_and_many_counted
+    tag = uuid.uuid4().hex[:8]
+    events = [f"b190-warm-{tag}-{index}" for index in range(30)]
+
+    async with AsyncSessionLocal() as session:
+        first_players, first = await _seed_league(session, [f"warm-a-{i}" for i in range(30)])
+        second_players, second = await _seed_league(session, [f"warm-b-{i}" for i in range(30)])
+        _, first_fixtures = await _open_many_fixture_gameweek(session, first, events)
+        _, second_fixtures = await _open_many_fixture_gameweek(session, second, events)
+
+    await cached.fetch_odds(events)
+    calls_after_warm = stub.odds_calls
+    responses = [
+        await _submit(client, first.slug, player, fixture_id, "MATCH_ODDS", "HOME")
+        for player, fixture_id in zip(first_players, first_fixtures, strict=True)
+    ]
+    responses.extend(
+        [
+            await _submit(client, second.slug, player, fixture_id, "MATCH_ODDS", "HOME")
+            for player, fixture_id in zip(second_players, second_fixtures, strict=True)
+        ]
+    )
+
+    assert len(responses) == 60
+    assert all(response.status_code == 201 for response in responses)
+    assert stub.odds_calls == calls_after_warm, "sixty warm picks must spend no provider calls"
+
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(League).where(League.id.in_([first.id, second.id])).values(deleted_at=_now())
+        )
+        await session.commit()
+
+
+async def test_sixty_cold_picks_are_bounded_to_fifty_upstream_calls(
+    client_and_many_counted: tuple[AsyncClient, _ManyPricedOdds, CachingOddsProvider],
+) -> None:
+    from src.routers.picks import PICKS_BUSY
+
+    client, stub, _ = client_and_many_counted
+    tag = uuid.uuid4().hex[:8]
+    first_events = [f"b190-cold-a-{tag}-{index}" for index in range(30)]
+    second_events = [f"b190-cold-b-{tag}-{index}" for index in range(30)]
+
+    async with AsyncSessionLocal() as session:
+        first_players, first = await _seed_league(session, [f"cold-a-{i}" for i in range(30)])
+        second_players, second = await _seed_league(session, [f"cold-b-{i}" for i in range(30)])
+        _, first_fixtures = await _open_many_fixture_gameweek(session, first, first_events)
+        _, second_fixtures = await _open_many_fixture_gameweek(session, second, second_events)
+
+    responses = [
+        await _submit(client, first.slug, player, fixture_id, "MATCH_ODDS", "HOME")
+        for player, fixture_id in zip(first_players, first_fixtures, strict=True)
+    ]
+    responses.extend(
+        [
+            await _submit(client, second.slug, player, fixture_id, "MATCH_ODDS", "HOME")
+            for player, fixture_id in zip(second_players, second_fixtures, strict=True)
+        ]
+    )
+
+    admitted = [response for response in responses if response.status_code == 201]
+    refused = [response for response in responses if response.status_code == 429]
+    assert len(admitted) == 50
+    assert len(refused) == 10
+    assert all(response.json()["detail"] == PICKS_BUSY for response in refused)
+    assert stub.odds_calls == 50, "refused cold picks must never reach upstream"
+
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(League).where(League.id.in_([first.id, second.id])).values(deleted_at=_now())
+        )
+        await session.commit()
 
 
 @pytest_asyncio.fixture

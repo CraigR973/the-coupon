@@ -31,7 +31,7 @@ See ``docs/adr/0002-replace-betfair-exchange-with-odds-api-io.md``.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Collection, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -533,6 +533,27 @@ class OddsProvider(ABC):
         # of them got a definite answer — which is exactly what `observed` means. The
         # cached override reports the subset it actually refilled instead.
         return OddsSnapshot(odds=odds, degraded=False, observed=frozenset(event_ids))
+
+    async def fetch_odds_for_pick(
+        self,
+        event_ids: Sequence[str],
+        *,
+        max_age_seconds: float | None = None,
+        before_upstream: Callable[[], None],
+    ) -> list[FixtureOdds]:
+        """Strict pick-time prices, charging immediately before real upstream work.
+
+        Providers without a cache always go upstream for a non-empty request, so the
+        default invokes the callback before :meth:`fetch_odds`. The production cache
+        overrides this method and invokes it only for a miss, inside its refill lock.
+
+        The callback is deliberately synchronous: the installation limiter is an
+        in-process atomic hit, and nothing may yield between admission and the provider
+        call or a cold burst could pass the budget before any request was counted.
+        """
+        if event_ids:
+            before_upstream()
+        return await self.fetch_odds(event_ids, max_age_seconds=max_age_seconds)
 
     @abstractmethod
     async def settle(self, event_ids: Sequence[str]) -> list[EventSettlement]:

@@ -185,6 +185,70 @@ async def test_concurrent_cold_loads_collapse_into_one_call() -> None:
     assert len(inner.odds_calls) == 1
 
 
+async def test_pick_budget_is_charged_on_a_cold_miss_but_not_a_warm_hit() -> None:
+    inner = _CountingProvider()
+    cache = _cache(inner, _Clock())
+    charges = 0
+
+    def charge() -> None:
+        nonlocal charges
+        charges += 1
+
+    await cache.fetch_odds_for_pick(["a"], before_upstream=charge)
+    await cache.fetch_odds_for_pick(["a"], before_upstream=charge)
+
+    assert charges == 1
+    assert inner.odds_calls == [["a"]]
+
+
+async def test_a_refused_pick_budget_never_reaches_upstream() -> None:
+    inner = _CountingProvider()
+    cache = _cache(inner, _Clock())
+
+    def refuse() -> None:
+        raise RuntimeError("pick budget spent")
+
+    with pytest.raises(RuntimeError, match="pick budget spent"):
+        await cache.fetch_odds_for_pick(["a"], before_upstream=refuse)
+
+    assert inner.odds_calls == []
+
+
+async def test_a_failed_pick_fetch_still_spends_its_budget() -> None:
+    inner = _CountingProvider()
+    inner.odds_error = OddsProviderAPIError("upstream unavailable")
+    cache = _cache(inner, _Clock())
+    charges = 0
+
+    def charge() -> None:
+        nonlocal charges
+        charges += 1
+
+    with pytest.raises(OddsProviderAPIError):
+        await cache.fetch_odds_for_pick(["a"], before_upstream=charge)
+
+    assert charges == 1
+    assert inner.odds_calls == [["a"]]
+
+
+async def test_concurrent_cold_picks_share_one_charge_and_one_refill() -> None:
+    inner = _CountingProvider()
+    cache = _cache(inner, _Clock())
+    charges = 0
+
+    def charge() -> None:
+        nonlocal charges
+        charges += 1
+
+    results = await asyncio.gather(
+        *(cache.fetch_odds_for_pick(["a"], before_upstream=charge) for _ in range(15))
+    )
+
+    assert all(result[0].provider_event_id == "a" for result in results)
+    assert charges == 1
+    assert inner.odds_calls == [["a"]]
+
+
 async def test_unpriced_event_is_not_re_requested() -> None:
     """An unpriced fixture would otherwise cost a request on every single page load."""
     inner = _CountingProvider(priced={"a"})

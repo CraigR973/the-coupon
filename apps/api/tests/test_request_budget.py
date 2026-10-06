@@ -58,6 +58,11 @@ from tests.test_odds_pricing import _fixture
 HOURLY_LIMIT = 100
 DAILY_LIMIT = 500
 
+#: The review's real one-window Saturday run, including browsing, jobs, settlement and
+#: fifteen frozen picks. The installation pick allowance is the plan less this measured
+#: spend, rather than the older synthetic saturation model's round-number allowance.
+MEASURED_ONE_WINDOW_SATURDAY_REQUESTS = 289
+
 
 @dataclass(frozen=True)
 class RoundShape:
@@ -987,18 +992,25 @@ async def test_the_installation_allowance_is_what_the_hour_actually_leaves_spare
 async def test_the_installation_allowance_fits_the_day_beside_browsing_and_discovery(
     round_shape: RoundShape,
 ) -> None:
-    spare = DAILY_LIMIT - await _saturated_day_of_browsing(round_shape) - _daily_discovery()
-    assert _pick_installation_limits()["day"] <= spare
+    synthetic_spare = (
+        DAILY_LIMIT - await _saturated_day_of_browsing(round_shape) - _daily_discovery()
+    )
+    measured_spare = DAILY_LIMIT - MEASURED_ONE_WINDOW_SATURDAY_REQUESTS
+    assert _pick_installation_limits()["day"] == measured_spare, (
+        f"the measured Saturday leaves {measured_spare}; the older synthetic diagnostic "
+        f"leaves {synthetic_spare}"
+    )
 
 
 def test_a_single_leagues_experience_at_todays_scale_is_unchanged() -> None:
-    """The other half of the verification, and the reason the numbers are equal.
+    """The hour stays unchanged while the measured day stops refusing spare capacity.
 
-    Production runs one league. Both buckets are the same size and every submission
-    charges both, so the first bucket to refuse is still the league's own and the member
-    sees exactly what they saw before. The difference appears at the second league.
+    The per-league bucket still bounds one league's submissions at the same hour and day.
+    The installation's hour is unchanged, while its day is wider because it now counts
+    upstream requests rather than every changed mind served from cache.
     """
-    assert _pick_installation_limits() == _pick_shared_limits()
+    assert _pick_installation_limits()["hour"] == _pick_shared_limits()["hour"]
+    assert _pick_installation_limits()["day"] > _pick_shared_limits()["day"]
 
 
 def test_the_installation_bucket_is_a_second_bucket_and_not_a_renamed_one() -> None:

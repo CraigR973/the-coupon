@@ -232,6 +232,28 @@ class CachingOddsProvider(OddsProvider):
         """
         return (await self._snapshot(event_ids, max_age_seconds, best_effort=False)).odds
 
+    async def fetch_odds_for_pick(
+        self,
+        event_ids: Sequence[str],
+        *,
+        max_age_seconds: float | None = None,
+        before_upstream: Callable[[], None],
+    ) -> list[FixtureOdds]:
+        """Return strict pick-time prices and charge only for a real cache miss.
+
+        The callback runs under the same lock as stale detection and refill. Concurrent
+        requests for one cold event therefore produce one charge and one provider call;
+        the callers released afterwards see the newly warm entry and spend neither.
+        """
+        return (
+            await self._snapshot(
+                event_ids,
+                max_age_seconds,
+                best_effort=False,
+                before_upstream=before_upstream,
+            )
+        ).odds
+
     async def fetch_odds_best_effort(
         self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
     ) -> OddsSnapshot:
@@ -248,7 +270,12 @@ class CachingOddsProvider(OddsProvider):
         return await self._snapshot(event_ids, max_age_seconds, best_effort=True)
 
     async def _snapshot(
-        self, event_ids: Sequence[str], max_age_seconds: float | None, *, best_effort: bool
+        self,
+        event_ids: Sequence[str],
+        max_age_seconds: float | None,
+        *,
+        best_effort: bool,
+        before_upstream: Callable[[], None] | None = None,
     ) -> OddsSnapshot:
         """Refill what has gone stale, then answer from the entries — both callers' body."""
         wanted = list(dict.fromkeys(event_ids))
@@ -279,6 +306,8 @@ class CachingOddsProvider(OddsProvider):
                         reason=str(refusal),
                     )
                 else:
+                    if before_upstream is not None:
+                        before_upstream()
                     observed, degraded = await self._refill(stale, now, best_effort=best_effort)
 
             results = [
