@@ -33,7 +33,7 @@ from src.database import AsyncSessionLocal
 from src.models.fixture import Fixture
 from src.models.match import Match
 from src.models.standing import Standing
-from src.models.team import Team
+from src.models.team import Team, TeamAlias
 from src.services.fake_football import (
     ARSENAL,
     CHELSEA,
@@ -72,6 +72,7 @@ from src.services.football_provider import (
     TeamRef,
     current_season,
 )
+from src.services.team_matching import normalise_name
 
 # The odds provider names every league "<Country> - <Competition>", and the fake looks its
 # canned data up by the second half — so these are the names a real slate would carry.
@@ -855,6 +856,129 @@ async def test_recent_results_are_newest_first_and_bounded_by_days(
     assert {result.kickoff_utc.date() for result in results} == {date(2026, 5, 2)}
     assert (results[0].home, results[0].home_goals) == (CHELSEA[1], 0)
     assert (results[0].away, results[0].away_goals) == (ARSENAL[1], 1)
+
+
+@pytest_db
+@pytest.mark.asyncio
+@pytest.mark.parametrize("competition_count", [1, 23, 41])
+async def test_fixture_name_resolution_query_count_is_flat_across_competitions(
+    session: AsyncSession, competition_count: int
+) -> None:
+    """Name resolution is two reads for the whole slate, never two per division."""
+    tag = uuid.uuid4().hex[:8]
+    fixtures: list[Fixture] = []
+    for index in range(competition_count):
+        competition = CompetitionKey(
+            slug=f"flat-{tag}-{index}", name=f"Country {index} - Division {index}"
+        )
+        fixtures.extend(
+            await _pool(
+                session,
+                competition,
+                kickoff=datetime(2060, 8, 8, 14, 0),
+                teams=((f"Unknown Home {index}", f"Unknown Away {index}"),),
+            )
+        )
+
+    with counted_statements() as statements:
+        contexts = await fixture_context(session, fixtures, season=SAMPLE_SEASON, form_matches=5)
+
+    assert contexts == {}
+    assert len(statements) == 2
+    assert "team_aliases" in statements[0].lower()
+    assert "teams" in statements[1].lower()
+
+
+@pytest_db
+@pytest.mark.asyncio
+async def test_fixture_context_keeps_identical_names_inside_their_competitions(
+    session: AsyncSession,
+) -> None:
+    """A composite alias key prevents one division's club leaking into another."""
+    tag = uuid.uuid4().hex[:8]
+    wales = CompetitionKey(slug=f"wales-{tag}", name="Wales - Cymru Premier")
+    ulster = CompetitionKey(slug=f"ulster-{tag}", name="Northern Ireland - Premiership")
+    welsh_team = Team(
+        provider_team_id=f"welsh-{tag}",
+        name="Bangor City FC",
+        normalised_name=normalise_name("Bangor City FC"),
+        competition_id=wales.slug,
+    )
+    ulster_team = Team(
+        provider_team_id=f"ulster-{tag}",
+        name="Bangor FC",
+        normalised_name=normalise_name("Bangor FC"),
+        competition_id=ulster.slug,
+    )
+    session.add_all([welsh_team, ulster_team])
+    await session.flush()
+    session.add_all(
+        [
+            TeamAlias(
+                competition_id=wales.slug,
+                normalised=normalise_name("Bangor"),
+                team_id=welsh_team.id,
+                alias="Bangor",
+                source="odds",
+            ),
+            TeamAlias(
+                competition_id=ulster.slug,
+                normalised=normalise_name("Bangor"),
+                team_id=ulster_team.id,
+                alias="Bangor",
+                source="odds",
+            ),
+            Standing(
+                competition_id=wales.slug,
+                competition=wales.name,
+                season=SAMPLE_SEASON,
+                team_id=welsh_team.id,
+                position=3,
+            ),
+            Standing(
+                competition_id=ulster.slug,
+                competition=ulster.name,
+                season=SAMPLE_SEASON,
+                team_id=ulster_team.id,
+                position=7,
+            ),
+        ]
+    )
+    welsh_fixture = (
+        await _pool(
+            session,
+            wales,
+            kickoff=datetime(2060, 8, 8, 14, 0),
+            teams=(("Bangor", "Unknown Welsh Club"),),
+        )
+    )[0]
+    ulster_fixture = (
+        await _pool(
+            session,
+            ulster,
+            kickoff=datetime(2060, 8, 8, 14, 0),
+            teams=(("Bangor", "Unknown Ulster Club"),),
+        )
+    )[0]
+
+    contexts = await fixture_context(
+        session, [welsh_fixture, ulster_fixture], season=SAMPLE_SEASON, form_matches=0
+    )
+
+    welsh = contexts[str(welsh_fixture.id)].home
+    irish = contexts[str(ulster_fixture.id)].home
+    assert welsh is not None
+    assert irish is not None
+    assert (welsh.team_id, welsh.name, welsh.position) == (
+        str(welsh_team.id),
+        "Bangor City FC",
+        3,
+    )
+    assert (irish.team_id, irish.name, irish.position) == (
+        str(ulster_team.id),
+        "Bangor FC",
+        7,
+    )
 
 
 @pytest_db

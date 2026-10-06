@@ -47,7 +47,12 @@ from src.services.football_provider import (
     current_season,
     form_result,
 )
-from src.services.team_matching import normalise_name, record_alias, resolve_names
+from src.services.team_matching import (
+    normalise_name,
+    record_alias,
+    resolve_names,
+    resolve_names_by_competition,
+)
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -931,9 +936,9 @@ async def fixture_context(
 
     This is the inline half of Batch 16 — what the pick screen shows beside a game. It
     resolves the odds provider's free-text club names through the alias table
-    (:mod:`src.services.team_matching`), which the ingestion run has already taught, so
-    the whole thing is three queries for a slate of any size and no upstream request at
-    all.
+    (:mod:`src.services.team_matching`), which the ingestion run has usually already
+    taught. Learned aliases, standings and form make three reads for a slate of any size;
+    unseen names add one flat candidate-pool read. No path makes an upstream request.
 
     Fixtures whose clubs cannot be resolved are simply absent from the result. The screen
     then shows the fixture exactly as it did before this batch, which is the right
@@ -946,10 +951,11 @@ async def fixture_context(
     for fixture in fixtures:
         by_competition.setdefault(fixture.competition_id, []).append(fixture)
 
-    resolved: dict[str, dict[str, Team]] = {}
-    for competition_id, group in by_competition.items():
-        names = {name for fixture in group for name in (fixture.home, fixture.away)}
-        resolved[competition_id] = await resolve_names(db, competition_id, names, source="odds")
+    names_by_competition = {
+        competition_id: {name for fixture in group for name in (fixture.home, fixture.away)}
+        for competition_id, group in by_competition.items()
+    }
+    resolved = await resolve_names_by_competition(db, names_by_competition, source="odds")
 
     team_ids = {team.id for teams in resolved.values() for team in teams.values()}
     if not team_ids:

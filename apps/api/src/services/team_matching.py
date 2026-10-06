@@ -29,11 +29,11 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from difflib import SequenceMatcher
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.team import Team, TeamAlias
@@ -256,43 +256,93 @@ async def resolve_names(
 
     Flushes any learned aliases but does not commit; the caller owns the transaction.
     """
-    wanted = {name: normalise_name(name) for name in names if name and name.strip()}
+    resolved = await resolve_names_by_competition(db, {competition_id: names}, source=source)
+    return resolved.get(competition_id, {})
+
+
+async def resolve_names_by_competition(
+    db: AsyncSession,
+    names_by_competition: Mapping[str, Iterable[str]],
+    *,
+    source: str = "odds",
+) -> dict[str, dict[str, Team]]:
+    """Resolve names across competitions in at most two reads, learning new aliases.
+
+    Both reads use the competition and name together. Club names are only unique inside
+    one division, so flattening either aliases or fuzzy candidate pools by name would
+    silently attach identically named clubs to the wrong competition.
+
+    Flushes any learned aliases in one batch but does not commit; the caller owns the
+    transaction. Competitions with no usable input names are omitted.
+    """
+    wanted = {
+        competition_id: {name: normalise_name(name) for name in names if name and name.strip()}
+        for competition_id, names in names_by_competition.items()
+    }
+    wanted = {competition_id: names for competition_id, names in wanted.items() if names}
     if not wanted:
         return {}
 
+    alias_keys = {
+        (competition_id, normalised)
+        for competition_id, names in wanted.items()
+        for normalised in names.values()
+    }
     alias_rows = await db.execute(
-        select(TeamAlias.normalised, Team)
+        select(TeamAlias.competition_id, TeamAlias.normalised, Team)
         .join(Team, Team.id == TeamAlias.team_id)
-        .where(
-            TeamAlias.competition_id == competition_id,
-            TeamAlias.normalised.in_(set(wanted.values())),
-        )
+        .where(tuple_(TeamAlias.competition_id, TeamAlias.normalised).in_(alias_keys))
     )
-    by_normalised: dict[str, Team] = {row[0]: row[1] for row in alias_rows.all()}
+    aliases: dict[tuple[str, str], Team] = {
+        (competition_id, normalised): team for competition_id, normalised, team in alias_rows.all()
+    }
 
-    resolved: dict[str, Team] = {}
-    unresolved: dict[str, str] = {}
-    for name, normalised in wanted.items():
-        team = by_normalised.get(normalised)
-        if team is not None:
-            resolved[name] = team
-        else:
-            unresolved[name] = normalised
+    resolved: dict[str, dict[str, Team]] = {competition_id: {} for competition_id in wanted}
+    unresolved: dict[str, dict[str, str]] = {}
+    for competition_id, names in wanted.items():
+        for name, normalised in names.items():
+            team = aliases.get((competition_id, normalised))
+            if team is not None:
+                resolved[competition_id][name] = team
+            else:
+                unresolved.setdefault(competition_id, {})[name] = normalised
     if not unresolved:
         return resolved
 
-    candidates = await competition_teams(db, competition_id)
-    for name, normalised in unresolved.items():
-        team, score = best_match(normalised, candidates)
-        if team is None:
-            log.info(
-                "team name unresolved",
+    candidate_rows = await db.execute(select(Team).where(Team.competition_id.in_(set(unresolved))))
+    candidates: dict[str, list[Team]] = {}
+    for team in candidate_rows.scalars().all():
+        candidates.setdefault(team.competition_id, []).append(team)
+
+    learned: dict[tuple[str, str], tuple[str, Team]] = {}
+    for competition_id, names in unresolved.items():
+        competition_candidates = candidates.get(competition_id, [])
+        for name, normalised in names.items():
+            team, score = best_match(normalised, competition_candidates)
+            if team is None:
+                log.info(
+                    "team name unresolved",
+                    competition_id=competition_id,
+                    name=name,
+                    best_score=round(score, 3),
+                    candidates=len(competition_candidates),
+                )
+                continue
+            resolved[competition_id][name] = team
+            learned.setdefault((competition_id, normalised), (name, team))
+
+    db.add_all(
+        [
+            TeamAlias(
                 competition_id=competition_id,
-                name=name,
-                best_score=round(score, 3),
-                candidates=len(candidates),
+                normalised=normalised,
+                team_id=team.id,
+                alias=name[:120],
+                source=source,
             )
-            continue
-        resolved[name] = team
-        await record_alias(db, competition_id, name, team, source=source)
+            for (competition_id, normalised), (name, team) in learned.items()
+        ]
+    )
+    if learned:
+        await db.flush()
     return resolved
