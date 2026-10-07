@@ -8424,3 +8424,35 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - No application code, API contract, database schema or production data changed.
 
 **Next:** Implement Batch 193 from this trusted attestation state.
+
+## Batch 193 — Make scheduled jobs survive a briefly busy worker
+**Commit:** `2e81ce7` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,419 backend
+and 1,291 frontend tests passed, 0 skipped; seeded coupon journey 1 passed, 0 skipped · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37600493093 PASS for `2e81ce7`
+
+### Key facts for future sessions
+- **Every active job now has an explicit recovery window.** The two frequent jobs get five
+  minutes, the hourly lock/open/reminder jobs get 30 minutes, and the eight infrequent jobs get
+  one hour. All 13 keep `coalesce=True` and `max_instances=1`; the optional off-site backup keeps
+  the same one-hour policy when enabled.
+- **Shared minute boundaries are gone without changing cadence.** Live scores run at :02/:12/
+  :22/:32/:42/:52, the five provider or settlement jobs that used :00 move to :05, and the
+  evening state order is lock at :00, open at :01, settle at :05. The football sync remains at
+  06:30 London, reminders remain at :15 UTC and the owner-chosen backup time is unchanged.
+- **The proof covers policy, ordering and the original miss.** A 30-hour schedule has no shared
+  cron minute, every registration asserts grace/coalescing/single-instance behaviour, and a real
+  1.5-second blocked event loop executes the late job once without an `EVENT_JOB_MISSED` event.
+  No schema, public API, job body, provider, web or deployment-configuration contract changed.
+- **Failures on the way:** the first gate refused six required scheduler expectation replacements;
+  the owner approved exactly those fingerprints, `a9fb9f3` recorded them and `582fcc5` attested
+  the expected protected-guard failure. A stale local `main` pointer then made the first trusted
+  comparison refuse; fast-forwarding that pointer to the attestation fixed the environment. The
+  next full gate passed every non-journey check but the journey hit its 240-second whole-test
+  timeout while its API reads still returned 200. The unchanged journey passed on rerun; two
+  diagnostic reruns briefly shared ports and artefacts, so they were not used as proof. The final
+  isolated full gate and exact-SHA CI passed unchanged. This Mac's older Git also rejected
+  `git branch --show-current` during the first close-out probe; `git symbolic-ref --short HEAD`
+  supplied the same read-only check before the safety guard passed.
+- **Close-out safety:** PASS — API-only; pre-push /ship-prod debt present; /ship-prod owed after push
+
+**Next:** explicit `/ship-prod` for Group AE (Batches 189–193).

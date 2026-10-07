@@ -593,7 +593,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: name resolution on the slate. **API-carrying.**
 
-- [ ] **Batch 193 — A scheduled job that fires while the worker is busy is dropped**
+- [x] **Batch 193 — A scheduled job that fires while the worker is busy is dropped** ✅ 2026-10-07
   — specified from `docs/review/2026-09-28/04-performance-operations.md`, OPS-17 (MED) and
   OPS-18 (LOW), carried from 2026-09-13 with no batch. All 13 registered jobs take APScheduler's
   one-second `misfire_grace_time` (only the switched-off backup sets 3,600); re-driven, a real

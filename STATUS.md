@@ -29,9 +29,9 @@ Checked 2026-10-05 unless a line says otherwise.
 
 ## Owed
 
-- **`/ship-prod` is owed for Batches 189–192** (`d26c2bd`, `387a12d`, `ea5833d`,
-  `c45db3a`, checked 2026-10-07). Production remains at `546db3f` / migration `026`;
-  Group AE's documented checkpoint follows Batch 193, so Batch 193 continues before shipment.
+- **`/ship-prod` is owed for Batches 189–193** (`d26c2bd`, `387a12d`, `ea5833d`,
+  `c45db3a`, `2e81ce7`, checked 2026-10-07). Production remains at `546db3f` / migration
+  `026`; Group AE is complete and stopped at its documented shipment checkpoint.
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
   Railway `b52f0a9c-78dc-4eec-a52b-f765be3e6865`, the previous image redeployed by the
   pinned IaC apply — boots against the database as it stands. Vercel was already on
@@ -76,8 +76,8 @@ was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is 
 shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Group AD's first
 checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188), and its closing checkpoint
 shipped on 5 Oct as `546db3f` (Batches 184-187 and fix `f0710b0`); Group AD is complete. Batch
-204 (docs-only close-out fast path, owner-approved gate maintenance) is complete. Group AE has
-closed Batches 189–192 and continues at 193; Groups AB, AF and AH follow
+204 (docs-only close-out fast path, owner-approved gate maintenance) is complete. Group AE is
+complete (Batches 189–193) and waits at its `/ship-prod` checkpoint; Groups AB, AF and AH follow
 (`docs/agent-commands/group-start.md`).
 
 ## Toolchain
@@ -91,7 +91,7 @@ Checked 2026-10-03.
   that stamp when only `docs/BUILD_PLAN.md`, `session-log.md` and `STATUS.md` changed, otherwise it
   reruns the gate, and waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,416, frontend 1,291, journey 1; checked 2026-10-07). 13m04s on this Mac
+  (backend 1,419, frontend 1,291, journey 1; checked 2026-10-07). 13m04s on this Mac
   with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
   (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
   1,350 tests (2026-09-29) — not the gate.
@@ -120,4 +120,4 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Batch 193 in Group AE; and the owner's season-calendar backfill, now unblocked.
+**Next:** explicit `/ship-prod` for Group AE; and the owner's season-calendar backfill, now unblocked.
