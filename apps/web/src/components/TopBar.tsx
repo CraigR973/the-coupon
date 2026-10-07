@@ -115,7 +115,7 @@ export function TopBar() {
     <header
       className={cn(
         'sticky top-0 z-header',
-        'bg-surface/90 backdrop-blur-md border-b border-border',
+        'bg-surface border-b border-border',
         'pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:pt-safe',
       )}
     >
@@ -155,7 +155,7 @@ export function TopBar() {
                 'focus-visible:outline-none focus-visible:shadow-glow',
                 item.wideOnly && 'hidden md:block',
                 item.match(pathname)
-                  ? 'bg-primary/15 text-primary'
+                  ? 'bg-primary/[0.08] dark:bg-primary/15 text-text-primary'
                   : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated',
               )}
             >

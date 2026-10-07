@@ -201,7 +201,7 @@ function MatchRow({
     <li
       className={cn(
         'flex items-center gap-3 border-b border-border/50 px-3 py-2.5 last:border-0',
-        isNext && 'bg-primary/10',
+        isNext && 'bg-primary/[0.08] dark:bg-primary/10',
       )}
       data-testid={`team-match-${match.match_id}`}
       data-next={isNext ? 'true' : undefined}

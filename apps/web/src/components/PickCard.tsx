@@ -364,7 +364,7 @@ function SelectionButton({
             : settledStatus === 'void'
               ? 'cursor-not-allowed border border-border bg-surface-elevated text-text-primary'
               : sel.mine
-          ? 'border-2 border-success bg-success/20 text-success'
+          ? 'border-2 border-success bg-success/[0.08] dark:bg-success/15 text-text-primary'
           : takenByOther
             ? 'cursor-not-allowed border border-border/50 bg-surface opacity-55'
             : grabbable
@@ -396,6 +396,7 @@ function SelectionButton({
       <span
         className={cn(
           'text-caption font-mono uppercase tracking-wide text-text-muted',
+          sel.mine && !settledStatus && 'text-text-secondary',
           settledStatus && 'font-sans normal-case tracking-normal',
           settledStatus && settledTone,
         )}

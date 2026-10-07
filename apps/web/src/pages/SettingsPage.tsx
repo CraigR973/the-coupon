@@ -118,8 +118,8 @@ function PushSection() {
         ? 'Click the lock icon in the address bar, set Notifications to "Allow", then reload.'
         : 'Open your browser settings and allow notifications for this site.';
     return (
-      <div className="rounded-md bg-warning/10 border border-warning/30 px-4 py-3 space-y-1">
-        <p className="text-sm font-sans font-medium text-warning">Notifications blocked</p>
+      <div className="rounded-md bg-warning/[0.08] dark:bg-warning/15 border border-warning/30 px-4 py-3 space-y-1">
+        <p className="text-sm font-sans font-medium text-text-primary">Notifications blocked</p>
         <p className="text-xs font-sans text-text-secondary">{hint}</p>
       </div>
     );

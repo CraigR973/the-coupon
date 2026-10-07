@@ -140,7 +140,7 @@ export function ResultDayCarousel({ days, selected, onSelect }: Props) {
                     'inline-flex snap-center items-center gap-2 whitespace-nowrap rounded-full border px-3.5 py-1.5 font-sans text-xs font-medium shadow-sm transition-colors tap-target press-down',
                     'focus-visible:outline-none focus-visible:shadow-glow',
                     isSelected
-                      ? 'border-primary/40 bg-primary/15 text-text-primary'
+                      ? 'border-primary/40 bg-primary/[0.08] dark:bg-primary/15 text-text-primary'
                       : 'border-border bg-surface text-text-secondary hover:border-primary/40 hover:bg-surface-elevated hover:text-text-primary',
                   )}
                 >

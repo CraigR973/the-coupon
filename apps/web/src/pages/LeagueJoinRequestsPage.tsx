@@ -92,7 +92,7 @@ export function LeagueJoinRequestsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-error/40 text-error hover:bg-error/10"
+                      className="border-error/40 text-error hover:text-text-primary hover:bg-error/[0.08] dark:hover:bg-error/15"
                       disabled={actingOn === req.id}
                       onClick={() => reject(req.id)}
                     >

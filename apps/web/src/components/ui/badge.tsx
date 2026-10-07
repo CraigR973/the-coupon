@@ -7,16 +7,16 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-primary/20 text-text-primary border border-primary/30',
-        accent: 'bg-accent/20 text-text-primary border border-accent/30',
-        gold: 'bg-gold/20 text-text-primary border border-gold/30',
-        silver: 'bg-silver/20 text-text-primary border border-silver/30',
-        bronze: 'bg-bronze/20 text-text-primary border border-bronze/30',
-        success: 'bg-success/20 text-text-primary border border-success/30',
-        warning: 'bg-warning/20 text-text-primary border border-warning/30',
-        error: 'bg-error/20 text-text-primary border border-error/30',
+        default: 'bg-primary/[0.08] dark:bg-primary/15 text-text-primary border border-primary/30',
+        accent: 'bg-accent/[0.08] dark:bg-accent/15 text-text-primary border border-accent/30',
+        gold: 'bg-gold/[0.08] dark:bg-gold/15 text-text-primary border border-gold/30',
+        silver: 'bg-silver/[0.08] dark:bg-silver/15 text-text-primary border border-silver/30',
+        bronze: 'bg-bronze/[0.08] dark:bg-bronze/15 text-text-primary border border-bronze/30',
+        success: 'bg-success/[0.08] dark:bg-success/15 text-text-primary border border-success/30',
+        warning: 'bg-warning/[0.08] dark:bg-warning/15 text-text-primary border border-warning/30',
+        error: 'bg-error/[0.08] dark:bg-error/15 text-text-primary border border-error/30',
         muted: 'bg-surface-elevated text-text-muted border border-border',
-        live: 'bg-live/20 text-text-primary border border-live/30 animate-pulse-live',
+        live: 'bg-live/[0.08] dark:bg-live/15 text-text-primary border border-live/30 animate-pulse-live',
       },
     },
     defaultVariants: {

@@ -56,7 +56,7 @@ function LeagueCard({
           )}
           <div className="flex flex-wrap items-center gap-2 text-xs font-sans text-text-muted">
             {isLastViewed && (
-              <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-primary">
+              <span className="rounded-full border border-primary/20 bg-primary/[0.08] dark:bg-primary/15 px-2.5 py-1 text-text-primary">
                 Jump back in
               </span>
             )}
@@ -70,13 +70,13 @@ function LeagueCard({
               <>
                 <span
                   data-testid={`rank-${league.slug}`}
-                  className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-primary"
+                  className="rounded-full border border-primary/20 bg-primary/[0.08] dark:bg-primary/15 px-2.5 py-1 text-text-primary"
                 >
                   Rank <span className="font-semibold text-text-primary">#{myEntry.rank}</span>
                 </span>
                 <span
                   data-testid={`points-${league.slug}`}
-                  className="rounded-full border border-accent/20 bg-accent/10 px-2.5 py-1 text-accent"
+                  className="rounded-full border border-accent/20 bg-accent/[0.08] dark:bg-accent/15 px-2.5 py-1 text-text-primary"
                 >
                   <span className="font-semibold text-text-primary">{myEntry.total_points}</span> pts
                 </span>

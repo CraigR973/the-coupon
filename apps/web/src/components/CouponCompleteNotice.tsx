@@ -38,7 +38,7 @@ export function CouponCompleteNotice({
       role="status"
       aria-live="polite"
       data-testid="coupon-complete-notice"
-      className="flex flex-col gap-2 rounded-lg border border-success/50 bg-success/10 p-3 text-text-primary sm:flex-row sm:items-center sm:justify-between"
+      className="flex flex-col gap-2 rounded-lg border border-success/50 bg-success/[0.08] dark:bg-success/15 p-3 text-text-primary sm:flex-row sm:items-center sm:justify-between"
     >
       <p className="flex items-start gap-2 text-xs font-sans">
         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
@@ -53,7 +53,7 @@ export function CouponCompleteNotice({
           type="button"
           onClick={onOpen}
           data-testid="coupon-complete-open"
-          className="rounded-md border border-success/60 px-3 py-1.5 text-xs font-sans font-medium tap-target hover:bg-success/20 focus-visible:outline-none focus-visible:shadow-glow"
+          className="rounded-md border border-success/60 px-3 py-1.5 text-xs font-sans font-medium tap-target hover:bg-success/[0.08] dark:hover:bg-success/15 focus-visible:outline-none focus-visible:shadow-glow"
         >
           All picks are in — open and copy coupon
         </button>

@@ -178,7 +178,7 @@ export function LeaderboardPage() {
                     className={cn(
                       'flex items-center gap-3 rounded-lg border p-3 transition-colors press-down focus-visible:outline-none focus-visible:shadow-glow',
                       isMe
-                        ? 'border-primary/40 bg-primary/5'
+                        ? 'border-primary/40 bg-primary/[0.08] dark:bg-primary/5'
                         : 'border-border bg-surface hover:border-primary/40',
                     )}
                   >

@@ -154,7 +154,7 @@ export function TabBar() {
         aria-label="Primary"
         className={cn(
           'fixed bottom-0 inset-x-0 z-tabbar sm:hidden',
-          'bg-surface/95 backdrop-blur border-t border-border',
+          'bg-surface border-t border-border',
           'pb-safe',
         )}
       >

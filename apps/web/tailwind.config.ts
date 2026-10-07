@@ -1,5 +1,9 @@
 import type { Config } from 'tailwindcss';
 
+// Tailwind replaces <alpha-value> for both solid and opacity-modified utilities.
+// The paired RGB channels live beside the hex design tokens in index.css.
+const alpha = (token: string) => `rgb(var(--${token}-rgb) / <alpha-value>)`;
+
 export default {
   darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
@@ -7,49 +11,49 @@ export default {
     extend: {
       colors: {
         // Surface tiers
-        background: 'var(--bg)',
-        bg: 'var(--bg)',
-        surface: 'var(--surface)',
-        'surface-elevated': 'var(--surface-elevated)',
-        'surface-overlay': 'var(--surface-overlay)',
-        border: 'var(--border)',
-        'border-strong': 'var(--border-strong)',
+        background: alpha('bg'),
+        bg: alpha('bg'),
+        surface: alpha('surface'),
+        'surface-elevated': alpha('surface-elevated'),
+        'surface-overlay': alpha('surface-overlay'),
+        border: alpha('border'),
+        'border-strong': alpha('border-strong'),
 
         // Text
-        'text-primary': 'var(--text-primary)',
-        'text-secondary': 'var(--text-secondary)',
-        'text-muted': 'var(--text-muted)',
-        'text-inverse': 'var(--text-inverse)',
+        'text-primary': alpha('text-primary'),
+        'text-secondary': alpha('text-secondary'),
+        'text-muted': alpha('text-muted'),
+        'text-inverse': alpha('text-inverse'),
         // On-brand text (locked dark across themes — see index.css)
-        'on-primary': 'var(--on-primary)',
-        'on-accent': 'var(--on-accent)',
+        'on-primary': alpha('on-primary'),
+        'on-accent': alpha('on-accent'),
 
         // Brand
         primary: {
-          DEFAULT: 'var(--primary)',
-          dark: 'var(--primary-dark)',
+          DEFAULT: alpha('primary'),
+          dark: alpha('primary-dark'),
         },
         accent: {
-          DEFAULT: 'var(--accent)',
-          dark: 'var(--accent-dark)',
+          DEFAULT: alpha('accent'),
+          dark: alpha('accent-dark'),
         },
         metal: {
-          DEFAULT: 'var(--metal)',
-          mid: 'var(--metal-mid)',
-          dark: 'var(--metal-dark)',
+          DEFAULT: alpha('metal'),
+          mid: alpha('metal-mid'),
+          dark: alpha('metal-dark'),
         },
 
         // Semantic
-        success: 'var(--success)',
-        warning: 'var(--warning)',
-        error: 'var(--error)',
-        locked: 'var(--locked)',
-        live: 'var(--live)',
+        success: alpha('success'),
+        warning: alpha('warning'),
+        error: alpha('error'),
+        locked: alpha('locked'),
+        live: alpha('live'),
 
         // Rank medals
-        gold: 'var(--gold)',
-        silver: 'var(--silver)',
-        bronze: 'var(--bronze)',
+        gold: alpha('gold'),
+        silver: alpha('silver'),
+        bronze: alpha('bronze'),
       },
 
       // `text-*` resolves through here instead of `colors` for the brand and
@@ -65,14 +69,14 @@ export default {
       // that is true. `bg-*`, `border-*` and `ring-*` are untouched and still
       // read `colors`, so no fill, chip, badge or medal changes.
       textColor: {
-        primary: 'var(--primary-ink)',
-        success: 'var(--success-ink)',
-        warning: 'var(--warning-ink)',
-        accent: 'var(--accent-ink)',
-        error: 'var(--error-ink)',
-        live: 'var(--live-ink)',
-        gold: 'var(--gold-ink)',
-        bronze: 'var(--bronze-ink)',
+        primary: alpha('primary-ink'),
+        success: alpha('success-ink'),
+        warning: alpha('warning-ink'),
+        accent: alpha('accent-ink'),
+        error: alpha('error-ink'),
+        live: alpha('live-ink'),
+        gold: alpha('gold-ink'),
+        bronze: alpha('bronze-ink'),
       },
       fontFamily: {
         sans: ['Outfit', 'system-ui', 'sans-serif'],

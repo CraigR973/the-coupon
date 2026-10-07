@@ -577,6 +577,25 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
     await alice.screenshot({
       path: join(ARTIFACT_DIR, `batch-92-standings-${theme}-390x844.png`),
     });
+    await alice.evaluate(() => window.scrollTo(0, 400));
+    const chromeFill = await alice.locator('header').first().evaluate((header) => {
+      const expected = document.createElement('span');
+      expected.style.backgroundColor = 'var(--surface)';
+      document.body.append(expected);
+      const fill = getComputedStyle(expected).backgroundColor;
+      expected.remove();
+      return {
+        expected: fill,
+        header: getComputedStyle(header).backgroundColor,
+        tabBar: getComputedStyle(document.querySelector('nav[aria-label="Primary"]')!).backgroundColor,
+      };
+    });
+    expect(chromeFill.header).toBe(chromeFill.expected);
+    expect(chromeFill.tabBar).toBe(chromeFill.expected);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-171-solid-chrome-${theme}-390x844.png`),
+    });
+    await alice.evaluate(() => window.scrollTo(0, 0));
   }
 
   // Batch 105: the combined coupon's own address is a redirect into the round that

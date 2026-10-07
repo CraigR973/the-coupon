@@ -462,6 +462,36 @@ function over(fg: string, alpha: number, bg: string): string {
 }
 
 describe.each([
+  ['dark', DARK, blockAfter(/:root\s*,\s*html\.dark\s*\{/), 0.15],
+  ['light', LIGHT, blockAfter(/html\.light\s*\{/), 0.08],
+] as const)('%s alpha-capable palette', (name, palette, cssBlock, alpha) => {
+  it('keeps every RGB channel token equal to its hex token', () => {
+    for (const [token, hex] of Object.entries(palette)) {
+      const channels = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16)).join(' ');
+      expect(cssBlock, `${name}: --${token}-rgb must match --${token}`).toContain(
+        `--${token}-rgb: ${channels};`,
+      );
+    }
+  });
+
+  it('keeps text readable on every new semantic tint and muted fixture row', () => {
+    for (const tint of ['primary', 'accent', 'success', 'warning', 'error', 'live', 'gold', 'silver', 'bronze']) {
+      for (const surface of ['surface', 'surface-elevated']) {
+        const ground = over(palette[tint], alpha, palette[surface]);
+        expect(
+          contrast(palette['text-primary'], ground),
+          `${name}: primary text on ${tint} tint over ${surface}`,
+        ).toBeGreaterThanOrEqual(AA_NORMAL);
+      }
+    }
+    const nextFixture = over(palette.primary, name === 'dark' ? 0.10 : 0.08, palette.surface);
+    const ownStanding = over(palette.primary, name === 'dark' ? 0.05 : 0.08, palette.surface);
+    expect(contrast(palette['text-muted'], nextFixture)).toBeGreaterThanOrEqual(AA_NORMAL);
+    expect(contrast(palette['text-muted'], ownStanding)).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+});
+
+describe.each([
   ['dark', DARK],
   ['light', LIGHT],
 ])('%s composited grounds', (name, palette) => {

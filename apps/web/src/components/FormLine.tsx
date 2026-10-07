@@ -3,9 +3,9 @@ import { formatInstant } from '../lib/time';
 import { cn } from '../lib/utils';
 
 const RESULT_STYLES: Record<FormResult, string> = {
-  W: 'border-success/40 bg-success/20 text-success',
+  W: 'border-success/40 bg-success/[0.08] dark:bg-success/15 text-text-primary',
   D: 'border-border bg-surface-elevated text-text-muted',
-  L: 'border-error/40 bg-error/20 text-error',
+  L: 'border-error/40 bg-error/[0.08] dark:bg-error/15 text-text-primary',
 };
 
 const RESULT_TEXT: Record<FormResult, string> = {

@@ -55,7 +55,7 @@ export function NotificationsPromptModal({ onClose, playerId }: Props) {
     >
       <div className="w-full max-w-sm rounded-2xl bg-surface border border-border shadow-2xl p-6 space-y-5 animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
+          <div className="h-14 w-14 rounded-full bg-primary/[0.08] dark:bg-primary/15 flex items-center justify-center">
             <Bell className="h-7 w-7 text-primary" aria-hidden />
           </div>
           <h2 className="text-lg font-semibold text-text-primary font-sans">

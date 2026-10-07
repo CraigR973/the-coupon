@@ -21,7 +21,7 @@ function PostInstallScreen() {
       <div className="w-full max-w-sm space-y-8 text-center">
         <Brand variant="splash" />
         <div className="rounded-xl border border-border bg-surface px-6 py-6 space-y-4">
-          <div className="h-14 w-14 rounded-full bg-success/10 flex items-center justify-center mx-auto">
+          <div className="h-14 w-14 rounded-full bg-success/[0.08] dark:bg-success/15 flex items-center justify-center mx-auto">
             <Home className="h-7 w-7 text-success" aria-hidden />
           </div>
           <h1 className="text-lg font-semibold text-text-primary font-sans">

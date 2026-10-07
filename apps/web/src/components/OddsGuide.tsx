@@ -66,7 +66,7 @@ export function OddsGuide({ storageKey = DEFAULT_STORAGE_KEY, defaultOpen = fals
       >
         <div className="flex items-center gap-2">
           <p className="font-mono text-caption uppercase tracking-[0.25em] text-text-muted">How scoring works</p>
-          <span className="inline-block rounded bg-primary/15 px-1.5 py-0.5 font-mono text-caption font-semibold leading-4 text-primary">
+          <span className="inline-block rounded bg-primary/[0.08] dark:bg-primary/15 px-1.5 py-0.5 font-mono text-caption font-semibold leading-4 text-text-primary">
             win = odds × 10
           </span>
         </div>
@@ -125,7 +125,7 @@ export function OddsGuide({ storageKey = DEFAULT_STORAGE_KEY, defaultOpen = fals
                     <td className="py-1.5 font-mono text-text-primary tabular-nums">{ex.odds.toFixed(2)}</td>
                     <td className="py-1.5 text-caption text-text-muted">{ex.note}</td>
                     <td className="py-1.5 text-right">
-                      <span className="inline-block rounded-full bg-primary/15 px-1.5 py-0.5 font-mono text-caption font-semibold leading-4 text-primary">
+                      <span className="inline-block rounded-full bg-primary/[0.08] dark:bg-primary/15 px-1.5 py-0.5 font-mono text-caption font-semibold leading-4 text-text-primary">
                         {potentialPoints(ex.odds)}
                       </span>
                     </td>

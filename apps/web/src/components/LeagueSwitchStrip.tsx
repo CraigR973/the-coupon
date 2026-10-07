@@ -91,7 +91,7 @@ export function LeagueSwitchStrip({ currentSlug, className }: Props) {
                 aria-current="page"
                 className={cn(
                   'inline-flex max-w-[13rem] items-center rounded-full border px-3.5 py-1.5 text-xs font-medium font-sans whitespace-nowrap shadow-sm',
-                  'border-primary/40 bg-primary/15 text-primary',
+                  'border-primary/40 bg-primary/[0.08] dark:bg-primary/15 text-text-primary',
                 )}
                 title={league.name}
               >

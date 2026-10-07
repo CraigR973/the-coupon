@@ -111,7 +111,7 @@ function PinUnlockGate() {
           )}
 
           {sessionUnlockError && (
-            <p role="alert" className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning font-sans">
+            <p role="alert" className="rounded-md border border-warning/30 bg-warning/[0.08] dark:bg-warning/15 px-3 py-2 text-xs text-text-primary font-sans">
               {sessionUnlockError}
             </p>
           )}

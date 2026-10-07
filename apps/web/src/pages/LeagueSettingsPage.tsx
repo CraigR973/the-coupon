@@ -637,7 +637,7 @@ export function LeagueSettingsPage() {
           />
           <Button
             variant="outline"
-            className="w-full border-error/40 text-error hover:bg-error/10"
+            className="w-full border-error/40 text-error hover:text-text-primary hover:bg-error/[0.08] dark:hover:bg-error/15"
             disabled={isDeleting}
             onClick={handleDelete}
           >

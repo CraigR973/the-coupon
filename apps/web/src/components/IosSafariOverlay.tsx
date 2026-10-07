@@ -43,7 +43,7 @@ export function IosSafariOverlay() {
           {/* Steps */}
           <ol className="space-y-5">
             <li className="flex items-start gap-3">
-              <span className="shrink-0 w-7 h-7 rounded-full bg-primary/15 text-primary text-xs font-semibold font-mono flex items-center justify-center mt-0.5">
+              <span className="shrink-0 w-7 h-7 rounded-full bg-primary/[0.08] dark:bg-primary/15 text-text-primary text-xs font-semibold font-mono flex items-center justify-center mt-0.5">
                 1
               </span>
               <div className="flex-1">
@@ -61,7 +61,7 @@ export function IosSafariOverlay() {
             </li>
 
             <li className="flex items-start gap-3">
-              <span className="shrink-0 w-7 h-7 rounded-full bg-primary/15 text-primary text-xs font-semibold font-mono flex items-center justify-center mt-0.5">
+              <span className="shrink-0 w-7 h-7 rounded-full bg-primary/[0.08] dark:bg-primary/15 text-text-primary text-xs font-semibold font-mono flex items-center justify-center mt-0.5">
                 2
               </span>
               <div className="flex-1">
@@ -79,7 +79,7 @@ export function IosSafariOverlay() {
             </li>
 
             <li className="flex items-start gap-3">
-              <span className="shrink-0 w-7 h-7 rounded-full bg-primary/15 text-primary text-xs font-semibold font-mono flex items-center justify-center mt-0.5">
+              <span className="shrink-0 w-7 h-7 rounded-full bg-primary/[0.08] dark:bg-primary/15 text-text-primary text-xs font-semibold font-mono flex items-center justify-center mt-0.5">
                 3
               </span>
               <div className="flex-1">

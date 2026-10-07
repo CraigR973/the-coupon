@@ -68,15 +68,23 @@
   html.dark {
     /* Surface tiers */
     --bg: #0B0E13;
+    --bg-rgb: 11 14 19;
     --surface: #131720;
+    --surface-rgb: 19 23 32;
     --surface-elevated: #1B2030;
+    --surface-elevated-rgb: 27 32 48;
     --surface-overlay: #242938;
+    --surface-overlay-rgb: 36 41 56;
     --border: #2A3142;
+    --border-rgb: 42 49 66;
     --border-strong: #3A4258;
+    --border-strong-rgb: 58 66 88;
 
     /* Text */
     --text-primary: #F0F4FF;
+    --text-primary-rgb: 240 244 255;
     --text-secondary: #94A3B8;
+    --text-secondary-rgb: 148 163 184;
     /* Muted must clear AA against every surface tier, not just the two it sits
        on most often. It was #7B859B, which passes on --bg (5.22) and --surface
        (4.84) and fails on --surface-elevated (4.38) and --surface-overlay
@@ -85,30 +93,43 @@
        clears all four (6.03 / 5.60 / 5.06 / 4.52) and stays distinct from
        --text-secondary. Asserted by src/test/contrast.test.ts. */
     --text-muted: #8690A6;
+    --text-muted-rgb: 134 144 166;
     --text-inverse: #0B0E13;
+    --text-inverse-rgb: 11 14 19;
 
     /* On-brand text — locked dark in both modes so primary/accent
        buttons always clear WCAG AA 4.5:1 regardless of theme.
        Verified: dark text on primary (#10B981 / #059669) and accent
        (#C8943C / #A77C2A) all ≥ 4.9:1. */
     --on-primary: #0B0E13;
+    --on-primary-rgb: 11 14 19;
     --on-accent: #0B0E13;
+    --on-accent-rgb: 11 14 19;
     /* Avatar fills are solid. Metal and bronze are the two slots whose
        foreground has to switch with the palette to keep normal-sized initials
        above WCAG AA; the other four use the existing near-black on-fill ink. */
     --avatar-on-metal: #0B0E13;
+    --avatar-on-metal-rgb: 11 14 19;
     --avatar-on-bronze: #0B0E13;
+    --avatar-on-bronze-rgb: 11 14 19;
 
     /* Brand */
     --primary: #10B981;
+    --primary-rgb: 16 185 129;
     --primary-dark: #059669;
+    --primary-dark-rgb: 5 150 105;
     --primary-glow: rgba(16, 185, 129, 0.35);
     --accent: #C8943C;
+    --accent-rgb: 200 148 60;
     --accent-dark: #A77C2A;
+    --accent-dark-rgb: 167 124 42;
     --accent-glow: rgba(200, 148, 60, 0.35);
     --metal: #E8EBF0;
+    --metal-rgb: 232 235 240;
     --metal-mid: #B0B8C4;
+    --metal-mid-rgb: 176 184 196;
     --metal-dark: #7A828F;
+    --metal-dark-rgb: 122 130 143;
     --metal-gradient: linear-gradient(180deg, #E8EBF0 0%, #B0B8C4 60%, #7A828F 100%);
     --metal-gradient-h: linear-gradient(90deg, #E8EBF0 0%, #B0B8C4 100%);
 
@@ -118,9 +139,13 @@
 
     /* Semantic */
     --success: #10B981;
+    --success-rgb: 16 185 129;
     --warning: #F59E0B;
+    --warning-rgb: 245 158 11;
     --error: #EF4444;
+    --error-rgb: 239 68 68;
     --live: #EF4444;
+    --live-rgb: 239 68 68;
 
     /* ── Ink: the same semantics, as *text* ────────────────────────────────
        A brand colour has two jobs and one value cannot do both. As a fill it
@@ -137,19 +162,31 @@
        so most of these are the fill value repeated, which keeps the pairing
        obvious rather than implicit. */
     --primary-ink: #10B981;
+    --primary-ink-rgb: 16 185 129;
     --success-ink: #10B981;
+    --success-ink-rgb: 16 185 129;
     --warning-ink: #F59E0B;
+    --warning-ink-rgb: 245 158 11;
     --accent-ink: #C8943C;
+    --accent-ink-rgb: 200 148 60;
     --error-ink: #FE5353;
+    --error-ink-rgb: 254 83 83;
     --live-ink: #FE5353;
+    --live-ink-rgb: 254 83 83;
     --gold-ink: #E5C46B;
+    --gold-ink-rgb: 229 196 107;
     --bronze-ink: #C28B5C;
+    --bronze-ink-rgb: 194 139 92;
     --locked: #8690A6;
+    --locked-rgb: 134 144 166;
 
     /* Rank medals */
     --gold: #E5C46B;
+    --gold-rgb: 229 196 107;
     --silver: #B8C0CC;
+    --silver-rgb: 184 192 204;
     --bronze: #C28B5C;
+    --bronze-rgb: 194 139 92;
 
     /* Elevation — heavy shadows on dark bg */
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
@@ -184,42 +221,63 @@
   html.light {
     /* Surface tiers — off-white base, true white surfaces */
     --bg: #F7F8FA;
+    --bg-rgb: 247 248 250;
     --surface: #FFFFFF;
+    --surface-rgb: 255 255 255;
     --surface-elevated: #F1F3F5;
+    --surface-elevated-rgb: 241 243 245;
     --surface-overlay: #FFFFFF;
+    --surface-overlay-rgb: 255 255 255;
     --border: #E5E8EB;
+    --border-rgb: 229 232 235;
     --border-strong: #D1D5DB;
+    --border-strong-rgb: 209 213 219;
 
     /* Text */
     --text-primary: #14181F;
+    --text-primary-rgb: 20 24 31;
     --text-secondary: #4B5563;
+    --text-secondary-rgb: 75 85 99;
     /* Was #8A93A1, which failed AA against *every* light surface — 2.79 on
        --surface-elevated, 3.10 on --surface, 2.91 on --bg. #666F7D then sat too
        close to the browser-rendered threshold and failed axe on Linux despite
        clearing the token calculation. #606976 clears all four with headroom
        (5.23 / 5.56 / 5.00 / 5.56) and keeps --text-secondary darker than it. */
     --text-muted: #606976;
+    --text-muted-rgb: 96 105 118;
     --text-inverse: #FFFFFF;
+    --text-inverse-rgb: 255 255 255;
 
     /* On-brand text — same dark value as dark mode; light primary/accent
        greens and brasses are still dark enough that dark text clears AA. */
     --on-primary: #0B0E13;
+    --on-primary-rgb: 11 14 19;
     --on-accent: #0B0E13;
+    --on-accent-rgb: 11 14 19;
     --avatar-on-metal: #FFFFFF;
+    --avatar-on-metal-rgb: 255 255 255;
     --avatar-on-bronze: #FFFFFF;
+    --avatar-on-bronze-rgb: 255 255 255;
 
     /* Brand — slightly darker variants for AA contrast on white */
     --primary: #059669;
+    --primary-rgb: 5 150 105;
     --primary-dark: #047857;
+    --primary-dark-rgb: 4 120 87;
     --primary-glow: rgba(5, 150, 105, 0.20);
     --accent: #A77C2A;
+    --accent-rgb: 167 124 42;
     --accent-dark: #8B6320;
+    --accent-dark-rgb: 139 99 32;
     --accent-glow: rgba(167, 124, 42, 0.22);
 
     /* Neutral metallic accents in light mode use a darker slate. */
     --metal: #4B5563;
+    --metal-rgb: 75 85 99;
     --metal-mid: #6B7280;
+    --metal-mid-rgb: 107 114 128;
     --metal-dark: #9CA3AF;
+    --metal-dark-rgb: 156 163 175;
     --metal-gradient: linear-gradient(180deg, #374151 0%, #6B7280 60%, #9CA3AF 100%);
     --metal-gradient-h: linear-gradient(90deg, #374151 0%, #6B7280 100%);
 
@@ -229,9 +287,13 @@
 
     /* Semantic */
     --success: #059669;
+    --success-rgb: 5 150 105;
     --warning: #D97706;
+    --warning-rgb: 217 119 6;
     --error: #DC2626;
+    --error-rgb: 220 38 38;
     --live: #DC2626;
+    --live-rgb: 220 38 38;
 
     /* Ink — see the dark palette for why these exist. Light mode is where the
        divergence is real: every one of these failed AA as text against at least
@@ -241,19 +303,31 @@
        4.5:1 on --bg, --surface and --surface-elevated alike. Primary keeps
        extra headroom because axe rounds its 12px browser rendering by engine. */
     --primary-ink: #047857;
+    --primary-ink-rgb: 4 120 87;
     --success-ink: #047F59;
+    --success-ink-rgb: 4 127 89;
     --warning-ink: #A75B04;
+    --warning-ink-rgb: 167 91 4;
     --accent-ink: #8D6923;
+    --accent-ink-rgb: 141 105 35;
     --error-ink: #D72525;
+    --error-ink-rgb: 215 37 37;
     --live-ink: #D72525;
+    --live-ink-rgb: 215 37 37;
     --gold-ink: #8F6823;
+    --gold-ink-rgb: 143 104 35;
     --bronze-ink: #A45D29;
+    --bronze-ink-rgb: 164 93 41;
     --locked: #666F7D;
+    --locked-rgb: 102 111 125;
 
     /* Rank medals — slightly darker for contrast on light bg */
     --gold: #B8862E;
+    --gold-rgb: 184 134 46;
     --silver: #8A93A1;
+    --silver-rgb: 138 147 161;
     --bronze: #A65E2A;
+    --bronze-rgb: 166 94 42;
 
     /* Elevation — much softer on light bg */
     --shadow-sm: 0 1px 2px 0 rgba(20, 24, 31, 0.06);

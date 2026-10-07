@@ -222,7 +222,7 @@ export function LeagueAdminInvitesPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="text-error hover:bg-error/10"
+                          className="text-error hover:text-text-primary hover:bg-error/[0.08] dark:hover:bg-error/15"
                           disabled={revokingId === invite.id}
                           onClick={() => revokeInvite(invite.id)}
                         >

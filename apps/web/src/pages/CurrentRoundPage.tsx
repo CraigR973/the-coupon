@@ -431,7 +431,7 @@ export function CurrentRoundPage() {
           role="status"
           aria-live="polite"
           data-testid="odds-degraded-banner"
-          className="mb-4 rounded-lg border border-warning/30 bg-warning/10 px-4 py-2.5 text-center text-xs font-sans text-warning"
+          className="mb-4 rounded-lg border border-warning/30 bg-warning/[0.08] dark:bg-warning/15 px-4 py-2.5 text-center text-xs font-sans text-text-primary"
         >
           Prices may be out of date — the odds source isn't responding right now.
         </div>

@@ -35,8 +35,8 @@ const WORD: Record<FormRound['status'], string> = {
 };
 
 const PIP: Record<FormRound['status'], string> = {
-  won: 'border-success/40 bg-success/20 text-success',
-  lost: 'border-error/40 bg-error/20 text-error',
+  won: 'border-success/40 bg-success/[0.08] dark:bg-success/15 text-text-primary',
+  lost: 'border-error/40 bg-error/[0.08] dark:bg-error/15 text-text-primary',
   void: 'border-border bg-surface-elevated text-text-muted',
   pending: 'border-border bg-surface-elevated text-text-muted',
 };

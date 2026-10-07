@@ -115,7 +115,7 @@ export function LeagueMembersPage() {
             ref={leaveTriggerRef}
             size="sm"
             variant="outline"
-            className="shrink-0 text-error border-error/40 hover:bg-error/10"
+            className="shrink-0 text-error hover:text-text-primary border-error/40 hover:bg-error/[0.08] dark:hover:bg-error/15"
             onClick={() => setShowLeaveDialog(true)}
           >
             Leave league
@@ -193,7 +193,7 @@ export function LeagueMembersPage() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="text-xs h-7 px-2 text-error hover:bg-error/10"
+                            className="text-xs h-7 px-2 text-error hover:text-text-primary hover:bg-error/[0.08] dark:hover:bg-error/15"
                             disabled={actingOn === m.id}
                             onClick={(event) => {
                               removeTriggerRef.current = event.currentTarget;
@@ -275,7 +275,7 @@ export function LeagueMembersPage() {
               </Button>
               <Button
                 variant="outline"
-                className="border-error/40 text-error hover:bg-error/10"
+                className="border-error/40 text-error hover:text-text-primary hover:bg-error/[0.08] dark:hover:bg-error/15"
                 disabled={leaveConfirm !== 'LEAVE'}
                 onClick={confirmLeaveLeague}
               >

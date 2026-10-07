@@ -172,7 +172,7 @@ export function LeagueActionsMenu({
                 Leave
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="text-error focus:bg-error/10 focus:text-error"
+                className="text-error focus:bg-error/[0.08] dark:focus:bg-error/15 focus:text-text-primary"
                 onSelect={() => setShowDeleteDialog(true)}
               >
                 <Trash2 className="mr-2 h-3.5 w-3.5" aria-hidden />
@@ -233,7 +233,7 @@ export function LeagueActionsMenu({
               </Button>
               <Button
                 variant="outline"
-                className="border-error/40 text-error hover:bg-error/10"
+                className="border-error/40 text-error hover:text-text-primary hover:bg-error/[0.08] dark:hover:bg-error/15"
                 disabled={leaveConfirm !== 'LEAVE' || isLeaving}
                 onClick={handleLeaveLeague}
               >

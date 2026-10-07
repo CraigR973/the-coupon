@@ -71,7 +71,7 @@ export function SeasonStrip({ seasons, selected, onSelect, className }: Props) {
                   'inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium font-sans whitespace-nowrap shadow-sm transition-colors press-down',
                   'focus-visible:outline-none focus-visible:shadow-glow',
                   isSelected
-                    ? 'border-primary/40 bg-primary/15 text-text-primary'
+                    ? 'border-primary/40 bg-primary/[0.08] dark:bg-primary/15 text-text-primary'
                     : 'border-border bg-surface text-text-secondary hover:border-primary/40 hover:bg-surface-elevated hover:text-text-primary',
                 )}
               >
