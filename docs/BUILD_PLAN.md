@@ -223,9 +223,11 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   **Oracle changes approved (owner, 2026-10-07):** this batch may replace only the six
   coupon-first order assertions and six associated test titles fingerprinted in trusted main,
-  and only in `apps/web/src/test/CurrentRoundPage.test.tsx`. The replacement must prove slate
-  first in DOM, keyboard and phone visual order, keep the coupon deep link, and retain the
-  existing pick, phase and navigation checks. This is not a file-wide waiver.
+  only in `apps/web/src/test/CurrentRoundPage.test.tsx`; the desktop column assertion in
+  `apps/web/e2e/coupon-flow.spec.ts` may switch to proving slate left of coupon. The
+  replacement must prove slate first in DOM, keyboard and phone visual order, keep the coupon
+  deep link, and retain the existing pick, phase and navigation checks. This is not a file-wide
+  waiver.
 
   Scope boundary: the round screen's chrome and selection button. Other league screens adopt
   the context row in a follow-up. **Web-only.**

@@ -143,7 +143,7 @@ EOF
 approved_oracle_paths() {
   case "$1" in
     173) echo "apps/web/src/test/CouponSection.test.tsx apps/web/src/test/PickRow.test.tsx" ;;
-    175) echo "apps/web/src/test/CurrentRoundPage.test.tsx" ;;
+    175) echo "apps/web/src/test/CurrentRoundPage.test.tsx apps/web/e2e/coupon-flow.spec.ts" ;;
     179) echo "apps/api/tests/test_admin_console.py" ;;
     181) echo "apps/api/tests/test_league_display_name.py apps/api/tests/test_league_write_access.py" ;;
     182) echo "apps/web/src/test/csp.test.ts" ;;
