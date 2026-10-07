@@ -8501,3 +8501,22 @@ https://github.com/CraigR973/the-coupon/actions/runs/37647534554 PASS for `cd120
 
 **Next:** Batch 175 — pick-screen hierarchy, after the owner resolves its conflicting
 coupon-order test.
+
+## Gate maintenance — Batch 175 round-order oracle approval
+**Commit:** `cd5630b` (approval in `d89dea9`) · owner-approved 7 Oct 2026 · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37670090083 failed at the expected
+old-trusted-guard comparison; production-bundle smoke and seeded coupon journey passed
+
+### Key facts for future sessions
+- Batch 175 may replace only six coupon-first order assertions and their six associated test
+  titles in `CurrentRoundPage.test.tsx`. The desktop browser column assertion may switch to
+  slate-left and coupon-right. Every other removed oracle remains blocked.
+- The replacement must prove slate-first DOM, keyboard and phone visual order, retain the
+  coupon deep link, and preserve pick, phase and navigation coverage.
+- The gate replayed the approval against `c974006` and refused only the protected guard-table
+  change. The production-bundle smoke and seeded journey passed at the exact approval SHA on
+  attempt 2. Attempt 1's runner stalled for 18 minutes installing Chromium, before the journey
+  began; it was cancelled and the same SHA's failed jobs were rerun.
+- No application code, API contract, database schema or production data changed.
+
+**Next:** Implement Batch 175 from this trusted attestation state.
