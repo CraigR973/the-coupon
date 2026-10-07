@@ -229,6 +229,13 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   deep link, and retain the existing pick, phase and navigation checks. This is not a file-wide
   waiver.
 
+  **Oracle changes approved (owner, 2026-10-07; full-gate correction):** the three old mobile
+  header oracle lines fingerprinted in trusted main may also be replaced, only in
+  `apps/web/src/test/TopBar.test.tsx`: the test title requiring extra iPhone clearance and
+  its two assertions requiring the extra `+1rem` padding and 64 px row. The replacement must
+  prove safe-area padding and a 52 px mobile row while retaining the centred home brand check.
+  Every other TopBar test and assertion remains protected.
+
   Scope boundary: the round screen's chrome and selection button. Other league screens adopt
   the context row in a follow-up. **Web-only.**
 
