@@ -8406,3 +8406,21 @@ https://github.com/CraigR973/the-coupon/actions/runs/37546311895 PASS for `c45db
 - **Close-out safety:** PASS — API-only; pre-push /ship-prod debt present; /ship-prod owed after push
 
 **Next:** Batch 193 — make scheduled jobs survive a briefly busy worker.
+
+## Gate maintenance — Batch 193 scheduler-oracle approval
+**Commit:** `a9fb9f3` · owner-approved 7 Oct 2026 · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37591757303 failed at the expected
+old-trusted-guard comparison; production-bundle smoke and seeded coupon journey passed
+
+### Key facts for future sessions
+- Batch 193 may replace only six scheduler expectations in `test_scheduler.py`: the live-score
+  minute expression and the discovery, refresh, settlement, full-catalogue and warm-marker cron
+  expectations. Every other removed oracle remains blocked.
+- The replacements must retain the ten-minute live-score cadence, configured refresh hours,
+  London domain time and lock-before-settlement order while adding exact grace/coalescing/
+  single-instance coverage, a collision-free schedule and the 1.5-second busy-loop proof.
+- The gate replayed the approval against `9071d6f` and refused only the protected guard-table
+  change. The production-bundle smoke and seeded journey passed at the exact approval SHA.
+- No application code, API contract, database schema or production data changed.
+
+**Next:** Implement Batch 193 from this trusted attestation state.
