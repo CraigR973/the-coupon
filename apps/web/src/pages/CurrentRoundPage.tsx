@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Ticket } from 'lucide-react';
 import { ApiError, apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLeague } from '../contexts/LeagueContext';
@@ -27,11 +27,21 @@ import type {
 } from '../lib/types';
 import { competitionRank } from '../lib/competitions';
 import { fixtureContext, outcomeLabel, roundName, roundPhase } from '../lib/coupon';
-import { COUPON_SECTION_HASH, COUPON_SECTION_ID, couponSectionPath } from '../lib/leagues';
+import {
+  COUPON_SECTION_HASH,
+  COUPON_SECTION_ID,
+  couponSectionPath,
+  leagueSwitchPath,
+  predictionsPath,
+} from '../lib/leagues';
 import { formatCalendarDate } from '../lib/time';
 import { PageHeader } from '../components/PageHeader';
-import { CouponSubNav } from '../components/CouponSubNav';
-import { LeagueSwitchStrip } from '../components/LeagueSwitchStrip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
 import { OddsGuide } from '../components/OddsGuide';
 import { PickCard } from '../components/PickCard';
 import { CouponSection } from '../components/CouponSection';
@@ -125,15 +135,96 @@ function groupByCompetition(fixtures: FixtureSlate[]): CompetitionGroup[] {
     });
 }
 
+/** One 48px round context in place of the header, league card and section pills. */
+function RoundContextRow({
+  slug,
+  leagueName,
+  roundLabel,
+  title,
+  pathname,
+  leagues,
+  gameweekId,
+}: {
+  slug: string;
+  leagueName: string | undefined;
+  roundLabel: string;
+  title: string;
+  pathname: string;
+  leagues: ReturnType<typeof useLeague>['leagues'];
+  gameweekId: string | undefined;
+}) {
+  return (
+    <div className="mb-3 flex h-12 min-w-0 items-center gap-2 border-b border-border" data-testid="round-context-row">
+      <h1 className="sr-only">{title}</h1>
+      <div className="flex min-w-0 items-center gap-1">
+        <p className="max-w-[6rem] truncate text-label font-sans font-semibold text-text-primary sm:max-w-[14rem]">
+          {leagueName ?? 'League'}
+        </p>
+        {leagues.length > 1 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              type="button"
+              aria-label="Switch league"
+              data-testid="league-switch-strip"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-secondary focus-visible:outline-none focus-visible:shadow-glow"
+            >
+              <ChevronDown className="h-4 w-4" aria-hidden />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" aria-label="Switch league">
+              {leagues.map((league) => (
+                <DropdownMenuItem key={league.slug} asChild>
+                  <Link
+                    to={leagueSwitchPath(league.slug, pathname)}
+                    title={`Open ${league.name}`}
+                    aria-current={league.slug === slug ? 'page' : undefined}
+                  >
+                    {league.name}
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+      <span className="ml-auto min-w-0 truncate font-mono text-caption text-text-muted" data-testid="round-context-label">
+        {roundLabel}
+      </span>
+      <nav className="flex shrink-0 items-center gap-1" aria-label="Coupon sections">
+        <Link
+          to={predictionsPath(slug)}
+          aria-label="Current round"
+          aria-current="page"
+          className="flex h-8 items-center rounded-md px-1.5 text-caption font-semibold text-text-primary focus-visible:outline-none focus-visible:shadow-glow"
+        >
+          Round
+        </Link>
+        <Link
+          to={predictionsPath(slug, '/results')}
+          className="flex h-8 items-center rounded-md px-1.5 text-caption text-text-secondary focus-visible:outline-none focus-visible:shadow-glow"
+        >
+          Season
+        </Link>
+      </nav>
+      <Link
+        to={couponSectionPath(slug, gameweekId)}
+        aria-label="Jump to coupon"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-secondary focus-visible:outline-none focus-visible:shadow-glow"
+      >
+        <Ticket className="h-4 w-4" aria-hidden />
+      </Link>
+    </div>
+  );
+}
+
 /**
  * The whole of this week's job, on one screen.
  *
  * Batch 105. `Your pick` and `Combined coupon` were two tabs over one round, and the split
  * was the product asking the member a question it should have answered itself: before the
- * deadline what matters is the slate, after it what matters is the coupon, and on a settled
- * round what matters is the result. Nobody wants to choose. So this surface reads the
- * round's phase (`roundPhase`) and orders itself by it — the fixture list leads while a
- * pick can still be made, and the coupon leads from the moment the coupon is worth having.
+ * deadline the slate matters, after it the coupon's result matters. Nobody wants to choose
+ * between separate screens. This surface reads the round's phase (`roundPhase`) to label
+ * the status and coupon. The slate leads at every
+ * phase; the status and coupon sit below it on phones and beside it at desktop width.
  *
  * The old address still resolves: `/leagues/:slug/predictions/coupon` redirects here
  * carrying `?gw=` and landing on `#coupon`, which is where the fold, the frozen combined
@@ -144,9 +235,9 @@ export function CurrentRoundPage() {
   const timezone = player?.timezone ?? 'UTC';
   const oddsFormat = useOddsFormat();
   const { slug, name: leagueName } = useRouteLeague();
-  const { hasLeagues, isLoading: leaguesLoading } = useLeague();
+  const { hasLeagues, isLoading: leaguesLoading, leagues } = useLeague();
   const gameweekId = useSelectedGameweekId();
-  const { hash } = useLocation();
+  const { hash, pathname } = useLocation();
   // Closed on first paint, and owned here rather than inside the section because three
   // things outside it open it on arrival (Batch 117). A page-level `useState` survives
   // every re-render this screen does — the countdown ticks once a second — and resets only
@@ -362,7 +453,7 @@ export function CurrentRoundPage() {
       >
         {locked ? 'Slate and prices' : 'Pick your selection'}
       </h2>
-      <OddsGuide />
+      <OddsGuide compact />
 
       {slate.fixtures.length === 0 ? (
         <EmptyState
@@ -409,16 +500,16 @@ export function CurrentRoundPage() {
 
   return (
     <div>
-      {/* The round's name stays in the eyebrow rather than moving to the heading: it is
-          the one place that survives a league with a single round, where `GameweekNav`
-          hides itself and would otherwise take the date with it. */}
-      <PageHeader
+      <RoundContextRow
+        slug={slug}
+        leagueName={leagueName}
+        roundLabel={roundLabel}
         title={history.isLatest ? "This week's coupon" : 'Past coupon'}
-        eyebrow={leagueName ? `${leagueName} · ${roundLabel}` : roundLabel}
+        pathname={pathname}
+        leagues={leagues}
+        gameweekId={slate?.gameweek_id}
       />
-      <LeagueSwitchStrip currentSlug={slug} className="mb-5" />
-      <CouponSubNav slug={slug} />
-      <GameweekNav history={history} />
+      <GameweekNav history={history} compact />
 
       {/*
         Batch 48: the API served this card from a *failed* price refresh — last known
@@ -434,32 +525,6 @@ export function CurrentRoundPage() {
           className="mb-4 rounded-lg border border-warning/30 bg-warning/[0.08] dark:bg-warning/15 px-4 py-2.5 text-center text-xs font-sans text-text-primary"
         >
           Prices may be out of date — the odds source isn't responding right now.
-        </div>
-      )}
-
-      {slate && (
-        <RoundStatus
-          phase={phase}
-          clock={clock}
-          pickedCount={memberCount - missingCount}
-          memberCount={memberCount}
-          mine={mine}
-          oddsFormat={oddsFormat}
-          canSwitch={!locked}
-        />
-      )}
-
-      {/* Above both blocks rather than inside either, because which of them leads flips
-          at exactly this moment: a complete coupon outranks the deadline (Batch 105), so
-          the surface reorders underneath the member on the same paint that offers them
-          this. A hand-off anchored inside the slate would move with it. */}
-      {completion && (
-        <div className="mb-4">
-          <CouponCompleteNotice
-            memberCount={completion.memberCount}
-            onOpen={openCompletedCoupon}
-            onDismiss={dismissCompletion}
-          />
         </div>
       )}
 
@@ -485,14 +550,31 @@ export function CurrentRoundPage() {
         />
       )}
 
-      {/* The coupon leads, in every phase (Batch 117). It used to lead only once the round
-          was complete, locked or settled — only once there was nothing left to do about it
-          — so for the whole window a member could act in, the thing the game builds toward
-          was below a fixture list sized for a hundred rows. Its legs fold away, which is
-          what stops leading with it pushing the slate down by the league's membership. */}
-      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-2">
-        <div className="min-w-0">{couponBlock}</div>
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
         <div className="min-w-0">{slateBlock}</div>
+        {slate && (
+          <aside className="min-w-0" aria-label="Round status and coupon">
+            <RoundStatus
+              phase={phase}
+              clock={clock}
+              pickedCount={memberCount - missingCount}
+              memberCount={memberCount}
+              mine={mine}
+              oddsFormat={oddsFormat}
+              canSwitch={!locked}
+            />
+            {completion && (
+              <div className="mb-4">
+                <CouponCompleteNotice
+                  memberCount={completion.memberCount}
+                  onOpen={openCompletedCoupon}
+                  onDismiss={dismissCompletion}
+                />
+              </div>
+            )}
+            {couponBlock}
+          </aside>
+        )}
       </div>
     </div>
   );
@@ -542,7 +624,7 @@ function CompetitionSection({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="mb-2 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-none focus-visible:shadow-glow"
+        className="mb-1 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-none focus-visible:shadow-glow"
       >
         <span className="min-w-0 truncate font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
           {group.competition}

@@ -40,9 +40,10 @@ function persistOpen(storageKey: string, open: boolean): void {
 interface OddsGuideProps {
   storageKey?: string;
   defaultOpen?: boolean;
+  compact?: boolean;
 }
 
-export function OddsGuide({ storageKey = DEFAULT_STORAGE_KEY, defaultOpen = false }: OddsGuideProps = {}) {
+export function OddsGuide({ storageKey = DEFAULT_STORAGE_KEY, defaultOpen = false, compact = false }: OddsGuideProps = {}) {
   const [open, setOpen] = useState(() => getInitialOpen(storageKey, defaultOpen));
 
   function toggle() {
@@ -52,14 +53,15 @@ export function OddsGuide({ storageKey = DEFAULT_STORAGE_KEY, defaultOpen = fals
   }
 
   return (
-    <div className="mb-4 rounded-lg border border-border bg-surface">
+    <div className={cn('rounded-lg border border-border bg-surface', compact ? 'mb-2' : 'mb-4')}>
       <button
         type="button"
         onClick={toggle}
         aria-expanded={open}
         aria-controls="odds-guide-body"
         className={cn(
-          'flex w-full items-center justify-between px-4 py-3 text-left transition-colors',
+          'flex w-full items-center justify-between text-left transition-colors',
+          compact ? 'min-h-8 px-3 py-1' : 'px-4 py-3',
           'hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow',
           open ? 'rounded-t-lg' : 'rounded-lg',
         )}

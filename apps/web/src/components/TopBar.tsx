@@ -116,10 +116,10 @@ export function TopBar() {
       className={cn(
         'sticky top-0 z-header',
         'bg-surface border-b border-border',
-        'pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:pt-safe',
+        'pt-safe',
       )}
     >
-      <div className="max-w-7xl mx-auto px-4 h-16 sm:h-14 flex items-center gap-4">
+      <div className="max-w-7xl mx-auto px-4 h-[52px] sm:h-14 flex items-center gap-4">
         {/* ── Mobile layout (< sm): toggle | centred brand | avatar ── */}
         <div className="relative flex sm:hidden items-center w-full justify-between">
           {themeToggle}

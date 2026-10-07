@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createHash } from 'node:crypto';
@@ -663,7 +664,7 @@ describe('CurrentRoundPage', () => {
     });
 
     renderPage();
-    await screen.findByTestId('league-switch-strip');
+    await userEvent.click(await screen.findByTestId('league-switch-strip'));
     // Not `/leagues/friends-league/leaderboard`: a member changing league mid-pick is
     // choosing a different slate to play, not asking to read the standings.
     expect(screen.getByTitle('Open Friends League').getAttribute('href')).toBe(
@@ -775,12 +776,8 @@ describe('CurrentRoundPage', () => {
 });
 
 /**
- * Batch 105 — one surface that orders itself by what the round is doing.
- *
- * The two screens this replaced could not do this: `Your pick` led with the fixture list
- * whether or not a pick was still possible, and `Combined coupon` led with a fold whether
- * or not the coupon was worth having. The states below are the whole argument for merging
- * them, so each one is pinned here.
+ * The slate stays first in every round phase. The coupon remains a deep-linkable section
+ * and its phase-specific messages still describe the right round state.
  */
 describe('the round’s phase decides what leads', () => {
   /** The same slate with nobody's claim on it — the state a member opens the app in. */
@@ -819,43 +816,39 @@ describe('the round’s phase decides what leads', () => {
   }
 
   /**
-   * Batch 117 settled this the other way, on the owner's instruction: the coupon leads in
-   * every phase. It used to lead only for `complete`, `locked_incomplete` and `settled` —
-   * only once there was nothing left to do about it — so for the whole window a member
-   * could act in, the thing the game builds toward was below a fixture list Batch 105
-   * sized for a hundred rows. What makes that affordable is the fold, asserted beside each
-   * of these: the section leads, and the slate is not pushed down by the membership.
+   * The state labels still change with the round, while the slate stays before the coupon
+   * in DOM and keyboard order. The coupon's legs remain folded until opened or deep-linked.
    */
-  it('leads with the coupon while the member still holds no pick', async () => {
+  it('leads with the slate while the member still holds no pick', async () => {
     stubSlate(unclaimed(), { leg_count: 0, legs: [] });
     renderPage();
 
     expect(await screen.findByText('Pick required')).toBeTruthy();
     expect(screen.getByTestId('my-pick-summary').textContent).toMatch(/grab a selection below/i);
-    expect(order()).toBe('coupon-first');
+    expect(order()).toBe('slate-first');
   });
 
-  it('leads with the coupon once the pick is in and others are missing', async () => {
+  it('leads with the slate once the pick is in and others are missing', async () => {
     renderPage();
     expect(await screen.findByText('Pick submitted')).toBeTruthy();
-    expect(order()).toBe('coupon-first');
+    expect(order()).toBe('slate-first');
   });
 
-  it('leads with the coupon before picks have even opened', async () => {
+  it('leads with the slate before picks have even opened', async () => {
     stubSlate({ status: 'scheduled', picks_open_at_utc: '2999-01-01T14:00:00' });
     renderPage();
 
     expect(await screen.findByText(/picks open in/i)).toBeTruthy();
-    expect(order()).toBe('coupon-first');
+    expect(order()).toBe('slate-first');
   });
 
-  it('folds the legs away on first paint, so leading does not bury the slate', async () => {
+  it('keeps coupon legs folded on first paint beneath the slate', async () => {
     renderPage();
 
     await screen.findByText('Pick submitted');
     expect(screen.getByTestId('coupon-toggle').getAttribute('aria-expanded')).toBe('false');
     expect(screen.getByTestId('acca-leg-0')).not.toBeVisible();
-    // And the headline is still there, so leading with it says something.
+    // The headline is still present when the coupon follows the slate.
     expect(screen.getByText(/1-fold accumulator/i)).toBeVisible();
   });
 
@@ -879,12 +872,12 @@ describe('the round’s phase decides what leads', () => {
     expect(screen.getByTestId('acca-leg-0')).toBeVisible();
   });
 
-  it('leads with the completed coupon once every member has picked', async () => {
+  it('keeps the slate first once every member has picked', async () => {
     stubSlate(everyoneIn());
     renderPage();
 
     expect(await screen.findByText('Coupon complete')).toBeTruthy();
-    expect(order()).toBe('coupon-first');
+    expect(order()).toBe('slate-first');
     expect(screen.getByRole('button', { name: /copy text/i })).toBeTruthy();
     expect(screen.getByTestId('round-progress').textContent).toContain('2 of 2 picked');
   });
@@ -898,15 +891,15 @@ describe('the round’s phase decides what leads', () => {
     expect(await screen.findByText('Incomplete coupon')).toBeTruthy();
     expect(screen.getByTestId('round-progress').textContent).toContain('1 never picked');
     expect(screen.getByTestId('coupon-section').textContent).toMatch(/1 of 2 never picked/i);
-    expect(order()).toBe('coupon-first');
+    expect(order()).toBe('slate-first');
   });
 
-  it('leads with the outcome once the round has settled', async () => {
+  it('keeps the slate first once the round has settled', async () => {
     stubSlate({ status: 'settled' }, { status: 'settled', all_won: false });
     renderPage();
 
     expect(await screen.findByText('Round settled')).toBeTruthy();
-    expect(order()).toBe('coupon-first');
+    expect(order()).toBe('slate-first');
     expect(screen.getByRole('button', { name: /copy result/i })).toBeTruthy();
     // The member's own leg stays identifiable in the result.
     expect(within(screen.getByTestId('acca-leg-0')).getByText('You')).toBeTruthy();

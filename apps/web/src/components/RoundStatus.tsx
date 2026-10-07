@@ -58,7 +58,7 @@ const PHASE: Record<RoundPhase, { label: string; variant: 'success' | 'warning' 
  * "Your pick" card and the roster's `n of m picked` header each answered one third of
  * "what is happening and what do I have to do", stacked in that order down the screen,
  * and two of them repeated the round's name on the way past. They are one question, so
- * they are one card, and it is the first thing under the header on every phase.
+ * they are one card beside the slate on desktop and below it on phones.
  */
 export function RoundStatus({
   phase,

@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Browser, type Locator, type Page, type Route } from '@playwright/test';
 import type {
@@ -20,6 +20,7 @@ const AXE_PATH = createRequire(import.meta.url).resolve('axe-core');
 declare global {
   interface Window {
     axe: typeof import('axe-core');
+    couponLayoutShift?: number;
   }
 }
 
@@ -497,6 +498,104 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
     fullPage: true,
   });
 
+  // Batch 175. Measure the open pick screen at phone width in both themes, before the
+  // seed locks: the first visible price, the larger price type and the keyboard path
+  // are the point of the hierarchy change.
+  await carol.addInitScript(() => {
+    window.couponLayoutShift = 0;
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries() as Array<PerformanceEntry & { value: number; hadRecentInput: boolean }>) {
+        if (!entry.hadRecentInput) window.couponLayoutShift! += entry.value;
+      }
+    }).observe({ type: 'layout-shift', buffered: true });
+  });
+  await carol.setViewportSize({ width: 390, height: 844 });
+  const roundMetrics: Array<{ theme: string; firstPriceY: number; layoutShift: number }> = [];
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(carol, theme);
+    await waitForSettledPage(carol);
+    const slate = carol.getByTestId('slate-section');
+    const coupon = carol.getByTestId('coupon-section');
+    const [slateBox, couponBox] = await Promise.all([slate.boundingBox(), coupon.boundingBox()]);
+    expect(slateBox).not.toBeNull();
+    expect(couponBox).not.toBeNull();
+    expect(slateBox!.y, 'the slate is visually before the coupon on a phone').toBeLessThan(couponBox!.y);
+    expect(
+      await slate.evaluate((node, couponNode) => Boolean(node.compareDocumentPosition(couponNode) & Node.DOCUMENT_POSITION_FOLLOWING), await coupon.elementHandle()),
+      'the slate is before the coupon in the DOM',
+    ).toBe(true);
+
+    const price = carol.getByTestId('selection-price').first();
+    await expect(price).toBeVisible();
+    const priceBox = await price.boundingBox();
+    expect(priceBox).not.toBeNull();
+    expect(priceBox!.y, 'first price from the top at 390px').toBeLessThanOrEqual(480);
+    expect(await price.evaluate((node) => ({
+      size: getComputedStyle(node).fontSize,
+      lineHeight: getComputedStyle(node).lineHeight,
+      weight: getComputedStyle(node).fontWeight,
+    }))).toEqual({ size: '17px', lineHeight: '20px', weight: '600' });
+    expect(await carol.getByTestId('selection-label').first().evaluate((node) => getComputedStyle(node).fontSize)).toBe('14px');
+    const firstButton = price.locator('xpath=..');
+    const buttonBox = await firstButton.boundingBox();
+    expect(buttonBox).not.toBeNull();
+    expect(buttonBox!.width).toBeGreaterThanOrEqual(44);
+    expect(buttonBox!.height).toBeGreaterThanOrEqual(56);
+    const undersizedTargets = await carol.locator('main a, main button').evaluateAll((nodes) =>
+      nodes.flatMap((node) => {
+        const box = node.getBoundingClientRect();
+        if (box.width === 0 || box.height === 0) return [];
+        return box.width < 24 || box.height < 24
+          ? [`${node.getAttribute('aria-label') ?? node.textContent?.trim()}: ${Math.round(box.width)}x${Math.round(box.height)}`]
+          : [];
+      }),
+    );
+    expect(undersizedTargets, 'round controls are at least 24px in both dimensions').toEqual([]);
+    await carol.screenshot({ path: join(ARTIFACT_DIR, `batch-175-round-open-${theme}-390x844.png`) });
+
+    await carol.getByRole('link', { name: 'Jump to coupon' }).focus();
+    let sawSelection = false;
+    let reachedCoupon = false;
+    for (let tab = 0; tab < 60; tab += 1) {
+      await carol.keyboard.press('Tab');
+      const focused = await carol.evaluate(() => document.activeElement?.getAttribute('data-testid'));
+      if (focused?.startsWith('selection-')) sawSelection = true;
+      if (focused === 'coupon-toggle') {
+        reachedCoupon = true;
+        break;
+      }
+    }
+    expect(sawSelection, 'keyboard reaches a selection before the coupon').toBe(true);
+    expect(reachedCoupon, 'keyboard can reach the coupon').toBe(true);
+    await expectNoAxeViolations(carol);
+    const layoutShift = await carol.evaluate(() => window.couponLayoutShift ?? 0);
+    expect(layoutShift, 'round layout shift is below the previous 0.247').toBeLessThan(0.247);
+    roundMetrics.push({ theme, firstPriceY: Math.round(priceBox!.y), layoutShift });
+  }
+  await carol.route('**/api/v1/leagues/the-coupon/gameweeks', async (route) => {
+    const response = await route.fetch();
+    const gameweeks = (await response.json()) as Array<{ gameweek_id: string; starts_on: string }>;
+    await route.fulfill({
+      response,
+      json: [
+        ...gameweeks,
+        { ...gameweeks[0], gameweek_id: 'older-layout-proof', starts_on: '2026-07-25' },
+      ],
+    });
+  });
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(carol, theme);
+    await expect(carol.getByTestId('gameweek-nav')).toBeVisible();
+    const priceBox = await carol.getByTestId('selection-price').first().boundingBox();
+    expect(priceBox).not.toBeNull();
+    expect(priceBox!.y, 'first price with round history at 390px').toBeLessThanOrEqual(480);
+    roundMetrics.push({ theme: `${theme}-with-history`, firstPriceY: Math.round(priceBox!.y), layoutShift: await carol.evaluate(() => window.couponLayoutShift ?? 0) });
+    await carol.screenshot({ path: join(ARTIFACT_DIR, `batch-175-round-history-${theme}-390x844.png`) });
+  }
+  await carol.unroute('**/api/v1/leagues/the-coupon/gameweeks');
+  await carol.reload();
+  writeFileSync(join(ARTIFACT_DIR, 'batch-175-round-metrics.json'), JSON.stringify(roundMetrics, null, 2));
+
   // The two destinations, and only two: the combined coupon is a section of this one.
   const sections = carol.getByLabel('Coupon sections');
   await expect(sections.getByRole('link', { name: 'Current round' })).toBeVisible();
@@ -666,9 +765,16 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   for (const theme of ['dark', 'light'] as const) {
     await setTheme(alice, theme);
     await expectDesktopColumns(
-      alice.getByTestId('coupon-section'),
       alice.getByTestId('slate-section'),
+      alice.getByRole('complementary', { name: 'Round status and coupon' }),
     );
+    const [slateBox, couponBox] = await Promise.all([
+      alice.getByTestId('slate-section').boundingBox(),
+      alice.getByTestId('coupon-section').boundingBox(),
+    ]);
+    expect(slateBox).not.toBeNull();
+    expect(couponBox).not.toBeNull();
+    expect(slateBox!.x).toBeLessThan(couponBox!.x);
     await expectNoAxeViolations(alice);
     await expectNoColourContrastViolations(alice);
     await alice.screenshot({

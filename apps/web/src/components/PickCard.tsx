@@ -188,13 +188,13 @@ export function PickCard({
   return (
     <div
       className={cn(
-        'flex flex-col rounded-lg border bg-surface p-4',
+        'flex flex-col rounded-lg border bg-surface px-4 py-3',
         fixture.mine ? 'border-success/60' : 'border-border',
       )}
       data-testid={`pick-card-${fixture.fixture_id}`}
     >
       {/* Eyebrow: competition + kickoff */}
-      <div className="mb-3 flex items-start justify-between gap-2">
+      <div className="mb-2 flex items-start justify-between gap-2">
         <Badge variant="muted">{fixture.competition}</Badge>
         <span className="shrink-0 font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
           {kickoffLocal}
@@ -203,7 +203,7 @@ export function PickCard({
 
       {/* Teams, with each club's table position and recent form beneath (Batch 16) */}
       <div
-        className="relative mb-3 grid grid-cols-2 items-baseline gap-2"
+        className="relative mb-2 grid grid-cols-2 items-baseline gap-2"
         data-testid={`fixture-header-${fixture.fixture_id}`}
       >
         <p className="min-w-0 truncate pr-3 text-sm font-sans font-medium text-text-primary">
@@ -270,7 +270,7 @@ export function PickCard({
             );
             return (
               <div key={market}>
-                <p className="mb-1.5 font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+                <p className="mb-1 font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
                   {marketLabel(market)}
                 </p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -356,7 +356,7 @@ function SelectionButton({
       aria-pressed={sel.mine}
       data-testid={`selection-${fixture.fixture_id}-${sel.market}-${sel.outcome}`}
       className={cn(
-        'flex flex-col items-start gap-0.5 rounded-md px-2.5 py-2 text-left transition-colors',
+        'flex min-h-[56px] flex-col items-start justify-center gap-0.5 rounded-md px-2.5 py-2 text-left transition-colors',
         settledStatus === 'won'
           ? 'cursor-not-allowed border border-success bg-surface text-text-primary'
           : settledStatus === 'lost'
@@ -379,23 +379,25 @@ function SelectionButton({
             so `truncate` was cutting the market name in half on the one screen the
             product exists for. From `sm` there is room for a line, and ellipsis is the
             better answer for a long team name. */}
-        <span className="min-w-0 break-words text-xs font-sans font-medium sm:truncate">
+        <span data-testid="selection-label" className="min-w-0 break-words text-label font-sans font-medium sm:truncate">
           {sel.mine && <Check className="mr-0.5 inline h-3 w-3" aria-hidden />}
           {label}
         </span>
-        {pending ? (
-          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
-        ) : unresolved !== null ? (
-          <UnresolvedIcon state={unresolved} />
-        ) : (
-          <span className="shrink-0 font-mono text-xs tabular-nums">
-            {formatOdds(sel.odds, oddsFormat)}
-          </span>
+        {pending && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />}
+        {!pending && unresolved !== null && <UnresolvedIcon state={unresolved} />}
+      </span>
+      <span
+        data-testid="selection-price"
+        className={cn(
+          'font-mono text-price tabular-nums',
+          takenByOther && 'text-text-muted line-through',
         )}
+      >
+        {formatOdds(sel.odds, oddsFormat)}
       </span>
       <span
         className={cn(
-          'text-caption font-mono uppercase tracking-wide text-text-muted',
+          'w-full truncate text-caption font-mono uppercase tracking-wide text-text-muted',
           sel.mine && !settledStatus && 'text-text-secondary',
           settledStatus && 'font-sans normal-case tracking-normal',
           settledStatus && settledTone,

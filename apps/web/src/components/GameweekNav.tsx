@@ -7,6 +7,7 @@ import { cn } from '../lib/utils';
 
 export interface GameweekNavProps {
   history: GameweekHistory;
+  compact?: boolean;
 }
 
 /**
@@ -15,7 +16,7 @@ export interface GameweekNavProps {
  * Hidden entirely until there is more than one gameweek to move between — on a
  * first Saturday there is no history to browse and the control would be noise.
  */
-export function GameweekNav({ history }: GameweekNavProps) {
+export function GameweekNav({ history, compact = false }: GameweekNavProps) {
   const { gameweeks, selected, newer, older, isLatest, select } = history;
   if (gameweeks.length < 2) return null;
 
@@ -31,18 +32,22 @@ export function GameweekNav({ history }: GameweekNavProps) {
 
   return (
     <div
-      className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-2 py-2"
+      className={cn(
+        'flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-2',
+        compact ? 'mb-2 py-1' : 'mb-4 py-2',
+      )}
       data-testid="gameweek-nav"
     >
       <NavButton
         label="Older gameweek"
         onClick={() => older && select(older.gameweek_id)}
         disabled={!older}
+        compact={compact}
       >
         <ChevronLeft className="h-4 w-4" aria-hidden />
       </NavButton>
 
-      <div className="flex min-w-0 flex-col items-center gap-0.5">
+      <div className={cn('flex min-w-0 items-center', compact ? 'gap-2' : 'flex-col gap-0.5')}>
         <span className="truncate font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
           {roundName(
             current.number,
@@ -57,7 +62,7 @@ export function GameweekNav({ history }: GameweekNavProps) {
               *members*. Both read as one fraction of one thing and they were fractions of
               different things. The count members actually ask for is the roster's, so this
               one stops pretending to be a ratio and says what it counts. */}
-          <span className="font-mono text-caption tabular-nums text-text-muted">
+          <span className={cn('font-mono text-caption tabular-nums text-text-muted', compact && 'sr-only')}>
             {current.pick_count} {current.pick_count === 1 ? 'pick' : 'picks'}
           </span>
         </span>
@@ -68,17 +73,21 @@ export function GameweekNav({ history }: GameweekNavProps) {
           <button
             type="button"
             onClick={() => select(undefined)}
-            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 font-mono text-caption uppercase tracking-[0.15em] text-text-muted tap-target press-down hover:text-text-primary focus-visible:outline-none focus-visible:shadow-glow"
+            className={cn(
+              'inline-flex items-center gap-1 rounded-md border border-border font-mono text-caption uppercase tracking-[0.15em] text-text-muted press-down hover:text-text-primary focus-visible:outline-none focus-visible:shadow-glow',
+              compact ? 'h-8 w-8 justify-center' : 'tap-target px-2 py-1.5',
+            )}
             data-testid="gameweek-latest"
           >
             <History className="h-3 w-3" aria-hidden />
-            Latest
+            <span className={cn(compact && 'sr-only')}>Latest</span>
           </button>
         )}
         <NavButton
           label="Newer gameweek"
           onClick={() => newer && select(newer.gameweek_id)}
           disabled={!newer}
+          compact={compact}
         >
           <ChevronRight className="h-4 w-4" aria-hidden />
         </NavButton>
@@ -91,11 +100,13 @@ function NavButton({
   label,
   onClick,
   disabled,
+  compact,
   children,
 }: {
   label: string;
   onClick: () => void;
   disabled: boolean;
+  compact: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -105,7 +116,8 @@ function NavButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-md border border-border p-1.5 tap-target focus-visible:outline-none focus-visible:shadow-glow',
+        'inline-flex shrink-0 items-center justify-center rounded-md border border-border focus-visible:outline-none focus-visible:shadow-glow',
+        compact ? 'h-8 w-8' : 'p-1.5 tap-target',
         disabled
           ? 'cursor-not-allowed text-text-muted opacity-40'
           : 'press-down text-text-secondary hover:text-text-primary',

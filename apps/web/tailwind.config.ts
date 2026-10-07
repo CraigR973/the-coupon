@@ -89,6 +89,8 @@ export default {
       // caption step. Components use it instead of arbitrary 9–11px values.
       fontSize: {
         caption: ['0.75rem', { lineHeight: '1rem' }],
+        label: ['0.875rem', { lineHeight: '1.125rem' }],
+        price: ['1.0625rem', { lineHeight: '1.25rem', fontWeight: '600' }],
       },
       borderRadius: {
         xs: 'var(--radius-xs)',
