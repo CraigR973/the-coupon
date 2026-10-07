@@ -15,7 +15,7 @@ Checked 2026-10-07 unless a line says otherwise.
 | --- | --- |
 | API | `api-production-109b1.up.railway.app` serves `c530469` at migration `026` |
 | API deployment | Railway `3219c196-8b5e-40b8-8558-d313d901faf6`, one replica, `europe-west4` |
-| Web | `the-coupon-production.vercel.app` serves `c530469` at Vercel `dpl_9inCkfDwnT7hFwHfKPVFhR72okGC`; Vercel builds `main` on every push |
+| Web | `the-coupon-production.vercel.app` serves Batch 171 implementation `cd1203d` at Vercel `dpl_H3AcxS3pJxZa947s11AFHxTcMZsz` (ready, exact-SHA GitHub status); Vercel builds `main` on every push |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -76,7 +76,8 @@ shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Group
 checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188), and its closing checkpoint
 shipped on 5 Oct as `546db3f` (Batches 184-187 and fix `f0710b0`); Group AD is complete. Batch
 204 (docs-only close-out fast path, owner-approved gate maintenance) is complete. Group AE is
-complete, shipped and verified (Batches 189–193; shipped 7 Oct as `c530469`); Groups AB, AF and AH follow
+complete, shipped and verified (Batches 189–193; shipped 7 Oct as `c530469`); Group AB's Batch
+171 is complete, with 175 next; Groups AF and AH follow
 (`docs/agent-commands/group-start.md`).
 
 ## Toolchain
@@ -90,7 +91,7 @@ Checked 2026-10-03.
   that stamp when only `docs/BUILD_PLAN.md`, `session-log.md` and `STATUS.md` changed, otherwise it
   reruns the gate, and waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,419, frontend 1,291, journey 1; checked 2026-10-07). 13m04s on this Mac
+  (backend 1,419, frontend 1,296, journey 1; checked 2026-10-07). 13m04s on this Mac
   with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
   (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
   1,350 tests (2026-09-29) — not the gate.
@@ -119,4 +120,5 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Group AB (web-only); and the owner's season-calendar backfill, now unblocked.
+**Next:** Group AB Batch 175 (pick-screen hierarchy), pending the owner's decision on its
+conflicting coupon-order test; and the owner's season-calendar backfill, now unblocked.

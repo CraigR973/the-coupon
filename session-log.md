@@ -8480,3 +8480,24 @@ https://github.com/CraigR973/the-coupon/actions/runs/37600493093 PASS for `2e81c
   were each corrected before the final proofs passed.
 
 **Next:** Group AB is web-only; do not begin it in this shipment stage.
+
+## Batch 171 — Restore translucent colours and solid app chrome
+**Commit:** `cd1203d` · verified: `scripts/ci-local.sh` PASS (12 checks); 1,419 backend and
+1,296 frontend tests passed, 0 skipped; seeded coupon journey 1 passed · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37647534554 PASS for `cd1203d`
+
+### Key facts for future sessions
+- RGB channel twins beside the hex palette now let Tailwind emit all opacity utilities. A
+  new test compiles Tailwind and refuses any used opacity utility missing from its CSS.
+- Header and tab bar have solid surface fills. Semantic tints use 8% light and at most 15%
+  dark; text on them is neutral where the ink colour would fail AA. Own-ranking and
+  next-fixture rows use lower dark alphas so their muted labels remain readable.
+- Browser journey measured both chrome fills over scrolled content in both themes and
+  ran axe. Before/after phone captures are preserved in local `artifacts/batch-171/`.
+- **Failures on the way:** no gate failure. The first full gate passed; review then found
+  three contrast edge cases (focused error text and two highlighted rows). They were
+  corrected, and the second complete gate and exact-SHA CI passed.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+**Next:** Batch 175 — pick-screen hierarchy, after the owner resolves its conflicting
+coupon-order test.

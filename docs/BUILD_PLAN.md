@@ -103,7 +103,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: the tab bar, home's stat labels, the header at zoom. **Web-only.**
 
-- [ ] **Batch 171 — Every translucent colour in the app compiles to nothing, so the header and tab bar have no fill**
+- [x] **Batch 171 — Every translucent colour in the app compiles to nothing, so the header and tab bar have no fill** ✅ 2026-10-07
   — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-11 (high impact, live,
   verified against production's stylesheet). The Tailwind colours are `var(--…)` hex tokens
   with no `<alpha-value>`, so all **53 opacity-modified utilities (126 uses in 40 files)** —
