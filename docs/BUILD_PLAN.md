@@ -221,6 +221,12 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   the status/coupon column side by side; target sizes ≥24 px (44 px on the selection buttons);
   axe clean; layout shift on load re-measured (0.247 today).
 
+  **Oracle changes approved (owner, 2026-10-07):** this batch may replace only the six
+  coupon-first order assertions and six associated test titles fingerprinted in trusted main,
+  and only in `apps/web/src/test/CurrentRoundPage.test.tsx`. The replacement must prove slate
+  first in DOM, keyboard and phone visual order, keep the coupon deep link, and retain the
+  existing pick, phase and navigation checks. This is not a file-wide waiver.
+
   Scope boundary: the round screen's chrome and selection button. Other league screens adopt
   the context row in a follow-up. **Web-only.**
 
