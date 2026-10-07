@@ -118,6 +118,15 @@ apps/api/tests/test_request_budget.py|assert _pick_installation_limits()["day"] 
 apps/api/tests/test_request_budget.py|assert _pick_installation_limits() == _pick_shared_limits()
 EOF
       ;;
+    193) cat <<'EOF'
+apps/api/tests/test_scheduler.py|assert str(live.trigger) == "cron[minute='*/10']"
+apps/api/tests/test_scheduler.py|"discover_fixtures": "cron[hour='6', minute='0']",
+apps/api/tests/test_scheduler.py|"refresh_slate": f"cron[hour='{settings.odds_refresh_slate_hours}', minute='0']",
+apps/api/tests/test_scheduler.py|"settle_gameweeks": "cron[hour='18,20,22', minute='0']",
+apps/api/tests/test_scheduler.py|"discover_full_catalogue": "cron[day_of_week='sun', hour='4', minute='0']",
+apps/api/tests/test_scheduler.py|"warm_odds_marker": "cron[hour='7', minute='0']",
+EOF
+      ;;
   esac
 }
 
@@ -129,6 +138,7 @@ approved_oracle_paths() {
     182) echo "apps/web/src/test/csp.test.ts" ;;
     188) echo "apps/api/tests/test_cross_league_summary_cost.py" ;;
     190) echo "apps/api/tests/test_request_budget.py" ;;
+    193) echo "apps/api/tests/test_scheduler.py" ;;
   esac
 }
 

@@ -607,6 +607,15 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Verification: a test that each registered job carries a grace time; the busy-loop reproduction
   runs the job late instead of dropping it; the lock sweep still runs before settlement.
 
+  **Oracle changes approved (owner, 2026-10-07):** this batch may replace only the six
+  existing scheduler expectations fingerprinted in trusted main, and only in
+  `apps/api/tests/test_scheduler.py`: the live-score minute expression and the discovery,
+  refresh, settlement, full-catalogue and warm-marker cron expectations. The replacements
+  must retain the ten-minute live-score cadence, configured refresh hours, London time for
+  domain jobs and lock-before-settlement order, while adding the explicit 13-job grace,
+  coalescing and single-instance policy, a collision-free schedule and the 1.5-second
+  busy-loop proof. This is not a file-wide or reusable waiver.
+
   Scope boundary: job registration. **API-carrying.**
 
 - [ ] **Batch 194 — Half the league never hears what the app announces**
