@@ -8456,3 +8456,27 @@ https://github.com/CraigR973/the-coupon/actions/runs/37600493093 PASS for `2e81c
 - **Close-out safety:** PASS — API-only; pre-push /ship-prod debt present; /ship-prod owed after push
 
 **Next:** explicit `/ship-prod` for Group AE (Batches 189–193).
+
+## Shipment — 2026-10-07, `c530469` (Group AE; no migration)
+**Railway:** `3219c196-8b5e-40b8-8558-d313d901faf6` `SUCCESS` · rollback baseline
+`98fed46d-…` (plain — nothing migrated) · Vercel no-op
+(`dpl_9inCkfDwnT7hFwHfKPVFhR72okGC`, `c530469`) · drift **in sync** · exact-SHA CI runs
+`37600493093` and `37601908073` green · gate 12 checks, backend 1,419, frontend 1,291, journey 1
+
+### Key facts for future sessions
+- **Group AE is fully live.** Batches 189–193 are shipped: request budgets reflect real provider
+  work, pick bursts no longer hold database connections, slate-name reads are flat, and all 13
+  scheduled jobs survive short worker stalls without sharing cron minutes. No `/ship-prod` is
+  owed. Shipped by the agent under the owner's explicit instruction of
+  `2026-10-07T13:20:10Z`.
+- **Production proof:** health and readiness `200` at `c530469` / `026`; one SPA asset;
+  exact-origin CORS `200` with credentials and a foreign origin refused; RLS enabled and forced
+  on 21 of 21 tables with no public-role grants; bounded logs contained no startup, migration or
+  leakage failures; the scheduler registered 13 jobs and completed a connection warm-up.
+- **IaC and rollback:** the pinned plan was 0 add / 2 safe changes / 0 destroy on `api` only. Its
+  redeploy `98fed46d` reached `SUCCESS` before the source upload and is the plain rollback image.
+- **Verification corrections were non-mutating:** missing `jq`, an initially shortened health
+  path, unsupported curl header variables and one rejected read-only `PUBLIC` pseudo-role query
+  were each corrected before the final proofs passed.
+
+**Next:** Group AB is web-only; do not begin it in this shipment stage.

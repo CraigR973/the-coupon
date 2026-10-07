@@ -9,13 +9,13 @@ paragraph beneath it. A batch's story belongs in its `session-log.md` entry, not
 
 ## Live
 
-Checked 2026-10-05 unless a line says otherwise.
+Checked 2026-10-07 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `546db3f` at migration `026` |
-| API deployment | Railway `9d341cd1-ce34-49f5-8d79-4f9ddd942a71`, one replica, `europe-west4` |
-| Web | `the-coupon-production.vercel.app` serves `546db3f` at Vercel `dpl_BMP3eppfrqFGwL4t6i6dL2ZdxNer`; Vercel builds `main` on every push |
+| API | `api-production-109b1.up.railway.app` serves `c530469` at migration `026` |
+| API deployment | Railway `3219c196-8b5e-40b8-8558-d313d901faf6`, one replica, `europe-west4` |
+| Web | `the-coupon-production.vercel.app` serves `c530469` at Vercel `dpl_9inCkfDwnT7hFwHfKPVFhR72okGC`; Vercel builds `main` on every push |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -29,13 +29,12 @@ Checked 2026-10-05 unless a line says otherwise.
 
 ## Owed
 
-- **`/ship-prod` is owed for Batches 189–193** (`d26c2bd`, `387a12d`, `ea5833d`,
-  `c45db3a`, `2e81ce7`, checked 2026-10-07). Production remains at `546db3f` / migration
-  `026`; Group AE is complete and stopped at its documented shipment checkpoint.
+- **No `/ship-prod` is owed.** Group AE shipped on 2026-10-07 as Railway `3219c196`
+  (`c530469`): Batches 189–193 are live, drift is **in sync**, and migration remains `026`.
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
-  Railway `b52f0a9c-78dc-4eec-a52b-f765be3e6865`, the previous image redeployed by the
+  Railway `98fed46d-c15f-445d-98ac-b36aa004b57b`, the previous image redeployed by the
   pinned IaC apply — boots against the database as it stands. Vercel was already on
-  `546db3f` at `dpl_BMP3eppfrqFGwL4t6i6dL2ZdxNer`, so the web app did not move.
+  `c530469` at `dpl_9inCkfDwnT7hFwHfKPVFhR72okGC`, so the web app did not move for the release.
 
 ## Waiting on the owner
 
@@ -77,7 +76,7 @@ shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Group
 checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188), and its closing checkpoint
 shipped on 5 Oct as `546db3f` (Batches 184-187 and fix `f0710b0`); Group AD is complete. Batch
 204 (docs-only close-out fast path, owner-approved gate maintenance) is complete. Group AE is
-complete (Batches 189–193) and waits at its `/ship-prod` checkpoint; Groups AB, AF and AH follow
+complete, shipped and verified (Batches 189–193; shipped 7 Oct as `c530469`); Groups AB, AF and AH follow
 (`docs/agent-commands/group-start.md`).
 
 ## Toolchain
@@ -120,4 +119,4 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** explicit `/ship-prod` for Group AE; and the owner's season-calendar backfill, now unblocked.
+**Next:** Group AB (web-only); and the owner's season-calendar backfill, now unblocked.

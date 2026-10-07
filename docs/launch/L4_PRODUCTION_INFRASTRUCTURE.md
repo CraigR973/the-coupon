@@ -3669,3 +3669,56 @@ and forced on 21 of 21 public tables, no table grants or effective privileges fo
 `authenticated` or `PUBLIC`, no schema grants, and head `026`.
 
 Backup/restore-point identity: **none yet** — Batch 95's backup is still switched off.
+
+### 2026-10-07 — `c530469`, Group AE (no migration)
+
+Group AE's shipment carried Batch 189's correctly priced discovery and refresh budgets, Batch
+190's upstream-only installation pick budget, Batch 191's connection-free bounded notification
+fan-outs, Batch 192's flat slate-name reads, and Batch 193's staggered, recoverable scheduler
+jobs. The exact clean implementation tree passed the local gate (12 checks, 1,419 backend and
+1,291 frontend tests, seeded journey 1, 0 skipped), and close-out reused that proof for the
+documentation-only tree `c530469`. Exact-SHA GitHub Actions runs `37600493093` for the
+implementation and `37601908073` for the shipped tree passed all three jobs. Shipped by the
+agent under the owner's explicit `/ship-prod` instruction of `2026-10-07T13:20:10Z`.
+
+Preflight: Supabase `pugujiiojitstkilphrz` was `ACTIVE_HEALTHY` in London (`eu-west-2`);
+Railway targets matched the recorded project, environment, service and domain,
+`railwayConfigFile` was null, and all 13 required variables were present by name. Vercel held
+the two required encrypted production variables, and its stable alias was already `READY` at
+`c530469`. The migration-recovery check passed with production and the repository both at `026`,
+so this shipment applied no migration.
+
+The pinned IaC plan reported 0 to add, 2 safe changes and 0 to destroy against the existing
+`api` service only: the Nixpacks config path, one replica, restart policy and sleep fields that
+Railway leaves null at the service-instance layer. Applying it created redeploy
+`98fed46d-c15f-445d-98ac-b36aa004b57b` of the previous image; it reached `SUCCESS` before the
+source upload and is this shipment's plain rollback baseline.
+
+Railway `3219c196-8b5e-40b8-8558-d313d901faf6`, `SUCCESS`. `/health` returned `200`, SHA
+`c530469` and migration `026`; `/health/ready` returned `200`, `db: ok` and `026`. Manifest:
+one replica in `europe-west4-drams3a`, sleep off, restart `ON_FAILURE`, healthcheck
+`/api/v1/health/ready` at 300 seconds, 0.25 vCPU / 500 MB, IPv6 egress on, and Nixpacks with
+`/nixpacks.toml`. The final bounded Railway snapshot held 44 lines, zero startup or migration
+failures and zero credential/member-data leak hits; its six error-level lines were normal
+Alembic/Uvicorn stderr. The scheduler logged both start messages, registered its 13 jobs and
+completed a connection warm-up.
+
+Vercel was a no-op for the release: GitHub had already deployed `c530469` as
+`dpl_9inCkfDwnT7hFwHfKPVFhR72okGC`, `READY`, and the stable alias pointed to it.
+
+Post-deploy smoke: web root and `/leagues/discover` both returned `200` from one SPA asset and
+retained CSP, `X-Frame-Options`, HSTS, nosniff, referrer, permissions and cache headers.
+Exact-origin CORS returned `200` with credentials; a foreign origin was refused with `400` and
+no `Access-Control-Allow-Origin`. Readiness remained green, and `scripts/check-deploy-drift.sh`
+reported **in sync**. A read-only production transaction over the exact project's London session
+pooler, built in memory, found RLS enabled and forced on 21 of 21 public tables, no table grants
+or effective privileges for `anon`, `authenticated` or `PUBLIC`, no schema grants, and head
+`026`.
+
+Verification-only corrections caused no production mutation: the first JSON inspection found
+that `jq` was absent and was repeated with Node; the first health probe omitted `/api/v1`; the
+local curl lacked header write-out variables and the response headers were parsed instead; and
+the first read-only RLS query treated PostgreSQL's `PUBLIC` pseudo-role as a login role before
+the corrected metadata/effective-access query passed.
+
+Backup/restore-point identity: **none yet** — Batch 95's backup is still switched off.
