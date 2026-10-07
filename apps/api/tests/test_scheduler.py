@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from zoneinfo import ZoneInfo
 
 import pytest
+from apscheduler.events import EVENT_JOB_MISSED
 from apscheduler.triggers.cron import CronTrigger
 
 from src.config import settings
@@ -114,7 +117,7 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
         # and returns without a request unless some league has a round in play.
         live = scheduler.get_job("live_scores")
         assert live is not None
-        assert str(live.trigger) == "cron[minute='*/10']"
+        assert str(live.trigger) == "cron[minute='2,12,22,32,42,52']"
         assert live.coalesce is True
         assert live.max_instances == 1
 
@@ -146,6 +149,28 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
         assert warmup is not None
         assert str(warmup.trigger) == "interval[0:10:00]"
         assert warmup.next_run_time is not None
+
+        expected_grace = {
+            "connection_warmup": 300,
+            "live_scores": 300,
+            "lock_gameweeks": 1800,
+            "open_gameweeks": 1800,
+            "pick_reminders": 1800,
+            "prune_refresh_tokens": 3600,
+            "prune_rate_limit_counters": 3600,
+            "discover_fixtures": 3600,
+            "discover_full_catalogue": 3600,
+            "warm_odds_marker": 3600,
+            "refresh_slate": 3600,
+            "sync_football_data": 3600,
+            "settle_gameweeks": 3600,
+        }
+        for job_id, grace in expected_grace.items():
+            job = scheduler.get_job(job_id)
+            assert job is not None
+            assert job.misfire_grace_time == grace
+            assert job.coalesce is True
+            assert job.max_instances == 1
     finally:
         if scheduler.running:
             scheduler.shutdown(wait=False)
@@ -160,21 +185,21 @@ def test_create_scheduler_domain_jobs_fire_on_uk_wall_clock() -> None:
         # lock job would never lock a Friday league's round.
         expected = {
             # Discovery is daily and early — the pre-fetch half of the Batch 11 split.
-            "discover_fixtures": "cron[hour='6', minute='0']",
+            "discover_fixtures": "cron[hour='6', minute='5']",
             # Batch 114 took the hours out of the source and moved the late pass clear of
             # the lock; `test_the_late_slate_pass_is_clear_of_the_lock_hour` is the rule.
-            "refresh_slate": f"cron[hour='{settings.odds_refresh_slate_hours}', minute='0']",
+            "refresh_slate": f"cron[hour='{settings.odds_refresh_slate_hours}', minute='5']",
             # Hourly, a minute clear of the lock sweep so the two never interleave.
             "open_gameweeks": "cron[minute='1']",
             "lock_gameweeks": "cron[minute='0']",
-            "settle_gameweeks": "cron[hour='18,20,22', minute='0']",
+            "settle_gameweeks": "cron[hour='18,20,22', minute='5']",
             # Batch 119. The weekly full-catalogue walk gets its own hour on the quietest
-            # morning — it costs the untrimmed catalogue, so sharing 06:00 with the daily
+            # morning — it costs the untrimmed catalogue, so sharing 06:05 with the daily
             # run would put both back over the 100/hour plan that caused the outage.
-            "discover_full_catalogue": "cron[day_of_week='sun', hour='4', minute='0']",
+            "discover_full_catalogue": "cron[day_of_week='sun', hour='4', minute='5']",
             # And the marker-warming pass an hour after discovery, so the card it warms is
             # the one just walked in, and far clear of any default 14:30 lock.
-            "warm_odds_marker": "cron[hour='7', minute='0']",
+            "warm_odds_marker": "cron[hour='7', minute='5']",
         }
         for job_id, trigger_repr in expected.items():
             job = scheduler.get_job(job_id)
@@ -217,6 +242,84 @@ def _firings(trigger: object, start: datetime, hours: int) -> list[datetime]:
         if previous == nxt:
             break
     return times
+
+
+def test_registered_cron_jobs_do_not_share_a_minute() -> None:
+    """The production schedules are staggered, not merely independently plausible."""
+    scheduler = create_scheduler()
+    try:
+        start = datetime(2026, 8, 8, tzinfo=ZoneInfo("Europe/London"))
+        by_fire_time: dict[datetime, list[str]] = {}
+        for job in scheduler.get_jobs():
+            if job.id == "connection_warmup":
+                continue
+            for moment in _firings(job.trigger, start, 30):
+                by_fire_time.setdefault(moment, []).append(job.id)
+
+        collisions = {
+            moment: job_ids for moment, job_ids in by_fire_time.items() if len(job_ids) > 1
+        }
+        assert collisions == {}
+    finally:
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
+
+
+def test_the_lock_sweep_stays_before_opening_and_settlement() -> None:
+    """Staggering must preserve the state transition order at an evening boundary."""
+    scheduler = create_scheduler()
+    try:
+        london = ZoneInfo("Europe/London")
+        start = datetime(2026, 8, 8, 17, 59, tzinfo=london)
+        next_fires = {
+            job_id: scheduler.get_job(job_id).trigger.get_next_fire_time(None, start)
+            for job_id in ("lock_gameweeks", "open_gameweeks", "settle_gameweeks")
+        }
+        assert next_fires == {
+            "lock_gameweeks": datetime(2026, 8, 8, 18, 0, tzinfo=london),
+            "open_gameweeks": datetime(2026, 8, 8, 18, 1, tzinfo=london),
+            "settle_gameweeks": datetime(2026, 8, 8, 18, 5, tzinfo=london),
+        }
+    finally:
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
+
+
+@pytest.mark.asyncio
+async def test_a_job_runs_after_the_event_loop_is_busy_past_its_old_grace() -> None:
+    """A 1.5-second stall used to miss the job; the registered grace now recovers it."""
+    scheduler = create_scheduler()
+    ran = asyncio.Event()
+    executions: list[datetime] = []
+    missed: list[object] = []
+
+    async def record_run() -> None:
+        executions.append(datetime.now(UTC))
+        ran.set()
+
+    try:
+        for job in scheduler.get_jobs():
+            if job.id != "lock_gameweeks":
+                scheduler.remove_job(job.id)
+        scheduler.modify_job("lock_gameweeks", func=record_run)
+        scheduler.reschedule_job(
+            "lock_gameweeks",
+            trigger="date",
+            run_date=datetime.now(UTC) + timedelta(seconds=0.5),
+        )
+        scheduler.add_listener(missed.append, EVENT_JOB_MISSED)
+        scheduler.start()
+
+        await asyncio.sleep(0.05)
+        time.sleep(1.5)
+        await asyncio.wait_for(ran.wait(), timeout=2)
+        await asyncio.sleep(0.05)
+
+        assert len(executions) == 1
+        assert missed == []
+    finally:
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
 
 
 def test_the_reminder_fires_in_every_utc_hour_across_the_fall_back() -> None:

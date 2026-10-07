@@ -79,6 +79,13 @@ from src.services.scoring import (
 #: ``/auth/refresh``, short enough that the table does not accumulate a season of them.
 REFRESH_TOKEN_RETENTION = timedelta(days=7)
 
+# APScheduler otherwise drops a job after one second. A briefly busy one-worker event loop
+# is normal here, so every registration gets an explicit recovery window: at most half the
+# cadence, capped at one hour so a stale provider run cannot replay deep into another window.
+_FREQUENT_JOB_GRACE_SECONDS = 5 * 60
+_HOURLY_JOB_GRACE_SECONDS = 30 * 60
+_INFREQUENT_JOB_GRACE_SECONDS = 60 * 60
+
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
@@ -888,13 +895,14 @@ def create_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
         coalesce=True,
         max_instances=1,
+        misfire_grace_time=_FREQUENT_JOB_GRACE_SECONDS,
         next_run_time=datetime.now(UTC) + timedelta(seconds=30),
     )
     scheduler.add_job(
         run_prune_refresh_tokens,
         trigger="cron",
         hour=4,
-        # 04:30 UTC: a quiet hour, and comfortably before the 06:00 London jobs below.
+        # 04:30 UTC: a quiet hour, and comfortably before the 06:05 London jobs below.
         #
         # Batch 58 chose it to land *after* the 03:00 `pg_dump`, so a pruned row was still
         # in last night's copy. Batch 75 deleted that job, and there is no PITR to stand in
@@ -906,19 +914,21 @@ def create_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
         coalesce=True,
         max_instances=1,
+        misfire_grace_time=_INFREQUENT_JOB_GRACE_SECONDS,
     )
     scheduler.add_job(
         run_prune_rate_limit_counters,
         trigger="cron",
         hour=4,
         # Batch 99. Beside the refresh-token prune for the same reason it is at 04:30 —
-        # a quiet hour, before the 06:00 London jobs — and five minutes later so the two
+        # a quiet hour, before the 06:05 London jobs — and five minutes later so the two
         # deletes do not contend for the same quiet window.
         minute=35,
         id="prune_rate_limit_counters",
         replace_existing=True,
         coalesce=True,
         max_instances=1,
+        misfire_grace_time=_INFREQUENT_JOB_GRACE_SECONDS,
     )
     # --- Coupon domain jobs (Batch 4) ---
     # Wall-clock schedules in Europe/London — APScheduler handles the BST/GMT shift, so a
@@ -933,42 +943,45 @@ def create_scheduler() -> AsyncIOScheduler:
         run_discover_fixtures,
         trigger="cron",
         hour=6,
-        minute=0,
+        minute=5,
         timezone="Europe/London",
         id="discover_fixtures",
         replace_existing=True,
         coalesce=True,
         max_instances=1,
+        misfire_grace_time=_INFREQUENT_JOB_GRACE_SECONDS,
     )
     scheduler.add_job(
         run_discover_full_catalogue,
         trigger="cron",
-        # Sunday 04:00 London — Batch 119. Its own hour, clear of the 06:00 daily run: it
+        # Sunday 04:05 London — Batch 119. Its own hour, clear of the 06:05 daily run: it
         # walks the whole played catalogue rather than the pooled subset, so the two
         # sharing an hour would put both back over the 100/hour plan that caused this.
         day_of_week="sun",
         hour=4,
-        minute=0,
+        minute=5,
         timezone="Europe/London",
         id="discover_full_catalogue",
         replace_existing=True,
         coalesce=True,
         max_instances=1,
+        misfire_grace_time=_INFREQUENT_JOB_GRACE_SECONDS,
     )
     scheduler.add_job(
         run_warm_odds_marker,
         trigger="cron",
-        # 07:00 London — an hour after discovery, so the card it warms is the one just
+        # 07:05 London — an hour after discovery, so the card it warms is the one just
         # walked in, and well clear of any default 14:30 lock. Batch 114 moved the late
         # slate pass off 13:00 precisely to stop a scheduled job spending the hour members
         # are hardest to serve; this is the same shape and keeps the same distance.
         hour=7,
-        minute=0,
+        minute=5,
         timezone="Europe/London",
         id="warm_odds_marker",
         replace_existing=True,
         coalesce=True,
         max_instances=1,
+        misfire_grace_time=_INFREQUENT_JOB_GRACE_SECONDS,
     )
     scheduler.add_job(
         run_refresh_slate,
@@ -979,12 +992,13 @@ def create_scheduler() -> AsyncIOScheduler:
         # pass spent ~30 requests in the hour members are hardest to serve. A cron a
         # deployment cannot change without a release is one nobody can move mid-incident.
         hour=settings.odds_refresh_slate_hours,
-        minute=0,
+        minute=5,
         timezone="Europe/London",
         id="refresh_slate",
         replace_existing=True,
         coalesce=True,
         max_instances=1,
+        misfire_grace_time=_INFREQUENT_JOB_GRACE_SECONDS,
     )
     # Every ten minutes, and almost always free: the job reads the database first and
     # returns without a request unless some league has a round in play. Ten minutes is
@@ -993,23 +1007,27 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(
         run_live_scores,
         trigger="cron",
-        minute="*/10",
+        # Two minutes clear of hourly lock/discovery/settlement work and of the :30
+        # football sync, while preserving the ten-minute cadence.
+        minute="2,12,22,32,42,52",
         id="live_scores",
         replace_existing=True,
         coalesce=True,
         max_instances=1,
+        misfire_grace_time=_FREQUENT_JOB_GRACE_SECONDS,
     )
 
     scheduler.add_job(
         run_sync_football_data,
         trigger="cron",
         hour=6,
-        minute=30,  # half an hour behind discovery, so the fixture pool is already fresh
+        minute=30,  # twenty-five minutes behind discovery, so the fixture pool is already fresh
         timezone="Europe/London",
         id="sync_football_data",
         replace_existing=True,
         coalesce=True,
         max_instances=1,
+        misfire_grace_time=_INFREQUENT_JOB_GRACE_SECONDS,
     )
     scheduler.add_job(
         run_pick_reminders,
@@ -1036,6 +1054,7 @@ def create_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
         coalesce=True,
         max_instances=1,
+        misfire_grace_time=_HOURLY_JOB_GRACE_SECONDS,
     )
     scheduler.add_job(
         run_open_gameweeks,
@@ -1046,6 +1065,7 @@ def create_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
         coalesce=True,
         max_instances=1,
+        misfire_grace_time=_HOURLY_JOB_GRACE_SECONDS,
     )
     scheduler.add_job(
         run_lock_gameweeks,
@@ -1056,17 +1076,19 @@ def create_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
         coalesce=True,
         max_instances=1,
+        misfire_grace_time=_HOURLY_JOB_GRACE_SECONDS,
     )
     scheduler.add_job(
         run_settle_gameweeks,
         trigger="cron",
         hour="18,20,22",  # evening sweeps, every day — leagues may finish on any of them
-        minute=0,
+        minute=5,  # after the hourly lock/open sweep, so a just-finished round is eligible
         timezone="Europe/London",
         id="settle_gameweeks",
         replace_existing=True,
         coalesce=True,
         max_instances=1,
+        misfire_grace_time=_INFREQUENT_JOB_GRACE_SECONDS,
     )
     # Batch 95. Registered only once the owner has switched it on, so a deployment without
     # a bucket schedules nothing and spends no egress. Monday 04:00 London is the owner's
@@ -1091,6 +1113,6 @@ def create_scheduler() -> AsyncIOScheduler:
             replace_existing=True,
             coalesce=True,
             max_instances=1,
-            misfire_grace_time=3600,
+            misfire_grace_time=_INFREQUENT_JOB_GRACE_SECONDS,
         )
     return scheduler
