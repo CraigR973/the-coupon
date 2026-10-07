@@ -8520,3 +8520,23 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - No application code, API contract, database schema or production data changed.
 
 **Next:** Implement Batch 175 from this trusted attestation state.
+
+## Gate maintenance — Batch 175 mobile-header oracle correction
+**Commit:** `91e76e4` · owner-approved 7 Oct 2026 · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/37677825315 failed at the expected
+old-trusted-guard comparison; production-bundle smoke and seeded coupon journey passed
+
+### Key facts for future sessions
+- The first full implementation gate passed 1,419 backend tests, frontend lint/typecheck/build,
+  production-bundle smoke and seeded journey, but one TopBar unit test still demanded the
+  old extra safe-area padding and 64 px mobile row. It was a superseded oracle, not a
+  production failure; the frontend test stage was red (1,295 passed, 1 failed).
+- The owner's Batch 175 continuation approval also covers exactly that test title and two
+  assertions in `TopBar.test.tsx`, now fingerprinted in trusted main. The replacement must
+  prove safe-area padding and a 52 px row, retaining the centred home brand check. Every
+  other removed TopBar oracle remains blocked.
+- The gate replayed this correction against `7f4df9b` and refused only the protected guard
+  change. The production-bundle smoke and seeded journey passed at the exact approval SHA.
+- No application code, API contract, database schema or production data changed.
+
+**Next:** Resume Batch 175 after this documentation attestation passes exact-SHA CI.
