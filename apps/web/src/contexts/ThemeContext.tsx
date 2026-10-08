@@ -29,9 +29,6 @@ const ThemeContext = createContext<ThemeContextValue>({
 });
 
 const STORAGE_KEY = 'coupon_theme';
-const LIGHT_THEME_COLOR = '#F7F8FA';
-const DARK_THEME_COLOR = '#071A3D';
-
 function readStoredMode(): ThemeMode {
   if (typeof window === 'undefined') return 'dark';
   const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -55,11 +52,11 @@ function applyTheme(resolved: ResolvedTheme): void {
   root.classList.add(resolved);
   root.style.colorScheme = resolved;
 
-  // Keep the iOS status bar / install-splash background in sync.
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) {
-    meta.setAttribute('content', resolved === 'dark' ? DARK_THEME_COLOR : LIGHT_THEME_COLOR);
-  }
+  // One active status-bar colour even when an explicit preference differs from
+  // the device scheme. The two tags keep their palette-specific content.
+  document.querySelectorAll('meta[name="theme-color"][data-theme]').forEach((meta) => {
+    meta.setAttribute('media', meta.getAttribute('data-theme') === resolved ? 'all' : 'not all');
+  });
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

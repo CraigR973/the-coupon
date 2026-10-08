@@ -13,17 +13,18 @@ import { fileURLToPath } from 'node:url';
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const outputDir = join(scriptDir, 'public');
 
-const NAVY = '#071A3D';
-const PAPER = '#F8F5ED';
-const GOLD = '#D4A44B';
+const BG = '#0B0E13';
+const EMERALD = '#10B981';
 
-function ticketMark(background = NAVY) {
+function ticketMark(maskable = false) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="The Coupon ticket icon">
-  <rect width="512" height="512" rx="96" fill="${background}"/>
-  <path d="M104 150h304a32 32 0 0 1 32 32v44a30 30 0 0 0 0 60v44a32 32 0 0 1-32 32H104a32 32 0 0 1-32-32v-44a30 30 0 0 0 0-60v-44a32 32 0 0 1 32-32Z" fill="${PAPER}"/>
-  <path d="M318 166v180" stroke="${GOLD}" stroke-width="12" stroke-linecap="round" stroke-dasharray="4 22"/>
-  <path d="M132 218h126M132 266h96M132 314h72" stroke="${NAVY}" stroke-width="18" stroke-linecap="round"/>
-  <circle cx="379" cy="256" r="30" fill="${GOLD}"/>
+  <rect width="512" height="512" ${maskable ? '' : 'rx="96"'} fill="${BG}"/>
+  ${maskable ? '<g transform="translate(256 256) scale(0.72) translate(-256 -256)">' : '<g>'}
+    <path d="M104 150h304a32 32 0 0 1 32 32v44a30 30 0 0 0 0 60v44a32 32 0 0 1-32 32H104a32 32 0 0 1-32-32v-44a30 30 0 0 0 0-60v-44a32 32 0 0 1 32-32Z" fill="${EMERALD}"/>
+    <path d="M318 166v180" stroke="${BG}" stroke-width="12" stroke-linecap="round" stroke-dasharray="4 22"/>
+    <path d="M132 218h126M132 266h96M132 314h72" stroke="${BG}" stroke-width="18" stroke-linecap="round"/>
+    <circle cx="379" cy="256" r="30" fill="${BG}"/>
+  </g>
 </svg>
 `;
 }
@@ -61,7 +62,7 @@ for (const size of [32, 64, 128, 192, 384, 512, 1024]) {
 }
 
 writeFileSync(join(outputDir, 'apple-touch-icon.png'), render(master, 180));
-writeFileSync(join(outputDir, 'icon-maskable-512.png'), render(master, 512));
+writeFileSync(join(outputDir, 'icon-maskable-512.png'), render(ticketMark(true), 512));
 writeFileSync(join(outputDir, 'favicon.ico'), pngToIco(render(master, 32)));
 
 console.log('Generated The Coupon PWA icons.');

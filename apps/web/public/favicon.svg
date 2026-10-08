@@ -1,7 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="The Coupon ticket icon">
-  <rect width="512" height="512" rx="96" fill="#071A3D"/>
-  <path d="M104 150h304a32 32 0 0 1 32 32v44a30 30 0 0 0 0 60v44a32 32 0 0 1-32 32H104a32 32 0 0 1-32-32v-44a30 30 0 0 0 0-60v-44a32 32 0 0 1 32-32Z" fill="#F8F5ED"/>
-  <path d="M318 166v180" stroke="#D4A44B" stroke-width="12" stroke-linecap="round" stroke-dasharray="4 22"/>
-  <path d="M132 218h126M132 266h96M132 314h72" stroke="#071A3D" stroke-width="18" stroke-linecap="round"/>
-  <circle cx="379" cy="256" r="30" fill="#D4A44B"/>
+  <rect width="512" height="512" rx="96" fill="#0B0E13"/>
+  <g>
+    <path d="M104 150h304a32 32 0 0 1 32 32v44a30 30 0 0 0 0 60v44a32 32 0 0 1-32 32H104a32 32 0 0 1-32-32v-44a30 30 0 0 0 0-60v-44a32 32 0 0 1 32-32Z" fill="#10B981"/>
+    <path d="M318 166v180" stroke="#0B0E13" stroke-width="12" stroke-linecap="round" stroke-dasharray="4 22"/>
+    <path d="M132 218h126M132 266h96M132 314h72" stroke="#0B0E13" stroke-width="18" stroke-linecap="round"/>
+    <circle cx="379" cy="256" r="30" fill="#0B0E13"/>
+  </g>
 </svg>

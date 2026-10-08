@@ -461,6 +461,24 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   expect(seeded.ok(), await seeded.text()).toBeTruthy();
 
   const alice = await login(browser, 'Alice');
+  // Chromium has no device notch, so inject the 59 px top and 34 px bottom
+  // safe-area values of a modern iPhone into the app's actual CSS variables.
+  await alice.setViewportSize({ width: 390, height: 844 });
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(alice, theme);
+    await alice.addStyleTag({ content: ':root { --safe-top: 59px; --safe-bottom: 34px; }' });
+    const chrome = await alice.evaluate(() => ({
+      header: document.querySelector('header')!.getBoundingClientRect().height,
+      tabBar: document.querySelector('nav[aria-label="Primary"]')!.getBoundingClientRect().height,
+    }));
+    expect(chrome.header).toBe(112);
+    expect(chrome.tabBar).toBe(95);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-178-installed-inset-${theme}-390x844.png`),
+    });
+  }
+  await alice.setViewportSize({ width: 1280, height: 720 });
+  await setTheme(alice, 'dark');
   let alicePickPosts = 0;
   alice.on('request', (outgoing) => {
     if (outgoing.method() === 'POST' && outgoing.url().endsWith('/api/v1/leagues/the-coupon/picks')) {
@@ -476,8 +494,13 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   await alice.setViewportSize({ width: 390, height: 844 });
   const offlineBanner = alice.getByTestId('offline-banner');
   await expect(offlineBanner).toBeVisible();
-  await alice.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await expect.poll(() => alice.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  // The seeded coupon can fit a tall phone, so give this sticky check an actual
+  // scroll distance without changing the product's content or later assertions.
+  await alice.evaluate(() => {
+    document.querySelector('main')!.style.minHeight = '1200px';
+    window.scrollTo(0, 200);
+  });
+  await expect.poll(() => alice.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(150);
   const bannerPlacement = await alice.evaluate(() => ({
     headerBottom: document.querySelector('header')!.getBoundingClientRect().bottom,
     bannerTop: document.querySelector('[data-testid="offline-banner"]')!.getBoundingClientRect().top,
@@ -485,6 +508,10 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   expect(bannerPlacement.bannerTop).toBeGreaterThanOrEqual(bannerPlacement.headerBottom - 1);
   expect(bannerPlacement.bannerTop).toBeLessThanOrEqual(bannerPlacement.headerBottom + 2);
   await alice.screenshot({ path: join(ARTIFACT_DIR, 'batch-177-offline-sticky-390x844.png') });
+  await alice.evaluate(() => {
+    document.querySelector('main')!.style.minHeight = '';
+    window.scrollTo(0, 0);
+  });
   await alice.setViewportSize({ width: 1280, height: 720 });
   await alice.getByRole('button', { name: /Arsenal.*1\.90.*win 19 pts/i }).click();
   await expect(alice.locator('[data-sonner-toast]').last()).toContainText('Saved on this phone');
