@@ -261,7 +261,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: the standings and results layouts. **Web-only — needs Batch 171's tint
   tokens for the own-row tint.**
 
-- [ ] **Batch 177 — Small consistency and web-performance residue**
+- [x] **Batch 177 — Small consistency and web-performance residue** ✅ 2026-10-08
   — specified from `docs/review/2026-09-28/06-premium-design.md` DES-08 (residue), DES-19,
   DES-21, DES-22 (low) and `04-performance-operations.md` PERF-16 (partial) and PERF-17 (not
   fixed). Home draws the statistic figure white where profiles draw it green; Football Stats

@@ -8581,3 +8581,15 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - The gate refused only the protected guard-table change. No application code, API contract, database schema or production data changed.
 
 **Next:** Implement Batch 177 after this documentation attestation passes exact-SHA CI.
+
+## Batch 177 — Web consistency and performance residue
+**Commits:** `056e389`, `9cba908` · verified: complete 12-check local gate, 1,419 backend and 1,296 frontend tests, zero skips, production-bundle smoke and seeded browser journey PASS · CI: https://github.com/CraigR973/the-coupon/actions/runs/37787940154 PASS for `9cba90815d5d50d28fa2c5711bfad124014a7e77`
+
+### Key facts for future sessions
+- Home figures use the shared green statistic value; Football Stats opens its first table by default and uses an explicit empty URL value to preserve a member's choice to close every table. The offline banner stays below the sticky header; the site-admin tabs scroll at 390 px. Browser captures and keyboard/focus checks cover these surfaces in both themes, with an isolated real-component harness for the admin strip.
+- The remaining 43 inline production query-key uses were moved into `queryKeys` without changing cache shapes or prefix invalidation. No inline `queryKey: [` remains in `src`.
+- A cold production `/login` fell from three font requests, 50,032 bytes, to the single 21,860-byte wordmark face. The form uses the system UI face; Outfit remains on authenticated pages.
+- The first guard run rejected the intended old Football Stats title because the owner-approved BUILD_PLAN heading used singular wording; trusted-main correction `f80cae9` passed exact-SHA CI before the branch resumed. Focused typecheck then caught three invalid `as const` assertions on factory calls; they were removed. The complete local gate passed on its first attempt.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+**Next:** Batch 178 — installed-app shell and icon palette.
