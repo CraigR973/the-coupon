@@ -252,18 +252,17 @@ describe('FootballPage — tables', () => {
     expect(table.textContent).toMatch(/As of 6 Aug, 06:30/);
   });
 
-  // Batch 71 — inverted. This asserted that the *first* competition opened, which was the
-  // right instinct with the wrong answer: the reader has not asked for any of them yet,
-  // and opening whichever sorts first makes it look chosen. The owner asked for the
-  // screen collapsed on open.
-  it('opens with every competition collapsed', async () => {
+  it('opens the first competition and leaves every other one collapsed', async () => {
     renderPage();
     await screen.findByTestId('league-table-england-premier-league');
     const headers = screen.getAllByRole('button', { name: /premier league|league two/i });
     expect(headers.length).toBeGreaterThan(1);
-    for (const header of headers) {
+    expect(headers[0].getAttribute('aria-expanded')).toBe('true');
+    for (const header of headers.slice(1)) {
       expect(header.getAttribute('aria-expanded')).toBe('false');
     }
+    fireEvent.click(headers[0]);
+    expect(headers[0].getAttribute('aria-expanded')).toBe('false');
   });
 
   it('expands a collapsed competition on tap', async () => {
@@ -406,7 +405,7 @@ describe('FootballPage — the open division is in the address', () => {
 
   it('names the division in the URL when one is expanded, and clears it when closed', async () => {
     renderPage();
-    const table = await screen.findByTestId('league-table-england-premier-league');
+    const table = await screen.findByTestId('league-table-scotland-league-two');
     const header = within(table).getAllByRole('button')[0];
 
     fireEvent.click(header);

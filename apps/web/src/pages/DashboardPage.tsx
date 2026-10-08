@@ -398,7 +398,6 @@ function HomeHero({
               className="bg-surface-elevated"
               label="Points"
               value={summary.total_points}
-              valueClassName="text-text-primary"
             />
             <StatCard
               compact
@@ -406,7 +405,6 @@ function HomeHero({
               className="bg-surface-elevated"
               label="Picks won"
               value={`${summary.picks_won}/${summary.picks_played}`}
-              valueClassName="text-text-primary"
             />
             <StatCard
               compact
@@ -414,7 +412,6 @@ function HomeHero({
               className="bg-surface-elevated"
               label="Win rate"
               value={summary.win_rate_pct === null ? '—' : `${summary.win_rate_pct}%`}
-              valueClassName="text-text-primary"
             />
           </dl>
         ) : null}

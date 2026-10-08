@@ -49,7 +49,8 @@ export function FootballPage() {
   // in the address so that coming back from a club's season lands on the table the
   // member left — same division open, same season, and therefore the same page height
   // for the browser to restore their scroll against.
-  const openCompetition = params.get('competition') ?? undefined;
+  // Absent means the first table opens; an empty value explicitly closes them all.
+  const openCompetition = params.get('competition');
   const seasonParam = Number(params.get('season'));
   const season = Number.isFinite(seasonParam) && seasonParam > 0 ? seasonParam : undefined;
   // A `?date=` link is a link to a result day, so it opens on the tab that has one.
@@ -65,11 +66,11 @@ export function FootballPage() {
    * close an accordion. The result day above is pushed for exactly the opposite reason.
    */
   const toggleCompetition = useCallback(
-    (competitionId: string) => {
+    (competitionId: string, isOpen: boolean) => {
       setParams(
         (previous) => {
           const next = new URLSearchParams(previous);
-          if (next.get('competition') === competitionId) next.delete('competition');
+          if (isOpen) next.set('competition', '');
           else next.set('competition', competitionId);
           return next;
         },
@@ -165,9 +166,9 @@ export function FootballPage() {
 interface TablesViewProps {
   tables: CompetitionTable[];
   timezone: string;
-  /** The one division showing its rows, or `undefined` for all collapsed. */
-  openCompetition: string | undefined;
-  onToggleCompetition: (competitionId: string) => void;
+  /** `null` opens the first division, `''` closes all, or a named division opens. */
+  openCompetition: string | null;
+  onToggleCompetition: (competitionId: string, isOpen: boolean) => void;
 }
 
 function TablesView({
@@ -180,6 +181,7 @@ function TablesView({
   // member has just been reading down the coupon, so arriving at them shuffled costs a
   // search every time — `lib/competitions` is the one order both screens read in.
   const ordered = useMemo(() => [...tables].sort(compareCompetitions), [tables]);
+  const visibleCompetition = openCompetition === null ? ordered[0]?.competition_id : openCompetition;
 
   if (tables.length === 0) {
     return (
@@ -196,14 +198,10 @@ function TablesView({
           key={table.competition_id}
           table={table}
           timezone={timezone}
-          // Every division starts closed (Batch 71). One-of-thirty-open was the right
-          // instinct — thirty expanded tables is several hundred rows — with the wrong
-          // answer: the reader has not asked for *any* of them yet, and opening the one
-          // that happens to sort first makes it look chosen. The owner asked for the
-          // screen collapsed on open. Since Batch 111 the open one is named in the URL,
-          // so arriving back from a club's season reopens it rather than resetting.
-          open={table.competition_id === openCompetition}
-          onToggle={() => onToggleCompetition(table.competition_id)}
+          // The first sorted table opens on a bare URL. An explicit empty query value
+          // lets a member close it without the default immediately opening it again.
+          open={table.competition_id === visibleCompetition}
+          onToggle={() => onToggleCompetition(table.competition_id, table.competition_id === visibleCompetition)}
         />
       ))}
     </div>

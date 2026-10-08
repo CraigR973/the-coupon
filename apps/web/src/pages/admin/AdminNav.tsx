@@ -21,14 +21,14 @@ const TABS = [
 
 export function AdminNav() {
   return (
-    <nav aria-label="Site admin" className="mb-5 flex gap-1 overflow-x-auto py-1.5">
+    <nav aria-label="Site admin" className="mb-5 flex w-full min-w-0 flex-nowrap gap-1 overflow-x-auto overscroll-x-contain py-1.5">
       {TABS.map(({ to, label }) => (
         <NavLink
           key={to}
           to={to}
           className={({ isActive }) =>
             cn(
-              'rounded-md px-3 py-2 font-sans text-sm whitespace-nowrap press-down tap-target',
+              'shrink-0 rounded-md px-3 py-2 font-sans text-sm whitespace-nowrap press-down tap-target',
               'focus-visible:outline-none focus-visible:shadow-glow',
               isActive
                 ? 'bg-surface-elevated text-text-primary font-semibold'
