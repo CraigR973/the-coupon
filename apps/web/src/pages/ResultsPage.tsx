@@ -102,7 +102,7 @@ export function ResultsPage() {
       )}
 
       {results.length > 0 && (
-        <ol className="flex flex-col gap-2 lg:grid lg:grid-cols-2" data-testid="results-list">
+        <ol className="flex flex-col gap-2" data-testid="results-list">
           {results.map((result) => (
             <li key={result.gameweek_id} id={`gw-${result.gameweek_id}`}>
               <button
@@ -110,7 +110,7 @@ export function ResultsPage() {
                 // Both halves of the address matter: the gameweek id is league-scoped,
                 // so it only resolves against the league it came from.
                 onClick={() => navigate(couponSectionPath(slug, result.gameweek_id))}
-                className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface p-3 text-left transition-colors press-down hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow"
+                className="flex min-h-[52px] w-full items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-left transition-colors press-down hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow"
                 data-testid={`result-${result.gameweek_id}`}
               >
                 <div className="min-w-0 flex-1">

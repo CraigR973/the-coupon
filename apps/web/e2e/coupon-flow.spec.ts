@@ -6,6 +6,7 @@ import type {
   Coupon,
   CouponLeg,
   FixtureSlate,
+  GameweekResult,
   GameweekSlate,
   PlayerProfile,
   SelectionOption,
@@ -209,6 +210,18 @@ async function expectDesktopColumns(left: Locator, right: Locator): Promise<void
   expect(rightBox).not.toBeNull();
   expect(leftBox!.x).toBeLessThan(rightBox!.x);
   expect(Math.abs(leftBox!.y - rightBox!.y)).toBeLessThanOrEqual(12);
+}
+
+async function expectOneOrderedColumn(first: Locator, second: Locator): Promise<void> {
+  await expect.poll(async () => {
+    const [firstBox, secondBox] = await Promise.all([first.boundingBox(), second.boundingBox()]);
+    if (!firstBox || !secondBox) return Number.POSITIVE_INFINITY;
+    return Math.abs(firstBox.x - secondBox.x);
+  }, { message: 'rows settle on one left edge' }).toBeLessThanOrEqual(1);
+  const [firstBox, secondBox] = await Promise.all([first.boundingBox(), second.boundingBox()]);
+  expect(firstBox).not.toBeNull();
+  expect(secondBox).not.toBeNull();
+  expect(secondBox!.y, 'the second row follows the first').toBeGreaterThanOrEqual(firstBox!.y + firstBox!.height);
 }
 
 async function expectFocusedElementUnobscured(page: Page): Promise<void> {
@@ -1073,29 +1086,78 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   await expect(standings.locator('> li')).toHaveCount(3);
   for (const theme of ['dark', 'light'] as const) {
     await setTheme(alice, theme);
-    await expectDesktopColumns(standings.locator('> li').first(), standings.locator('> li').nth(1));
+    await expectOneOrderedColumn(standings.locator('> li').first(), standings.locator('> li').nth(1));
+    await expect(alice.getByText('Played', { exact: true })).toBeVisible();
+    await expect(alice.getByText('Avg odds', { exact: true })).toBeVisible();
     await expectNoAxeViolations(alice);
     await expectNoColourContrastViolations(alice);
     await alice.screenshot({
       path: join(ARTIFACT_DIR, `batch-140-standings-${theme}-1280x800.png`),
     });
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-176-standings-${theme}-1280x800.png`),
+    });
   }
+
+  await alice.setViewportSize({ width: 390, height: 844 });
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(alice, theme);
+    const rows = standings.locator('> li');
+    await expectOneOrderedColumn(rows.first(), rows.nth(1));
+    const firstBox = await rows.first().boundingBox();
+    expect(firstBox?.height, 'phone standing rows are 52px').toBe(52);
+    const pointType = await rows.first().getByTestId('standing-points').evaluate((node) => ({
+      size: getComputedStyle(node).fontSize,
+      weight: getComputedStyle(node).fontWeight,
+    }));
+    expect(pointType).toEqual({ size: '17px', weight: '600' });
+    expect((await rows.first().getByTestId('rank-medal').boundingBox())?.width).toBe(3);
+    await expectNoAxeViolations(alice);
+    await expectNoColourContrastViolations(alice);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-176-standings-${theme}-390x844.png`),
+    });
+  }
+
+  await alice.setViewportSize({ width: 1280, height: 800 });
+  const resultsPattern = '**/api/v1/leagues/the-coupon/results';
+  await aliceContext.route(resultsPattern, async (route) => {
+    const response = await route.fetch();
+    const rows = (await response.json()) as GameweekResult[];
+    expect(rows.length).toBeGreaterThan(0);
+    await route.fulfill({
+      response,
+      json: [rows[0], { ...rows[0], gameweek_id: 'older-ranking-proof', starts_on: '2026-07-25', season_week: '1a' }],
+    });
+  });
 
   await alice.goto('/leagues/the-coupon/predictions/results');
   const results = alice.getByTestId('results-list');
   await expect(results).toContainText('Bob');
+  await expect(results.locator('> li')).toHaveCount(2);
+  await expect(results.locator('> li').first()).toContainText('Gameweek 1b');
+  await expect(results.locator('> li').nth(1)).toContainText('Gameweek 1a');
   for (const theme of ['dark', 'light'] as const) {
     await setTheme(alice, theme);
-    const columns = await results.evaluate(
-      (node) => getComputedStyle(node).gridTemplateColumns.trim().split(/\s+/).length,
-    );
-    expect(columns).toBe(2);
+    await expectOneOrderedColumn(results.locator('> li').first(), results.locator('> li').nth(1));
     await expectNoAxeViolations(alice);
     await expectNoColourContrastViolations(alice);
     await alice.screenshot({
-      path: join(ARTIFACT_DIR, `batch-140-season-${theme}-1280x800.png`),
+      path: join(ARTIFACT_DIR, `batch-176-season-${theme}-1280x800.png`),
     });
   }
+  await alice.setViewportSize({ width: 390, height: 844 });
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(alice, theme);
+    await expectOneOrderedColumn(results.locator('> li').first(), results.locator('> li').nth(1));
+    await expectNoAxeViolations(alice);
+    await expectNoColourContrastViolations(alice);
+    await alice.screenshot({
+      path: join(ARTIFACT_DIR, `batch-176-season-${theme}-390x844.png`),
+    });
+  }
+  await aliceContext.unroute(resultsPattern);
+  await alice.setViewportSize({ width: 1280, height: 800 });
 
   // Batch 168. A 1280px display at 200% browser zoom produces a 640px CSS viewport.
   // The desktop bar must still be the compact 56px chrome there, without duplicating
