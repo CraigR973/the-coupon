@@ -82,6 +82,10 @@ apps/web/e2e/coupon-flow.spec.ts|await expectDesktopColumns(standings.locator('>
 apps/web/e2e/coupon-flow.spec.ts|expect(columns).toBe(2);
 EOF
       ;;
+    177) cat <<'EOF'
+apps/web/src/test/FootballPage.test.tsx|it('opens with every competition collapsed', async () => {
+EOF
+      ;;
     179) cat <<'EOF'
 apps/api/tests/test_admin_console.py|async def test_the_league_admin_reset_obeys_the_same_rule(client: AsyncClient) -> None:
 apps/api/tests/test_admin_console.py|assert response.status_code == 200, response.text
@@ -153,6 +157,7 @@ approved_oracle_paths() {
     173) echo "apps/web/src/test/CouponSection.test.tsx apps/web/src/test/PickRow.test.tsx" ;;
     175) echo "apps/web/src/test/CurrentRoundPage.test.tsx apps/web/src/test/TopBar.test.tsx apps/web/e2e/coupon-flow.spec.ts" ;;
     176) echo "apps/web/e2e/coupon-flow.spec.ts" ;;
+    177) echo "apps/web/src/test/FootballPage.test.tsx" ;;
     179) echo "apps/api/tests/test_admin_console.py" ;;
     181) echo "apps/api/tests/test_league_display_name.py apps/api/tests/test_league_write_access.py" ;;
     182) echo "apps/web/src/test/csp.test.ts" ;;
