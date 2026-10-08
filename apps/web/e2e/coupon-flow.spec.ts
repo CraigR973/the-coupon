@@ -473,6 +473,19 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   // tell "never left this device" from "may have landed". Nothing reaches the API while
   // offline; the browser's reconnect event flushes the held intent exactly once.
   await alice.context().setOffline(true);
+  await alice.setViewportSize({ width: 390, height: 844 });
+  const offlineBanner = alice.getByTestId('offline-banner');
+  await expect(offlineBanner).toBeVisible();
+  await alice.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect.poll(() => alice.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  const bannerPlacement = await alice.evaluate(() => ({
+    headerBottom: document.querySelector('header')!.getBoundingClientRect().bottom,
+    bannerTop: document.querySelector('[data-testid="offline-banner"]')!.getBoundingClientRect().top,
+  }));
+  expect(bannerPlacement.bannerTop).toBeGreaterThanOrEqual(bannerPlacement.headerBottom - 1);
+  expect(bannerPlacement.bannerTop).toBeLessThanOrEqual(bannerPlacement.headerBottom + 2);
+  await alice.screenshot({ path: join(ARTIFACT_DIR, 'batch-177-offline-sticky-390x844.png') });
+  await alice.setViewportSize({ width: 1280, height: 720 });
   await alice.getByRole('button', { name: /Arsenal.*1\.90.*win 19 pts/i }).click();
   await expect(alice.locator('[data-sonner-toast]').last()).toContainText('Saved on this phone');
   await expect(alice.getByTestId('outstanding-pick-notice')).toHaveAttribute('data-state', 'queued');
@@ -1293,6 +1306,10 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
     await setTheme(alice, theme);
     await expect(alice.getByTestId('home-hero')).toContainText('Hi Alice');
     await expect(alice.getByTestId('home-season-summary')).toContainText('19');
+    await expect(alice.getByTestId('home-season-summary').locator('dd')).toHaveCount(3);
+    for (const figure of await alice.getByTestId('home-season-summary').locator('dd').all()) {
+      await expect(figure).toHaveClass(/text-primary/);
+    }
     await expectTabBarSettled(alice, 'Home');
     await expectNoAxeViolations(alice);
     await expectNoColourContrastViolations(alice);
@@ -1308,6 +1325,14 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   await alice.goto('/football');
   await expectTabBarSettled(alice, 'Football');
   await expectSegmentedTabsSettled(alice);
+  const tableHeaders = alice.getByTestId('football-tables').locator('section > button');
+  await expect(tableHeaders.first()).toHaveAttribute('aria-expanded', 'true');
+  for (const header of await tableHeaders.all().then((headers) => headers.slice(1))) {
+    await expect(header).toHaveAttribute('aria-expanded', 'false');
+  }
+  await alice.screenshot({ path: join(ARTIFACT_DIR, 'batch-177-football-open-390x844.png') });
+  await tableHeaders.first().click();
+  await expect(tableHeaders.first()).toHaveAttribute('aria-expanded', 'false');
   await alice.goto('/');
 
   // The old "Football Stats" label only just fit at 390px and wrapped in a 64px tab at

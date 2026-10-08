@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -36,7 +37,7 @@ export function LeagueMembersPage() {
   const leaveTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const { data: members, isLoading, isError, refetch } = useQuery<LeagueMember[]>({
-    queryKey: ['league-members', slug],
+    queryKey: keys.league.members(slug),
     queryFn: () => apiFetch<LeagueMember[]>(`/api/v1/leagues/${slug}/members`),
   });
 
@@ -48,7 +49,7 @@ export function LeagueMembersPage() {
     try {
       await apiFetch(`/api/v1/leagues/${slug}/members/${playerId}/promote`, { method: 'POST' });
       toast.success('Member promoted to admin');
-      queryClient.invalidateQueries({ queryKey: ['league-members', slug] });
+      queryClient.invalidateQueries({ queryKey: keys.league.members(slug) });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to promote');
     } finally {
@@ -61,7 +62,7 @@ export function LeagueMembersPage() {
     try {
       await apiFetch(`/api/v1/leagues/${slug}/members/${playerId}/demote`, { method: 'POST' });
       toast.success('Admin demoted to player');
-      queryClient.invalidateQueries({ queryKey: ['league-members', slug] });
+      queryClient.invalidateQueries({ queryKey: keys.league.members(slug) });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to demote');
     } finally {
@@ -78,7 +79,7 @@ export function LeagueMembersPage() {
       toast.success(`${name} removed`);
       setRemoveTarget(null);
       setRemoveConfirm('');
-      queryClient.invalidateQueries({ queryKey: ['league-members', slug] });
+      queryClient.invalidateQueries({ queryKey: keys.league.members(slug) });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to remove member');
     } finally {
@@ -92,7 +93,7 @@ export function LeagueMembersPage() {
       toast.success('Left the league');
       setShowLeaveDialog(false);
       setLeaveConfirm('');
-      queryClient.invalidateQueries({ queryKey: ['leagues', 'mine'] });
+      queryClient.invalidateQueries({ queryKey: keys.leagues.mine() });
       window.location.href = '/leagues';
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';

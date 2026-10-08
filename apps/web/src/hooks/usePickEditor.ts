@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -20,12 +21,12 @@ import type {
 // through the season — without it, viewing a past week would poison the cache
 // entry the current week reads from. `undefined` is the "latest" entry.
 export const gameweekKey = (slug: string, gameweekId?: string) =>
-  ['gameweek', slug, gameweekId] as const;
+  keys.gameweek.detail(slug, gameweekId);
 export const couponKey = (slug: string, gameweekId?: string) =>
-  ['coupon', slug, gameweekId] as const;
-export const gameweekListKey = (slug: string) => ['gameweeks', slug] as const;
+  keys.coupon.detail(slug, gameweekId);
+export const gameweekListKey = (slug: string) => keys.gameweek.list(slug);
 export const myPickKey = (slug: string, gameweekId: string | undefined) =>
-  ['my-pick', slug, gameweekId] as const;
+  keys.myPick(slug, gameweekId);
 
 /**
  * How long a submission may go unanswered before we stop waiting on it.
@@ -318,8 +319,8 @@ export function usePickEditor(
   const invalidate = useCallback(() => {
     // Prefix-matched, so every gameweek's entry for this league is refreshed —
     // a grab changes the season list's pick counts as well as this week's slate.
-    void queryClient.invalidateQueries({ queryKey: ['gameweek', slug] });
-    void queryClient.invalidateQueries({ queryKey: ['coupon', slug] });
+    void queryClient.invalidateQueries({ queryKey: keys.gameweek.all(slug) });
+    void queryClient.invalidateQueries({ queryKey: keys.coupon.all(slug) });
     void queryClient.invalidateQueries({ queryKey: gameweekListKey(slug) });
     void queryClient.invalidateQueries({ queryKey: myPickKey(slug, gameweekId) });
   }, [queryClient, slug, gameweekId]);

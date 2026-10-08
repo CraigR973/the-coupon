@@ -94,7 +94,7 @@ function LeagueCard({
 
 export function MyLeaguesPage() {
   const { data: leagues, isLoading, isError, refetch } = useQuery<LeagueSummary[]>({
-    queryKey: ['leagues', 'mine'],
+    queryKey: keys.leagues.mine(),
     queryFn: () => apiFetch<LeagueSummary[]>('/api/v1/leagues/mine'),
   });
   const lastViewed = getLastViewedLeague();

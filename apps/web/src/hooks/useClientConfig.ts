@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
 
@@ -29,7 +30,7 @@ const NONE: ClientConfig = { avatarUploads: false };
  */
 export function useClientConfig(): ClientConfig {
   const { data } = useQuery({
-    queryKey: ['client-config'],
+    queryKey: keys.clientConfig(),
     queryFn: async (): Promise<ClientConfig> => {
       const config = await apiFetch<ClientConfigResponse>('/api/v1/config');
       return { avatarUploads: config.avatar_uploads === true };

@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -11,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/PageHeader';
 import { AdminNav } from './AdminNav';
 
-const LEAGUES_KEY = ['admin-leagues'];
+const LEAGUES_KEY = keys.admin.leagues();
 
 const PRIVACY_LABEL: Record<AdminLeague['privacy'], string> = {
   public_open: 'Open',

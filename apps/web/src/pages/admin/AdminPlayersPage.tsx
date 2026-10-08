@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -23,7 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import { AdminNav } from './AdminNav';
 
-const PLAYERS_KEY = ['admin-players'];
+const PLAYERS_KEY = keys.admin.players();
 
 /**
  * The screen the PIN-reset notification finally has somewhere to land.

@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -17,7 +18,7 @@ export function LeagueJoinRequestsPage() {
   const [actingOn, setActingOn] = useState<string | null>(null);
 
   const { data: requests, isLoading } = useQuery<JoinRequest[]>({
-    queryKey: ['league-join-requests', slug],
+    queryKey: keys.league.joinRequests(slug),
     queryFn: () => apiFetch<JoinRequest[]>(`/api/v1/leagues/${slug}/join-requests`),
   });
 
@@ -28,8 +29,8 @@ export function LeagueJoinRequestsPage() {
     try {
       await apiFetch(`/api/v1/leagues/${slug}/join-requests/${id}/approve`, { method: 'POST' });
       toast.success('Request approved');
-      queryClient.invalidateQueries({ queryKey: ['league-join-requests', slug] });
-      queryClient.invalidateQueries({ queryKey: ['league-members', slug] });
+      queryClient.invalidateQueries({ queryKey: keys.league.joinRequests(slug) });
+      queryClient.invalidateQueries({ queryKey: keys.league.members(slug) });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to approve');
     } finally {
@@ -42,7 +43,7 @@ export function LeagueJoinRequestsPage() {
     try {
       await apiFetch(`/api/v1/leagues/${slug}/join-requests/${id}/reject`, { method: 'POST' });
       toast.success('Request rejected');
-      queryClient.invalidateQueries({ queryKey: ['league-join-requests', slug] });
+      queryClient.invalidateQueries({ queryKey: keys.league.joinRequests(slug) });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to reject');
     } finally {

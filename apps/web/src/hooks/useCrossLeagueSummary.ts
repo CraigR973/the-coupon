@@ -1,8 +1,9 @@
+import { keys } from '@/lib/queryKeys';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
 import type { CrossLeagueSummary } from '../lib/types';
 
-export const crossLeagueSummaryKey = ['me', 'cross-league-summary'] as const;
+export const crossLeagueSummaryKey = keys.me.crossLeagueSummary();
 
 /**
  * The member's season across every league they play.

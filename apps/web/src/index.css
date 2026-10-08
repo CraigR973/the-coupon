@@ -410,6 +410,12 @@
 }
 
 @layer utilities {
+  /* Login paints its body UI with the system face. Only the preloaded wordmark
+     requests a web font; the two Outfit faces remain available after sign-in. */
+  .login-shell, .login-shell :not(.font-mono) {
+    font-family: system-ui, sans-serif;
+  }
+
   .font-mono-custom {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
   }

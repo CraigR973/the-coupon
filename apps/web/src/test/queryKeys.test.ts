@@ -68,7 +68,8 @@ describe('the standings key', () => {
     const client = new QueryClient();
     client.setQueryData(keys.standings.forSeason('the-coupon', null), ['table']);
 
-    await client.invalidateQueries({ queryKey: ['leaderboard', 'the-coupon'] });
+    const obsoleteLeaderboardKey = ['leaderboard', 'the-coupon'];
+    await client.invalidateQueries({ queryKey: obsoleteLeaderboardKey });
     expect(
       client.getQueryCache().getAll().every((q) => !q.isStale()),
       'the old key matched something — this test no longer proves anything',

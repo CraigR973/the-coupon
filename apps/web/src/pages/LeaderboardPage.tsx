@@ -32,7 +32,7 @@ export function LeaderboardPage() {
   const season = seasonParam !== null && /^\d+$/.test(seasonParam) ? Number(seasonParam) : null;
 
   const { data: league } = useQuery<LeagueDetail>({
-    queryKey: ['league', slug],
+    queryKey: keys.league.detail(slug),
     queryFn: () => apiFetch<LeagueDetail>(`/api/v1/leagues/${slug}`),
     staleTime: 60_000,
   });

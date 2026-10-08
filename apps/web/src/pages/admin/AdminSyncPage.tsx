@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -12,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/PageHeader';
 import { AdminNav } from './AdminNav';
 
-const JOBS_KEY = ['admin-jobs'];
+const JOBS_KEY = keys.admin.jobs();
 
 function when(iso: string | null): string {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -59,7 +60,7 @@ export function SyncPage() {
       if (result.ok) toast.success(`${job.label} finished`);
       else toast.error(`${job.label} ran and reported a failure — check the logs`);
       void queryClient.invalidateQueries({ queryKey: JOBS_KEY });
-      void queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      void queryClient.invalidateQueries({ queryKey: keys.admin.dashboard() });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not run that job');
     } finally {

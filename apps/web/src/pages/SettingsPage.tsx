@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -202,7 +203,7 @@ function PreferencesSection() {
   const queryClient = useQueryClient();
 
   const { data: prefs, isLoading } = useQuery<NotificationPreferences>({
-    queryKey: ['notification-preferences'],
+    queryKey: keys.notificationPreferences(),
     queryFn: () => apiFetch('/api/v1/notifications/preferences'),
   });
 
@@ -213,7 +214,7 @@ function PreferencesSection() {
         body: JSON.stringify(patch),
       }),
     onSuccess: (updated) => {
-      queryClient.setQueryData(['notification-preferences'], updated);
+      queryClient.setQueryData(keys.notificationPreferences(), updated);
     },
     onError: () => toast.error('Failed to save preferences'),
   });

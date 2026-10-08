@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -21,12 +22,12 @@ export function LeagueAdminInvitesPage() {
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const { data: league } = useQuery<LeagueDetail>({
-    queryKey: ['league', slug],
+    queryKey: keys.league.detail(slug),
     queryFn: () => apiFetch<LeagueDetail>(`/api/v1/leagues/${slug}`),
   });
 
   const { data: invites, isLoading } = useQuery<LeagueInvite[]>({
-    queryKey: ['league-invites', slug],
+    queryKey: keys.league.invites(slug),
     queryFn: () => apiFetch<LeagueInvite[]>(`/api/v1/leagues/${slug}/invites`),
   });
 
@@ -67,7 +68,7 @@ export function LeagueAdminInvitesPage() {
       });
       if (resp.ok) {
         const data = await resp.json() as { join_code: string };
-        queryClient.setQueryData(['league', slug], (old: LeagueDetail | undefined) =>
+        queryClient.setQueryData(keys.league.detail(slug), (old: LeagueDetail | undefined) =>
           old ? { ...old, join_code: data.join_code } : old,
         );
         toast.success('New join code generated');
@@ -90,7 +91,7 @@ export function LeagueAdminInvitesPage() {
         body: JSON.stringify({}),
       });
       toast.success('Invite created');
-      queryClient.invalidateQueries({ queryKey: ['league-invites', slug] });
+      queryClient.invalidateQueries({ queryKey: keys.league.invites(slug) });
       const joinUrl = `${window.location.origin}/join/${invite.token}`;
       await navigator.clipboard.writeText(joinUrl).catch(() => {});
       toast.info('Join link copied to clipboard');
@@ -106,7 +107,7 @@ export function LeagueAdminInvitesPage() {
     try {
       await apiFetch(`/api/v1/leagues/${slug}/invites/${id}`, { method: 'DELETE' });
       toast.success('Invite revoked');
-      queryClient.invalidateQueries({ queryKey: ['league-invites', slug] });
+      queryClient.invalidateQueries({ queryKey: keys.league.invites(slug) });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to revoke');
     } finally {

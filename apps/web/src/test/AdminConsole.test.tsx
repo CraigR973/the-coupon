@@ -227,6 +227,10 @@ describe('the wrapper the pages share', () => {
       </MemoryRouter>,
     );
     const links = markup.getAllByRole('link').map((a) => a.getAttribute('href'));
+    const strip = markup.getByRole('navigation', { name: 'Site admin' });
+    expect(strip.className).toContain('overflow-x-auto');
+    expect(strip.className).toContain('flex-nowrap');
+    expect(markup.getAllByRole('link').every((link) => link.className.includes('shrink-0'))).toBe(true);
     expect(links).toEqual([
       '/admin/dashboard',
       '/admin/calendar',

@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -47,14 +48,14 @@ export function LeagueSettingsPage() {
   const timezone = player?.timezone ?? 'UTC';
 
   const { data: league } = useQuery<LeagueSummary>({
-    queryKey: ['league', slug],
+    queryKey: keys.league.detail(slug),
     queryFn: () => apiFetch<LeagueSummary>(`/api/v1/leagues/${slug}`),
   });
 
   // The competition picker's catalogue — admin-only, and the provider memoises it, so
   // opening settings costs no upstream request on the common path.
   const { data: catalogue } = useQuery<CompetitionCatalogue>({
-    queryKey: ['league', slug, 'competitions'],
+    queryKey: keys.league.competitions(slug),
     queryFn: () => apiFetch<CompetitionCatalogue>(`/api/v1/leagues/${slug}/competitions`),
   });
 
@@ -68,7 +69,7 @@ export function LeagueSettingsPage() {
   });
 
   const { data: joinRequests, isSuccess: joinRequestsLoaded } = useQuery<JoinRequest[]>({
-    queryKey: ['league-join-requests', slug],
+    queryKey: keys.league.joinRequests(slug),
     queryFn: () => apiFetch<JoinRequest[]>(`/api/v1/leagues/${slug}/join-requests`),
   });
 
@@ -220,9 +221,9 @@ export function LeagueSettingsPage() {
 
       await apiFetch(`/api/v1/leagues/${slug}`, { method: 'PATCH', body: JSON.stringify(body) });
       toast.success('League settings saved');
-      queryClient.invalidateQueries({ queryKey: ['league', slug] });
-      queryClient.invalidateQueries({ queryKey: ['leagues', 'mine'] });
-      queryClient.invalidateQueries({ queryKey: ['league-join-requests', slug] });
+      queryClient.invalidateQueries({ queryKey: keys.league.detail(slug) });
+      queryClient.invalidateQueries({ queryKey: keys.leagues.mine() });
+      queryClient.invalidateQueries({ queryKey: keys.league.joinRequests(slug) });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save';
       toast.error(
@@ -286,7 +287,7 @@ export function LeagueSettingsPage() {
     try {
       await apiFetch(`/api/v1/leagues/${slug}`, { method: 'DELETE' });
       toast.success('League deleted');
-      queryClient.invalidateQueries({ queryKey: ['leagues', 'mine'] });
+      queryClient.invalidateQueries({ queryKey: keys.leagues.mine() });
       navigate('/leagues', { replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete');

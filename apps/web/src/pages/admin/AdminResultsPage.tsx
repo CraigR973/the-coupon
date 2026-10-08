@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -12,8 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/PageHeader';
 import { AdminNav } from './AdminNav';
 
-const PENDING_KEY = ['admin-pending-results'];
-const SETTLED_KEY = ['admin-settled-fixtures'];
+const PENDING_KEY = keys.admin.pendingResults();
+const SETTLED_KEY = keys.admin.settledFixtures();
 
 type Entry = { home: string; away: string; void: boolean };
 type Correction = Entry & { reason: string };
@@ -82,7 +83,7 @@ export function AdminResultsPage() {
           (outcome.settled ? ' — the round is settled' : ' — some are still pending'),
       );
       void queryClient.invalidateQueries({ queryKey: PENDING_KEY });
-      void queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      void queryClient.invalidateQueries({ queryKey: keys.admin.dashboard() });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not settle that round');
     } finally {
@@ -264,7 +265,7 @@ function CorrectSettledResult() {
       );
       toast.success(correctionSummary(outcome));
       void queryClient.invalidateQueries({ queryKey: SETTLED_KEY });
-      void queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      void queryClient.invalidateQueries({ queryKey: keys.admin.dashboard() });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not correct that result');
     } finally {

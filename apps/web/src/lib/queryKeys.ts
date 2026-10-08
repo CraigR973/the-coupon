@@ -35,6 +35,9 @@ export const keys = {
     members: (slug: string) => ['league-members', slug] as const,
     /** Its own root today — see the note above. */
     seasons: (slug: string) => ['seasons', slug] as const,
+    joinRequests: (slug: string) => ['league-join-requests', slug] as const,
+    invites: (slug: string) => ['league-invites', slug] as const,
+    auditLog: (slug: string, page: number) => ['league-audit-log', slug, page] as const,
   },
 
   standings: {
@@ -55,5 +58,40 @@ export const keys = {
   leagues: {
     /** Every league the signed-in member belongs to. */
     mine: () => ['leagues', 'mine'] as const,
+    discover: () => ['leagues', 'discover'] as const,
   },
+  football: {
+    tables: (season?: number) => ['football', 'tables', season ?? 'default'] as const,
+    results: () => ['football', 'results'] as const,
+    teamSeason: (teamId: string, competition: string, season?: number) =>
+      ['football', 'team-season', teamId, competition, season ?? 'default'] as const,
+  },
+  playerProfile: (slug: string, playerId: string) => ['player-profile', slug, playerId] as const,
+  results: (slug: string) => ['results', slug] as const,
+  notificationPreferences: () => ['notification-preferences'] as const,
+  clientConfig: () => ['client-config'] as const,
+  admin: {
+    dashboard: () => ['admin-dashboard'] as const,
+    leagues: () => ['admin-leagues'] as const,
+    invites: () => ['admin-invites'] as const,
+    jobs: () => ['admin-jobs'] as const,
+    players: () => ['admin-players'] as const,
+    pendingResults: () => ['admin-pending-results'] as const,
+    settledFixtures: () => ['admin-settled-fixtures'] as const,
+  },
+  me: {
+    crossLeagueSummary: () => ['me', 'cross-league-summary'] as const,
+    pinEvents: () => ['me', 'pin-events'] as const,
+    renameNotice: () => ['me', 'rename-notice'] as const,
+  },
+  gameweek: {
+    all: (slug: string) => ['gameweek', slug] as const,
+    detail: (slug: string, gameweekId?: string) => ['gameweek', slug, gameweekId] as const,
+    list: (slug: string) => ['gameweeks', slug] as const,
+  },
+  coupon: {
+    all: (slug: string) => ['coupon', slug] as const,
+    detail: (slug: string, gameweekId?: string) => ['coupon', slug, gameweekId] as const,
+  },
+  myPick: (slug: string, gameweekId: string | undefined) => ['my-pick', slug, gameweekId] as const,
 } as const;

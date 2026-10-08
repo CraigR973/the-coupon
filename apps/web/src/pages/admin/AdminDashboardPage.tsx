@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
@@ -26,7 +27,7 @@ function when(iso: string | null): string {
  */
 export function AdminDashboardPage() {
   const { data, isLoading, isError, refetch } = useQuery<AdminDashboard>({
-    queryKey: ['admin-dashboard'],
+    queryKey: keys.admin.dashboard(),
     queryFn: () => apiFetch<AdminDashboard>('/api/v1/admin/dashboard'),
     refetchInterval: 60_000,
   });

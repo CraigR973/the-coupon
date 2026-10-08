@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -11,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/PageHeader';
 import { AdminNav } from './AdminNav';
 
-const INVITES_KEY = ['admin-invites'];
+const INVITES_KEY = keys.admin.invites();
 
 /**
  * Every invite in the product, live and spent.

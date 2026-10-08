@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import React, {
   createContext,
   useCallback,
@@ -48,13 +49,13 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
   const { data: leagues = [], isLoading } = useQuery<LeagueSummary[]>({
-    queryKey: ['leagues', 'mine'],
+    queryKey: keys.leagues.mine(),
     queryFn: () => apiFetch<LeagueSummary[]>('/api/v1/leagues/mine'),
     staleTime: 60_000,
   });
 
   const refetchLeagues = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['leagues', 'mine'] });
+    queryClient.invalidateQueries({ queryKey: keys.leagues.mine() });
   }, [queryClient]);
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);

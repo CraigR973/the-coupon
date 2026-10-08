@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -101,7 +102,7 @@ export function FootballPage() {
   );
 
   const tables = useQuery<CompetitionTable[]>({
-    queryKey: ['football', 'tables', season ?? 'default'],
+    queryKey: keys.football.tables(season),
     queryFn: () =>
       apiFetch<CompetitionTable[]>(
         season === undefined ? '/api/v1/football/tables' : `/api/v1/football/tables?season=${season}`,
@@ -109,7 +110,7 @@ export function FootballPage() {
     staleTime: 5 * 60_000,
   });
   const results = useQuery<ResultEntry[]>({
-    queryKey: ['football', 'results'],
+    queryKey: keys.football.results(),
     queryFn: () => apiFetch<ResultEntry[]>('/api/v1/football/results'),
     staleTime: 5 * 60_000,
   });

@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useState } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
@@ -85,7 +86,7 @@ export function LeagueAuditLogPage() {
   const [page, setPage] = useState(1);
 
   const { data, isLoading, isError, refetch } = useQuery<LeagueAuditLogResponse>({
-    queryKey: ['league-audit-log', slug, page],
+    queryKey: keys.league.auditLog(slug, page),
     queryFn: () =>
       apiFetch<LeagueAuditLogResponse>(`/api/v1/leagues/${slug}/audit-log?page=${page}`),
     // The list is a history, so the previous page staying on screen while the next one

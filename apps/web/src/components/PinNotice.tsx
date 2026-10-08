@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
@@ -14,7 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const PIN_EVENTS_KEY = ['me', 'pin-events'] as const;
+const PIN_EVENTS_KEY = keys.me.pinEvents();
 
 /** Where this device remembers the newest reset or set it has shown one member. */
 function seenKey(playerId: string): string {

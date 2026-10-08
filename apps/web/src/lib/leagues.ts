@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 /**
  * Shared league helpers — privacy labels, etc.
  * Single source of truth: update here, both pages stay in sync.
@@ -199,5 +200,5 @@ export function isLeagueHubPath(pathname: string): boolean {
  * shows its skeleton and then the coupon.
  */
 export function dropStaleMemberships(queryClient: QueryClient): void {
-  queryClient.removeQueries({ queryKey: ['leagues', 'mine'] });
+  queryClient.removeQueries({ queryKey: keys.leagues.mine() });
 }

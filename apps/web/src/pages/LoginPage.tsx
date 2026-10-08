@@ -53,7 +53,7 @@ export function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-bg flex flex-col items-center justify-center p-4 pt-safe pb-safe">
+    <main className="login-shell min-h-screen bg-bg flex flex-col items-center justify-center p-4 pt-safe pb-safe">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
           <Brand variant="splash" />

@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -32,7 +33,7 @@ export function DiscoverLeaguesPage() {
   const [joiningSlug, setJoiningSlug] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<DiscoverResponse>({
-    queryKey: ['leagues', 'discover'],
+    queryKey: keys.leagues.discover(),
     queryFn: () => apiFetch<DiscoverResponse>('/api/v1/leagues/discover'),
   });
 
@@ -45,7 +46,7 @@ export function DiscoverLeaguesPage() {
       if (privacy === 'public_open') {
         toast.success('Joined league!');
         dropStaleMemberships(queryClient);
-        queryClient.invalidateQueries({ queryKey: ['leagues', 'discover'] });
+        queryClient.invalidateQueries({ queryKey: keys.leagues.discover() });
       } else {
         toast.success('Join request sent — waiting for admin approval.');
       }

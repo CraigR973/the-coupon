@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
@@ -43,7 +44,7 @@ export function ResultsPage() {
     error,
     refetch,
   } = useQuery<GameweekResult[]>({
-    queryKey: ['results', slug],
+    queryKey: keys.results(slug),
     queryFn: () => apiFetch<GameweekResult[]>(`/api/v1/leagues/${slug}/results`),
     staleTime: 30_000,
     enabled: hasLeagues,

@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useMemo } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -49,7 +50,7 @@ export function TeamSeasonPage() {
   const season = Number.isFinite(seasonParam) && seasonParam > 0 ? seasonParam : undefined;
 
   const query = useQuery<TeamSeason>({
-    queryKey: ['football', 'team-season', teamId, competition, season ?? 'default'],
+    queryKey: keys.football.teamSeason(teamId, competition, season),
     queryFn: () => {
       const search = new URLSearchParams({ competition });
       if (season !== undefined) search.set('season', String(season));

@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
@@ -40,7 +41,7 @@ export function PlayerProfilePage() {
     isLoading,
     isError,
   } = useQuery<PlayerProfile>({
-    queryKey: ['player-profile', slug, playerId],
+    queryKey: keys.playerProfile(slug, playerId),
     queryFn: () =>
       apiFetch<PlayerProfile>(`/api/v1/leagues/${slug}/players/${playerId}/profile`),
     staleTime: 30_000,

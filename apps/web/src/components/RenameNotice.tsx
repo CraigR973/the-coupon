@@ -1,3 +1,4 @@
+import { keys } from '@/lib/queryKeys';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import type { RenameNoticeState } from '@/lib/types';
@@ -11,7 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const RENAME_NOTICE_KEY = ['me', 'rename-notice'] as const;
+const RENAME_NOTICE_KEY = keys.me.renameNotice();
 
 /**
  * Tells a renamed member their sign-in name changed, when push could not. Batch 148.

@@ -97,8 +97,8 @@ export function LeagueActionsMenu({
         body: JSON.stringify({ confirm_name: deleteConfirm }),
       });
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['leagues', 'mine'] }),
-        queryClient.invalidateQueries({ queryKey: ['league', slug] }),
+        queryClient.invalidateQueries({ queryKey: keys.leagues.mine() }),
+        queryClient.invalidateQueries({ queryKey: keys.league.detail(slug) }),
       ]);
       toast.success('League deleted');
       navigate('/leagues', { replace: true });
