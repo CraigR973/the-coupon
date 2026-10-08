@@ -276,7 +276,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Verification: captures of each; no inline `queryKey: [` left in `src`; cold `/login` font
   bytes measured before and after.
 
-  **Oracle change approved (owner, 2026-10-08):** this batch may replace only the
+  **Oracle changes approved (owner, 2026-10-08):** this batch may replace only the
   old all-collapsed test title fingerprinted in trusted main in
   `apps/web/src/test/FootballPage.test.tsx`. The replacement must prove the first
   table opens by default, other tables stay closed, and the member can collapse the
