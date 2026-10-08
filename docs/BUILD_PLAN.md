@@ -251,6 +251,13 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Verification: captures at 390 and 1280 in both themes; axe clean; the season selector and
   the Batch 165 query keys unchanged.
 
+  **Oracle changes approved (owner, 2026-10-08):** this batch may replace only the
+  two desktop two-column assertions fingerprinted in trusted main in
+  `apps/web/e2e/coupon-flow.spec.ts`: the standings side-by-side check and the results
+  grid-column count. Replacements must prove one ordered column at 390 and 1280 in both
+  themes while preserving the existing season, navigation, axe and contrast checks.
+  Every other browser assertion remains protected.
+
   Scope boundary: the standings and results layouts. **Web-only — needs Batch 171's tint
   tokens for the own-row tint.**
 

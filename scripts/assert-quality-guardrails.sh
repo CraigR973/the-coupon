@@ -77,6 +77,11 @@ apps/web/src/test/TopBar.test.tsx|expect(header?.className).toContain('pt-[calc(
 apps/web/src/test/TopBar.test.tsx|expect(navRow?.className).toContain('h-16');
 EOF
       ;;
+    176) cat <<'EOF'
+apps/web/e2e/coupon-flow.spec.ts|await expectDesktopColumns(standings.locator('> li').first(), standings.locator('> li').nth(1));
+apps/web/e2e/coupon-flow.spec.ts|expect(columns).toBe(2);
+EOF
+      ;;
     179) cat <<'EOF'
 apps/api/tests/test_admin_console.py|async def test_the_league_admin_reset_obeys_the_same_rule(client: AsyncClient) -> None:
 apps/api/tests/test_admin_console.py|assert response.status_code == 200, response.text
@@ -147,6 +152,7 @@ approved_oracle_paths() {
   case "$1" in
     173) echo "apps/web/src/test/CouponSection.test.tsx apps/web/src/test/PickRow.test.tsx" ;;
     175) echo "apps/web/src/test/CurrentRoundPage.test.tsx apps/web/src/test/TopBar.test.tsx apps/web/e2e/coupon-flow.spec.ts" ;;
+    176) echo "apps/web/e2e/coupon-flow.spec.ts" ;;
     179) echo "apps/api/tests/test_admin_console.py" ;;
     181) echo "apps/api/tests/test_league_display_name.py apps/api/tests/test_league_write_access.py" ;;
     182) echo "apps/web/src/test/csp.test.ts" ;;
