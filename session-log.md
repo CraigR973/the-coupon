@@ -8572,3 +8572,12 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
 
 **Next:** Batch 177 — web consistency and performance residue.
+
+## Gate maintenance — Batch 177 first-table oracle approval
+**Commit:** `dbab50e` · owner-approved 8 Oct 2026 · CI: https://github.com/CraigR973/the-coupon/actions/runs/37770164970 failed at the expected old-trusted-guard comparison; production-bundle smoke and seeded coupon journey passed
+
+### Key facts for future sessions
+- Batch 177 may replace only the old all-collapsed test title in `apps/web/src/test/FootballPage.test.tsx`. The replacement must prove the first table opens by default, other tables stay closed, and the first table can be collapsed. The existing collapsed-state assertion remains protected.
+- The gate refused only the protected guard-table change. No application code, API contract, database schema or production data changed.
+
+**Next:** Implement Batch 177 after this documentation attestation passes exact-SHA CI.
