@@ -8593,3 +8593,15 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
 
 **Next:** Batch 178 — installed-app shell and icon palette.
+
+## Batch 178 — Installed-app shell and icon palette
+**Commit:** `f13934c` · verified: complete 12-check local gate, 1,419 backend and 1,298 frontend tests, zero skips, 38 production-bundle checks and seeded browser journey PASS · CI: https://github.com/CraigR973/the-coupon/actions/runs/37831738793 PASS for `f13934caea91d02e6903a194d61f5be24fb0b524`
+
+### Key facts for future sessions
+- The manifest now identifies `/`, uses near-black `#0B0E13` for launch surfaces, and offers labelled 390 px phone and 1280 px desktop sign-in screenshots. The emerald ticket icon has a separate full-bleed maskable version whose content fits the guaranteed safe circle. The deleted font is absent from the asset list.
+- Dark and light theme-colour metas follow the stored or system theme before React mounts and during later switches; the inline-script CSP hash was updated for production and staging. The screenshot rewrite now serves PNGs rather than the SPA document. The live manifest and all three image assets returned 200 after GitHub production deployment `6944760442` succeeded.
+- The browser journey captured 390 px installed views in both themes with simulated 59 px top and 34 px bottom safe areas, measuring a 112 px header and 95 px tab bar. Circle and squircle icon-mask previews were inspected. Native iOS/WebKit rendering remains unverified.
+- Failures and fixes: a focused production-bundle test initially treated a rewrite regexp as an unanchored match, so it now anchors the route; the first full gate found the frontend count 1 short, so the ratchet was raised to the actual 1,298; the second gate found that the offline-banner scroll probe sometimes had no scrollable page, so its setup now creates scroll space and still checks a 200 px scroll. The focused checks and third complete gate passed; no protected oracle was weakened.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+**Next:** Group AB complete; Group AF is next in the recorded sequence.

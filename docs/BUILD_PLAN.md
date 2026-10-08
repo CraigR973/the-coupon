@@ -284,7 +284,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: these six. **Web-only.**
 
-- [ ] **Batch 178 — The installed app does not look like the app**
+- [x] **Batch 178 — The installed app does not look like the app** ✅ 2026-10-08
   — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-18 (med; files and
   geometry verified, on-device rendering plausible — no WebKit here). The manifest and splash
   are navy `#071A3D` with paper and gold while the app is near-black with emerald; the

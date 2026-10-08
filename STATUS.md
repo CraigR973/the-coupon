@@ -15,7 +15,7 @@ Checked 2026-10-07 unless a line says otherwise.
 | --- | --- |
 | API | `api-production-109b1.up.railway.app` serves `c530469` at migration `026` |
 | API deployment | Railway `3219c196-8b5e-40b8-8558-d313d901faf6`, one replica, `europe-west4` |
-| Web | Batch 177 implementation `9cba908` has a successful exact-SHA GitHub production deployment (`6937429389`, checked 8 Oct); Vercel builds `main` on every push |
+| Web | Batch 178 implementation `f13934c` has a successful exact-SHA GitHub production deployment (`6944760442`, checked 8 Oct); Vercel builds `main` on every push |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -76,8 +76,8 @@ shipped and verified (180, 179, 181 and 182; shipped 3 Oct as `9be47cef`). Group
 checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188), and its closing checkpoint
 shipped on 5 Oct as `546db3f` (Batches 184-187 and fix `f0710b0`); Group AD is complete. Batch
 204 (docs-only close-out fast path, owner-approved gate maintenance) is complete. Group AE is
-complete, shipped and verified (Batches 189–193; shipped 7 Oct as `c530469`); Group AB's Batch
-171 is complete, with 175 next; Groups AF and AH follow
+complete, shipped and verified (Batches 189–193; shipped 7 Oct as `c530469`); Group AB is
+complete (Batches 171, 175–178; web-only, closed 8 Oct); Groups AF and AH follow
 (`docs/agent-commands/group-start.md`).
 
 ## Toolchain
@@ -120,5 +120,5 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Group AB Batch 177 (web consistency and performance); and the owner's
+**Next:** Group AF (security and integration); and the owner's
 season-calendar backfill, now unblocked.
