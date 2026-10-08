@@ -8552,3 +8552,12 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
 
 **Next:** Batch 176 — single-column standings and results.
+
+## Gate maintenance — Batch 176 ranking-order oracle approval
+**Commit:** `f66e908` · owner-approved 8 Oct 2026 · CI: https://github.com/CraigR973/the-coupon/actions/runs/37762451184 failed at the expected old-trusted-guard comparison; production-bundle smoke and seeded coupon journey passed
+
+### Key facts for future sessions
+- Batch 176 may replace only the two fingerprinted desktop two-column assertions in `apps/web/e2e/coupon-flow.spec.ts`. The replacement must prove one ordered column at 390 and 1280 in both themes; season, navigation, axe and contrast checks remain.
+- The gate refused only the protected guard-table change. No application code, API contract, database schema or production data changed.
+
+**Next:** Implement Batch 176 after this documentation attestation passes exact-SHA CI.
