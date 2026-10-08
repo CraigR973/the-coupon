@@ -115,15 +115,15 @@ describe('TopBar avatar menu', () => {
     });
   });
 
-  it('adds extra iPhone safe-area clearance on the mobile header', () => {
+  it('uses safe-area padding and a 52px mobile header', () => {
     const { container } = renderTopBar();
 
     const header = container.querySelector('header');
     const mobileBrandLink = container.querySelector('a[aria-label="Home"].absolute');
     const navRow = container.querySelector('header > div');
 
-    expect(header?.className).toContain('pt-[calc(env(safe-area-inset-top,0px)+1rem)]');
-    expect(navRow?.className).toContain('h-16');
+    expect(header?.className).toContain('pt-safe');
+    expect(navRow?.className).toContain('h-[52px]');
     expect(mobileBrandLink?.className).toContain('inset-y-0');
   });
 

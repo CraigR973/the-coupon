@@ -514,6 +514,9 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   for (const theme of ['dark', 'light'] as const) {
     await setTheme(carol, theme);
     await waitForSettledPage(carol);
+    const headerRowBox = await carol.locator('header > div').first().boundingBox();
+    expect(headerRowBox).not.toBeNull();
+    expect(headerRowBox!.height, 'the phone header row is 52px').toBe(52);
     const slate = carol.getByTestId('slate-section');
     const coupon = carol.getByTestId('coupon-section');
     const [slateBox, couponBox] = await Promise.all([slate.boundingBox(), coupon.boundingBox()]);
