@@ -479,6 +479,9 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   }
   await alice.setViewportSize({ width: 1280, height: 720 });
   await setTheme(alice, 'dark');
+  // setTheme reloads the page. The offline test begins only after the pick slate is
+  // back on screen, so it proves queuing a visible pick rather than racing its fetch.
+  await expect(alice.getByRole('button', { name: /Arsenal.*1\.90.*win 19 pts/i })).toBeVisible();
   let alicePickPosts = 0;
   alice.on('request', (outgoing) => {
     if (outgoing.method() === 'POST' && outgoing.url().endsWith('/api/v1/leagues/the-coupon/picks')) {
