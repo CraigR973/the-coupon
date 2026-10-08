@@ -8561,3 +8561,14 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - The gate refused only the protected guard-table change. No application code, API contract, database schema or production data changed.
 
 **Next:** Implement Batch 176 after this documentation attestation passes exact-SHA CI.
+
+## Batch 176 — Ordered standings and results
+**Commit:** `3eb2f19` · verified: complete 12-check local gate, 1,419 backend and 1,296 frontend tests, zero skips, production-bundle smoke and seeded browser journey PASS · CI: https://github.com/CraigR973/the-coupon/actions/runs/37767623284 PASS for `3eb2f1923f3ff2abafa244d6d5653d50cd29b701`
+
+### Key facts for future sessions
+- Standings and results are one ordered column at phone and desktop widths. Standing rows are 52 px at 390, with rank, member, form and 17 px/600 points; desktop also shows played, won and average odds. Ranks 1–3 have 3 px medal bars, and the member's row uses the primary tint. The compact row omits the avatar but retains form points, win counts and the void-odds denominator note.
+- The seeded browser journey captured both views at 390 and 1280 in light and dark themes. It checked geometry, points typography, medal width, result order, axe and contrast. The season selector, copy action, result navigation and Batch 165 standings query keys stayed intact.
+- The first complete gate passed backend, frontend and production-bundle checks, then caught a transient 3.12 px x-offset while measuring results immediately after a theme reload. The geometry assertion now polls for settled alignment and still fails if the final rows are not one column; a focused journey and the following complete gate passed. No other gate failure occurred.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+**Next:** Batch 177 — web consistency and performance residue.

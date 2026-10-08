@@ -239,7 +239,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: the round screen's chrome and selection button. Other league screens adopt
   the context row in a follow-up. **Web-only.**
 
-- [ ] **Batch 176 — At desktop width a ranking reads in Z order**
+- [x] **Batch 176 — At desktop width a ranking reads in Z order** ✅ 2026-10-08
   — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-12 (med, live). Batch
   140 made standings and results two-column grids at 1280, so rank 1 sits beside rank 2 and a
   ranking reads left-right-left.
