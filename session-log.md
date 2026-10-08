@@ -8540,3 +8540,15 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - No application code, API contract, database schema or production data changed.
 
 **Next:** Resume Batch 175 after this documentation attestation passes exact-SHA CI.
+
+## Batch 175 — Put the slate and prices first on the round
+**Commits:** `3cfdcc9`, `27867bf` · verified: complete 12-check local gate, 1,419 backend and 1,296 frontend tests, zero skips, production-bundle smoke and seeded browser journey PASS · CI: https://github.com/CraigR973/the-coupon/actions/runs/37759792419 PASS for `27867bff1e684afdc41ed8edefd18bc099843da0`
+
+### Key facts for future sessions
+- The round has one 48 px context row. The slate leads in DOM, phone visual and keyboard order at every phase; status and coupon follow on phones and sit beside it at desktop width. The phone header row is 52 px plus its 1 px border. Selection labels are 14/18, prices 17/20 at 600 weight, and buttons at least 56 px high. The coupon deep link remains.
+- The 390 px browser proof found the first price at 427 px on the current round and 477 px with history, in both themes. Layout shift was 0 on the current round, 0.000033 in dark history and 0.0326 in light history (previously 0.247). Axe and target-size checks passed.
+- Browser iteration failures and fixes: the round's abbreviated `Gameweek 1b` label hid its full name, so the full label was restored; a desktop assertion compared the wrong coupon box, so it now checks the sidebar; an early height reading used a desktop viewport, so the proof now sets 390 px; the history price reached 495 px, so context spacing was tightened to 477 px.
+- Full-gate failures and fixes: the first frontend run exposed the superseded 64 px TopBar oracle; only the separately approved exact lines were replaced. The next full run passed backend, frontend and bundle checks but its new journey asserted 52 px on the 53 px header including a border; it now measures the 52 px content row. The following complete gate passed. The React component review found no further issue.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+**Next:** Batch 176 — single-column standings and results.

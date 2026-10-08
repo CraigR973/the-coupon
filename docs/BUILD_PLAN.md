@@ -203,7 +203,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: focus management and landmarks. **Web-only.**
 
-- [ ] **Batch 175 — The pick screen hides the prices below the fold and sets them at caption size**
+- [x] **Batch 175 — The pick screen hides the prices below the fold and sets them at caption size** ✅ 2026-10-08
   — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-13 (high) and DES-14
   (med); closes the rest of 2026-09-13 DES-02. Every league screen spends most of the first
   phone screen on navigation — breadcrumb, league switch strip, sub-nav pills — so on the round
