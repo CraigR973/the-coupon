@@ -8605,3 +8605,13 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
 
 **Next:** Group AB complete; Group AF is next in the recorded sequence.
+
+## Fix — the offline coupon journey could disconnect before its slate loaded
+**Commit:** `3cb9e2f` · verified: complete 12-check local gate; 1,419 backend and 1,298 frontend tests, zero skips; seeded journey PASS · CI: https://github.com/CraigR973/the-coupon/actions/runs/37845424150 PASS for `3cb9e2f437ee4e322e34edfdfc9e6988cd3cf8a9`
+
+### Key facts for future sessions
+- Batch 196's full gate failed twice at the offline pick click; the same failure reproduced on clean `main` in an isolated checkout. A focused journey passed once, which exposed the timing dependency.
+- The final theme switch reloads the coupon page. The test went offline after seeing the theme, before the seeded slate had returned; its trace showed no pick control. It now waits for the exact Arsenal selection to be visible before disconnecting. The click, queued notice, zero-post and reconnect checks are unchanged.
+- The focused journey, complete local gate and exact-SHA CI passed after the added readiness assertion. This is test-only; pre-push deployed-API drift was in sync and no application half changed.
+
+**Next:** Resume Group AF at Batch 196's full gate and close-out.
