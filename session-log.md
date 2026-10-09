@@ -8658,3 +8658,15 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-09T22:29:48Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
 
 **Next:** Batch 197 — invite landing details; Group AF's explicitly scheduled API shipment follows that batch.
+
+## Batch 197 — Invite landing preview
+**Commit:** `ed751c9` · verified: complete 12-check local gate, 1,439 backend and 1,314 frontend tests, zero skips, production-bundle smoke and seeded browser journey PASS · CI: https://github.com/CraigR973/the-coupon/actions/runs/38003979096 PASS for `ed751c9a31a877775e8a5b50dbb7c2d1fd5c4833`
+
+### Key facts for future sessions
+- A rate-limited public read exposes only league name, inviter display name and active member count for a live unspent invite. Missing, revoked, used, expired and deleted-league tokens get the same 404; erased inviters read as “Former member”. The read never claims an invite.
+- The installed join page and mobile browser onboarding show those three facts. A six-character reusable code makes no preview request. When the older production API returns 404, the existing account, sign-in and invite claim path stays available.
+- The first complete gate passed all backend, browser and seeded journey checks, but found 1,314 frontend tests against a 1,313 ratchet. The ratchet was raised to the measured count; the second complete 12-check gate passed with zero skips.
+- Production-bundle browser checks at 390 px and 1280 px showed the preview without horizontal overflow; a 404 fallback kept both links. Vercel deployment `dpl_CaPyk91WvSPVqGczrw18Twz5xmwH` served the exact implementation SHA, and the live join page kept both links against the old API's 404.
+- **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-09T10:29:55Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
+
+**Next:** Stop at Group AF's `/ship-prod` checkpoint. After that explicit shipment is verified in sync, Batch 194 is next.

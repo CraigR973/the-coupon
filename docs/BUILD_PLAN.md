@@ -722,7 +722,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: these two. **API + web.**
 
-- [ ] **Batch 197 — An invite link does not say who is inviting you to what**
+- [x] **Batch 197 — An invite link does not say who is inviting you to what** ✅ 2026-10-09
   — specified from `docs/review/2026-09-28/06-premium-design.md`, DES-23 (low). `/join/:token`
   lands on "Join the league" without naming the league or the inviter.
 
