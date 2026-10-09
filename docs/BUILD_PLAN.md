@@ -689,6 +689,13 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Verification: sign-ups closed → the notice, no form; an invite path that works or no promise
   of one; sign-ups open → unchanged.
 
+  **Oracle changes approved (owner, 2026-10-09):** this batch may replace only the three
+  validation-test titles and three identical no-API-call assertions fingerprinted in
+  trusted main in `apps/web/src/test/RegisterPage.test.tsx`. A public sign-up status GET
+  is now expected on page load; the replacements must still prove invalid input makes no
+  registration POST. Separate tests must prove the status GET, closed notice and old-API
+  fallback. This is not a file-wide or reusable waiver.
+
   Scope boundary: the closed-sign-up journey. **API + web (safe before the API ships).**
 
 - [x] **Batch 196 — The results history ignores the season, and members cannot share the join code they hold** ✅ 2026-10-09

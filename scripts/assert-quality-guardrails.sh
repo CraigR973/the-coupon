@@ -149,6 +149,13 @@ apps/api/tests/test_scheduler.py|"discover_full_catalogue": "cron[day_of_week='s
 apps/api/tests/test_scheduler.py|"warm_odds_marker": "cron[hour='7', minute='0']",
 EOF
       ;;
+    195) cat <<'EOF'
+apps/web/src/test/RegisterPage.test.tsx|it('refuses a mismatched confirmation without calling the API', async () => {
+apps/web/src/test/RegisterPage.test.tsx|it('refuses a name that is too short without calling the API', async () => {
+apps/web/src/test/RegisterPage.test.tsx|it('refuses a name with characters the login form cannot reproduce', async () => {
+apps/web/src/test/RegisterPage.test.tsx|expect(fetchMock).not.toHaveBeenCalled();
+EOF
+      ;;
   esac
 }
 
@@ -164,6 +171,7 @@ approved_oracle_paths() {
     188) echo "apps/api/tests/test_cross_league_summary_cost.py" ;;
     190) echo "apps/api/tests/test_request_budget.py" ;;
     193) echo "apps/api/tests/test_scheduler.py" ;;
+    195) echo "apps/web/src/test/RegisterPage.test.tsx" ;;
   esac
 }
 
