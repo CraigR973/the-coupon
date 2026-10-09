@@ -8626,3 +8626,23 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-09T10:29:55Z; pre-push deployed-API drift in sync; /ship-prod owed immediately after push
 
 **Next:** Batch 195 — closed sign-up and invite registration journey; Group AF ships the API after Batch 197.
+
+## Gate maintenance — Batch 195 registration-status oracle approval
+**Commit:** `c86641a` · owner-approved 9 Oct 2026 · CI: https://github.com/CraigR973/the-coupon/actions/runs/37929400123 failed at the expected old-trusted-guard comparison; production-bundle smoke and seeded coupon journey passed
+
+### Key facts for future sessions
+- The status read adds a GET before registration. The owner approved replacing only the three named `RegisterPage.test.tsx` titles and their repeated no-fetch assertion with checks that no registration POST occurs; separate tests cover open/closed status, invite registration and an older API.
+- Trusted `main` now fingerprints those exact old lines under the still-open Batch 195 row. The approval commit changed no application code or API contract.
+
+**Next:** Repair the seeded journey's red `main` baseline before Batch 195's full gate.
+
+## Fix — seeded journey navigation and standings measurement
+**Commits:** `c575408`, `2eed022` · verified: complete 12-check local gate, 1,420 backend and 1,304 frontend tests, zero skips, production-bundle smoke and seeded browser journey PASS · CI: https://github.com/CraigR973/the-coupon/actions/runs/37938177155 PASS for `2eed022b1c413eb9e3f177b47cbddbc7ce10316f`
+
+### Key facts for future sessions
+- The first complete gate on clean `main` reached the 240-second journey limit at the coupon loading state. A focused rerun reached a fresh browser context's relative `/login` navigation without a reliable base URL. All five fresh contexts now receive the explicit web URL; the next complete local gate passed.
+- CI for `c575408` passed its API gate and production bundle but found a transient `3.0000009536743164` bounding-box reading for the 3 px standing medal. The existing page-settle helper now finishes finite animations before the exact geometry checks; the 3 px assertion and all other journey checks remain unchanged.
+- The focused journey and complete local gate passed after the settle wait. Exact-SHA CI for `2eed022` passed all three jobs. No application code, API contract, database schema or production data changed.
+- **Close-out safety:** PASS — tooling/docs; pre-push /ship-prod debt present; no application half changed
+
+**Next:** Resume Group AF at Batch 195's full gate; ship the API only after Batch 197 and the owner's explicit `/ship-prod`.
