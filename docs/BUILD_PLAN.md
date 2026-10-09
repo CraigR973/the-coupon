@@ -32,6 +32,16 @@ The FastAPI backend owns auth, leagues, the weekly slate, pick uniqueness,
 settlement, standings, notifications, and scheduled jobs. PostgreSQL is the
 source of truth. The React PWA consumes snake_case `/api/v1/` JSON.
 
+```text
+Invite link → React join page → public token preview → FastAPI → PostgreSQL
+                            → sign-in or registration → invite claim → league
+```
+
+The public preview exposes only league name, inviter name and active member
+count for a valid unspent token. Registration or an authenticated claim creates
+the membership; the preview never does. The join page continues without the
+preview while the new API route is unavailable.
+
 Odds sit behind the provider-neutral `OddsProvider` port
 (`services/odds_provider.py`). `OddsApiProvider` is production — odds-api.io
 priced by Bet365, per ADR 0002 — with `BetfairAdapter` / `Betfair` retained as a

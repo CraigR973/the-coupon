@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,6 +41,46 @@ from src.services.notification_triggers import (
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/leagues", tags=["leagues"])
+
+
+# A valid, unspent invite is the only key to these three public facts. Keep the
+# refusal identical for every invalid state so the read cannot probe league data.
+class InvitePreviewResponse(BaseModel):
+    league_name: str
+    inviter_name: str
+    member_count: int
+
+
+@router.get("/invite-preview/{token}", response_model=InvitePreviewResponse)
+@limiter.limit("60/minute")
+async def preview_invite(
+    request: Request,
+    token: str,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> InvitePreviewResponse:
+    response.headers["Cache-Control"] = "no-store"
+    result = await db.execute(
+        select(Invite, League, Profile)
+        .join(League, League.id == Invite.league_id)
+        .join(Profile, Profile.id == Invite.created_by)
+        .where(Invite.token == token, League.deleted_at.is_(None))
+    )
+    row = result.one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found")
+    invite, league, inviter = row
+    if (
+        not invite.is_active
+        or invite.claimed_by is not None
+        or (invite.expires_at is not None and invite.expires_at < _now())
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found")
+    return InvitePreviewResponse(
+        league_name=league.name,
+        inviter_name=public_name(inviter.display_name),
+        member_count=await _active_member_count(league.id, db),
+    )
 
 
 # ---------------------------------------------------------------------------

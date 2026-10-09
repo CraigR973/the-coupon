@@ -295,6 +295,74 @@ async def _soft_delete(league_id: uuid.UUID) -> None:
         await session.commit()
 
 
+async def test_public_invite_preview_returns_only_allowed_facts(client: AsyncClient) -> None:
+    admin = await _profile()
+    member = await _profile()
+    league = await _league(admin, members=[member])
+    invite = await _invite(league, admin)
+
+    answer = await client.get(f"/api/v1/leagues/invite-preview/{invite.token}")
+
+    assert answer.status_code == 200, answer.text
+    assert answer.headers["cache-control"] == "no-store"
+    assert answer.json() == {
+        "league_name": league.name,
+        "inviter_name": admin.display_name,
+        "member_count": 2,
+    }
+
+
+@pytest.mark.parametrize("invalid", ["missing", "revoked", "used", "expired", "deleted"])
+async def test_public_invite_preview_refuses_invalid_tokens_without_leaking(
+    client: AsyncClient, invalid: str
+) -> None:
+    admin = await _profile()
+    league = await _league(admin)
+    invite = await _invite(league, admin)
+    token = invite.token
+    if invalid == "missing":
+        token = f"missing-{uuid.uuid4().hex}"
+    else:
+        async with AsyncSessionLocal() as session:
+            row = await session.get(Invite, invite.id)
+            assert row is not None
+            if invalid == "revoked":
+                row.is_active = False
+            elif invalid == "used":
+                row.claimed_by = admin.id
+            elif invalid == "expired":
+                row.expires_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=1)
+            else:
+                target = await session.get(League, league.id)
+                assert target is not None
+                target.deleted_at = datetime.now(UTC).replace(tzinfo=None)
+            await session.commit()
+
+    answer = await client.get(f"/api/v1/leagues/invite-preview/{token}")
+
+    assert answer.status_code == 404
+    assert answer.json() == {"detail": "Invite not found"}
+    assert league.name not in answer.text
+    assert admin.display_name not in answer.text
+
+
+async def test_public_invite_preview_redacts_a_deleted_inviter(client: AsyncClient) -> None:
+    admin = await _profile()
+    league = await _league(admin)
+    invite = await _invite(league, admin)
+    async with AsyncSessionLocal() as session:
+        owner = await session.get(Profile, admin.id)
+        assert owner is not None
+        owner.display_name = f"Former member {uuid.uuid4().hex[:8]}"
+        owner.deleted_at = datetime.now(UTC).replace(tzinfo=None)
+        await session.commit()
+
+    answer = await client.get(f"/api/v1/leagues/invite-preview/{invite.token}")
+
+    assert answer.status_code == 200, answer.text
+    assert answer.json()["inviter_name"] == "Former member"
+
+
 async def test_an_invite_to_a_deleted_league_is_refused(client: AsyncClient) -> None:
     admin = await _profile()
     newcomer = await _profile()

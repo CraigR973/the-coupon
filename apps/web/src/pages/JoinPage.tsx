@@ -1,20 +1,22 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Brand } from '@/components/Brand';
 import { BrowserOnboarding } from '@/components/BrowserOnboarding';
+import { InvitePreviewCard, type InvitePreview } from '@/components/InvitePreviewCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { API_BASE } from '@/lib/api';
 import { dropStaleMemberships } from '@/lib/leagues';
+import { keys } from '@/lib/queryKeys';
 import { getAccessToken } from '@/lib/tokens';
 import { brand } from '@/theme/tokens';
 
 const JOIN_CODE_RE = /^[A-Z0-9]{6}$/;
 
-function AppJoinFlow() {
+function AppJoinFlow({ preview }: { preview?: InvitePreview }) {
   const { token = '' } = useParams<{ token: string }>();
   const { player } = useAuth();
   const navigate = useNavigate();
@@ -83,6 +85,7 @@ function AppJoinFlow() {
             <CardTitle as="h1" className="text-center text-text-primary">Join the league</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {preview && <InvitePreviewCard preview={preview} />}
             {!token ? (
               <p role="alert" className="text-sm text-center text-error">
                 This invite link is incomplete.
@@ -131,7 +134,23 @@ function AppJoinFlow() {
 }
 
 export function JoinPage() {
+  const { token = '' } = useParams<{ token: string }>();
   const { isInstalled, isMobile } = useInstallPrompt();
-  if (isMobile && !isInstalled) return <BrowserOnboarding landmark />;
-  return <AppJoinFlow />;
+  const isJoinCode = JOIN_CODE_RE.test(token.toUpperCase());
+  const { data: preview } = useQuery({
+    queryKey: keys.invitePreview(token),
+    enabled: Boolean(token) && !isJoinCode,
+    queryFn: async (): Promise<InvitePreview> => {
+      const response = await fetch(
+        `${API_BASE}/api/v1/leagues/invite-preview/${encodeURIComponent(token)}`,
+        { cache: 'no-store' },
+      );
+      if (!response.ok) throw new Error('Invite preview unavailable');
+      return response.json() as Promise<InvitePreview>;
+    },
+    retry: false,
+    staleTime: 0,
+  });
+  if (isMobile && !isInstalled) return <BrowserOnboarding landmark invitePreview={preview} />;
+  return <AppJoinFlow preview={preview} />;
 }

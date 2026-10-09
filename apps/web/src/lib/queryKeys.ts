@@ -75,6 +75,7 @@ export const keys = {
   notificationPreferences: () => ['notification-preferences'] as const,
   clientConfig: () => ['client-config'] as const,
   signupStatus: () => ['signup-status'] as const,
+  invitePreview: (token: string) => ['invite-preview', token] as const,
   admin: {
     dashboard: () => ['admin-dashboard'] as const,
     leagues: () => ['admin-leagues'] as const,

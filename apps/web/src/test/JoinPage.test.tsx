@@ -5,9 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { JoinPage } from '@/pages/JoinPage';
 
+const installState = vi.hoisted(() => ({ isInstalled: true }));
+
 vi.mock('@/hooks/useInstallPrompt', () => ({
   useInstallPrompt: () => ({
-    isInstalled: true,
+    isInstalled: installState.isInstalled,
     isMobile: true,
     isIos: false,
     isIosSafari: false,
@@ -51,6 +53,7 @@ function storeSignedInPlayer() {
 
 beforeEach(() => {
   localStorage.clear();
+  installState.isInstalled = true;
 });
 
 afterEach(() => {
@@ -59,6 +62,70 @@ afterEach(() => {
 });
 
 describe('JoinPage', () => {
+  it('shows only the three public invite facts before sign-in', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        league_name: 'Saturday League',
+        inviter_name: 'Craig',
+        member_count: 2,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderJoin('opaque-invite-token');
+
+    expect(await screen.findByText('Saturday League')).toBeTruthy();
+    expect(screen.getByText('Invited by Craig')).toBeTruthy();
+    expect(screen.getByText('2 members')).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/leagues/invite-preview/opaque-invite-token'),
+      { cache: 'no-store' },
+    );
+    expect(screen.getByRole('link', { name: /create account/i })).toHaveAttribute(
+      'href', '/register?next=%2Fjoin%2Fopaque-invite-token',
+    );
+  });
+
+  it('keeps the invite claim path when the older API has no preview route', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 404 });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderJoin('opaque-invite-token');
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('heading', { name: 'Join the league' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /create account/i })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /already have an account/i })).toBeTruthy();
+    expect(screen.queryByText(/invite.*invalid/i)).toBeNull();
+  });
+
+  it('does not request an invite preview for a reusable six-character code', () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderJoin('ABC123');
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('shows the preview on mobile browser onboarding before installation', async () => {
+    installState.isInstalled = false;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        league_name: 'Saturday League', inviter_name: 'Craig', member_count: 1,
+      }),
+    }));
+
+    renderJoin('opaque-invite-token');
+
+    expect(await screen.findByText('Saturday League')).toBeTruthy();
+    expect(screen.getByText('Invited by Craig')).toBeTruthy();
+    expect(screen.getByText('1 member')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /one saturday pick/i })).toBeTruthy();
+  });
+
   // Before public signup this offered sign-in alone and told the visitor their admin
   // would supply credentials — which, for the new member an invite is usually aimed at,
   // was an instruction they could not act on. Both doors now exist and both must keep

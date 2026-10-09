@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Menu, Plus, Share } from 'lucide-react';
 import { Brand } from '@/components/Brand';
+import { InvitePreviewCard, type InvitePreview } from '@/components/InvitePreviewCard';
 import { Button } from '@/components/ui/button';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { brand } from '@/theme/tokens';
@@ -31,7 +32,10 @@ import { brand } from '@/theme/tokens';
  * desktop browser, so the desktop case offers account creation and sign-in rather than
  * telling someone with no phone in their hand to install something.
  */
-export function BrowserOnboarding({ landmark = false }: { landmark?: boolean }) {
+export function BrowserOnboarding({ landmark = false, invitePreview }: {
+  landmark?: boolean;
+  invitePreview?: InvitePreview;
+}) {
   const { isIos, isIosSafari, isAndroid, isMobile, canInstall, prompt } = useInstallPrompt();
   // This component is a whole screen on `/welcome` and inside `/join/:token`. The
   // global install gate also renders it as `<main>` while `InstallPromptController`
@@ -45,6 +49,8 @@ export function BrowserOnboarding({ landmark = false }: { landmark?: boolean }) 
           <Brand variant="splash" />
           <p className="text-text-primary font-sans text-lg italic mt-6">{brand.tagline}</p>
         </div>
+
+        {invitePreview && <InvitePreviewCard preview={invitePreview} />}
 
         <div className="rounded-xl border border-border bg-surface px-5 py-5 space-y-3">
           <h1 className="text-base font-sans font-semibold text-text-primary">
