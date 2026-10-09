@@ -75,7 +75,11 @@ function stubAuth() {
 /** Every request the page makes, newest last — the assertion surface for the season. */
 let requested: string[] = [];
 
-function stubFetch({ seasonsStatus = 200 }: { seasonsStatus?: number } = {}) {
+function stubFetch({
+  seasonsStatus = 200,
+  joinCode = null,
+  privacy = 'private',
+}: { seasonsStatus?: number; joinCode?: string | null; privacy?: string } = {}) {
   requested = [];
   vi.stubGlobal('fetch', (url: string) => {
     const address = String(url);
@@ -99,7 +103,9 @@ function stubFetch({ seasonsStatus = 200 }: { seasonsStatus?: number } = {}) {
     if (address.includes('/standings')) {
       return ok(address.includes('season=2025') ? LAST_SEASON : THIS_SEASON);
     }
-    if (address.includes('/leagues/the-coupon')) return ok(MOCK_LEAGUE);
+    if (address.includes('/leagues/the-coupon')) {
+      return ok({ ...MOCK_LEAGUE, privacy, join_code: joinCode });
+    }
     return ok({});
   });
 }
@@ -134,6 +140,30 @@ describe('LeaderboardPage — the season archive', () => {
     const title = await screen.findByRole('heading', { level: 1, name: MOCK_LEAGUE.name });
     expect(title.className.split(' ')).not.toContain('truncate');
     expect(title.className.split(' ')).toContain('break-words');
+  });
+
+  it.each(['private', 'public_request', 'public_open'])(
+    'lets a member share a join code in a %s league',
+    async (privacy) => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText },
+      });
+      stubFetch({ joinCode: 'ABC123', privacy });
+      renderPage();
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Invite a friend' }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+      expect(writeText.mock.calls[0][0]).toContain('Join code: ABC123');
+    },
+  );
+
+  it('hides member sharing when a league has no join code', async () => {
+    stubFetch({ joinCode: null });
+    renderPage();
+    await screen.findByText('Alice');
+    expect(screen.queryByRole('button', { name: 'Invite a friend' })).toBeNull();
   });
 
   it('opens on the season being played, and asks for it without a query string', async () => {

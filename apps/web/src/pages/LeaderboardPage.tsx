@@ -1,6 +1,6 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Copy } from 'lucide-react';
+import { Copy, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,6 +17,7 @@ import { LeagueActionsMenu } from '../components/LeagueActionsMenu';
 import { SeasonStrip } from '../components/SeasonStrip';
 import { Button } from '../components/ui/button';
 import { buildStandingsShareText } from '../lib/share';
+import { buildInviteMessage, shareInvite } from '../lib/invite';
 import { cn } from '../lib/utils';
 import { keys } from '@/lib/queryKeys';
 
@@ -84,6 +85,21 @@ export function LeaderboardPage() {
     }
   }
 
+  async function shareJoinCode() {
+    if (!league?.join_code) return;
+    try {
+      await shareInvite({
+        message: buildInviteMessage({
+          leagueName: league.name,
+          joinCode: league.join_code,
+          origin: window.location.origin,
+        }),
+      });
+    } catch {
+      toast.error('Could not share invite');
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -110,6 +126,15 @@ export function LeaderboardPage() {
         onSelect={selectSeason}
         className="mt-3"
       />
+
+      {league?.join_code && (
+        <div className="mt-3 flex justify-end">
+          <Button type="button" variant="outline" size="sm" onClick={shareJoinCode}>
+            <Share2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+            Invite a friend
+          </Button>
+        </div>
+      )}
 
       {isLoading && (
         <div className="space-y-2" aria-label="Loading standings">

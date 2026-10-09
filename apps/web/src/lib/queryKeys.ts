@@ -67,7 +67,11 @@ export const keys = {
       ['football', 'team-season', teamId, competition, season ?? 'default'] as const,
   },
   playerProfile: (slug: string, playerId: string) => ['player-profile', slug, playerId] as const,
-  results: (slug: string) => ['results', slug] as const,
+  results: {
+    all: (slug: string) => ['results', slug] as const,
+    forSeason: (slug: string, season: number | null) =>
+      ['results', slug, season ?? 'current'] as const,
+  },
   notificationPreferences: () => ['notification-preferences'] as const,
   clientConfig: () => ['client-config'] as const,
   admin: {

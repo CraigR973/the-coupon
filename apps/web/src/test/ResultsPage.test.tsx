@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LeagueProvider } from '@/contexts/LeagueContext';
 import { ResultsPage } from '@/pages/ResultsPage';
-import type { GameweekResult } from '@/lib/types';
+import type { GameweekResult, SeasonSummary } from '@/lib/types';
 
 const MOCK_LEAGUE = {
   slug: 'the-coupon',
@@ -49,6 +49,13 @@ const RESULTS: GameweekResult[] = [
   },
 ];
 
+const SEASONS: SeasonSummary[] = [
+  { season: 2026, label: '2026/27', is_current: true, rounds_settled: 1 },
+  { season: 2025, label: '2025/26', is_current: false, rounds_settled: 2 },
+];
+
+let requested: string[] = [];
+
 function stubAuth() {
   vi.stubGlobal('localStorage', {
     getItem: (k: string) => {
@@ -62,10 +69,18 @@ function stubAuth() {
   });
 }
 
-function stubFetch({ results = RESULTS }: { results?: GameweekResult[] } = {}) {
+function stubFetch({
+  results = RESULTS,
+  seasons = [],
+}: { results?: GameweekResult[]; seasons?: SeasonSummary[] } = {}) {
+  requested = [];
   vi.stubGlobal('fetch', (url: string) => {
+    requested.push(String(url));
     if (String(url).includes('/results')) {
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(results) });
+    }
+    if (String(url).includes('/seasons')) {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(seasons) });
     }
     if (String(url).includes('/leagues/mine')) {
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([MOCK_LEAGUE]) });
@@ -80,11 +95,11 @@ function CouponProbe() {
   return <span data-testid="landed">{`${pathname}${search}${hash}`}</span>;
 }
 
-function renderPage() {
+function renderPage(initial = '/leagues/the-coupon/predictions/results') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/leagues/the-coupon/predictions/results']}>
+      <MemoryRouter initialEntries={[initial]}>
         <AuthProvider>
           <LeagueProvider>
             <Routes>
@@ -105,6 +120,35 @@ beforeEach(() => {
 });
 
 describe('ResultsPage', () => {
+  it('shows only the current season and filters an older API that ignores the query', async () => {
+    stubFetch({
+      seasons: SEASONS,
+      results: [{ ...RESULTS[0], gameweek_id: 'gw-current', starts_on: '2026-07-01' }, ...RESULTS],
+    });
+    renderPage();
+
+    expect(await screen.findByTestId('result-gw-current')).toBeInTheDocument();
+    expect(screen.queryByTestId('result-gw-2')).toBeNull();
+    expect(screen.getByTestId('season-strip')).toBeInTheDocument();
+    expect(requested.filter((url) => url.includes('/results'))[0]).not.toContain('season=');
+  });
+
+  it('opens an archived season from the selector and from a direct link', async () => {
+    stubFetch({
+      seasons: SEASONS,
+      results: [{ ...RESULTS[0], gameweek_id: 'gw-current', starts_on: '2026-07-01' }, ...RESULTS],
+    });
+    renderPage();
+    await screen.findByTestId('result-gw-current');
+    fireEvent.click(screen.getByRole('button', { name: 'Show the 2025/26 season' }));
+    expect(await screen.findByTestId('result-gw-2')).toBeInTheDocument();
+    expect(screen.queryByTestId('result-gw-current')).toBeNull();
+    expect(requested.some((url) => url.includes('/results?season=2025'))).toBe(true);
+
+    renderPage('/leagues/the-coupon/predictions/results?season=2025');
+    await waitFor(() => expect(screen.getAllByTestId('result-gw-2')).toHaveLength(2));
+  });
+
   it('lists settled gameweeks newest first with their winner and points', async () => {
     renderPage();
     const list = await screen.findByTestId('results-list');

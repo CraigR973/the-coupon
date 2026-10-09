@@ -736,8 +736,10 @@ class GameweekResult(BaseModel):
     void_leg_count: int = 0
 
 
-async def gameweek_results(db: AsyncSession, league_id: uuid.UUID) -> list[GameweekResult]:
-    """Every settled round for a league, newest first — the results list.
+async def gameweek_results(
+    db: AsyncSession, league_id: uuid.UUID, *, season: int | None = None
+) -> list[GameweekResult]:
+    """Settled rounds for one season of a league, newest first — the results list.
 
     The winner is whoever's pick scored the most that round; a tie names every player
     who shares the top score rather than picking one arbitrarily. ``all_won`` and
@@ -746,6 +748,7 @@ async def gameweek_results(db: AsyncSession, league_id: uuid.UUID) -> list[Gamew
     A settled round with no picks in this league (vacuously settled) still gets a row,
     with no winner and an empty coupon.
     """
+    first_day, last_day = season_bounds(resolve_season(season))
     display_name = public_name_sql(Profile.display_name)
     rows = await db.execute(
         select(
@@ -764,7 +767,12 @@ async def gameweek_results(db: AsyncSession, league_id: uuid.UUID) -> list[Gamew
             & (LeagueMembership.league_id == league_id),
         )
         .outerjoin(Profile, Profile.id == Pick.player_id)
-        .where(Gameweek.league_id == league_id, Gameweek.status == GameweekStatus.settled)
+        .where(
+            Gameweek.league_id == league_id,
+            Gameweek.status == GameweekStatus.settled,
+            Gameweek.starts_on >= first_day,
+            Gameweek.starts_on <= last_day,
+        )
         .order_by(Gameweek.starts_on.desc())
     )
 

@@ -7,8 +7,8 @@
   being played, or a past one by ``?season=``.
 * ``GET /api/v1/leagues/{slug}/seasons``   — which seasons this league has a table for,
   newest first. The index the archived tables are reached through.
-* ``GET /api/v1/leagues/{slug}/results``   — every settled round, newest first, each
-  with its winner, points and combined-coupon outcome.
+* ``GET /api/v1/leagues/{slug}/results``   — settled rounds in one season, newest first,
+  each with its winner, points and combined-coupon outcome.
 
 All computed on demand from ``picks`` by :mod:`src.services.coupon` /
 :mod:`src.services.scoring`.
@@ -62,5 +62,7 @@ async def league_seasons(slug: str, league: LeagueMemberDep, db: Db) -> list[Sea
 
 
 @router.get("/{slug}/results", response_model=list[GameweekResult])
-async def league_results(slug: str, league: LeagueMemberDep, db: Db) -> list[GameweekResult]:
-    return await gameweek_results(db, league.id)
+async def league_results(
+    slug: str, league: LeagueMemberDep, db: Db, season: SeasonQuery = None
+) -> list[GameweekResult]:
+    return await gameweek_results(db, league.id, season=season)

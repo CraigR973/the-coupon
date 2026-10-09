@@ -53,6 +53,7 @@ from src.services.gameweek import season_bounds, seasons_played
 from src.services.scoring import (
     RECENT_FORM_ROUNDS,
     Standing,
+    gameweek_results,
     recent_form_by_league,
     standings,
     standings_by_league,
@@ -279,6 +280,23 @@ async def test_the_last_round_of_a_season_and_the_first_of_the_next_land_either_
 
     assert _row(await standings(session, league.id), alice).total_points == 11
     assert _row(await standings(session, league.id, season=LAST_SEASON), alice).total_points == 7
+
+
+async def test_results_use_the_same_july_boundary_as_standings(session: AsyncSession) -> None:
+    alice = await _profile(session, "alice")
+    league = await _league(session, [alice])
+    _, last_day = season_bounds(LAST_SEASON)
+    first_day, _ = season_bounds(THIS_SEASON)
+    june = await _settled_round(session, league, on=last_day)
+    await _pick(session, league, june, alice, points=7)
+    july = await _settled_round(session, league, on=first_day)
+    await _pick(session, league, july, alice, points=11)
+    await session.flush()
+
+    live = await gameweek_results(session, league.id)
+    archived = await gameweek_results(session, league.id, season=LAST_SEASON)
+    assert [(row.gameweek_id, row.winner_points) for row in live] == [(str(july.id), 11)]
+    assert [(row.gameweek_id, row.winner_points) for row in archived] == [(str(june.id), 7)]
 
 
 # ── Form (Batch 80) must not span it ──────────────────────────────────────────
