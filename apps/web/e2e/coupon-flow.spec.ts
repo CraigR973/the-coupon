@@ -1148,6 +1148,7 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   for (const theme of ['dark', 'light'] as const) {
     await setTheme(alice, theme);
     const rows = standings.locator('> li');
+    await waitForSettledPage(alice);
     await expectOneOrderedColumn(rows.first(), rows.nth(1));
     const firstBox = await rows.first().boundingBox();
     expect(firstBox?.height, 'phone standing rows are 52px').toBe(52);
