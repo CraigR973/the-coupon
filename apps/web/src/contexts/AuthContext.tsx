@@ -33,7 +33,7 @@ interface AuthContextValue extends AuthState {
    * `/register` with the same token pair as `/login`, so the two share everything
    * after the fetch — see `establishSession`.
    */
-  register: (displayName: string, pin: string) => Promise<void>;
+  register: (displayName: string, pin: string, inviteToken?: string) => Promise<string | null>;
   logout: () => Promise<void>;
   /** Update a subset of the stored player (e.g. after avatar upload). */
   updatePlayer: (patch: Partial<StoredPlayer>) => void;
@@ -192,6 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           sessionUnlockError: null,
           sessionResuming: false,
         });
+        return data;
       } catch (err) {
         setState((s) => ({ ...s, isLoading: false }));
         throw err;
@@ -201,25 +202,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const login = useCallback(
-    (displayName: string, pin: string) =>
-      establishSession('/api/v1/auth/login', { display_name: displayName, pin }, 'Login failed'),
+    async (displayName: string, pin: string) => {
+      await establishSession('/api/v1/auth/login', { display_name: displayName, pin }, 'Login failed');
+    },
     [establishSession],
   );
 
   const register = useCallback(
-    (displayName: string, pin: string) =>
-      establishSession(
+    async (displayName: string, pin: string, inviteToken?: string) => {
+      const answer = await establishSession(
         '/api/v1/auth/register',
         {
           display_name: displayName,
           pin,
+          ...(inviteToken ? { invite_token: inviteToken } : {}),
           // Sent so a member's first coupon already reads in local time. The API
           // validates it and falls back to UTC, so a browser that cannot answer
           // (or answers with something unknown) still registers.
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
         },
         'Could not create your account',
-      ),
+      );
+      return typeof answer.joined_league_slug === 'string' ? answer.joined_league_slug : null;
+    },
     [establishSession],
   );
 

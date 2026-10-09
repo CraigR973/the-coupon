@@ -49,8 +49,12 @@ function makeFetchMock() {
   return vi.fn((_url: string, _init?: RequestInit) => okResponse());
 }
 
-function requestOf(fetchMock: ReturnType<typeof makeFetchMock>, call = 0) {
-  const [url, init] = fetchMock.mock.calls[call];
+function registrationCalls(fetchMock: ReturnType<typeof makeFetchMock>) {
+  return fetchMock.mock.calls.filter(([url]) => url.endsWith('/auth/register'));
+}
+
+function requestOf(fetchMock: ReturnType<typeof makeFetchMock>) {
+  const [url, init] = registrationCalls(fetchMock)[0];
   return { url, body: JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown> };
 }
 
@@ -79,6 +83,79 @@ beforeEach(() => {
 });
 
 describe('RegisterPage', () => {
+  it('shows a closed notice instead of the form when public sign-ups are disabled', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url.endsWith('/signup-status')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ open: false }) });
+      }
+      return okResponse();
+    }));
+    renderRegisterAt();
+
+    expect(await screen.findByRole('heading', { name: 'Sign-ups are closed' })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/display name/i)).toBeNull();
+    expect(screen.getByRole('link', { name: /already have an account/i })).toBeInTheDocument();
+  });
+
+  it('lets a closed-sign-up invite create and join in one registration request', async () => {
+    const token = 'opaqueInviteToken123456789012345678901234567890';
+    const fetchMock = vi.fn((url: string, _init?: RequestInit) => {
+      if (url.endsWith('/signup-status')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ open: false }) });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          access_token: 'access-token',
+          refresh_token: 'refresh-token',
+          player: { id: 'p1', display_name: 'Alice', role: 'player', timezone: 'Europe/London' },
+          joined_league_slug: 'friends-league',
+        }),
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderRegisterAt(`/register?next=${encodeURIComponent(`/join/${token}`)}`);
+    await screen.findByText(/invitation lets you create an account/i);
+    fillForm('Alice', '3719');
+    submit();
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/leagues/friends-league', { replace: true }));
+    const registration = fetchMock.mock.calls.find(([url]) => url.endsWith('/auth/register'));
+    expect(JSON.parse(String(registration?.[1]?.body)).invite_token).toBe(token);
+  });
+
+  it.each(['missing', 'network'])('keeps the old invite flow when status is %s', async (failure) => {
+    const token = 'opaqueInviteToken123456789012345678901234567890';
+    const fetchMock = vi.fn((url: string, _init?: RequestInit) => {
+      if (url.endsWith('/signup-status')) {
+        if (failure === 'network') return Promise.reject(new Error('offline'));
+        return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+      }
+      return okResponse();
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderRegisterAt(`/register?next=${encodeURIComponent(`/join/${token}`)}`);
+    fillForm('Alice', '3719');
+    submit();
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith(`/join/${token}`, { replace: true }));
+    const registration = fetchMock.mock.calls.find(([url]) => url.endsWith('/auth/register'));
+    expect(JSON.parse(String(registration?.[1]?.body)).invite_token).toBe(token);
+  });
+
+  it('does not treat a reusable join code as a closed-sign-up invitation', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url.endsWith('/signup-status')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ open: false }) });
+      }
+      return okResponse();
+    }));
+    renderRegisterAt('/register?next=%2Fjoin%2FABC123');
+
+    expect(await screen.findByRole('heading', { name: 'Sign-ups are closed' })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/display name/i)).toBeNull();
+  });
+
   it('asks for a display name and two PINs', () => {
     renderRegisterAt();
     expect(screen.getByLabelText(/display name/i)).toBeTruthy();
@@ -100,7 +177,7 @@ describe('RegisterPage', () => {
     expect(copy.textContent).not.toMatch(/league admin/i);
   });
 
-  it('refuses a mismatched confirmation without calling the API', async () => {
+  it('refuses a mismatched confirmation without submitting registration', async () => {
     const fetchMock = makeFetchMock();
     vi.stubGlobal('fetch', fetchMock);
 
@@ -111,10 +188,10 @@ describe('RegisterPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert').textContent).toMatch(/pins do not match/i);
     });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(registrationCalls(fetchMock)).toHaveLength(0);
   });
 
-  it('refuses a name that is too short without calling the API', async () => {
+  it('refuses a name that is too short without submitting registration', async () => {
     const fetchMock = makeFetchMock();
     vi.stubGlobal('fetch', fetchMock);
 
@@ -125,10 +202,10 @@ describe('RegisterPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert').textContent).toMatch(/2-32 characters/i);
     });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(registrationCalls(fetchMock)).toHaveLength(0);
   });
 
-  it('refuses a name with characters the login form cannot reproduce', async () => {
+  it('refuses a name with characters the login form cannot reproduce without registering', async () => {
     const fetchMock = makeFetchMock();
     vi.stubGlobal('fetch', fetchMock);
 
@@ -139,7 +216,7 @@ describe('RegisterPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert').textContent).toMatch(/letters, numbers, spaces/i);
     });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(registrationCalls(fetchMock)).toHaveLength(0);
   });
 
   it('posts the collapsed name, so what is validated is what is stored', async () => {
@@ -150,7 +227,7 @@ describe('RegisterPage', () => {
     fillForm('  Alice   Smith  ', '3719');
     submit();
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await waitFor(() => expect(registrationCalls(fetchMock)).toHaveLength(1));
     const { url, body } = requestOf(fetchMock);
     expect(url).toMatch(/\/api\/v1\/auth\/register$/);
     expect(body.display_name).toBe('Alice Smith');
@@ -164,7 +241,7 @@ describe('RegisterPage', () => {
     fillForm('Alice', '3719');
     submit();
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await waitFor(() => expect(registrationCalls(fetchMock)).toHaveLength(1));
     const { body } = requestOf(fetchMock);
     expect(typeof body.timezone).toBe('string');
     expect(String(body.timezone).length).toBeGreaterThan(0);

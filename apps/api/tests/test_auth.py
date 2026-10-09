@@ -420,6 +420,17 @@ def _added_profiles(db: AsyncMock) -> list[Profile]:
     return [c.args[0] for c in db.add.call_args_list if isinstance(c.args[0], Profile)]
 
 
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_signup_status_is_public_and_only_reports_the_switch(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, enabled: bool
+) -> None:
+    monkeypatch.setattr(settings, "public_signup_enabled", enabled)
+    response = await client.get("/api/v1/auth/signup-status")
+    assert response.status_code == 200
+    assert response.json() == {"open": enabled}
+    assert response.headers["cache-control"] == "no-store"
+
+
 async def test_register_creates_an_account_and_signs_it_in(client: AsyncClient) -> None:
     db = _register_db()
     async with _override_db(db):

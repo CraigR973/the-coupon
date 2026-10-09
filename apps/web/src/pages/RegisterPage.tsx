@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -9,16 +10,45 @@ import { PinInput } from '@/components/PinInput';
 import { Brand } from '@/components/Brand';
 import { brand } from '@/theme/tokens';
 import { resolveNextDestination } from '@/lib/redirect';
+import { API_BASE } from '@/lib/api';
+import { keys } from '@/lib/queryKeys';
 
 /** Mirrors the API's own bounds so the obvious mistakes are caught before a round trip. */
 const MIN_NAME = 2;
 const MAX_NAME = 32;
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9 ._'-]*$/;
 
+function opaqueInviteFromDestination(destination: string): string | undefined {
+  const match = /^\/join\/([^/?#]+)$/.exec(destination);
+  if (!match) return undefined;
+  try {
+    const token = decodeURIComponent(match[1]);
+    // Six-character links are reusable join codes, not account-creation invites.
+    return token.length > 6 && /^[A-Za-z0-9_-]+$/.test(token) ? token : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const destination = resolveNextDestination(location.search, window.location.origin);
+  const inviteToken = opaqueInviteFromDestination(destination);
+  const { data: signupStatus } = useQuery<{ open: boolean }>({
+    queryKey: keys.signupStatus(),
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE}/api/v1/auth/signup-status`, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Sign-up status unavailable');
+      return response.json();
+    },
+    // Keep today's form on an older API or a failed read. The API remains the authority.
+    initialData: { open: true },
+    staleTime: 0,
+    retry: false,
+  });
+  const signupClosed = signupStatus?.open === false;
 
   const [displayName, setDisplayName] = useState('');
   const [pin, setPin] = useState('');
@@ -56,8 +86,8 @@ export function RegisterPage() {
 
     setIsLoading(true);
     try {
-      await register(name, pin);
-      navigate(resolveNextDestination(location.search, window.location.origin), {
+      const joinedLeague = await register(name, pin, inviteToken);
+      navigate(joinedLeague ? `/leagues/${encodeURIComponent(joinedLeague)}` : destination, {
         replace: true,
       });
     } catch (err) {
@@ -92,10 +122,29 @@ export function RegisterPage() {
               card's, so it is the same heading to look at; only the level changes.
             */}
             <h1 className="text-lg font-semibold leading-tight tracking-tight text-center text-text-primary">
-              Create account
+              {signupClosed && !inviteToken ? 'Sign-ups are closed' : 'Create account'}
             </h1>
           </CardHeader>
           <CardContent>
+            {signupClosed && !inviteToken ? (
+              <div className="space-y-4 text-center">
+                <p className="text-sm font-sans text-text-secondary">
+                  New accounts need a league invitation while sign-ups are closed.
+                </p>
+                <Link
+                  to={signInHref}
+                  className="text-sm font-sans text-text-primary underline underline-offset-4"
+                >
+                  Already have an account? Sign in
+                </Link>
+              </div>
+            ) : (
+            <>
+            {signupClosed && inviteToken && (
+              <p className="mb-4 text-sm text-center text-text-secondary">
+                Your league invitation lets you create an account while public sign-ups are closed.
+              </p>
+            )}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1">
                 <Label htmlFor="display-name">Display name</Label>
@@ -156,6 +205,8 @@ export function RegisterPage() {
                 </Link>
               </div>
             </form>
+            </>
+            )}
           </CardContent>
         </Card>
       </div>

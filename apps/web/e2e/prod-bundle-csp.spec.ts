@@ -57,6 +57,15 @@ async function underPolicy(page: Page): Promise<Violation[]> {
     });
   });
   await page.route('**/*', async (route) => {
+    if (route.request().url() === `${PREVIEW_API}/api/v1/auth/signup-status`) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ open: true }),
+      });
+      return;
+    }
     const response = await route.fetch();
     const headers = { ...response.headers() };
     if ((headers['content-type'] ?? '').includes('text/html')) {

@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import bcrypt as _bcrypt
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -41,6 +41,7 @@ from src.rate_limit import (
     per_user_key,
     refresh_token_key,
 )
+from src.routers.league_memberships import stage_invite_claim
 from src.services.avatar_storage import (
     ALLOWED_IMAGE_TYPES,
     AvatarRejected,
@@ -59,6 +60,7 @@ from src.services.credentials import (
     pin_reset_is_claimable,
     revoke_all_refresh_tokens,
 )
+from src.services.notification_triggers import notify_member_joined
 from src.services.push_notification_service import send_notification
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -391,6 +393,22 @@ class RegisterRequest(BaseModel):
     #: they are. Optional because a client that does not know its zone must still be
     #: able to register; Settings can change it afterwards either way.
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
+    invite_token: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+class RegisterResponse(TokenResponse):
+    joined_league_slug: str | None = None
+
+
+class SignupStatus(BaseModel):
+    open: bool
+
+
+@router.get("/signup-status", response_model=SignupStatus)
+async def signup_status(response: Response) -> SignupStatus:
+    """Expose only the public registration switch, without the authenticated config."""
+    response.headers["Cache-Control"] = "no-store"
+    return SignupStatus(open=settings.public_signup_enabled)
 
 
 #: The bound on how fast one address may mint accounts. Named rather than inlined for
@@ -410,14 +428,14 @@ _DISPLAY_NAME_RE = display_name_rules.DISPLAY_NAME_RE
 _normalise_display_name = display_name_rules.normalise_display_name
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit(REGISTER_LIMIT)
 async def register(
     request: Request,
     body: RegisterRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> TokenResponse:
-    """Create an account and sign it in, with no invite and no admin in the loop.
+) -> RegisterResponse:
+    """Create and sign in an account, optionally claiming an opaque league invite.
 
     Until this endpoint the product had no account-creation path at all — not in the UI
     and not in the API. Profiles were built by ``seeds.py`` on the server and PINs handed
@@ -437,7 +455,7 @@ async def register(
     ADD VALUE`` cannot be undone and production has no restore point (owner's 2026-07-30
     deferral), the same reasoning ``pin_reset_request`` records above.
     """
-    if not settings.public_signup_enabled:
+    if not settings.public_signup_enabled and body.invite_token is None:
         # The kill switch. A public write endpoint with no email verification needs a way
         # to be shut off that does not require a deploy, and this is it — set
         # PUBLIC_SIGNUP_ENABLED=false and existing members are wholly unaffected.
@@ -530,14 +548,29 @@ async def register(
             detail="That display name is taken — try another.",
         ) from None
 
+    joined_league = None
+    if body.invite_token is not None:
+        joined_league = await stage_invite_claim(body.invite_token, user, db)
+
     device_hint = request.headers.get("User-Agent", "")[:100]
     access, refresh = await _issue_token_pair(user, db, device_hint)
 
+    if joined_league is not None:
+        # The account, membership, spent invite and refresh token have committed together.
+        # A failed push must not turn that completed registration into an HTTP failure.
+        try:
+            await notify_member_joined(db, user.display_name, joined_league.name, joined_league.id)
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            log.warning("invite registration notification failed", league_id=str(joined_league.id))
+
     log.info("registration successful", user_id=str(user.id))
-    return TokenResponse(
+    return RegisterResponse(
         access_token=access,
         refresh_token=refresh,
         player=_player_info(user),
+        joined_league_slug=joined_league.slug if joined_league is not None else None,
     )
 
 

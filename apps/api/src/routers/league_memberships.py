@@ -67,7 +67,21 @@ async def claim_invite_authenticated(
     player: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ClaimInviteResponse:
-    invite_result = await db.execute(select(Invite).where(Invite.token == body.token))
+    league = await stage_invite_claim(body.token, player, db)
+    await notify_member_joined(db, player.display_name, league.name, league.id)
+
+    await db.commit()
+    log.info("invite claimed", league_id=str(league.id), player_id=str(player.id))
+    return ClaimInviteResponse(league_slug=league.slug, league_name=league.name)
+
+
+async def stage_invite_claim(token: str, player: Profile, db: AsyncSession) -> League:
+    """Validate and stage an invite claim without committing or sending a push.
+
+    Registration calls this before its single token-issuing commit. Row locks keep a
+    simultaneous redemption or last-place join from passing the same checks twice.
+    """
+    invite_result = await db.execute(select(Invite).where(Invite.token == token).with_for_update())
     invite = invite_result.scalar_one_or_none()
 
     if invite is None:
@@ -86,7 +100,9 @@ async def claim_invite_authenticated(
     # of a league that no longer exists — where every other lookup in the app would
     # then answer 404. Refused cleanly instead.
     league_result = await db.execute(
-        select(League).where(League.id == invite.league_id, League.deleted_at.is_(None))
+        select(League)
+        .where(League.id == invite.league_id, League.deleted_at.is_(None))
+        .with_for_update()
     )
     league = league_result.scalar_one_or_none()
     if league is None:
@@ -101,15 +117,11 @@ async def claim_invite_authenticated(
 
     await _upsert_membership(league.id, player.id, db)
     db.add(_audit(player, ActionType.member_joined, "league_memberships", league.id))
-    await notify_member_joined(db, player.display_name, league.name, league.id)
 
     invite.claimed_by = player.id
     invite.claimed_at = _now()
     invite.is_active = False
-
-    await db.commit()
-    log.info("invite claimed", league_id=str(league.id), player_id=str(player.id))
-    return ClaimInviteResponse(league_slug=league.slug, league_name=league.name)
+    return league
 
 
 # ---------------------------------------------------------------------------

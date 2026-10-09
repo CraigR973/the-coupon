@@ -17,11 +17,12 @@ endpoints, which commit through their own sessions. Every profile and league is 
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import uuid
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import pytest_asyncio
@@ -29,6 +30,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, text
 
 from src.auth import _JOIN_CODE_ALPHABET, create_access_token, hash_pin
+from src.config import settings
 from src.database import AsyncSessionLocal
 from src.main import app
 from src.models.invite import Invite
@@ -37,6 +39,7 @@ from src.models.league_join_request import JoinRequestStatus, LeagueJoinRequest
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.notification import ActionType, AuditLog
 from src.models.profile import Profile, UserRole
+from src.models.refresh_token import RefreshToken
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -325,6 +328,117 @@ async def test_an_invite_to_a_live_league_still_claims(client: AsyncClient) -> N
 
     assert claimed.status_code == 200, claimed.text
     assert await _active_membership(league.id, newcomer.id) is not None
+
+
+@pytest.mark.parametrize("public_signup_enabled", [True, False])
+async def test_invite_registration_creates_account_membership_and_session_together(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, public_signup_enabled: bool
+) -> None:
+    monkeypatch.setattr(settings, "public_signup_enabled", public_signup_enabled)
+    admin = await _profile()
+    league = await _league(admin)
+    invite = await _invite(league, admin)
+    name = f"invited-{uuid.uuid4().hex[:8]}"
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={"display_name": name, "pin": "3719", "invite_token": invite.token},
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["joined_league_slug"] == league.slug
+    async with AsyncSessionLocal() as session:
+        player = (
+            await session.execute(select(Profile).where(Profile.display_name == name))
+        ).scalar_one()
+        claimed = await session.get(Invite, invite.id)
+        refresh = (
+            await session.execute(select(RefreshToken).where(RefreshToken.user_id == player.id))
+        ).scalar_one()
+        assert claimed is not None and claimed.claimed_by == player.id
+        assert not claimed.is_active
+        assert refresh.user_id == player.id
+    assert await _active_membership(league.id, player.id) is not None
+
+
+@pytest.mark.parametrize(
+    "invalid", ["missing", "revoked", "used", "expired", "deleted", "full", "code"]
+)
+async def test_closed_signup_refuses_invalid_invites_without_creating_an_account(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, invalid: str
+) -> None:
+    monkeypatch.setattr(settings, "public_signup_enabled", False)
+    admin = await _profile()
+    league = await _league(admin)
+    invite = await _invite(league, admin)
+    token = invite.token
+    if invalid == "missing":
+        token = f"missing-{uuid.uuid4().hex}"
+    elif invalid == "code":
+        assert league.join_code is not None
+        token = league.join_code
+    else:
+        async with AsyncSessionLocal() as session:
+            row = await session.get(Invite, invite.id)
+            assert row is not None
+            if invalid == "revoked":
+                row.is_active = False
+            elif invalid == "used":
+                row.claimed_by = admin.id
+            elif invalid == "expired":
+                row.expires_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=1)
+            elif invalid == "deleted":
+                target = await session.get(League, league.id)
+                assert target is not None
+                target.deleted_at = datetime.now(UTC).replace(tzinfo=None)
+            elif invalid == "full":
+                target = await session.get(League, league.id)
+                assert target is not None
+                target.max_members = 2
+                session.add(LeagueMembership(league_id=league.id, player_id=(await _profile()).id))
+            await session.commit()
+    name = f"refused-{uuid.uuid4().hex[:8]}"
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={"display_name": name, "pin": "3719", "invite_token": token},
+    )
+
+    assert response.status_code in {400, 404, 409}, response.text
+    async with AsyncSessionLocal() as session:
+        account = (
+            await session.execute(select(Profile).where(Profile.display_name == name))
+        ).scalar_one_or_none()
+        assert account is None
+
+
+async def test_one_invite_cannot_register_two_accounts_at_once(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "public_signup_enabled", False)
+    admin = await _profile()
+    league = await _league(admin)
+    invite = await _invite(league, admin)
+    names = [f"race-{uuid.uuid4().hex[:8]}" for _ in range(2)]
+
+    answers = await asyncio.gather(
+        *(
+            client.post(
+                "/api/v1/auth/register",
+                json={"display_name": name, "pin": "3719", "invite_token": invite.token},
+            )
+            for name in names
+        )
+    )
+
+    assert sorted(answer.status_code for answer in answers) == [201, 400]
+    async with AsyncSessionLocal() as session:
+        accounts = (
+            (await session.execute(select(Profile).where(Profile.display_name.in_(names))))
+            .scalars()
+            .all()
+        )
+        assert len(accounts) == 1
 
 
 async def test_two_leagues_inserted_without_a_code_never_share_the_databases_draw() -> None:
