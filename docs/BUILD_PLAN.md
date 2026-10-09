@@ -691,7 +691,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: the closed-sign-up journey. **API + web (safe before the API ships).**
 
-- [ ] **Batch 196 — The results history ignores the season, and members cannot share the join code they hold**
+- [x] **Batch 196 — The results history ignores the season, and members cannot share the join code they hold** ✅ 2026-10-09
   — specified from `docs/review/2026-09-28/05-feature-gaps.md`, FEAT-B09 (LOW, carried) and
   FEAT-B12 (LOW). `/results` lists rounds from both seasons and ignores `?season=` while
   standings split correctly. Every member receives the league's join code from the API but only

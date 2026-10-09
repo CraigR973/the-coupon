@@ -15,7 +15,7 @@ Checked 2026-10-07 unless a line says otherwise.
 | --- | --- |
 | API | `api-production-109b1.up.railway.app` serves `c530469` at migration `026` |
 | API deployment | Railway `3219c196-8b5e-40b8-8558-d313d901faf6`, one replica, `europe-west4` |
-| Web | Batch 178 implementation `f13934c` has a successful exact-SHA GitHub production deployment (`6944760442`, checked 8 Oct); Vercel builds `main` on every push |
+| Web | Batch 196 `40606e0` was pushed to `main` on 9 Oct; its production deployment has not been independently verified. The last verified deployment was Batch 178 `f13934c` (`6944760442`, checked 8 Oct) |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -29,8 +29,9 @@ Checked 2026-10-07 unless a line says otherwise.
 
 ## Owed
 
-- **No `/ship-prod` is owed.** Group AE shipped on 2026-10-07 as Railway `3219c196`
-  (`c530469`): Batches 189–193 are live, drift is **in sync**, and migration remains `026`.
+- **`/ship-prod` is owed after Batch 197.** Batch 196's API+web shipment was scheduled by
+  Craig Robinson at 2026-10-09 10:29:55 UTC. Its pre-push drift was in sync; the API still
+  serves Group AE's `c530469` at migration `026` until the explicit shipment.
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
   Railway `98fed46d-c15f-445d-98ac-b36aa004b57b`, the previous image redeployed by the
   pinned IaC apply — boots against the database as it stands. Vercel was already on
@@ -77,7 +78,8 @@ checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188), and its closing
 shipped on 5 Oct as `546db3f` (Batches 184-187 and fix `f0710b0`); Group AD is complete. Batch
 204 (docs-only close-out fast path, owner-approved gate maintenance) is complete. Group AE is
 complete, shipped and verified (Batches 189–193; shipped 7 Oct as `c530469`); Group AB is
-complete (Batches 171, 175–178; web-only, closed 8 Oct); Groups AF and AH follow
+complete (Batches 171, 175–178; web-only, closed 8 Oct); Group AF has closed Batch 196 and
+continues with 195, then 197; Group AH follows
 (`docs/agent-commands/group-start.md`).
 
 ## Toolchain
@@ -91,7 +93,7 @@ Checked 2026-10-03.
   that stamp when only `docs/BUILD_PLAN.md`, `session-log.md` and `STATUS.md` changed, otherwise it
   reruns the gate, and waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,419, frontend 1,296, journey 1; checked 2026-10-07). 13m04s on this Mac
+  (backend 1,420, frontend 1,304, journey 1; checked 2026-10-09). 13m04s on this Mac
   with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
   (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
   1,350 tests (2026-09-29) — not the gate.
@@ -120,5 +122,5 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Group AF (security and integration); and the owner's
+**Next:** Group AF Batch 195 (closed sign-up and invite registration); and the owner's
 season-calendar backfill, now unblocked.

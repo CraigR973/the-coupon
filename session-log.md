@@ -8615,3 +8615,14 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - The focused journey, complete local gate and exact-SHA CI passed after the added readiness assertion. This is test-only; pre-push deployed-API drift was in sync and no application half changed.
 
 **Next:** Resume Group AF at Batch 196's full gate and close-out.
+
+## Batch 196 — Season results and member join-code sharing
+**Commit:** `40606e0` · verified: complete 12-check local gate, 1,420 backend and 1,304 frontend tests, zero skips, production-bundle smoke and seeded browser journey PASS · CI: https://github.com/CraigR973/the-coupon/actions/runs/37918038278 PASS for `40606e0009f32db5ebaf35942557a32c474a9f2c`
+
+### Key facts for future sessions
+- Results default to the current July–June season and accept `?season=` for past seasons. The league results screen has the same season selector and direct links as standings. It also filters returned dates locally while the already-deployed API still ignores the new query parameter.
+- A member with a league join code can use the league leaderboard's invite action, which shares through the existing native-share or clipboard path. All three current privacy modes permit code joining; a missing code hides the action.
+- The first two complete gates hit the pre-existing offline coupon journey race. It reproduced on clean `main` and was repaired separately in `3cb9e2f` by waiting for the seeded pick before disconnecting; that fix passed its own complete gate and exact-SHA CI. The complete Batch 196 gate then passed all 12 checks. No Batch 196 test oracle was weakened.
+- **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-09T10:29:55Z; pre-push deployed-API drift in sync; /ship-prod owed immediately after push
+
+**Next:** Batch 195 — closed sign-up and invite registration journey; Group AF ships the API after Batch 197.
