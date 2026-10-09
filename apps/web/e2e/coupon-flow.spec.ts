@@ -13,6 +13,7 @@ import type {
 } from '../src/lib/types';
 
 const API = process.env.COUPON_E2E_API_URL ?? 'http://127.0.0.1:8000';
+const WEB = process.env.COUPON_E2E_WEB_URL ?? 'http://127.0.0.1:4173';
 const ARTIFACT_DIR =
   process.env.COUPON_E2E_ARTIFACT_DIR ??
   '/Users/craigrobinson/the-coupon/artifacts/batch-6';
@@ -307,7 +308,7 @@ async function keyboardLoginAndClaim(
   browser: Browser,
   viewport: { width: number; height: number },
 ): Promise<number> {
-  const context = await browser.newContext({ viewport });
+  const context = await browser.newContext({ baseURL: WEB, viewport });
   const page = await context.newPage();
   let keystrokes = 0;
   const tab = async () => {
@@ -382,7 +383,7 @@ async function keyboardLoginAndClaim(
 }
 
 async function login(browser: Browser, displayName: string): Promise<Page> {
-  const context = await browser.newContext();
+  const context = await browser.newContext({ baseURL: WEB });
   const page = await context.newPage();
   await page.goto('/login');
   await page.getByLabel('Display name').fill(displayName);
@@ -433,6 +434,7 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   // The phone install gate is the only navigable page while it covers sign-in: the
   // instructions own the main landmark and the route underneath is inert.
   const installContext = await browser.newContext({
+    baseURL: WEB,
     viewport: { width: 390, height: 844 },
     userAgent:
       'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36',
@@ -1270,7 +1272,7 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   expect(aboutBox).not.toBeNull();
   expect(aboutBox!.height).toBeGreaterThanOrEqual(24);
 
-  const loginContext = await browser.newContext();
+  const loginContext = await browser.newContext({ baseURL: WEB });
   const loginPage = await loginContext.newPage();
   await loginPage.goto('/login');
   const forgotPin = loginPage.getByRole('link', { name: 'Forgot PIN?' });
@@ -1471,7 +1473,10 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
   // Batch 150. Registration creates an account but deliberately joins no league. That
   // makes it the production-shaped route into the first-run home state rather than an
   // e2e-only fixture with a different membership contract.
-  const firstRunContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const firstRunContext = await browser.newContext({
+    baseURL: WEB,
+    viewport: { width: 390, height: 844 },
+  });
   const firstRun = await firstRunContext.newPage();
   await firstRun.goto('/register');
   await firstRun.getByLabel('Display name').fill('Nora');
