@@ -15,7 +15,7 @@ Checked 2026-10-07 unless a line says otherwise.
 | --- | --- |
 | API | `api-production-109b1.up.railway.app` serves `c530469` at migration `026` |
 | API deployment | Railway `3219c196-8b5e-40b8-8558-d313d901faf6`, one replica, `europe-west4` |
-| Web | Batch 196 `40606e0` was pushed to `main` on 9 Oct; its production deployment has not been independently verified. The last verified deployment was Batch 178 `f13934c` (`6944760442`, checked 8 Oct) |
+| Web | Batch 195 `eb9fcee` was pushed to `main` on 9 Oct; its production deployment has not been independently verified. The last verified deployment was Batch 178 `f13934c` (`6944760442`, checked 8 Oct) |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -29,9 +29,11 @@ Checked 2026-10-07 unless a line says otherwise.
 
 ## Owed
 
-- **`/ship-prod` is owed after Batch 197.** Batch 196's API+web shipment was scheduled by
-  Craig Robinson at 2026-10-09 10:29:55 UTC. Its pre-push drift was in sync; the API still
-  serves Group AE's `c530469` at migration `026` until the explicit shipment.
+- **`/ship-prod` is owed after Batch 197.** The Group AF shipment was scheduled by Craig
+  Robinson at 2026-10-09 10:29:55 UTC; Batch 195's safety acknowledgement was recorded at
+  22:29:48 UTC. The API still serves Group AE's `c530469` at migration `026`. The new
+  sign-up route and invite registration wait for the explicit shipment; the web uses the
+  existing registration flow while that route is absent.
 - **Rollback is a plain redeploy.** The shipment applied no migration, so its baseline —
   Railway `98fed46d-c15f-445d-98ac-b36aa004b57b`, the previous image redeployed by the
   pinned IaC apply — boots against the database as it stands. Vercel was already on
@@ -78,8 +80,8 @@ checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188), and its closing
 shipped on 5 Oct as `546db3f` (Batches 184-187 and fix `f0710b0`); Group AD is complete. Batch
 204 (docs-only close-out fast path, owner-approved gate maintenance) is complete. Group AE is
 complete, shipped and verified (Batches 189–193; shipped 7 Oct as `c530469`); Group AB is
-complete (Batches 171, 175–178; web-only, closed 8 Oct); Group AF has closed Batch 196 and
-continues with 195, then 197; Group AH follows
+complete (Batches 171, 175–178; web-only, closed 8 Oct); Group AF has closed Batches 196
+and 195 and continues with 197; Group AH follows
 (`docs/agent-commands/group-start.md`).
 
 ## Toolchain

@@ -666,7 +666,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: notification history. **Migration + API + web — a migrating shipment needs
   its recovery note (Batch 128).**
 
-- [ ] **Batch 195 — With sign-ups closed nobody new can get in, and the screen says otherwise**
+- [x] **Batch 195 — With sign-ups closed nobody new can get in, and the screen says otherwise** ✅ 2026-10-09
   — specified from `docs/review/2026-09-28/05-feature-gaps.md`, FEAT-A12 (LOW, carried, sharper).
   The register screen does not know the kill switch; with it off a visitor fills the form and
   only then learns "Ask a league admin for an invite" — but claiming an invite needs an account

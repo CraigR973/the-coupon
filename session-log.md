@@ -8646,3 +8646,15 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - **Close-out safety:** PASS — tooling/docs; pre-push /ship-prod debt present; no application half changed
 
 **Next:** Resume Group AF at Batch 195's full gate; ship the API only after Batch 197 and the owner's explicit `/ship-prod`.
+
+## Batch 195 — Closed sign-up and invite registration
+**Commit:** `eb9fcee` · verified: complete 12-check local gate, 1,432 backend and 1,309 frontend tests, zero skips, production-bundle smoke and seeded browser journey PASS · CI: https://github.com/CraigR973/the-coupon/actions/runs/37999619523 PASS for `eb9fcee471d442ce579c2244c5c8c345e73913e8`
+
+### Key facts for future sessions
+- Public `GET /api/v1/auth/signup-status` returns only the registration switch with `no-store`. Closed public sign-up without an invite shows a notice; a valid opaque invite creates the account, league membership and refresh session while consuming the invite in one commit. An invalid, spent, expired, deleted-league or full-league invite leaves no account behind.
+- A six-character reusable join code cannot create an account while sign-ups are closed. When the older API lacks the status route, the web form and existing post-registration invite claim still work, so the web-first push does not depend on the new API.
+- The first complete gate passed 1,432 backend and 1,309 frontend tests and the seeded journey, but the `/register` production-bundle CSP check tried to fetch the harness's deliberately invalid API host. The harness now serves only the new status read; its 38 focused checks and the second complete 12-check gate passed without changing a CSP assertion.
+- Real-browser checks at 390 px and 1280 px showed the closed notice with no form or horizontal overflow; the opaque-invite form and old-API 404 fallback also passed at 390 px.
+- **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-09T22:29:48Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
+
+**Next:** Batch 197 — invite landing details; Group AF's explicitly scheduled API shipment follows that batch.
