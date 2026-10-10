@@ -15,7 +15,7 @@ Checked 2026-10-07 unless a line says otherwise.
 | --- | --- |
 | API | `api-production-109b1.up.railway.app` serves `c530469` at migration `026` |
 | API deployment | Railway `3219c196-8b5e-40b8-8558-d313d901faf6`, one replica, `europe-west4` |
-| Web | Batch 197 `ed751c9` is live at `the-coupon-production.vercel.app` (`dpl_CaPyk91WvSPVqGczrw18Twz5xmwH`, exact Git SHA and alias verified 10 Oct) |
+| Web | Batch 197 web code from `ed751c9` is live at `the-coupon-production.vercel.app`; deployment `dpl_CaPyk91WvSPVqGczrw18Twz5xmwH` first proved the exact implementation SHA on 10 Oct. Later documentation-only deployments leave that web code unchanged. |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
