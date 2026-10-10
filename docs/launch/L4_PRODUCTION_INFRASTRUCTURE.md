@@ -3722,3 +3722,46 @@ the first read-only RLS query treated PostgreSQL's `PUBLIC` pseudo-role as a log
 the corrected metadata/effective-access query passed.
 
 Backup/restore-point identity: **none yet** — Batch 95's backup is still switched off.
+
+### 2026-10-10 — `a2557bd`, Group AF's second checkpoint (migration `027`)
+
+Batch 194's member notification inbox, category mutes and 30-day retention shipped under
+the owner's explicit `/ship-prod`. The clean `main` tree reused the complete 12-check local
+gate stamp (1,443 backend tests, 1,320 frontend tests, one seeded browser journey, zero
+skips); exact-SHA GitHub Actions run `38083434377` passed all three jobs for `a2557bd`.
+
+Preflight confirmed Supabase `pugujiiojitstkilphrz` `ACTIVE_HEALTHY` in London; the exact
+Railway project, production environment, `api` service and stable domain; null
+`railwayConfigFile`; all 13 required Railway variable names; and both encrypted,
+production-scoped Vercel variable names. The previous API image was `a729f839` at `026`
+on Railway deployment `2721fbe2-b114-4d84-ab5d-874afa211b51`. The migration recovery
+check accepted the written forward plan for `027`.
+
+The pinned Railway IaC plan had 0 additions, 2 safe updates to the existing `api` service
+and 0 deletions. Its redeploy of the previous image,
+`aca5be0c-8b65-4a1e-8cc7-e7ab55933ae6`, reached `SUCCESS` before the source upload.
+The source deployment `6edcd515-97b3-4b5b-83b3-1208c6a5365a` reached `SUCCESS` with
+one replica in `europe-west4-drams3a`, sleep off, IPv6 egress, 0.25 vCPU / 500 MB,
+Nixpacks `/nixpacks.toml` and the 300-second `/api/v1/health/ready` check. `/health`
+reported source `a2557bd` and bundled head `027`; `/health/ready` reported database `ok`
+and applied head `027`.
+
+A direct read-only production transaction found RLS enabled and forced on 22 of 22 public
+tables, including `member_notifications`, with no `anon`, `authenticated` or `PUBLIC`
+table or `public` schema grants. The audit used encrypted TLS `require`; local full
+certificate verification needs the project's Supabase CA and was not claimed. A final
+bounded Railway sample held 49 lines with zero failure-term or credential-pattern
+matches; seven error-level startup lines were normal Alembic and Uvicorn output.
+
+Vercel was a no-op: GitHub had already deployed `a2557bd` as
+`dpl_FJWfWy2XaW1KsDDLX4oryzEXn6pP`, `READY` at the stable alias. The web root and
+`/leagues/discover` both returned `200` from the same SPA asset with matching security
+and cache headers. Exact-origin CORS returned `200` with credentials, a foreign origin
+was refused with `400`, and an unauthenticated inbox read returned `401` rather than
+the old route's `404`. Vercel had zero error log entries in the one-hour bounded read;
+API readiness and deployed-API drift remained green after the combined smoke.
+
+Backup/restore-point identity: **none yet**. Migration `027` makes the previous API image
+an invalid normal rollback target because its Alembic boot check cannot resolve that
+revision. Use the forward plan in `docs/runbooks/migration-027-recovery.md`; no downgrade
+or version-row edit was authorised or run.

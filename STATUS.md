@@ -13,10 +13,10 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `a729f839` at migration `026` |
-| API deployment | Railway `2721fbe2-b114-4d84-ab5d-874afa211b51` succeeded, one replica, `europe-west4` |
-| Web | Batch 194 web code from `f01a796` is live at `the-coupon-production.vercel.app`; deployment `dpl_7BGn8AMeFS7zRefuJhHgqS6mHhek` is Ready and GitHub ties it to verified fix SHA `4ef6fb3`. The bell hides until the matching API route ships. |
-| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
+| API | `api-production-109b1.up.railway.app` serves `a2557bd` at migration `027` |
+| API deployment | Railway `6edcd515-97b3-4b5b-83b3-1208c6a5365a` succeeded, one replica, `europe-west4` |
+| Web | Batch 194 web code is live at `the-coupon-production.vercel.app`; GitHub deployment `dpl_FJWfWy2XaW1KsDDLX4oryzEXn6pP` first proved exact source `a2557bd` Ready. Later documentation-only deployments leave the web code unchanged. |
+| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 22 of 22 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
 | Football data | FotMob, no key |
@@ -27,14 +27,13 @@ Checked 2026-10-10 unless a line says otherwise.
 `scripts/check-deploy-drift.sh` is the authority on what the API is running, never
 `git log`: shipments have gone unrecorded before.
 
-## Owed
+## Shipment state
 
-- **`/ship-prod` is owed now for Batch 194 and migration `027`.** Craig Robinson scheduled
-  the matching shipment at 2026-10-10 19:47:24 UTC. The first Group AF shipment served
-  `a729f839` at migration `026`; the inbox API and preference columns are not live yet.
-  The web bell hides against the older API's 404. The separate `/ship-prod` must run and
-  verify the exact API SHA, migration, readiness and RLS before Group AH starts.
-- **Migration `027` needs its matching API image.** The migration is additive, but the
+- **Group AF is shipped and verified** (10 Oct). The API and web served source
+  `a2557bd` at shipment; API health and database readiness reported `027`, and drift was
+  in sync. The read-only database audit found no `anon`, `authenticated` or `PUBLIC`
+  table or schema grants. The production web alias was Ready on the same Git SHA.
+- **Migration `027` requires forward recovery.** The migration is additive, but the
   older image's Alembic boot check cannot start against revision `027`. Use
   `docs/runbooks/migration-027-recovery.md` for forward repair. Production has no backup
   restore point, so do not describe a downgrade as a data-preserving rollback.
@@ -80,8 +79,8 @@ checkpoint shipped on 4 Oct as `bb09760b` (Batches 183 and 188), and its closing
 shipped on 5 Oct as `546db3f` (Batches 184-187 and fix `f0710b0`); Group AD is complete. Batch
 204 (docs-only close-out fast path, owner-approved gate maintenance) is complete. Group AE is
 complete, shipped and verified (Batches 189–193; shipped 7 Oct as `c530469`); Group AB is
-complete (Batches 171, 175–178; web-only, closed 8 Oct); Group AF has closed Batches 196,
-195, 197 and 194 and waits at its second `/ship-prod` checkpoint; Group AH follows
+complete (Batches 171, 175–178; web-only, closed 8 Oct); Group AF is complete, shipped
+and verified (Batches 196, 195, 197 and 194; final shipment 10 Oct); Group AH follows
 (`docs/agent-commands/group-start.md`).
 
 ## Toolchain

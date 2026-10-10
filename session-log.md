@@ -8683,3 +8683,14 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-10T19:47:24Z; pre-push deployed-API drift in sync; /ship-prod owed immediately after push
 
 **Next:** Stop at Group AF's second `/ship-prod` checkpoint for Batch 194 and migration `027`; Group AH follows only after that explicit shipment is verified.
+
+## Shipment — 2026-10-10, `a2557bd` (Group AF final; migration `027`)
+**Railway:** `6edcd515-97b3-4b5b-83b3-1208c6a5365a` `SUCCESS` · pre-migration IaC redeploy `aca5be0c-8b65-4a1e-8cc7-e7ab55933ae6` · Vercel no-op (`dpl_FJWfWy2XaW1KsDDLX4oryzEXn6pP`, `a2557bd`) · drift **in sync** · exact-SHA CI `38083434377` green · reused complete 12-check gate stamp (backend 1,443; frontend 1,320; journey 1; zero skips)
+
+### Key facts for future sessions
+- **Group AF is fully live.** Batches 196, 195, 197 and 194 are shipped. The notification inbox now records member events before push eligibility checks, exposes the home bell, respects category mutes and prunes history after 30 days. No `/ship-prod` is owed. The owner invoked this final checkpoint explicitly.
+- **Production proof:** API health and database readiness reported `a2557bd` / `027`; direct read-only audit found RLS enabled and forced on 22 of 22 public tables with no `anon`, `authenticated` or `PUBLIC` table or schema grants. Web root and deep link served one SPA asset with security headers, exact-origin CORS passed and a foreign origin was refused, the unauthenticated inbox returned `401`, and bounded Railway/Vercel error checks were clear.
+- **Recovery:** the pinned IaC plan had 0 additions, 2 safe updates to the existing `api` service and 0 deletions. The old-image IaC redeploy succeeded before upload, but revision `027` makes it an invalid normal rollback target. Production has no backup or restore point; `docs/runbooks/migration-027-recovery.md` directs forward repair. No downgrade or version-row edit ran.
+- **Verification corrections:** the first read-only audit tried a SQLAlchemy-style URL with `asyncpg`; explicit connection fields fixed the parser error. Local CA stores could not verify Supabase's project certificate, so the final read-only audit used encrypted TLS `require` and did not claim certificate verification. These retries changed no production data.
+
+**Next:** Group AH is the next planned group; do not begin it as part of this shipment.
