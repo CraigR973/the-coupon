@@ -35,12 +35,20 @@ source of truth. The React PWA consumes snake_case `/api/v1/` JSON.
 ```text
 Invite link → React join page → public token preview → FastAPI → PostgreSQL
                             → sign-in or registration → invite claim → league
+
+League event → recipient + mute policy → PostgreSQL inbox (30 days)
+                                     → Web Push (when allowed and subscribed)
+Home bell → member-only inbox read → mark read on view
 ```
 
 The public preview exposes only league name, inviter name and active member
 count for a valid unspent token. Registration or an authenticated claim creates
 the membership; the preview never does. The join page continues without the
 preview while the new API route is unavailable.
+
+League events are copied once per eligible member into the inbox even without a
+push subscription or during quiet hours. Global, league and kind mutes suppress
+both channels. A daily retention pass removes messages older than 30 days.
 
 Odds sit behind the provider-neutral `OddsProvider` port
 (`services/odds_provider.py`). `OddsApiProvider` is production — odds-api.io

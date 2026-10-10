@@ -31,7 +31,7 @@ from src.config import settings
 from src.database import AsyncSessionLocal
 from src.models.gameweek import GameweekStatus
 from src.models.league import League
-from src.models.notification import ActionType, ActorType, AuditLog
+from src.models.notification import ActionType, ActorType, AuditLog, MemberNotification
 from src.models.rate_limit import RateLimitCounter
 from src.models.refresh_token import RefreshToken
 from src.services.backup import archive_key, create_archive, create_backup
@@ -78,6 +78,7 @@ from src.services.scoring import (
 #: Long enough that a revoked row still serves as evidence for reuse detection in
 #: ``/auth/refresh``, short enough that the table does not accumulate a season of them.
 REFRESH_TOKEN_RETENTION = timedelta(days=7)
+MEMBER_NOTIFICATION_RETENTION = timedelta(days=30)
 
 # APScheduler otherwise drops a job after one second. A briefly busy one-worker event loop
 # is normal here, so every registration gets an explicit recovery window: at most half the
@@ -244,7 +245,7 @@ async def run_prune_refresh_tokens() -> bool:
 
 
 async def run_prune_rate_limit_counters() -> bool:
-    """Delete rate-limit buckets whose window has closed. Housekeeping, not security.
+    """Delete expired counters and member notifications in one daily retention pass.
 
     Batch 99 moved the login and PIN-reset counters into Postgres so a redeploy stops
     handing out fresh buckets. The cost of that is a table that grows with *distinct
@@ -265,8 +266,14 @@ async def run_prune_rate_limit_counters() -> bool:
             result = await session.execute(
                 delete(RateLimitCounter).where(RateLimitCounter.expires_at < _utc_now())
             )
+            notification_result = await session.execute(
+                delete(MemberNotification).where(
+                    MemberNotification.created_at < _utc_now() - MEMBER_NOTIFICATION_RETENTION
+                )
+            )
             await session.commit()
         log.info("pruned rate limit counters", removed=result.rowcount or 0)
+        log.info("pruned member notifications", removed=notification_result.rowcount or 0)
         return True
     except Exception:
         log.exception("rate limit counter prune failed")

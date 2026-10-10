@@ -11,6 +11,7 @@ from src.models.notification import (
     ActionType,
     ActorType,
     AuditLog,
+    MemberNotification,
     NotificationPreferences,
     PushSubscription,
 )
@@ -39,6 +40,7 @@ __all__ = [
     "LeagueMembership",
     "LeaguePrivacy",
     "Match",
+    "MemberNotification",
     "NotificationPreferences",
     "Pick",
     "PickMarket",

@@ -73,6 +73,7 @@ export const keys = {
       ['results', slug, season ?? 'current'] as const,
   },
   notificationPreferences: () => ['notification-preferences'] as const,
+  notifications: () => ['notifications'] as const,
   clientConfig: () => ['client-config'] as const,
   signupStatus: () => ['signup-status'] as const,
   invitePreview: (token: string) => ['invite-preview', token] as const,

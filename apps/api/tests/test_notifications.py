@@ -66,6 +66,9 @@ def _prefs(user_id: uuid.UUID, **overrides: Any) -> MagicMock:
     p = MagicMock(spec=NotificationPreferences)
     p.user_id = user_id
     p.global_mute = False
+    p.mute_pick_activity = False
+    p.mute_round_updates = False
+    p.mute_results = False
     p.quiet_hours_start = None
     p.quiet_hours_end = None
     for k, v in overrides.items():
@@ -381,6 +384,9 @@ async def test_get_preferences_creates_defaults() -> None:
     async def _refresh(obj: Any) -> None:
         if isinstance(obj, NotificationPreferences):
             obj.global_mute = False
+            obj.mute_pick_activity = False
+            obj.mute_round_updates = False
+            obj.mute_results = False
             obj.quiet_hours_start = None
             obj.quiet_hours_end = None
 
@@ -406,6 +412,9 @@ async def test_patch_preferences() -> None:
     prefs = MagicMock(spec=NotificationPreferences)
     prefs.user_id = user.id
     prefs.global_mute = False
+    prefs.mute_pick_activity = False
+    prefs.mute_round_updates = False
+    prefs.mute_results = False
     prefs.quiet_hours_start = None
     prefs.quiet_hours_end = None
 
@@ -428,12 +437,18 @@ async def test_patch_preferences() -> None:
                 "/api/v1/notifications/preferences",
                 json={
                     "global_mute": True,
+                    "mute_pick_activity": True,
+                    "mute_round_updates": True,
+                    "mute_results": True,
                     "quiet_hours_start": "22:00",
                     "quiet_hours_end": "07:00",
                 },
             )
         assert r.status_code == 200
         assert prefs.global_mute is True
+        assert prefs.mute_pick_activity is True
+        assert prefs.mute_round_updates is True
+        assert prefs.mute_results is True
     finally:
         app.dependency_overrides.clear()
 
@@ -444,6 +459,9 @@ async def test_get_preferences_includes_league_mutes() -> None:
     prefs = MagicMock(spec=NotificationPreferences)
     prefs.user_id = user.id
     prefs.global_mute = False
+    prefs.mute_pick_activity = False
+    prefs.mute_round_updates = False
+    prefs.mute_results = False
     prefs.quiet_hours_start = None
     prefs.quiet_hours_end = None
 
@@ -477,6 +495,9 @@ async def test_patch_preferences_updates_league_mute() -> None:
     prefs = MagicMock(spec=NotificationPreferences)
     prefs.user_id = user.id
     prefs.global_mute = False
+    prefs.mute_pick_activity = False
+    prefs.mute_round_updates = False
+    prefs.mute_results = False
     prefs.quiet_hours_start = None
     prefs.quiet_hours_end = None
 

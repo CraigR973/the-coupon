@@ -192,6 +192,25 @@ describe('SettingsPage', () => {
     });
   });
 
+  it('offers kind mutes when the API supports them', async () => {
+    const supported = {
+      ...DEFAULT_PREFS,
+      mute_pick_activity: false,
+      mute_round_updates: false,
+      mute_results: false,
+    };
+    const fetch = makeFetch(supported, supported);
+    renderPage(fetch);
+    fireEvent.click(await screen.findByRole('switch', { name: 'Picks and moves' }));
+    await waitFor(() => {
+      const patchCall = (fetch.mock.calls as [string, RequestInit?][]).find(
+        ([url, opts]) => url.includes('/api/v1/notifications/preferences') && opts?.method === 'PATCH',
+      );
+      expect(patchCall).toBeDefined();
+      expect(JSON.parse(patchCall![1]!.body as string)).toEqual({ mute_pick_activity: true });
+    });
+  });
+
   it('shows a per-league toggle and sends league_mutes on change', async () => {
     const fetch = makeFetch(PREFS_WITH_LEAGUES);
     renderPage(fetch);

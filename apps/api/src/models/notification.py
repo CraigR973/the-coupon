@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -71,6 +71,13 @@ class NotificationPreferences(Base):
         primary_key=True,
     )
     global_mute: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    mute_pick_activity: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    mute_round_updates: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    mute_results: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     quiet_hours_start: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=False), nullable=True
     )
@@ -80,6 +87,29 @@ class NotificationPreferences(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), nullable=False, server_default="now()"
     )
+
+
+class MemberNotification(Base, UUIDPrimaryKeyMixin):
+    __tablename__ = "member_notifications"
+    __table_args__ = (
+        Index("ix_member_notifications_user_created", "user_id", "created_at"),
+        Index("ix_member_notifications_created", "created_at"),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    league_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("leagues.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False), nullable=False, server_default="now()"
+    )
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
 
 
 class AuditLog(Base, UUIDPrimaryKeyMixin):

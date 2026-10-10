@@ -29,6 +29,9 @@ interface LeagueMute {
 
 interface NotificationPreferences {
   global_mute: boolean;
+  mute_pick_activity?: boolean;
+  mute_round_updates?: boolean;
+  mute_results?: boolean;
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;
   leagues: LeagueMute[];
@@ -215,6 +218,7 @@ function PreferencesSection() {
       }),
     onSuccess: (updated) => {
       queryClient.setQueryData(keys.notificationPreferences(), updated);
+      void queryClient.invalidateQueries({ queryKey: keys.notifications() });
     },
     onError: () => toast.error('Failed to save preferences'),
   });
@@ -250,7 +254,10 @@ function PreferencesSection() {
       />
 
       <div className="pt-3 border-t border-border">
-        <p className="text-sm font-sans text-text-secondary mb-2">Quiet hours (no notifications)</p>
+        <p className="text-sm font-sans text-text-secondary mb-2">Quiet hours (pause push)</p>
+        <p className="mb-2 font-sans text-xs text-text-muted">
+          League updates still appear in your in-app notifications during quiet hours.
+        </p>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm font-sans text-text-secondary">
             From
@@ -283,6 +290,35 @@ function PreferencesSection() {
           )}
         </div>
       </div>
+
+      {typeof prefs.mute_pick_activity === 'boolean' &&
+        typeof prefs.mute_round_updates === 'boolean' &&
+        typeof prefs.mute_results === 'boolean' && (
+          <div className="border-t border-border pt-3">
+            <p className="mb-1 font-sans text-sm text-text-secondary">Notification kinds</p>
+            <p className="mb-2 font-sans text-xs text-text-muted">
+              Turning a kind off hides it from both push and your in-app history.
+            </p>
+            <Toggle
+              checked={!prefs.mute_pick_activity}
+              disabled={muted}
+              onChange={(enabled) => update({ mute_pick_activity: !enabled })}
+              label="Picks and moves"
+            />
+            <Toggle
+              checked={!prefs.mute_round_updates}
+              disabled={muted}
+              onChange={(enabled) => update({ mute_round_updates: !enabled })}
+              label="Round updates and reminders"
+            />
+            <Toggle
+              checked={!prefs.mute_results}
+              disabled={muted}
+              onChange={(enabled) => update({ mute_results: !enabled })}
+              label="Results and corrections"
+            />
+          </div>
+        )}
 
       {prefs.leagues.length > 0 && (
         <div className="pt-3 border-t border-border">

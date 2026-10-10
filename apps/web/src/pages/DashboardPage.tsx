@@ -32,6 +32,7 @@ import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '../lib/utils';
 import { useExpiry } from '@/hooks/useExpiry';
 import { Countdown } from '@/components/Countdown';
+import { NotificationBell } from '@/components/NotificationBell';
 
 const FAR_PAST = new Date(0).toISOString();
 
@@ -145,54 +146,59 @@ export function DashboardPage() {
   const leagues = data?.per_league ?? [];
 
   return (
-    <div className="space-y-6">
-      <HomeHero
-        displayName={player?.displayName ?? 'there'}
-        summary={data}
-        isLoading={isLoading}
-      />
-
-      {isLoading && (
-        <div className="flex flex-col gap-5" aria-label="Loading your leagues">
-          <HomeLeagueLoadingCard />
-          <HomeLeagueLoadingCard />
-        </div>
-      )}
-
-      {isError && (
-        <QueryErrorState
-          title="Couldn't load your leagues"
-          description="Please try again shortly."
-          onRetry={() => void refetch()}
+    <div className="relative">
+      <div className="space-y-6">
+        <HomeHero
+          displayName={player?.displayName ?? 'there'}
+          summary={data}
+          isLoading={isLoading}
         />
-      )}
 
-      {!isLoading && !isError && leagues.length === 0 && (
-        <FirstLeaguePrompt />
-      )}
-
-      {leagues.length > 0 && (
-        <section aria-labelledby="home-leagues-heading">
-          <div className="mb-3 flex items-end justify-between gap-3 px-1">
-            <h2
-              id="home-leagues-heading"
-              className="font-sans text-lg font-semibold tracking-tight text-text-primary"
-            >
-              Your leagues
-            </h2>
-            <p className="font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
-              {leagues.length} in play
-            </p>
+        {isLoading && (
+          <div className="flex flex-col gap-5" aria-label="Loading your leagues">
+            <HomeLeagueLoadingCard />
+            <HomeLeagueLoadingCard />
           </div>
-          <ul className="flex flex-col gap-5" data-testid="home-league-cards">
-            {leagues.map((entry) => (
-              <li key={entry.slug}>
-                <LeagueHomeCard entry={entry} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+        )}
+
+        {isError && (
+          <QueryErrorState
+            title="Couldn't load your leagues"
+            description="Please try again shortly."
+            onRetry={() => void refetch()}
+          />
+        )}
+
+        {!isLoading && !isError && leagues.length === 0 && (
+          <FirstLeaguePrompt />
+        )}
+
+        {leagues.length > 0 && (
+          <section aria-labelledby="home-leagues-heading">
+            <div className="mb-3 flex items-end justify-between gap-3 px-1">
+              <h2
+                id="home-leagues-heading"
+                className="font-sans text-lg font-semibold tracking-tight text-text-primary"
+              >
+                Your leagues
+              </h2>
+              <p className="font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+                {leagues.length} in play
+              </p>
+            </div>
+            <ul className="flex flex-col gap-5" data-testid="home-league-cards">
+              {leagues.map((entry) => (
+                <li key={entry.slug}>
+                  <LeagueHomeCard entry={entry} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+      <div className="absolute right-5 top-5 sm:right-7 sm:top-7">
+        <NotificationBell />
+      </div>
     </div>
   );
 }

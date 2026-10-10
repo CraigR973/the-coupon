@@ -2,23 +2,26 @@
 
 import ipaddress
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 from urllib.parse import urlsplit
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, field_validator
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from src.auth import CurrentUser
 from src.config import settings
 from src.database import get_db
 from src.models.league import League
 from src.models.league_membership import LeagueMembership
-from src.models.notification import NotificationPreferences, PushSubscription
+from src.models.notification import MemberNotification, NotificationPreferences, PushSubscription
 from src.rate_limit import limiter, per_user_key
-from src.services.push_notification_service import send_notification
+from src.schemas import UtcDatetime
+from src.services.push_notification_service import muted_inbox_kinds, send_notification
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -114,6 +117,9 @@ class LeagueMuteOut(BaseModel):
 
 class PreferencesOut(BaseModel):
     global_mute: bool
+    mute_pick_activity: bool
+    mute_round_updates: bool
+    mute_results: bool
     quiet_hours_start: str | None  # "HH:MM"
     quiet_hours_end: str | None  # "HH:MM"
     leagues: list[LeagueMuteOut]
@@ -121,10 +127,29 @@ class PreferencesOut(BaseModel):
 
 class PreferencesPatch(BaseModel):
     global_mute: bool | None = None
+    mute_pick_activity: bool | None = None
+    mute_round_updates: bool | None = None
+    mute_results: bool | None = None
     quiet_hours_start: str | None = None  # "HH:MM" or empty string to clear
     quiet_hours_end: str | None = None
     #: league_id -> desired mute state. Only the leagues named here are touched.
     league_mutes: dict[str, bool] | None = None
+
+
+class InboxItem(BaseModel):
+    id: uuid.UUID
+    league_id: uuid.UUID
+    kind: str
+    title: str
+    body: str
+    url: str
+    created_at: UtcDatetime
+    read_at: UtcDatetime | None
+
+
+class InboxOut(BaseModel):
+    items: list[InboxItem]
+    unread_count: int
 
 
 # ── VAPID public key ─────────────────────────────────────��────────────────────
@@ -222,6 +247,85 @@ async def test_push(request: Request, user: CurrentUser, db: Db) -> dict[str, An
 # ── Notification preferences ──────────────────────────────────────────────────
 
 
+async def _visible_inbox_filters(
+    db: AsyncSession, user_id: uuid.UUID, cutoff: datetime
+) -> list[ColumnElement[bool]]:
+    """Apply the current mutes to both the list and its unread count."""
+    filters: list[ColumnElement[bool]] = [
+        MemberNotification.user_id == user_id,
+        MemberNotification.created_at >= cutoff,
+    ]
+    prefs = await db.scalar(
+        select(NotificationPreferences).where(NotificationPreferences.user_id == user_id)
+    )
+    if prefs is not None and prefs.global_mute:
+        filters.append(MemberNotification.id.is_(None))
+        return filters
+    hidden_kinds = muted_inbox_kinds(prefs)
+    if hidden_kinds:
+        filters.append(MemberNotification.kind.not_in(hidden_kinds))
+    muted_leagues = (
+        (
+            await db.execute(
+                select(LeagueMembership.league_id).where(
+                    LeagueMembership.player_id == user_id,
+                    LeagueMembership.deleted_at.is_(None),
+                    LeagueMembership.notification_muted.is_(True),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if muted_leagues:
+        filters.append(MemberNotification.league_id.not_in(muted_leagues))
+    return filters
+
+
+@router.get("/notifications/inbox", response_model=InboxOut)
+async def get_inbox(user: CurrentUser, db: Db) -> InboxOut:
+    """The member's visible last 30 days of league events, newest first."""
+    filters = await _visible_inbox_filters(
+        db, user.id, datetime.now(UTC).replace(tzinfo=None) - timedelta(days=30)
+    )
+    rows = await db.execute(
+        select(MemberNotification)
+        .where(*filters)
+        .order_by(MemberNotification.created_at.desc(), MemberNotification.id.desc())
+        .limit(50)
+    )
+    unread_count = await db.scalar(
+        select(func.count(MemberNotification.id)).where(
+            *filters,
+            MemberNotification.read_at.is_(None),
+        )
+    )
+    return InboxOut(
+        items=[InboxItem.model_validate(row, from_attributes=True) for row in rows.scalars()],
+        unread_count=unread_count or 0,
+    )
+
+
+@router.post("/notifications/inbox/read")
+async def mark_inbox_read(user: CurrentUser, db: Db) -> dict[str, int]:
+    """Opening the bell marks only this member's retained notifications read."""
+    now = datetime.now(UTC).replace(tzinfo=None)
+    filters = await _visible_inbox_filters(db, user.id, now - timedelta(days=30))
+    result = await db.execute(
+        update(MemberNotification)
+        .where(
+            *filters,
+            MemberNotification.read_at.is_(None),
+        )
+        .values(read_at=now)
+    )
+    await db.commit()
+    return {"read_count": result.rowcount or 0}
+
+
+# ── Notification preferences ──────────────────────────────────────────────────
+
+
 def _time_str(dt_field: object) -> str | None:
     """Format a datetime column (time-only sentinel) as HH:MM string."""
     from datetime import datetime as _dt
@@ -267,6 +371,9 @@ async def get_preferences(user: CurrentUser, db: Db) -> PreferencesOut:
 
     return PreferencesOut(
         global_mute=prefs.global_mute,
+        mute_pick_activity=prefs.mute_pick_activity,
+        mute_round_updates=prefs.mute_round_updates,
+        mute_results=prefs.mute_results,
         quiet_hours_start=_time_str(prefs.quiet_hours_start),
         quiet_hours_end=_time_str(prefs.quiet_hours_end),
         leagues=await _league_mutes(db, user.id),
@@ -292,6 +399,12 @@ async def patch_preferences(
 
     if body.global_mute is not None:
         prefs.global_mute = body.global_mute
+    if body.mute_pick_activity is not None:
+        prefs.mute_pick_activity = body.mute_pick_activity
+    if body.mute_round_updates is not None:
+        prefs.mute_round_updates = body.mute_round_updates
+    if body.mute_results is not None:
+        prefs.mute_results = body.mute_results
 
     def _parse_time(val: str | None) -> _dt | None:
         if val is None:
@@ -335,6 +448,9 @@ async def patch_preferences(
 
     return PreferencesOut(
         global_mute=prefs.global_mute,
+        mute_pick_activity=prefs.mute_pick_activity,
+        mute_round_updates=prefs.mute_round_updates,
+        mute_results=prefs.mute_results,
         quiet_hours_start=_time_str(prefs.quiet_hours_start),
         quiet_hours_end=_time_str(prefs.quiet_hours_end),
         leagues=await _league_mutes(db, user.id),

@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.models.league_membership import LeagueMembership
-from src.models.notification import NotificationPreferences, PushSubscription
+from src.models.notification import MemberNotification, NotificationPreferences, PushSubscription
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -72,6 +72,9 @@ class NotificationIntent:
 
     user_id: UUID
     payload: str
+    title: str
+    body: str
+    data: dict[str, Any] | None
     timezone_name: str
     now: datetime
     league_id: UUID | None
@@ -98,6 +101,72 @@ class PushDeliveryReport:
 _notification_intents: ContextVar[list[NotificationIntent] | None] = ContextVar(
     "prepared_notifications", default=None
 )
+
+# Every league-scoped member event has one inbox category. Admin, account and test
+# pushes have no league history. Quiet hours affect delivery, not this durable copy.
+INBOX_KIND_CATEGORY = {
+    "pick_made": "pick_activity",
+    "pick_changed": "pick_activity",
+    "all_picked": "pick_activity",
+    "picks_open": "round_updates",
+    "pick_reminder": "round_updates",
+    "fixture_postponed": "round_updates",
+    "round_settled": "results",
+    "result_corrected": "results",
+}
+
+
+def _inbox_details(data: dict[str, Any] | None, league_id: UUID | None) -> tuple[str, str] | None:
+    if league_id is None or data is None:
+        return None
+    kind = data.get("type")
+    url = data.get("url")
+    if not isinstance(kind, str) or kind not in INBOX_KIND_CATEGORY:
+        return None
+    if not isinstance(url, str) or not url.startswith("/") or url.startswith("//"):
+        return None
+    return kind, url
+
+
+def _category_muted(prefs: NotificationPreferences | None, category: str) -> bool:
+    if prefs is None:
+        return False
+    return bool(
+        (category == "pick_activity" and prefs.mute_pick_activity)
+        or (category == "round_updates" and prefs.mute_round_updates)
+        or (category == "results" and prefs.mute_results)
+    )
+
+
+def muted_inbox_kinds(prefs: NotificationPreferences | None) -> tuple[str, ...]:
+    """Hide already-recorded events while a member mutes their category."""
+    return tuple(
+        kind for kind, category in INBOX_KIND_CATEGORY.items() if _category_muted(prefs, category)
+    )
+
+
+def _record_inbox(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    league_id: UUID,
+    kind: str,
+    title: str,
+    body: str,
+    url: str,
+    now: datetime,
+) -> None:
+    session.add(
+        MemberNotification(
+            user_id=user_id,
+            league_id=league_id,
+            kind=kind,
+            title=title,
+            body=body,
+            url=url,
+            created_at=now,
+        )
+    )
 
 
 @contextmanager
@@ -206,7 +275,8 @@ async def _prepare_notification(
     now = now_utc.replace(tzinfo=None) if now_utc is not None else _utc_now()
     empty = PreparedNotification(pushes=(), attempted_at=now)
 
-    if not settings.vapid_private_key or not settings.vapid_public_key:
+    inbox = _inbox_details(data, league_id)
+    if inbox is None and (not settings.vapid_private_key or not settings.vapid_public_key):
         log.debug("VAPID keys not configured — skipping push", user_id=str(user_id))
         return empty, []
 
@@ -233,8 +303,29 @@ async def _prepare_notification(
     )
     prefs = prefs_result.scalar_one_or_none()
 
-    if prefs is not None and (prefs.global_mute or _is_quiet(prefs, local_current)):
+    if prefs is not None and prefs.global_mute:
         log.debug("notification suppressed by preferences", user_id=str(user_id))
+        return empty, []
+
+    if inbox is not None:
+        kind, url = inbox
+        if _category_muted(prefs, INBOX_KIND_CATEGORY[kind]):
+            return empty, []
+        assert league_id is not None
+        _record_inbox(
+            session,
+            user_id=user_id,
+            league_id=league_id,
+            kind=kind,
+            title=title,
+            body=body,
+            url=url,
+            now=now,
+        )
+
+    if (prefs is not None and _is_quiet(prefs, local_current)) or not (
+        settings.vapid_private_key and settings.vapid_public_key
+    ):
         return empty, []
 
     subs_result = await session.execute(
@@ -260,8 +351,10 @@ async def prepare_collected_notifications(
     intents: Sequence[NotificationIntent],
 ) -> tuple[PreparedNotification, ...]:
     """Resolve a trigger's audience policy and subscriptions in three bulk reads."""
-    if not intents or not settings.vapid_private_key or not settings.vapid_public_key:
+    if not intents:
         return ()
+
+    push_configured = bool(settings.vapid_private_key and settings.vapid_public_key)
 
     user_ids = {intent.user_id for intent in intents}
     league_ids = {intent.league_id for intent in intents if intent.league_id is not None}
@@ -293,20 +386,21 @@ async def prepare_collected_notifications(
         )
     }
     subscriptions_by_user: dict[UUID, list[PushSubscription]] = {}
-    subscriptions = (
-        (
-            await session.execute(
-                select(PushSubscription).where(
-                    PushSubscription.user_id.in_(user_ids),
-                    PushSubscription.is_active.is_(True),
+    if push_configured:
+        subscriptions = (
+            (
+                await session.execute(
+                    select(PushSubscription).where(
+                        PushSubscription.user_id.in_(user_ids),
+                        PushSubscription.is_active.is_(True),
+                    )
                 )
             )
+            .scalars()
+            .all()
         )
-        .scalars()
-        .all()
-    )
-    for subscription in subscriptions:
-        subscriptions_by_user.setdefault(subscription.user_id, []).append(subscription)
+        for subscription in subscriptions:
+            subscriptions_by_user.setdefault(subscription.user_id, []).append(subscription)
 
     plans: list[PreparedNotification] = []
     for intent in intents:
@@ -314,7 +408,25 @@ async def prepare_collected_notifications(
             continue
         prefs = preferences.get(intent.user_id)
         local_current = _local_now(intent.timezone_name, intent.now)
-        if prefs is not None and (prefs.global_mute or _is_quiet(prefs, local_current)):
+        if prefs is not None and prefs.global_mute:
+            continue
+        inbox = _inbox_details(intent.data, intent.league_id)
+        if inbox is not None:
+            kind, url = inbox
+            if _category_muted(prefs, INBOX_KIND_CATEGORY[kind]):
+                continue
+            assert intent.league_id is not None
+            _record_inbox(
+                session,
+                user_id=intent.user_id,
+                league_id=intent.league_id,
+                kind=kind,
+                title=intent.title,
+                body=intent.body,
+                url=url,
+                now=intent.now,
+            )
+        if (prefs is not None and _is_quiet(prefs, local_current)) or not push_configured:
             continue
         member_subscriptions = subscriptions_by_user.get(intent.user_id, [])
         if not member_subscriptions:
@@ -450,6 +562,9 @@ async def send_notification(
             NotificationIntent(
                 user_id=user_id,
                 payload=_payload_json(title, body, data, tag),
+                title=title,
+                body=body,
+                data=data,
                 timezone_name=timezone_name,
                 now=now,
                 league_id=league_id,
