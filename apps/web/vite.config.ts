@@ -72,16 +72,30 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   build: {
-    rollupOptions: {
+    // Vite 5's default. Vite 8 would raise it to Safari 16.4 (Batch 202 changed the
+    // toolchain, not who can run the app).
+    target: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14'],
+    rolldownOptions: {
       output: {
         // Only carve out chunks Vite ALWAYS preloads on the entry — react +
-        // router + query are eagerly used by App.tsx. framer-motion and
-        // recharts are only used by lazy routes, so leaving them out lets
-        // Rollup keep them inside those routes' chunks instead of preloading
-        // them on the unauth /login entry.
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'query': ['@tanstack/react-query'],
+        // router + query are eagerly used by App.tsx. recharts is only used by
+        // lazy routes, so leaving it out keeps it inside those routes' chunks
+        // instead of preloading it on the unauth /login entry. Rolldown takes
+        // these as groups that, like Rollup's object form, bring each package's
+        // own dependencies along.
+        codeSplitting: {
+          groups: [
+            {
+              name: 'react-vendor',
+              test: /[\\/]node_modules[\\/](react|react-dom|react-router-dom)[\\/]/,
+              priority: 2,
+            },
+            {
+              name: 'query',
+              test: /[\\/]node_modules[\\/]@tanstack[\\/]react-query[\\/]/,
+              priority: 1,
+            },
+          ],
         },
       },
     },
