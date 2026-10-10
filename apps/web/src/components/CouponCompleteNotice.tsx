@@ -53,7 +53,7 @@ export function CouponCompleteNotice({
           type="button"
           onClick={onOpen}
           data-testid="coupon-complete-open"
-          className="rounded-md border border-success/60 px-3 py-1.5 text-xs font-sans font-medium tap-target hover:bg-success/[0.08] dark:hover:bg-success/15 focus-visible:outline-none focus-visible:shadow-glow"
+          className="rounded-md border border-success/60 px-3 py-1.5 text-xs font-sans font-medium tap-target hover:bg-success/[0.08] dark:hover:bg-success/15 focus-visible:outline-hidden focus-visible:shadow-glow"
         >
           All picks are in — open and copy coupon
         </button>
@@ -62,7 +62,7 @@ export function CouponCompleteNotice({
           onClick={onDismiss}
           aria-label="Dismiss"
           data-testid="coupon-complete-dismiss"
-          className="rounded-md p-1.5 tap-target text-text-muted hover:text-text-primary focus-visible:outline-none focus-visible:shadow-glow"
+          className="rounded-md p-1.5 tap-target text-text-muted hover:text-text-primary focus-visible:outline-hidden focus-visible:shadow-glow"
         >
           <X className="h-4 w-4" aria-hidden />
         </button>

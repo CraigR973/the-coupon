@@ -1,4 +1,107 @@
 /*
+ * Tailwind 4 (Batch 202). `@import` must precede every other rule, so it sits above the
+ * font faces where v3's `@tailwind` directives used to sit below them. The v3 config
+ * stays the source of the theme through `@config`.
+ */
+@import 'tailwindcss';
+@config '../tailwind.config.ts';
+
+/*
+ * Tailwind 3 behaviour kept through the upgrade. Batch 202 refreshes the toolchain and
+ * nothing else, so members see the screens they saw on v3; each rule names the v4 change
+ * it undoes. `scripts/` has no visual check, so the before/after screenshots in the
+ * Batch 202 session-log entry are the evidence.
+ */
+
+/* v4 applies `hover:` only where the device can hover; v3 applied it after a tap too. */
+@custom-variant hover (&:hover);
+
+@layer base {
+  /* v4's preflight gives buttons the default cursor; v3's gave them a pointer. */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* v4 zeroes every element's padding; v3 left table cells the 1px the browser gives
+     them (a presentational hint, which `revert` would discard, so it is spelled out). */
+  th,
+  td {
+    padding: 1px;
+  }
+
+  /* v3's placeholder grey; v4 uses half the text colour. */
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af;
+  }
+
+  /* v4 reshapes the date and time fields' inner boxes; v3 left the browser's. */
+  ::-webkit-date-and-time-value {
+    min-height: revert;
+    text-align: revert;
+  }
+  ::-webkit-datetime-edit {
+    display: revert;
+  }
+  ::-webkit-datetime-edit-fields-wrapper {
+    padding: revert;
+  }
+  ::-webkit-datetime-edit,
+  ::-webkit-datetime-edit-year-field,
+  ::-webkit-datetime-edit-month-field,
+  ::-webkit-datetime-edit-day-field,
+  ::-webkit-datetime-edit-hour-field,
+  ::-webkit-datetime-edit-minute-field,
+  ::-webkit-datetime-edit-second-field,
+  ::-webkit-datetime-edit-millisecond-field,
+  ::-webkit-datetime-edit-meridiem-field {
+    padding-block: revert;
+  }
+}
+
+/*
+ * v3's sibling spacing. v4 moved `space-*` and `divide-*` onto every child but the last,
+ * at zero specificity, so a hidden or absolutely placed first child, a flex column and a
+ * child's own margin all lay out differently. The first rule is v3's, at v3's specificity.
+ * The second cancels v4's own rule: `:not(_)` (a type selector matching every element)
+ * lifts it one step above v4's zero and still below a child's own margin utility, and
+ * `revert-layer` hands that child back whatever the base layer gave it.
+ */
+@utility space-y-* {
+  & > :not([hidden]) ~ :not([hidden]) {
+    margin-top: --spacing(--value(number));
+    margin-bottom: 0;
+  }
+  :where(& > :not(:last-child)):not(_) {
+    margin-block-start: revert-layer;
+    margin-block-end: revert-layer;
+  }
+}
+
+@utility space-x-* {
+  & > :not([hidden]) ~ :not([hidden]) {
+    margin-left: --spacing(--value(number));
+    margin-right: 0;
+  }
+  :where(& > :not(:last-child)):not(_) {
+    margin-inline-start: revert-layer;
+    margin-inline-end: revert-layer;
+  }
+}
+
+@utility divide-y {
+  & > :not([hidden]) ~ :not([hidden]) {
+    border-top-width: 1px;
+    border-bottom-width: 0;
+  }
+  :where(& > :not(:last-child)):not(_) {
+    border-top-width: revert-layer;
+    border-bottom-width: revert-layer;
+  }
+}
+
+/*
  * Self-hosted fonts — latin subset only (sufficient for this app's English UI).
  * Files live in apps/web/public/fonts/ and are precached by the service worker.
  *
@@ -47,10 +150,6 @@
     U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
 /*
  * Design tokens — mirrors apps/web/src/theme/tokens.ts.
@@ -409,17 +508,96 @@
   }
 }
 
-@layer utilities {
-  /* Login paints its body UI with the system face. Only the preloaded wordmark
-     requests a web font; the two Outfit faces remain available after sign-in. */
-  .login-shell, .login-shell :not(.font-mono) {
+/*
+ * The app's own utilities. Tailwind 4 sorts an `@utility` with its own, so `sm:pb-8`
+ * still beats `pb-tabbar-safe` as it did on v3; a plain class in `@layer utilities`
+ * would land after every variant and win at every width (Batch 202).
+ */
+
+/* Login paints its body UI with the system face. Only the preloaded wordmark
+   requests a web font; the two Outfit faces remain available after sign-in. */
+@utility login-shell {
+  font-family: system-ui, sans-serif;
+  & :not(.font-mono) {
     font-family: system-ui, sans-serif;
   }
+}
 
-  .font-mono-custom {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+@utility font-mono-custom {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
   }
+}
 
+@utility text-metal {
+  background: var(--metal-gradient);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+@utility text-metal-h {
+  background: var(--metal-gradient-h);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Premium brass gold for the brand wordmark. */
+@utility text-wordmark {
+  background: var(--wordmark-gradient);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
+}
+
+@utility text-wordmark-h {
+  background: var(--wordmark-gradient-h);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Touch-target floor — 44 px Apple HIG */
+@utility tap-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Safe-area padding helpers */
+@utility pt-safe { padding-top: var(--safe-top); }
+@utility pb-safe { padding-bottom: var(--safe-bottom); }
+@utility pl-safe { padding-left: var(--safe-left); }
+@utility pr-safe { padding-right: var(--safe-right); }
+
+@utility h-tabbar-safe { height: calc(var(--tabbar-height) + var(--safe-bottom)); }
+@utility pb-tabbar-safe { padding-bottom: calc(var(--tabbar-height) + var(--safe-bottom)); }
+@utility pt-header-safe { padding-top: calc(var(--header-height) + var(--safe-top)); }
+
+/* Press-down feedback for native feel. On v3 this transition beat a `transition-colors`
+   or `transition-all` beside it; `:not(_)` (one type selector, every element) keeps that. */
+@utility press-down {
+  &:not(_) {
+    transition: transform 80ms ease-out, opacity 80ms ease-out;
+  }
+  &:active {
+    transform: scale(0.97);
+    opacity: 0.85;
+  }
+}
+
+@layer utilities {
   /* Hide scrollbars on the main window for a native-app feel. */
   html, body {
     scrollbar-width: none;     /* Firefox */
@@ -429,64 +607,6 @@
   body::-webkit-scrollbar {
     display: none;
   }
-
-  .no-scrollbar {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .text-metal {
-    background: var(--metal-gradient);
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-  }
-
-  .text-metal-h {
-    background: var(--metal-gradient-h);
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-  }
-
-  /* Premium brass gold for the brand wordmark. */
-  .text-wordmark {
-    background: var(--wordmark-gradient);
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
-  }
-
-  .text-wordmark-h {
-    background: var(--wordmark-gradient-h);
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-  }
-
-  /* Touch-target floor — 44 px Apple HIG */
-  .tap-target {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  /* Safe-area padding helpers */
-  .pt-safe { padding-top: var(--safe-top); }
-  .pb-safe { padding-bottom: var(--safe-bottom); }
-  .pl-safe { padding-left: var(--safe-left); }
-  .pr-safe { padding-right: var(--safe-right); }
-
-  .h-tabbar-safe { height: calc(var(--tabbar-height) + var(--safe-bottom)); }
-  .pb-tabbar-safe { padding-bottom: calc(var(--tabbar-height) + var(--safe-bottom)); }
-  .pt-header-safe { padding-top: calc(var(--header-height) + var(--safe-top)); }
 
   /* Animations */
   @keyframes pulse-live {
@@ -580,14 +700,6 @@
     animation: value-pulse 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
-  /* Press-down feedback for native feel */
-  .press-down {
-    transition: transform 80ms ease-out, opacity 80ms ease-out;
-  }
-  .press-down:active {
-    transform: scale(0.97);
-    opacity: 0.85;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

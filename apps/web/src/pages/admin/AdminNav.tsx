@@ -29,7 +29,7 @@ export function AdminNav() {
           className={({ isActive }) =>
             cn(
               'shrink-0 rounded-md px-3 py-2 font-sans text-sm whitespace-nowrap press-down tap-target',
-              'focus-visible:outline-none focus-visible:shadow-glow',
+              'focus-visible:outline-hidden focus-visible:shadow-glow',
               isActive
                 ? 'bg-surface-elevated text-text-primary font-semibold'
                 : 'text-text-secondary hover:text-text-primary',

@@ -166,7 +166,7 @@ function RoundContextRow({
               type="button"
               aria-label="Switch league"
               data-testid="league-switch-strip"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-secondary focus-visible:outline-none focus-visible:shadow-glow"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-secondary focus-visible:outline-hidden focus-visible:shadow-glow"
             >
               <ChevronDown className="h-4 w-4" aria-hidden />
             </DropdownMenuTrigger>
@@ -194,13 +194,13 @@ function RoundContextRow({
           to={predictionsPath(slug)}
           aria-label="Current round"
           aria-current="page"
-          className="flex h-8 items-center rounded-md px-1.5 text-caption font-semibold text-text-primary focus-visible:outline-none focus-visible:shadow-glow"
+          className="flex h-8 items-center rounded-md px-1.5 text-caption font-semibold text-text-primary focus-visible:outline-hidden focus-visible:shadow-glow"
         >
           Round
         </Link>
         <Link
           to={predictionsPath(slug, '/results')}
-          className="flex h-8 items-center rounded-md px-1.5 text-caption text-text-secondary focus-visible:outline-none focus-visible:shadow-glow"
+          className="flex h-8 items-center rounded-md px-1.5 text-caption text-text-secondary focus-visible:outline-hidden focus-visible:shadow-glow"
         >
           Season
         </Link>
@@ -208,7 +208,7 @@ function RoundContextRow({
       <Link
         to={couponSectionPath(slug, gameweekId)}
         aria-label="Jump to coupon"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-secondary focus-visible:outline-none focus-visible:shadow-glow"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-secondary focus-visible:outline-hidden focus-visible:shadow-glow"
       >
         <Ticket className="h-4 w-4" aria-hidden />
       </Link>
@@ -624,7 +624,7 @@ function CompetitionSection({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="mb-1 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-none focus-visible:shadow-glow"
+        className="mb-1 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-hidden focus-visible:shadow-glow"
       >
         <span className="min-w-0 truncate font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
           {group.competition}

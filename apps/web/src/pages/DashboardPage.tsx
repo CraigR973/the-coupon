@@ -339,7 +339,7 @@ function HomeHero({
         </p>
         <h1
           id="home-heading"
-          className="mt-2 font-sans text-[2rem] font-semibold leading-tight tracking-tight text-text-primary sm:text-4xl"
+          className="mt-2 font-sans text-[2rem] font-semibold leading-tight tracking-tight text-text-primary sm:text-4xl sm:leading-10"
         >
           Hi {displayName}
         </h1>
@@ -372,7 +372,7 @@ function HomeHero({
               {action.kind !== 'clear' && (
                 <Link
                   to={predictionsPath(action.slug)}
-                  className="mt-1 inline-flex items-center gap-1.5 rounded-sm font-sans text-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:shadow-glow"
+                  className="mt-1 inline-flex items-center gap-1.5 rounded-sm font-sans text-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:shadow-glow"
                 >
                   <span>
                     {action.league}{' '}
@@ -501,7 +501,7 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
       <button
         type="button"
         onClick={openCoupon}
-        className="w-full rounded-t-xl p-5 text-left transition-colors press-down hover:border-primary/50 hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow"
+        className="w-full rounded-t-xl p-5 text-left transition-colors press-down hover:border-primary/50 hover:bg-surface-elevated focus-visible:outline-hidden focus-visible:shadow-glow"
       >
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -589,7 +589,7 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
 
       <Link
         to={`/leagues/${entry.slug}/leaderboard`}
-        className="flex items-center justify-between gap-3 rounded-b-xl border-t border-border px-5 py-3.5 transition-colors hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow"
+        className="flex items-center justify-between gap-3 rounded-b-xl border-t border-border px-5 py-3.5 transition-colors hover:bg-surface-elevated focus-visible:outline-hidden focus-visible:shadow-glow"
       >
         <span className="flex items-center gap-2 font-mono text-caption uppercase tracking-[0.2em] text-text-muted sm:text-xs">
           <Trophy className="h-4 w-4 text-primary" aria-hidden />

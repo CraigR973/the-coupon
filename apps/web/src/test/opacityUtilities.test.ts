@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import postcss from 'postcss';
-import tailwindcss from 'tailwindcss';
+import tailwindcss from '@tailwindcss/postcss';
 import { describe, expect, it } from 'vitest';
 
 const root = process.cwd();
@@ -23,8 +23,12 @@ describe('opacity-modified colour utilities', () => {
       for (const match of readFileSync(path, 'utf8').matchAll(utility)) classes.add(match[0]);
     }
 
-    const result = await postcss([tailwindcss({ config: resolve(root, 'tailwind.config.ts') })])
-      .process('@tailwind utilities;', { from: resolve(root, 'src/index.css') });
+    // Tailwind 4 (Batch 202) is no longer a PostCSS plugin itself and reads the v3 config
+    // through `@config`, resolved from `from` exactly as index.css resolves it.
+    const result = await postcss([tailwindcss()])
+      .process("@import 'tailwindcss/theme';\n@import 'tailwindcss/utilities';\n@config '../tailwind.config.ts';", {
+        from: resolve(root, 'src/index.css'),
+      });
     const missing = [...classes].filter((name) => {
       const selector = `.${name.replace(/[^a-zA-Z0-9_-]/g, (character) => `\\${character}`)}`;
       return !result.css.includes(selector);

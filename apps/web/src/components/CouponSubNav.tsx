@@ -43,7 +43,7 @@ export function CouponSubNav({ slug }: { slug: string }) {
             end={exact}
             className={({ isActive }) =>
               cn(
-                'inline-flex items-center whitespace-nowrap rounded-full px-3.5 py-1.5 font-sans text-xs font-medium transition-colors press-down focus-visible:outline-none focus-visible:shadow-glow',
+                'inline-flex items-center whitespace-nowrap rounded-full px-3.5 py-1.5 font-sans text-xs font-medium transition-colors press-down focus-visible:outline-hidden focus-visible:shadow-glow',
                 isActive
                   ? 'border border-primary/30 bg-primary/[0.08] dark:bg-primary/15 text-text-primary'
                   : 'border border-border bg-surface text-text-secondary hover:bg-surface-elevated',

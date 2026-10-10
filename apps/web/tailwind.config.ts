@@ -1,7 +1,8 @@
 import type { Config } from 'tailwindcss';
 
-// Tailwind replaces <alpha-value> for both solid and opacity-modified utilities.
-// The paired RGB channels live beside the hex design tokens in index.css.
+// Tailwind 4 reads `<alpha-value>` as 1 and applies an opacity modifier with
+// `color-mix()` instead (Batch 202). The paired RGB channels live beside the hex
+// design tokens in index.css.
 const alpha = (token: string) => `rgb(var(--${token}-rgb) / <alpha-value>)`;
 
 export default {
@@ -54,6 +55,19 @@ export default {
         gold: alpha('gold'),
         silver: alpha('silver'),
         bronze: alpha('bronze'),
+
+        // Tailwind 4 redrew its default palette in OKLCH. The app's few amber notices
+        // keep the v3 sRGB values they were designed and contrast-checked against.
+        amber: {
+          100: '#fef3c7',
+          200: '#fde68a',
+          300: '#fcd34d',
+          400: '#fbbf24',
+          500: '#f59e0b',
+          600: '#d97706',
+          700: '#b45309',
+          900: '#78350f',
+        },
       },
 
       // `text-*` resolves through here instead of `colors` for the brand and
@@ -116,6 +130,10 @@ export default {
       },
       backgroundColor: {
         DEFAULT: 'var(--bg)',
+      },
+      // v4's `blur-sm` is 8px; v3's, which `backdrop-blur-sm` uses, was 4px.
+      blur: {
+        sm: '4px',
       },
       transitionTimingFunction: {
         'out-quart': 'cubic-bezier(0.2, 0, 0, 1)',

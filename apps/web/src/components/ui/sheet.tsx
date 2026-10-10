@@ -81,7 +81,7 @@ export function Sheet({ open, onClose, title, children, className, triggerRef }:
               <DialogPrimitive.Close asChild>
                 <button
                   type="button"
-                  className="tap-target inline-flex items-center justify-center rounded-sm text-text-muted hover:text-text-primary focus-visible:outline-none focus-visible:shadow-glow press-down"
+                  className="tap-target inline-flex items-center justify-center rounded-sm text-text-muted hover:text-text-primary focus-visible:outline-hidden focus-visible:shadow-glow press-down"
                   aria-label="Close"
                 >
                   <X className="h-5 w-5" />

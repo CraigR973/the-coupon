@@ -98,7 +98,7 @@ export function PinInput({ value, onChange, maxLength = 4, autoComplete = 'curre
           className={cn(
             'w-12 h-12 text-center text-lg font-mono tracking-widest',
             'rounded-md border border-border bg-surface text-text-primary',
-            'focus:outline-none focus-visible:border-primary focus-visible:shadow-glow',
+            'focus:outline-hidden focus-visible:border-primary focus-visible:shadow-glow',
             'caret-transparent',
           )}
         />

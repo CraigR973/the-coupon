@@ -212,7 +212,7 @@ export function LeaderboardPage() {
                   <Link
                     to={`/leagues/${slug}/players/${s.player_id}`}
                     className={cn(
-                      'relative grid h-[52px] grid-cols-[1.5rem_minmax(0,1fr)_4rem] items-center gap-2 overflow-hidden rounded-lg border px-2 transition-colors press-down focus-visible:outline-none focus-visible:shadow-glow lg:grid-cols-[2rem_minmax(0,1fr)_4rem_4rem_6rem_5rem] lg:px-3',
+                      'relative grid h-[52px] grid-cols-[1.5rem_minmax(0,1fr)_4rem] items-center gap-2 overflow-hidden rounded-lg border px-2 transition-colors press-down focus-visible:outline-hidden focus-visible:shadow-glow lg:grid-cols-[2rem_minmax(0,1fr)_4rem_4rem_6rem_5rem] lg:px-3',
                       isMe
                         ? 'border-primary/40 bg-primary/[0.08]'
                         : 'border-border bg-surface hover:border-primary/40',

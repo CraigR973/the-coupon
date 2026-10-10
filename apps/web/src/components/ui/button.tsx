@@ -8,7 +8,7 @@ const buttonVariants = cva(
     'inline-flex items-center justify-center gap-2 whitespace-nowrap',
     'rounded-md text-sm font-medium font-sans tracking-tight',
     'transition-all duration-fast ease-out-quart',
-    'focus-visible:outline-none focus-visible:shadow-glow',
+    'focus-visible:outline-hidden focus-visible:shadow-glow',
     'disabled:pointer-events-none disabled:opacity-50',
     'press-down select-none',
   ].join(' '),

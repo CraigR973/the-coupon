@@ -34,7 +34,7 @@ function LeagueCard({
 
   return (
     <Link to={`/leagues/${league.slug}`} className="block h-full group">
-      <Card className="flex h-full min-h-[156px] flex-col border-border/80 bg-gradient-to-br from-surface-elevated via-surface to-surface hover:border-primary/50 transition-colors group-hover:border-primary/50">
+      <Card className="flex h-full min-h-[156px] flex-col border-border/80 bg-linear-to-br/srgb from-surface-elevated via-surface to-surface hover:border-primary/50 transition-colors group-hover:border-primary/50">
         <CardHeader className="pb-3 space-y-2">
           <p className="font-mono text-caption uppercase tracking-[0.22em] text-text-muted">
             {isLastViewed ? 'Last viewed' : 'League hub'}

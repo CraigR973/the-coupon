@@ -32,7 +32,7 @@ export function IosSafariOverlay() {
           <h2
             ref={headingRef}
             tabIndex={-1}
-            className="text-xl font-semibold text-text-primary font-sans mb-1 focus:outline-none"
+            className="text-xl font-semibold text-text-primary font-sans mb-1 focus:outline-hidden"
           >
             Install the app first
           </h2>
@@ -103,7 +103,7 @@ export function IosSafariOverlay() {
             <div
               className={cn(
                 'w-px h-8 rounded-full',
-                'bg-gradient-to-b from-primary/60 to-transparent',
+                'bg-linear-to-b/srgb from-primary/60 to-transparent',
               )}
             />
             <div className="w-2 h-2 border-b-2 border-r-2 border-primary/60 rotate-45 -mt-2" />

@@ -13,7 +13,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           'text-base sm:text-sm text-text-primary font-sans',
           'placeholder:text-text-muted',
           'transition-shadow duration-fast',
-          'focus-visible:outline-none focus-visible:border-primary focus-visible:shadow-glow',
+          'focus-visible:outline-hidden focus-visible:border-primary focus-visible:shadow-glow',
           'disabled:cursor-not-allowed disabled:opacity-50',
           className,
         )}

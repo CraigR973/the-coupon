@@ -105,7 +105,7 @@ export function LeagueSwitchStrip({ currentSlug, className }: Props) {
                 className={cn(
                   'inline-flex max-w-[13rem] items-center rounded-full border px-3.5 py-1.5 text-xs font-medium font-sans whitespace-nowrap transition-colors press-down shadow-sm',
                   'border-border bg-surface text-text-secondary hover:border-primary/40 hover:text-text-primary hover:bg-surface-elevated',
-                  'focus-visible:outline-none focus-visible:shadow-glow',
+                  'focus-visible:outline-hidden focus-visible:shadow-glow',
                 )}
                 title={`Open ${league.name}`}
               >

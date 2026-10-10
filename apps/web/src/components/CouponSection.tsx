@@ -115,7 +115,7 @@ export function CouponSection({
       id={COUPON_SECTION_ID}
       tabIndex={-1}
       aria-labelledby="coupon-section-heading"
-      className="scroll-mt-4 focus-visible:outline-none focus-visible:shadow-glow"
+      className="scroll-mt-4 focus-visible:outline-hidden focus-visible:shadow-glow"
       data-testid="coupon-section"
     >
       <h2 id="coupon-section-heading" className="mb-2">
@@ -124,7 +124,7 @@ export function CouponSection({
           onClick={onToggle}
           aria-expanded={open}
           aria-controls={COUPON_LEGS_ID}
-          className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-none focus-visible:shadow-glow"
+          className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-hidden focus-visible:shadow-glow"
           data-testid="coupon-toggle"
         >
           <span className="min-w-0 truncate font-mono text-caption uppercase tracking-[0.2em] text-text-primary">

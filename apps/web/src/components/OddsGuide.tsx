@@ -62,7 +62,7 @@ export function OddsGuide({ storageKey = DEFAULT_STORAGE_KEY, defaultOpen = fals
         className={cn(
           'flex w-full items-center justify-between text-left transition-colors',
           compact ? 'min-h-8 px-3 py-1' : 'px-4 py-3',
-          'hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow',
+          'hover:bg-surface-elevated focus-visible:outline-hidden focus-visible:shadow-glow',
           open ? 'rounded-t-lg' : 'rounded-lg',
         )}
       >

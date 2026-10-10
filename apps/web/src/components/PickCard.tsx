@@ -370,7 +370,7 @@ function SelectionButton({
             : grabbable
               ? 'border border-border bg-surface-elevated text-text-primary hover:border-primary/60 press-down cursor-pointer'
               : 'cursor-not-allowed border border-border/50 bg-surface opacity-60',
-        'focus-visible:outline-none focus-visible:shadow-glow',
+        'focus-visible:outline-hidden focus-visible:shadow-glow',
       )}
     >
       <span className="flex w-full items-start justify-between gap-1">

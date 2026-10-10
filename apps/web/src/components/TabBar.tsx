@@ -202,7 +202,7 @@ export function TabBar() {
             );
             const baseClass = cn(
               'relative flex-1 flex flex-col items-center justify-center gap-1 tap-target',
-              'focus-visible:outline-none focus-visible:shadow-glow rounded-sm press-down',
+              'focus-visible:outline-hidden focus-visible:shadow-glow rounded-sm press-down',
             );
             return (
               <li key={label} className="contents">
@@ -251,7 +251,7 @@ export function TabBar() {
               key={to}
               type="button"
               onClick={() => handleSheetNav(to)}
-              className="flex items-center gap-4 px-3 py-3 rounded-md text-left text-text-primary hover:bg-surface-elevated press-down tap-target focus-visible:outline-none focus-visible:shadow-glow"
+              className="flex items-center gap-4 px-3 py-3 rounded-md text-left text-text-primary hover:bg-surface-elevated press-down tap-target focus-visible:outline-hidden focus-visible:shadow-glow"
             >
               <Icon className="h-5 w-5 text-text-secondary" aria-hidden />
               <span className="font-sans text-sm">{label}</span>
@@ -266,7 +266,7 @@ export function TabBar() {
               setMoreOpen(false);
               void logout();
             }}
-            className="flex items-center gap-4 px-3 py-3 rounded-md text-left text-error hover:bg-surface-elevated press-down tap-target focus-visible:outline-none focus-visible:shadow-glow"
+            className="flex items-center gap-4 px-3 py-3 rounded-md text-left text-error hover:bg-surface-elevated press-down tap-target focus-visible:outline-hidden focus-visible:shadow-glow"
           >
             <LogOut className="h-5 w-5" aria-hidden />
             <span className="font-sans text-sm">Sign out</span>

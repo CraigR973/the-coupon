@@ -72,7 +72,7 @@ export function Tabs<T extends string>({
             aria-selected={isActive}
             onClick={() => onChange(item.value)}
             className={cn(
-              'relative px-4 py-2 text-sm font-medium tracking-tight transition-colors focus-visible:outline-none focus-visible:shadow-glow press-down',
+              'relative px-4 py-2 text-sm font-medium tracking-tight transition-colors focus-visible:outline-hidden focus-visible:shadow-glow press-down',
               isSegmented ? 'rounded-sm tap-target' : 'tap-target',
               isActive
                 ? 'text-text-primary'

@@ -107,7 +107,7 @@ export function FormLine({
         // look right and two pixels short of conformant. Width is never the problem
         // (five pips and their gaps run to ~70px); only the height was.
         '-mx-1 inline-flex min-h-6 items-center gap-0.5 rounded-[5px] px-1 py-1 align-middle transition-colors',
-        'cursor-pointer hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow',
+        'cursor-pointer hover:bg-surface-elevated focus-visible:outline-hidden focus-visible:shadow-glow',
         expanded && 'bg-surface-elevated',
         className,
       )}

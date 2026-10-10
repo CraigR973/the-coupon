@@ -102,7 +102,7 @@ export function Brand({
         aria-label={decorative ? undefined : label}
       >
         <CouponMark size={size ?? 56} decorative label={label} />
-        <p className="font-mono font-semibold uppercase tracking-[0.18em] text-2xl sm:text-3xl leading-none text-wordmark">
+        <p className="font-mono font-semibold uppercase tracking-[0.18em] text-2xl sm:text-3xl leading-none sm:leading-9 text-wordmark">
           THE COUPON
         </p>
       </div>
@@ -117,7 +117,7 @@ export function Brand({
       aria-label={decorative ? undefined : label}
     >
       <CouponMark size={size ?? 68} decorative label={label} />
-      <p className="font-mono font-semibold uppercase tracking-[0.18em] text-3xl sm:text-4xl leading-none text-wordmark">
+      <p className="font-mono font-semibold uppercase tracking-[0.18em] text-3xl sm:text-4xl leading-none sm:leading-10 text-wordmark">
         THE COUPON
       </p>
     </div>

@@ -130,7 +130,7 @@ function LeagueRecordRow({ entry, playerId }: { entry: PerLeagueSummary; playerI
   return (
     <Link
       to={`/leagues/${entry.slug}/players/${playerId}`}
-      className="flex items-center gap-3 rounded-lg border border-border bg-surface p-3 transition-colors press-down hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow"
+      className="flex items-center gap-3 rounded-lg border border-border bg-surface p-3 transition-colors press-down hover:bg-surface-elevated focus-visible:outline-hidden focus-visible:shadow-glow"
       data-testid={`career-league-${entry.slug}`}
     >
       <div className="min-w-0 flex-1">

@@ -64,7 +64,7 @@ export function NotificationBell() {
       <DialogTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface-elevated text-text-primary shadow-sm hover:bg-surface focus-visible:outline-none focus-visible:shadow-glow"
+          className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface-elevated text-text-primary shadow-sm hover:bg-surface focus-visible:outline-hidden focus-visible:shadow-glow"
           aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
           data-testid="notification-bell"
         >
@@ -91,7 +91,7 @@ export function NotificationBell() {
             <button
               type="button"
               onClick={() => void refetch()}
-              className="font-sans text-sm text-primary underline focus-visible:outline-none focus-visible:shadow-glow"
+              className="font-sans text-sm text-primary underline focus-visible:outline-hidden focus-visible:shadow-glow"
             >
               Try again
             </button>
@@ -103,7 +103,7 @@ export function NotificationBell() {
                 <Link
                   to={item.url}
                   onClick={() => setOpen(false)}
-                  className="block rounded-md px-2 py-3 hover:bg-surface-elevated focus-visible:outline-none focus-visible:shadow-glow"
+                  className="block rounded-md px-2 py-3 hover:bg-surface-elevated focus-visible:outline-hidden focus-visible:shadow-glow"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span className="font-sans text-sm font-semibold text-text-primary">{item.title}</span>

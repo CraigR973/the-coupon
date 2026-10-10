@@ -20,7 +20,7 @@ export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(
         onClick={() => onCheckedChange(!checked)}
         className={cn(
           'relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full',
-          'transition-colors duration-base focus-visible:outline-none focus-visible:shadow-glow',
+          'transition-colors duration-base focus-visible:outline-hidden focus-visible:shadow-glow',
           checked ? 'bg-primary' : 'bg-surface-elevated border border-border',
           className,
         )}

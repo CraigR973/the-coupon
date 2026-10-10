@@ -74,7 +74,7 @@ export function GameweekNav({ history, compact = false }: GameweekNavProps) {
             type="button"
             onClick={() => select(undefined)}
             className={cn(
-              'inline-flex items-center gap-1 rounded-md border border-border font-mono text-caption uppercase tracking-[0.15em] text-text-muted press-down hover:text-text-primary focus-visible:outline-none focus-visible:shadow-glow',
+              'inline-flex items-center gap-1 rounded-md border border-border font-mono text-caption uppercase tracking-[0.15em] text-text-muted press-down hover:text-text-primary focus-visible:outline-hidden focus-visible:shadow-glow',
               compact ? 'h-8 w-8 justify-center' : 'tap-target px-2 py-1.5',
             )}
             data-testid="gameweek-latest"
@@ -116,7 +116,7 @@ function NavButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-md border border-border focus-visible:outline-none focus-visible:shadow-glow',
+        'inline-flex shrink-0 items-center justify-center rounded-md border border-border focus-visible:outline-hidden focus-visible:shadow-glow',
         compact ? 'h-8 w-8' : 'p-1.5 tap-target',
         disabled
           ? 'cursor-not-allowed text-text-muted opacity-40'

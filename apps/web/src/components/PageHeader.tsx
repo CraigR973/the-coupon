@@ -22,7 +22,7 @@ interface PageHeaderProps {
 }
 
 const backChipClass =
-  'inline-flex items-center gap-1 mb-3 text-xs font-mono uppercase tracking-[0.2em] text-text-muted hover:text-text-primary press-down rounded-md focus-visible:outline-none focus-visible:shadow-glow';
+  'inline-flex items-center gap-1 mb-3 text-xs font-mono uppercase tracking-[0.2em] text-text-muted hover:text-text-primary press-down rounded-md focus-visible:outline-hidden focus-visible:shadow-glow';
 
 export function PageHeader({ title, eyebrow, showBack, back, action, className, wrapTitle }: PageHeaderProps) {
   const navigate = useNavigate();
@@ -48,7 +48,7 @@ export function PageHeader({ title, eyebrow, showBack, back, action, className, 
             type="button"
             onClick={() => navigate(-1)}
             aria-label="Back"
-            className="tap-target -ml-2 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text-primary press-down focus-visible:outline-none focus-visible:shadow-glow"
+            className="tap-target -ml-2 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text-primary press-down focus-visible:outline-hidden focus-visible:shadow-glow"
           >
             <ChevronLeft className="h-6 w-6" aria-hidden />
           </button>
@@ -64,7 +64,7 @@ export function PageHeader({ title, eyebrow, showBack, back, action, className, 
           )}
           <h1
             className={cn(
-              'text-2xl sm:text-3xl font-semibold text-text-primary tracking-tight font-sans leading-tight',
+              'text-2xl sm:text-3xl font-semibold text-text-primary tracking-tight font-sans leading-tight sm:leading-9',
               wrapTitle ? 'break-words' : 'truncate',
             )}
           >

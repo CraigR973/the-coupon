@@ -66,7 +66,7 @@ export function TopBar() {
       type="button"
       onClick={toggleTheme}
       aria-label={resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-      className="tap-target inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text-primary press-down focus-visible:outline-none focus-visible:shadow-glow"
+      className="tap-target inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text-primary press-down focus-visible:outline-hidden focus-visible:shadow-glow"
     >
       {resolved === 'dark' ? (
         <Sun className="h-4 w-4" aria-hidden />
@@ -80,7 +80,7 @@ export function TopBar() {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={`Account menu (${player.displayName})`}
-        className="inline-flex items-center gap-2 press-down rounded-full focus-visible:outline-none focus-visible:shadow-glow"
+        className="inline-flex items-center gap-2 press-down rounded-full focus-visible:outline-hidden focus-visible:shadow-glow"
       >
         <span className="hidden lg:inline text-sm text-text-secondary font-sans">
           {player.displayName}
@@ -152,7 +152,7 @@ export function TopBar() {
               aria-label={item.shortLabel ? item.label : undefined}
               className={cn(
                 'whitespace-nowrap px-3 py-1.5 rounded-sm text-sm font-medium font-sans tracking-tight transition-colors press-down',
-                'focus-visible:outline-none focus-visible:shadow-glow',
+                'focus-visible:outline-hidden focus-visible:shadow-glow',
                 item.wideOnly && 'hidden md:block',
                 item.match(pathname)
                   ? 'bg-primary/[0.08] dark:bg-primary/15 text-text-primary'

@@ -10,7 +10,7 @@ export function OfflinePage() {
       </p>
       <button
         onClick={() => window.location.reload()}
-        className="mt-2 inline-flex items-center justify-center h-11 px-5 rounded-md bg-primary text-on-primary text-sm font-semibold font-sans hover:bg-primary-dark transition-colors press-down focus-visible:outline-none focus-visible:shadow-glow"
+        className="mt-2 inline-flex items-center justify-center h-11 px-5 rounded-md bg-primary text-on-primary text-sm font-semibold font-sans hover:bg-primary-dark transition-colors press-down focus-visible:outline-hidden focus-visible:shadow-glow"
       >
         Retry
       </button>

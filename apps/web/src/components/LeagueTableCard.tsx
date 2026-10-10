@@ -53,7 +53,7 @@ export function LeagueTableCard({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="mb-2 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-none focus-visible:shadow-glow"
+        className="mb-2 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-hidden focus-visible:shadow-glow"
       >
         <span className="min-w-0 truncate font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
           {table.competition}
@@ -137,7 +137,7 @@ export function LeagueTableCard({
                              raised the form disclosure to. The name is 20px on its own,
                              and this is a standalone control in a cell rather than a link
                              inside a sentence, so the inline exception does not cover it. */
-                          className="flex min-h-6 items-center truncate rounded-sm text-text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:shadow-glow"
+                          className="flex min-h-6 items-center truncate rounded-sm text-text-primary underline-offset-2 hover:underline focus-visible:outline-hidden focus-visible:shadow-glow"
                           data-testid={`team-link-${row.team_id}`}
                         >
                           {row.team}

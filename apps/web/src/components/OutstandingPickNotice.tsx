@@ -63,7 +63,7 @@ export function OutstandingPickNotice({
           onClick={onResolve}
           disabled={disabled}
           data-testid="outstanding-pick-resolve"
-          className="rounded-md border border-amber-500/70 px-3 py-1.5 text-xs font-sans font-medium tap-target hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:shadow-glow"
+          className="rounded-md border border-amber-500/70 px-3 py-1.5 text-xs font-sans font-medium tap-target hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:shadow-glow"
         >
           {queued ? 'Send now' : 'Check my pick'}
         </button>
@@ -71,7 +71,7 @@ export function OutstandingPickNotice({
           type="button"
           onClick={onDiscard}
           data-testid="outstanding-pick-discard"
-          className="rounded-md px-3 py-1.5 text-xs font-sans text-amber-200/80 tap-target hover:text-amber-100 focus-visible:outline-none focus-visible:shadow-glow"
+          className="rounded-md px-3 py-1.5 text-xs font-sans text-amber-200/80 tap-target hover:text-amber-100 focus-visible:outline-hidden focus-visible:shadow-glow"
         >
           Dismiss
         </button>

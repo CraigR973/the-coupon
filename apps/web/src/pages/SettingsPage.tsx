@@ -68,7 +68,7 @@ function Toggle({
         aria-label={label}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus-visible:shadow-glow ${
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-hidden focus-visible:shadow-glow ${
           checked ? 'bg-primary' : 'bg-border'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
@@ -434,7 +434,7 @@ function AppearanceSection() {
               aria-checked={active}
               onClick={() => setMode(value)}
               className={cn(
-                'flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-sm text-sm font-medium font-sans transition-colors tap-target press-down focus-visible:outline-none focus-visible:shadow-glow',
+                'flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-sm text-sm font-medium font-sans transition-colors tap-target press-down focus-visible:outline-hidden focus-visible:shadow-glow',
                 active
                   ? 'bg-surface text-text-primary shadow-sm'
                   : 'text-text-secondary hover:text-text-primary',
@@ -533,7 +533,7 @@ function TimezoneSection() {
         value={tz}
         onChange={(e) => setTz(e.target.value)}
         aria-label="Timezone"
-        className="flex h-10 w-full items-center rounded-md border border-border bg-surface px-3 py-2 text-base sm:text-sm text-text-primary font-sans focus:outline-none focus:ring-2 focus:ring-primary"
+        className="flex h-10 w-full items-center rounded-md border border-border bg-surface px-3 py-2 text-base sm:text-sm text-text-primary font-sans focus:outline-hidden focus:ring-2 focus:ring-primary"
       >
         {TIMEZONES.map((t) => (
           <option key={t} value={t}>
@@ -607,7 +607,7 @@ function OddsFormatSection() {
               disabled={saving !== null}
               onClick={() => void choose(value)}
               className={cn(
-                'flex-1 inline-flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-sm text-sm font-medium font-sans transition-colors tap-target press-down focus-visible:outline-none focus-visible:shadow-glow disabled:opacity-60',
+                'flex-1 inline-flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-sm text-sm font-medium font-sans transition-colors tap-target press-down focus-visible:outline-hidden focus-visible:shadow-glow disabled:opacity-60',
                 active
                   ? 'bg-surface text-text-primary shadow-sm'
                   : 'text-text-secondary hover:text-text-primary',

@@ -58,7 +58,7 @@ export function ScoreInput({
           type="button"
           onClick={() => step(1)}
           aria-label={`Increment ${ariaLabel}`}
-          className="h-9 w-12 inline-flex items-center justify-center rounded-sm text-text-muted hover:text-primary press-down focus-visible:outline-none focus-visible:shadow-glow"
+          className="h-9 w-12 inline-flex items-center justify-center rounded-sm text-text-muted hover:text-primary press-down focus-visible:outline-hidden focus-visible:shadow-glow"
         >
           <ChevronUp className="h-5 w-5" aria-hidden />
         </button>
@@ -86,7 +86,7 @@ export function ScoreInput({
           className={cn(
             'absolute inset-0 w-full h-full text-center font-mono text-3xl font-semibold rounded-md border bg-surface tabular-nums leading-none',
             'transition-shadow duration-fast',
-            'focus:outline-none focus-visible:border-primary focus-visible:shadow-glow',
+            'focus:outline-hidden focus-visible:border-primary focus-visible:shadow-glow',
             disabled
               ? 'text-text-muted border-border cursor-not-allowed opacity-50'
               : 'text-text-primary border-border hover:border-primary/50',
@@ -117,7 +117,7 @@ export function ScoreInput({
           type="button"
           onClick={() => step(-1)}
           aria-label={`Decrement ${ariaLabel}`}
-          className="h-9 w-12 inline-flex items-center justify-center rounded-sm text-text-muted hover:text-primary press-down focus-visible:outline-none focus-visible:shadow-glow"
+          className="h-9 w-12 inline-flex items-center justify-center rounded-sm text-text-muted hover:text-primary press-down focus-visible:outline-hidden focus-visible:shadow-glow"
         >
           <ChevronDown className="h-5 w-5" aria-hidden />
         </button>
