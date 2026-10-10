@@ -1157,6 +1157,15 @@ test('members claim unique picks, then lock and settle the combined coupon', asy
       weight: getComputedStyle(node).fontWeight,
     }));
     expect(pointType).toEqual({ size: '17px', weight: '600' });
+    // The route entrance translates its whole subtree. A newly mounted route can
+    // start that animation after the page-wide settle check, which gives a 3px
+    // medal a fractional transformed bounding box on the CI browser.
+    await expect.poll(async () => rows.first().getByTestId('rank-medal').evaluate((node) => {
+      for (let element: Element | null = node; element; element = element.parentElement) {
+        if (getComputedStyle(element).transform !== 'none') return false;
+      }
+      return true;
+    }), { message: 'the standing is untransformed before pixel measurements' }).toBe(true);
     expect((await rows.first().getByTestId('rank-medal').boundingBox())?.width).toBe(3);
     await expectNoAxeViolations(alice);
     await expectNoColourContrastViolations(alice);
