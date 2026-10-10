@@ -664,7 +664,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 
   Scope boundary: job registration. **API-carrying.**
 
-- [ ] **Batch 194 — Half the league never hears what the app announces**
+- [x] **Batch 194 — Half the league never hears what the app announces** ✅ 2026-10-10
   — specified from `docs/review/2026-09-28/05-feature-gaps.md`, FEAT-B10 (MED; absence
   verified, reach plausible) and FEAT-B11 (LOW). Five member-facing push types exist (picks
   open, reminder, pick made, all picked, round settled), all fire-and-forget: no message table,

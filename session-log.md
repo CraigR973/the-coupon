@@ -8670,3 +8670,16 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-09T10:29:55Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
 
 **Next:** Stop at Group AF's `/ship-prod` checkpoint. After that explicit shipment is verified in sync, Batch 194 is next.
+
+## Batch 194 — Half the league never hears what the app announces
+**Commits:** `f01a796`, `4ef6fb3` · verified: complete 12-check local gate, 1,443 backend and 1,320 frontend tests, zero skips, production-bundle smoke and seeded browser journey PASS · CI: https://github.com/CraigR973/the-coupon/actions/runs/38082659386 PASS for `4ef6fb3660d4f9e29831b738939e37d51587e860`
+
+### Key facts for future sessions
+- All eight member notification events write a per-member inbox row before push-subscription, VAPID and quiet-hours checks. The existing daily sweep prunes rows after 30 days; inbox reads are limited to the newest 50 in that window.
+- Home shows an unread bell and marks messages read when opened, including when its first request finishes late. Three category mutes suppress both inbox and push; quiet hours suppress push only. The bell hides against the older API's 404, so the web-first push remains usable.
+- Migration `027` adds the inbox table and preference columns with forced RLS. `docs/runbooks/migration-027-recovery.md` records forward repair and the old-image Alembic boot limit. The prior Group AF `/ship-prod` served `a729f839` at migration `026` before this batch began; the matching migration `027` shipment is still owed. Production has no backup restore point.
+- Failures and fixes before the green gate: the trusted guard rejected a new skipped test, so the skip was removed; Ruff formatting, UTC response typing, badge typography, the seeded journey's extra tab stop, and a delayed inbox-read race were corrected. An ad hoc frontend run used ambient Node 14 and was rerun with pinned Node 24. Phone and desktop browser geometry passed at 390×844 and 1280×800.
+- The first implementation CI run at `f01a796` failed only the existing exact 3 px standings-medal check (`3.0000009536743164` during a route transform). A separate `fix/standings-medal-settle` branch waited for the standing to be untransformed without changing the 3 px assertion; its focused journey, complete local gate and exact-SHA CI passed. Initial failed run: https://github.com/CraigR973/the-coupon/actions/runs/38081255046.
+- **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-10T19:47:24Z; pre-push deployed-API drift in sync; /ship-prod owed immediately after push
+
+**Next:** Stop at Group AF's second `/ship-prod` checkpoint for Batch 194 and migration `027`; Group AH follows only after that explicit shipment is verified.

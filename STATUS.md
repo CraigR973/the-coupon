@@ -9,13 +9,13 @@ paragraph beneath it. A batch's story belongs in its `session-log.md` entry, not
 
 ## Live
 
-Checked 2026-10-07 unless a line says otherwise.
+Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `c530469` at migration `026` |
-| API deployment | Railway `3219c196-8b5e-40b8-8558-d313d901faf6`, one replica, `europe-west4` |
-| Web | Batch 197 web code from `ed751c9` is live at `the-coupon-production.vercel.app`; deployment `dpl_CaPyk91WvSPVqGczrw18Twz5xmwH` first proved the exact implementation SHA on 10 Oct. Later documentation-only deployments leave that web code unchanged. |
+| API | `api-production-109b1.up.railway.app` serves `a729f839` at migration `026` |
+| API deployment | Railway `2721fbe2-b114-4d84-ab5d-874afa211b51` succeeded, one replica, `europe-west4` |
+| Web | Batch 194 web code from `f01a796` is live at `the-coupon-production.vercel.app`; deployment `dpl_7BGn8AMeFS7zRefuJhHgqS6mHhek` is Ready and GitHub ties it to verified fix SHA `4ef6fb3`. The bell hides until the matching API route ships. |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 21 of 21 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -29,15 +29,15 @@ Checked 2026-10-07 unless a line says otherwise.
 
 ## Owed
 
-- **`/ship-prod` is owed now, after Batch 197.** The Group AF shipment was scheduled by Craig
-  Robinson at 2026-10-09 10:29:55 UTC; Batch 195's safety acknowledgement was recorded at
-  22:29:48 UTC. The API still serves Group AE's `c530469` at migration `026` (checked 10 Oct).
-  Sign-up status, invite registration and invite preview wait for the explicit shipment;
-  the web falls back to the existing join flow while those routes are absent.
-- **Group AF rollback is a plain API redeploy.** Batches 196, 195 and 197 add no
-  migration; the currently served `c530469` image can be restored if the shipment
-  fails. The live Batch 197 web handles that older API. Batch 194's migration waits
-  until after this shipment checkpoint.
+- **`/ship-prod` is owed now for Batch 194 and migration `027`.** Craig Robinson scheduled
+  the matching shipment at 2026-10-10 19:47:24 UTC. The first Group AF shipment served
+  `a729f839` at migration `026`; the inbox API and preference columns are not live yet.
+  The web bell hides against the older API's 404. The separate `/ship-prod` must run and
+  verify the exact API SHA, migration, readiness and RLS before Group AH starts.
+- **Migration `027` needs its matching API image.** The migration is additive, but the
+  older image's Alembic boot check cannot start against revision `027`. Use
+  `docs/runbooks/migration-027-recovery.md` for forward repair. Production has no backup
+  restore point, so do not describe a downgrade as a data-preserving rollback.
 
 ## Waiting on the owner
 
@@ -81,7 +81,7 @@ shipped on 5 Oct as `546db3f` (Batches 184-187 and fix `f0710b0`); Group AD is c
 204 (docs-only close-out fast path, owner-approved gate maintenance) is complete. Group AE is
 complete, shipped and verified (Batches 189–193; shipped 7 Oct as `c530469`); Group AB is
 complete (Batches 171, 175–178; web-only, closed 8 Oct); Group AF has closed Batches 196,
-195 and 197 and waits at its `/ship-prod` checkpoint before Batch 194; Group AH follows
+195, 197 and 194 and waits at its second `/ship-prod` checkpoint; Group AH follows
 (`docs/agent-commands/group-start.md`).
 
 ## Toolchain
@@ -95,7 +95,7 @@ Checked 2026-10-03.
   that stamp when only `docs/BUILD_PLAN.md`, `session-log.md` and `STATUS.md` changed, otherwise it
   reruns the gate, and waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,439, frontend 1,314, journey 1; checked 2026-10-10). 13m04s on this Mac
+  (backend 1,443, frontend 1,320, journey 1; checked 2026-10-10). 13m04s on this Mac
   with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
   (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
   1,350 tests (2026-09-29) — not the gate.
