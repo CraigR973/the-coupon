@@ -887,6 +887,14 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   `claude.yml`; drop the stale pins; point the drift probe at a recent route; re-test both CLIs
   on Node 24 and update `ship-prod.md` and STATUS together.
 
+  **Oracle changes approved (agent, under the owner's standing instruction of
+  2026-10-11T08:24:15Z; not yet reviewed by the owner):** this batch may replace only the two
+  Batch 161 test definitions and five assertion lines fingerprinted in trusted main, and only in
+  `apps/api/tests/test_request_budget.py`. The row requires it to “rewrite 161's tautologies to
+  assert behaviour”: the replacements must exercise multi-league cold and warm request paths,
+  including the 211-day upstream boundary and its `PICKS_BUSY` refusal. Every other removal in
+  this file remains blocked; this is not a file-wide or reusable waiver.
+
   Verification: each item checked; both rollback commands rehearsed on Node 24 against
   staging.
 

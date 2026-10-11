@@ -156,6 +156,16 @@ apps/web/src/test/RegisterPage.test.tsx|it('refuses a name with characters the l
 apps/web/src/test/RegisterPage.test.tsx|expect(fetchMock).not.toHaveBeenCalled();
 EOF
       ;;
+    203) cat <<'EOF'
+apps/api/tests/test_request_budget.py|def test_no_number_of_leagues_can_exceed_the_installation_plan(leagues: int) -> None:
+apps/api/tests/test_request_budget.py|assert bounded <= installation
+apps/api/tests/test_request_budget.py|assert bounded <= HOURLY_LIMIT
+apps/api/tests/test_request_budget.py|assert unbounded > installation, "the premise: without the bucket this overshoots"
+apps/api/tests/test_request_budget.py|def test_no_number_of_leagues_can_exceed_the_installation_plan_across_a_day(
+apps/api/tests/test_request_budget.py|assert bounded <= _pick_installation_limits()["day"]
+apps/api/tests/test_request_budget.py|assert bounded <= DAILY_LIMIT
+EOF
+      ;;
   esac
 }
 
@@ -172,6 +182,7 @@ approved_oracle_paths() {
     190) echo "apps/api/tests/test_request_budget.py" ;;
     193) echo "apps/api/tests/test_scheduler.py" ;;
     195) echo "apps/web/src/test/RegisterPage.test.tsx" ;;
+    203) echo "apps/api/tests/test_request_budget.py" ;;
   esac
 }
 
