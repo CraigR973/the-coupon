@@ -8706,3 +8706,22 @@ old-trusted-guard comparison; production-bundle smoke and seeded coupon journey 
 - **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
 
 **Next:** Batch 203 — waits on the owner: its stop-hook item edits `.claude/settings.json`, which this stage's standing instructions forbid.
+
+## Gate maintenance — Batch 203 exact oracle approval
+**Commit:** `fbff812` · approved by agent under the owner's standing instruction of 11 Oct 2026
+at `2026-10-11T08:24:15Z`; not yet reviewed by the owner · first CI:
+https://github.com/CraigR973/the-coupon/actions/runs/38124982189 FAIL only at the expected
+old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
+
+### Key facts for future sessions
+- Batch 203 replaces two five-case Batch 161 `min()` tautologies only. The trusted-main
+  allow-list names two test definitions and five assertions in
+  `apps/api/tests/test_request_budget.py`; every other removal remains blocked.
+- Replayed before the push: main's guard passed the rebased Batch 203 branch and rejected one
+  additional assertion removal from the same file. The replacement coverage must drive the
+  multi-league cold and warm paths, including the 211-day upstream boundary and `PICKS_BUSY`.
+- The approval CI correctly restored the older trusted main without its new allow-list, so only
+  that guard job failed. This documentation-only recovery lets CI evaluate the new trusted
+  main; no application code, API contract, schema or production data changed.
+
+**Next:** Resume Batch 203 only after this recovery commit's exact-SHA CI is green.
