@@ -867,7 +867,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: the web toolchain. **Tooling — owner-approved (`apps/web/package.json` is
   protected).**
 
-- [ ] **Batch 203 — Pipeline and operations hygiene**
+- [x] **Batch 203 — Pipeline and operations hygiene** ✅ 2026-10-11
   — specified from `docs/review/2026-09-28/07-agent-pipeline.md` PIPE-15, PIPE-16, PIPE-17,
   PIPE-19 and `04-performance-operations.md` OPS-19 (all LOW or INFO). Follow-ups agents write
   in the session log become nobody's work (the review has turned today's into rows). Batch 161

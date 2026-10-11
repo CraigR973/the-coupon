@@ -80,9 +80,9 @@ shipped on 5 Oct as `546db3f` (Batches 184-187 and fix `f0710b0`); Group AD is c
 204 (docs-only close-out fast path, owner-approved gate maintenance) is complete. Group AE is
 complete, shipped and verified (Batches 189–193; shipped 7 Oct as `c530469`); Group AB is
 complete (Batches 171, 175–178; web-only, closed 8 Oct); Group AF is complete, shipped
-and verified (Batches 196, 195, 197 and 194; final shipment 10 Oct). Group AH: Batch 202
-(web toolchain refresh) is complete (11 Oct; web-only, nothing to ship); Batch 203 waits on
-the owner, because its stop-hook item edits `.claude/settings.json`.
+and verified (Batches 196, 195, 197 and 194; final shipment 10 Oct). Group AH: Batches 202
+(web toolchain refresh) and 203 (pipeline and operations hygiene) are complete (11 Oct).
+Batch 203 is API-only, so the Group AH `/ship-prod` checkpoint is owed immediately.
 
 ## Toolchain
 

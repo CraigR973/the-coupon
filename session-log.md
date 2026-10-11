@@ -8725,3 +8725,18 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
   main; no application code, API contract, schema or production data changed.
 
 **Next:** Resume Batch 203 only after this recovery commit's exact-SHA CI is green.
+
+## Batch 203 — Pipeline and operations hygiene
+**Commits:** `df16515` · verified: complete 12-check local gate, 1,443 backend and 1,320 frontend tests, zero skips, production-bundle smoke and seeded browser journey PASS · CI: https://github.com/CraigR973/the-coupon/actions/runs/38130422927 PASS for `df16515c623f2f9ba256a4ba778852d6af3b4b65`
+
+### Key facts for future sessions
+- The stop hook now recognises an unchecked `feat/batch-N-*` row while the batch branch is dirty; it no longer treats a clean tree as the signal. The obsolete public-repository `claude.yml` workflow is gone, stale API metadata pins match the gate, and the drift probe names the recent notifications inbox route.
+- Batch 161's two `min()` tautology definitions are the standing-decision-3-approved replacement set: the new coverage proves 50 shared hourly admissions then refusal, and 211 daily admissions then the 212th `PICKS_BUSY` refusal. The replay guard also rejected an extra assertion removal; every other oracle remains protected.
+- Railway 5.64.2 and Vercel 54.6.1 run with Node 24.21.0; the production commands preserve explicit target IDs. The owner waived the staging rollback rehearsal on 11 Oct because staging is decommissioned; no production rollback was attempted.
+- Batch 202's Lighthouse change is accepted by the owner: mobile `/login` median score 97 → 96 and LCP +91 ms. No revert is required.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+### Follow-ups
+- Owner acceptance: staging rollback rehearsal waived on 11 Oct because staging is decommissioned; production rollback remains procedure-only.
+
+**Next:** Run Group AH's authorised `/ship-prod` checkpoint.
