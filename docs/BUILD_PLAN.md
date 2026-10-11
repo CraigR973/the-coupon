@@ -845,7 +845,7 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: the close-out guard and its record. **Tooling-only — owner-approved gate
   maintenance (`check-closeout-safety.sh`, `phase-closeout.md`).**
 
-- [ ] **Batch 202 — The toolchain behind the build is two to four majors behind, with 32 advisories**
+- [x] **Batch 202 — The toolchain behind the build is two to four majors behind, with 32 advisories** ✅ 2026-10-11
   — specified from `docs/review/2026-09-28/01-security.md` SEC-30 (LOW; SEC-22 not fixed) and
   `04-performance-operations.md` OPS-15 (LOW) and PERF-22 (LOW). SEC-22 was "folded into Batch
   127", which then left OPS-15 out, so nothing carried it: 32 npm advisories across 17 build and

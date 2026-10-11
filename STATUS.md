@@ -15,7 +15,7 @@ Checked 2026-10-10 unless a line says otherwise.
 | --- | --- |
 | API | `api-production-109b1.up.railway.app` serves `a2557bd` at migration `027` |
 | API deployment | Railway `6edcd515-97b3-4b5b-83b3-1208c6a5365a` succeeded, one replica, `europe-west4` |
-| Web | Batch 194 web code is live at `the-coupon-production.vercel.app`; GitHub deployment `dpl_FJWfWy2XaW1KsDDLX4oryzEXn6pP` first proved exact source `a2557bd` Ready. Later documentation-only deployments leave the web code unchanged. |
+| Web | Batch 202's build (Vite 8, Tailwind 4) is live at `the-coupon-production.vercel.app` from `628aa0a` (2026-10-11: its stylesheet served, sign-in rendered at 390 and 1280 px with no console errors). Later documentation-only deployments leave the web code unchanged. |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 22 of 22 tables, no public-role grants |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
@@ -80,8 +80,9 @@ shipped on 5 Oct as `546db3f` (Batches 184-187 and fix `f0710b0`); Group AD is c
 204 (docs-only close-out fast path, owner-approved gate maintenance) is complete. Group AE is
 complete, shipped and verified (Batches 189–193; shipped 7 Oct as `c530469`); Group AB is
 complete (Batches 171, 175–178; web-only, closed 8 Oct); Group AF is complete, shipped
-and verified (Batches 196, 195, 197 and 194; final shipment 10 Oct); Group AH follows
-(`docs/agent-commands/group-start.md`).
+and verified (Batches 196, 195, 197 and 194; final shipment 10 Oct). Group AH: Batch 202
+(web toolchain refresh) is complete (11 Oct; web-only, nothing to ship); Batch 203 waits on
+the owner, because its stop-hook item edits `.claude/settings.json`.
 
 ## Toolchain
 
@@ -103,7 +104,11 @@ Checked 2026-10-03.
   venv cannot import the suite.
 - **Frontend** is Node 24.21.0 through nvm, with pnpm 9.15.0 from corepack; the gate refuses
   any other pnpm. CI and the Vercel build are Node 24 too (`apps/web` pins `24.x`). The
-  ambient `node` is too old for the tooling, and nvm's default alias is still 20.
+  ambient `node` is too old for the tooling, and nvm's default alias is still 20. Since Batch
+  202 (2026-10-11): Vite 8 (Rolldown), Vitest 5, Tailwind 4 reading `tailwind.config.ts`
+  through `@config`, ESLint 10 with `apps/web/eslint.config.js`; OSV finds no npm advisory.
+  `index.css` holds the rules that keep Tailwind 3's rendering — change them only with a
+  before/after screenshot check. The guard does not yet protect `eslint.config.js`.
 - **Scratch PostgreSQL** is pip `pgserver`, started and discarded by the gate.
 - **Protected files**: `scripts/ci-local.sh` runs `main`'s guard and owner-approval table, not the
   branch's. The guard protects gate, close-out, CI, lint, type and test-discovery configuration by
@@ -123,5 +128,5 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Group AF Batch 195 (closed sign-up and invite registration); and the owner's
-season-calendar backfill, now unblocked.
+**Next:** the owner's decision on Batch 203's stop-hook item, then Batch 203 and Group AH's
+behaviour-neutral `/ship-prod`; and the owner's season-calendar backfill, unblocked since 4 Oct.
