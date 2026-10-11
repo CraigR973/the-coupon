@@ -96,12 +96,17 @@ changes beyond the batch, or if the batch row is already ticked.
    - <only non-obvious facts, at most five other bullets>
    - **Close-out safety:** <copy the guard's final verdict after this label>
 
+   ### Follow-ups
+   - <one unchecked BUILD_PLAN row, or an explicit owner acceptance; never an unowned note>
+
    **Next:** <first unchecked batch, or launch planning>
    ```
 
    Every batch entry gets exactly one `Close-out safety:` bullet, including
    tooling/docs-only batches. Preserve the classification, pre-push drift verdict,
    shipment debt and, when present, scheduler identity and UTC timestamp.
+   Do not leave a discovered out-of-scope defect as prose: add an unchecked BUILD_PLAN row
+   or record the owner's explicit acceptance in `Follow-ups` before the push.
 
 10. Refresh `STATUS.md`, stage only the three close-out documents, and commit with the same
     `Coupon-Batch: N` trailer: `docs: close out Batch N — tick BUILD_PLAN + session log`.

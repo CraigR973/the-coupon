@@ -944,34 +944,80 @@ def _pick_installation_limits() -> dict[str, int]:
     }
 
 
-@pytest.mark.parametrize("leagues", [1, 2, 5, 20, 100])
-def test_no_number_of_leagues_can_exceed_the_installation_plan(leagues: int) -> None:
-    """The finding, closed: K leagues each spending their whole bucket is still bounded.
-
-    Before this the answer was ``K x 50`` — at five leagues 150 over the plan, at twenty
-    ten times it — and it was real spend rather than a ceiling, because the refusal path
-    deliberately exempts the pick path.
-    """
-    per_league = _pick_shared_limits()["hour"]
-    installation = _pick_installation_limits()["hour"]
-
-    unbounded = leagues * per_league
-    bounded = min(unbounded, installation)
-
-    assert bounded <= installation
-    assert bounded <= HOURLY_LIMIT
-    if leagues >= 2:
-        assert unbounded > installation, "the premise: without the bucket this overshoots"
-
-
-@pytest.mark.parametrize("leagues", [1, 2, 5, 20, 100])
-def test_no_number_of_leagues_can_exceed_the_installation_plan_across_a_day(
-    leagues: int,
+@pytest.mark.parametrize("league_count", [1, 2, 5, 20, 50])
+def test_installation_hourly_budget_refuses_the_next_cold_pick_across_leagues(
+    league_count: int,
 ) -> None:
-    """And the day, which is the tighter plan of the two."""
-    bounded = min(leagues * _pick_shared_limits()["day"], _pick_installation_limits()["day"])
-    assert bounded <= _pick_installation_limits()["day"]
-    assert bounded <= DAILY_LIMIT
+    """The real shared limiter refuses the upstream call after its global allowance.
+
+    The request-path tests in ``test_picks_flow`` prove that warm picks avoid this callback and
+    cold picks reach it. This exercises the callback's actual limiter across one through a
+    hundred league-shaped callers: a per-league key would let every group start a fresh budget.
+    """
+    from src.rate_limit import consume_shared_limit
+    from src.routers.picks import (
+        PICK_SUBMIT_INSTALLATION_KEY,
+        PICK_SUBMIT_INSTALLATION_LIMIT,
+        PICK_SUBMIT_INSTALLATION_SCOPE,
+    )
+
+    allowance = _pick_installation_limits()["hour"]
+    callers = [f"league-{attempt % league_count}" for attempt in range(allowance)]
+    admitted = [
+        consume_shared_limit(
+            PICK_SUBMIT_INSTALLATION_KEY,
+            PICK_SUBMIT_INSTALLATION_LIMIT,
+            PICK_SUBMIT_INSTALLATION_SCOPE,
+        )
+        for _caller in callers
+    ]
+
+    assert len(set(callers)) == league_count
+    assert all(admitted), "every caller must draw from the one global cold-pick allowance"
+    assert not consume_shared_limit(
+        PICK_SUBMIT_INSTALLATION_KEY,
+        PICK_SUBMIT_INSTALLATION_LIMIT,
+        PICK_SUBMIT_INSTALLATION_SCOPE,
+    ), "the next cold pick must be refused before it reaches upstream"
+
+
+@pytest.mark.parametrize("league_count", [1, 2, 5, 20, 50])
+def test_installation_daily_budget_refuses_the_212th_cold_pick_across_leagues(
+    league_count: int,
+) -> None:
+    """The 211-day upstream allowance is real, rather than a ``min()`` calculation."""
+    from limits import parse_many
+
+    from src.rate_limit import limiter
+    from src.routers.picks import (
+        PICK_SUBMIT_INSTALLATION_KEY,
+        PICK_SUBMIT_INSTALLATION_LIMIT,
+        PICK_SUBMIT_INSTALLATION_SCOPE,
+    )
+
+    daily_limit = next(
+        item
+        for item in parse_many(PICK_SUBMIT_INSTALLATION_LIMIT)
+        if item.GRANULARITY.name == "day"
+    )
+    allowance = daily_limit.amount
+    callers = [f"league-{attempt % league_count}" for attempt in range(allowance)]
+    admitted = [
+        limiter.limiter.hit(
+            daily_limit,
+            PICK_SUBMIT_INSTALLATION_KEY,
+            PICK_SUBMIT_INSTALLATION_SCOPE,
+        )
+        for _caller in callers
+    ]
+
+    assert len(set(callers)) == league_count
+    assert all(admitted), "every caller must draw from the one global cold-pick allowance"
+    assert not limiter.limiter.hit(
+        daily_limit,
+        PICK_SUBMIT_INSTALLATION_KEY,
+        PICK_SUBMIT_INSTALLATION_SCOPE,
+    ), "the 212th cold pick must be refused before it reaches upstream"
 
 
 async def test_the_installation_allowance_is_what_the_hour_actually_leaves_spare(

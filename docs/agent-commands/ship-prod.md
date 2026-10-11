@@ -150,12 +150,12 @@ environment variables; these override the repository's staging link. Write a
 pinned plan, review its redacted output, and require that it changes only the
 existing `api` service without deleting a resource or variable. Never pass
 `--show-values`, `--decrypt-variables`, or `--confirm-destructive`. Railway's
-TypeScript evaluator requires Node 22 or newer, independently of the web app's
-Node 24 toolchain; require `nvm` to have a Node 22 release installed:
+TypeScript evaluator requires Node 22 or newer; the verified Node 24.21.0 runtime
+satisfies that requirement:
 
 ```bash
 . /Users/craigrobinson/.nvm/nvm.sh --no-use
-nvm use 22 --silent
+nvm use 24 --silent
 RAILWAY_IAC_PLAN="$(mktemp /tmp/the-coupon-production-iac.XXXXXX.json)"
 RAILWAY_PROJECT_ID=e030ebe3-e7fc-43c9-9478-4e80cafaa126 \
 RAILWAY_ENVIRONMENT_ID=8f18cb49-5137-4557-900a-031bcab4ac38 \
@@ -170,7 +170,7 @@ plan, still without `--confirm-destructive`, then remove the temporary plan:
 
 ```bash
 . /Users/craigrobinson/.nvm/nvm.sh --no-use
-nvm use 22 --silent
+nvm use 24 --silent
 RAILWAY_PROJECT_ID=e030ebe3-e7fc-43c9-9478-4e80cafaa126 \
 RAILWAY_ENVIRONMENT_ID=8f18cb49-5137-4557-900a-031bcab4ac38 \
 RAILWAY_SERVICE_ID=d59f4f17-3e7d-4b3b-bf40-30620150fa2f \
@@ -193,6 +193,7 @@ explicitly on every shipment or it goes stale and
 tiers:
 
 ```bash
+PATH="/Users/craigrobinson/.nvm/versions/node/v24.21.0/bin:$PATH" \
 /Users/craigrobinson/.nvm/versions/node/v20.20.2/lib/node_modules/@railway/cli/bin/railway \
   variables --set "RAILWAY_GIT_COMMIT_SHA=$(git -C /Users/craigrobinson/the-coupon rev-parse HEAD)" \
   --skip-deploys \
@@ -217,6 +218,7 @@ Then run Railway from the repository root with every selector explicit.
 to production:
 
 ```bash
+PATH="/Users/craigrobinson/.nvm/versions/node/v24.21.0/bin:$PATH" \
 /Users/craigrobinson/.nvm/versions/node/v20.20.2/lib/node_modules/@railway/cli/bin/railway \
   up /Users/craigrobinson/the-coupon \
   --project e030ebe3-e7fc-43c9-9478-4e80cafaa126 \
@@ -233,6 +235,7 @@ step is stalled before touching anything.** `deployment list` reports only
 `DEPLOYING` and cannot localise it; the per-step breakdown can:
 
 ```bash
+PATH="/Users/craigrobinson/.nvm/versions/node/v24.21.0/bin:$PATH" \
 /Users/craigrobinson/.nvm/versions/node/v20.20.2/lib/node_modules/@railway/cli/bin/railway \
   api 'query E($id: String!) { deploymentEvents(id: $id, first: 10) { edges { node { step createdAt completedAt } } } }' \
   --variables '{"id":"<deployment-id>"}' --compact
@@ -260,6 +263,7 @@ environment, and service selectors until it is `SUCCESS`, or stop and roll
 back if it reaches a terminal failure:
 
 ```bash
+PATH="/Users/craigrobinson/.nvm/versions/node/v24.21.0/bin:$PATH" \
 /Users/craigrobinson/.nvm/versions/node/v20.20.2/lib/node_modules/@railway/cli/bin/railway \
   deployment list \
   --project e030ebe3-e7fc-43c9-9478-4e80cafaa126 \
@@ -313,7 +317,7 @@ its configured root, so passing `apps/web` as the upload root would incorrectly
 produce `apps/web/apps/web`.
 
 ```bash
-PATH="/Users/craigrobinson/.nvm/versions/node/v20.20.2/bin:$PATH" \
+PATH="/Users/craigrobinson/.nvm/versions/node/v24.21.0/bin:/Users/craigrobinson/.nvm/versions/node/v20.20.2/bin:$PATH" \
 vercel deploy /Users/craigrobinson/the-coupon \
   --prod --yes --archive=tgz --format=json \
   --project prj_3h3OSNFDoPAySqTa9nVswUrMs0jJ \
@@ -349,7 +353,7 @@ with the previous application, stop and use a reviewed forward recovery plan.
 To restore the previous Vercel production deployment:
 
 ```bash
-PATH="/Users/craigrobinson/.nvm/versions/node/v20.20.2/bin:$PATH" \
+PATH="/Users/craigrobinson/.nvm/versions/node/v24.21.0/bin:/Users/craigrobinson/.nvm/versions/node/v20.20.2/bin:$PATH" \
 vercel rollback <previous-vercel-deployment-id> --yes \
   --scope team_MVQMOaFtYHlwO5QVzSOZQ0Ud
 ```
@@ -357,6 +361,7 @@ vercel rollback <previous-vercel-deployment-id> --yes \
 To restore the previous Railway deployment:
 
 ```bash
+PATH="/Users/craigrobinson/.nvm/versions/node/v24.21.0/bin:$PATH" \
 /Users/craigrobinson/.nvm/versions/node/v20.20.2/lib/node_modules/@railway/cli/bin/railway \
   api \
   'mutation Rollback($id: String!) { deploymentRollback(id: $id) }' \

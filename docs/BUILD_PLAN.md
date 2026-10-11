@@ -895,8 +895,9 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   including the 211-day upstream boundary and its `PICKS_BUSY` refusal. Every other removal in
   this file remains blocked; this is not a file-wide or reusable waiver.
 
-  Verification: each item checked; both rollback commands rehearsed on Node 24 against
-  staging.
+  Verification: each item checked; both operator CLIs run on Node 24. The owner waived the
+  staging rollback rehearsal on 11 Oct 2026 because staging is decommissioned; production
+  rollback commands remain procedure-only and must not be run for this batch.
 
   Scope boundary: these hygiene items. **Tooling-only (`phase-closeout.md` edits need
   owner-approved gate maintenance).**

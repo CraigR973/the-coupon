@@ -120,13 +120,13 @@ Checked 2026-10-03.
   worked on 2026-09-26. Probe rather than trusting either route. The Railway CLI's default
   link is staging, and the Supabase MCP here is a different product — never read Coupon data
   through it.
-- **Vercel CLI**: run it with Node 20 first on `PATH` (the ambient `node` is 14 and cannot
-  load it). Node 20 is end-of-life; it stays here only until the CLIs are re-tested on
-  Node 24 (review 2026-09-28, OPS-19). Its stored token is short-lived and refreshed by any `vercel` command, so run
+- **Operator CLIs**: Railway 5.64.2 and Vercel 54.6.1 are verified with Node 24.21.0 on
+  `PATH`; the legacy Node 20 installation supplies their shims only. Its stored token is short-lived and refreshed by any `vercel` command, so run
   `vercel whoami` before reading it for a REST call (2026-09-26).
 - **Deploys**: the web app ships on every push to `main`; the API ships only through
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** the owner's decision on Batch 203's stop-hook item, then Batch 203 and Group AH's
-behaviour-neutral `/ship-prod`; and the owner's season-calendar backfill, unblocked since 4 Oct.
+**Next:** Batch 203 and Group AH's behaviour-neutral `/ship-prod`; staging is decommissioned, so
+the owner waived Batch 203's staging rollback rehearsal on 11 Oct. The season-calendar backfill
+also remains owner-gated, unblocked since 4 Oct.

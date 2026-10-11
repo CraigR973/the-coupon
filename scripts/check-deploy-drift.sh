@@ -40,8 +40,8 @@ API_PATHS=(apps/api migrations nixpacks.toml .railway/railway.ts)
 # predates that batch; anything else (403 behind auth, 200) means it is present.
 # Keep this pointed at the newest batch that added a route, or the fallback
 # answers a staler question than it needs to.
-PROBE_PATH="/api/v1/football/tables"
-PROBE_SINCE="Batch 51"
+PROBE_PATH="/api/v1/notifications/inbox"
+PROBE_SINCE="Batch 194"
 
 git -C "$ROOT" fetch origin --quiet 2>/dev/null
 EXPECTED="$(git -C "$ROOT" rev-parse origin/main 2>/dev/null)"
