@@ -3765,3 +3765,63 @@ Backup/restore-point identity: **none yet**. Migration `027` makes the previous 
 an invalid normal rollback target because its Alembic boot check cannot resolve that
 revision. Use the forward plan in `docs/runbooks/migration-027-recovery.md`; no downgrade
 or version-row edit was authorised or run.
+
+### 2026-10-13 — `9731776`, Batch 205 (migration `028`)
+
+Batch 205's pay-to-pick ledger, weekly dues and paid-up check shipped under the owner's
+`/ship-prod` authorisation for this stage (13 Oct), resumed at `2026-10-13T17:41Z` on the
+owner's "try again". The clean `main` tree reused close-out's complete local gate stamp for
+tree `b8f064d5` (1,468 backend tests, 1,320 frontend tests, one seeded browser journey, zero
+skips; the shipped tree differs from it only in the three close-out documents). Exact-SHA
+GitHub Actions runs `38411741160` (`e5a8c11`) and `38413445984` (`9731776`) passed all three
+jobs.
+
+**Batch 203 was already live, unrecorded.** Railway's deployment list shows the IaC redeploy
+`6fd40488-3a8f-47c5-b230-5ccc451ff844` at `2026-10-11T10:28:03Z` and the source deployment
+`de1b8aa8-9f0b-482d-bccb-5aeb6eb01928` (`deploy`) at `10:30:06Z`, and production health reported
+`5882b0f` — Batch 203's close-out — at `027`. No record of that shipment existed in this file,
+`STATUS.md` or `session-log.md`; it is recorded here from Railway's own list. A plan file left at
+the literal path `/tmp/the-coupon-production-iac.XXXXXX.json`, dated 11 Oct, fits the same run.
+
+Preflight confirmed Supabase `pugujiiojitstkilphrz` (`the-coupon-production`) `ACTIVE_HEALTHY` in
+`eu-west-2`; the exact Railway project, `production` environment, `api` service and stable domain;
+null `railwayConfigFile`; all 13 required Railway variable names; and both encrypted,
+production-scoped Vercel variable names. The migration recovery check accepted the written
+forward plan for `028`. Rollback baselines: Railway `de1b8aa8` (`5882b0f`, `027`) and Vercel
+`dpl_4MajjZVrE3bxJRm4BjqDGgYAQVpS` (already serving `9731776`).
+
+The pinned Railway IaC plan had 0 additions, 2 safe updates to the existing `api` service and 0
+deletions — the same null-to-explicit build and deploy fields as the last three shipments. Its
+redeploy of the previous image, `21a47356-332a-4324-ac6b-fbc43f509484`, reached `SUCCESS` before the
+source upload. The source deployment `dd90b1c5-a0cb-4ab4-80d6-7eee53dfd9d0` reached `SUCCESS` with one
+replica in `europe-west4-drams3a`, sleep off, restart `ON_FAILURE`, IPv6 egress, 0.25 vCPU /
+500 MB, Nixpacks `/nixpacks.toml` and the 300-second `/api/v1/health/ready` check. `/health`
+reported source `9731776` and bundled head `028`; `/health/ready` reported database `ok` and
+applied head `028`.
+
+The first bounded Railway snapshot held 42 lines with zero failure-term and zero credential-pattern
+matches; its seven error-level lines were normal Alembic and Uvicorn INFO output, including
+`Running upgrade 027 -> 028`, and the scheduler and connection warm-up started. A direct read-only
+production transaction (TLS `require`; the certificate was not verified locally) found head `028`,
+RLS enabled and forced on 24 of 24 public tables — `ledger_entries` and `payer_mappings` each with
+their `deny_anon_authenticated` policy — and no `anon`, `authenticated` or `PUBLIC` table grants,
+effective privileges or `public` schema grants.
+
+Vercel was a no-op: GitHub had already deployed `9731776` as `dpl_4MajjZVrE3bxJRm4BjqDGgYAQVpS`,
+`READY` at the stable alias. The web root and `/leagues/discover` both returned `200` from the same
+SPA asset with CSP, `X-Frame-Options`, HSTS, nosniff, referrer, permissions and cache headers.
+Exact-origin CORS returned `200` with credentials; a foreign origin was refused with `400` and no
+`Access-Control-Allow-Origin`. Unauthenticated calls to the new `GET /leagues/{slug}/payments` and
+`POST /leagues/{slug}/adult-confirmation` returned `401` rather than `404`. After the smoke,
+readiness stayed green, `scripts/check-deploy-drift.sh` reported **in sync**, a second Railway
+sample held 49 clean lines, and Vercel showed zero error and zero 5xx log entries in the hour.
+
+Verification-only correction, with no production effect: the documented
+`mktemp /tmp/the-coupon-production-iac.XXXXXX.json` does not randomise on macOS (BSD `mktemp`
+needs the X's last) and failed against the 11 Oct leftover; the plan was written to a trailing-X
+template instead and removed after `config apply`. The leftover file was left untouched.
+
+Backup/restore-point identity: **none yet**. Migration `028` makes the previous API image an invalid
+normal rollback target, because its Alembic boot check cannot resolve that revision. Use the forward
+plan in `docs/runbooks/migration-028-recovery.md`; no downgrade or version-row edit was authorised
+or run. Nothing writes the new tables until a site admin sets a league's fee.

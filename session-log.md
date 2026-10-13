@@ -8756,3 +8756,14 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - Batch 206 (pay panel, 18+ prompt, admin Payments screen) — its open row; it needs this API shipped first.
 
 **Next:** Batch 205's `/ship-prod` (owner-authorised for this stage; migration `028`). Batch 206 follows in a later session.
+
+## Shipment — 2026-10-13, `9731776` (Batch 205; migration `028`)
+**Railway:** `dd90b1c5-a0cb-4ab4-80d6-7eee53dfd9d0` `SUCCESS` · pre-migration IaC redeploy `21a47356-332a-4324-ac6b-fbc43f509484` · Vercel no-op (`dpl_4MajjZVrE3bxJRm4BjqDGgYAQVpS`, `9731776`) · drift **in sync** · exact-SHA CI `38411741160` and `38413445984` green · reused complete 12-check gate stamp (backend 1,468; frontend 1,320; journey 1; zero skips)
+
+### Key facts for future sessions
+- **Batch 205 is live.** Health and readiness report `9731776` / `028`; RLS is forced on 24 of 24 public tables, the two new ones included, with no `anon`, `authenticated` or `PUBLIC` grants. It changes nothing for members until a site admin sets a league's fee — and setting 2-1 Hibs' fee before Batch 206 ships would refuse members with no screen saying why.
+- **Batch 203 shipped unrecorded on 11 Oct.** Railway shows IaC redeploy `6fd40488` and source deployment `de1b8aa8` at 10:28–10:30Z, serving `5882b0f`; no document recorded it. It is now in the L4 record, and this shipment's baseline was `de1b8aa8`.
+- **Recovery:** the pinned IaC plan had 0 additions, 2 safe updates to the existing `api` service and 0 deletions. Migration `028` makes the old image an invalid normal rollback target; `docs/runbooks/migration-028-recovery.md` directs forward repair. No downgrade or version-row edit ran.
+- **Verification correction:** the documented `mktemp …XXXXXX.json` template does not randomise on macOS and failed against the 11 Oct leftover file; a trailing-X template worked and was removed after apply. No production effect.
+
+**Next:** Batch 206's screens, in a later session — web-only now that the API it needs is live.

@@ -13,10 +13,10 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `a2557bd` at migration `027` |
-| API deployment | Railway `6edcd515-97b3-4b5b-83b3-1208c6a5365a` succeeded, one replica, `europe-west4` |
+| API | `api-production-109b1.up.railway.app` serves `9731776` at migration `028` (13 Oct) |
+| API deployment | Railway `dd90b1c5-a0cb-4ab4-80d6-7eee53dfd9d0` succeeded, one replica, `europe-west4` (13 Oct) |
 | Web | Batch 202's build (Vite 8, Tailwind 4) is live at `the-coupon-production.vercel.app` from `628aa0a` (2026-10-11: its stylesheet served, sign-in rendered at 390 and 1280 px with no console errors). Later documentation-only deployments leave the web code unchanged. |
-| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 22 of 22 tables, no public-role grants |
+| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 24 of 24 tables, no public-role grants (13 Oct) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
 | Football data | FotMob, no key |
@@ -29,13 +29,16 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
-- **Group AF is shipped and verified** (10 Oct). The API and web served source
-  `a2557bd` at shipment; API health and database readiness reported `027`, and drift was
-  in sync. The read-only database audit found no `anon`, `authenticated` or `PUBLIC`
-  table or schema grants. The production web alias was Ready on the same Git SHA.
-- **Migration `027` requires forward recovery.** The migration is additive, but the
-  older image's Alembic boot check cannot start against revision `027`. Use
-  `docs/runbooks/migration-027-recovery.md` for forward repair. Production has no backup
+- **Batch 205 is shipped and verified** (13 Oct, `9731776`). API health and database
+  readiness report `028`, drift is in sync, and the read-only audit found RLS forced on all
+  24 tables with no `anon`, `authenticated` or `PUBLIC` table or schema grants. The web alias
+  is Ready on the same SHA. Pay to pick is inert until a site admin sets a league's fee;
+  setting 2-1 Hibs' fee before Batch 206 ships would refuse members with no screen saying why.
+- **Batch 203 shipped unrecorded on 11 Oct** (Railway `de1b8aa8`, `5882b0f`), found from
+  Railway's deployment list on 13 Oct and now in the L4 record.
+- **Migration `028` requires forward recovery.** It is additive, but the older image's
+  Alembic boot check cannot start against revision `028`. Use
+  `docs/runbooks/migration-028-recovery.md` for forward repair. Production has no backup
   restore point, so do not describe a downgrade as a data-preserving rollback.
 
 ## Waiting on the owner
@@ -82,14 +85,11 @@ complete, shipped and verified (Batches 189–193; shipped 7 Oct as `c530469`); 
 complete (Batches 171, 175–178; web-only, closed 8 Oct); Group AF is complete, shipped
 and verified (Batches 196, 195, 197 and 194; final shipment 10 Oct). Group AH: Batches 202
 (web toolchain refresh) and 203 (pipeline and operations hygiene) are complete (11 Oct).
-Batch 203 is API-only. On 13 Oct the drift check found production's health reporting
-`5882b0f`, after Batch 203, although no shipment of it is recorded; Batch 205's `/ship-prod`
-settles which commit is live and carries both.
+Batch 203 shipped on 11 Oct, unrecorded until 13 Oct.
 
 Batches 205-208 are pay to pick in 2-1 Hibs (ADR 0009). Batch 205 — the API ledger, weekly
-dues and the paid-up check, migration `028` — is complete (13 Oct, `e5a8c11`); it is API-only
-and its `/ship-prod` is owed. Nothing changes for members until a site admin sets a league's
-fee. Batches 206-208 have not started; Batch 207 needs owner-approved gate maintenance before
+dues and the paid-up check, migration `028` — is complete and shipped (13 Oct, `9731776`).
+Nothing changes for members until a site admin sets a league's fee. Batches 206-208 have not started; Batch 207 needs owner-approved gate maintenance before
 it is gated, and the Monzo launch steps in ADR 0009 are the owner's.
 
 ## Toolchain
@@ -135,6 +135,6 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Batch 205's `/ship-prod` (migration `028`), authorised by the owner on 13 Oct; then
-Batch 206's screens in a later session. The season-calendar backfill remains owner-gated,
+**Next:** Batch 206's screens in a later session — web-only, now that the API it needs is live.
+Do not set 2-1 Hibs' fee before it ships. The season-calendar backfill remains owner-gated,
 unblocked since 4 Oct.
