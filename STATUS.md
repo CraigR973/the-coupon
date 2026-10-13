@@ -32,8 +32,10 @@ Checked 2026-10-10 unless a line says otherwise.
 - **Batch 205 is shipped and verified** (13 Oct, `9731776`). API health and database
   readiness report `028`, drift is in sync, and the read-only audit found RLS forced on all
   24 tables with no `anon`, `authenticated` or `PUBLIC` table or schema grants. The web alias
-  is Ready on the same SHA. Pay to pick is inert until a site admin sets a league's fee;
-  setting 2-1 Hibs' fee before Batch 206 ships would refuse members with no screen saying why.
+  is Ready on the same SHA. Pay to pick is inert until a site admin sets a league's fee.
+- **Batch 206 is live on the web** (13 Oct, `32a8aef`, web-only, exact-SHA CI green): the pay
+  panel, the season pot, the site-admin fee fields and the Payments screen. No league has a
+  fee, so no member sees any of it yet.
 - **Batch 203 shipped unrecorded on 11 Oct** (Railway `de1b8aa8`, `5882b0f`), found from
   Railway's deployment list on 13 Oct and now in the L4 record.
 - **Migration `028` requires forward recovery.** It is additive, but the older image's
@@ -89,8 +91,10 @@ Batch 203 shipped on 11 Oct, unrecorded until 13 Oct.
 
 Batches 205-208 are pay to pick in 2-1 Hibs (ADR 0009). Batch 205 — the API ledger, weekly
 dues and the paid-up check, migration `028` — is complete and shipped (13 Oct, `9731776`).
-Nothing changes for members until a site admin sets a league's fee. Batches 206-208 have not started; Batch 207 needs owner-approved gate maintenance before
-it is gated, and the Monzo launch steps in ADR 0009 are the owner's.
+Nothing changes for members until a site admin sets a league's fee. Batch 206 — the screens —
+is complete and live on the web (13 Oct, `32a8aef`). Batches 207-208 have not started; Batch 207
+needs owner-approved gate maintenance before it is gated, and the Monzo launch steps in ADR 0009
+are the owner's.
 
 ## Toolchain
 
@@ -103,7 +107,7 @@ Checked 2026-10-03.
   that stamp when only `docs/BUILD_PLAN.md`, `session-log.md` and `STATUS.md` changed, otherwise it
   reruns the gate, and waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,468, frontend 1,320, journey 1; checked 2026-10-13). 13m04s on this Mac
+  (backend 1,468, frontend 1,379, journey 1; checked 2026-10-13). 13m04s on this Mac
   with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
   (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
   1,350 tests (2026-09-29) — not the gate.
@@ -135,6 +139,6 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Batch 206's screens in a later session — web-only, now that the API it needs is live.
-Do not set 2-1 Hibs' fee before it ships. The season-calendar backfill remains owner-gated,
-unblocked since 4 Oct.
+**Next:** Batch 207 in a later session; it needs owner-approved gate maintenance first. Setting
+2-1 Hibs' fee is now safe for members and is the owner's launch step. The season-calendar
+backfill remains owner-gated, unblocked since 4 Oct.

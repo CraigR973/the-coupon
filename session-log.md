@@ -8767,3 +8767,18 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - **Verification correction:** the documented `mktemp …XXXXXX.json` template does not randomise on macOS and failed against the 11 Oct leftover file; a trailing-X template worked and was removed after apply. No production effect.
 
 **Next:** Batch 206's screens, in a later session — web-only now that the API it needs is live.
+
+## Batch 206 — Members cannot see what they owe or how to pay
+**Commits:** `32a8aef` · verified: complete 12-check local gate, 1,468 backend and 1,379 frontend tests, journey 1, zero skips, production-bundle smoke and seeded browser journey PASS · CI: https://github.com/CraigR973/the-coupon/actions/runs/38469008001 PASS for `32a8aefd4b6e5717f5e302255a002adf65fee777`
+
+### Key facts for future sessions
+- The pay panel (`PayPanel`) sits above the fixtures and renders only when the round carries `fee` and the round is not shut: owed (amount, rolled-over weeks, then the link button after the 18+ confirmation, or "ask the organiser" when there is no link), credit, or paid up. A league without a fee sends no `fee`, pot or link, so nothing new renders; vitest asserts this on the round screen, the league page and the actions menu.
+- The Payments screen is `/leagues/:slug/admin/payments`, behind the site-admin route gate, and is in `LEAGUE_ADMIN_PAGES` so offline precache skips it. The league menu offers it only to a site admin on a league with a fee. The fee and link fields in League Settings are drawn and sent only for a site admin (explicit nulls clear them).
+- A round opened before a fee is set carries no due (Batch 205's rule), so a member then shows "paid up" for it; the first round to open after the fee is set is the first that asks for £1.
+- Failures and fixes, none touching an existing assertion: `precacheFilter.test.ts` refused the new page until it joined `LEAGUE_ADMIN_PAGES`; an exported helper added a react-refresh lint warning and was made module-private. Screenshots (390 and 1280 px, both themes, before and after a fee) are in the git-ignored `artifacts/batch-206/`; the first scratch-stack set showed Bob "paid up" because the scratch round predated the fee, which was scratch data, not a code fault. Gate attempt 1 passed. `gh run watch` dropped out once with GitHub 502s; the run was read again, not rerun.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- Batch 207 (a second Railway service for the payments token) — its open row; it needs owner-approved gate maintenance before it is gated.
+
+**Next:** Batch 207, in a later session. Setting 2-1 Hibs' fee is now safe for members, and remains the owner's launch step in ADR 0009.

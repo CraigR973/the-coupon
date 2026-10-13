@@ -956,8 +956,8 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Group AE. **Tooling-only; nothing reaches the API image or the web app.**
 
 Batches 205-208 come from ADR 0009 (pay to pick in 2-1 Hibs; owner decisions of 2026-10-12
-and 2026-10-13). They run in order with `/batch-start`. Batch 205 is complete (13 Oct);
-206-208 have not started.
+and 2026-10-13). They run in order with `/batch-start`. Batches 205 and 206 are complete (13 Oct);
+207-208 have not started.
 
 - [x] **Batch 205 — A member can pick in a league that charges a fee without having paid ✅ 2026-10-13**
   — specified from ADR 0009, amended 2026-10-13 for weekly dues. 2-1 Hibs members pay £1 a
@@ -1020,7 +1020,7 @@ and 2026-10-13). They run in order with `/batch-start`. Batch 205 is complete (1
   Scope boundary: the migration, the ledger, dues, the gate and the admin routes. No Monzo
   code and no screens. **API-only — `/ship-prod` before Batch 206's web half.**
 
-- [ ] **Batch 206 — Members cannot see what they owe or how to pay**
+- [x] **Batch 206 — Members cannot see what they owe or how to pay ✅ 2026-10-13**
   — specified from ADR 0009. Once Batch 205 ships, a member in a league with a fee meets a
   refusal they cannot act on.
   - The round screen shows a pay panel when the member owes. It gives the amount owed, with
