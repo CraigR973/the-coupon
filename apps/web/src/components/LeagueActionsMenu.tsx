@@ -10,6 +10,7 @@ import {
   Trash2,
   UserCheck,
   Users,
+  Wallet,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
@@ -37,6 +38,11 @@ interface LeagueActionsMenuProps {
   slug: string;
   leagueName: string;
   isAdmin: boolean;
+  /**
+   * Batch 206. The site admin's way into a league's payments — offered only on a league
+   * that charges a fee, so every other league's menu is exactly as it was.
+   */
+  showPayments?: boolean;
   className?: string;
 }
 
@@ -44,6 +50,7 @@ export function LeagueActionsMenu({
   slug,
   leagueName,
   isAdmin,
+  showPayments = false,
   className,
 }: LeagueActionsMenuProps) {
   const navigate = useNavigate();
@@ -157,6 +164,14 @@ export function LeagueActionsMenu({
                   Settings
                 </Link>
               </DropdownMenuItem>
+              {showPayments && (
+                <DropdownMenuItem asChild>
+                  <Link to={`/leagues/${slug}/admin/payments`}>
+                    <Wallet className="mr-2 h-3.5 w-3.5" aria-hidden />
+                    Payments
+                  </Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem asChild>
                 <Link to={`/leagues/${slug}/admin/audit-log`}>
                   <ClipboardList className="mr-2 h-3.5 w-3.5" aria-hidden />
@@ -182,7 +197,15 @@ export function LeagueActionsMenu({
           </DropdownMenu>
         </div>
       ) : (
-        <div className={cn('flex items-center', className)}>
+        <div className={cn('flex items-center', showPayments && 'gap-2', className)}>
+          {showPayments && (
+            <Button asChild size="sm" variant="outline" className="gap-1.5">
+              <Link to={`/leagues/${slug}/admin/payments`}>
+                <Wallet className="h-3.5 w-3.5" aria-hidden />
+                Payments
+              </Link>
+            </Button>
+          )}
           <Button
             ref={memberLeaveTriggerRef}
             size="sm"

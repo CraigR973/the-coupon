@@ -36,6 +36,8 @@ export const LEAGUE_ADMIN_PAGES = [
   'LeagueJoinRequestsPage',
   'LeagueAdminInvitesPage',
   'LeagueAuditLogPage',
+  // Batch 206. Site admins only, but addressed under a league like the pages above.
+  'LeaguePaymentsPage',
 ] as const;
 
 const LEAGUE_ADMIN = new RegExp(

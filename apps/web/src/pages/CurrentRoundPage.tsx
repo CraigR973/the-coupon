@@ -48,6 +48,7 @@ import { CouponSection } from '../components/CouponSection';
 import { RoundStatus, type MyClaim } from '../components/RoundStatus';
 import { OutstandingPickNotice } from '../components/OutstandingPickNotice';
 import { CouponCompleteNotice } from '../components/CouponCompleteNotice';
+import { PayPanel } from '../components/PayPanel';
 import { GameweekNav } from '../components/GameweekNav';
 import { EmptyState } from '../components/EmptyState';
 import { QueryErrorState } from '../components/QueryErrorState';
@@ -526,6 +527,17 @@ export function CurrentRoundPage() {
         >
           Prices may be out of date — the odds source isn't responding right now.
         </div>
+      )}
+
+      {/*
+        Batch 206 (ADR 0009). Above the fixtures, because in a league that charges a fee
+        a member who owes cannot pick at all, and the slate is where they would find that
+        out the hard way. Only while the round can still be claimed: what a shut round
+        "costs to pick" is a question nobody is asking. A league without a fee sends no
+        `fee`, so nothing here renders.
+      */}
+      {slate?.fee && !claimingShut && (
+        <PayPanel slug={slug} gameweekId={slate.gameweek_id} fee={slate.fee} />
       )}
 
       {isLoading && (

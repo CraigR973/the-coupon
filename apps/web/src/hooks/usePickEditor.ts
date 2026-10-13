@@ -50,6 +50,12 @@ export const PICK_SUBMIT_TIMEOUT_MS = 12_000;
 export const PRICE_MOVED = 'PRICE_MOVED';
 
 /**
+ * The refusal a member gets in a league that charges a fee when they are not paid up
+ * (Batch 205, ADR 0009): a 402, never a 401, because a 401 signs the member out.
+ */
+export const PAYMENT_REQUIRED = 'PAYMENT_REQUIRED';
+
+/**
  * What a refusal is, beyond its sentence.
  *
  * Batch 139. The app had 57 error toasts, 44 success, two informational and zero
@@ -90,6 +96,10 @@ export function pickRefusal(detail: string): PickRefusal {
         message: pickErrorMessage(detail),
         action: 'refresh-card',
       };
+    // Batch 206. Not a failure either: the member owes, and paying is their next move. The
+    // pay panel above the slate says how much and carries the link.
+    case PAYMENT_REQUIRED:
+      return { tone: 'warning', title: pickToastTitle(detail), message: pickErrorMessage(detail) };
     default: {
       if (detail.startsWith(`${PRICE_MOVED}:`)) {
         return {
@@ -127,6 +137,8 @@ export function pickErrorMessage(detail: string): string {
     // accusation and stops trying.
     case 'PICKS_BUSY':
       return 'Too many picks are being made in your league right now. Try again in a few minutes.';
+    case PAYMENT_REQUIRED:
+      return 'This league asks you to be paid up before you pick. What you owe is shown above the fixtures.';
     default:
       // Batch 114. `PRICE_MOVED:<price>` — the code alone is not an answer, because what
       // the member has to decide is whether to take the *new* number, and they cannot
@@ -156,6 +168,8 @@ export function pickToastTitle(detail: string): string {
       return 'Prices are unavailable';
     case 'PICKS_BUSY':
       return 'Your pick was not saved';
+    case PAYMENT_REQUIRED:
+      return 'Pay to pick';
     default:
       if (detail.startsWith(`${PRICE_MOVED}:`)) {
         return `That price moved to ${detail.slice(PRICE_MOVED.length + 1)}`;
@@ -411,6 +425,9 @@ export function usePickEditor(
       if (err instanceof ApiError) {
         hold(null);
         const refusal = pickRefusal(err.message);
+        // The slate carries what the member owes. Re-read it so the pay panel shows the
+        // amount the server just refused on, not whatever the screen last fetched.
+        if (err.message === PAYMENT_REQUIRED) invalidate();
         const notify = refusal.tone === 'warning' ? toast.warning : toast.error;
         notify(refusal.title, {
           description: refusal.message,

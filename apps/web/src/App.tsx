@@ -63,6 +63,9 @@ const LeagueAdminInvitesPage = lazyRoute(() =>
 const LeagueAuditLogPage = lazyRoute(() =>
   import('./pages/LeagueAuditLogPage').then((m) => ({ default: m.LeagueAuditLogPage })),
 );
+const LeaguePaymentsPage = lazyRoute(() =>
+  import('./pages/LeaguePaymentsPage').then((m) => ({ default: m.LeaguePaymentsPage })),
+);
 
 // Auth / onboarding
 const ForgotPinPage = lazyRoute(() => import('./pages/ForgotPinPage').then((m) => ({ default: m.ForgotPinPage })));
@@ -285,6 +288,10 @@ export function App() {
                           <Route path="/admin/sync" element={<AdminSyncPage />} />
                           <Route path="/admin/invites" element={<AdminInvitesPage />} />
                           <Route path="/admin/leagues" element={<AdminAllLeaguesPage />} />
+                          {/* Batch 206 (ADR 0009). A league's money is a site admin's,
+                              like the routes behind it, so it sits behind this gate
+                              rather than the league-admin pages above. */}
+                          <Route path="/leagues/:slug/admin/payments" element={<LeaguePaymentsPage />} />
                         </Route>
                       </Route>
                     </Route>

@@ -250,6 +250,75 @@ export interface GameweekSlate {
    * from before Batch 48 simply omits it, which reads as "not degraded".
    */
   odds_degraded?: boolean;
+  /**
+   * The caller's fee status in a league that charges one (Batch 205, ADR 0009). Optional
+   * and nullable: `null` or absent for a league without a fee, for a caller who is not a
+   * member, and from an API that predates it — all of which render the screen as before.
+   */
+  fee?: RoundFeeStatus | null;
+}
+
+// ── Pay to pick (Batches 205-206, ADR 0009) ──────────────────────────────────
+
+/** One round a member has not fully paid for, oldest first. */
+export interface OwedRound {
+  gameweek_id: string;
+  starts_on: string; // ISO date (yyyy-mm-dd)
+  number: number | null;
+  season_week?: string | null;
+  /** The unpaid part of that round's due. */
+  amount_pence: number;
+}
+
+/** `GameweekSlate.fee` — what the member must pay to pick this round. */
+export interface RoundFeeStatus {
+  entry_fee_pence: number;
+  /** What this round itself costs the member. */
+  round_due_pence: number;
+  /** What they must pay to pick this round: arrears plus this round. Zero is paid up. */
+  owed_pence: number;
+  /** The rounds behind `owed_pence`, oldest first — this round included when it is owed. */
+  owed_rounds: OwedRound[];
+  credit_pence: number;
+  adult_confirmed: boolean;
+  /** Whether the league has a payment link at all; the link itself waits for the 18+ step. */
+  has_payment_link: boolean;
+  /** Null until the member has confirmed they are 18 or over. */
+  payment_link_url: string | null;
+}
+
+/** POST /leagues/{slug}/adult-confirmation. */
+export interface AdultConfirmation {
+  adult_confirmed_at: string;
+}
+
+/** One member's position in GET /leagues/{slug}/payments: positive is credit. */
+export interface MemberBalance {
+  player_id: string;
+  display_name: string;
+  /** Still a member. A former member stays listed while money is owed or held. */
+  active: boolean;
+  balance_pence: number;
+  owed_pence: number;
+  credit_pence: number;
+  adult_confirmed: boolean;
+}
+
+/** Money that came through the link from a payer nobody has matched yet. */
+export interface QueuedPayment {
+  id: string;
+  amount_pence: number;
+  payer_name: string | null;
+  occurred_at: string;
+}
+
+/** GET /leagues/{slug}/payments — the site admin's payments screen. */
+export interface PaymentsOverview {
+  entry_fee_pence: number | null;
+  payment_link_url: string | null;
+  balances: MemberBalance[];
+  queued_payments: QueuedPayment[];
+  season_pot: { season: number; label: string; pot_pence: number };
 }
 
 // ── Pick — POST /leagues/{slug}/picks · GET .../gameweeks/{id}/pick ─────────
@@ -816,6 +885,12 @@ export interface LeagueSummary {
   /** null = the "all UK leagues" group; a list = an explicit selection. */
   competitions?: CompetitionRef[] | null;
   offered_markets?: PickMarket[];
+  /**
+   * Pay to pick (Batch 205). Absent from older APIs and from the `/mine` summary; null
+   * for a league without a fee. The link is only ever sent to a site admin here.
+   */
+  entry_fee_pence?: number | null;
+  payment_link_url?: string | null;
 }
 
 /** Shape returned by GET /api/v1/leagues/{slug} — includes member list with roles. */
@@ -830,6 +905,11 @@ export interface LeagueDetail extends LeagueSummary {
     joined_at: string;
     avatar_url?: string | null;
   }> | null;
+  /**
+   * This season's prize so far — the paid dues of its rounds (Batch 205). Sent to members
+   * of a league that charges a fee; null or absent everywhere else.
+   */
+  season_pot_pence?: number | null;
 }
 
 export interface LeagueMember {

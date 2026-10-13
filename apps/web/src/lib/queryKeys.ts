@@ -38,6 +38,8 @@ export const keys = {
     joinRequests: (slug: string) => ['league-join-requests', slug] as const,
     invites: (slug: string) => ['league-invites', slug] as const,
     auditLog: (slug: string, page: number) => ['league-audit-log', slug, page] as const,
+    /** The site admin's payments screen (Batch 206). Its own root, like the admin reads. */
+    payments: (slug: string) => ['league-payments', slug] as const,
   },
 
   standings: {

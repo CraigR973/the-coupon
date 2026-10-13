@@ -638,3 +638,100 @@ describe('LeagueSettingsPage — refresh rounds (Batch 47)', () => {
     expect(message).not.toMatch(/PROVIDER_BUDGET_EXHAUSTED/);
   });
 });
+
+describe('LeagueSettingsPage — the entry fee (Batch 206)', () => {
+  beforeEach(() => {
+    vi.mocked(toast.error).mockClear();
+  });
+
+  /** The same stub, signed in as a site admin — the only role the fee fields are for. */
+  function stubSiteAdmin() {
+    const admin = JSON.stringify({ id: 'p1', displayName: 'Alice', role: 'admin', timezone: 'UTC' });
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => {
+        if (k === 'coupon_player') return admin;
+        if (k === 'coupon_access') return FAKE_JWT;
+        return null;
+      },
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+    });
+  }
+
+  it('shows a league admin no fee fields, and sends none', async () => {
+    // A league admin who sent either field would have the whole save refused.
+    const api = stubApi();
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(api.patch).not.toBeNull());
+    expect(screen.queryByTestId('entry-fee-card')).toBeNull();
+    expect(screen.queryByLabelText(/fee per round/i)).toBeNull();
+    expect(api.patch).not.toHaveProperty('entry_fee_pence');
+    expect(api.patch).not.toHaveProperty('payment_link_url');
+  });
+
+  it('shows a site admin the stored fee and link, and saves them in pence', async () => {
+    stubSiteAdmin();
+    const api = stubApi(undefined, {}, [], undefined, {
+      privacy: 'private',
+      entry_fee_pence: 100,
+      payment_link_url: 'https://monzo.me/organiser/pot',
+    });
+    renderPage();
+
+    const fee = (await screen.findByLabelText(/fee per round/i)) as HTMLInputElement;
+    expect(fee.value).toBe('1');
+    const link = screen.getByLabelText(/payment link/i) as HTMLInputElement;
+    expect(link.value).toBe('https://monzo.me/organiser/pot');
+
+    fireEvent.change(fee, { target: { value: '1.50' } });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(api.patch).not.toBeNull());
+    expect(api.patch?.entry_fee_pence).toBe(150);
+    expect(api.patch?.payment_link_url).toBe('https://monzo.me/organiser/pot');
+  });
+
+  it('sends explicit nulls when a site admin clears both fields', async () => {
+    stubSiteAdmin();
+    const api = stubApi(undefined, {}, [], undefined, { privacy: 'private' });
+    renderPage();
+
+    await screen.findByLabelText(/fee per round/i);
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(api.patch).not.toBeNull());
+    expect(api.patch?.entry_fee_pence).toBeNull();
+    expect(api.patch?.payment_link_url).toBeNull();
+  });
+
+  it('refuses a fee on a league that is not private, before any request', async () => {
+    stubSiteAdmin();
+    const api = stubApi();
+    renderPage();
+
+    fireEvent.change(await screen.findByLabelText(/fee per round/i), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(vi.mocked(toast.error).mock.calls[0][0]).toMatch(/must be private/i);
+    expect(api.patch).toBeNull();
+  });
+
+  it('refuses a payment link that is not an https address', async () => {
+    stubSiteAdmin();
+    const api = stubApi(undefined, {}, [], undefined, { privacy: 'private' });
+    renderPage();
+
+    fireEvent.change(await screen.findByLabelText(/payment link/i), {
+      target: { value: 'http://monzo.me/organiser' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(vi.mocked(toast.error).mock.calls[0][0]).toMatch(/https:\/\//);
+    expect(api.patch).toBeNull();
+  });
+});

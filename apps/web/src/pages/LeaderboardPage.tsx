@@ -1,6 +1,6 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Copy, Share2 } from 'lucide-react';
+import { Copy, Share2, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +19,7 @@ import { Button } from '../components/ui/button';
 import { buildStandingsShareText } from '../lib/share';
 import { buildInviteMessage, shareInvite } from '../lib/invite';
 import { cn } from '../lib/utils';
+import { formatPence } from '../lib/money';
 import { keys } from '@/lib/queryKeys';
 
 export function LeaderboardPage() {
@@ -65,6 +66,13 @@ export function LeaderboardPage() {
   const isAdmin = league?.members?.find((m) => m.id === player?.id)?.role === 'admin';
   const shown = seasons.find((entry) => (season === null ? entry.is_current : entry.season === season));
   const seasonHeading = shown ? `${shown.label} standings` : 'Season standings';
+  // Batch 206 (ADR 0009). The API sends the pot of the season being played, and only to
+  // members of a league that charges a fee — so it is shown beside that season's table
+  // and no other, and a league without a fee shows nothing new at all.
+  const seasonPot =
+    league?.season_pot_pence != null && (season === null || shown?.is_current)
+      ? league.season_pot_pence
+      : null;
 
   const selectSeason = (next: number | null) => {
     const updated = new URLSearchParams(params);
@@ -113,7 +121,12 @@ export function LeaderboardPage() {
         eyebrow={seasonHeading}
         action={
           league ? (
-            <LeagueActionsMenu slug={slug} leagueName={league.name} isAdmin={!!isAdmin} />
+            <LeagueActionsMenu
+              slug={slug}
+              leagueName={league.name}
+              isAdmin={!!isAdmin}
+              showPayments={player?.role === 'admin' && league.entry_fee_pence != null}
+            />
           ) : undefined
         }
       />
@@ -126,6 +139,22 @@ export function LeaderboardPage() {
         onSelect={selectSeason}
         className="mt-3"
       />
+
+      {seasonPot !== null && (
+        <div
+          data-testid="season-pot"
+          className="mt-3 flex items-start gap-2 rounded-lg border border-border bg-surface px-4 py-3 font-sans"
+        >
+          <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-gold-ink" aria-hidden />
+          <p className="text-sm text-text-primary">
+            <strong className="font-semibold">Season pot {formatPence(seasonPot)}</strong>
+            <span className="block text-caption text-text-muted">
+              The weekly fees paid so far. It all goes to the season’s winner, and a tie
+              splits it.
+            </span>
+          </p>
+        </div>
+      )}
 
       {league?.join_code && (
         <div className="mt-3 flex justify-end">

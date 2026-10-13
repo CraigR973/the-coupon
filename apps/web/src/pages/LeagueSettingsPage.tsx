@@ -35,6 +35,10 @@ import { PageHeader } from '@/components/PageHeader';
 import { PickOpenSchedule } from '@/components/PickOpenSchedule';
 import { gameweekListKey } from '@/hooks/usePickEditor';
 import { useAuth } from '@/contexts/AuthContext';
+import { parsePounds, penceToInput } from '@/lib/money';
+
+/** The most a round may cost, as the API caps it (Batch 205): £100. */
+const MAX_ENTRY_FEE_PENCE = 10_000;
 
 const SELECT_CLASS =
   'flex h-10 w-full items-center rounded-md border border-border bg-surface px-3 py-2 ' +
@@ -46,6 +50,10 @@ export function LeagueSettingsPage() {
   const queryClient = useQueryClient();
   const { player } = useAuth();
   const timezone = player?.timezone ?? 'UTC';
+  // Batch 206 (ADR 0009). The entry fee and the payment link are a site admin's alone —
+  // the API refuses a league admin who sends either, so nobody can swap in a link of
+  // their own — and so the fields are only drawn for a site admin.
+  const isSiteAdmin = player?.role === 'admin';
 
   const { data: league } = useQuery<LeagueSummary>({
     queryKey: keys.league.detail(slug),
@@ -89,6 +97,8 @@ export function LeagueSettingsPage() {
   const [isRefreshingRounds, setIsRefreshingRounds] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [entryFee, setEntryFee] = useState('');
+  const [paymentLink, setPaymentLink] = useState('');
 
   useEffect(() => {
     if (league) {
@@ -99,6 +109,8 @@ export function LeagueSettingsPage() {
       setPickScope(league.pick_scope ?? 'selection');
       if (league.slate_window) setWindow(league.slate_window);
       if (league.offered_markets?.length) setMarkets(new Set(league.offered_markets));
+      setEntryFee(penceToInput(league.entry_fee_pence));
+      setPaymentLink(league.payment_link_url ?? '');
     }
   }, [league]);
 
@@ -171,6 +183,29 @@ export function LeagueSettingsPage() {
     }
     if (privacy === null) return;
 
+    // Checked here so the mistake is named against its field rather than as a toast after
+    // a round trip; the API refuses all three as well.
+    let feePence: number | null = null;
+    let link: string | null = null;
+    if (isSiteAdmin) {
+      if (entryFee.trim()) {
+        feePence = parsePounds(entryFee);
+        if (feePence === null || feePence < 1 || feePence > MAX_ENTRY_FEE_PENCE) {
+          toast.error('Enter the fee in pounds, between £0.01 and £100 — or leave it blank for no fee.');
+          return;
+        }
+      }
+      link = paymentLink.trim() || null;
+      if (link !== null && !/^https:\/\/[^\s/]+\S*$/.test(link)) {
+        toast.error('The payment link must be a full https:// address.');
+        return;
+      }
+      if (feePence !== null && privacy !== 'private') {
+        toast.error('A league that charges a fee must be private.');
+        return;
+      }
+    }
+
     const pendingRequestCount =
       joinRequests?.filter((request) => request.status === 'pending').length ?? 0;
     const willAutoApprove = league?.privacy === 'public_request' && privacy === 'public_open';
@@ -218,6 +253,12 @@ export function LeagueSettingsPage() {
       // Only the markets the game knows — a stale value in state cannot widen the enum.
       body.offered_markets = ALL_MARKETS.map((m) => m.value).filter((v) => markets.has(v));
       body.competitions = competitions;
+      // Only a site admin sends these: from anyone else the API refuses the whole save.
+      // Explicit nulls, because null is meaningful here — no fee, no link.
+      if (isSiteAdmin) {
+        body.entry_fee_pence = feePence;
+        body.payment_link_url = link;
+      }
 
       await apiFetch(`/api/v1/leagues/${slug}`, { method: 'PATCH', body: JSON.stringify(body) });
       toast.success('League settings saved');
@@ -229,7 +270,9 @@ export function LeagueSettingsPage() {
       toast.error(
         message.includes('PICK_SCOPE_CONFLICT')
           ? 'Two members already share a game this week — one of them must move before one-pick-per-match can be turned on.'
-          : message,
+          : message.includes('FEE_REQUIRES_PRIVATE')
+            ? 'A league that charges a fee must be private.'
+            : message,
       );
     } finally {
       setIsSaving(false);
@@ -390,6 +433,44 @@ export function LeagueSettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {isSiteAdmin && (
+          <Card data-testid="entry-fee-card">
+            <CardHeader>
+              <CardTitle className="text-base">Entry fee</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs font-sans text-text-muted">
+                Only site admins see this. With a fee set, every member owes it each round
+                and must be paid up to pick, and the league has to stay private. Leave the
+                fee blank for a free league.
+              </p>
+              <div className="space-y-1">
+                <Label htmlFor="entryFee">Fee per round (£)</Label>
+                <Input
+                  id="entryFee"
+                  inputMode="decimal"
+                  value={entryFee}
+                  onChange={(e) => setEntryFee(e.target.value)}
+                  placeholder="No fee"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="paymentLink">Payment link</Label>
+                <Input
+                  id="paymentLink"
+                  type="url"
+                  value={paymentLink}
+                  onChange={(e) => setPaymentLink(e.target.value)}
+                  placeholder="https://"
+                />
+                <p className="text-xs font-sans text-text-muted">
+                  Members see it only after confirming they’re 18 or over.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

@@ -779,6 +779,55 @@ describe('CurrentRoundPage', () => {
  * The slate stays first in every round phase. The coupon remains a deep-linkable section
  * and its phase-specific messages still describe the right round state.
  */
+describe('the pay panel (Batch 206)', () => {
+  const FEE = {
+    entry_fee_pence: 100,
+    round_due_pence: 100,
+    owed_pence: 200,
+    owed_rounds: [
+      { gameweek_id: 'gw0', starts_on: '2026-08-01', number: 1, season_week: null, amount_pence: 100 },
+      { gameweek_id: 'gw1', starts_on: '2026-08-08', number: 2, season_week: null, amount_pence: 100 },
+    ],
+    credit_pence: 0,
+    adult_confirmed: false,
+    has_payment_link: true,
+    payment_link_url: null,
+  };
+
+  it('renders nothing new for a league without a fee', async () => {
+    // The default slate carries no `fee`, exactly as every league's does today.
+    renderPage();
+    await screen.findByTestId('round-status');
+    expect(screen.queryByTestId('pay-panel')).toBeNull();
+  });
+
+  it('renders nothing new when the API says `fee: null`', async () => {
+    stubSlate({ fee: null });
+    renderPage();
+    await screen.findByTestId('round-status');
+    expect(screen.queryByTestId('pay-panel')).toBeNull();
+  });
+
+  it('shows what a member owes above the fixtures while the round can be picked', async () => {
+    stubSlate({ fee: FEE });
+    renderPage();
+    const panel = await screen.findByTestId('pay-panel');
+    expect(panel.dataset.state).toBe('owed');
+    expect(screen.getByTestId('pay-panel-owed').textContent).toBe('£2');
+    expect(screen.getAllByTestId('pay-panel-rolled-over')).toHaveLength(1);
+    // Ahead of the slate in reading order, so it is met before a refused pick is.
+    const slate = screen.getByTestId('slate-section');
+    expect(panel.compareDocumentPosition(slate) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('is gone once the round has locked', async () => {
+    stubSlate({ fee: FEE, status: 'locked' });
+    renderPage();
+    await screen.findByTestId('round-status');
+    expect(screen.queryByTestId('pay-panel')).toBeNull();
+  });
+});
+
 describe('the round’s phase decides what leads', () => {
   /** The same slate with nobody's claim on it — the state a member opens the app in. */
   function unclaimed(): Partial<GameweekSlate> {

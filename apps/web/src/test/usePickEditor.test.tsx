@@ -423,11 +423,24 @@ describe('usePickEditor', () => {
 // five are not failures at all: the server worked and answered, and the member
 // simply has another move to make.
 
+describe('the pay-to-pick refusal (Batch 206)', () => {
+  it('names the payment, and points at the panel that says how much', () => {
+    expect(pickToastTitle('PAYMENT_REQUIRED')).toBe('Pay to pick');
+    const message = pickErrorMessage('PAYMENT_REQUIRED');
+    expect(message).toMatch(/paid up/i);
+    expect(message).toMatch(/above the fixtures/i);
+    // A 402, never a sign-in problem — the copy must not send them to log in again.
+    expect(message).not.toMatch(/sign|log/i);
+  });
+});
+
 describe('pickRefusal', () => {
   it.each([
     ['SELECTION_TAKEN', 'warning', 'refresh-card'],
     ['FIXTURE_TAKEN', 'warning', 'refresh-card'],
     ['PRICE_MOVED:3.50', 'warning', 'retake-price'],
+    // Batch 206. Not a failure: the member owes, and paying is their next move.
+    ['PAYMENT_REQUIRED', 'warning', undefined],
     // These really are failures: the pick did not save and nothing the member taps
     // changes that, so there is no action to offer and the tone stays red.
     ['PICKS_BUSY', 'error', undefined],

@@ -292,3 +292,81 @@ describe('LeaderboardPage — the season archive', () => {
     expect(screen.queryByTestId('season-strip')).not.toBeInTheDocument();
   });
 });
+
+describe('LeaderboardPage — the season pot (Batch 206)', () => {
+  /** The page's reads, with the league detail carrying `league` on top of the default. */
+  function stubLeague(league: Record<string, unknown>, role: 'player' | 'admin' = 'player') {
+    const signedIn = JSON.stringify({ id: 'p1', displayName: 'Alice', role, timezone: 'UTC' });
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => {
+        if (k === 'coupon_player') return signedIn;
+        if (k === 'coupon_access') return FAKE_JWT;
+        return null;
+      },
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+    });
+    vi.stubGlobal('fetch', (url: string) => {
+      const address = String(url);
+      const ok = (body: unknown) =>
+        Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
+      if (address.includes('/leagues/mine')) return ok([MOCK_LEAGUE]);
+      if (address.includes('/seasons')) return ok(SEASONS);
+      if (address.includes('/standings')) {
+        return ok(address.includes('season=2025') ? LAST_SEASON : THIS_SEASON);
+      }
+      if (address.includes('/leagues/the-coupon')) {
+        return ok({ ...MOCK_LEAGUE, join_code: null, members: [], ...league });
+      }
+      return ok({});
+    });
+  }
+
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('shows members of a league with a fee this season’s pot', async () => {
+    stubLeague({ entry_fee_pence: 100, season_pot_pence: 1400 });
+    renderPage();
+    const pot = await screen.findByTestId('season-pot');
+    expect(pot.textContent).toMatch(/season pot £14/i);
+  });
+
+  it('shows no pot for a league without a fee', async () => {
+    stubLeague({ entry_fee_pence: null, season_pot_pence: null });
+    renderPage();
+    await screen.findByTestId('standings');
+    expect(screen.queryByTestId('season-pot')).toBeNull();
+  });
+
+  it('keeps this season’s pot off an archived season’s table', async () => {
+    stubLeague({ entry_fee_pence: 100, season_pot_pence: 1400 });
+    renderPage('/leagues/the-coupon/leaderboard?season=2025');
+    await screen.findByTestId('standings');
+    await waitFor(() => expect(screen.getByText(/2025\/26 standings/)).toBeTruthy());
+    expect(screen.queryByTestId('season-pot')).toBeNull();
+  });
+
+  it('gives a site admin a way into the payments of a league with a fee', async () => {
+    stubLeague({ entry_fee_pence: 100, season_pot_pence: 0 }, 'admin');
+    renderPage();
+    const link = await screen.findByRole('link', { name: /payments/i });
+    expect(link.getAttribute('href')).toBe('/leagues/the-coupon/admin/payments');
+  });
+
+  it('offers no payments entry on a league without a fee, even to a site admin', async () => {
+    stubLeague({ entry_fee_pence: null }, 'admin');
+    renderPage();
+    await screen.findByTestId('standings');
+    expect(screen.queryByRole('link', { name: /payments/i })).toBeNull();
+  });
+
+  it('offers no payments entry to a member', async () => {
+    stubLeague({ entry_fee_pence: 100, season_pot_pence: 0 });
+    renderPage();
+    await screen.findByTestId('season-pot');
+    expect(screen.queryByRole('link', { name: /payments/i })).toBeNull();
+  });
+});
