@@ -956,9 +956,10 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Group AE. **Tooling-only; nothing reaches the API image or the web app.**
 
 Batches 205-208 come from ADR 0009 (pay to pick in 2-1 Hibs; owner decisions of 2026-10-12
-and 2026-10-13). They run in order with `/batch-start`. None has started.
+and 2026-10-13). They run in order with `/batch-start`. Batch 205 is complete (13 Oct);
+206-208 have not started.
 
-- [ ] **Batch 205 — A member can pick in a league that charges a fee without having paid**
+- [x] **Batch 205 — A member can pick in a league that charges a fee without having paid ✅ 2026-10-13**
   — specified from ADR 0009, amended 2026-10-13 for weekly dues. 2-1 Hibs members pay £1 a
   week through the owner's Monzo payment link, outside the app, and nothing in the app knows
   who has paid.

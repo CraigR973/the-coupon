@@ -82,11 +82,15 @@ complete, shipped and verified (Batches 189–193; shipped 7 Oct as `c530469`); 
 complete (Batches 171, 175–178; web-only, closed 8 Oct); Group AF is complete, shipped
 and verified (Batches 196, 195, 197 and 194; final shipment 10 Oct). Group AH: Batches 202
 (web toolchain refresh) and 203 (pipeline and operations hygiene) are complete (11 Oct).
-Batch 203 is API-only, so the Group AH `/ship-prod` checkpoint is owed immediately.
+Batch 203 is API-only. On 13 Oct the drift check found production's health reporting
+`5882b0f`, after Batch 203, although no shipment of it is recorded; Batch 205's `/ship-prod`
+settles which commit is live and carries both.
 
-Batches 205-208 (pay to pick in 2-1 Hibs, ADR 0009) were drafted on 13 Oct and none has
-started. Batch 207 needs owner-approved gate maintenance before it is gated, and the Monzo
-launch steps in ADR 0009 are the owner's.
+Batches 205-208 are pay to pick in 2-1 Hibs (ADR 0009). Batch 205 — the API ledger, weekly
+dues and the paid-up check, migration `028` — is complete (13 Oct, `e5a8c11`); it is API-only
+and its `/ship-prod` is owed. Nothing changes for members until a site admin sets a league's
+fee. Batches 206-208 have not started; Batch 207 needs owner-approved gate maintenance before
+it is gated, and the Monzo launch steps in ADR 0009 are the owner's.
 
 ## Toolchain
 
@@ -99,7 +103,7 @@ Checked 2026-10-03.
   that stamp when only `docs/BUILD_PLAN.md`, `session-log.md` and `STATUS.md` changed, otherwise it
   reruns the gate, and waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,443, frontend 1,320, journey 1; checked 2026-10-10). 13m04s on this Mac
+  (backend 1,468, frontend 1,320, journey 1; checked 2026-10-13). 13m04s on this Mac
   with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
   (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
   1,350 tests (2026-09-29) — not the gate.
@@ -131,6 +135,6 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Batch 203 and Group AH's behaviour-neutral `/ship-prod`; staging is decommissioned, so
-the owner waived Batch 203's staging rollback rehearsal on 11 Oct. The season-calendar backfill
-also remains owner-gated, unblocked since 4 Oct.
+**Next:** Batch 205's `/ship-prod` (migration `028`), authorised by the owner on 13 Oct; then
+Batch 206's screens in a later session. The season-calendar backfill remains owner-gated,
+unblocked since 4 Oct.

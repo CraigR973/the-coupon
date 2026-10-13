@@ -8740,3 +8740,19 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - Owner acceptance: staging rollback rehearsal waived on 11 Oct because staging is decommissioned; production rollback remains procedure-only.
 
 **Next:** Run Group AH's authorised `/ship-prod` checkpoint.
+
+## Batch 205 — A member can pick in a league that charges a fee without having paid
+**Commits:** `e5a8c11` · verified: complete 12-check local gate, 1,468 backend and 1,320 frontend tests, zero skips, production-bundle smoke and seeded browser journey PASS · CI: https://github.com/CraigR973/the-coupon/actions/runs/38411741160 PASS for `e5a8c1132bae370bb79b99755d286fac3fa027e5`
+
+### Key facts for future sessions
+- Pay to pick is a per-league, append-only ledger (`ledger_entries`, migration `028`): payments, one `round_due` per member per round (partial unique index), due reversals, cash-outs and adjustments, with `payer_mappings` remembering who a queued payer is. Dues are written inside the existing opening step (`open_due_gameweeks`, and `sync_slate` for a round born open); `_upsert_membership` charges a joiner the open fee round; `submit_pick` refuses with 402 `PAYMENT_REQUIRED` and the pick records any due still missing. A league without a fee returns before any of it.
+- A round carries a due only if its opening recorded one — nothing stores when the fee was set — and a round still `scheduled` will carry the current fee. The paid-up check counts dues through the round being picked and no later, because a league announcing no opening has next week open beside this one.
+- Rejoining while a round is open undoes the leave's reversal with an opposite one, so one due per member per round holds. A withdrawn (retired) round's dues are reversed before the delete, and `ledger_entries.gameweek_id` is `ON DELETE SET NULL`; a void's reversals name the admin. Nothing writes the new tables until a site admin sets a fee.
+- Batch 206's contract: the round payload's `fee` (owed now, owed rounds, credit, `has_payment_link`, and the link only after `POST /{slug}/adult-confirmation`); league detail `entry_fee_pence` and `season_pot_pence` (the link for site admins only); site-admin `GET /{slug}/payments` plus `cash`, `cash-outs`, `adjustments` and `{entry_id}/assign`. Codes: `PAYMENT_REQUIRED`, `SITE_ADMIN_REQUIRED`, `FEE_REQUIRES_PRIVATE`, `CASH_OUT_EXCEEDS_CREDIT`, `PAYMENT_ALREADY_ASSIGNED`.
+- Failures and fixes on the way, none touching an existing assertion: the new privacy test caught the fee being set before the privacy change, so an autoflush tripped the new database check — the fee now lands after it; a pre-gate full run failed four `test_notification_triggers.py` reminder tests whose mocked session could not serve the new balance read — the reminder target now carries the league fee and balances are read only when one exists; review found a voided round's own payload still asked for its fee, and a joiner went uncharged for an open round whose opening an edit had moved back — both fixed with tests. Gate attempts 1 and 2 both passed; the second re-proved the final tree.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+### Follow-ups
+- Batch 206 (pay panel, 18+ prompt, admin Payments screen) — its open row; it needs this API shipped first.
+
+**Next:** Batch 205's `/ship-prod` (owner-authorised for this stage; migration `028`). Batch 206 follows in a later session.
