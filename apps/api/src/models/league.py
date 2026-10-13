@@ -108,6 +108,16 @@ class League(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
             "cardinality(offered_markets) >= 1",
             name="ck_leagues_offered_markets_nonempty",
         ),
+        CheckConstraint(
+            "entry_fee_pence IS NULL OR entry_fee_pence > 0",
+            name="ck_leagues_entry_fee_positive",
+        ),
+        # ADR 0009's second rule: a league that charges a fee stays private. The routes
+        # refuse both directions with their own code; this is the backstop.
+        CheckConstraint(
+            "entry_fee_pence IS NULL OR privacy = 'private'",
+            name="ck_leagues_entry_fee_private",
+        ),
     )
 
     slug: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -173,6 +183,15 @@ class League(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     # league announces no opening and a round is claimable the moment discovery writes
     # it, which is what every round did before this column existed.
     pick_open_offset_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # ── Pay to pick (Batch 205, ADR 0009) ─────────────────────────────────────
+    #
+    # What one round costs each member, and where they pay it. ``NULL`` is no fee, which
+    # is every league that existed before this and every league created since: nothing in
+    # the dues, the gate or the round payload runs for it. Only a site admin sets either,
+    # so a league admin cannot swap in a link of their own.
+    entry_fee_pence: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    payment_link_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("profiles.id"), nullable=False
     )

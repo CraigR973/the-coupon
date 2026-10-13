@@ -39,3 +39,9 @@ class LeagueMembership(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
         DateTime(timezone=False), nullable=False, server_default=func.now()
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
+    #: When the member confirmed they are 18 or over (Batch 205, ADR 0009) — once, before
+    #: a league's payment link is shown to them. Kept if they leave and rejoin, because
+    #: rejoining restores this row.
+    adult_confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True
+    )

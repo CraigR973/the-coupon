@@ -6,6 +6,7 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from functools import lru_cache
 from typing import Annotated, Any
+from urllib.parse import urlsplit
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -37,6 +38,8 @@ from src.models.pick import Pick, PickStatus
 from src.models.profile import Profile, UserRole
 from src.rate_limit import consume_shared_limit, limiter, per_user_key
 from src.schemas import UtcDatetime
+from src.services.dues import charge_open_rounds_on_join, season_pot
+from src.services.football_provider import current_season
 from src.services.gameweek import (
     PopulatedRounds,
     populate_cadence_rounds,
@@ -58,6 +61,15 @@ router = APIRouter(prefix="/api/v1/leagues", tags=["leagues"])
 
 def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+#: A league admin sent a field only a site admin may set (Batch 205: the entry fee and
+#: the payment link).
+SITE_ADMIN_REQUIRED = "SITE_ADMIN_REQUIRED"
+
+#: A league that charges a fee must stay private, and a public league cannot charge one
+#: (ADR 0009's second rule). One code for both directions, since it is one rule.
+FEE_REQUIRES_PRIVATE = "FEE_REQUIRES_PRIVATE"
 
 
 #: The league columns a round's claim period is derived from. Any edit that touches one
@@ -331,6 +343,31 @@ def _validate_competitions(value: list[CompetitionRef] | None) -> list[Competiti
     return value
 
 
+#: The most a round may cost (Batch 205): £100. A guard against a mistyped amount — the
+#: product rule is only that a fee is positive — and what keeps the value inside the
+#: column's integer.
+MAX_ENTRY_FEE_PENCE = 10_000
+
+
+def _validate_payment_link(value: str | None) -> str | None:
+    """A payment link is an ``https`` address with a host, or ``None`` for no link.
+
+    Members are sent straight to it to pay, so anything a browser would not treat as a
+    plain secure web address is refused rather than stored.
+    """
+    if value is None:
+        return None
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or value != value.strip()
+        or any(char.isspace() for char in value)
+    ):
+        raise ValueError("payment_link_url must be an https:// address")
+    return value
+
+
 def _clean_markets(value: list[PickMarket]) -> list[PickMarket]:
     """De-duplicate an offered-market set, preserving order; reject the empty set."""
     seen: list[PickMarket] = []
@@ -396,11 +433,21 @@ class UpdateLeagueRequest(BaseModel):
     # ``offered_markets`` never has a meaningful null, so null there simply means unchanged.
     competitions: list[CompetitionRef] | None = None
     offered_markets: list[PickMarket] | None = None
+    # Pay to pick (Batch 205, ADR 0009) — a site admin's alone; a league admin who sends
+    # either is refused. Null is meaningful (no fee, no link), so both are read from
+    # ``model_fields_set`` like ``competitions``.
+    entry_fee_pence: int | None = Field(default=None, ge=1, le=MAX_ENTRY_FEE_PENCE)
+    payment_link_url: str | None = Field(default=None, max_length=500)
 
     @field_validator("competitions")
     @classmethod
     def _check_competitions(cls, value: list[CompetitionRef] | None) -> list[CompetitionRef] | None:
         return _validate_competitions(value)
+
+    @field_validator("payment_link_url")
+    @classmethod
+    def _check_payment_link(cls, value: str | None) -> str | None:
+        return _validate_payment_link(value)
 
 
 class SlateWindowOut(BaseModel):
@@ -586,6 +633,11 @@ class LeagueResponse(BaseModel):
     created_by: str
     created_at: UtcDatetime
     join_code: str | None = None
+    # Pay to pick (Batch 205). Defaulted, because the web app deploys ahead of this API.
+    # The link is a site admin's to see here; members reach it through the round payload,
+    # and only once they have confirmed they are 18 or over.
+    entry_fee_pence: int | None = None
+    payment_link_url: str | None = None
 
 
 class LeagueSummaryResponse(BaseModel):
@@ -760,7 +812,12 @@ async def _upsert_membership(
     *,
     role: LeagueMemberRole = LeagueMemberRole.player,
 ) -> LeagueMembership:
-    """Create or restore a soft-deleted membership row."""
+    """Create or restore a soft-deleted membership row.
+
+    Every way into a league comes through here, which is why joining a league that charges
+    a fee is charged here too (Batch 205, ADR 0009): a member who joins while a round is
+    open owes that round on joining, and nothing before it.
+    """
     result = await db.execute(
         select(LeagueMembership).where(
             LeagueMembership.league_id == league_id,
@@ -774,15 +831,17 @@ async def _upsert_membership(
         existing.joined_at = _now()
         existing.role = role
         existing.updated_at = _now()
-        return existing
-    membership = LeagueMembership(
-        league_id=league_id,
-        player_id=player_id,
-        role=role,
-        joined_at=_now(),
-        created_at=_now(),
-    )
-    db.add(membership)
+        membership = existing
+    else:
+        membership = LeagueMembership(
+            league_id=league_id,
+            player_id=player_id,
+            role=role,
+            joined_at=_now(),
+            created_at=_now(),
+        )
+        db.add(membership)
+    await charge_open_rounds_on_join(db, league_id, player_id)
     return membership
 
 
@@ -1089,6 +1148,12 @@ class LeagueDetailResponse(BaseModel):
     created_at: UtcDatetime
     join_code: str | None = None
     members: list[MemberInfo] | None  # None when caller is not a member
+    # Pay to pick (Batch 205). ``season_pot_pence`` is this season's prize so far — the
+    # paid dues of its rounds — shown to members of a league that charges a fee. The link
+    # is a site admin's to see here, as on ``LeagueResponse``.
+    entry_fee_pence: int | None = None
+    payment_link_url: str | None = None
+    season_pot_pence: int | None = None
 
 
 @router.get("/{slug}", response_model=LeagueDetailResponse)
@@ -1153,6 +1218,13 @@ async def get_league(
         created_at=league.created_at,
         join_code=league.join_code if is_member else None,
         members=members_out,
+        entry_fee_pence=league.entry_fee_pence,
+        payment_link_url=league.payment_link_url if _is_superadmin(player) else None,
+        season_pot_pence=(
+            await season_pot(db, league.id, current_season())
+            if league.entry_fee_pence is not None and is_member
+            else None
+        ),
     )
 
 
@@ -1172,7 +1244,26 @@ async def update_league(
 ) -> LeagueResponse:
     player, league = admin_ctx
 
+    # Pay to pick (Batch 205, ADR 0009), checked before anything is touched. The fee and
+    # the payment link are a site admin's alone, so nobody can swap in a link of their own;
+    # and a league that charges a fee stays private, judged on the league as this edit
+    # would leave it, so neither half of a change can slip past in the same request.
+    fee_fields = {"entry_fee_pence", "payment_link_url"} & body.model_fields_set
+    if fee_fields and not _is_superadmin(player):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=SITE_ADMIN_REQUIRED)
+    final_fee = body.entry_fee_pence if "entry_fee_pence" in fee_fields else league.entry_fee_pence
+    final_privacy = body.privacy if body.privacy is not None else league.privacy
+    if final_fee is not None and final_privacy != LeaguePrivacy.private:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=FEE_REQUIRES_PRIVATE)
+
     changes: dict[str, Any] = {}
+    # Applied to the league only after the privacy change below, so the database's own
+    # backstop for the rule never sees half of an edit that is whole.
+    fee_changes: dict[str, Any] = {
+        attr: {"from": getattr(league, attr), "to": getattr(body, attr)}
+        for attr in sorted(fee_fields)
+        if getattr(body, attr) != getattr(league, attr)
+    }
 
     if body.name is not None and body.name != league.name:
         changes["name"] = {"from": league.name, "to": body.name}
@@ -1297,9 +1388,25 @@ async def update_league(
         changes["privacy"] = {"from": old_privacy.value, "to": new_privacy.value}
         league.privacy = new_privacy
 
+    for attr, change in fee_changes.items():
+        setattr(league, attr, change["to"])
+
+    if privacy_changed:
         db.add(_audit(player, ActionType.league_privacy_changed, "leagues", league.id, changes))
-    elif changes:
-        db.add(_audit(player, ActionType.league_updated, "leagues", league.id, changes))
+        # The fee and link are always audited as ``league_updated`` (Batch 205), so a change
+        # made alongside a privacy change gets its own row rather than riding on that one.
+        if fee_changes:
+            db.add(_audit(player, ActionType.league_updated, "leagues", league.id, fee_changes))
+    elif changes or fee_changes:
+        db.add(
+            _audit(
+                player,
+                ActionType.league_updated,
+                "leagues",
+                league.id,
+                {**changes, **fee_changes},
+            )
+        )
 
     league.updated_at = _now()
     await db.commit()
@@ -1321,6 +1428,8 @@ async def update_league(
         created_by=str(league.created_by),
         created_at=league.created_at,
         join_code=league.join_code,
+        entry_fee_pence=league.entry_fee_pence,
+        payment_link_url=league.payment_link_url if _is_superadmin(player) else None,
     )
 
 
@@ -1770,7 +1879,7 @@ async def leave_league(
     # Batch 185. Their claims on rounds still open go with them, so nobody else is kept
     # off a selection all week by somebody who will never play it. Locked and settled
     # picks stay: those are history.
-    await release_unlocked_picks(db, player.id, [league.id])
+    await release_unlocked_picks(db, player.id, [league.id], actor_id=player.id)
     db.add(_audit(player, ActionType.member_left, "league_memberships", league.id))
     await db.commit()
     log.info("left league", league_id=str(league.id), player_id=str(player.id))

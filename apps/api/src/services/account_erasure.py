@@ -26,6 +26,7 @@ name. The privacy guarantee is the overwrite; the label is presentation.
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -41,6 +42,7 @@ from src.models.invite import Invite
 from src.models.league import League
 from src.models.league_join_request import LeagueJoinRequest
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
+from src.models.ledger import LedgerEntry, LedgerKind, PayerMapping
 from src.models.notification import (
     ActionType,
     ActorType,
@@ -105,6 +107,13 @@ def _scrub(value: Any, names: set[str]) -> Any:
     return value
 
 
+def _scrub_text(text: str, names: set[str]) -> str:
+    """Replace each of the member's names, wherever it appears as a word, in free text."""
+    for name in sorted(names, key=len, reverse=True):
+        text = re.sub(rf"\b{re.escape(name)}\b", FORMER_MEMBER, text, flags=re.IGNORECASE)
+    return text
+
+
 async def erase_account(db: AsyncSession, member: Profile, storage: AvatarStorage) -> None:
     """Remove everything that names ``member``, keeping only anonymous scoring rows.
 
@@ -167,7 +176,19 @@ async def erase_account(db: AsyncSession, member: Profile, storage: AvatarStorag
 
     # Batch 185. A pick on a round still open is a claim, not history: it goes, so the
     # selection is free for the members still playing. Locked and settled picks stay.
-    await release_unlocked_picks(db, member.id)
+    await release_unlocked_picks(db, member.id, actor_id=member.id)
+
+    # Batch 205. Their ledger entries stay — the amounts are other members' prize pot —
+    # but not the name or bank id a payment arrived under, nor their name in a note, and
+    # the payer map forgets them entirely.
+    await db.execute(delete(PayerMapping).where(PayerMapping.player_id == member.id))
+    for entry in (
+        await db.execute(select(LedgerEntry).where(LedgerEntry.player_id == member.id))
+    ).scalars():
+        entry.payer_name = None
+        entry.payer_monzo_user_id = None
+        if entry.note:
+            entry.note = _scrub_text(entry.note, names)
 
     await db.execute(delete(LeagueJoinRequest).where(LeagueJoinRequest.player_id == member.id))
     await db.execute(delete(RefreshToken).where(RefreshToken.user_id == member.id))
@@ -262,6 +283,24 @@ async def export_account(db: AsyncSession, member: Profile) -> dict[str, Any]:
             )
         )
     ).all()
+    # Batch 205. What they owed and paid in leagues that charge a fee. The amounts and the
+    # rounds only: a note is the organiser's words and a payer name can be somebody else's,
+    # so neither is theirs to export.
+    ledger = (
+        await db.execute(
+            select(
+                LedgerEntry.kind,
+                LedgerEntry.amount_pence,
+                LedgerEntry.occurred_at,
+                League.name,
+                Gameweek.starts_on,
+            )
+            .join(League, League.id == LedgerEntry.league_id)
+            .outerjoin(Gameweek, Gameweek.id == LedgerEntry.gameweek_id)
+            .where(LedgerEntry.player_id == member.id)
+            .order_by(LedgerEntry.occurred_at, LedgerEntry.created_at)
+        )
+    ).all()
 
     return {
         "exported_at": datetime.now(UTC).isoformat(),
@@ -282,8 +321,21 @@ async def export_account(db: AsyncSession, member: Profile) -> dict[str, Any]:
                 "notifications_muted": membership.notification_muted,
                 "joined_at": membership.joined_at.isoformat(),
                 "left_at": membership.deleted_at.isoformat() if membership.deleted_at else None,
+                "confirmed_adult_at": membership.adult_confirmed_at.isoformat()
+                if membership.adult_confirmed_at
+                else None,
             }
             for membership, name, slug in memberships
+        ],
+        "league_payments": [
+            {
+                "league": league_name,
+                "kind": LedgerKind(kind).value,
+                "amount_pence": amount,
+                "round_starts_on": starts_on.isoformat() if starts_on else None,
+                "on": occurred_at.isoformat(),
+            }
+            for kind, amount, occurred_at, league_name, starts_on in ledger
         ],
         "picks": [
             {

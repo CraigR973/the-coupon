@@ -26,6 +26,7 @@ from src.models.pick import Pick, PickStatus
 from src.models.profile import Profile, UserRole
 from src.rate_limit import consume_durable_limit
 from src.services.discovery_health import DiscoveryHealth
+from src.services.dues import format_pence, owed_to_pick
 from src.services.fotmob_health import FotMobAlert
 from src.services.gameweek import (
     NotificationTarget,
@@ -301,13 +302,28 @@ async def send_pick_reminders(session: AsyncSession, gameweek: Gameweek) -> int:
     league B dropped the member on a list of every league they play.
     """
     reminded = 0
-    for member in await members_missing_picks(session, gameweek):
+    members = await members_missing_picks(session, gameweek)
+    # Batch 205 (ADR 0009). In a league that charges a fee, a member who owes cannot pick
+    # until they pay, so their reminder says so. A league without a fee reads nothing more.
+    owed = (
+        await owed_to_pick(session, gameweek, [uuid.UUID(m.player_id) for m in members])
+        if any(member.league_entry_fee_pence is not None for member in members)
+        else {}
+    )
+    for member in members:
+        lock = _lock_label(gameweek.locks_at_utc, member.timezone)
+        amount = owed.get(uuid.UUID(member.player_id))
+        body = (
+            f"You haven't made your pick in {member.league_name} yet — picks lock {lock}."
+            if amount is None
+            else f"You haven't made your pick in {member.league_name} yet. You owe "
+            f"{format_pence(amount)}, so pay to pick before picks lock {lock}."
+        )
         await send_notification(
             session,
             uuid.UUID(member.player_id),
             "Pick due",
-            f"You haven't made your pick in {member.league_name} yet — "
-            f"picks lock {_lock_label(gameweek.locks_at_utc, member.timezone)}.",
+            body,
             data={
                 "type": "pick_reminder",
                 "league_id": member.league_id,

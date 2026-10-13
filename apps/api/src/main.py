@@ -25,6 +25,7 @@ from src.routers import (
     leagues,
     me,
     notifications,
+    payments,
     picks,
     players,
 )
@@ -136,6 +137,7 @@ app.include_router(league_join_requests.router)
 app.include_router(gameweek.router)
 app.include_router(football.router)
 app.include_router(picks.router)
+app.include_router(payments.router)
 app.include_router(coupon.router)
 app.include_router(players.router)
 app.include_router(admin.router)

@@ -370,7 +370,7 @@ async def remove_member(
     membership.deleted_at = _now()
     membership.updated_at = _now()
     # Batch 185. A removed member's open claims are released like a leaver's.
-    await release_unlocked_picks(db, target_player_id, [league.id])
+    await release_unlocked_picks(db, target_player_id, [league.id], actor_id=player.id)
     db.add(
         _audit(
             player,

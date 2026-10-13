@@ -53,6 +53,24 @@ League events are copied once per eligible member into the inbox even without a
 push subscription or during quiet hours. Global, league and kind mutes suppress
 both channels. A daily retention pass removes messages older than 30 days.
 
+```text
+Round opens (open job, or discovery for a round born open)
+  → league has a fee? → one round_due per active member, idempotent
+Member joins while a round is open → owes that round, nothing earlier
+Pick submitted → paid up through this round? → no: 402 PAYMENT_REQUIRED
+                                            → yes: budget, odds, pick as before
+Void / withdrawn round / leaving before the lock → reversing entry, never a delete
+```
+
+Pay to pick (ADR 0009, Batch 205) is a per-league ledger, `ledger_entries`, of
+signed pence: payments (cash, or through the league's payment link and queued
+until a site admin assigns them, with `payer_mappings` remembering the payer),
+one round due per member per round, due reversals, cash-outs and adjustments.
+Entries are permanent; a correction is another entry with its author. Dues are
+recorded inside the existing round-opening step, the paid-up check sits in
+`submit_pick` between the market check and the odds budget charge, and only a
+site admin sets a league's fee and link. A league without a fee runs none of it.
+
 Odds sit behind the provider-neutral `OddsProvider` port
 (`services/odds_provider.py`). `OddsApiProvider` is production — odds-api.io
 priced by Bet365, per ADR 0002 — with `BetfairAdapter` / `Betfair` retained as a

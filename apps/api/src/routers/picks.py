@@ -8,7 +8,9 @@ authoritative rather than client-supplied, and it enforces both game rules:
   before the deadline (``PICKS_LOCKED``);
 * one pick per member per round (a re-pick updates in place, freeing the old selection);
 * no two members holding the same claim (first-come; a taken claim → 409);
-* no pick on a round the settle guard would never score (``ROUND_NOT_SCORING``, Batch 184).
+* no pick on a round the settle guard would never score (``ROUND_NOT_SCORING``, Batch 184);
+* in a league that charges a fee, no pick from a member who is not paid up
+  (``PAYMENT_REQUIRED``, 402, Batch 205).
 
 How much a claim covers is the league's ``pick_scope``: one ``(fixture, market,
 outcome)`` under the original ``selection`` rule, or the entire game under ``fixture``.
@@ -46,6 +48,7 @@ from src.models.gameweek import Gameweek, GameweekFixture
 from src.models.league import League, PickScope
 from src.models.pick import Pick, PickMarket, PickOutcome
 from src.rate_limit import consume_shared_limit, limiter, per_user_key
+from src.services.dues import PAYMENT_REQUIRED, payment_required, record_due_on_pick
 from src.services.football_week import settle_refusal
 from src.services.gameweek import (
     PICKABLE_STATES,
@@ -318,6 +321,20 @@ async def submit_pick(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="MARKET_NOT_OFFERED"
         )
 
+    # Batch 205 (ADR 0009). A league that charges a fee takes a pick only from a member who
+    # is paid up — anything outstanding from earlier rounds, and this one — so a missed
+    # week rolls over. Here, after the free checks and before the budget charge, so a
+    # refused pick spends no provider request. 402 with its own code, never 401: a 401
+    # signs the member out. A league without a fee is refused nothing and asked nothing.
+    if await payment_required(db, league, gameweek, player.id):
+        log.info(
+            "pick refused: payment required",
+            league_id=str(league.id),
+            gameweek_id=str(gameweek.id),
+            player_id=str(player.id),
+        )
+        raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail=PAYMENT_REQUIRED)
+
     # Charged here and not earlier: everything above is free, and a submission refused
     # for being locked or for a market the league does not offer has spent nothing, so
     # charging it would price the budget against members who never reached the provider.
@@ -384,6 +401,12 @@ async def submit_pick(
     conflict_detail = await _claim_conflict(db, league, gameweek, fixture, body, player.id)
     if conflict_detail is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=conflict_detail)
+
+    # Batch 205. The gate counted this round's due; make sure the ledger holds it, in the
+    # pick's own transaction. Normally the opening already wrote it and this writes
+    # nothing. Before the pick row exists, so its own write cannot flush the pick early and
+    # lift a lost race out of the ``IntegrityError`` handler below.
+    await record_due_on_pick(db, league, gameweek, player.id)
 
     # One pick per member per gameweek: update in place if they already have one.
     existing = await db.execute(

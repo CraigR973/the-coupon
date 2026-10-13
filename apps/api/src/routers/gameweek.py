@@ -37,6 +37,7 @@ from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
 from src.schemas import UtcDatetime
+from src.services.dues import RoundFeeStatus, round_fee_status
 from src.services.football_data import FixtureContext, fixture_context, season_or_default
 from src.services.gameweek import (
     all_gameweeks,
@@ -158,6 +159,11 @@ class GameweekSlateResponse(BaseModel):
     # while this API waits for `/ship-prod`, so a required field breaks the coupon in
     # that gap.
     odds_degraded: bool = False
+    # The caller's fee status in a league that charges one (Batch 205, ADR 0009): what they
+    # must pay to pick this round, the rounds behind it, their credit, and the payment link
+    # once they have confirmed they are 18 or over. ``null`` for a league without a fee and
+    # for a caller who is not a member — defaulted for the same deploy-gap reason.
+    fee: RoundFeeStatus | None = None
 
 
 @router.get("/{slug}/gameweeks", response_model=list[GameweekListEntry])
@@ -310,6 +316,7 @@ async def current_gameweek(
         members_missing_picks=sum(1 for m in members if not m.has_picked),
         pick_scope=league.pick_scope.value,
         odds_degraded=odds_degraded,
+        fee=await round_fee_status(db, league, gameweek, player.id),
     )
 
 

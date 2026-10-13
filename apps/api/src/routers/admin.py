@@ -64,6 +64,7 @@ from src.services.credentials import (
     revoke_all_refresh_tokens,
 )
 from src.services.discovery_health import discovery_health
+from src.services.dues import NOTE_ROUND_VOIDED, reverse_round_dues
 from src.services.football_provider import current_season
 from src.services.football_week import UNDECLARED_SAME_WEEK_ROUND, settle_refusal
 from src.services.gameweek import PICKABLE_STATES, release_unlocked_picks
@@ -429,7 +430,7 @@ async def delete_player(request: Request, player_id: uuid.UUID, admin: AdminUser
     player.updated_at = _now()
     revoked = await revoke_all_refresh_tokens(db, player.id)
     # Batch 185. Every league they were in loses their open claims; their history stays.
-    await release_unlocked_picks(db, player.id)
+    await release_unlocked_picks(db, player.id, actor_id=admin.id)
     db.add(
         _audit(
             admin,
@@ -1436,6 +1437,12 @@ async def void_non_scoring_round(
     for pick in pending:
         pick.status = PickStatus.void
         pick.points_awarded = 0
+    # Batch 205 (ADR 0009). A voided round cancels its dues for everyone, by reversing
+    # entries attributed to this admin; the ledger is the record, so the audit row below
+    # is unchanged.
+    dues_reversed = await reverse_round_dues(
+        db, [gameweek.id], note=NOTE_ROUND_VOIDED, actor_id=admin.id
+    )
     gameweek.status = GameweekStatus.settled
     gameweek.settled_at = _now()
     db.add(
@@ -1462,6 +1469,7 @@ async def void_non_scoring_round(
         admin_id=str(admin.id),
         refusal=refusal_reason,
         picks_voided=len(pending),
+        dues_reversed=dues_reversed,
     )
     # After the commit, as manual settlement does: it commits or discards its own work and
     # never raises, so a dead push service cannot undo the void.

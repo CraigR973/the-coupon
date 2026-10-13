@@ -33,6 +33,13 @@ from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
 from src.services.competitions import MEASURED_PLAYED_CATALOGUE as MEASURED_CATALOGUE
+from src.services.dues import (
+    NOTE_ROUND_WITHDRAWN,
+    record_dues_for_opened,
+    record_round_dues,
+    reverse_round_dues,
+    reverse_unlocked_dues,
+)
 from src.services.football_provider import FootballDataProvider, current_season, season_for
 from src.services.football_week import new_round_refusal
 from src.services.odds_provider import (
@@ -652,6 +659,11 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
         # with this round in the season, so the anchor converges on the earliest
         # canonical Saturday the season actually holds rather than on a walk order.
         await reanchor_from_earliest_round(db, season_for(slate.starts_on))
+        # Batch 205 (ADR 0009). A round born open has opened now, and opening is when a
+        # league that charges a fee records each member's due for it. A round born
+        # ``scheduled`` is charged by ``open_due_gameweeks`` instead, when it opens.
+        if gameweek.status is GameweekStatus.open:
+            await record_round_dues(db, league, gameweek)
 
     if not selected:
         return gameweek
@@ -919,6 +931,10 @@ async def retire_stranded_rounds(
         return []
 
     retired = sorted(gameweek.starts_on for gameweek in stranded)
+    # Batch 205 (ADR 0009). A withdrawn round owes nothing. Its dues are reversed rather
+    # than deleted — ledger entries are permanent — and the delete below takes the round's
+    # id off both (``ledger_entries.gameweek_id`` is ``ON DELETE SET NULL``).
+    await reverse_round_dues(db, [g.id for g in stranded], note=NOTE_ROUND_WITHDRAWN)
     await db.execute(delete(Gameweek).where(Gameweek.id.in_([g.id for g in stranded])))
     await db.flush()
     # The links go with them: `gameweek_fixtures.gameweek_id` is `ON DELETE CASCADE`, and
@@ -1385,6 +1401,11 @@ async def open_due_gameweeks(db: AsyncSession, now: datetime) -> list[Gameweek]:
     for gameweek in opened:
         gameweek.status = GameweekStatus.open
     await db.flush()
+    # Batch 205 (ADR 0009). The opening is when a round falls due: in a league that
+    # charges a fee, every active member owes it from this instant, picked or not. Here,
+    # inside the step that already opens it, so dues need no job of their own; and
+    # idempotent, so a rerun charges nobody twice.
+    await record_dues_for_opened(db, opened)
     return opened
 
 
@@ -1547,6 +1568,7 @@ async def release_unlocked_picks(
     league_ids: Collection[uuid.UUID] | None = None,
     *,
     now: datetime | None = None,
+    actor_id: uuid.UUID | None = None,
 ) -> int:
     """Delete a departing member's picks on rounds that have not locked. Batch 185.
 
@@ -1567,10 +1589,15 @@ async def release_unlocked_picks(
     transaction, so the departure and the release land together; and the caller re-runs
     :func:`~src.services.notification_triggers.settle_completion_after_roster_change`
     after its commit, as it already does for the roster change itself.
+
+    In a league that charges a fee the same rounds' dues go too (Batch 205, ADR 0009): a
+    member who leaves before a round locks stops owing it. ``actor_id`` is whoever ended
+    the membership, recorded on the reversal.
     """
     if league_ids is not None and not league_ids:
         return 0
     moment = _naive_utc(now) if now is not None else _utc_now()
+    await reverse_unlocked_dues(db, player_id, league_ids, now=moment, actor_id=actor_id)
     unlocked = select(Gameweek.id).where(
         Gameweek.status.in_(PICKABLE_STATES),
         Gameweek.locks_at_utc > moment,
@@ -1665,6 +1692,9 @@ class NotificationTarget(BaseModel):
     #: The league's address, so a notification can link to *that* league's pick screen.
     league_slug: str
     league_name: str
+    #: The league's entry fee (Batch 205), so a reminder knows whether a balance is worth
+    #: reading. ``None`` — every league without a fee — means it is not.
+    league_entry_fee_pence: int | None = None
 
 
 #: The name this was known by before Batch 76 generalised it.
@@ -1728,6 +1758,7 @@ async def _targets(
             League.id.label("league_id"),
             League.slug.label("league_slug"),
             League.name.label("league_name"),
+            League.entry_fee_pence.label("league_entry_fee_pence"),
         )
         .select_from(LeagueMembership)
         .join(League, League.id == LeagueMembership.league_id)
@@ -1757,6 +1788,7 @@ async def _targets(
             league_id=str(row.league_id),
             league_slug=row.league_slug,
             league_name=row.league_name,
+            league_entry_fee_pence=row.league_entry_fee_pence,
         )
         for row in rows.all()
     ]
