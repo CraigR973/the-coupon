@@ -5,7 +5,10 @@ leaderboard opens one Saturday 3pm slate, every member claims one unique priced
 selection, and winning picks score `round(odds × 10)` points. The combined
 coupon shows every member's frozen pick as one accumulator.
 
-The game is for points and fun; it does not place bets or handle money.
+The game is for points and fun and never places a bet. One bounded exception
+(ADR 0009): a league may require a per-round entry fee towards a season prize,
+paid to the organiser's Monzo payment link. The app records those payments and
+refuses an unpaid pick, and it never holds or moves money.
 
 ## Stack
 

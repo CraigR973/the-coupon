@@ -84,6 +84,10 @@ and verified (Batches 196, 195, 197 and 194; final shipment 10 Oct). Group AH: B
 (web toolchain refresh) and 203 (pipeline and operations hygiene) are complete (11 Oct).
 Batch 203 is API-only, so the Group AH `/ship-prod` checkpoint is owed immediately.
 
+Batches 205-208 (pay to pick in 2-1 Hibs, ADR 0009) were drafted on 13 Oct and none has
+started. Batch 207 needs owner-approved gate maintenance before it is gated, and the Monzo
+launch steps in ADR 0009 are the owner's.
+
 ## Toolchain
 
 Checked 2026-10-03.

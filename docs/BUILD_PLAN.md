@@ -24,7 +24,10 @@ may play in several leagues at once, and every rule below is per-league.
   leagues, points and win rate aggregate; rank does not.
 - The combined coupon multiplies every member's frozen odds for one league's
   round.
-- The product is for points and fun and never places a wager.
+- The product is for points and fun and never places a wager. One bounded exception
+  (ADR 0009): a league may require a per-round entry fee towards a season prize. Fees are
+  paid to the organiser's Monzo payment link. The app records them and refuses an unpaid
+  pick, and it never holds or moves money.
 
 ## Architecture
 
@@ -933,6 +936,136 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   Scope boundary: the stamp check and step 11's wording. No change to `ci-local.sh`, the stamp
   format, CI, or the first gate. Runs on its own, after Group AD's closing `/ship-prod` and before
   Group AE. **Tooling-only; nothing reaches the API image or the web app.**
+
+Batches 205-208 come from ADR 0009 (pay to pick in 2-1 Hibs; owner decisions of 2026-10-12
+and 2026-10-13). They run in order with `/batch-start`. None has started.
+
+- [ ] **Batch 205 — A member can pick in a league that charges a fee without having paid**
+  — specified from ADR 0009. 2-1 Hibs members pay a weekly fee through the owner's Monzo
+  payment link, outside the app, and nothing in the app knows who has paid.
+
+  Migration 028, with `docs/runbooks/migration-028-recovery.md`. Every new table follows
+  027's RLS pattern.
+  - `leagues.entry_fee_pence` (nullable, > 0) and `leagues.payment_link_url` (nullable).
+  - A ledger of signed pence entries: payment, round fee, refund, cash-out, adjustment.
+    The Monzo transaction id is unique. There is one round fee per `(gameweek_id, player_id)`.
+  - A payer map (Monzo user id or normalised name → member).
+  - A one-time 18+ confirmation on the membership.
+
+  Behaviour:
+  - Only a site admin may set the two league fields. A league admin is refused. Both are
+    audited as `league_updated`.
+  - A league with a fee refuses public privacy, and a public league refuses a fee.
+  - The gate sits in `submit_pick`, between the market check and the odds budget charge.
+    When no fee is recorded for the round and credit is below the fee, it refuses with its
+    own code (402 `PAYMENT_REQUIRED` suggested; never 401, which signs the member out).
+  - The fee is written in the same transaction as the round's first pick, under a lock on
+    the membership row, so two rounds cannot spend the same credit.
+  - Refunds become credit from `release_unlocked_picks` (before lock) and
+    `void_non_scoring_round`.
+  - The round payload gains the member's fee status: fee, credit, paid this round, link,
+    adult confirmed.
+  - Admin routes record cash, assign a queued payment (remembering the payer), record a
+    cash-out, and list credit and the season pot. The pot is the fees spent in rounds within
+    `season_bounds`.
+  - The pick reminder tells a member without credit that the round needs paying for.
+
+  Verification: picks-flow tests for:
+  - refused without credit, and allowed with it;
+  - a second pick in the round costs nothing;
+  - a re-pick after a postponed fixture costs nothing;
+  - two rounds racing for one fee's credit, where exactly one wins;
+  - a refund on leaving before the lock, and on a voided round;
+  - a league admin refused on both fields;
+  - the privacy refusal;
+  - the season pot across a season boundary.
+
+  The existing picks-flow suite passes unchanged: a league without a fee behaves exactly
+  as before.
+
+  Scope boundary: the migration, the ledger, the gate and the admin routes. No Monzo code
+  and no screens. **API-only — `/ship-prod` before Batch 206's web half.**
+
+- [ ] **Batch 206 — Members cannot see what they owe or how to pay**
+  — specified from ADR 0009. Once Batch 205 ships, a member in a league with a fee meets a
+  refusal they cannot act on.
+  - The round screen shows a pay panel when credit is short: the fee, their credit, and
+    the league's payment link as a button. The link appears only after the one-time
+    "I'm 18 or over" confirmation.
+  - The league page shows the season pot.
+  - `usePickEditor` maps the new refusal code, with a row in its refusal table test.
+  - `LeagueSettingsPage` shows the fee and link fields to site admins only.
+  - A league "Payments" admin screen lists credit per member and the queued payments
+    (payer name and date) to assign, and records cash and cash-outs.
+
+  Verification: vitest for each pay-panel state and for the admin queue; screenshots at
+  390 and 1280 px in both themes; a league without a fee renders exactly as before.
+
+  Scope boundary: the screens above. **Web-only — after Batch 205 has shipped.**
+
+- [ ] **Batch 207 — There is nowhere to run a second service, so the bank token would have to live in the API**
+  — specified from ADR 0009, option B. `.railway/railway.ts` owns one service
+  (`partial = "api"`), and the API's start command runs Alembic. A second process must not
+  migrate, and must not start against a schema it does not expect.
+  - Declare a `payments` service with one replica and its own sealed variables (Monzo
+    client id and secret, the token encryption key, the webhook path secret, the database
+    URL), all preserved.
+  - Its start command runs no Alembic and refuses to start at an unexpected revision.
+  - `scripts/assert-deployment-config.py` expects both services' variables.
+  - `/ship-prod` and `scripts/check-deploy-drift.sh` ship and check both.
+  - The Architecture section above gains the payments service.
+
+  **Gate maintenance needed — owner approval pending:** this batch expects to change
+  protected deploy files, at least `.railway/railway.ts`, `scripts/assert-deployment-config.py`,
+  `docs/agent-commands/ship-prod.md` and `scripts/check-deploy-drift.sh`. The owner approves
+  the exact list in this row, and main's guard carries the matching `approved_gate_maintenance`
+  entry by the approval-then-attestation sequence Batch 182 used, before the batch is gated.
+
+  Verification:
+  - deployment-config tests for both services;
+  - the payments process refuses to boot at a wrong revision;
+  - a dry run of `/ship-prod`'s checks names both services.
+
+  Scope boundary: deploy configuration and the second process's boot. No Monzo logic.
+  **Tooling-only; owner-approved gate maintenance.**
+
+- [ ] **Batch 208 — Payments through the league's Monzo link never reach the app**
+  — specified from ADR 0009. The payments service, running on Batch 207's service.
+
+  Monzo connection:
+  - Its own Monzo OAuth client, connected once by the owner (browser, then the Monzo app).
+  - The token is encrypted at rest with a key only this service holds, and refreshed
+    unattended with rotation.
+
+  Reading payments:
+  - A webhook at a secret path treats each event only as a nudge and re-reads the
+    transaction from the API.
+  - A catch-up read every five minutes covers missed webhooks.
+  - Only transactions whose `universal_payment_link_id` is the league's configured link
+    count.
+  - Monzo-app payers (`user_…`) are matched by user id. Card payers (a fresh `anonuser_…`
+    each time) are matched by normalised name. Unknown payers are queued.
+  - It writes ledger rows deduplicated by Monzo transaction id, since `created` and
+    `updated` events repeat.
+
+  Limits:
+  - It never calls a Monzo write endpoint.
+  - It logs no transaction bodies.
+  - It reports link health (last success, token expiry) to the admin screen.
+
+  Verification: tests use synthetic payloads shaped like the spike's samples, never real
+  data. They cover:
+  - the link filter;
+  - both payer kinds;
+  - deduplication across events;
+  - an unsigned webhook body never trusted without a re-read;
+  - refresh with rotation;
+  - a Monzo outage leaving manual entry working.
+
+  Then the owner's launch steps in ADR 0009.
+
+  Scope boundary: the payments service and its ledger writes.
+  **Ships on the payments service through `/ship-prod`, after Batch 207.**
 
 ## Verification
 
