@@ -941,14 +941,15 @@ Batches 205-208 come from ADR 0009 (pay to pick in 2-1 Hibs; owner decisions of 
 and 2026-10-13). They run in order with `/batch-start`. None has started.
 
 - [ ] **Batch 205 — A member can pick in a league that charges a fee without having paid**
-  — specified from ADR 0009. 2-1 Hibs members pay a weekly fee through the owner's Monzo
-  payment link, outside the app, and nothing in the app knows who has paid.
+  — specified from ADR 0009, amended 2026-10-13 for weekly dues. 2-1 Hibs members pay £1 a
+  week through the owner's Monzo payment link, outside the app, and nothing in the app knows
+  who has paid.
 
   Migration 028, with `docs/runbooks/migration-028-recovery.md`. Every new table follows
   027's RLS pattern.
   - `leagues.entry_fee_pence` (nullable, > 0) and `leagues.payment_link_url` (nullable).
-  - A ledger of signed pence entries: payment, round fee, refund, cash-out, adjustment.
-    The Monzo transaction id is unique. There is one round fee per `(gameweek_id, player_id)`.
+  - A ledger of signed pence entries: payment, round due, due reversal, cash-out, adjustment.
+    The Monzo transaction id is unique. There is one round due per `(gameweek_id, player_id)`.
   - A payer map (Monzo user id or normalised name → member).
   - A one-time 18+ confirmation on the membership.
 
@@ -956,47 +957,63 @@ and 2026-10-13). They run in order with `/batch-start`. None has started.
   - Only a site admin may set the two league fields. A league admin is refused. Both are
     audited as `league_updated`.
   - A league with a fee refuses public privacy, and a public league refuses a fee.
-  - The gate sits in `submit_pick`, between the market check and the odds budget charge.
-    When no fee is recorded for the round and credit is below the fee, it refuses with its
-    own code (402 `PAYMENT_REQUIRED` suggested; never 401, which signs the member out).
-  - The fee is written in the same transaction as the round's first pick, under a lock on
-    the membership row, so two rounds cannot spend the same credit.
-  - Refunds become credit from `release_unlocked_picks` (before lock) and
-    `void_non_scoring_round`.
-  - The round payload gains the member's fee status: fee, credit, paid this round, link,
-    adult confirmed.
-  - Admin routes record cash, assign a queued payment (remembering the payer), record a
-    cash-out, and list credit and the season pot. The pot is the fees spent in rounds within
-    `season_bounds`.
-  - The pick reminder tells a member without credit that the round needs paying for.
+  - Dues:
+    - When a round opens, every active member of a league with a fee owes one fee for it.
+      The due is recorded idempotently inside the existing round-opening step, with no new
+      scheduled job.
+    - A member who joins while a round is open owes that round on joining. Earlier rounds are
+      never owed.
+    - Dues start with the first round that opens after the fee is set.
+  - A member's balance is payments and adjustments, minus dues and cash-outs. Payments clear
+    the oldest dues first, and anything beyond them is credit carried forward.
+  - The gate sits in `submit_pick`, between the market check and the odds budget charge:
+    - It refuses unless the member's balance, including this round's due, is zero or more.
+    - The refusal has its own code (402 `PAYMENT_REQUIRED` suggested; never 401, which signs
+      the member out).
+    - A missed week therefore rolls over.
+    - Picking, changing a pick and re-picking cost nothing extra.
+  - A voided round reverses its dues for everyone (`void_non_scoring_round`). Leaving or being
+    removed before a round locks reverses that round's due (`release_unlocked_picks`).
+  - The round payload gains the member's fee status: the amount owed now (arrears plus this
+    round), credit, the link, and whether they have confirmed they are an adult.
+  - Admin routes:
+    - record cash;
+    - assign a queued payment, remembering the payer;
+    - record a cash-out or an adjustment;
+    - list balances and the season pot, which is the dues of rounds within `season_bounds`
+      that have been paid.
+  - The pick reminder tells a member who owes that they must pay to pick.
 
   Verification: picks-flow tests for:
-  - refused without credit, and allowed with it;
-  - a second pick in the round costs nothing;
-  - a re-pick after a postponed fixture costs nothing;
-  - two rounds racing for one fee's credit, where exactly one wins;
-  - a refund on leaving before the lock, and on a voided round;
-  - a league admin refused on both fields;
-  - the privacy refusal;
+  - refused while owing, allowed once paid up;
+  - a missed week rolls over: no payment in week 3 means week 4 needs £2;
+  - prepaying several weeks carries credit forward;
+  - dues are charged once per member per round, however often the opening step runs;
+  - a member joining while a round is open owes it, and nothing for earlier rounds;
+  - picking, changing a pick and re-picking after a postponed fixture cost nothing extra;
+  - a voided round, and leaving before the lock, reverse the due;
+  - a league admin refused on both fields, and the privacy refusal;
   - the season pot across a season boundary.
 
-  The existing picks-flow suite passes unchanged: a league without a fee behaves exactly
-  as before.
+  The existing picks-flow and scheduler suites pass unchanged: a league without a fee behaves
+  exactly as before.
 
-  Scope boundary: the migration, the ledger, the gate and the admin routes. No Monzo code
-  and no screens. **API-only — `/ship-prod` before Batch 206's web half.**
+  Scope boundary: the migration, the ledger, dues, the gate and the admin routes. No Monzo
+  code and no screens. **API-only — `/ship-prod` before Batch 206's web half.**
 
 - [ ] **Batch 206 — Members cannot see what they owe or how to pay**
   — specified from ADR 0009. Once Batch 205 ships, a member in a league with a fee meets a
   refusal they cannot act on.
-  - The round screen shows a pay panel when credit is short: the fee, their credit, and
-    the league's payment link as a button. The link appears only after the one-time
-    "I'm 18 or over" confirmation.
+  - The round screen shows a pay panel when the member owes. It gives the amount owed, with
+    any rolled-over weeks listed, and the league's payment link as a button. The link appears
+    only after the one-time "I'm 18 or over" confirmation. A member in credit sees their
+    credit.
   - The league page shows the season pot.
   - `usePickEditor` maps the new refusal code, with a row in its refusal table test.
   - `LeagueSettingsPage` shows the fee and link fields to site admins only.
-  - A league "Payments" admin screen lists credit per member and the queued payments
-    (payer name and date) to assign, and records cash and cash-outs.
+  - A league "Payments" admin screen lists each member's balance (owed or in credit) and the
+    queued payments (payer name and date) to assign. It records cash, cash-outs and
+    adjustments.
 
   Verification: vitest for each pay-panel state and for the admin queue; screenshots at
   390 and 1280 px in both themes; a league without a fee renders exactly as before.

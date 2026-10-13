@@ -1,6 +1,7 @@
 # ADR 0009 — Pay to pick: a per-round entry fee towards a season prize
 
-Status: **accepted**, 2026-10-13; not yet implemented (Batches 205-208). It amends
+Status: **accepted**, 2026-10-13, and amended the same day for weekly dues; not yet
+implemented (Batches 205-208). It amends
 the product contract's last bullet in `docs/BUILD_PLAN.md` and the README's
 "does not place bets or handle money".
 
@@ -15,6 +16,9 @@ make a pick. The owner's answers, on 12 and 13 Oct:
 | How often members pay | Every round |
 | Which leagues | 2-1 Hibs only (slug `2-1-hibs`, the one live league) |
 | What the prize is | One prize for the full season |
+| The fee | £1 a week, owed by every member every week, whether they play or not |
+| A missed week | Rolls over: skip week 3 and week 4 costs £2 to play |
+| A mid-season joiner | Owes from the round open when they join; earlier weeks are never owed |
 | Where the Monzo token lives | A separate payments service (option B below) |
 | Legal basis | A friends' league, not run as a business, under the four rules below |
 
@@ -35,21 +39,33 @@ payments made to the organiser and refuses an unpaid pick.
    site admin can set either; league admins cannot, so nobody can swap in their
    own link. Every league without a fee behaves exactly as today, and no league
    is named in code.
-2. **Credit, spent once per round.** Payments add credit. A member's first pick
-   in a round spends one fee from their credit. The fee is recorded against the
-   round and the member, not the pick, so re-picking after a postponed fixture
-   is free. The API refuses a pick when no fee is recorded for the round and the
-   member's credit is below the fee. The refusal has its own code and is never a
-   401, because a 401 signs the member out.
-3. **One prize for the season.** The fees spent in a season form that season's
-   pot. The season boundary is the one the standings use (`season_bounds`,
-   Batch 96), so the pot and the table always agree. The season's standings
-   winner takes the pot, and a tie splits it. Payout happens outside the app,
-   which only shows the pot.
-4. **Refunds are credit.** A voided round, or leaving the league before a round
-   locks, gives that round's fee back as credit. Unspent credit is repaid
-   outside the app and recorded as a cash-out entry. Every ledger entry is
-   permanent, and a correction is a reversing entry recorded with who made it.
+2. **Weekly dues; a member must be paid up to pick.**
+   - Every member owes one fee for every round of the season, whether they pick
+     or not. A due is recorded when a round opens, against each active member.
+   - A member who joins while a round is open owes that round. Rounds before they
+     joined are never owed.
+   - Payments clear the oldest dues first, and anything beyond them is credit
+     carried forward.
+   - The API refuses a pick unless the member's balance, including the current
+     round's due, is zero or more. So a missed week rolls over: skip week 3 and
+     week 4 costs £2.
+   - Picking, changing a pick or re-picking after a postponed fixture costs
+     nothing extra.
+   - The refusal has its own code and is never a 401, because a 401 signs the
+     member out.
+3. **One prize for the season.** The season's pot is the dues for that season's
+   rounds that have been paid. The season boundary is the one the standings use
+   (`season_bounds`, Batch 96), so the pot and the table always agree. The
+   season's standings winner takes the pot, and a tie splits it. Payout happens
+   outside the app, which only shows the pot.
+4. **Corrections are reversals.**
+   - A voided round cancels its dues for everyone.
+   - Leaving the league before a round locks cancels that round's due.
+   - Arrears and credit stay on a member's balance into the next season. Whether
+     a member in arrears can win is the owner's call at payout.
+   - Credit is repaid outside the app and recorded as a cash-out entry.
+   - Every ledger entry is permanent. A correction is a reversing entry, recorded
+     with who made it.
 5. **A separate payments service holds the Monzo token.** It is a second Railway
    service built from this repository, and the only process with Monzo
    credentials. It uses its own Monzo OAuth client. It only reads from Monzo:
@@ -162,7 +178,8 @@ anyway, as the fallback for cash payments and Monzo outages.
   4. Connect: approve in the browser and in the Monzo app.
   5. Confirm that 2-1 Hibs is private.
   6. Set its fee and payment link.
-  7. Record anyone's existing credit as an opening adjustment.
+  7. Record each member's opening balance (what they've paid towards the weeks
+     since dues start) as an adjustment.
   8. Pay £1 through the link and see it arrive as credit.
   9. Tell the members the four rules.
 
