@@ -955,9 +955,10 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
   format, CI, or the first gate. Runs on its own, after Group AD's closing `/ship-prod` and before
   Group AE. **Tooling-only; nothing reaches the API image or the web app.**
 
-Batches 205-208 come from ADR 0009 (pay to pick in 2-1 Hibs; owner decisions of 2026-10-12
-and 2026-10-13). They run in order with `/batch-start`. Batches 205 and 206 are complete (13 Oct);
-207-208 have not started.
+Batches 205-209 come from ADR 0009 (pay to pick in 2-1 Hibs; owner decisions of 2026-10-12
+and 2026-10-13). They run with `/batch-start`, in the order 205, 206, 209, 207, 208: Batch 209
+comes from the ADR's 13 Oct amendment and runs ahead of 207 and 208 by owner decision
+(2026-10-13T21:41Z). Batches 205 and 206 are complete (13 Oct); 207-209 have not started.
 
 - [x] **Batch 205 — A member can pick in a league that charges a fee without having paid ✅ 2026-10-13**
   — specified from ADR 0009, amended 2026-10-13 for weekly dues. 2-1 Hibs members pay £1 a
@@ -1102,6 +1103,56 @@ and 2026-10-13). They run in order with `/batch-start`. Batches 205 and 206 are 
 
   Scope boundary: the payments service and its ledger writes.
   **Ships on the payments service through `/ship-prod`, after Batch 207.**
+
+- [ ] **Batch 209 — A member must say they are 18 or over before they can pay, and the pick cards look open while they owe**
+  — specified from ADR 0009's amendment of 13 Oct 2026 (owner decision, 2026-10-13T21:41Z).
+  Runs ahead of Batches 207 and 208, by owner decision. Members must still be adults, but
+  that is now the owner's responsibility, so the app stops asking. And a member who owes sees
+  pick cards that look open, and learns of the lock only from the 402 refusal after a tap.
+
+  API:
+  - `round_fee_status` sends `payment_link_url` to every member of a league with a fee,
+    whether or not they ever confirmed.
+  - `adult_confirmed` stays in the payload for compatibility; nothing reads it.
+  - The `adult_confirmed_at` column and `POST /api/v1/leagues/{slug}/adult-confirmation`
+    stay, unused. No migration.
+  - `submit_pick`'s 402 `PAYMENT_REQUIRED` gate and the dues rules do not change.
+
+  Web:
+  - `PayPanel` drops the "I'm 18 or over" step and shows the Pay button whenever the
+    payload carries a link. With no link, it still says to ask the organiser.
+  - `CurrentRoundPage` greys out the pick cards — the same locked state a shut round uses —
+    while `fee.owed_pence > 0` and the round is pickable. The pay panel stays above them.
+    Paid up or in credit, the cards behave as before.
+  - The site-admin hint under the payment-link field (`LeagueSettingsPage`) stops saying
+    members see the link only after confirming they're 18 or over.
+  - A league without a fee renders exactly as before.
+
+  Verification:
+  - API: a member who never confirmed gets the link in the round payload, with
+    `adult_confirmed` still present; a league without a fee still sends no fee status; the
+    existing picks-flow and pay-to-pick suites, including the 402 gate, pass unchanged.
+  - Web vitest: the owed panel shows the Pay button with no confirmation step, whatever
+    `adult_confirmed` says, and no state renders the confirmation; the cards are locked while
+    the member owes in a pickable round, open once paid up or in credit, and unchanged in a
+    league without a fee.
+  - Screenshots at 390 and 1280 px in both themes: the owed pay panel with its link, and the
+    greyed-out cards.
+
+  **Oracle changes — owner approval in principle (2026-10-13T21:41Z), exact fingerprints
+  pending:** only Batch 205's assertions that the link is withheld until a member confirms,
+  in `apps/api/tests/test_pay_to_pick.py`, and Batch 206's "I'm 18 or over" step, in
+  `apps/web/src/test/PayPanel.test.tsx`, may be replaced. Nothing else may be changed,
+  removed, skipped or loosened. The owner approves the exact removed lines before main's
+  guard records them, by the approval-then-attestation sequence Batches 173, 179, 181 and 182
+  used.
+
+  Scope boundary: the payload's link, the pay panel, the pick-card lock and the one admin
+  hint. No migration, no removal of the column or route, no change to the 402 gate or the
+  dues rules, no Monzo code. **API + web; the owner has scheduled its `/ship-prod` for
+  straight after close-out.** Before that shipment, the old API withholds the link from a
+  member who never confirmed, so the new panel shows no button; no league has a fee, so
+  nobody sees the gap.
 
 ## Verification
 

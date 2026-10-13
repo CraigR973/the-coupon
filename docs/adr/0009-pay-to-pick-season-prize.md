@@ -1,9 +1,27 @@
 # ADR 0009 — Pay to pick: a per-round entry fee towards a season prize
 
-Status: **accepted**, 2026-10-13, and amended the same day for weekly dues; not yet
-implemented (Batches 205-208). It amends
+Status: **accepted**, 2026-10-13, and amended twice the same day: for weekly dues, and
+to drop the in-app 18+ confirmation (below). Batches 205 and 206 are built; Batch 209,
+then 207 and 208, follow. It amends
 the product contract's last bullet in `docs/BUILD_PLAN.md` and the README's
 "does not place bets or handle money".
+
+## Amendment — 13 Oct 2026: the app no longer asks members to confirm they are adults
+
+Owner decision, 2026-10-13T21:41Z (Craig Robinson), after Batch 206 went live on the web:
+
+- The one-time "I'm 18 or over" confirmation is removed. A member of a league with a fee
+  sees the payment link straight away.
+- Members must still be adults. That is now the owner's responsibility, checked outside
+  the app; the app neither asks nor records it. The fourth rule below is rewritten to say
+  so.
+- The owner accepts the exposure under section 46 of the Gambling Act 2005 (inviting or
+  permitting a child or young person to gamble) that this places on the owner alone, with
+  no recorded confirmation behind it.
+- While a member owes, the round screen greys out the pick cards, so the lock is visible
+  before a tap and not only a refusal after one. The API's refusal is unchanged.
+- Batch 209 carries the change, ahead of Batches 207 and 208. The `adult_confirmed_at`
+  column and the confirmation route stay in place, unused; no migration removes them.
 
 ## Context
 
@@ -82,8 +100,8 @@ payments made to the organiser and refuses an unpaid pick.
    - 100% of fees go to the prize, with nothing deducted.
    - The league stays private: the app refuses public joining while a fee is on.
    - The league is never promoted.
-   - Members are adults: each confirms once that they are 18 or over before the
-     payment link is shown.
+   - Members are adults. The owner makes sure of it before admitting anyone to a league
+     with a fee; the app does not ask or record it (amended 13 Oct 2026).
 
 ## Evidence
 
@@ -163,7 +181,8 @@ anyway, as the fallback for cash payments and Monzo outages.
 
 ## Consequences
 
-- Batch 205: the API ledger and gate. Batch 206: the screens. Batch 207: a
+- Batch 205: the API ledger and gate. Batch 206: the screens. Batch 209: the link
+  without an 18+ step, and pick cards greyed out while a member owes. Batch 207: a
   second Railway service, which is owner-approved gate maintenance. Batch 208:
   the payments service.
 - A card payer is matched by name, which can attribute a payment to the wrong
@@ -177,11 +196,12 @@ anyway, as the fallback for cash payments and Monzo outages.
   3. Ship both services.
   4. Connect: approve in the browser and in the Monzo app.
   5. Confirm that 2-1 Hibs is private.
-  6. Set its fee and payment link.
-  7. Record each member's opening balance (what they've paid towards the weeks
+  6. Make sure every member of 2-1 Hibs is 18 or over. The app no longer asks them.
+  7. Set its fee and payment link.
+  8. Record each member's opening balance (what they've paid towards the weeks
      since dues start) as an adjustment.
-  8. Pay £1 through the link and see it arrive as credit.
-  9. Tell the members the four rules.
+  9. Pay £1 through the link and see it arrive as credit.
+  10. Tell the members the four rules.
 
 ## Sources
 
