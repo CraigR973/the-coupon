@@ -8782,3 +8782,22 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - Batch 207 (a second Railway service for the payments token) — its open row; it needs owner-approved gate maintenance before it is gated.
 
 **Next:** Batch 207, in a later session. Setting 2-1 Hibs' fee is now safe for members, and remains the owner's launch step in ADR 0009.
+
+## Gate maintenance — Batch 209 exact oracle approval
+**Commit:** `05e4172` · owner-approved 14 Oct 2026 · first CI:
+https://github.com/CraigR973/the-coupon/actions/runs/38532233441 FAIL at the expected
+old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
+
+### Key facts for future sessions
+- ADR 0009's 13 Oct amendment removes the members' 18+ confirmation, so seven exact lines flip:
+  one test title in `apps/api/tests/test_pay_to_pick.py` and three titles and three assertions
+  in `apps/web/src/test/PayPanel.test.tsx`. Exact fingerprints, never a waiver.
+- Replayed before the push: the guard passed the Batch 209 branch with the approval applied,
+  and still rejected one extra assertion removal from `PayPanel.test.tsx`.
+- The first push was red because CI correctly restored `98b8c6b` as the trusted pre-push `main`;
+  that guard did not contain the new approval and refused its own replacement. This recovery
+  commit is documentation-only, so CI evaluates it through `05e4172`.
+- No application code, API contract, database schema or production data changed. The API is
+  still in sync at `9731776`, migration `028`.
+
+**Next:** Resume Batch 209 only after the recovery commit's exact-SHA CI is green.
