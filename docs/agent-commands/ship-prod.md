@@ -14,8 +14,8 @@ create infrastructure, copy staging values, or substitute another target.
 | Railway environment | `production` (`8f18cb49-5137-4557-900a-031bcab4ac38`) |
 | Railway service | `api` (`d59f4f17-3e7d-4b3b-bf40-30620150fa2f`) |
 | Railway API origin | `https://api-production-109b1.up.railway.app` |
-| Railway service | `payments` — **not created**: declared and switched off in `.railway/railway.ts` (owner decision, 2026-10-14). Record its id here when the owner creates it |
-| Railway payments origin | not created — recorded in `PAYMENTS_ORIGINS` in `.railway/railway.ts`, in the commit that switches it on |
+| Railway service | `payments` (`f3bbf7ad-823e-4547-878b-a1e6b892d1ec`) — created empty by the owner on 2026-10-14, no source or deployment; still switched off in `.railway/railway.ts` |
+| Railway payments origin | `https://payments-production-0aa1.up.railway.app` — copied into `PAYMENTS_ORIGINS` in `.railway/railway.ts` only in the commit that switches it on, because `scripts/check-deploy-drift.sh` probes any recorded origin and this one has no deployment yet |
 | Vercel team | `craigr973's projects` (`team_MVQMOaFtYHlwO5QVzSOZQ0Ud`) |
 | Vercel project | `the-coupon-production` (`prj_3h3OSNFDoPAySqTa9nVswUrMs0jJ`) |
 | Vercel web origin | intended alias `https://the-coupon-production.vercel.app`; exact alias must be confirmed and recorded after the first L4 deployment |
@@ -30,6 +30,15 @@ shipped **and** its service id is recorded in the table above. While it is switc
 every step below covers `api` alone and the report says "payments: switched off". If it is
 switched on but the id or origin is missing, stop: this workflow never creates a Railway
 service. The owner creates it, seals its variables and gives it a public domain first.
+
+Switch it on only once all four `MONZO_*` variables are sealed on `payments`: the plan
+`preserve()`s every name in `PAYMENTS_PRESERVED_VARIABLE_NAMES`, and preserving a name that
+does not exist yet may fail or be destructive. As of 2026-10-14 `ENVIRONMENT`, `LOG_LEVEL` and
+`DATABASE_URL` are set, the last as the Railway reference `${{api.DATABASE_URL}}` (owner
+decision: the API's database login for now; a least-privilege role is Batch 208's question).
+`RAILWAY_GIT_COMMIT_SHA` must exist too, because the IaC plan runs before the stamp step:
+set it to `unknown` with `--skip-deploys` before switching on, and the first shipment's stamp
+replaces it.
 
 ## 1. Preflight
 
