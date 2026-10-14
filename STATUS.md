@@ -36,6 +36,10 @@ Checked 2026-10-10 unless a line says otherwise.
 - **Batch 206 is live on the web** (13 Oct, `32a8aef`, web-only, exact-SHA CI green): the pay
   panel, the season pot, the site-admin fee fields and the Payments screen. No league has a
   fee, so no member sees any of it yet.
+- **Batch 209's web half is live** (14 Oct, `b53ddf9`): the pay panel shows the link with no
+  18+ step, and pick cards grey out while a member owes. Its API half (the link for every
+  member) is owed to `/ship-prod`, which the owner scheduled for straight after close-out. No
+  league has a fee, so the gap reaches nobody.
 - **Batch 203 shipped unrecorded on 11 Oct** (Railway `de1b8aa8`, `5882b0f`), found from
   Railway's deployment list on 13 Oct and now in the L4 record.
 - **Migration `028` requires forward recovery.** It is additive, but the older image's
@@ -89,12 +93,15 @@ and verified (Batches 196, 195, 197 and 194; final shipment 10 Oct). Group AH: B
 (web toolchain refresh) and 203 (pipeline and operations hygiene) are complete (11 Oct).
 Batch 203 shipped on 11 Oct, unrecorded until 13 Oct.
 
-Batches 205-208 are pay to pick in 2-1 Hibs (ADR 0009). Batch 205 — the API ledger, weekly
+Batches 205-209 are pay to pick in 2-1 Hibs (ADR 0009). Batch 205 — the API ledger, weekly
 dues and the paid-up check, migration `028` — is complete and shipped (13 Oct, `9731776`).
 Nothing changes for members until a site admin sets a league's fee. Batch 206 — the screens —
-is complete and live on the web (13 Oct, `32a8aef`). Batches 207-208 have not started; Batch 207
-needs owner-approved gate maintenance before it is gated, and the Monzo launch steps in ADR 0009
-are the owner's.
+is complete and live on the web (13 Oct, `32a8aef`). Batch 209 — the link with no 18+ step,
+and greyed pick cards while a member owes (ADR 0009 amended 13 Oct) — is complete (14 Oct,
+`b53ddf9`); its `/ship-prod` was scheduled by the owner and follows close-out. Batches 207-208
+have not started; Batch 207 needs owner-approved gate maintenance before it is gated, and the
+Monzo launch steps in ADR 0009 are the owner's, now including making sure every member is 18
+or over.
 
 ## Toolchain
 
@@ -107,7 +114,7 @@ Checked 2026-10-03.
   that stamp when only `docs/BUILD_PLAN.md`, `session-log.md` and `STATUS.md` changed, otherwise it
   reruns the gate, and waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,468, frontend 1,379, journey 1; checked 2026-10-13). 13m04s on this Mac
+  (backend 1,469, frontend 1,385, journey 1; checked 2026-10-14). 13m04s on this Mac
   with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
   (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
   1,350 tests (2026-09-29) — not the gate.
@@ -140,5 +147,6 @@ Checked 2026-10-03.
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
 **Next:** Batch 207 in a later session; it needs owner-approved gate maintenance first. Setting
-2-1 Hibs' fee is now safe for members and is the owner's launch step. The season-calendar
+2-1 Hibs' fee is the owner's launch step, after checking every member is 18 or over (ADR 0009's
+amended fourth rule). The season-calendar
 backfill remains owner-gated, unblocked since 4 Oct.

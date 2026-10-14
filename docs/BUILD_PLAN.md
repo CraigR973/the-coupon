@@ -958,7 +958,8 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 Batches 205-209 come from ADR 0009 (pay to pick in 2-1 Hibs; owner decisions of 2026-10-12
 and 2026-10-13). They run with `/batch-start`, in the order 205, 206, 209, 207, 208: Batch 209
 comes from the ADR's 13 Oct amendment and runs ahead of 207 and 208 by owner decision
-(2026-10-13T21:41Z). Batches 205 and 206 are complete (13 Oct); 207-209 have not started.
+(2026-10-13T21:41Z). Batches 205 and 206 are complete (13 Oct) and 209 is complete (14 Oct);
+207-208 have not started.
 
 - [x] **Batch 205 — A member can pick in a league that charges a fee without having paid ✅ 2026-10-13**
   — specified from ADR 0009, amended 2026-10-13 for weekly dues. 2-1 Hibs members pay £1 a
@@ -1104,7 +1105,7 @@ comes from the ADR's 13 Oct amendment and runs ahead of 207 and 208 by owner dec
   Scope boundary: the payments service and its ledger writes.
   **Ships on the payments service through `/ship-prod`, after Batch 207.**
 
-- [ ] **Batch 209 — A member must say they are 18 or over before they can pay, and the pick cards look open while they owe**
+- [x] **Batch 209 — A member must say they are 18 or over before they can pay, and the pick cards look open while they owe** ✅ 2026-10-14
   — specified from ADR 0009's amendment of 13 Oct 2026 (owner decision, 2026-10-13T21:41Z).
   Runs ahead of Batches 207 and 208, by owner decision. Members must still be adults, but
   that is now the owner's responsibility, so the app stops asking. And a member who owes sees

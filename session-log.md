@@ -8801,3 +8801,18 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
   still in sync at `9731776`, migration `028`.
 
 **Next:** Resume Batch 209 only after the recovery commit's exact-SHA CI is green.
+
+## Batch 209 — Pay to pick without an 18+ step, and greyed cards while owing
+**Commits:** `98b8c6b` (ADR 0009 amendment and row), `05e4172` + `92d2d96` (oracle approval and attestation), `b53ddf9` (implementation) · verified: complete 12-check local gate, 1,469 backend and 1,385 frontend tests, journey 1, zero skips · CI: https://github.com/CraigR973/the-coupon/actions/runs/38543602917 PASS for `b53ddf91e2ce9c84403f2a37492339f9e0c0029e`
+
+### Key facts for future sessions
+- ADR 0009's fourth rule changed on 13 Oct (owner, 21:41Z): members must be adults, but the owner checks it, not the app. `round_fee_status` now sends `payment_link_url` to every member; `adult_confirmed`, the `adult_confirmed_at` column and `POST /adult-confirmation` stay, unused, with no migration. The 402 gate and dues rules are unchanged.
+- The round screen derives `owesToPick` (fee owed > 0 while the round is otherwise pickable) and locks the pick cards, the outstanding-pick notice and the switch hint with it; `RoundStatus` gained an optional `payToPick` line ("pay above, then pick") so an owing member is not told they "did not pick". The round's own phase and clock are untouched.
+- Against an API from before this batch, an unconfirmed member's panel shows no button (link withheld) and no "ask the organiser" line; the owner scheduled `/ship-prod` straight after close-out, and no league has a fee.
+- Gate failures and fixes, none touching an assertion: attempt 1 failed only the seeded journey (results screen still loading at its 5 s wait); attempt 2 failed the vitest pool (a worker failed to start), the prod-bundle smoke and the journey while other sessions drove this Mac's load average past 100; attempt 3, after waiting for load under 6, passed all 12. The approval commit's CI (`38532233441`) was red by design at the old trusted guard; the attestation's (`38532576709`) was green.
+- **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-13T21:42:35Z; pre-push deployed-API drift in sync; /ship-prod owed immediately after push
+
+### Follow-ups
+- The scheduled `/ship-prod` for `b53ddf9` (owner-scheduled 2026-10-13T21:42:35Z), run in this session straight after close-out.
+
+**Next:** `/ship-prod` for Batch 209, then Batch 207 in a later session (owner-approved gate maintenance first).
