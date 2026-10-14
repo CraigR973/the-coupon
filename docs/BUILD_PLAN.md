@@ -1139,13 +1139,14 @@ comes from the ADR's 13 Oct amendment and runs ahead of 207 and 208 by owner dec
   - Screenshots at 390 and 1280 px in both themes: the owed pay panel with its link, and the
     greyed-out cards.
 
-  **Oracle changes — owner approval in principle (2026-10-13T21:41Z), exact fingerprints
-  pending:** only Batch 205's assertions that the link is withheld until a member confirms,
-  in `apps/api/tests/test_pay_to_pick.py`, and Batch 206's "I'm 18 or over" step, in
-  `apps/web/src/test/PayPanel.test.tsx`, may be replaced. Nothing else may be changed,
-  removed, skipped or loosened. The owner approves the exact removed lines before main's
-  guard records them, by the approval-then-attestation sequence Batches 173, 179, 181 and 182
-  used.
+  **Oracle changes approved (owner, 2026-10-14):** this batch may replace only the seven
+  lines fingerprinted in trusted main: one test title in `apps/api/tests/test_pay_to_pick.py`
+  (Batch 205's link withheld until a member confirms), and three test titles and three
+  assertions in `apps/web/src/test/PayPanel.test.tsx` (Batch 206's "I'm 18 or over" step and
+  its confirmation POST). The replacements must prove the link reaches a member who never
+  confirmed and that no panel state asks an age; separate tests must prove the pick-card lock.
+  Nothing else may be changed, removed, skipped or loosened. This is not a file-wide or
+  reusable waiver.
 
   Scope boundary: the payload's link, the pay panel, the pick-card lock and the one admin
   hint. No migration, no removal of the column or route, no change to the 402 gate or the

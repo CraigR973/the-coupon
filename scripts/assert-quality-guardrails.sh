@@ -166,6 +166,16 @@ apps/api/tests/test_request_budget.py|assert bounded <= _pick_installation_limit
 apps/api/tests/test_request_budget.py|assert bounded <= DAILY_LIMIT
 EOF
       ;;
+    209) cat <<'EOF'
+apps/api/tests/test_pay_to_pick.py|async def test_the_round_payload_carries_the_fee_and_hides_the_link_until_confirmed(
+apps/web/src/test/PayPanel.test.tsx|it('offers the league’s payment link as a button once the member is confirmed 18+', () => {
+apps/web/src/test/PayPanel.test.tsx|it('asks for the one-time 18+ confirmation before any link is shown', () => {
+apps/web/src/test/PayPanel.test.tsx|expect(screen.getByRole('button', { name: /i’m 18 or over/i })).toBeTruthy();
+apps/web/src/test/PayPanel.test.tsx|it('records the confirmation and re-reads the round, which is what brings the link', async () => {
+apps/web/src/test/PayPanel.test.tsx|expect(posted[0]).toMatch(/\/api\/v1\/leagues\/2-1-hibs\/adult-confirmation$/);
+apps/web/src/test/PayPanel.test.tsx|expect(invalidate).toHaveBeenCalledWith({ queryKey: keys.gameweek.all('2-1-hibs') }),
+EOF
+      ;;
   esac
 }
 
@@ -183,6 +193,7 @@ approved_oracle_paths() {
     193) echo "apps/api/tests/test_scheduler.py" ;;
     195) echo "apps/web/src/test/RegisterPage.test.tsx" ;;
     203) echo "apps/api/tests/test_request_budget.py" ;;
+    209) echo "apps/api/tests/test_pay_to_pick.py apps/web/src/test/PayPanel.test.tsx" ;;
   esac
 }
 
