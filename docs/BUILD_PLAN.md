@@ -1053,11 +1053,25 @@ comes from the ADR's 13 Oct amendment and runs ahead of 207 and 208 by owner dec
   - `/ship-prod` and `scripts/check-deploy-drift.sh` ship and check both.
   - The Architecture section above gains the payments service.
 
-  **Gate maintenance needed — owner approval pending:** this batch expects to change
-  protected deploy files, at least `.railway/railway.ts`, `scripts/assert-deployment-config.py`,
-  `docs/agent-commands/ship-prod.md` and `scripts/check-deploy-drift.sh`. The owner approves
-  the exact list in this row, and main's guard carries the matching `approved_gate_maintenance`
-  entry by the approval-then-attestation sequence Batch 182 used, before the batch is gated.
+  **Gate maintenance approved (owner, 2026-10-14):** this batch may change exactly four deploy
+  files: `scripts/check-deploy-drift.sh` (checks both services), `.railway/railway.ts` (declares
+  `payments`), `scripts/assert-deployment-config.py` (asserts both services' settings and
+  variables) and `docs/agent-commands/ship-prod.md` (ships the API first, then payments). Only
+  `scripts/check-deploy-drift.sh` is in the guard's protected set, so main's
+  `approved_gate_maintenance` entry for 207 names that path alone; the other three are approved
+  here as deploy files. No other protected file may change.
+
+  Owner decisions of 2026-10-14:
+  - The service is named `payments`. Its sealed variables are `MONZO_CLIENT_ID`,
+    `MONZO_CLIENT_SECRET`, `MONZO_TOKEN_ENCRYPTION_KEY`, `MONZO_WEBHOOK_PATH_SECRET` and
+    `DATABASE_URL`, plus `ENVIRONMENT`, `LOG_LEVEL` and `RAILWAY_GIT_COMMIT_SHA` as the API has.
+  - It is declared switched off in both Railway projects, so no `/ship-prod` creates it. The
+    owner creates it and seals its variables before Batch 208; a one-line commit then switches
+    it on. `/ship-prod` refuses the payments half until its service id is recorded, and the
+    drift check reports it as not yet created until its origin is recorded.
+  - This batch edits `.railway/railway.ts` and adds the boot under `apps/api`, so close-out
+    classifies it as API-reaching. That is the honest label: a `/ship-prod` is owed after the
+    push, with no member-visible change, and it may wait for Batch 208.
 
   Verification:
   - deployment-config tests for both services;
@@ -1065,7 +1079,8 @@ comes from the ADR's 13 Oct amendment and runs ahead of 207 and 208 by owner dec
   - a dry run of `/ship-prod`'s checks names both services.
 
   Scope boundary: deploy configuration and the second process's boot. No Monzo logic.
-  **Tooling-only; owner-approved gate maintenance.**
+  **Deploy configuration; reaches the API image paths, so `/ship-prod` is owed after push (no
+  member-visible change); owner-approved gate maintenance.**
 
 - [ ] **Batch 208 — Payments through the league's Monzo link never reach the app**
   — specified from ADR 0009. The payments service, running on Batch 207's service.
