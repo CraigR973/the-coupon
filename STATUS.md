@@ -13,8 +13,8 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `9731776` at migration `028` (13 Oct) |
-| API deployment | Railway `dd90b1c5-a0cb-4ab4-80d6-7eee53dfd9d0` succeeded, one replica, `europe-west4` (13 Oct) |
+| API | `api-production-109b1.up.railway.app` serves `335e986` (Batch 209) at migration `028` (14 Oct) |
+| API deployment | Railway `290bafda-feab-4e80-a14c-2130c82d0649` succeeded, one replica, `europe-west4` (14 Oct) |
 | Web | Batch 202's build (Vite 8, Tailwind 4) is live at `the-coupon-production.vercel.app` from `628aa0a` (2026-10-11: its stylesheet served, sign-in rendered at 390 and 1280 px with no console errors). Later documentation-only deployments leave the web code unchanged. |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 24 of 24 tables, no public-role grants (13 Oct) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
@@ -36,10 +36,11 @@ Checked 2026-10-10 unless a line says otherwise.
 - **Batch 206 is live on the web** (13 Oct, `32a8aef`, web-only, exact-SHA CI green): the pay
   panel, the season pot, the site-admin fee fields and the Payments screen. No league has a
   fee, so no member sees any of it yet.
-- **Batch 209's web half is live** (14 Oct, `b53ddf9`): the pay panel shows the link with no
-  18+ step, and pick cards grey out while a member owes. Its API half (the link for every
-  member) is owed to `/ship-prod`, which the owner scheduled for straight after close-out. No
-  league has a fee, so the gap reaches nobody.
+- **Batch 209 is shipped and verified** (14 Oct, `335e986`, no migration). Every member of a
+  league with a fee gets the payment link with no 18+ step, and pick cards grey out while a
+  member owes. Health reports `335e986` / `028`, drift is in sync, and the read-only audit found
+  RLS forced on 24 of 24 tables with no `anon`, `authenticated` or `PUBLIC` grants. Vercel serves
+  the same SHA. Still inert until a site admin sets a league's fee.
 - **Batch 203 shipped unrecorded on 11 Oct** (Railway `de1b8aa8`, `5882b0f`), found from
   Railway's deployment list on 13 Oct and now in the L4 record.
 - **Migration `028` requires forward recovery.** It is additive, but the older image's

@@ -3825,3 +3825,46 @@ Backup/restore-point identity: **none yet**. Migration `028` makes the previous 
 normal rollback target, because its Alembic boot check cannot resolve that revision. Use the forward
 plan in `docs/runbooks/migration-028-recovery.md`; no downgrade or version-row edit was authorised
 or run. Nothing writes the new tables until a site admin sets a league's fee.
+
+### 2026-10-14 — `335e986`, Batch 209 (no migration)
+
+Owner-scheduled shipment (Craig Robinson, 2026-10-13T21:42:35Z) of Batch 209: the payment link for
+every member of a league with a fee, with no 18+ step (ADR 0009 amended 13 Oct), and greyed pick
+cards while a member owes. Source `335e986`, Batch 209's close-out; implementation `b53ddf9`.
+Exact-SHA CI green for both (`38543602917`, `38544667146`); the close-out gate stamp (tree
+`e0e5323`, 12 checks, backend 1,469, frontend 1,385, journey 1, zero skips) was reused.
+
+Preflight confirmed Supabase `pugujiiojitstkilphrz` (`the-coupon-production`) `ACTIVE_HEALTHY` in
+`eu-west-2`; the exact Railway project, `production` environment, `api` service and stable domain;
+null `railwayConfigFile`; all 13 required Railway variable names; and both encrypted,
+production-scoped Vercel variable names. The migration recovery check passed with no migration to
+apply (production at `028`). Rollback baselines: Railway `dd90b1c5` (`9731776`, `028`), then the IaC
+redeploy below; Vercel `dpl_Htt7sVS3rBjKiswTNPrN4eshKpwH` (already serving `335e986`).
+
+The pinned Railway IaC plan had 0 additions, 2 safe updates to the existing `api` service and 0
+deletions — the same null-to-explicit build and deploy fields as the last four shipments. Its
+redeploy of the previous image, `fd56c2dd-82a7-427d-9b63-51df4773f49b`, reached `SUCCESS` before
+the source upload and is this shipment's plain rollback baseline. The source deployment
+`290bafda-feab-4e80-a14c-2130c82d0649` reached `SUCCESS` with one replica in
+`europe-west4-drams3a`, sleep off, restart `ON_FAILURE`, IPv6 egress, 0.25 vCPU / 500 MB, Nixpacks
+`/nixpacks.toml` and the 300-second `/api/v1/health/ready` check. `/health` reported source
+`335e986` and bundled head `028`; `/health/ready` reported database `ok` and applied head `028`.
+
+The first bounded Railway snapshot held 43 lines and the second 51, each with zero failure-term and
+zero credential-pattern matches; Uvicorn and the scheduler started. A direct read-only production
+transaction through the project's London session pooler (`aws-1-eu-west-2`; `aws-0` refused the
+connection, nothing ran there; TLS required, certificate not verified locally) found head `028`, RLS
+enabled and forced on 24 of 24 public tables, no `anon`, `authenticated` or `PUBLIC` table grants
+or effective privileges, and no `public` schema CREATE grants to them.
+
+Vercel was a no-op: GitHub had already deployed `335e986` as `dpl_Htt7sVS3rBjKiswTNPrN4eshKpwH`,
+`READY` at the stable alias. The web root and `/leagues/discover` both returned `200` from the same
+SPA asset with CSP, `X-Frame-Options`, HSTS, nosniff and cache headers. Exact-origin CORS returned
+`200` with credentials; a foreign origin was refused with `400`. The unused
+`POST /leagues/{slug}/adult-confirmation` still answers `401` unauthenticated, as kept. After the
+smoke, readiness stayed green and `scripts/check-deploy-drift.sh` reported **in sync**. The Vercel
+log query returned no entries for the deployment.
+
+Backup/restore-point identity: **none yet**. No migration was applied, so `fd56c2dd` (the previous
+image at `028`) remains a valid normal rollback target. No production data was read or written
+beyond the catalogue audit.

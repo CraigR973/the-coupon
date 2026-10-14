@@ -8816,3 +8816,13 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - The scheduled `/ship-prod` for `b53ddf9` (owner-scheduled 2026-10-13T21:42:35Z), run in this session straight after close-out.
 
 **Next:** `/ship-prod` for Batch 209, then Batch 207 in a later session (owner-approved gate maintenance first).
+
+## Shipment — 2026-10-14, `335e986` (Batch 209; no migration)
+**Railway:** `290bafda-feab-4e80-a14c-2130c82d0649` `SUCCESS` · pre-upload IaC redeploy `fd56c2dd-82a7-427d-9b63-51df4773f49b` · Vercel no-op (`dpl_Htt7sVS3rBjKiswTNPrN4eshKpwH`, `335e986`) · drift **in sync** · exact-SHA CI `38543602917` and `38544667146` green · reused complete 12-check gate stamp (backend 1,469; frontend 1,385; journey 1; zero skips)
+
+### Key facts for future sessions
+- **Batch 209 is live.** Health and readiness report `335e986` / `028`; RLS is forced on 24 of 24 public tables with no `anon`, `authenticated` or `PUBLIC` grants. Owner-scheduled at 2026-10-13T21:42:35Z. Still inert until a site admin sets a league's fee; ADR 0009's launch steps now include the owner making sure every member is 18 or over.
+- **Audit route:** the direct Supabase host still does not resolve locally; the session pooler that answers for this project is `aws-1-eu-west-2.pooler.supabase.com` (the `aws-0` shard refused). The audit script prints counts only and never exception text, which can carry the DSN.
+- **Recovery:** no migration, so the IaC redeploy `fd56c2dd` (previous image, `028`) is a valid normal rollback target.
+
+**Next:** Batch 207 in a later session; it needs owner-approved gate maintenance first.
