@@ -5,6 +5,13 @@ both recorded Coupon Railway projects. It is a named partial so it cannot delete
 resources owned outside this repository, and it rejects every unrecorded
 project/environment pair.
 
+It also declares the `payments` service (Batch 207, ADR 0009 option B), switched off
+per project in `PAYMENTS_SERVICE_ENABLED`. A switched-off project's graph holds `api`
+alone, so no plan creates it. The owner creates the service, seals its variables and
+gives it a domain; one commit then sets the project's switch to `true` and records
+its origin in `PAYMENTS_ORIGINS`, and `scripts/assert-deployment-config.py`'s
+`EXPECTED_PAYMENTS_ENABLED` moves with it.
+
 Install the pinned SDK with the repository dependencies:
 
 ```bash

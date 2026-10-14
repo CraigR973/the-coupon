@@ -1,7 +1,8 @@
 import { defineRailway, preserve, project, service } from "railway/iac";
 
-// This repository owns one service in each Coupon Railway project. A named partial keeps
-// IaC from treating resources outside this file as deletions.
+// This repository owns the `api` service in each Coupon Railway project, and declares the
+// `payments` service (ADR 0009 option B) for the projects switched on below. A named partial
+// keeps IaC from treating resources outside this file as deletions.
 export const partial = "api";
 
 export const DEPLOYMENT_INVARIANTS = {
@@ -20,6 +21,57 @@ export const DEPLOYMENT_INVARIANTS = {
   "restartPolicyType": "ON_FAILURE",
   "restartPolicyMaxRetries": 3
 } as const;
+
+// Batch 207. The second process: the only one that will hold the Monzo token (Batch 208).
+// It never runs Alembic. `python -m src.payments_service` refuses to start unless the
+// database is at exactly the migration head bundled in its image, so the API, which
+// migrates on boot, ships first. One replica, because Batch 208's token refresh rotates the
+// refresh token and two processes refreshing would revoke each other.
+export const PAYMENTS_DEPLOYMENT_INVARIANTS = {
+  "builder": "NIXPACKS",
+  "nixpacksConfigPath": "nixpacks.toml",
+  "startCommand": "python -m src.payments_service",
+  "healthcheckPath": "/health/ready",
+  "healthcheckTimeout": 300,
+  "numReplicas": 1,
+  "sleepApplication": false,
+  "ipv6EgressEnabled": true,
+  "multiRegionConfig": {
+    "europe-west4-drams3a": {
+      "numReplicas": 1
+    }
+  },
+  "restartPolicyType": "ON_FAILURE",
+  "restartPolicyMaxRetries": 3
+} as const;
+
+// Owner decision, 2026-10-14: declared but switched off in both projects, so no plan
+// creates it. The owner creates the service and seals its variables before Batch 208; a
+// one-line commit here then switches it on, and `/ship-prod` records its service id.
+export const PAYMENTS_SERVICE_ENABLED = {
+  "the-coupon-staging": false,
+  "the-coupon-production": false
+} as const;
+
+// Each project's payments origin, recorded in the same commit that switches it on.
+// `scripts/check-deploy-drift.sh` reads production's from origin/main, so recording it needs
+// no change to that protected script.
+export const PAYMENTS_ORIGINS = {
+  "the-coupon-staging": "",
+  "the-coupon-production": ""
+} as const;
+
+// Sealed by the owner when the service is created; preserve() keeps them that way.
+export const PAYMENTS_PRESERVED_VARIABLE_NAMES = [
+  "DATABASE_URL",
+  "ENVIRONMENT",
+  "LOG_LEVEL",
+  "MONZO_CLIENT_ID",
+  "MONZO_CLIENT_SECRET",
+  "MONZO_TOKEN_ENCRYPTION_KEY",
+  "MONZO_WEBHOOK_PATH_SECRET",
+  "RAILWAY_GIT_COMMIT_SHA",
+] as const;
 
 const TARGETS = {
   "cc2fc994-87c3-4e2e-8d9b-5bcafa496350": {
@@ -101,7 +153,36 @@ export default defineRailway((ctx) => {
     env: Object.fromEntries(PRESERVED_VARIABLE_NAMES.map((name) => [name, preserve()])),
   });
 
-  return project(target.projectName, {
-    resources: [api],
-  });
+  const resources = PAYMENTS_SERVICE_ENABLED[target.projectName] ? [api, paymentsService()] : [api];
+  return project(target.projectName, { resources });
 });
+
+export function paymentsService() {
+  return service("payments", {
+    build: {
+      builder: PAYMENTS_DEPLOYMENT_INVARIANTS.builder,
+      buildEnvironment: "V3",
+      nixpacksConfigPath: PAYMENTS_DEPLOYMENT_INVARIANTS.nixpacksConfigPath,
+    },
+    deploy: {
+      startCommand: PAYMENTS_DEPLOYMENT_INVARIANTS.startCommand,
+      healthcheckPath: PAYMENTS_DEPLOYMENT_INVARIANTS.healthcheckPath,
+      healthcheckTimeout: PAYMENTS_DEPLOYMENT_INVARIANTS.healthcheckTimeout,
+      numReplicas: PAYMENTS_DEPLOYMENT_INVARIANTS.numReplicas,
+      sleepApplication: PAYMENTS_DEPLOYMENT_INVARIANTS.sleepApplication,
+      ipv6EgressEnabled: PAYMENTS_DEPLOYMENT_INVARIANTS.ipv6EgressEnabled,
+      multiRegionConfig: PAYMENTS_DEPLOYMENT_INVARIANTS.multiRegionConfig,
+      restartPolicyType: PAYMENTS_DEPLOYMENT_INVARIANTS.restartPolicyType,
+      restartPolicyMaxRetries: PAYMENTS_DEPLOYMENT_INVARIANTS.restartPolicyMaxRetries,
+      runtime: "V2",
+      useLegacyStacker: false,
+      limitOverride: {
+        containers: {
+          cpu: 0.25,
+          memoryBytes: 500_000_000,
+        },
+      },
+    },
+    env: Object.fromEntries(PAYMENTS_PRESERVED_VARIABLE_NAMES.map((name) => [name, preserve()])),
+  });
+}

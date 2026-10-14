@@ -33,6 +33,21 @@ if (runnable === transpiled.outputText) {
 
 const moduleUrl = `data:text/javascript;base64,${Buffer.from(runnable).toString("base64")}`;
 const config = await import(moduleUrl);
+
+// Batch 207. The payments service is switched off in both projects until the owner creates
+// it, so neither project graph contains it; this renders its node on its own so the
+// deployment-config assertions can hold its shape before it is ever switched on.
+if (process.argv[2] === "--payments-service") {
+  process.stdout.write(
+    `${JSON.stringify({
+      enabled: config.PAYMENTS_SERVICE_ENABLED,
+      origins: config.PAYMENTS_ORIGINS,
+      service: config.paymentsService(),
+    })}\n`,
+  );
+  process.exit(0);
+}
+
 const projectId = process.argv[2] ?? "e030ebe3-e7fc-43c9-9478-4e80cafaa126";
 const environmentId = process.argv[3] ?? "8f18cb49-5137-4557-900a-031bcab4ac38";
 const graph = await config.default(

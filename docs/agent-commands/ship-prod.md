@@ -14,12 +14,22 @@ create infrastructure, copy staging values, or substitute another target.
 | Railway environment | `production` (`8f18cb49-5137-4557-900a-031bcab4ac38`) |
 | Railway service | `api` (`d59f4f17-3e7d-4b3b-bf40-30620150fa2f`) |
 | Railway API origin | `https://api-production-109b1.up.railway.app` |
+| Railway service | `payments` — **not created**: declared and switched off in `.railway/railway.ts` (owner decision, 2026-10-14). Record its id here when the owner creates it |
+| Railway payments origin | not created — recorded in `PAYMENTS_ORIGINS` in `.railway/railway.ts`, in the commit that switches it on |
 | Vercel team | `craigr973's projects` (`team_MVQMOaFtYHlwO5QVzSOZQ0Ud`) |
 | Vercel project | `the-coupon-production` (`prj_3h3OSNFDoPAySqTa9nVswUrMs0jJ`) |
 | Vercel web origin | intended alias `https://the-coupon-production.vercel.app`; exact alias must be confirmed and recorded after the first L4 deployment |
 
 This workflow is deliberately fail-closed until L4 has a healthy initial
 deployment. It must not be used to finish provisioning L4.
+
+**Two services (Batch 207, ADR 0009 option B).** `.railway/railway.ts` declares the
+`api` service and a `payments` service that will hold the Monzo token. Payments ships only
+when `PAYMENTS_SERVICE_ENABLED["the-coupon-production"]` is `true` at the commit being
+shipped **and** its service id is recorded in the table above. While it is switched off,
+every step below covers `api` alone and the report says "payments: switched off". If it is
+switched on but the id or origin is missing, stop: this workflow never creates a Railway
+service. The owner creates it, seals its variables and gives it a public domain first.
 
 ## 1. Preflight
 
@@ -62,6 +72,14 @@ deployment. It must not be used to finish provisioning L4.
    Secret-bearing variable commands include raw values; pipe output into a
    key-only in-memory validator and never echo, log, persist, or return raw
    output.
+
+   When payments ships, confirm its own names the same way, with its own service id:
+   `DATABASE_URL`, `ENVIRONMENT`, `LOG_LEVEL`, `MONZO_CLIENT_ID`,
+   `MONZO_CLIENT_SECRET`, `MONZO_TOKEN_ENCRYPTION_KEY` and
+   `MONZO_WEBHOOK_PATH_SECRET`. No `MONZO_*` name may appear on `api`, and none of the
+   API's credentials (`JWT_*`, `ODDS_API_KEY`, `VAPID_PRIVATE_KEY`,
+   `SUPABASE_SERVICE_KEY`, `BF_*`) may appear on `payments`; option B exists to keep
+   them apart.
 6. Confirm Vercel production has encrypted production-scoped `VITE_API_URL`
    and `VITE_VAPID_PUBLIC_KEY`. Do not print or download their values.
 7. Confirm the current migration revision, and require a written forward
@@ -148,7 +166,10 @@ Apply the reviewed Railway IaC before uploading source. `config plan` and
 `config apply` do not accept selector flags, so the exact IDs are supplied as
 environment variables; these override the repository's staging link. Write a
 pinned plan, review its redacted output, and require that it changes only the
-existing `api` service without deleting a resource or variable. Never pass
+existing services the commit declares for production — `api` while payments is switched
+off, `api` and `payments` once it is on — without creating or deleting a resource or
+deleting a variable. A plan that **creates** `payments` means the owner has not created it
+yet, or IaC did not match it by name; stop either way. Never pass
 `--show-values`, `--decrypt-variables`, or `--confirm-destructive`. Railway's
 TypeScript evaluator requires Node 22 or newer; the verified Node 24.21.0 runtime
 satisfies that requirement:
@@ -297,6 +318,39 @@ effective `anon`/`authenticated`/`PUBLIC` grants with a direct production
 database session that does not expose values. Do not use MCP or run a
 downgrade.
 
+### 3b. Deploy the payments service
+
+Skip this subsection, and say so in the report, while payments is switched off for
+production. Otherwise it runs only after the API above is `SUCCESS` and its `/health/ready`
+reports the repository's sole head: the API's boot is the only migration, and
+`python -m src.payments_service` refuses to start unless the database is at exactly the head
+in its own image. Shipping payments first would leave it crash-looping on the old schema;
+leaving it unshipped means its next restart refuses. Ship both from the same commit, every
+time either ships.
+
+Stamp, upload and poll exactly as for the API, with the same project and environment and the
+payments service id from the table above in place of the API's. The same rule holds for a
+failed or abandoned upload: set `RAILWAY_GIT_COMMIT_SHA` on `payments` back to the commit it
+is actually serving.
+
+Verify, at the recorded payments origin:
+
+```text
+GET <payments origin>/health
+GET <payments origin>/health/ready
+```
+
+Both must return HTTP `200`. `/health` must report `"service": "payments"`, the `sha` just
+stamped and the repository's sole head as `migration`; `/health/ready` must report the same
+head for the database. A `503` with an `expected` field is the boot rule refusing a
+mismatched schema: fix the order, never the check. Then require both services in sync:
+
+```bash
+/Users/craigrobinson/the-coupon/scripts/check-deploy-drift.sh
+```
+
+It names `API` and `payments` separately and exits `0` only when neither is owed.
+
 ## 4. Deploy the web app
 
 **Usually a no-op.** The Vercel project is connected to GitHub and auto-deploys
@@ -367,6 +421,11 @@ PATH="/Users/craigrobinson/.nvm/versions/node/v24.21.0/bin:$PATH" \
   'mutation Rollback($id: String!) { deploymentRollback(id: $id) }' \
   --variables '{"id":"<previous-railway-deployment-id>"}' --compact
 ```
+
+A failed payments deployment rolls back the same way with its own previous deployment
+id; it never needs the API rolled back, because the payments service never migrates. Rolling
+the API back past a migration leaves payments refusing to start until both serve the same
+head again.
 
 After either rollback, poll the exact target to completion and repeat API
 readiness, migration-head, stable web/deep-link, CORS, and bounded redacted-log
