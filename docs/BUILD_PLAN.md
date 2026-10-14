@@ -976,8 +976,8 @@ AA, AC, AD, AE, AB, AF and AH, in that order (manifest in `docs/agent-commands/g
 Batches 205-209 come from ADR 0009 (pay to pick in 2-1 Hibs; owner decisions of 2026-10-12
 and 2026-10-13). They run with `/batch-start`, in the order 205, 206, 209, 207, 208: Batch 209
 comes from the ADR's 13 Oct amendment and runs ahead of 207 and 208 by owner decision
-(2026-10-13T21:41Z). Batches 205 and 206 are complete (13 Oct) and 209 is complete (14 Oct);
-207-208 have not started.
+(2026-10-13T21:41Z). Batches 205 and 206 are complete (13 Oct), and 209 and 207 are complete
+(14 Oct); 208 has not started.
 
 - [x] **Batch 205 — A member can pick in a league that charges a fee without having paid ✅ 2026-10-13**
   — specified from ADR 0009, amended 2026-10-13 for weekly dues. 2-1 Hibs members pay £1 a
@@ -1059,7 +1059,7 @@ comes from the ADR's 13 Oct amendment and runs ahead of 207 and 208 by owner dec
 
   Scope boundary: the screens above. **Web-only — after Batch 205 has shipped.**
 
-- [ ] **Batch 207 — There is nowhere to run a second service, so the bank token would have to live in the API**
+- [x] **Batch 207 — There is nowhere to run a second service, so the bank token would have to live in the API** ✅ 2026-10-14
   — specified from ADR 0009, option B. `.railway/railway.ts` owns one service
   (`partial = "api"`), and the API's start command runs Alembic. A second process must not
   migrate, and must not start against a schema it does not expect.

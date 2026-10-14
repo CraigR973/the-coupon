@@ -99,10 +99,12 @@ dues and the paid-up check, migration `028` — is complete and shipped (13 Oct,
 Nothing changes for members until a site admin sets a league's fee. Batch 206 — the screens —
 is complete and live on the web (13 Oct, `32a8aef`). Batch 209 — the link with no 18+ step,
 and greyed pick cards while a member owes (ADR 0009 amended 13 Oct) — is complete (14 Oct,
-`b53ddf9`); its `/ship-prod` was scheduled by the owner and follows close-out. Batches 207-208
-have not started; Batch 207 needs owner-approved gate maintenance before it is gated, and the
-Monzo launch steps in ADR 0009 are the owner's, now including making sure every member is 18
-or over.
+`b53ddf9`) and shipped as `335e986`. Batch 207 — the `payments` Railway service declared and
+switched off, with a boot that never migrates — is complete (14 Oct, `71a0c5a`); it leaves a
+`/ship-prod` owed with no member-visible change, which the owner accepted waiting for Batch
+208. Batch 208 has not started: first the owner creates the `payments` service, seals its
+variables and gives it a domain. The Monzo launch steps in ADR 0009 are the owner's, now
+including making sure every member is 18 or over.
 
 ## Toolchain
 
@@ -115,7 +117,7 @@ Checked 2026-10-03.
   that stamp when only `docs/BUILD_PLAN.md`, `session-log.md` and `STATUS.md` changed, otherwise it
   reruns the gate, and waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,469, frontend 1,385, journey 1; checked 2026-10-14). 13m04s on this Mac
+  (backend 1,488, frontend 1,385, journey 1; checked 2026-10-14). 13m04s on this Mac
   with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
   (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
   1,350 tests (2026-09-29) — not the gate.

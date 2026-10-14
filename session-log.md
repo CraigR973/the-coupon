@@ -8847,3 +8847,18 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
   still at `335e986`, migration `028`; no Railway resource or variable was touched.
 
 **Next:** Start Batch 207 only after this attestation commit's exact-SHA CI is green.
+
+## Batch 207 — A second Railway service for the payments token, switched off
+**Commits:** `aa0f9ba` + `565a11e` (gate-maintenance approval and attestation), `71a0c5a` (implementation) · verified: complete 12-check local gate, 1,488 backend and 1,385 frontend tests, journey 1, zero skips · CI: https://github.com/CraigR973/the-coupon/actions/runs/38574740986 PASS for `71a0c5a5de578f19e3a15d14501c6c0a65f37348`
+
+### Key facts for future sessions
+- `.railway/railway.ts` declares `payments` (one replica, eight sealed variables, start `python -m src.payments_service`, health `/health/ready`) behind `PAYMENTS_SERVICE_ENABLED`, false for both projects; `PAYMENTS_ORIGINS` sits beside it. Switching on is one commit that flips the switch, records the origin and moves `EXPECTED_PAYMENTS_ENABLED` in `scripts/assert-deployment-config.py`; neither file is guard-protected, so it needs no new gate maintenance.
+- The payments boot never imports `src.config`, `src.main` or `src.database` (production settings demand the API's secrets) and never runs Alembic. It refuses unless the database's `alembic_version` equals the image's sole head, so `/ship-prod` ships the API first and both from the same commit. Refusals name only the exception type, never the DSN.
+- `scripts/check-deploy-drift.sh` now asks the same tiered question of each service and exits with the worse status. Payments adds nothing while switched off (or undeclared on origin/main); switched on with no recorded origin it is "could not tell". Exercised against a local payments app: in sync, unstamped, unreachable.
+- Gate: attempt 1 passed all 12 checks after waiting for load under 6; no failure to fix. The approval commit's CI (`38569577396`) was red by design at the old trusted guard; the attestation's (`38569921551`) was green.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+### Follow-ups
+- The owed `/ship-prod` (API only; members see no change), owner-accepted on 14 Oct to wait for Batch 208. Batch 208's row is open.
+
+**Next:** Batch 208, after the owner creates the `payments` service, seals its variables and gives it a domain.
