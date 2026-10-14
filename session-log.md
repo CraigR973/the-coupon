@@ -8826,3 +8826,24 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - **Recovery:** no migration, so the IaC redeploy `fd56c2dd` (previous image, `028`) is a valid normal rollback target.
 
 **Next:** Batch 207 in a later session; it needs owner-approved gate maintenance first.
+
+## Gate maintenance — Batch 207 payments-service deploy files
+**Commit:** `aa0f9ba` · owner-approved 14 Oct 2026 · first CI:
+https://github.com/CraigR973/the-coupon/actions/runs/38569577396 FAIL at the expected
+old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
+
+### Key facts for future sessions
+- The owner approved four deploy files for Batch 207: `scripts/check-deploy-drift.sh`,
+  `.railway/railway.ts`, `scripts/assert-deployment-config.py` and
+  `docs/agent-commands/ship-prod.md`. Only the drift check is in the guard's protected set, so
+  main's `approved_gate_maintenance` entry for 207 names that path alone.
+- Replayed before the push: main's new guard passed a Batch 207 branch changing the drift check,
+  refused the same branch once it also changed `scripts/ci-local.sh`, and refused the drift-check
+  change on a Batch 208 branch.
+- The owner also decided: the service is `payments`, declared switched off in both Railway
+  projects so no `/ship-prod` creates it, and the batch is labelled API-reaching (it edits
+  `.railway/railway.ts`), so a `/ship-prod` is owed after its push with no member-visible change.
+- No application code, API contract, database schema or production data changed. The API is
+  still at `335e986`, migration `028`; no Railway resource or variable was touched.
+
+**Next:** Start Batch 207 only after this attestation commit's exact-SHA CI is green.
