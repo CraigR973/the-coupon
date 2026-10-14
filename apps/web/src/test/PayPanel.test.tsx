@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PayPanel } from '@/components/PayPanel';
 import { formatPence, parsePounds, penceToInput } from '@/lib/money';
-import { keys } from '@/lib/queryKeys';
 import type { RoundFeeStatus } from '@/lib/types';
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -14,8 +12,9 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
  *
  * £1 a week, owed whether a member picks or not, and a member must be fully paid up to
  * pick. So the panel has to answer three questions without a tap: how much, why that
- * much (a missed week rolls over), and how to pay — with the link held back until the
- * one-time 18+ confirmation.
+ * much (a missed week rolls over), and how to pay. Since Batch 209 the link comes straight
+ * away: under ADR 0009's amended fourth rule the owner, not the app, makes sure members
+ * are adults, so the base status below is a member who never confirmed anything.
  */
 
 const FAKE_JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwMSIsImV4cCI6OTk5OTk5OTk5OX0.fake';
@@ -39,7 +38,7 @@ const OWED: RoundFeeStatus = {
     { gameweek_id: 'gw4', starts_on: '2026-10-10', number: 4, season_week: null, amount_pence: 100 },
   ],
   credit_pence: 0,
-  adult_confirmed: true,
+  adult_confirmed: false,
   has_payment_link: true,
   payment_link_url: 'https://monzo.me/organiser/pot',
 };
@@ -47,7 +46,7 @@ const OWED: RoundFeeStatus = {
 function renderPanel(fee: RoundFeeStatus, client = new QueryClient()) {
   return render(
     <QueryClientProvider client={client}>
-      <PayPanel slug="2-1-hibs" gameweekId="gw4" fee={fee} />
+      <PayPanel gameweekId="gw4" fee={fee} />
     </QueryClientProvider>,
   );
 }
@@ -82,7 +81,7 @@ describe('PayPanel — a member who owes', () => {
     expect(screen.queryAllByTestId('pay-panel-rolled-over')).toHaveLength(0);
   });
 
-  it('offers the league’s payment link as a button once the member is confirmed 18+', () => {
+  it('offers the league’s payment link as a button straight away', () => {
     renderPanel(OWED);
     const link = screen.getByRole('link', { name: /pay £2/i });
     expect(link.getAttribute('href')).toBe('https://monzo.me/organiser/pot');
@@ -91,40 +90,34 @@ describe('PayPanel — a member who owes', () => {
     expect(link.getAttribute('rel')).toContain('noopener');
   });
 
-  it('asks for the one-time 18+ confirmation before any link is shown', () => {
+  it('shows no button, and asks nothing, when an API from before Batch 209 withholds the link', () => {
     renderPanel({ ...OWED, adult_confirmed: false, payment_link_url: null });
     expect(screen.queryByRole('link')).toBeNull();
-    expect(screen.getByRole('button', { name: /i’m 18 or over/i })).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
+    // The league does have a link, so "ask the organiser" would be wrong too.
+    expect(screen.queryByTestId('pay-panel-no-link')).toBeNull();
   });
 
-  it('records the confirmation and re-reads the round, which is what brings the link', async () => {
-    const posted: string[] = [];
-    vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'POST') posted.push(String(url));
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({ adult_confirmed_at: '2026-10-13T20:00:00Z' }),
-      });
-    });
-    const client = new QueryClient();
-    const invalidate = vi.spyOn(client, 'invalidateQueries');
-    renderPanel({ ...OWED, adult_confirmed: false, payment_link_url: null }, client);
-
-    await userEvent.click(screen.getByRole('button', { name: /i’m 18 or over/i }));
-
-    await waitFor(() => expect(posted).toHaveLength(1));
-    expect(posted[0]).toMatch(/\/api\/v1\/leagues\/2-1-hibs\/adult-confirmation$/);
-    await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: keys.gameweek.all('2-1-hibs') }),
-    );
+  it('never asks a member’s age, whatever they owe and whether or not there is a link', () => {
+    const states: RoundFeeStatus[] = [
+      OWED,
+      { ...OWED, has_payment_link: false, payment_link_url: null },
+      { ...OWED, owed_pence: 0, owed_rounds: [], credit_pence: 300 },
+      { ...OWED, owed_pence: 0, owed_rounds: [], credit_pence: 0 },
+    ];
+    for (const fee of states) {
+      const { unmount } = renderPanel(fee);
+      expect(screen.getByTestId('pay-panel').textContent).not.toMatch(/18 or over/i);
+      expect(screen.queryByRole('button')).toBeNull();
+      unmount();
+    }
   });
 
   it('says to ask the organiser when the league has no payment link', () => {
     renderPanel({ ...OWED, has_payment_link: false, payment_link_url: null, adult_confirmed: false });
     expect(screen.getByTestId('pay-panel-no-link')).toBeTruthy();
     expect(screen.queryByRole('link')).toBeNull();
-    // Nothing to unlock, so the confirmation is not asked for either.
+    // And no age question, here or anywhere else in the panel.
     expect(screen.queryByRole('button', { name: /18 or over/i })).toBeNull();
   });
 });

@@ -911,7 +911,7 @@ async def test_a_league_admin_is_refused_on_both_fields_and_a_site_admin_is_audi
     }
 
     # A league admin reads the fee but not the link; the link reaches members through
-    # the round payload, once they have confirmed they are adults.
+    # the round payload.
     detail = await client.get(f"/api/v1/leagues/{league.slug}", headers=_auth(runner))
     assert detail.status_code == 200
     assert (detail.json()["entry_fee_pence"], detail.json()["payment_link_url"]) == (FEE, None)
@@ -970,7 +970,7 @@ async def test_a_league_with_a_fee_stays_private_in_both_directions(
 # ── What a member sees ─────────────────────────────────────────────────────────
 
 
-async def test_the_round_payload_carries_the_fee_and_hides_the_link_until_confirmed(
+async def test_the_round_payload_carries_the_fee_and_the_link_without_any_confirmation(
     client_and_fake: tuple[AsyncClient, FakeBetfair], world: World
 ) -> None:
     client, _fake = client_and_fake
@@ -1002,7 +1002,7 @@ async def test_the_round_payload_carries_the_fee_and_hides_the_link_until_confir
         "credit_pence": 0,
         "adult_confirmed": False,
         "has_payment_link": True,
-        "payment_link_url": None,
+        "payment_link_url": "https://pay.example/weekly-coupon",
     }
 
     for _ in range(2):
@@ -1020,6 +1020,52 @@ async def test_the_round_payload_carries_the_fee_and_hides_the_link_until_confir
         f"/api/v1/leagues/{league.slug}/adult-confirmation", headers=_auth(site_admin)
     )
     assert refused.status_code == 403
+
+
+async def test_a_member_who_never_confirms_still_gets_the_link_and_nothing_is_recorded(
+    client_and_fake: tuple[AsyncClient, FakeBetfair], world: World
+) -> None:
+    """Batch 209: ADR 0009's amended fourth rule leaves members' ages to the owner.
+
+    The link is on every round a member reads, owing or paid up, and the app records
+    nothing about their age along the way. A league with no link still sends none.
+    """
+    client, _fake = client_and_fake
+    async with AsyncSessionLocal() as db:
+        member = await _profile(db, world, "never-asked")
+        league = await _league(db, world, [member])
+        bare = await _league(db, world, [member], link=None)
+        owing = await _round(db, league, _saturday(2066, 3, 7), number=1)
+        await _open_with_dues(db, league, owing)
+        unlinked = await _round(db, bare, _saturday(2066, 3, 7), number=1)
+        await _open_with_dues(db, bare, unlinked)
+        await db.commit()
+
+    owed = await _fee_of(client, league, member, owing)
+    assert (owed["owed_pence"], owed["adult_confirmed"]) == (FEE, False)
+    assert owed["payment_link_url"] == "https://pay.example/weekly-coupon"
+
+    await _record(league, _cash(league, member, FEE))
+    paid = await _fee_of(client, league, member, owing)
+    assert (paid["owed_pence"], paid["adult_confirmed"]) == (0, False)
+    assert paid["payment_link_url"] == "https://pay.example/weekly-coupon"
+
+    no_link = await _fee_of(client, bare, member, unlinked)
+    assert (no_link["has_payment_link"], no_link["payment_link_url"]) == (False, None)
+
+    async with AsyncSessionLocal() as db:
+        confirmed = (
+            (
+                await db.execute(
+                    select(LeagueMembership.adult_confirmed_at).where(
+                        LeagueMembership.player_id == member.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert confirmed == [None, None]
 
 
 async def test_the_reminder_tells_a_member_who_owes_that_they_must_pay_to_pick(

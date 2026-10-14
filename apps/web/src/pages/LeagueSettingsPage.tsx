@@ -465,7 +465,7 @@ export function LeagueSettingsPage() {
                   placeholder="https://"
                 />
                 <p className="text-xs font-sans text-text-muted">
-                  Members see it only after confirming they’re 18 or over.
+                  Members who owe see it on the round screen as a Pay button.
                 </p>
               </div>
             </CardContent>

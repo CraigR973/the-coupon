@@ -1,13 +1,8 @@
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, PiggyBank, Wallet } from 'lucide-react';
-import { toast } from 'sonner';
-import { apiFetch } from '@/lib/api';
-import { keys } from '@/lib/queryKeys';
 import { roundName } from '@/lib/coupon';
 import { formatPence } from '@/lib/money';
 import { formatCalendarDate } from '@/lib/time';
-import type { AdultConfirmation, RoundFeeStatus } from '@/lib/types';
+import type { RoundFeeStatus } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 
 /**
@@ -18,9 +13,9 @@ import { Button } from '@/components/ui/button';
  * panel that refusal is a toast the member cannot act on. Three states:
  *
  * * **owed** — the amount owed now, every round behind it listed so a £2 is never a
- *   surprise, and the league's payment link as a button. The link waits for the one-time
- *   "I'm 18 or over" confirmation (ADR 0009's fourth rule); the API withholds it until
- *   then, so this is the screen asking, not the screen hiding it.
+ *   surprise, and the league's payment link as a button straight away. Batch 209 removed
+ *   the "I'm 18 or over" step: under ADR 0009's amended fourth rule the owner, not the
+ *   app, makes sure members are adults.
  * * **credit** — paid up with money left over, which covers the weeks ahead.
  * * **paid** — paid up exactly.
  *
@@ -32,17 +27,15 @@ import { Button } from '@/components/ui/button';
  * exactly what it did before.
  */
 export function PayPanel({
-  slug,
   gameweekId,
   fee,
 }: {
-  slug: string;
   /** The round on screen, so its own line reads "This round" rather than a rolled-over week. */
   gameweekId: string;
   fee: RoundFeeStatus;
 }) {
   if (fee.owed_pence > 0) {
-    return <OwedPanel slug={slug} gameweekId={gameweekId} fee={fee} />;
+    return <OwedPanel gameweekId={gameweekId} fee={fee} />;
   }
   if (fee.credit_pence > 0) {
     return (
@@ -74,36 +67,14 @@ export function PayPanel({
 }
 
 function OwedPanel({
-  slug,
   gameweekId,
   fee,
 }: {
-  slug: string;
   gameweekId: string;
   fee: RoundFeeStatus;
 }) {
-  const queryClient = useQueryClient();
-  const [confirming, setConfirming] = useState(false);
   const rolledOver = fee.owed_rounds.filter((round) => round.gameweek_id !== gameweekId);
   const thisRound = fee.owed_rounds.find((round) => round.gameweek_id === gameweekId);
-
-  async function confirmAdult() {
-    setConfirming(true);
-    try {
-      await apiFetch<AdultConfirmation>(`/api/v1/leagues/${slug}/adult-confirmation`, {
-        method: 'POST',
-      });
-      // The link rides on the round payload and appears only once the API knows; re-read
-      // every round of this league so the button below has something to open.
-      await queryClient.invalidateQueries({ queryKey: keys.gameweek.all(slug) });
-    } catch (err) {
-      toast.error('Could not confirm', {
-        description: err instanceof Error && err.message ? err.message : 'Try again shortly.',
-      });
-    } finally {
-      setConfirming(false);
-    }
-  }
 
   return (
     <section
@@ -154,23 +125,6 @@ function OwedPanel({
           <p className="text-xs text-text-secondary" data-testid="pay-panel-no-link">
             There’s no payment link for this league yet — ask the organiser how to pay.
           </p>
-        ) : !fee.adult_confirmed ? (
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-text-secondary">
-              Before we show the payment link, confirm you’re 18 or over. You only do this
-              once.
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="shrink-0"
-              disabled={confirming}
-              onClick={() => void confirmAdult()}
-            >
-              {confirming ? 'Confirming…' : 'I’m 18 or over'}
-            </Button>
-          </div>
         ) : fee.payment_link_url ? (
           <Button asChild size="sm" className="w-full sm:w-auto">
             <a href={fee.payment_link_url} target="_blank" rel="noopener noreferrer">

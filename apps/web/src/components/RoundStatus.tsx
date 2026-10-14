@@ -31,6 +31,11 @@ export interface RoundStatusProps {
   oddsFormat: OddsFormat;
   /** True while a different selection could still be taken. */
   canSwitch: boolean;
+  /**
+   * The round is open but the reader owes in a league that charges a fee, so the cards
+   * are locked until they pay (Batch 209). Tells them why, instead of "did not pick".
+   */
+  payToPick?: boolean;
 }
 
 /**
@@ -68,6 +73,7 @@ export function RoundStatus({
   mine,
   oddsFormat,
   canSwitch,
+  payToPick = false,
 }: RoundStatusProps) {
   const { label, variant } = PHASE[phase];
   const missing = memberCount - pickedCount;
@@ -140,7 +146,9 @@ export function RoundStatus({
               ? "You haven't picked yet — this round isn't open."
               : canSwitch
                 ? "You haven't picked yet — grab a selection below."
-                : 'You did not pick this round.'}
+                : payToPick
+                  ? "You haven't picked yet — pay above, then pick."
+                  : 'You did not pick this round.'}
           </p>
         )}
       </div>

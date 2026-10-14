@@ -280,14 +280,18 @@ export interface RoundFeeStatus {
   /** The rounds behind `owed_pence`, oldest first — this round included when it is owed. */
   owed_rounds: OwedRound[];
   credit_pence: number;
+  /** Kept by the API for compatibility; decides nothing since Batch 209. */
   adult_confirmed: boolean;
-  /** Whether the league has a payment link at all; the link itself waits for the 18+ step. */
+  /** Whether the league has a payment link at all. */
   has_payment_link: boolean;
-  /** Null until the member has confirmed they are 18 or over. */
+  /**
+   * The league's payment link. Every member gets it since Batch 209; an API from before
+   * then withholds it from a member who never confirmed they are 18 or over.
+   */
   payment_link_url: string | null;
 }
 
-/** POST /leagues/{slug}/adult-confirmation. */
+/** POST /leagues/{slug}/adult-confirmation. Unused by the app since Batch 209. */
 export interface AdultConfirmation {
   adult_confirmed_at: string;
 }

@@ -320,6 +320,12 @@ export function CurrentRoundPage() {
   // needs to tell "too early" from "too late" and the selections do not.
   const claimingShut = !slate || !PICKABLE.has(slate.status) || lockPassed;
   const locked = claimingShut || notOpenYet;
+  // Batch 209 (ADR 0009): in a league that charges a fee, a member who owes cannot pick —
+  // the API refuses with 402 — so their cards take the same locked state a shut round's
+  // do, rather than looking open until a tap is refused. Only while the round could
+  // otherwise be picked: the round's own phase and clock still describe the round.
+  const owesToPick = !!slate?.fee && slate.fee.owed_pence > 0 && !locked;
+  const cardsLocked = locked || owesToPick;
   const groups = useMemo(() => groupByCompetition(slate?.fixtures ?? []), [slate?.fixtures]);
 
   const memberCount = slate?.members.length ?? 0;
@@ -452,7 +458,7 @@ export function CurrentRoundPage() {
         id="slate-heading"
         className="mb-2 font-mono text-caption uppercase tracking-[0.2em] text-text-primary"
       >
-        {locked ? 'Slate and prices' : 'Pick your selection'}
+        {cardsLocked ? 'Slate and prices' : 'Pick your selection'}
       </h2>
       <OddsGuide compact />
 
@@ -471,7 +477,7 @@ export function CurrentRoundPage() {
               outstanding={outstanding}
               onResolve={resolveOutstanding}
               onDiscard={discardOutstanding}
-              disabled={locked}
+              disabled={cardsLocked}
             />
           )}
           {groups.map((group, index) => (
@@ -485,7 +491,7 @@ export function CurrentRoundPage() {
                  still has to scan as competitions. */
               defaultOpen={index === 0}
               timezone={timezone}
-              locked={locked}
+              locked={cardsLocked}
               pendingKey={pendingKey}
               outstanding={outstanding}
               busy={isSubmitting}
@@ -537,7 +543,7 @@ export function CurrentRoundPage() {
         `fee`, so nothing here renders.
       */}
       {slate?.fee && !claimingShut && (
-        <PayPanel slug={slug} gameweekId={slate.gameweek_id} fee={slate.fee} />
+        <PayPanel gameweekId={slate.gameweek_id} fee={slate.fee} />
       )}
 
       {isLoading && (
@@ -573,7 +579,8 @@ export function CurrentRoundPage() {
               memberCount={memberCount}
               mine={mine}
               oddsFormat={oddsFormat}
-              canSwitch={!locked}
+              canSwitch={!cardsLocked}
+              payToPick={owesToPick}
             />
             {completion && (
               <div className="mb-4">

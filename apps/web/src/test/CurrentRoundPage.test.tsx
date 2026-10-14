@@ -828,6 +828,106 @@ describe('the pay panel (Batch 206)', () => {
   });
 });
 
+/**
+ * Batch 209 (ADR 0009, amended 13 Oct). A member who owes in a league with a fee cannot
+ * pick — the API refuses with 402 — so the cards take the locked state a shut round's do,
+ * rather than looking open until a tap is refused.
+ */
+describe('the pick cards while a member owes (Batch 209)', () => {
+  const OWING = {
+    entry_fee_pence: 100,
+    round_due_pence: 100,
+    owed_pence: 100,
+    owed_rounds: [
+      { gameweek_id: 'gw1', starts_on: '2026-08-08', number: 2, season_week: null, amount_pence: 100 },
+    ],
+    credit_pence: 0,
+    adult_confirmed: false,
+    has_payment_link: true,
+    payment_link_url: 'https://monzo.me/organiser/pot',
+  };
+  const PAID_UP = { ...OWING, owed_pence: 0, owed_rounds: [] };
+
+  /** Nobody has claimed anything, so every selection would be grabbable if open. */
+  function unclaimedFixtures(): GameweekSlate['fixtures'] {
+    return SLATE.fixtures.map((fixture) => ({
+      ...fixture,
+      mine: false,
+      taken_by_names: [],
+      selections: fixture.selections.map((selection) => ({
+        ...selection,
+        mine: false,
+        taken_by_player_id: null,
+        taken_by_name: null,
+      })),
+    }));
+  }
+
+  const ARSENAL = 'selection-fx2-MATCH_ODDS-HOME';
+
+  it('greys out the cards, with the pay link straight away above them', async () => {
+    stubSlate({ fee: OWING, fixtures: unclaimedFixtures() });
+    renderPage();
+    const card = await screen.findByTestId(ARSENAL);
+    expect(card.getAttribute('aria-disabled')).toBe('true');
+    expect((card as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('heading', { name: 'Slate and prices' })).toBeTruthy();
+    expect(
+      within(screen.getByTestId('pay-panel')).getByRole('link', { name: /pay £1/i }),
+    ).toBeTruthy();
+    // The round itself is still open: its clock counts down to the lock, not "locked".
+    expect(screen.getByTestId('round-clock').textContent).toMatch(/picks lock in/i);
+  });
+
+  it('says why there is no pick yet, instead of "did not pick"', async () => {
+    stubSlate({ fee: OWING, fixtures: unclaimedFixtures() });
+    renderPage();
+    const summary = await screen.findByTestId('my-pick-summary');
+    await waitFor(() => expect(summary.textContent).toMatch(/pay above, then pick/i));
+    expect(summary.textContent).not.toMatch(/did not pick/i);
+    expect(summary.textContent).not.toMatch(/grab a selection/i);
+  });
+
+  it('sends nothing when a greyed-out card is tapped', async () => {
+    const sent: string[] = [];
+    stubSlate({ fee: OWING, fixtures: unclaimedFixtures() });
+    const reads = globalThis.fetch;
+    vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
+      if ((init.method ?? 'GET') !== 'GET') sent.push(String(url));
+      return reads(url, init);
+    });
+    renderPage();
+    fireEvent.click(await screen.findByTestId(ARSENAL));
+    await screen.findByTestId('round-status');
+    expect(sent).toHaveLength(0);
+  });
+
+  it('opens the cards once the member is paid up', async () => {
+    stubSlate({ fee: PAID_UP, fixtures: unclaimedFixtures() });
+    renderPage();
+    const card = await screen.findByTestId(ARSENAL);
+    expect(card.getAttribute('aria-disabled')).toBe('false');
+    expect(screen.getByRole('heading', { name: 'Pick your selection' })).toBeTruthy();
+    expect(screen.getByTestId('my-pick-summary').textContent).toMatch(/grab a selection below/i);
+  });
+
+  it('opens the cards for a member in credit', async () => {
+    stubSlate({ fee: { ...PAID_UP, credit_pence: 300 }, fixtures: unclaimedFixtures() });
+    renderPage();
+    const card = await screen.findByTestId(ARSENAL);
+    expect(card.getAttribute('aria-disabled')).toBe('false');
+  });
+
+  it('leaves the cards exactly as before in a league without a fee', async () => {
+    stubSlate({ fixtures: unclaimedFixtures() });
+    renderPage();
+    const card = await screen.findByTestId(ARSENAL);
+    expect(card.getAttribute('aria-disabled')).toBe('false');
+    expect(screen.getByRole('heading', { name: 'Pick your selection' })).toBeTruthy();
+    expect(screen.queryByTestId('pay-panel')).toBeNull();
+  });
+});
+
 describe('the round’s phase decides what leads', () => {
   /** The same slate with nobody's claim on it — the state a member opens the app in. */
   function unclaimed(): Partial<GameweekSlate> {

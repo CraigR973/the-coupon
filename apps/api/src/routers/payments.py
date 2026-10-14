@@ -448,7 +448,11 @@ async def confirm_adult(
     league: LeagueMemberWriteDep,
     db: Db,
 ) -> AdultConfirmation:
-    """The member confirms, once, that they are 18 or over (ADR 0009's fourth rule).
+    """The member confirms, once, that they are 18 or over.
+
+    Unused since Batch 209: ADR 0009's amended fourth rule leaves members' ages to the
+    owner, and the link no longer waits for this. Kept, with its column, so nothing is
+    migrated away.
 
     Idempotent: confirming again keeps the first time. The write variant of the
     membership dependency, so only a member — not a site admin looking in — can confirm.

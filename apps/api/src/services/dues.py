@@ -675,8 +675,9 @@ class OwedRound(BaseModel):
 class RoundFeeStatus(BaseModel):
     """The member's fee status, as the round payload carries it. Batch 205.
 
-    ``payment_link_url`` stays null until the member has confirmed they are 18 or over
-    (ADR 0009's fourth rule); ``has_payment_link`` says whether there is one to show.
+    Every member gets ``payment_link_url`` straight away: since ADR 0009's 13 Oct
+    amendment (Batch 209) the owner, not the app, makes sure members are adults.
+    ``adult_confirmed`` is kept for clients built against Batch 205 and decides nothing.
     """
 
     entry_fee_pence: int
@@ -709,7 +710,6 @@ async def round_fee_status(
     standing = (await fee_standings(db, league, gameweek, [player_id]))[player_id]
     rounds = await _round_dates(db, [due.gameweek_id for due in standing.owed_rounds])
     labels = await labels_for_gameweeks(db, list(rounds.values()))
-    adult = membership.adult_confirmed_at is not None
     return RoundFeeStatus(
         entry_fee_pence=league.entry_fee_pence,
         round_due_pence=standing.round_due_pence,
@@ -726,9 +726,9 @@ async def round_fee_status(
             if due.gameweek_id in rounds
         ],
         credit_pence=standing.credit_pence,
-        adult_confirmed=adult,
+        adult_confirmed=membership.adult_confirmed_at is not None,
         has_payment_link=league.payment_link_url is not None,
-        payment_link_url=league.payment_link_url if adult else None,
+        payment_link_url=league.payment_link_url,
     )
 
 
