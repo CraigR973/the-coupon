@@ -63,6 +63,7 @@ from src.payments_service.settings import (
     PRODUCTION_ORIGIN,
     MonzoSettings,
     monzo_settings,
+    monzo_settings_problems,
 )
 
 _API = Path(__file__).resolve().parents[1]
@@ -526,6 +527,76 @@ def test_the_settings_need_all_four_secrets_and_a_long_url_safe_path_secret() ->
         assert monzo_settings({**environ, name: " "}) is None, name
     assert monzo_settings({**environ, "MONZO_WEBHOOK_PATH_SECRET": "short"}) is None
     assert monzo_settings({**environ, "MONZO_WEBHOOK_PATH_SECRET": "a/b" * 20}) is None
+
+
+def _good_environ() -> dict[str, str]:
+    return {
+        "MONZO_CLIENT_ID": "oauth2client_1",
+        "MONZO_CLIENT_SECRET": "s",
+        "MONZO_TOKEN_ENCRYPTION_KEY": Fernet.generate_key().decode(),
+        "MONZO_WEBHOOK_PATH_SECRET": PATH_SECRET,
+    }
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "problem"),
+    [
+        ("MONZO_CLIENT_ID", None, "MONZO_CLIENT_ID is not set"),
+        ("MONZO_CLIENT_SECRET", "   ", "MONZO_CLIENT_SECRET is empty"),
+        (
+            "MONZO_TOKEN_ENCRYPTION_KEY",
+            '"quoted-key-marker"',
+            "MONZO_TOKEN_ENCRYPTION_KEY is wrapped in quotes",
+        ),
+        (
+            "MONZO_WEBHOOK_PATH_SECRET",
+            "plus+slash/marker-" * 3,
+            "MONZO_WEBHOOK_PATH_SECRET has characters other than letters, digits, "
+            "'-', '_' and '='",
+        ),
+        (
+            "MONZO_WEBHOOK_PATH_SECRET",
+            "short-marker",
+            "MONZO_WEBHOOK_PATH_SECRET is shorter than 32 characters",
+        ),
+    ],
+)
+def test_a_refused_setting_is_named_and_its_value_never_repeated(
+    name: str, value: str | None, problem: str
+) -> None:
+    environ = _good_environ()
+    assert monzo_settings_problems(environ) == []
+    if value is None:
+        del environ[name]
+    else:
+        environ[name] = value
+    problems = monzo_settings_problems(environ)
+    assert problems == [problem]
+    assert monzo_settings(environ) is None
+    if value is not None and value.strip():
+        assert value.strip() not in " ".join(problems)
+
+
+def test_the_boot_log_names_the_refused_settings_and_no_value(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, live_loggers: None
+) -> None:
+    for name in _good_environ():
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("MONZO_CLIENT_ID", "oauth2client_marker")
+    monkeypatch.setenv("MONZO_TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setenv("MONZO_WEBHOOK_PATH_SECRET", "short-marker")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://unused")
+    payments_app._configured_reader.cache_clear()
+    try:
+        with caplog.at_level(logging.ERROR, logger="payments.app"):
+            assert payments_app._configured_reader() is None
+    finally:
+        payments_app._configured_reader.cache_clear()
+    logged = caplog.text
+    assert "MONZO_CLIENT_SECRET is not set" in logged
+    assert "MONZO_WEBHOOK_PATH_SECRET is shorter than 32 characters" in logged
+    assert "short-marker" not in logged
+    assert "oauth2client_marker" not in logged
 
 
 def test_the_redirect_address_is_the_registered_one_on_the_recorded_origin() -> None:

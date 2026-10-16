@@ -47,6 +47,7 @@ from src.payments_service.settings import (
     CONNECT_PATH,
     WEBHOOK_PATH_PREFIX,
     monzo_settings,
+    monzo_settings_problems,
 )
 
 log = logging.getLogger("payments.app")
@@ -60,6 +61,11 @@ def _configured_reader() -> PaymentsReader | None:
     settings = monzo_settings()
     database_url = os.environ.get(DATABASE_URL_ENV, "").strip()
     if settings is None or not database_url:
+        problems = monzo_settings_problems()
+        if not database_url:
+            problems.append(f"{DATABASE_URL_ENV} is not set")
+        # Names and rules only: the values are sealed, and a log line must never carry one.
+        log.error("monzo reading is off: %s", "; ".join(problems) or "unknown reason")
         return None
     try:
         return PaymentsReader(settings, session_factory(database_url))

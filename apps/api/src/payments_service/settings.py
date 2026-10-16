@@ -56,15 +56,49 @@ class MonzoSettings:
         return (self.client_secret, self.encryption_key, self.webhook_path_secret)
 
 
+_NAMES = (CLIENT_ID_ENV, CLIENT_SECRET_ENV, ENCRYPTION_KEY_ENV, WEBHOOK_PATH_SECRET_ENV)
+_QUOTES = ('"', "'")
+
+
+def monzo_settings_problems(environ: Mapping[str, str] | None = None) -> list[str]:
+    """Why :func:`monzo_settings` refuses, by variable name and reason only.
+
+    The four values are sealed on Railway, so nobody can read them back to see which is
+    wrong: the boot log is the only place that can say. It names the variable and the
+    rule it breaks, and never repeats any part of a value.
+    """
+    values = os.environ if environ is None else environ
+    problems: list[str] = []
+    for name in _NAMES:
+        raw = values.get(name)
+        value = (raw or "").strip()
+        if raw is None:
+            problems.append(f"{name} is not set")
+        elif not value:
+            problems.append(f"{name} is empty")
+        elif value[0] in _QUOTES or value[-1] in _QUOTES:
+            problems.append(f"{name} is wrapped in quotes")
+    path_secret = (values.get(WEBHOOK_PATH_SECRET_ENV) or "").strip()
+    if path_secret and path_secret[0] not in _QUOTES and path_secret[-1] not in _QUOTES:
+        if not re.fullmatch(r"[A-Za-z0-9_=-]+", path_secret):
+            problems.append(
+                f"{WEBHOOK_PATH_SECRET_ENV} has characters other than letters, digits, "
+                "'-', '_' and '='"
+            )
+        elif len(path_secret) < 32:
+            problems.append(f"{WEBHOOK_PATH_SECRET_ENV} is shorter than 32 characters")
+    return problems
+
+
 def monzo_settings(environ: Mapping[str, str] | None = None) -> MonzoSettings | None:
     """The service's Monzo settings, or ``None`` when any is missing or malformed."""
     values = os.environ if environ is None else environ
+    if monzo_settings_problems(values):
+        return None
     client_id = values.get(CLIENT_ID_ENV, "").strip()
     client_secret = values.get(CLIENT_SECRET_ENV, "").strip()
     encryption_key = values.get(ENCRYPTION_KEY_ENV, "").strip()
     path_secret = values.get(WEBHOOK_PATH_SECRET_ENV, "").strip()
-    if not (client_id and client_secret and encryption_key and path_secret):
-        return None
     if not _PATH_SECRET.fullmatch(path_secret):
         return None
     return MonzoSettings(
