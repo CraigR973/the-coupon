@@ -46,11 +46,12 @@ export const PAYMENTS_DEPLOYMENT_INVARIANTS = {
 } as const;
 
 // Owner decision, 2026-10-14: declared but switched off in both projects, so no plan
-// creates it. The owner creates the service and seals its variables before Batch 208; a
-// one-line commit here then switches it on, and `/ship-prod` records its service id.
+// creates it. The owner then created production's service and sealed its variables (id in
+// docs/agent-commands/ship-prod.md), and switched production on (owner, 2026-10-15). Staging
+// stays off.
 export const PAYMENTS_SERVICE_ENABLED = {
   "the-coupon-staging": false,
-  "the-coupon-production": false
+  "the-coupon-production": true
 } as const;
 
 // Each project's payments origin, recorded in the same commit that switches it on.
@@ -58,7 +59,7 @@ export const PAYMENTS_SERVICE_ENABLED = {
 // no change to that protected script.
 export const PAYMENTS_ORIGINS = {
   "the-coupon-staging": "",
-  "the-coupon-production": ""
+  "the-coupon-production": "https://payments-production-0aa1.up.railway.app"
 } as const;
 
 // Sealed by the owner when the service is created; preserve() keeps them that way.

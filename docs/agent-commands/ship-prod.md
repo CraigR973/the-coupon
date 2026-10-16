@@ -14,8 +14,8 @@ create infrastructure, copy staging values, or substitute another target.
 | Railway environment | `production` (`8f18cb49-5137-4557-900a-031bcab4ac38`) |
 | Railway service | `api` (`d59f4f17-3e7d-4b3b-bf40-30620150fa2f`) |
 | Railway API origin | `https://api-production-109b1.up.railway.app` |
-| Railway service | `payments` (`f3bbf7ad-823e-4547-878b-a1e6b892d1ec`) — created empty by the owner on 2026-10-14, no source or deployment; still switched off in `.railway/railway.ts` |
-| Railway payments origin | `https://payments-production-0aa1.up.railway.app` — copied into `PAYMENTS_ORIGINS` in `.railway/railway.ts` only in the commit that switches it on, because `scripts/check-deploy-drift.sh` probes any recorded origin and this one has no deployment yet |
+| Railway service | `payments` (`f3bbf7ad-823e-4547-878b-a1e6b892d1ec`) — created empty by the owner on 2026-10-14, no source or deployment; switched on in `.railway/railway.ts` by owner decision, 2026-10-15 |
+| Railway payments origin | `https://payments-production-0aa1.up.railway.app` — recorded in `PAYMENTS_ORIGINS` in `.railway/railway.ts` by the commit that switched it on (2026-10-15); `scripts/check-deploy-drift.sh` probes it from then on |
 | Vercel team | `craigr973's projects` (`team_MVQMOaFtYHlwO5QVzSOZQ0Ud`) |
 | Vercel project | `the-coupon-production` (`prj_3h3OSNFDoPAySqTa9nVswUrMs0jJ`) |
 | Vercel web origin | intended alias `https://the-coupon-production.vercel.app`; exact alias must be confirmed and recorded after the first L4 deployment |

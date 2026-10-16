@@ -74,7 +74,7 @@ site admin sets a league's fee and link. A league without a fee runs none of it.
 ```text
 Railway project (one per environment)
   api       — FastAPI app + scheduler · migrates on boot (alembic upgrade head)
-  payments  — ADR 0009 option B · never migrates · switched off until the owner creates it
+  payments  — ADR 0009 option B · never migrates · production switched on 2026-10-15
      boot: database revision == the image's sole head? → no: exit, nothing served
                                                      → yes: /health + /health/ready only
   both → the same Supabase Postgres · /ship-prod ships api first, then payments
@@ -86,8 +86,9 @@ shares no secrets with the API: `.railway/railway.ts` seals `MONZO_*` on `paymen
 and the API's credentials on `api` alone. It never runs Alembic and refuses to start unless
 the database is at exactly the head bundled in its image, so `/ship-prod` ships the API
 first and both from the same commit. `scripts/check-deploy-drift.sh` asks both the same
-question. It is declared but switched off in both projects (owner decision, 2026-10-14)
-until the owner creates it and records its origin.
+question. It was declared switched off in both projects (owner decision, 2026-10-14);
+the owner created production's and switched it on, with its origin recorded, on 2026-10-15.
+Staging's stays off.
 
 Odds sit behind the provider-neutral `OddsProvider` port
 (`services/odds_provider.py`). `OddsApiProvider` is production — odds-api.io

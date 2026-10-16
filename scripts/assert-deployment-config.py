@@ -90,9 +90,10 @@ EXPECTED_PAYMENTS_VARIABLES = {
 }
 # Owner decision, 2026-10-14: switched off in both projects until the owner creates the
 # service. Switching one on is a reviewed commit that changes this expectation too.
+# Production switched on by owner decision, 2026-10-15.
 EXPECTED_PAYMENTS_ENABLED = {
     "the-coupon-staging": False,
-    "the-coupon-production": False,
+    "the-coupon-production": True,
 }
 
 
