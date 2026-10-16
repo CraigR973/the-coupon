@@ -3924,3 +3924,31 @@ headers. Exact-origin CORS returned `200` with credentials; a foreign origin was
 Backup/restore-point identity: **none yet**. Migration `029` makes `9c36aa7b` and `290bafda` (the
 `028` images) unable to boot; use `docs/runbooks/migration-029-recovery.md` to fix forward. No
 production data was read or written beyond the catalogue audit and counts.
+
+### 2026-10-16 — `bf7ecbd`, the payments settings-diagnostics fix (no migration)
+
+Owner-approved in chat (Craig Robinson, 2026-10-16). After the owner re-sealed
+`MONZO_WEBHOOK_PATH_SECRET`, payments' automatic redeploy `36c3f180` still reported Monzo reading
+off with no reason. `bf7ecbd` makes the boot log name each refused `MONZO_*` variable and the rule it
+breaks, never a value. Exact-SHA CI green (`38956648372`); its own complete gate stamped tree
+`623ff83` (12 checks, backend 1,543, frontend 1,385, journey 1, zero skips), identical to the
+shipped tree.
+
+Preflight repeated: the same project, environment, services, domains and null `railwayConfigFile`;
+all required variable names on both services, kept apart; Supabase `ACTIVE_HEALTHY`; no migration
+to apply (production at `029`). The pinned IaC plan had 0 additions, 4 updates (the recurring
+null-to-explicit fields on both services) and 0 deletions; its redeploys of the running images,
+API `f93ba511` and payments `e687f673` (`5dd1fbe` / `029`), reached `SUCCESS` and are this
+shipment's rollback baselines. Upload speed was ~2.7 MB/s.
+
+API `53772eca-860d-4152-adc5-657bc22ecbc6` and payments `2ffbb4a0-f862-49e5-8952-28f243f62ff1`
+reached `SUCCESS`; both `/health` endpoints report `bf7ecbd` and `029`, and both readiness checks
+report database `ok` at `029`. Bounded logs: API 41 lines, payments 12, zero credential-pattern
+matches; payments' one error line is the new diagnosis, **`MONZO_CLIENT_ID is empty;
+MONZO_CLIENT_SECRET is empty`**. The read-only audit again found head `029`, RLS forced on 25 of 25
+tables, no public-role grants, and `monzo_connections` empty. Vercel was a no-op (GitHub deployed
+`bf7ecbd` as `dpl_64iJSK2UHF6y4VxgiQtN19L9iCXY`); the web root and a deep link returned `200`,
+exact-origin CORS `200` with credentials, a foreign origin `400`. Drift: **in sync** for both.
+
+Backup/restore-point identity: **none yet**. No migration was applied, so `f93ba511` and `e687f673`
+remain valid rollback targets.

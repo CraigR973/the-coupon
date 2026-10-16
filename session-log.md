@@ -8914,3 +8914,13 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - **Recovery:** migration `029` retires `9c36aa7b` and `290bafda` as rollback targets; forward recovery is `docs/runbooks/migration-029-recovery.md`.
 
 **Next:** make the payments service's Monzo settings pass its check, then Batch 210, then ADR 0009's launch steps.
+
+## Fix and shipment — 2026-10-16, `bf7ecbd` (payments names the Monzo setting it refuses; no migration)
+**Commit:** `bf7ecbd` · verified: complete 12-check gate (tree `623ff83`; backend 1,543, frontend 1,385, journey 1, zero skips) · CI: https://github.com/CraigR973/the-coupon/actions/runs/38956648372 PASS · **Railway:** API `53772eca` and payments `2ffbb4a0` `SUCCESS`; drift **in sync** for both
+
+### Key facts for future sessions
+- The payments boot now logs each refused `MONZO_*` variable and the rule it breaks (not set, empty, wrapped in quotes, path secret charset or length), never a value. Sealed values cannot be read back by anyone, so this log line is the only diagnosis.
+- **Production's diagnosis:** `MONZO_CLIENT_ID is empty; MONZO_CLIENT_SECRET is empty`. The encryption key and the re-sealed path secret pass. Monzo reading stays off until the owner seals the confidential client's id and secret on `payments`.
+- `railway run` does not receive sealed variables, and `railway variables --json` returns them as `null`; neither can confirm a sealed value.
+
+**Next:** the owner seals `MONZO_CLIENT_ID` and `MONZO_CLIENT_SECRET`; then confirm the boot log is clean and run Batch 210.
