@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     SmallInteger,
     String,
@@ -118,6 +119,17 @@ class League(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
             "entry_fee_pence IS NULL OR privacy = 'private'",
             name="ck_leagues_entry_fee_private",
         ),
+        CheckConstraint(
+            "monzo_link_id IS NULL OR monzo_link_id ~ '^unipaylink_[A-Za-z0-9]+$'",
+            name="ck_leagues_monzo_link_id_shape",
+        ),
+        # One league per payment link, so a payment can never count towards two.
+        Index(
+            "uq_leagues_monzo_link_id",
+            "monzo_link_id",
+            unique=True,
+            postgresql_where=sa.text("monzo_link_id IS NOT NULL"),
+        ),
     )
 
     slug: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -192,6 +204,11 @@ class League(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     # so a league admin cannot swap in a link of their own.
     entry_fee_pence: Mapped[int | None] = mapped_column(Integer, nullable=True)
     payment_link_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    #: The bank's id for that link (``unipaylink_…``), which is what a payment through it
+    #: carries; the link's address is not. Batch 208's payments service counts only
+    #: payments carrying a league's id, and reads nothing until one is set. A site
+    #: admin's alone, like the fee and the link.
+    monzo_link_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("profiles.id"), nullable=False
     )

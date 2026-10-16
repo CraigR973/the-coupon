@@ -64,8 +64,11 @@ def _now() -> datetime:
 
 
 #: A league admin sent a field only a site admin may set (Batch 205: the entry fee and
-#: the payment link).
+#: the payment link; Batch 208: the link's Monzo id).
 SITE_ADMIN_REQUIRED = "SITE_ADMIN_REQUIRED"
+
+#: Another league already counts payments through this Monzo link (Batch 208).
+MONZO_LINK_IN_USE = "MONZO_LINK_IN_USE"
 
 #: A league that charges a fee must stay private, and a public league cannot charge one
 #: (ADR 0009's second rule). One code for both directions, since it is one rule.
@@ -349,6 +352,18 @@ def _validate_competitions(value: list[CompetitionRef] | None) -> list[Competiti
 MAX_ENTRY_FEE_PENCE = 10_000
 
 
+#: A Monzo payment-link id, as a transaction through the link carries it (Batch 208).
+_MONZO_LINK_ID = re.compile(r"unipaylink_[A-Za-z0-9]+")
+
+
+def _validate_monzo_link_id(value: str | None) -> str | None:
+    if value is None:
+        return None
+    if not _MONZO_LINK_ID.fullmatch(value):
+        raise ValueError("monzo_link_id must be a Monzo payment-link id (unipaylink_…)")
+    return value
+
+
 def _validate_payment_link(value: str | None) -> str | None:
     """A payment link is an ``https`` address with a host, or ``None`` for no link.
 
@@ -438,6 +453,8 @@ class UpdateLeagueRequest(BaseModel):
     # ``model_fields_set`` like ``competitions``.
     entry_fee_pence: int | None = Field(default=None, ge=1, le=MAX_ENTRY_FEE_PENCE)
     payment_link_url: str | None = Field(default=None, max_length=500)
+    # Batch 208. The id payments through that link carry; the same site-admin rule.
+    monzo_link_id: str | None = Field(default=None, max_length=64)
 
     @field_validator("competitions")
     @classmethod
@@ -448,6 +465,11 @@ class UpdateLeagueRequest(BaseModel):
     @classmethod
     def _check_payment_link(cls, value: str | None) -> str | None:
         return _validate_payment_link(value)
+
+    @field_validator("monzo_link_id")
+    @classmethod
+    def _check_monzo_link_id(cls, value: str | None) -> str | None:
+        return _validate_monzo_link_id(value)
 
 
 class SlateWindowOut(BaseModel):
@@ -638,6 +660,8 @@ class LeagueResponse(BaseModel):
     # and only once they have confirmed they are 18 or over.
     entry_fee_pence: int | None = None
     payment_link_url: str | None = None
+    #: Batch 208. A site admin's to see, like the link.
+    monzo_link_id: str | None = None
 
 
 class LeagueSummaryResponse(BaseModel):
@@ -1153,6 +1177,7 @@ class LeagueDetailResponse(BaseModel):
     # is a site admin's to see here, as on ``LeagueResponse``.
     entry_fee_pence: int | None = None
     payment_link_url: str | None = None
+    monzo_link_id: str | None = None
     season_pot_pence: int | None = None
 
 
@@ -1220,6 +1245,7 @@ async def get_league(
         members=members_out,
         entry_fee_pence=league.entry_fee_pence,
         payment_link_url=league.payment_link_url if _is_superadmin(player) else None,
+        monzo_link_id=league.monzo_link_id if _is_superadmin(player) else None,
         season_pot_pence=(
             await season_pot(db, league.id, current_season())
             if league.entry_fee_pence is not None and is_member
@@ -1248,9 +1274,21 @@ async def update_league(
     # the payment link are a site admin's alone, so nobody can swap in a link of their own;
     # and a league that charges a fee stays private, judged on the league as this edit
     # would leave it, so neither half of a change can slip past in the same request.
-    fee_fields = {"entry_fee_pence", "payment_link_url"} & body.model_fields_set
+    fee_fields = {"entry_fee_pence", "payment_link_url", "monzo_link_id"} & body.model_fields_set
     if fee_fields and not _is_superadmin(player):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=SITE_ADMIN_REQUIRED)
+    if (
+        "monzo_link_id" in fee_fields
+        and body.monzo_link_id is not None
+        and body.monzo_link_id != league.monzo_link_id
+        and await db.scalar(
+            select(League.id).where(
+                League.monzo_link_id == body.monzo_link_id, League.id != league.id
+            )
+        )
+        is not None
+    ):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=MONZO_LINK_IN_USE)
     final_fee = body.entry_fee_pence if "entry_fee_pence" in fee_fields else league.entry_fee_pence
     final_privacy = body.privacy if body.privacy is not None else league.privacy
     if final_fee is not None and final_privacy != LeaguePrivacy.private:
@@ -1430,6 +1468,7 @@ async def update_league(
         join_code=league.join_code,
         entry_fee_pence=league.entry_fee_pence,
         payment_link_url=league.payment_link_url if _is_superadmin(player) else None,
+        monzo_link_id=league.monzo_link_id if _is_superadmin(player) else None,
     )
 
 

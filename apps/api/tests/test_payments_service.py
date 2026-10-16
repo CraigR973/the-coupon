@@ -255,7 +255,13 @@ def test_the_payments_service_is_declared_as_one_process_that_never_migrates() -
     assert deploy["healthcheckPath"] == "/health/ready"
 
 
-def test_the_payments_route_table_is_only_the_health_pair() -> None:
-    """Batch 207 ships no Monzo logic; anything more is Batch 208's to add."""
+def test_the_payments_route_table_is_the_health_pair_and_the_monzo_routes() -> None:
+    """Batch 207's health pair, and exactly the three Monzo routes Batch 208 adds."""
     paths = {getattr(route, "path", "") for route in payments_app.app.routes}
-    assert paths == {"/health", "/health/ready"}
+    assert paths == {
+        "/health",
+        "/health/ready",
+        "/monzo/oauth/start",
+        "/monzo/oauth/callback",
+        "/monzo/webhook/{path_secret}",
+    }

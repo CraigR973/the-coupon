@@ -83,6 +83,10 @@ pillow==12.3.0
 # VAPID signing and payload encryption, which touch neither X.509 verification nor
 # PKCS#7. Held at 48.0.1 by owner decision (2026-09-22), for the macOS wheel.
 #
+# Batch 208 adds the first direct use: the payments service seals the Monzo tokens with
+# `cryptography.fernet` (AES-CBC + HMAC-SHA256). That touches neither X.509 verification
+# nor PKCS#7 either, so the disposition above stands.
+#
 # So 48.0.1 clears everything reachable. It is also the last version publishing a macOS
 # `universal2` wheel, which installs on Intel as well as Apple silicon; 49 and 50 publish
 # no macOS wheel at all and would need a Rust toolchain to build on the local gate. The

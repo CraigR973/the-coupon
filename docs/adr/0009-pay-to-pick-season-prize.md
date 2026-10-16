@@ -194,12 +194,15 @@ anyway, as the fallback for cash payments and Monzo outages.
   2. Create the service's own confidential OAuth client and seal its variables
      on Railway.
   3. Ship both services.
-  4. Connect: approve in the browser and in the Monzo app.
+  4. Connect: open the payments service's `/monzo/oauth/start`, approve in the
+     browser, then in the Monzo app. Only payments made after this count
+     (owner decision, 2026-10-16).
   5. Confirm that 2-1 Hibs is private.
   6. Make sure every member of 2-1 Hibs is 18 or over. The app no longer asks them.
-  7. Set its fee and payment link.
+  7. Set its fee, payment link and the link's Monzo id (`unipaylink_…`; Batch
+     210's field). Nothing is read from Monzo until the id is set.
   8. Record each member's opening balance (what they've paid towards the weeks
-     since dues start) as an adjustment.
+     since dues start, up to the connect in step 4) as an adjustment.
   9. Pay £1 through the link and see it arrive as credit.
   10. Tell the members the four rules.
 

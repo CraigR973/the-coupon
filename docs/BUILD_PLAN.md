@@ -76,7 +76,10 @@ Railway project (one per environment)
   api       — FastAPI app + scheduler · migrates on boot (alembic upgrade head)
   payments  — ADR 0009 option B · never migrates · production switched on 2026-10-15
      boot: database revision == the image's sole head? → no: exit, nothing served
-                                                     → yes: /health + /health/ready only
+                                                     → yes: serve
+     /monzo/oauth/start → Monzo (browser, then the app) → /monzo/oauth/callback
+     webhook /monzo/webhook/<secret> (a nudge only) + a catch-up read every 5 min
+        → re-read from Monzo → the league's unipaylink id? → ledger, matched or queued
   both → the same Supabase Postgres · /ship-prod ships api first, then payments
 ```
 
@@ -89,6 +92,16 @@ first and both from the same commit. `scripts/check-deploy-drift.sh` asks both t
 question. It was declared switched off in both projects (owner decision, 2026-10-14);
 the owner created production's and switched it on, with its origin recorded, on 2026-10-15.
 Staging's stays off.
+
+Batch 208 gives it the Monzo reading. The owner connects once; the tokens live in the
+one-row `monzo_connections` table, sealed with a key only this service holds, and are
+refreshed (rotating the refresh token) by its single replica. A webhook at a secret path is
+only a nudge to re-read one transaction; a catch-up every five minutes reads everything
+since the last complete read. Only payments carrying a league's `monzo_link_id`
+(`unipaylink_…`, set by a site admin) and made after the connect count. App payers are
+matched by Monzo user id, card payers by normalised name, and anyone else is queued for the
+organiser. Its Monzo calls are allow-listed (token, accounts, transactions, webhooks). The
+API reads only the row's health columns, for the organiser's payments screen.
 
 Odds sit behind the provider-neutral `OddsProvider` port
 (`services/odds_provider.py`). `OddsApiProvider` is production — odds-api.io

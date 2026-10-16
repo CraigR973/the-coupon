@@ -34,6 +34,7 @@ from src.display_name import public_name
 from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.ledger import LedgerEntry, LedgerKind, PayerMapping
+from src.models.monzo_connection import MonzoConnection
 from src.models.profile import Profile
 from src.rate_limit import limiter, per_user_key
 from src.schemas import UtcDatetime
@@ -109,12 +110,35 @@ class SeasonPot(BaseModel):
     pot_pence: int
 
 
+class MonzoLinkHealth(BaseModel):
+    """How the payments service's Monzo connection is doing (Batch 208).
+
+    Read from the columns of ``monzo_connections`` that carry no secret; this process never
+    holds the key the tokens are sealed under. ``last_error`` is a short code, and is news
+    only when ``last_error_at`` is later than ``last_success_at``.
+    """
+
+    status: str
+    last_success_at: UtcDatetime | None
+    last_error: str | None
+    last_error_at: UtcDatetime | None
+    #: When the current access token lapses unless the service refreshes it first.
+    token_expires_at: UtcDatetime | None
+    #: Payments before this are the organiser's to record as opening balances.
+    counting_since: UtcDatetime | None
+    webhook_registered: bool
+
+
 class PaymentsOverview(BaseModel):
     entry_fee_pence: int | None
     payment_link_url: str | None
     balances: list[MemberBalance]
     queued_payments: list[QueuedPayment]
     season_pot: SeasonPot
+    # Batch 208. Defaulted, because the web app deploys ahead of this API.
+    monzo_link_id: str | None = None
+    #: ``None`` until the owner first connects Monzo.
+    monzo_link: MonzoLinkHealth | None = None
 
 
 class RecordCash(BaseModel):
@@ -201,6 +225,34 @@ async def _write(db: AsyncSession, entry: LedgerEntry) -> LedgerEntryOut:
     return _entry_out(entry)
 
 
+async def _monzo_link_health(db: AsyncSession) -> MonzoLinkHealth | None:
+    """The connection's health columns only; the sealed tokens are never selected."""
+    row = (
+        await db.execute(
+            select(
+                MonzoConnection.status,
+                MonzoConnection.last_success_at,
+                MonzoConnection.last_error,
+                MonzoConnection.last_error_at,
+                MonzoConnection.access_expires_at,
+                MonzoConnection.counting_since,
+                MonzoConnection.webhook_registered_at,
+            )
+        )
+    ).one_or_none()
+    if row is None:
+        return None
+    return MonzoLinkHealth(
+        status=str(row.status),
+        last_success_at=row.last_success_at,
+        last_error=row.last_error,
+        last_error_at=row.last_error_at,
+        token_expires_at=row.access_expires_at,
+        counting_since=row.counting_since,
+        webhook_registered=row.webhook_registered_at is not None,
+    )
+
+
 # ── The organiser's routes ──────────────────────────────────────────────────────
 
 
@@ -263,6 +315,8 @@ async def payments_overview(
     return PaymentsOverview(
         entry_fee_pence=league.entry_fee_pence,
         payment_link_url=league.payment_link_url,
+        monzo_link_id=league.monzo_link_id,
+        monzo_link=await _monzo_link_health(db),
         balances=listed,
         queued_payments=[
             QueuedPayment(

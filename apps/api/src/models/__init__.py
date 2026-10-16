@@ -8,6 +8,7 @@ from src.models.league_join_request import JoinRequestStatus, LeagueJoinRequest
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.ledger import LedgerEntry, LedgerKind, PayerMapping
 from src.models.match import Match
+from src.models.monzo_connection import MonzoConnection, MonzoLinkStatus
 from src.models.notification import (
     ActionType,
     ActorType,
@@ -43,6 +44,8 @@ __all__ = [
     "LedgerEntry",
     "LedgerKind",
     "Match",
+    "MonzoConnection",
+    "MonzoLinkStatus",
     "MemberNotification",
     "NotificationPreferences",
     "PayerMapping",
