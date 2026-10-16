@@ -7,8 +7,13 @@ previous one keeps serving.
 
 Batch 208: logging goes through the API's redacting JSON renderer, told every Monzo secret
 this process holds, and uvicorn's own loggers are routed through it too
-(``log_config=None``). The webhook's address carries its path secret, and an access-log line
-is exactly where that would otherwise be printed.
+(``log_config=None``).
+
+There is no access log at all (``access_log=False``). Two of this service's addresses carry
+secrets the redactor cannot know in advance: the webhook's path secret is one it can, but
+Monzo's callback brings a one-time authorisation code and state in its query string, and the
+first production connect (2026-10-16) printed both. The service's own log lines already say
+what each request did, without either.
 """
 
 from __future__ import annotations
@@ -46,6 +51,7 @@ def main() -> int:
         host="0.0.0.0",
         port=int(os.environ.get("PORT", "8000")),
         log_config=None,
+        access_log=False,
     )
     return 0
 

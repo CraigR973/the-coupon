@@ -49,6 +49,7 @@ from src.models.ledger import LedgerEntry, LedgerKind, PayerMapping
 from src.models.monzo_connection import MonzoConnection, MonzoLinkStatus
 from src.models.notification import ActionType, AuditLog
 from src.models.profile import Profile, UserRole
+from src.payments_service import __main__ as payments_main
 from src.payments_service import app as payments_app
 from src.payments_service.__main__ import configure_payments_logging
 from src.payments_service.crypto import TokenCipher, TokenCipherUnavailable, TokenUnreadable
@@ -637,6 +638,23 @@ def test_log_lines_never_carry_a_monzo_secret(
     assert "client <redacted> key <redacted>" in printed
     for secret in (PATH_SECRET, CLIENT_SECRET, key):
         assert secret not in printed
+
+
+def test_the_service_writes_no_access_log(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Monzo's callback carries a one-time code in its query string; no line may print it."""
+    started: dict[str, Any] = {}
+
+    async def agreed() -> str:
+        return "029"
+
+    monkeypatch.setattr(payments_main, "verify", agreed)
+    monkeypatch.setattr(payments_main, "configure_payments_logging", lambda: None)
+    monkeypatch.setattr(
+        payments_main.uvicorn, "run", lambda *_args, **kwargs: started.update(kwargs)
+    )
+    assert payments_main.main() == 0
+    assert started["access_log"] is False
+    assert started["log_config"] is None
 
 
 def test_the_payments_service_never_loads_the_api_settings_even_indirectly() -> None:
