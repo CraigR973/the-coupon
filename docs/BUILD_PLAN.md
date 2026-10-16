@@ -978,7 +978,8 @@ Batches 205-209 come from ADR 0009 (pay to pick in 2-1 Hibs; owner decisions of 
 and 2026-10-13). They run with `/batch-start`, in the order 205, 206, 209, 207, 208: Batch 209
 comes from the ADR's 13 Oct amendment and runs ahead of 207 and 208 by owner decision
 (2026-10-13T21:41Z). Batches 205 and 206 are complete (13 Oct), and 209 and 207 are complete
-(14 Oct); 208 has not started.
+(14 Oct); 208 has not started. Batch 210 is the admin-screen half of 208, split off by owner
+decision (2026-10-16) and run after 208's `/ship-prod`.
 
 - [x] **Batch 205 — A member can pick in a league that charges a fee without having paid ✅ 2026-10-13**
   — specified from ADR 0009, amended 2026-10-13 for weekly dues. 2-1 Hibs members pay £1 a
@@ -1136,7 +1137,27 @@ comes from the ADR's 13 Oct amendment and runs ahead of 207 and 208 by owner dec
 
   Then the owner's launch steps in ADR 0009.
 
-  Scope boundary: the payments service and its ledger writes.
+  **Oracle changes approved (owner, 2026-10-16):** this batch may replace only the two lines
+  fingerprinted in trusted main, both in `apps/api/tests/test_payments_service.py`: Batch
+  207's test title `test_the_payments_route_table_is_only_the_health_pair` and its assertion
+  that the route table is exactly the health pair. The replacement must still assert the exact
+  route table: the health pair plus the three Monzo routes this batch adds. Nothing else may be
+  changed, removed, skipped or loosened. This is not a file-wide or reusable waiver.
+
+  Owner decisions of 2026-10-16:
+  - A league's payments are the ones carrying its Monzo link id (`unipaylink_…`), a new
+    site-admin league field beside the fee and the link. Nothing is read until one is set.
+  - Only payments made after the owner connects count; earlier ones are opening balances
+    (ADR 0009's launch step 8).
+  - The service registers its own webhook. Its Monzo calls are allow-listed — token,
+    accounts, transactions, webhooks — and never touch pots, the feed or annotations.
+  - API only. The admin-screen half (the link-id field and the link-health panel) is Batch
+    210, after this batch's `/ship-prod`: close-out refuses an API+web batch while a
+    `/ship-prod` is owed, and Batch 207's is.
+  - The service keeps the API's database login for now (owner, 2026-10-15).
+
+  Scope boundary: the payments service and its ledger writes, migration 029 (the connection
+  row and the league's link id), and the API's link-id field and link health. No web change.
   **Ships on the payments service through `/ship-prod`, after Batch 207.**
 
 - [x] **Batch 209 — A member must say they are 18 or over before they can pay, and the pick cards look open while they owe** ✅ 2026-10-14
@@ -1189,6 +1210,26 @@ comes from the ADR's 13 Oct amendment and runs ahead of 207 and 208 by owner dec
   straight after close-out.** Before that shipment, the old API withholds the link from a
   member who never confirmed, so the new panel shows no button; no league has a fee, so
   nobody sees the gap.
+
+- [ ] **Batch 210 — The organiser cannot see whether Monzo is connected, or tell the app which link is the league's**
+  — the admin-screen half of Batch 208, split off by owner decision (2026-10-16) because
+  close-out refuses an API+web batch while a `/ship-prod` is owed. Batch 208's API already
+  takes a league's `monzo_link_id` (site admin only, `unipaylink_…`, unique across leagues)
+  and reports `monzo_link` health on the payments overview. Runs only after Batch 208's
+  `/ship-prod`, and before ADR 0009's launch step 7.
+
+  Web:
+  - `LeagueSettingsPage`: a site-admin "Monzo link id" field beside the fee and the payment
+    link, with the API's refusals (`MONZO_LINK_IN_USE`, a malformed id) said plainly.
+  - `LeaguePaymentsPage`: a link-health line — not connected, waiting for approval in the
+    Monzo app, connected (last read, token expiry), or needs reconnecting — with the last
+    error only when it is newer than the last success, and when payments start counting.
+  - A league without a fee renders exactly as before.
+
+  Verification: vitest for both, including an old API that sends neither field; screenshots
+  at 390 and 1280 px in both themes.
+
+  Scope boundary: the two screens. **Web only.**
 
 ## Verification
 

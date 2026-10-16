@@ -177,6 +177,11 @@ apps/web/src/test/PayPanel.test.tsx|expect(posted[0]).toMatch(/\/api\/v1\/league
 apps/web/src/test/PayPanel.test.tsx|expect(invalidate).toHaveBeenCalledWith({ queryKey: keys.gameweek.all('2-1-hibs') }),
 EOF
       ;;
+    208) cat <<'EOF'
+apps/api/tests/test_payments_service.py|def test_the_payments_route_table_is_only_the_health_pair() -> None:
+apps/api/tests/test_payments_service.py|assert paths == {"/health", "/health/ready"}
+EOF
+      ;;
   esac
 }
 
@@ -194,6 +199,7 @@ approved_oracle_paths() {
     193) echo "apps/api/tests/test_scheduler.py" ;;
     195) echo "apps/web/src/test/RegisterPage.test.tsx" ;;
     203) echo "apps/api/tests/test_request_budget.py" ;;
+    208) echo "apps/api/tests/test_payments_service.py" ;;
     209) echo "apps/api/tests/test_pay_to_pick.py apps/web/src/test/PayPanel.test.tsx" ;;
   esac
 }
