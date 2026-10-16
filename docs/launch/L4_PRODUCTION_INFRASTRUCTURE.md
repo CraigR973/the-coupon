@@ -3868,3 +3868,59 @@ log query returned no entries for the deployment.
 Backup/restore-point identity: **none yet**. No migration was applied, so `fd56c2dd` (the previous
 image at `028`) remains a valid normal rollback target. No production data was read or written
 beyond the catalogue audit.
+
+### 2026-10-16 — `5dd1fbe`, Batches 207 and 208 (migration `029`; first payments deployment)
+
+Owner instruction in chat (Craig Robinson, 2026-10-16): ship both services. Source `5dd1fbe`
+(Batch 211's open row on top of Batch 208's close-out `865679e`; implementations `71a0c5a` and
+`22bc3cb`; production's payments switch-on `8b26336`). Exact-SHA CI green for `5dd1fbe`
+(`38908989565`) and `22bc3cb` (`38881024764`); the close-out gate stamp (tree `f3b73a6`, 12
+checks, backend 1,537, frontend 1,385, journey 1, zero skips) was reused, the current tree
+differing only in close-out documents.
+
+Preflight confirmed Supabase `pugujiiojitstkilphrz` `ACTIVE_HEALTHY` in `eu-west-2`; the exact
+Railway project, `production` environment, `api` and `payments` services and both stable
+domains; null `railwayConfigFile` on both; all 13 required `api` variable names with no
+`MONZO_*`; all eight `payments` names (the four `MONZO_*` sealed) with none of the API's
+credentials, `RAILWAY_GIT_COMMIT_SHA` having been added as `unknown` at the owner's request
+earlier the same day; and both encrypted production-scoped Vercel names. The migration
+recovery check passed for `029`. Rollback baselines: Railway `290bafda` (`335e986`, `028`), then
+the IaC redeploy below; Vercel `dpl_2GfEf6tDNtxQT5GZWJiRs1BVBpSq` (already serving `5dd1fbe`).
+
+The pinned Railway IaC plan had 0 additions, 4 updates and 0 deletions: the same
+null-to-explicit `api` fields as earlier shipments, and `payments`' declared build and deploy
+settings. No variable changed. It redeployed the API's previous image as
+`9c36aa7b-ffd7-4638-a401-df656a73ae03` (`SUCCESS`, `335e986` / `028`); `payments`, with no
+source, got no deployment. The first two source uploads timed out on a ~13 KB/s uplink and left
+`9bc63825` and `0771c393` `FAILED` at `SNAPSHOT_CODE`, never running; the API stamp was set back
+to `335e986` until the retry, which uploaded at ~500 KB/s.
+
+API `dbd3af60-6de8-4101-9cb0-d2aafccdadb4` reached `SUCCESS` with one replica in
+`europe-west4-drams3a`, sleep off, restart `ON_FAILURE`, IPv6 egress, 0.25 vCPU / 500 MB,
+Nixpacks `/nixpacks.toml` and the 300-second `/api/v1/health/ready` check. `/health` reported
+`5dd1fbe` and bundled head `029`; `/health/ready` reported database `ok` at `029`. Its bounded
+log (42 lines) had zero failure-term and zero credential-pattern matches and showed
+`028 -> 029`, Uvicorn and the scheduler starting. A read-only transaction through the London
+session pooler (`aws-1-eu-west-2`, TLS required, certificate not verified locally) found head
+`029`, RLS enabled and forced on 25 of 25 public tables, no `anon`, `authenticated` or `PUBLIC`
+table grants or effective privileges, no `public` schema CREATE for them, `monzo_connections`
+present with 0 rows, and no league with a `monzo_link_id`.
+
+Payments `15e4dde8-f8cf-4565-b48e-17dfd7e9a4c0` reached `SUCCESS` with start
+`python -m src.payments_service`, `/health/ready`, one replica in `europe-west4-drams3a`, sleep
+off, IPv6 egress and 0.25 vCPU / 500 MB. `/health` reported `"service": "payments"`, `5dd1fbe`
+and `029`; `/health/ready` reported database `ok` at `029`. Its boot agreed `029`; its log (10
+lines) had zero credential-pattern matches. **It logged "monzo reading is off: the service is
+not configured", and `/monzo/oauth/start` answers `503`.** The four sealed `MONZO_*` values cannot
+be read back; the encryption key was never reached, so the client id, client secret or webhook
+path secret failed the service's own check. Nothing reads Monzo until that is fixed.
+
+Vercel was a no-op: GitHub had already deployed `5dd1fbe` as
+`dpl_2GfEf6tDNtxQT5GZWJiRs1BVBpSq` at the stable alias. The web root and `/leagues/discover`
+both returned `200` from the same SPA asset with CSP, `X-Frame-Options`, HSTS, nosniff and cache
+headers. Exact-origin CORS returned `200` with credentials; a foreign origin was refused with
+`400`. `scripts/check-deploy-drift.sh` reported **in sync** for both services.
+
+Backup/restore-point identity: **none yet**. Migration `029` makes `9c36aa7b` and `290bafda` (the
+`028` images) unable to boot; use `docs/runbooks/migration-029-recovery.md` to fix forward. No
+production data was read or written beyond the catalogue audit and counts.

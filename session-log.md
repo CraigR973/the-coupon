@@ -8903,3 +8903,14 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - The payments service keeps the API's database login (owner, 2026-10-15). A least-privilege role is raised as a decision in this batch's report.
 
 **Next:** the owner schedules `/ship-prod` for both services, then Batch 210, then ADR 0009's launch steps.
+
+## Shipment — 2026-10-16, `5dd1fbe` (Batches 207 and 208; migration 029; first payments deployment)
+**Railway:** API `dbd3af60-6de8-4101-9cb0-d2aafccdadb4` `SUCCESS`, payments `15e4dde8-f8cf-4565-b48e-17dfd7e9a4c0` `SUCCESS` · pre-upload IaC redeploy `9c36aa7b-ffd7-4638-a401-df656a73ae03` · Vercel no-op (`dpl_2GfEf6tDNtxQT5GZWJiRs1BVBpSq`, `5dd1fbe`) · drift **in sync** for both · exact-SHA CI `38908989565` and `38881024764` green · reused gate stamp `f3b73a6` (backend 1,537; frontend 1,385; journey 1)
+
+### Key facts for future sessions
+- **Both services serve `5dd1fbe` at `029`.** RLS forced on 25 of 25 tables with no public-role grants; `monzo_connections` exists and is empty. Owner-instructed in chat on 16 Oct.
+- **Monzo reading is off.** The payments service logs "the service is not configured" and `/monzo/oauth/start` answers `503`: one of the sealed client id, client secret or webhook path secret fails its check (the encryption key was never reached). Sealed values cannot be read back, so the owner re-seals the offending one; the path secret must be URL-safe base64 of 32+ characters.
+- **Uploads need bandwidth.** Two `railway up` attempts timed out at ~13 KB/s upload and left `FAILED` deployments at `SNAPSHOT_CODE` (`9bc63825`, `0771c393`), harmless; the ~40 MB upload succeeded in 23 s at ~500 KB/s. Probe upload speed before blaming Railway.
+- **Recovery:** migration `029` retires `9c36aa7b` and `290bafda` as rollback targets; forward recovery is `docs/runbooks/migration-029-recovery.md`.
+
+**Next:** make the payments service's Monzo settings pass its check, then Batch 210, then ADR 0009's launch steps.

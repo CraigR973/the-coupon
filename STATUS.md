@@ -13,10 +13,11 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `335e986` (Batch 209) at migration `028` (14 Oct) |
-| API deployment | Railway `290bafda-feab-4e80-a14c-2130c82d0649` succeeded, one replica, `europe-west4` (14 Oct) |
+| API | `api-production-109b1.up.railway.app` serves `5dd1fbe` (Batches 207, 208) at migration `029` (16 Oct) |
+| API deployment | Railway `dbd3af60-6de8-4101-9cb0-d2aafccdadb4` succeeded, one replica, `europe-west4` (16 Oct) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `5dd1fbe` at `029`, Railway `15e4dde8-f8cf-4565-b48e-17dfd7e9a4c0`, one replica, `europe-west4`; **Monzo reading is off: the service reports itself not configured** (16 Oct) |
 | Web | Batch 202's build (Vite 8, Tailwind 4) is live at `the-coupon-production.vercel.app` from `628aa0a` (2026-10-11: its stylesheet served, sign-in rendered at 390 and 1280 px with no console errors). Later documentation-only deployments leave the web code unchanged. |
-| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 24 of 24 tables, no public-role grants (13 Oct) |
+| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 25 of 25 tables, no public-role grants (16 Oct) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
 | Football data | FotMob, no key |
@@ -41,16 +42,20 @@ Checked 2026-10-10 unless a line says otherwise.
   member owes. Health reports `335e986` / `028`, drift is in sync, and the read-only audit found
   RLS forced on 24 of 24 tables with no `anon`, `authenticated` or `PUBLIC` grants. Vercel serves
   the same SHA. Still inert until a site admin sets a league's fee.
-- **Batches 207 and 208 are not shipped** (16 Oct). The API still serves `335e986` at `028`.
-  The next `/ship-prod` applies migration `029` (forward recovery:
-  `docs/runbooks/migration-029-recovery.md`) and ships `api`, then `payments`, which is
-  switched on for production (16 Oct, `8b26336`) but has no deployment yet. Nothing reads
-  Monzo until the owner connects and a league has a Monzo link id.
+- **Batches 207 and 208 are shipped and verified** (16 Oct, `5dd1fbe`, migration `029`). Both
+  services report `5dd1fbe` / `029`, drift is in sync for both, and the read-only audit found
+  RLS forced on 25 of 25 tables with no `anon`, `authenticated` or `PUBLIC` grants.
+  **Monzo reading is off:** the payments service boots and serves its health pair but logs
+  "the service is not configured", and `/monzo/oauth/start` answers `503`. All four sealed
+  `MONZO_*` variables exist; the encryption key was never reached, so the client id, client
+  secret or webhook path secret failed the service's check (the path secret must be URL-safe
+  base64 of at least 32 characters). Nothing reads Monzo until that is fixed and the owner
+  connects.
 - **Batch 203 shipped unrecorded on 11 Oct** (Railway `de1b8aa8`, `5882b0f`), found from
   Railway's deployment list on 13 Oct and now in the L4 record.
-- **Migration `028` requires forward recovery.** It is additive, but the older image's
-  Alembic boot check cannot start against revision `028`. Use
-  `docs/runbooks/migration-028-recovery.md` for forward repair. Production has no backup
+- **Migration `029` requires forward recovery.** It is additive, but the older images'
+  boot checks cannot start against revision `029`. Use
+  `docs/runbooks/migration-029-recovery.md` for forward repair. Production has no backup
   restore point, so do not describe a downgrade as a data-preserving rollback.
 
 ## Waiting on the owner
@@ -157,7 +162,7 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** the owner schedules `/ship-prod` for both services (Batches 207 and 208), then Batch
-210, then ADR 0009's launch steps: connect Monzo, then set 2-1 Hibs' fee, link and link id
-after checking every member is 18 or over. The season-calendar backfill remains owner-gated,
+**Next:** make the payments service's Monzo settings pass its check, then Batch 210, then ADR
+0009's launch steps: connect Monzo, then set 2-1 Hibs' fee, link and link id after checking
+every member is 18 or over. The season-calendar backfill remains owner-gated,
 unblocked since 4 Oct.
