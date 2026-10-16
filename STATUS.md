@@ -15,7 +15,7 @@ Checked 2026-10-10 unless a line says otherwise.
 | --- | --- |
 | API | `api-production-109b1.up.railway.app` serves `bf7ecbd` (Batches 207, 208 and the settings-diagnostics fix) at migration `029` (16 Oct) |
 | API deployment | Railway `53772eca-860d-4152-adc5-657bc22ecbc6` succeeded, one replica, `europe-west4` (16 Oct) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `bf7ecbd` at `029`, Railway `2ffbb4a0-f862-49e5-8952-28f243f62ff1`, one replica, `europe-west4`; **Monzo reading is off: `MONZO_CLIENT_ID` and `MONZO_CLIENT_SECRET` are empty** (16 Oct) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `bf7ecbd` at `029`, Railway `2ffbb4a0-f862-49e5-8952-28f243f62ff1`, one replica, `europe-west4`; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC; nothing is read until a league has a Monzo link id (16 Oct) |
 | Web | Batch 202's build (Vite 8, Tailwind 4) is live at `the-coupon-production.vercel.app` from `628aa0a` (2026-10-11: its stylesheet served, sign-in rendered at 390 and 1280 px with no console errors). Later documentation-only deployments leave the web code unchanged. |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 25 of 25 tables, no public-role grants (16 Oct) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
@@ -45,11 +45,11 @@ Checked 2026-10-10 unless a line says otherwise.
 - **Batches 207 and 208 are shipped and verified** (16 Oct, `5dd1fbe`, migration `029`). Both
   services report `5dd1fbe` / `029`, drift is in sync for both, and the read-only audit found
   RLS forced on 25 of 25 tables with no `anon`, `authenticated` or `PUBLIC` grants.
-  **Monzo reading is off:** since `bf7ecbd` (shipped 16 Oct) the payments service names what it
-  refuses, and it logs `MONZO_CLIENT_ID is empty; MONZO_CLIENT_SECRET is empty`. Both sealed
-  variables exist with no value; the encryption key and webhook path secret pass.
-  `/monzo/oauth/start` answers `503` until the owner seals the confidential client's id and
-  secret. Nothing reads Monzo until then and the owner connects.
+  **Monzo is connected** (16 Oct): the owner created a new confidential client, sealed its id and
+  secret, connected at 21:29 UTC and approved in the app; the service marked itself connected and
+  registered its webhook at 21:32 UTC with no error. Payments count from 21:29 UTC. Nothing is
+  read until a league has a `monzo_link_id` (Batch 210's field). The connect's one-time OAuth code
+  appeared in the payments access log; it is spent, and removing it is the owner's open decision.
 - **Batch 203 shipped unrecorded on 11 Oct** (Railway `de1b8aa8`, `5882b0f`), found from
   Railway's deployment list on 13 Oct and now in the L4 record.
 - **Migration `029` requires forward recovery.** It is additive, but the older images'
@@ -161,7 +161,7 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** the owner seals `MONZO_CLIENT_ID` and `MONZO_CLIENT_SECRET` on `payments`, then Batch
-210, then ADR 0009's launch steps: connect Monzo, then set 2-1 Hibs' fee, link and link id after checking
-every member is 18 or over. The season-calendar backfill remains owner-gated,
+**Next:** Batch 210, then ADR 0009's remaining launch steps (Monzo is connected): set 2-1
+Hibs' fee, link and link id after checking every member is 18 or over, record opening
+balances up to 21:29 UTC on 16 Oct, and pay £1 through the link. The season-calendar backfill remains owner-gated,
 unblocked since 4 Oct.
