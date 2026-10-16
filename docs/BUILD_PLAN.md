@@ -1244,6 +1244,19 @@ by owner decision (2026-10-16) and run after 208's `/ship-prod`.
 
   Scope boundary: the two screens. **Web only.**
 
+- [ ] **Batch 211 — The payments service signs in to the database with the API's login**
+  — raised by Batch 208. Owner decision (2026-10-16): deferred until after ADR 0009's
+  launch. `payments`' `DATABASE_URL` is the Railway reference `${{api.DATABASE_URL}}`, so a
+  compromised payments process could reach every table the API can. Give it its own role
+  with only what it uses: read `alembic_version`, `leagues`, `league_memberships` and
+  `payer_mappings`; read and insert `ledger_entries`; read and write `monzo_connections`.
+  The owner creates the role's credential in Supabase and repoints the variable; the batch
+  decides whether the grants live in a migration or a runbook, and proves the service
+  still boots, reads and writes with nothing more.
+
+  Scope boundary: the payments service's database access. **Runs after launch; needs an
+  owner credential change.**
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

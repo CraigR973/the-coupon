@@ -109,7 +109,9 @@ switched off, with a boot that never migrates — is complete (14 Oct, `71a0c5a`
 service was switched on on 16 Oct (`8b26336`). Batch 208 — the payments service reads the
 league's Monzo link payments into the ledger, migration `029` — is complete (16 Oct,
 `22bc3cb`) and not shipped; one `/ship-prod` covers both. Batch 210 — the admin-screen half of
-208 (the link-id field and link health) — is open and runs after that shipment. The Monzo
+208 (the link-id field and link health) — is open and runs after that shipment. Batch 211 —
+a least-privilege database login for `payments` — is open and deferred until after launch
+(owner, 16 Oct). The Monzo
 launch steps in ADR 0009 are the owner's, including making sure every member is 18 or over.
 
 ## Toolchain
