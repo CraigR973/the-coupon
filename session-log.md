@@ -8862,3 +8862,27 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - The owed `/ship-prod` (API only; members see no change), owner-accepted on 14 Oct to wait for Batch 208. Batch 208's row is open.
 
 **Next:** Batch 208, after the owner creates the `payments` service, seals its variables and gives it a domain.
+
+## Gate maintenance — Batch 208 exact oracle approval
+**Commit:** `1c14e1f` · owner-approved 16 Oct 2026 · first CI:
+https://github.com/CraigR973/the-coupon/actions/runs/38876395465 FAIL at the expected
+old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
+
+### Key facts for future sessions
+- Batch 207's route-table test said "anything more is Batch 208's to add", so two exact lines
+  flip, both in `apps/api/tests/test_payments_service.py`: its title and its assertion that
+  the payments routes are only the health pair. The replacement still asserts the exact table.
+- Replayed before the push: main's new guard passed a Batch 208 branch making the swap,
+  refused the same swap on a Batch 210 branch, and refused one extra removed assertion in the
+  same file.
+- The owner also decided (16 Oct): a site-admin Monzo link id per league; only payments made
+  after the connect count; the service registers its own webhook; and the admin-screen half
+  is a new open row, Batch 210, after Batch 208's `/ship-prod`.
+- Earlier the same morning `8b26336` switched production's payments service on in
+  `.railway/railway.ts` (owner approval 15 Oct), CI
+  https://github.com/CraigR973/the-coupon/actions/runs/38873695884 PASS. Nothing deployed;
+  the drift check reads payments as unreachable until its first `/ship-prod`.
+- No application code, API contract, database schema or production data changed. The API is
+  still at `335e986`, migration `028`; no Railway resource or variable was touched.
+
+**Next:** Start Batch 208 only after this attestation commit's exact-SHA CI is green.
