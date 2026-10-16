@@ -991,8 +991,8 @@ Batches 205-209 come from ADR 0009 (pay to pick in 2-1 Hibs; owner decisions of 
 and 2026-10-13). They run with `/batch-start`, in the order 205, 206, 209, 207, 208: Batch 209
 comes from the ADR's 13 Oct amendment and runs ahead of 207 and 208 by owner decision
 (2026-10-13T21:41Z). Batches 205 and 206 are complete (13 Oct), and 209 and 207 are complete
-(14 Oct); 208 has not started. Batch 210 is the admin-screen half of 208, split off by owner
-decision (2026-10-16) and run after 208's `/ship-prod`.
+(14 Oct), and 208 is complete (16 Oct). Batch 210 is the admin-screen half of 208, split off
+by owner decision (2026-10-16) and run after 208's `/ship-prod`.
 
 - [x] **Batch 205 — A member can pick in a league that charges a fee without having paid ✅ 2026-10-13**
   — specified from ADR 0009, amended 2026-10-13 for weekly dues. 2-1 Hibs members pay £1 a
@@ -1115,7 +1115,7 @@ decision (2026-10-16) and run after 208's `/ship-prod`.
   **Deploy configuration; reaches the API image paths, so `/ship-prod` is owed after push (no
   member-visible change); owner-approved gate maintenance.**
 
-- [ ] **Batch 208 — Payments through the league's Monzo link never reach the app**
+- [x] **Batch 208 — Payments through the league's Monzo link never reach the app** ✅ 2026-10-16
   — specified from ADR 0009. The payments service, running on Batch 207's service.
 
   Monzo connection:

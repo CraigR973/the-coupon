@@ -8886,3 +8886,20 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
   still at `335e986`, migration `028`; no Railway resource or variable was touched.
 
 **Next:** Start Batch 208 only after this attestation commit's exact-SHA CI is green.
+
+## Batch 208 — Payments through the league's Monzo link reach the ledger
+**Commits:** `1c14e1f` + `8c40ddf` (oracle approval and attestation), `22bc3cb` (implementation) · verified: complete 12-check local gate, 1,537 backend and 1,385 frontend tests, journey 1, zero skips · CI: https://github.com/CraigR973/the-coupon/actions/runs/38881024764 PASS for `22bc3cb9effa18c01fd93b1f714bb7feb4bb84c4`
+
+### Key facts for future sessions
+- The payments service connects to Monzo once (`/monzo/oauth/start`, the fixed callback, then approval in the Monzo app), seals both tokens with Fernet under `MONZO_TOKEN_ENCRYPTION_KEY` in the one-row `monzo_connections` (migration `029`), and refreshes with rotation under one lock. A webhook at `/monzo/webhook/<secret>` only nudges a re-read of one transaction; a five-minute catch-up reads from an hour before the last complete read. Every Monzo call is allow-listed (token, accounts, transactions, webhooks).
+- Owner decisions (16 Oct): only payments carrying a league's `monzo_link_id` (new site-admin field, unique, API only) and made after the connect count; the service registers its own webhook; the screens are Batch 210. App payers match by Monzo user id, card payers by normalised name, anyone else is queued; a mapped payer who never joined the league is queued too.
+- **Unverified against real Monzo:** ADR 0009's evidence did not record where `universal_payment_link_id` and the payer's name sit in a transaction. The parser takes the link id from the transaction or its `metadata`, and the name from `counterparty.name`. A mismatch fails safe (the payment is not counted; manual entry still works). Launch step 9 (pay £1) is the check.
+- Gate: attempt 1 failed one new test. `test_migration_012`/`014` run Alembic's `fileConfig` in-process, which disables existing loggers, so the log assertion saw an empty log. Both log tests now re-enable and restore the loggers (`test_display_name_race`'s pattern), and the secrets test also asserts the redacted line printed. Attempt 2 passed all 12 checks.
+- **Close-out safety:** PASS — API-only; pre-push /ship-prod debt present; /ship-prod owed after push
+
+### Follow-ups
+- Batch 210 (open row): the link-id field and link-health panel, after this batch's `/ship-prod`.
+- The `/ship-prod` for both services (Batches 207 and 208) is owed. Per the owner's 16 Oct brief it is reported, not scheduled.
+- The payments service keeps the API's database login (owner, 2026-10-15). A least-privilege role is raised as a decision in this batch's report.
+
+**Next:** the owner schedules `/ship-prod` for both services, then Batch 210, then ADR 0009's launch steps.

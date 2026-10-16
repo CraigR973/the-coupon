@@ -41,6 +41,11 @@ Checked 2026-10-10 unless a line says otherwise.
   member owes. Health reports `335e986` / `028`, drift is in sync, and the read-only audit found
   RLS forced on 24 of 24 tables with no `anon`, `authenticated` or `PUBLIC` grants. Vercel serves
   the same SHA. Still inert until a site admin sets a league's fee.
+- **Batches 207 and 208 are not shipped** (16 Oct). The API still serves `335e986` at `028`.
+  The next `/ship-prod` applies migration `029` (forward recovery:
+  `docs/runbooks/migration-029-recovery.md`) and ships `api`, then `payments`, which is
+  switched on for production (16 Oct, `8b26336`) but has no deployment yet. Nothing reads
+  Monzo until the owner connects and a league has a Monzo link id.
 - **Batch 203 shipped unrecorded on 11 Oct** (Railway `de1b8aa8`, `5882b0f`), found from
   Railway's deployment list on 13 Oct and now in the L4 record.
 - **Migration `028` requires forward recovery.** It is additive, but the older image's
@@ -100,11 +105,12 @@ Nothing changes for members until a site admin sets a league's fee. Batch 206 �
 is complete and live on the web (13 Oct, `32a8aef`). Batch 209 — the link with no 18+ step,
 and greyed pick cards while a member owes (ADR 0009 amended 13 Oct) — is complete (14 Oct,
 `b53ddf9`) and shipped as `335e986`. Batch 207 — the `payments` Railway service declared and
-switched off, with a boot that never migrates — is complete (14 Oct, `71a0c5a`); it leaves a
-`/ship-prod` owed with no member-visible change, which the owner accepted waiting for Batch
-208. Batch 208 has not started: first the owner creates the `payments` service, seals its
-variables and gives it a domain. The Monzo launch steps in ADR 0009 are the owner's, now
-including making sure every member is 18 or over.
+switched off, with a boot that never migrates — is complete (14 Oct, `71a0c5a`); production's
+service was switched on on 16 Oct (`8b26336`). Batch 208 — the payments service reads the
+league's Monzo link payments into the ledger, migration `029` — is complete (16 Oct,
+`22bc3cb`) and not shipped; one `/ship-prod` covers both. Batch 210 — the admin-screen half of
+208 (the link-id field and link health) — is open and runs after that shipment. The Monzo
+launch steps in ADR 0009 are the owner's, including making sure every member is 18 or over.
 
 ## Toolchain
 
@@ -117,7 +123,7 @@ Checked 2026-10-03.
   that stamp when only `docs/BUILD_PLAN.md`, `session-log.md` and `STATUS.md` changed, otherwise it
   reruns the gate, and waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,488, frontend 1,385, journey 1; checked 2026-10-14). 13m04s on this Mac
+  (backend 1,537, frontend 1,385, journey 1; checked 2026-10-16). 13m04s on this Mac
   with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
   (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
   1,350 tests (2026-09-29) — not the gate.
@@ -149,7 +155,7 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Batch 207 in a later session; it needs owner-approved gate maintenance first. Setting
-2-1 Hibs' fee is the owner's launch step, after checking every member is 18 or over (ADR 0009's
-amended fourth rule). The season-calendar
-backfill remains owner-gated, unblocked since 4 Oct.
+**Next:** the owner schedules `/ship-prod` for both services (Batches 207 and 208), then Batch
+210, then ADR 0009's launch steps: connect Monzo, then set 2-1 Hibs' fee, link and link id
+after checking every member is 18 or over. The season-calendar backfill remains owner-gated,
+unblocked since 4 Oct.
