@@ -8924,3 +8924,28 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - `railway run` does not receive sealed variables, and `railway variables --json` returns them as `null`; neither can confirm a sealed value.
 
 **Next:** the owner seals `MONZO_CLIENT_ID` and `MONZO_CLIENT_SECRET`; then confirm the boot log is clean and run Batch 210.
+
+## Shipment — 2026-10-17, `bca0aaa` (payments writes no access log; no migration)
+**Railway:** API `27165f16-72ce-4d3f-a87e-6da2faf50b2a` and payments `7be9498d-ea12-4ef8-99fb-93b6d8d41731` `SUCCESS` · IaC redeploys `8f2812f7` / `1419b3cf` · drift **in sync** for both · CI https://github.com/CraigR973/the-coupon/actions/runs/38974528306 PASS · gate tree `928647d` (backend 1,544; frontend 1,385; journey 1)
+
+### Key facts for future sessions
+- The connect's one-time OAuth code had been printed by Uvicorn's access log. `bca0aaa` runs the payments service with `access_log=False`; its first logs after shipping had zero access-log lines and nothing refused.
+- Monzo stayed connected across the redeploy (a clean read at 23:59 UTC on 16 Oct): the sealed tokens live in the database, not the container.
+
+**Next:** Batch 210, then ADR 0009's remaining launch steps.
+
+## Batch 210 — The organiser can see whether Monzo is connected, and tell the app which link is the league's
+**Commits:** `1e12109` · verified: complete 12-check local gate, 1,544 backend and 1,397 frontend tests, journey 1, zero skips · CI: https://github.com/CraigR973/the-coupon/actions/runs/38985610003 PASS for `1e12109696c81ce78a6845d38c44ab4b9bb5cd6f`
+
+### Key facts for future sessions
+- The payments screen's Monzo card reads Batch 208's `monzo_link` health: status, last read, login renewal, counting start, and the last problem only while nothing has worked since. It points to league settings while the league has no link id. An API older than Batch 208 (fields absent) gets no card at all, rather than "not connected".
+- League settings' site-admin "Monzo link id" field is checked as `unipaylink_` plus 1–53 letters and digits, and is **sent only when changed**, so a page loaded from an older API can never clear an id a newer API holds. `MONZO_LINK_IN_USE` is said plainly.
+- Screenshots at 390 and 1280 px in both themes (`artifacts/overnight/batch-210-shots/`, a scratch stack with synthetic data): no sideways scroll, no console errors. The app defaults to dark for a first visit whatever the system says, so a light shot needs `coupon_theme=light` stored.
+- Gate: attempt 1 passed all 12 checks; no failure to fix.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- Batch 211 (open row): the payments service's own least-privilege database login, after launch.
+- ADR 0009's remaining launch steps are the owner's: set 2-1 Hibs' fee, payment link and Monzo link id; pay £1 through the link; record opening balances; tell the members the rules.
+
+**Next:** the owner's launch steps for 2-1 Hibs; Batch 211 after launch.

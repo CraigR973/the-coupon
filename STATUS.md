@@ -13,9 +13,9 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `bf7ecbd` (Batches 207, 208 and the settings-diagnostics fix) at migration `029` (16 Oct) |
-| API deployment | Railway `53772eca-860d-4152-adc5-657bc22ecbc6` succeeded, one replica, `europe-west4` (16 Oct) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `bf7ecbd` at `029`, Railway `2ffbb4a0-f862-49e5-8952-28f243f62ff1`, one replica, `europe-west4`; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC; nothing is read until a league has a Monzo link id (16 Oct) |
+| API | `api-production-109b1.up.railway.app` serves `bca0aaa` (Batches 207, 208 and two payments fixes) at migration `029` (17 Oct) |
+| API deployment | Railway `27165f16-72ce-4d3f-a87e-6da2faf50b2a` succeeded, one replica, `europe-west4` (17 Oct) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `bca0aaa` at `029`, Railway `7be9498d-ea12-4ef8-99fb-93b6d8d41731`, one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC; nothing is read until a league has a Monzo link id (16 Oct) |
 | Web | Batch 202's build (Vite 8, Tailwind 4) is live at `the-coupon-production.vercel.app` from `628aa0a` (2026-10-11: its stylesheet served, sign-in rendered at 390 and 1280 px with no console errors). Later documentation-only deployments leave the web code unchanged. |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 25 of 25 tables, no public-role grants (16 Oct) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
@@ -48,8 +48,9 @@ Checked 2026-10-10 unless a line says otherwise.
   **Monzo is connected** (16 Oct): the owner created a new confidential client, sealed its id and
   secret, connected at 21:29 UTC and approved in the app; the service marked itself connected and
   registered its webhook at 21:32 UTC with no error. Payments count from 21:29 UTC. Nothing is
-  read until a league has a `monzo_link_id` (Batch 210's field). The connect's one-time OAuth code
-  appeared in the payments access log; it is spent, and removing it is the owner's open decision.
+  read until a league has a `monzo_link_id`, which a site admin now sets in League settings
+  (Batch 210). The connect's one-time OAuth code appeared in the payments access log once; it was
+  spent, and since `bca0aaa` (shipped 17 Oct) the service writes no access log.
 - **Batch 203 shipped unrecorded on 11 Oct** (Railway `de1b8aa8`, `5882b0f`), found from
   Railway's deployment list on 13 Oct and now in the L4 record.
 - **Migration `029` requires forward recovery.** It is additive, but the older images'
@@ -113,7 +114,8 @@ switched off, with a boot that never migrates — is complete (14 Oct, `71a0c5a`
 service was switched on on 16 Oct (`8b26336`). Batch 208 — the payments service reads the
 league's Monzo link payments into the ledger, migration `029` — is complete (16 Oct,
 `22bc3cb`) and not shipped; one `/ship-prod` covers both. Batch 210 — the admin-screen half of
-208 (the link-id field and link health) — is open and runs after that shipment. Batch 211 —
+208 (the link-id field and link health) — is complete and live on the web (17 Oct, `1e12109`,
+web-only). Batch 211 —
 a least-privilege database login for `payments` — is open and deferred until after launch
 (owner, 16 Oct). The Monzo
 launch steps in ADR 0009 are the owner's, including making sure every member is 18 or over.
@@ -129,7 +131,7 @@ Checked 2026-10-03.
   that stamp when only `docs/BUILD_PLAN.md`, `session-log.md` and `STATUS.md` changed, otherwise it
   reruns the gate, and waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,537, frontend 1,385, journey 1; checked 2026-10-16). 13m04s on this Mac
+  (backend 1,544, frontend 1,397, journey 1; checked 2026-10-17). 13m04s on this Mac
   with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
   (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
   1,350 tests (2026-09-29) — not the gate.
@@ -161,7 +163,7 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Batch 210, then ADR 0009's remaining launch steps (Monzo is connected): set 2-1
+**Next:** ADR 0009's remaining launch steps (Monzo is connected): set 2-1
 Hibs' fee, link and link id after checking every member is 18 or over, record opening
 balances up to 21:29 UTC on 16 Oct, and pay £1 through the link. The season-calendar backfill remains owner-gated,
 unblocked since 4 Oct.
