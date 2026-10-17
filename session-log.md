@@ -8965,3 +8965,13 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - The scheduled `/ship-prod` for `06a32f6` (owner-scheduled 2026-10-17T09:48:36Z), run in this session straight after close-out.
 
 **Next:** `/ship-prod` for Batch 212; Batch 213 in a later session.
+
+## Shipment — 2026-10-17, `88d8541` (Batch 212; no migration)
+**Railway:** API `2966c35b-6eb3-4191-a57c-98ce88c5dc8e` and payments `f8be2071-1a85-4644-bc59-9317a97d6587` `SUCCESS` · IaC redeploys `d352f6eb` / `1acf1785` · Vercel no-op (`dpl_CkfiroiTsqZ8Cg2ff4kAJuQ7Ardh`, `88d8541`) · drift **in sync** for both · exact-SHA CI `39022638761` and `39023375199` green · reused gate stamp `82dda50` (backend 1,548; frontend 1,408; journey 1)
+
+### Key facts for future sessions
+- **Batch 212 is live.** Both services report `88d8541` / `029`; RLS forced on 25 of 25 tables with no public-role grants. Owner-scheduled at 2026-10-17T09:48:36Z. Members of a league with a fee now see the Money card and the pay panel's earlier balance.
+- The Vercel CLI's stored token answered `invalidToken` to the REST API until `vercel whoami` refreshed it; run a CLI command before reading the API.
+- **Recovery:** no migration, so `d352f6eb` / `1acf1785` are valid rollback targets.
+
+**Next:** Batch 213 in a later session.

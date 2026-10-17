@@ -3979,3 +3979,30 @@ web root and a deep link returned `200`, exact-origin CORS `200` with credential
 
 Backup/restore-point identity: **none yet**. No migration was applied, so `8f2812f7` and `1419b3cf`
 remain valid rollback targets.
+
+### 2026-10-17 — `88d8541`, Batch 212: members see the prize fund's targets and who has paid (no migration)
+
+Owner-scheduled in chat (Craig Robinson, 2026-10-17T09:48:36Z) before close-out. Implementation
+`06a32f6`, exact-SHA CI green (`39022638761`); close-out `88d8541`, exact-SHA CI green
+(`39023375199`). The complete gate stamped tree `82dda50` (12 checks, backend 1,548, frontend
+1,408, journey 1, zero skips); the shipped tree differs only in the three close-out documents.
+
+Preflight: exact targets, null `railwayConfigFile` on both services, all required variable names
+on both and kept apart, both Vercel production names encrypted, Supabase `ACTIVE_HEALTHY`, no
+migration to apply (production at `029`). The pinned IaC plan had 0 additions, the 4 recurring
+null-to-explicit updates and 0 deletions; its redeploys of the running images, API `d352f6eb` and
+payments `1acf1785` (`bca0aaa` / `029`), reached `SUCCESS` and were the rollback baselines.
+
+API `2966c35b-6eb3-4191-a57c-98ce88c5dc8e` and payments `f8be2071-1a85-4644-bc59-9317a97d6587`
+reached `SUCCESS`: one replica in `europe-west4-drams3a`, no sleep, IPv6 egress, 0.25 vCPU and
+500 MB. Both report `88d8541` and `029`, and both readiness checks database `ok` at `029`. Bounded
+logs: API 500 lines and payments 7, zero failure-term and credential-pattern lines, and no
+access-log line on payments. The catalogue-only audit found head `029`, RLS forced on 25 of 25
+tables and no public-role grants. Vercel was a no-op (GitHub deployed `88d8541`,
+`dpl_CkfiroiTsqZ8Cg2ff4kAJuQ7Ardh` holds the alias); the web root and a deep link returned `200`
+on the same bundle, exact-origin CORS `200` with credentials, a foreign origin `400`, and the new
+`/money` route `401` without a session. Drift: **in sync** for both.
+
+Backup/restore-point identity: **none yet**. No migration was applied, so `d352f6eb` and
+`1acf1785` remain valid rollback targets; the web's is `dpl_8JDQVTectLaQEjrA4frPC83FaxPw`
+(`83c2663`, before Batch 212's web half).

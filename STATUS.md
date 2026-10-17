@@ -13,9 +13,9 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `bca0aaa` (Batches 207, 208 and two payments fixes) at migration `029` (17 Oct) |
-| API deployment | Railway `27165f16-72ce-4d3f-a87e-6da2faf50b2a` succeeded, one replica, `europe-west4` (17 Oct) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `bca0aaa` at `029`, Railway `7be9498d-ea12-4ef8-99fb-93b6d8d41731`, one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC; nothing is read until a league has a Monzo link id (16 Oct) |
+| API | `api-production-109b1.up.railway.app` serves `88d8541` (through Batch 212) at migration `029` (17 Oct) |
+| API deployment | Railway `2966c35b-6eb3-4191-a57c-98ce88c5dc8e` succeeded, one replica, `europe-west4` (17 Oct) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `88d8541` at `029`, Railway `f8be2071-1a85-4644-bc59-9317a97d6587`, one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC; nothing is read until a league has a Monzo link id (16 Oct) |
 | Web | Batch 202's build (Vite 8, Tailwind 4) is live at `the-coupon-production.vercel.app` from `628aa0a` (2026-10-11: its stylesheet served, sign-in rendered at 390 and 1280 px with no console errors). Later documentation-only deployments leave the web code unchanged. |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 25 of 25 tables, no public-role grants (16 Oct) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
@@ -118,8 +118,8 @@ league's Monzo link payments into the ledger, migration `029` — is complete (1
 web-only). Batch 211 —
 a least-privilege database login for `payments` — is open and deferred until after launch
 (owner, 16 Oct). Batch 212 — members see the prize fund, both targets and everyone's status,
-and the pay panel's earlier balance — is complete (17 Oct, `06a32f6`, API+web); its web half is
-live and its `/ship-prod` is scheduled straight after close-out. Batch 213 (notifications for
+and the pay panel's earlier balance — is complete and shipped (17 Oct, `06a32f6`, shipped as
+`88d8541`). Batch 213 (notifications for
 queued payments, Monzo link trouble and payments received) is open (owner, 17 Oct). The Monzo
 launch steps in ADR 0009 are the owner's, including making sure every member is 18 or over.
 
