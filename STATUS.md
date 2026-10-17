@@ -117,9 +117,10 @@ league's Monzo link payments into the ledger, migration `029` — is complete (1
 208 (the link-id field and link health) — is complete and live on the web (17 Oct, `1e12109`,
 web-only). Batch 211 —
 a least-privilege database login for `payments` — is open and deferred until after launch
-(owner, 16 Oct). Batches 212 (members see the prize fund, targets and everyone's status) and 213
-(notifications for queued payments, Monzo link trouble and payments received) are open
-(owner, 17 Oct). The Monzo
+(owner, 16 Oct). Batch 212 — members see the prize fund, both targets and everyone's status,
+and the pay panel's earlier balance — is complete (17 Oct, `06a32f6`, API+web); its web half is
+live and its `/ship-prod` is scheduled straight after close-out. Batch 213 (notifications for
+queued payments, Monzo link trouble and payments received) is open (owner, 17 Oct). The Monzo
 launch steps in ADR 0009 are the owner's, including making sure every member is 18 or over.
 
 ## Toolchain
@@ -133,7 +134,7 @@ Checked 2026-10-03.
   that stamp when only `docs/BUILD_PLAN.md`, `session-log.md` and `STATUS.md` changed, otherwise it
   reruns the gate, and waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,544, frontend 1,397, journey 1; checked 2026-10-17). 13m04s on this Mac
+  (backend 1,548, frontend 1,408, journey 1; checked 2026-10-17). 13m04s on this Mac
   with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
   (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
   1,350 tests (2026-09-29) — not the gate.

@@ -8949,3 +8949,19 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - ADR 0009's remaining launch steps are the owner's: set 2-1 Hibs' fee, payment link and Monzo link id; pay £1 through the link; record opening balances; tell the members the rules.
 
 **Next:** the owner's launch steps for 2-1 Hibs; Batch 211 after launch.
+
+## Batch 212 — Members can see the prize fund's targets, and who has paid
+**Commits:** `06a32f6` · verified: complete 12-check local gate, 1,548 backend and 1,408 frontend tests, journey 1, zero skips · CI: https://github.com/CraigR973/the-coupon/actions/runs/39022638761 PASS for `06a32f6aec76415d69d39377804ee597a685a0b3`
+
+### Key facts for future sessions
+- `GET /api/v1/leagues/{slug}/money` (members, and site admins through the read bypass; a non-member gets 403, a league without a fee 404) returns the pot, both targets, the shortfall and each active member's status from their whole balance. It never carries payer names, notes, Monzo ids or ledger rows.
+- "To date" counts only this season's rounds whose opening charged a due, net of reversals, so a voided round and the rounds before the fee was set drop out. Its total is what every member, former ones included, was charged, so the pot falls short by exactly what is unpaid. The calendar records no season end, so "full season" adds one round a week to 31 May plus declared extra weeks, at today's fee, for current members, and stays an estimate until then.
+- `round_fee_status` adds `earlier_balance_pence`: `owed_pence` minus the listed rounds, which is a negative adjustment or an over-large cash-out. Batch 205's exact-payload test gained that one key (no line removed).
+- The standings page asks for the money read only for a league with a fee, and shows the Money card in place of the pot line only when the payload has the right shape; an older API's 404 keeps the pot line. Screenshots at 390 and 1280 px in both themes (`artifacts/overnight/batch-212-shots/`, a scratch stack with synthetic data): no sideways scroll, no console errors.
+- Gate: attempt 1 passed all 12 checks after waiting for load under 6; no failure to fix.
+- **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-17T09:48:36Z; pre-push deployed-API drift in sync; /ship-prod owed immediately after push
+
+### Follow-ups
+- The scheduled `/ship-prod` for `06a32f6` (owner-scheduled 2026-10-17T09:48:36Z), run in this session straight after close-out.
+
+**Next:** `/ship-prod` for Batch 212; Batch 213 in a later session.

@@ -1260,7 +1260,7 @@ owner on launch day, 2026-10-17.
   Scope boundary: the payments service's database access. **Runs after launch; needs an
   owner credential change.**
 
-- [ ] **Batch 212 — Members cannot see the prize fund's targets, or who has paid**
+- [x] **Batch 212 — Members cannot see the prize fund's targets, or who has paid** ✅ 2026-10-17
   — raised on launch day (owner, 2026-10-17). Members see the season pot on the standings
   page and their own position on the round's pay panel, nothing else. The organiser's
   Payments screen is site-admin only.
