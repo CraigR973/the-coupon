@@ -13,7 +13,8 @@ import { Button } from '@/components/ui/button';
  * panel that refusal is a toast the member cannot act on. Three states:
  *
  * * **owed** — the amount owed now, every round behind it listed so a £2 is never a
- *   surprise, and the league's payment link as a button straight away. Batch 209 removed
+ *   surprise (and any earlier charge that is not a round as one "Earlier balance" line,
+ *   Batch 212), and the league's payment link as a button straight away. Batch 209 removed
  *   the "I'm 18 or over" step: under ADR 0009's amended fourth rule the owner, not the
  *   app, makes sure members are adults.
  * * **credit** — paid up with money left over, which covers the weeks ahead.
@@ -75,6 +76,7 @@ function OwedPanel({
 }) {
   const rolledOver = fee.owed_rounds.filter((round) => round.gameweek_id !== gameweekId);
   const thisRound = fee.owed_rounds.find((round) => round.gameweek_id === gameweekId);
+  const earlierBalance = fee.earlier_balance_pence ?? 0;
 
   return (
     <section
@@ -93,6 +95,18 @@ function OwedPanel({
       </p>
 
       <ul className="mt-2 flex flex-col gap-1 text-xs sm:max-w-sm" data-testid="pay-panel-rounds">
+        {/* Batch 212. A charge that is not a round — what was owed before the app, say —
+            is one line, so the lines add up to what the heading asks for. Never the
+            organiser's note. */}
+        {earlierBalance > 0 && (
+          <li
+            data-testid="pay-panel-earlier-balance"
+            className="flex items-baseline justify-between gap-3"
+          >
+            <span>Earlier balance</span>
+            <span className="shrink-0 font-mono tabular-nums">{formatPence(earlierBalance)}</span>
+          </li>
+        )}
         {rolledOver.map((round) => (
           <li
             key={round.gameweek_id}

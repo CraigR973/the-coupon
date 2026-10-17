@@ -10,15 +10,16 @@ refused both), and so is the money: a league admin who could record cash could r
 some for themselves. The routes take :data:`~src.auth.AdminUser`, like the console, rather
 than a league-membership dependency, so oversight does not depend on having joined.
 
-The one member route is the confirmation that they are 18 or over, which the round
-payload waits for before it shows the payment link.
+Two routes are members': the money read (Batch 212), which shows every member the pot,
+its targets and who has paid — never a payer's name, a note, a Monzo id or a ledger row —
+and the confirmation that they are 18 or over, unused since Batch 209.
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
-from typing import Annotated
+from datetime import UTC, date, datetime
+from typing import Annotated, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -29,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import AdminUser, CurrentUser
 from src.database import get_db
-from src.deps import LeagueMemberWriteDep, get_league_or_404
+from src.deps import LeagueMemberDep, LeagueMemberWriteDep, get_league_or_404
 from src.display_name import public_name
 from src.models.league import League
 from src.models.league_membership import LeagueMembership
@@ -40,6 +41,7 @@ from src.rate_limit import limiter, per_user_key
 from src.schemas import UtcDatetime
 from src.services.dues import (
     league_balances,
+    league_money,
     member_balance,
     normalise_payer_name,
     season_pot,
@@ -178,6 +180,45 @@ class AssignedPayment(LedgerEntryOut):
     #: What the payer map now remembers this payer by: ``"monzo_user"``, ``"name"``, or
     #: ``None`` when the payment carried neither.
     remembered_by: str | None
+
+
+class MoneyTarget(BaseModel):
+    """What the season's dues come to: per member, and for the whole league."""
+
+    rounds: int
+    per_person_pence: int
+    total_pence: int
+
+
+class FullSeasonTarget(MoneyTarget):
+    #: The last day an estimate counts weekly rounds to; ``None`` when nothing is guessed.
+    estimated_through: date | None
+    is_estimate: bool
+
+
+class MemberMoneyStatus(BaseModel):
+    """One active member's position, as every member of the league sees it."""
+
+    player_id: str
+    display_name: str
+    status: Literal["owes", "paid_up", "credit"]
+    #: What they owe, or hold in credit; zero when paid up.
+    amount_pence: int
+
+
+class LeagueMoneyOut(BaseModel):
+    """``GET /leagues/{slug}/money``: the prize fund, its targets and who has paid."""
+
+    season: int
+    label: str
+    entry_fee_pence: int
+    pot_pence: int
+    target_to_date: MoneyTarget
+    target_full_season: FullSeasonTarget
+    #: How far the pot is short of the to-date target: what is unpaid so far.
+    short_of_target_pence: int
+    #: Owes first, most owed first; then paid up; then credit; by name within each.
+    members: list[MemberMoneyStatus]
 
 
 class AdultConfirmation(BaseModel):
@@ -490,7 +531,78 @@ async def assign_payment(
     return AssignedPayment(**_entry_out(entry).model_dump(), remembered_by=remembered_by)
 
 
-# ── The member's route ──────────────────────────────────────────────────────────
+# ── The members' routes ─────────────────────────────────────────────────────────
+
+
+_STATUS_ORDER = {"owes": 0, "paid_up": 1, "credit": 2}
+
+
+@router.get("/{slug}/money", response_model=LeagueMoneyOut)
+@limiter.limit("60/minute", key_func=per_user_key)
+async def league_money_read(
+    request: Request,
+    slug: str,
+    league: LeagueMemberDep,
+    db: Db,
+) -> LeagueMoneyOut:
+    """Every member's view of the league's money. Batch 212.
+
+    Owner decision (2026-10-17): in a friends' league every member sees every member's
+    status, because the nudge is the point. A league without a fee has no money to show
+    and answers ``404``, like a route that does not exist. Site admins read it too, through
+    the membership dependency's read-only bypass.
+    """
+    if league.entry_fee_pence is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No entry fee")
+    money = await league_money(db, league)
+    names: dict[uuid.UUID, str] = {
+        player_id: name
+        for player_id, name in (
+            await db.execute(
+                select(Profile.id, Profile.display_name).where(Profile.id.in_(list(money.balances)))
+            )
+        ).all()
+    }
+    members: list[MemberMoneyStatus] = []
+    for player_id, balance in money.balances.items():
+        state: Literal["owes", "paid_up", "credit"] = (
+            "owes" if balance < 0 else "credit" if balance > 0 else "paid_up"
+        )
+        members.append(
+            MemberMoneyStatus(
+                player_id=str(player_id),
+                display_name=public_name(names[player_id]),
+                status=state,
+                amount_pence=abs(balance),
+            )
+        )
+    members.sort(
+        key=lambda row: (
+            _STATUS_ORDER[row.status],
+            -row.amount_pence if row.status == "owes" else 0,
+            row.display_name.casefold(),
+        )
+    )
+    return LeagueMoneyOut(
+        season=money.season,
+        label=season_label(money.season),
+        entry_fee_pence=league.entry_fee_pence,
+        pot_pence=money.pot_pence,
+        target_to_date=MoneyTarget(
+            rounds=money.rounds_to_date,
+            per_person_pence=money.per_person_to_date_pence,
+            total_pence=money.total_to_date_pence,
+        ),
+        target_full_season=FullSeasonTarget(
+            rounds=money.rounds_full_season,
+            per_person_pence=money.per_person_full_season_pence,
+            total_pence=money.total_full_season_pence,
+            estimated_through=money.estimated_through,
+            is_estimate=money.estimated_through is not None,
+        ),
+        short_of_target_pence=max(0, money.total_to_date_pence - money.pot_pence),
+        members=members,
+    )
 
 
 @router.post("/{slug}/adult-confirmation", response_model=AdultConfirmation)

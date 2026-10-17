@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouteLeague } from '../hooks/useRouteLeague';
-import type { LeagueDetail, SeasonSummary, Standing } from '../lib/types';
+import type { LeagueDetail, LeagueMoney, SeasonSummary, Standing } from '../lib/types';
 import { VoidDenominatorNote } from '../components/PickShapeLine';
 import { PickFormLine } from '../components/PickFormLine';
 import { PageHeader } from '../components/PageHeader';
@@ -19,7 +19,8 @@ import { Button } from '../components/ui/button';
 import { buildStandingsShareText } from '../lib/share';
 import { buildInviteMessage, shareInvite } from '../lib/invite';
 import { cn } from '../lib/utils';
-import { formatPence } from '../lib/money';
+import { formatPence, isLeagueMoney } from '../lib/money';
+import { MoneyCard } from '../components/MoneyCard';
 import { keys } from '@/lib/queryKeys';
 
 export function LeaderboardPage() {
@@ -73,6 +74,18 @@ export function LeaderboardPage() {
     league?.season_pot_pence != null && (season === null || shown?.is_current)
       ? league.season_pot_pence
       : null;
+
+  // Batch 212. Every member's view of the league's money, asked for only by a league with
+  // a fee. An API from before this batch answers 404 (no retry), and then the pot line
+  // above is what the page shows, exactly as before.
+  const { data: moneyData } = useQuery<LeagueMoney>({
+    queryKey: keys.league.money(slug),
+    queryFn: () => apiFetch<LeagueMoney>(`/api/v1/leagues/${slug}/money`),
+    enabled: seasonPot !== null,
+    staleTime: 30_000,
+    retry: false,
+  });
+  const money = seasonPot !== null && isLeagueMoney(moneyData) ? moneyData : null;
 
   const selectSeason = (next: number | null) => {
     const updated = new URLSearchParams(params);
@@ -140,7 +153,9 @@ export function LeaderboardPage() {
         className="mt-3"
       />
 
-      {seasonPot !== null && (
+      {money !== null && <MoneyCard money={money} currentPlayerId={player?.id} />}
+
+      {seasonPot !== null && money === null && (
         <div
           data-testid="season-pot"
           className="mt-3 flex items-start gap-2 rounded-lg border border-border bg-surface px-4 py-3 font-sans"

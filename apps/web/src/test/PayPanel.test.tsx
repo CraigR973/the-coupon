@@ -81,6 +81,28 @@ describe('PayPanel — a member who owes', () => {
     expect(screen.queryAllByTestId('pay-panel-rolled-over')).toHaveLength(0);
   });
 
+  it('lists an earlier charge that is not a round as one line, so the lines add up (Batch 212)', () => {
+    renderPanel({
+      ...OWED,
+      owed_pence: 500,
+      owed_rounds: [OWED.owed_rounds[1]],
+      earlier_balance_pence: 400,
+    });
+    expect(screen.getByTestId('pay-panel-owed').textContent).toBe('£5');
+    const earlier = screen.getByTestId('pay-panel-earlier-balance');
+    expect(earlier.textContent).toBe('Earlier balance£4');
+    const lines = within(screen.getByTestId('pay-panel-rounds')).getAllByRole('listitem');
+    expect(lines.map((line) => line.textContent)).toEqual(['Earlier balance£4', 'This round£1']);
+  });
+
+  it('shows no earlier balance when there is none, or the API does not send one (Batch 212)', () => {
+    const { unmount } = renderPanel({ ...OWED, earlier_balance_pence: 0 });
+    expect(screen.queryByTestId('pay-panel-earlier-balance')).toBeNull();
+    unmount();
+    renderPanel(OWED);
+    expect(screen.queryByTestId('pay-panel-earlier-balance')).toBeNull();
+  });
+
   it('offers the league’s payment link as a button straight away', () => {
     renderPanel(OWED);
     const link = screen.getByRole('link', { name: /pay £2/i });

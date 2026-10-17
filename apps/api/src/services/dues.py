@@ -36,11 +36,11 @@ import uuid
 from collections import defaultdict
 from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import structlog
 from pydantic import BaseModel
-from sqlalchemy import func, select, text
+from sqlalchemy import case, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,7 +49,14 @@ from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.ledger import DUE_KINDS, LedgerEntry, LedgerKind
 from src.models.profile import Profile
-from src.services.season_calendar import labels_for_gameweeks, season_bounds
+from src.services.football_provider import season_for
+from src.services.season_calendar import (
+    UK_TZ,
+    calendar_for,
+    canonical_saturday,
+    labels_for_gameweeks,
+    season_bounds,
+)
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -66,6 +73,11 @@ NOTE_REJOINED = "rejoined while the round was open"
 
 def _utc_now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _uk_today() -> date:
+    """Today on the league's clock, which is the one a round's date is written on."""
+    return datetime.now(UK_TZ).date()
 
 
 def format_pence(pence: int) -> str:
@@ -684,6 +696,10 @@ class RoundFeeStatus(BaseModel):
     round_due_pence: int
     owed_pence: int
     owed_rounds: list[OwedRound]
+    #: What ``owed_pence`` asks for beyond the rounds listed: earlier charges that are not
+    #: rounds, such as an organiser's adjustment for what was owed before the app (Batch
+    #: 212). One amount, never the note behind it, so the panel's lines add up.
+    earlier_balance_pence: int = 0
     credit_pence: int
     adult_confirmed: bool
     has_payment_link: bool
@@ -710,21 +726,27 @@ async def round_fee_status(
     standing = (await fee_standings(db, league, gameweek, [player_id]))[player_id]
     rounds = await _round_dates(db, [due.gameweek_id for due in standing.owed_rounds])
     labels = await labels_for_gameweeks(db, list(rounds.values()))
+    owed_rounds = [
+        OwedRound(
+            gameweek_id=str(due.gameweek_id),
+            starts_on=rounds[due.gameweek_id].starts_on,
+            number=rounds[due.gameweek_id].number,
+            season_week=labels.get(due.gameweek_id),
+            amount_pence=due.amount_pence,
+        )
+        for due in standing.owed_rounds
+        if due.gameweek_id in rounds
+    ]
     return RoundFeeStatus(
         entry_fee_pence=league.entry_fee_pence,
         round_due_pence=standing.round_due_pence,
         owed_pence=standing.owed_pence,
-        owed_rounds=[
-            OwedRound(
-                gameweek_id=str(due.gameweek_id),
-                starts_on=rounds[due.gameweek_id].starts_on,
-                number=rounds[due.gameweek_id].number,
-                season_week=labels.get(due.gameweek_id),
-                amount_pence=due.amount_pence,
-            )
-            for due in standing.owed_rounds
-            if due.gameweek_id in rounds
-        ],
+        owed_rounds=owed_rounds,
+        # Whatever the rounds do not account for. A charge that is not a round (a negative
+        # adjustment) lowers credit below zero, which no round's allocation can show.
+        earlier_balance_pence=max(
+            0, standing.owed_pence - sum(due.amount_pence for due in owed_rounds)
+        ),
         credit_pence=standing.credit_pence,
         adult_confirmed=membership.adult_confirmed_at is not None,
         has_payment_link=league.payment_link_url is not None,
@@ -765,3 +787,131 @@ async def season_pot(db: AsyncSession, league_id: uuid.UUID, season: int) -> int
             if due.starts_on is not None and first_day <= due.starts_on <= last_day:
                 pot += paid
     return pot
+
+
+# ── The league's money, as every member reads it ───────────────────────────────
+
+
+def season_estimate_end(season: int) -> date:
+    """The last day the full-season estimate counts rounds to. Batch 212.
+
+    Nothing records when a season's last round is: the calendar holds where week one is
+    and the extra weeks, never an end. So until the season reaches it, the full-season
+    target assumes one round a week to 31 May of the season's second year, which is when
+    the domestic leagues finish. The figure is labelled an estimate while any of those
+    weeks is still ahead.
+    """
+    return date(season + 1, 5, 31)
+
+
+def _rounds_ahead(
+    season: int, today: date, last_counted: date | None, extra_weeks: Iterable[date]
+) -> int:
+    """How many more rounds the estimate expects this season, after the ones counted.
+
+    One a week from the football week after the latest one already counted — or, when
+    rounds have paused, from this week, so a gap in the past is never counted as ahead —
+    to :func:`season_estimate_end`, plus every declared extra week in that stretch.
+    """
+    end = season_estimate_end(season)
+    floor = canonical_saturday(today) - timedelta(weeks=1)
+    if last_counted is not None:
+        floor = max(floor, canonical_saturday(last_counted))
+    weekly = 0
+    cursor = floor + timedelta(weeks=1)
+    while cursor <= end:
+        weekly += 1
+        cursor += timedelta(weeks=1)
+    since = max(today, last_counted + timedelta(days=1)) if last_counted else today
+    extras = sum(1 for day in set(extra_weeks) if since <= day <= end)
+    return weekly + extras
+
+
+@dataclass(frozen=True)
+class LeagueMoney:
+    """What every member of a league with a fee may see of its money. Batch 212.
+
+    **To date** is exact: the rounds of this season whose opening charged a due, net of
+    reversals, so a voided round and the rounds before the fee was set are not counted.
+    Per person, it is what a member who has been here all season has been charged; in
+    total, what every member — former ones included — has been charged, so the pot falls
+    short of it by exactly what is unpaid. **Full season** adds the rounds
+    :func:`_rounds_ahead` expects, at today's fee, for every active member.
+    """
+
+    season: int
+    pot_pence: int
+    rounds_to_date: int
+    per_person_to_date_pence: int
+    total_to_date_pence: int
+    rounds_full_season: int
+    per_person_full_season_pence: int
+    total_full_season_pence: int
+    #: The last day the estimate counts to, or ``None`` once no round is left to guess.
+    estimated_through: date | None
+    #: Each active member's balance: credit if positive, owed if negative.
+    balances: dict[uuid.UUID, int]
+
+
+async def league_money(db: AsyncSession, league: League, today: date | None = None) -> LeagueMoney:
+    """The season's pot, its targets and every active member's balance, in four reads."""
+    fee = league.entry_fee_pence
+    if fee is None:
+        raise ValueError("league_money needs a league with a fee")
+    day = today or _uk_today()
+    season = season_for(day)
+    first_day, last_day = season_bounds(season)
+
+    charged = (
+        await db.execute(
+            select(
+                Gameweek.starts_on,
+                func.max(
+                    case(
+                        (LedgerEntry.kind == LedgerKind.round_due, -LedgerEntry.amount_pence),
+                    )
+                ).label("round_fee"),
+                func.sum(LedgerEntry.amount_pence).label("net"),
+            )
+            .join(LedgerEntry, LedgerEntry.gameweek_id == Gameweek.id)
+            .where(
+                Gameweek.league_id == league.id,
+                LedgerEntry.league_id == league.id,
+                Gameweek.starts_on >= first_day,
+                Gameweek.starts_on <= last_day,
+                LedgerEntry.kind.in_(DUE_KINDS),
+            )
+            .group_by(Gameweek.id, Gameweek.starts_on)
+        )
+    ).all()
+    # A round counts while anyone still owes it: a voided round nets to nothing.
+    # ``net`` is the round's dues and reversals together, negative while anything is owed.
+    counted = [
+        (starts_on, int(round_fee), -int(net))
+        for starts_on, round_fee, net in charged
+        if round_fee and net is not None and net < 0
+    ]
+    per_person_to_date = sum(round_fee for _, round_fee, _ in counted)
+    total_to_date = sum(net for _, _, net in counted)
+
+    calendar = await calendar_for(db, season)
+    ahead = _rounds_ahead(
+        season,
+        day,
+        max((starts_on for starts_on, _, _ in counted), default=None),
+        calendar.extra_weeks if calendar is not None else (),
+    )
+    members = await active_member_ids(db, league.id)
+    balances = await league_balances(db, league.id)
+    return LeagueMoney(
+        season=season,
+        pot_pence=await season_pot(db, league.id, season),
+        rounds_to_date=len(counted),
+        per_person_to_date_pence=per_person_to_date,
+        total_to_date_pence=total_to_date,
+        rounds_full_season=len(counted) + ahead,
+        per_person_full_season_pence=per_person_to_date + ahead * fee,
+        total_full_season_pence=total_to_date + ahead * fee * len(members),
+        estimated_through=season_estimate_end(season) if ahead else None,
+        balances={player_id: balances.get(player_id, 0) for player_id in members},
+    )

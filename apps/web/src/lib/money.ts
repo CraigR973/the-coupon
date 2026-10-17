@@ -1,3 +1,5 @@
+import type { LeagueMoney, MemberMoneyStatus } from './types';
+
 /**
  * Pay to pick (Batch 206, ADR 0009): pence as members read them, and back again.
  *
@@ -37,4 +39,39 @@ export function parsePounds(input: string, { allowNegative = false } = {}): numb
 export function penceToInput(pence: number | null | undefined): string {
   if (pence === null || pence === undefined) return '';
   return formatPence(pence).replace('£', '').replace(/,/g, '');
+}
+
+// ── The league's money, as every member reads it (Batch 212) ──────────────────
+
+const STATUS_ORDER: Record<MemberMoneyStatus['status'], number> = {
+  owes: 0,
+  paid_up: 1,
+  credit: 2,
+};
+
+/** Owes first, most owed first; then paid up; then in credit; by name within each. */
+export function sortMembers(members: MemberMoneyStatus[]): MemberMoneyStatus[] {
+  return [...members].sort(
+    (a, b) =>
+      STATUS_ORDER[a.status] - STATUS_ORDER[b.status] ||
+      (a.status === 'owes' ? b.amount_pence - a.amount_pence : 0) ||
+      a.display_name.localeCompare(b.display_name, 'en-GB', { sensitivity: 'base' }),
+  );
+}
+
+/**
+ * Whether a response is this batch's money read. The standings page asks before showing
+ * the card, so an API that answers something else keeps the page as it was.
+ */
+export function isLeagueMoney(value: unknown): value is LeagueMoney {
+  if (typeof value !== 'object' || value === null) return false;
+  const money = value as Partial<LeagueMoney>;
+  return (
+    typeof money.pot_pence === 'number' &&
+    typeof money.entry_fee_pence === 'number' &&
+    typeof money.short_of_target_pence === 'number' &&
+    typeof money.target_to_date?.total_pence === 'number' &&
+    typeof money.target_full_season?.total_pence === 'number' &&
+    Array.isArray(money.members)
+  );
 }

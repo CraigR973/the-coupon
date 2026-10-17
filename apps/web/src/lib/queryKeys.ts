@@ -31,6 +31,9 @@ export const keys = {
     /** The league itself. Also the prefix for anything nested under it. */
     detail: (slug: string) => ['league', slug] as const,
     competitions: (slug: string) => ['league', slug, 'competitions'] as const,
+    /** Every member's view of the league's money (Batch 212). Nested, so the payments
+        screen's invalidation of the league refreshes it too. */
+    money: (slug: string) => ['league', slug, 'money'] as const,
     /** Its own root today — see the note above. */
     members: (slug: string) => ['league-members', slug] as const,
     /** Its own root today — see the note above. */

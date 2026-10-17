@@ -295,7 +295,11 @@ describe('LeaderboardPage — the season archive', () => {
 
 describe('LeaderboardPage — the season pot (Batch 206)', () => {
   /** The page's reads, with the league detail carrying `league` on top of the default. */
-  function stubLeague(league: Record<string, unknown>, role: 'player' | 'admin' = 'player') {
+  function stubLeague(
+    league: Record<string, unknown>,
+    role: 'player' | 'admin' = 'player',
+    money?: unknown,
+  ) {
     const signedIn = JSON.stringify({ id: 'p1', displayName: 'Alice', role, timezone: 'UTC' });
     vi.stubGlobal('localStorage', {
       getItem: (k: string) => {
@@ -316,12 +320,44 @@ describe('LeaderboardPage — the season pot (Batch 206)', () => {
       if (address.includes('/standings')) {
         return ok(address.includes('season=2025') ? LAST_SEASON : THIS_SEASON);
       }
+      if (address.includes('/money') && money !== undefined) {
+        moneyRequests += 1;
+        if (money === 404) {
+          return Promise.resolve({
+            ok: false,
+            status: 404,
+            json: () => Promise.resolve({ detail: 'Not Found' }),
+          });
+        }
+        return ok(money);
+      }
       if (address.includes('/leagues/the-coupon')) {
         return ok({ ...MOCK_LEAGUE, join_code: null, members: [], ...league });
       }
       return ok({});
     });
   }
+
+  let moneyRequests = 0;
+  const MONEY = {
+    season: 2026,
+    label: '2026/27',
+    entry_fee_pence: 100,
+    pot_pence: 1400,
+    target_to_date: { rounds: 8, per_person_pence: 800, total_pence: 1600 },
+    target_full_season: {
+      rounds: 40,
+      per_person_pence: 4000,
+      total_pence: 8000,
+      estimated_through: '2027-05-31',
+      is_estimate: true,
+    },
+    short_of_target_pence: 200,
+    members: [
+      { player_id: 'p1', display_name: 'Alice', status: 'paid_up', amount_pence: 0 },
+      { player_id: 'p2', display_name: 'Bob', status: 'owes', amount_pence: 200 },
+    ],
+  };
 
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -332,6 +368,36 @@ describe('LeaderboardPage — the season pot (Batch 206)', () => {
     renderPage();
     const pot = await screen.findByTestId('season-pot');
     expect(pot.textContent).toMatch(/season pot £14/i);
+  });
+
+  it('shows the Money card in place of the pot line when the API sends the money read (Batch 212)', async () => {
+    stubLeague({ entry_fee_pence: 100, season_pot_pence: 1400 }, 'player', MONEY);
+    renderPage();
+    const card = await screen.findByTestId('money-card');
+    expect(screen.getByTestId('money-pot').textContent).toBe('£14');
+    expect(card.textContent).toMatch(/£2 short of the target to date/);
+    const rows = screen.getAllByTestId('money-member');
+    expect(rows.map((row) => row.textContent)).toEqual(['BobOwes £2', 'Alice (you)Paid up']);
+    expect(screen.queryByTestId('season-pot')).toBeNull();
+  });
+
+  it('keeps the pot line, and no card, against an API with no money read (Batch 212)', async () => {
+    moneyRequests = 0;
+    stubLeague({ entry_fee_pence: 100, season_pot_pence: 1400 }, 'player', 404);
+    renderPage();
+    const pot = await screen.findByTestId('season-pot');
+    expect(pot.textContent).toMatch(/season pot £14/i);
+    await waitFor(() => expect(moneyRequests).toBe(1));
+    expect(screen.queryByTestId('money-card')).toBeNull();
+  });
+
+  it('never asks for the money of a league without a fee (Batch 212)', async () => {
+    moneyRequests = 0;
+    stubLeague({ entry_fee_pence: null, season_pot_pence: null }, 'player', MONEY);
+    renderPage();
+    await screen.findByTestId('standings');
+    expect(moneyRequests).toBe(0);
+    expect(screen.queryByTestId('money-card')).toBeNull();
   });
 
   it('shows no pot for a league without a fee', async () => {

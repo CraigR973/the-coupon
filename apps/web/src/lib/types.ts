@@ -279,6 +279,12 @@ export interface RoundFeeStatus {
   owed_pence: number;
   /** The rounds behind `owed_pence`, oldest first — this round included when it is owed. */
   owed_rounds: OwedRound[];
+  /**
+   * What `owed_pence` asks for beyond the rounds listed: earlier charges that are not
+   * rounds, such as an organiser's adjustment for what was owed before the app. One
+   * amount, never the note behind it. Batch 212; an older API does not send it.
+   */
+  earlier_balance_pence?: number;
   credit_pence: number;
   /** Kept by the API for compatibility; decides nothing since Batch 209. */
   adult_confirmed: boolean;
@@ -294,6 +300,45 @@ export interface RoundFeeStatus {
 /** POST /leagues/{slug}/adult-confirmation. Unused by the app since Batch 209. */
 export interface AdultConfirmation {
   adult_confirmed_at: string;
+}
+
+/** What a league's season dues come to, per member and for the whole league. */
+export interface MoneyTarget {
+  rounds: number;
+  per_person_pence: number;
+  total_pence: number;
+}
+
+/** The full-season target: exact once the season's rounds are all known. */
+export interface FullSeasonTarget extends MoneyTarget {
+  /** The last day an estimate counts one round a week to (yyyy-mm-dd), or null. */
+  estimated_through: string | null;
+  is_estimate: boolean;
+}
+
+/** One active member's position, as every member of the league sees it. */
+export interface MemberMoneyStatus {
+  player_id: string;
+  display_name: string;
+  status: 'owes' | 'paid_up' | 'credit';
+  /** What they owe, or hold in credit; zero when paid up. */
+  amount_pence: number;
+}
+
+/**
+ * GET /leagues/{slug}/money (Batch 212): the prize fund, its targets and who has paid.
+ * Every member of a league with a fee reads it; a league without one answers 404.
+ */
+export interface LeagueMoney {
+  season: number;
+  label: string;
+  entry_fee_pence: number;
+  pot_pence: number;
+  target_to_date: MoneyTarget;
+  target_full_season: FullSeasonTarget;
+  /** How far the pot is short of the to-date target. */
+  short_of_target_pence: number;
+  members: MemberMoneyStatus[];
 }
 
 /** One member's position in GET /leagues/{slug}/payments: positive is credit. */

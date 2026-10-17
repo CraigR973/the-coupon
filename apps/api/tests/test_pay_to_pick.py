@@ -47,6 +47,7 @@ from src.models.ledger import LedgerEntry, LedgerKind, PayerMapping
 from src.models.notification import ActionType, AuditLog
 from src.models.pick import Pick
 from src.models.profile import Profile, UserRole
+from src.models.season_calendar import SeasonCalendar
 from src.services.betfair import (
     SAMPLE_EPL_EVENT_ID,
     SAMPLE_EPL_ID,
@@ -62,11 +63,14 @@ from src.services.dues import (
     NOTE_ROUND_WITHDRAWN,
     PAYMENT_REQUIRED,
     RoundDue,
+    _rounds_ahead,
     allocate,
     fee_standings,
     format_pence,
+    league_money,
     normalise_payer_name,
     record_round_dues,
+    reverse_round_dues,
     season_pot,
 )
 from src.services.gameweek import (
@@ -999,6 +1003,7 @@ async def test_the_round_payload_carries_the_fee_and_the_link_without_any_confir
                 "amount_pence": FEE,
             }
         ],
+        "earlier_balance_pence": 0,
         "credit_pence": 0,
         "adult_confirmed": False,
         "has_payment_link": True,
@@ -1343,3 +1348,234 @@ async def test_erasure_forgets_the_payer_and_keeps_the_amounts(
                 .where(PayerMapping.player_id == leaver.id)
             )
         ) == 0
+
+
+# ── The league's money, as every member sees it (Batch 212) ────────────────────
+
+
+def test_the_full_season_estimate_counts_weekly_rounds_to_the_end_of_may() -> None:
+    """One a week after the latest counted round to 31 May, plus declared extra weeks."""
+    latest = _saturday(2072, 3, 19)  # Saturday 19 March 2072
+    assert _rounds_ahead(2071, latest, latest, ()) == 10, "26 Mar to 28 May"
+    extras = [date(2072, 3, 2), latest, date(2072, 4, 13), date(2072, 6, 10)]
+    assert _rounds_ahead(2071, latest, latest, extras) == 11, "only 13 April is ahead"
+    # Rounds paused six weeks ago: the gap is behind us, so the estimate starts this week.
+    paused = latest - timedelta(weeks=6)
+    assert _rounds_ahead(2071, latest, paused, ()) == 11
+    assert _rounds_ahead(2071, latest, None, ()) == 11
+    assert _rounds_ahead(2071, date(2072, 6, 5), latest, ()) == 0, "nothing left to guess"
+
+
+async def test_the_money_read_sums_the_pot_both_targets_and_every_status(
+    session: AsyncSession,
+) -> None:
+    """Payments, dues, a voided round, a cash-out, a charge, credit and a former member."""
+    steady, saver, skint, owed_before, gone = [
+        await _profile(session, None, name)
+        for name in ("steady", "saver", "skint", "owed-before", "gone")
+    ]
+    league = await _league(session, None, [steady, saver, skint, owed_before, gone])
+    assert await session.get(SeasonCalendar, 2071) is None, "season 2071 is this test's own"
+    session.add(
+        SeasonCalendar(
+            season=2071,
+            week_one_anchor=_saturday(2071, 8, 1),
+            extra_weeks=[date(2072, 4, 13), date(2072, 6, 10)],
+        )
+    )
+    settled = {"status": GameweekStatus.settled, "locks_in": -timedelta(days=1)}
+    # Last season, steady alone owed a round, as if the others joined in the summer.
+    last_season = await _round(session, league, _saturday(2071, 5, 1), **settled)
+    session.add(
+        LedgerEntry(
+            league_id=league.id,
+            player_id=steady.id,
+            kind=LedgerKind.round_due,
+            amount_pence=-FEE,
+            gameweek_id=last_season.id,
+        )
+    )
+    # Opened before the fee was set: it carries no due, so no target counts it.
+    await _round(session, league, _saturday(2072, 2, 27), **settled)
+    first = await _round(session, league, _saturday(2072, 3, 5), **settled)
+    await record_round_dues(session, league, first)
+    voided = await _round(session, league, _saturday(2072, 3, 12), **settled)
+    await record_round_dues(session, league, voided)
+    await reverse_round_dues(session, [voided.id], note=NOTE_ROUND_VOIDED)
+    membership = (
+        await session.execute(
+            select(LeagueMembership).where(
+                LeagueMembership.league_id == league.id, LeagueMembership.player_id == gone.id
+            )
+        )
+    ).scalar_one()
+    membership.deleted_at = _now()
+    current = await _round(session, league, _saturday(2072, 3, 19))
+    await record_round_dues(session, league, current)
+    session.add_all(
+        [
+            _cash(league, steady, 3 * FEE),
+            _cash(league, saver, 5 * FEE),
+            LedgerEntry(
+                league_id=league.id,
+                player_id=saver.id,
+                kind=LedgerKind.cash_out,
+                amount_pence=-FEE,
+            ),
+            _cash(league, owed_before, 2 * FEE),
+            LedgerEntry(
+                league_id=league.id,
+                player_id=owed_before.id,
+                kind=LedgerKind.adjustment,
+                amount_pence=-5 * FEE,
+                note="owed before the app",
+            ),
+            _cash(league, gone, FEE),
+        ]
+    )
+    await session.flush()
+
+    money = await league_money(session, league, today=current.starts_on)
+
+    assert money.season == 2071
+    # The first round, charged to five, and this one, to the four still here.
+    assert (money.rounds_to_date, money.per_person_to_date_pence) == (2, 2 * FEE)
+    assert money.total_to_date_pence == 9 * FEE
+    # Steady's and the saver's two rounds, and the former member's first: last season's
+    # due takes steady's oldest pound, and owed-before's payments go to the earlier charge.
+    assert money.pot_pence == 5 * FEE
+    # Ten Saturdays from 26 March to 28 May, and the extra week of 13 April.
+    assert money.rounds_full_season == 2 + 11
+    assert money.per_person_full_season_pence == (2 + 11) * FEE
+    assert money.total_full_season_pence == 9 * FEE + 11 * FEE * 4
+    assert money.estimated_through == date(2072, 5, 31)
+    assert money.balances == {
+        steady.id: 0,
+        saver.id: 2 * FEE,
+        skint.id: -2 * FEE,
+        owed_before.id: -5 * FEE,
+    }, "a former member is not listed"
+
+
+async def test_members_read_the_money_and_nothing_private_reaches_them(
+    client_and_fake: tuple[AsyncClient, FakeBetfair], world: World
+) -> None:
+    client, _fake = client_and_fake
+    async with AsyncSessionLocal() as db:
+        site_admin = await _profile(db, world, "owner", UserRole.admin)
+        runner = await _profile(db, world, "runner")
+        member = await _profile(db, world, "member")
+        outsider = await _profile(db, world, "outsider")
+        league = await _league(db, world, [runner, member])
+        free = await _league(db, world, [runner], fee=None, link=None)
+        db.add_all(
+            [
+                LedgerEntry(
+                    league_id=league.id,
+                    player_id=member.id,
+                    kind=LedgerKind.payment,
+                    amount_pence=2 * FEE,
+                    monzo_transaction_id=f"tx_{uuid.uuid4().hex}",
+                    payer_monzo_user_id="user_privatepayer",
+                    payer_name="Private Payer",
+                ),
+                LedgerEntry(
+                    league_id=league.id,
+                    player_id=None,
+                    kind=LedgerKind.payment,
+                    amount_pence=FEE,
+                    monzo_transaction_id=f"tx_{uuid.uuid4().hex}",
+                    payer_name="Queued Stranger",
+                ),
+                LedgerEntry(
+                    league_id=league.id,
+                    player_id=runner.id,
+                    kind=LedgerKind.adjustment,
+                    amount_pence=-3 * FEE,
+                    note="owed before the app",
+                ),
+            ]
+        )
+        await db.commit()
+    url = f"/api/v1/leagues/{league.slug}/money"
+
+    response = await client.get(url, headers=_auth(member))
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert set(body) == {
+        "season",
+        "label",
+        "entry_fee_pence",
+        "pot_pence",
+        "target_to_date",
+        "target_full_season",
+        "short_of_target_pence",
+        "members",
+    }
+    assert body["members"] == [
+        {
+            "player_id": str(runner.id),
+            "display_name": runner.display_name,
+            "status": "owes",
+            "amount_pence": 3 * FEE,
+        },
+        {
+            "player_id": str(member.id),
+            "display_name": member.display_name,
+            "status": "credit",
+            "amount_pence": 2 * FEE,
+        },
+    ]
+    assert body["entry_fee_pence"] == FEE
+    full = body["target_full_season"]
+    assert set(full) == {
+        "rounds",
+        "per_person_pence",
+        "total_pence",
+        "estimated_through",
+        "is_estimate",
+    }
+    assert full["per_person_pence"] == full["rounds"] * FEE
+    assert full["total_pence"] == full["per_person_pence"] * 2
+    for private in ("Private Payer", "privatepayer", "Queued Stranger", "owed before", "tx_"):
+        assert private not in response.text
+
+    admin_read = await client.get(url, headers=_auth(site_admin))
+    assert admin_read.status_code == 200, admin_read.text
+    assert admin_read.json() == body
+    assert (await client.get(url, headers=_auth(outsider))).status_code == 403
+    no_fee = await client.get(f"/api/v1/leagues/{free.slug}/money", headers=_auth(runner))
+    assert no_fee.status_code == 404
+
+
+async def test_the_pay_panel_carries_an_earlier_charge_as_one_amount_without_its_note(
+    client_and_fake: tuple[AsyncClient, FakeBetfair], world: World
+) -> None:
+    client, _fake = client_and_fake
+    async with AsyncSessionLocal() as db:
+        member = await _profile(db, world, "behind")
+        league = await _league(db, world, [member])
+        gameweek = await _round(db, league, _saturday(2064, 9, 1))
+        await _open_with_dues(db, league, gameweek)
+        db.add(
+            LedgerEntry(
+                league_id=league.id,
+                player_id=member.id,
+                kind=LedgerKind.adjustment,
+                amount_pence=-3 * FEE,
+                note="owed before the app",
+            )
+        )
+        await db.commit()
+
+    fee = await _fee_of(client, league, member, gameweek)
+    assert fee["owed_pence"] == 4 * FEE
+    assert [round_["amount_pence"] for round_ in fee["owed_rounds"]] == [FEE]
+    assert fee["earlier_balance_pence"] == 3 * FEE, "the lines add up to what is asked"
+    assert "owed before" not in str(fee)
+
+    async with AsyncSessionLocal() as db:
+        db.add(_cash(league, member, 3 * FEE))
+        await db.commit()
+    fee = await _fee_of(client, league, member, gameweek)
+    assert (fee["owed_pence"], fee["earlier_balance_pence"]) == (FEE, 0)
