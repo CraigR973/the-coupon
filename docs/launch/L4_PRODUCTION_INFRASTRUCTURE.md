@@ -3952,3 +3952,30 @@ exact-origin CORS `200` with credentials, a foreign origin `400`. Drift: **in sy
 
 Backup/restore-point identity: **none yet**. No migration was applied, so `f93ba511` and `e687f673`
 remain valid rollback targets.
+
+### 2026-10-17 — `bca0aaa`, the payments service writes no access log (no migration)
+
+Owner-approved in chat (Craig Robinson, 2026-10-16). The first production connect had printed
+Monzo's one-time authorisation code and state in a Uvicorn access-log line (both already spent).
+`bca0aaa` runs the payments service with `access_log=False`. Exact-SHA CI green (`38974528306`);
+its own complete gate stamped tree `928647d` (12 checks, backend 1,544, frontend 1,385, journey 1,
+zero skips), identical to the shipped tree.
+
+Preflight repeated with the same result as the last shipment: exact targets, null
+`railwayConfigFile`, all required variable names on both services and kept apart, both Vercel
+production names, Supabase `ACTIVE_HEALTHY`, no migration to apply (production at `029`). The
+pinned IaC plan had 0 additions, the 4 recurring null-to-explicit updates and 0 deletions; its
+redeploys of the running images, API `8f2812f7` and payments `1419b3cf` (`bf7ecbd` / `029`),
+reached `SUCCESS` and were the rollback baselines.
+
+API `27165f16-72ce-4d3f-a87e-6da2faf50b2a` and payments `7be9498d-ea12-4ef8-99fb-93b6d8d41731`
+reached `SUCCESS`; both report `bca0aaa` and `029`, and both readiness checks database `ok` at
+`029`. Bounded logs: API 41 lines and payments 6, with zero failure-term, credential-pattern and
+access-log lines, and nothing refused. The read-only audit found head `029`, RLS forced on 25 of 25
+tables, no public-role grants, one `monzo_connections` row, `connected`, last read 23:59 UTC with no
+error: the connection survived the redeploy. Vercel was a no-op (GitHub deployed `bca0aaa`); the
+web root and a deep link returned `200`, exact-origin CORS `200` with credentials, a foreign origin
+`400`. Drift: **in sync** for both.
+
+Backup/restore-point identity: **none yet**. No migration was applied, so `8f2812f7` and `1419b3cf`
+remain valid rollback targets.
