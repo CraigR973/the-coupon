@@ -234,3 +234,111 @@ describe('LeaguePaymentsPage — recording an entry', () => {
     expect(sent).toHaveLength(0);
   });
 });
+
+describe('LeaguePaymentsPage — Monzo link health (Batch 210)', () => {
+  const CONNECTED = {
+    status: 'connected',
+    last_success_at: '2026-10-16T21:32:44Z',
+    last_error: null,
+    last_error_at: null,
+    token_expires_at: '2026-10-18T03:28:59Z',
+    counting_since: '2026-10-16T21:29:00Z',
+    webhook_registered: true,
+  };
+
+  function withLink(
+    link: PaymentsOverview['monzo_link'],
+    linkId: string | null = 'unipaylink_0000Abc123',
+  ): PaymentsOverview {
+    return { ...OVERVIEW, monzo_link: link, monzo_link_id: linkId };
+  }
+
+  it('shows a connected link with its last read, login renewal and counting start', async () => {
+    stub(withLink(CONNECTED));
+    renderPage();
+    expect((await screen.findByTestId('monzo-status')).textContent).toBe('Connected');
+    expect(screen.getByTestId('monzo-last-read').textContent).toBe(
+      'Last read Fri 16 Oct, 21:32 · login renews before Sun 18 Oct, 03:28',
+    );
+    expect(screen.getByTestId('monzo-counting-since').textContent).toMatch(
+      /payments count from fri 16 oct, 21:29/i,
+    );
+    expect(screen.queryByTestId('monzo-problem')).toBeNull();
+    expect(screen.queryByTestId('monzo-no-link-id')).toBeNull();
+  });
+
+  it('says it is waiting for the Monzo app while approval is pending', async () => {
+    stub(withLink({ ...CONNECTED, status: 'awaiting_approval', last_success_at: null }));
+    renderPage();
+    expect((await screen.findByTestId('monzo-status')).textContent).toBe(
+      'Waiting for approval in the Monzo app',
+    );
+    expect(screen.queryByTestId('monzo-last-read')).toBeNull();
+  });
+
+  it('asks for a reconnect, and says why, once Monzo refuses the saved login', async () => {
+    stub(
+      withLink({
+        ...CONNECTED,
+        status: 'needs_reconnect',
+        last_error: 'refresh_refused',
+        last_error_at: '2026-10-18T03:20:00Z',
+      }),
+    );
+    renderPage();
+    expect((await screen.findByTestId('monzo-status')).textContent).toBe('Needs connecting again');
+    expect(screen.getByTestId('monzo-problem').textContent).toBe(
+      'Sun 18 Oct, 03:20: Monzo refused the saved login, so the owner needs to connect again.',
+    );
+  });
+
+  it('shows a problem only while nothing has worked since it', async () => {
+    stub(
+      withLink({
+        ...CONNECTED,
+        last_error: 'monzo_unavailable',
+        last_error_at: '2026-10-16T21:00:00Z',
+      }),
+    );
+    const { unmount } = renderPage();
+    await screen.findByTestId('monzo-status');
+    expect(screen.queryByTestId('monzo-problem')).toBeNull();
+    unmount();
+
+    stub(
+      withLink({
+        ...CONNECTED,
+        last_error: 'monzo_unavailable',
+        last_error_at: '2026-10-16T21:40:00Z',
+      }),
+    );
+    renderPage();
+    expect((await screen.findByTestId('monzo-problem')).textContent).toMatch(
+      /monzo could not be reached/i,
+    );
+  });
+
+  it('says the link is not connected before the owner first connects', async () => {
+    stub(withLink(null));
+    renderPage();
+    expect((await screen.findByTestId('monzo-status')).textContent).toBe('Not connected');
+    expect(screen.queryByTestId('monzo-counting-since')).toBeNull();
+  });
+
+  it('says nothing about Monzo when the API is older than Batch 208', async () => {
+    stub(OVERVIEW);
+    renderPage();
+    await screen.findByTestId('payments-fee');
+    expect(screen.queryByTestId('monzo-link')).toBeNull();
+  });
+
+  it('points to league settings while the league has no Monzo link id', async () => {
+    stub(withLink(CONNECTED, null));
+    renderPage();
+    const hint = await screen.findByTestId('monzo-no-link-id');
+    expect(hint.textContent).toMatch(/none of its payments are read yet/i);
+    expect(within(hint).getByRole('link', { name: /league settings/i }).getAttribute('href')).toBe(
+      '/leagues/2-1-hibs/admin/settings',
+    );
+  });
+});

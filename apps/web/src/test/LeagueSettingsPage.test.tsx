@@ -735,3 +735,99 @@ describe('LeagueSettingsPage — the entry fee (Batch 206)', () => {
     expect(api.patch).toBeNull();
   });
 });
+
+describe('LeagueSettingsPage — the Monzo link id (Batch 210)', () => {
+  beforeEach(() => {
+    vi.mocked(toast.error).mockClear();
+  });
+
+  const LINK = 'unipaylink_0000Abc123';
+
+  function stubSiteAdmin() {
+    const admin = JSON.stringify({ id: 'p1', displayName: 'Alice', role: 'admin', timezone: 'UTC' });
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => {
+        if (k === 'coupon_player') return admin;
+        if (k === 'coupon_access') return FAKE_JWT;
+        return null;
+      },
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+    });
+  }
+
+  it('shows a site admin the stored id and sends a changed one', async () => {
+    stubSiteAdmin();
+    const api = stubApi(undefined, {}, [], undefined, { privacy: 'private', monzo_link_id: LINK });
+    renderPage();
+
+    const field = (await screen.findByLabelText(/monzo link id/i)) as HTMLInputElement;
+    expect(field.value).toBe(LINK);
+    fireEvent.change(field, { target: { value: ' unipaylink_0000New456 ' } });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(api.patch).not.toBeNull());
+    expect(api.patch?.monzo_link_id).toBe('unipaylink_0000New456');
+  });
+
+  it('sends no id when it is unchanged, or when an older API sent none', async () => {
+    stubSiteAdmin();
+    const api = stubApi(undefined, {}, [], undefined, { privacy: 'private', monzo_link_id: LINK });
+    renderPage();
+    await screen.findByLabelText(/monzo link id/i);
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    await waitFor(() => expect(api.patch).not.toBeNull());
+    expect(api.patch).not.toHaveProperty('monzo_link_id');
+  });
+
+  it('sends an explicit null when a site admin clears the id', async () => {
+    stubSiteAdmin();
+    const api = stubApi(undefined, {}, [], undefined, { privacy: 'private', monzo_link_id: LINK });
+    renderPage();
+
+    fireEvent.change(await screen.findByLabelText(/monzo link id/i), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(api.patch).not.toBeNull());
+    expect(api.patch?.monzo_link_id).toBeNull();
+  });
+
+  it('refuses an id that is not a Monzo link id, before any request', async () => {
+    stubSiteAdmin();
+    const api = stubApi(undefined, {}, [], undefined, { privacy: 'private' });
+    renderPage();
+
+    fireEvent.change(await screen.findByLabelText(/monzo link id/i), {
+      target: { value: 'https://monzo.me/organiser/pot' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(vi.mocked(toast.error).mock.calls[0][0]).toMatch(/unipaylink_/);
+    expect(api.patch).toBeNull();
+  });
+
+  it('says plainly when another league already uses the id', async () => {
+    stubSiteAdmin();
+    const api = stubApi(undefined, {}, [], undefined, { privacy: 'private' });
+    const routed = globalThis.fetch;
+    vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
+      if (init.method === 'PATCH') {
+        api.patch = JSON.parse(init.body as string) as Record<string, unknown>;
+        return json({ detail: 'MONZO_LINK_IN_USE' }, 409);
+      }
+      return routed(url, init);
+    });
+    renderPage();
+
+    fireEvent.change(await screen.findByLabelText(/monzo link id/i), { target: { value: LINK } });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(api.patch?.monzo_link_id).toBe(LINK);
+    expect(vi.mocked(toast.error).mock.calls[0][0]).toBe(
+      'Another league already uses that Monzo link id.',
+    );
+  });
+});

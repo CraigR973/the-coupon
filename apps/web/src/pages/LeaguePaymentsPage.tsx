@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
@@ -7,7 +8,12 @@ import { formatPence, parsePounds } from '@/lib/money';
 import { formatInstant } from '@/lib/time';
 import { useRouteLeague } from '@/hooks/useRouteLeague';
 import { useAuth } from '@/contexts/AuthContext';
-import type { MemberBalance, PaymentsOverview, QueuedPayment } from '@/lib/types';
+import type {
+  MemberBalance,
+  MonzoLinkHealth,
+  PaymentsOverview,
+  QueuedPayment,
+} from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -132,6 +138,15 @@ export function LeaguePaymentsPage() {
             </CardContent>
           </Card>
 
+          {data.monzo_link !== undefined && (
+            <MonzoLink
+              slug={slug}
+              link={data.monzo_link}
+              linkId={data.monzo_link_id ?? null}
+              timezone={timezone}
+            />
+          )}
+
           <QueuedPayments
             slug={slug}
             queued={data.queued_payments}
@@ -146,6 +161,123 @@ export function LeaguePaymentsPage() {
         </>
       )}
     </div>
+  );
+}
+
+const MONZO_STATUS: Record<string, string> = {
+  connected: 'Connected',
+  awaiting_approval: 'Waiting for approval in the Monzo app',
+  needs_reconnect: 'Needs connecting again',
+  not_connected: 'Not connected',
+};
+
+const MONZO_BADGE: Record<string, 'success' | 'warning' | 'error' | 'muted'> = {
+  connected: 'success',
+  awaiting_approval: 'warning',
+  needs_reconnect: 'error',
+  not_connected: 'muted',
+};
+
+/** What the payments service's error codes mean to the organiser. */
+function monzoProblem(code: string): string {
+  switch (code) {
+    case 'monzo_unavailable':
+      return 'Monzo could not be reached. The next read tries again within five minutes.';
+    case 'refresh_refused':
+      return 'Monzo refused the saved login, so the owner needs to connect again.';
+    case 'webhook_unregistered':
+      return 'Monzo did not take the webhook. Payments are still read every five minutes.';
+    case 'token_unreadable':
+      return 'The saved login could not be opened, so the owner needs to connect again.';
+    case 'forbidden':
+      return 'Monzo refused access to the account.';
+    default:
+      return `Reading from Monzo failed (${code}).`;
+  }
+}
+
+/**
+ * The Monzo link's health (Batch 210, from Batch 208's API): whether the payments service
+ * is connected, when it last read, and whether anything has gone wrong since.
+ *
+ * Only drawn when the API says anything about Monzo — an API from before Batch 208 sends
+ * neither field, and this screen then says nothing rather than "not connected".
+ */
+function MonzoLink({
+  slug,
+  link,
+  linkId,
+  timezone,
+}: {
+  slug: string;
+  link: MonzoLinkHealth | null;
+  linkId: string | null;
+  timezone: string;
+}) {
+  const when = (iso: string | null) => formatInstant(iso, timezone, 'EEE d MMM, HH:mm');
+  const errorAt = link?.last_error_at ? Date.parse(link.last_error_at) : null;
+  const successAt = link?.last_success_at ? Date.parse(link.last_success_at) : null;
+  // An error is news only when nothing has worked since.
+  const problem =
+    link?.last_error && errorAt !== null && (successAt === null || errorAt > successAt)
+      ? link.last_error
+      : null;
+  const reading = link?.status === 'connected' || link?.status === 'awaiting_approval';
+
+  return (
+    <Card data-testid="monzo-link">
+      <CardHeader>
+        <CardTitle className="text-base">Monzo</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 font-sans">
+        <div className="flex items-center gap-2">
+          <Badge variant={MONZO_BADGE[link?.status ?? 'not_connected'] ?? 'muted'}>
+            <span data-testid="monzo-status">
+              {link ? (MONZO_STATUS[link.status] ?? link.status) : 'Not connected'}
+            </span>
+          </Badge>
+        </div>
+        {!link && (
+          <p className="text-xs text-text-muted">
+            The owner connects Monzo once, from the payments service. Until then, record
+            payments by hand.
+          </p>
+        )}
+        {link?.status === 'connected' && link.last_success_at && (
+          <p className="text-xs text-text-muted" data-testid="monzo-last-read">
+            Last read {when(link.last_success_at)}
+            {link.token_expires_at ? ` · login renews before ${when(link.token_expires_at)}` : ''}
+          </p>
+        )}
+        {link?.status === 'needs_reconnect' && (
+          <p className="text-xs text-text-muted">
+            Nothing is read until the owner connects Monzo again. Record payments by hand
+            meanwhile.
+          </p>
+        )}
+        {problem && (
+          <p className="text-xs text-error" role="status" data-testid="monzo-problem">
+            {when(link?.last_error_at ?? null)}: {monzoProblem(problem)}
+          </p>
+        )}
+        {link?.counting_since && (
+          <p className="text-xs text-text-muted" data-testid="monzo-counting-since">
+            Payments count from {when(link.counting_since)}. Record anything earlier as an
+            opening balance.
+          </p>
+        )}
+        {reading && linkId === null && (
+          <p className="text-xs text-text-muted" data-testid="monzo-no-link-id">
+            This league has no Monzo link id, so none of its payments are read yet. Add it
+            in{' '}
+            <Link className="underline" to={`/leagues/${slug}/admin/settings`}>
+              league settings
+            </Link>
+            .
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -44,6 +44,9 @@ const SELECT_CLASS =
   'flex h-10 w-full items-center rounded-md border border-border bg-surface px-3 py-2 ' +
   'text-sm text-text-primary font-sans focus:outline-hidden focus:ring-2 focus:ring-primary';
 
+/** A Monzo payment-link id as a payment through the link carries it (Batch 208). */
+const MONZO_LINK_ID = /^unipaylink_[A-Za-z0-9]{1,53}$/;
+
 export function LeagueSettingsPage() {
   const { slug } = useRouteLeague();
   const navigate = useNavigate();
@@ -99,6 +102,7 @@ export function LeagueSettingsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [entryFee, setEntryFee] = useState('');
   const [paymentLink, setPaymentLink] = useState('');
+  const [monzoLink, setMonzoLink] = useState('');
 
   useEffect(() => {
     if (league) {
@@ -111,6 +115,7 @@ export function LeagueSettingsPage() {
       if (league.offered_markets?.length) setMarkets(new Set(league.offered_markets));
       setEntryFee(penceToInput(league.entry_fee_pence));
       setPaymentLink(league.payment_link_url ?? '');
+      setMonzoLink(league.monzo_link_id ?? '');
     }
   }, [league]);
 
@@ -187,6 +192,7 @@ export function LeagueSettingsPage() {
     // a round trip; the API refuses all three as well.
     let feePence: number | null = null;
     let link: string | null = null;
+    let monzoLinkId: string | null = null;
     if (isSiteAdmin) {
       if (entryFee.trim()) {
         feePence = parsePounds(entryFee);
@@ -198,6 +204,11 @@ export function LeagueSettingsPage() {
       link = paymentLink.trim() || null;
       if (link !== null && !/^https:\/\/[^\s/]+\S*$/.test(link)) {
         toast.error('The payment link must be a full https:// address.');
+        return;
+      }
+      monzoLinkId = monzoLink.trim() || null;
+      if (monzoLinkId !== null && !MONZO_LINK_ID.test(monzoLinkId)) {
+        toast.error('The Monzo link id is unipaylink_ followed by letters and digits.');
         return;
       }
       if (feePence !== null && privacy !== 'private') {
@@ -258,6 +269,9 @@ export function LeagueSettingsPage() {
       if (isSiteAdmin) {
         body.entry_fee_pence = feePence;
         body.payment_link_url = link;
+        // Only when it changed (Batch 210): a page loaded from an API older than Batch 208
+        // sees no id, and saving it must not clear one a newer API holds.
+        if (monzoLinkId !== (league?.monzo_link_id ?? null)) body.monzo_link_id = monzoLinkId;
       }
 
       await apiFetch(`/api/v1/leagues/${slug}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -272,7 +286,9 @@ export function LeagueSettingsPage() {
           ? 'Two members already share a game this week — one of them must move before one-pick-per-match can be turned on.'
           : message.includes('FEE_REQUIRES_PRIVATE')
             ? 'A league that charges a fee must be private.'
-            : message,
+            : message.includes('MONZO_LINK_IN_USE')
+              ? 'Another league already uses that Monzo link id.'
+              : message,
       );
     } finally {
       setIsSaving(false);
@@ -466,6 +482,22 @@ export function LeagueSettingsPage() {
                 />
                 <p className="text-xs font-sans text-text-muted">
                   Members who owe see it on the round screen as a Pay button.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="monzoLinkId">Monzo link id</Label>
+                <Input
+                  id="monzoLinkId"
+                  value={monzoLink}
+                  onChange={(e) => setMonzoLink(e.target.value)}
+                  placeholder="unipaylink_…"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <p className="text-xs font-sans text-text-muted">
+                  The id Monzo gives this payment link. Once Monzo is connected, payments
+                  carrying it are recorded here automatically. Leave it blank to record
+                  payments by hand.
                 </p>
               </div>
             </CardContent>

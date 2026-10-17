@@ -316,6 +316,22 @@ export interface QueuedPayment {
   occurred_at: string;
 }
 
+/**
+ * How the payments service's Monzo connection is doing (Batch 208's API, Batch 210's
+ * screen). `last_error` is a short code, and is news only when `last_error_at` is later
+ * than `last_success_at`.
+ */
+export interface MonzoLinkHealth {
+  status: 'not_connected' | 'awaiting_approval' | 'connected' | 'needs_reconnect' | string;
+  last_success_at: string | null;
+  last_error: string | null;
+  last_error_at: string | null;
+  token_expires_at: string | null;
+  /** Payments before this are the organiser's to record as opening balances. */
+  counting_since: string | null;
+  webhook_registered: boolean;
+}
+
 /** GET /leagues/{slug}/payments — the site admin's payments screen. */
 export interface PaymentsOverview {
   entry_fee_pence: number | null;
@@ -323,6 +339,12 @@ export interface PaymentsOverview {
   balances: MemberBalance[];
   queued_payments: QueuedPayment[];
   season_pot: { season: number; label: string; pot_pence: number };
+  /**
+   * Batch 208. Absent from older APIs, which say nothing about Monzo; `monzo_link` is null
+   * until the owner first connects.
+   */
+  monzo_link_id?: string | null;
+  monzo_link?: MonzoLinkHealth | null;
 }
 
 // ── Pick — POST /leagues/{slug}/picks · GET .../gameweeks/{id}/pick ─────────
@@ -895,6 +917,8 @@ export interface LeagueSummary {
    */
   entry_fee_pence?: number | null;
   payment_link_url?: string | null;
+  /** Batch 208: the link's Monzo id (`unipaylink_…`), sent only to a site admin. */
+  monzo_link_id?: string | null;
 }
 
 /** Shape returned by GET /api/v1/leagues/{slug} — includes member list with roles. */
