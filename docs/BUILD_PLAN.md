@@ -993,6 +993,9 @@ comes from the ADR's 13 Oct amendment and runs ahead of 207 and 208 by owner dec
 (2026-10-13T21:41Z). Batches 205 and 206 are complete (13 Oct), and 209 and 207 are complete
 (14 Oct), and 208 is complete (16 Oct). Batch 210, the admin-screen half of 208 split off by
 owner decision (2026-10-16), is complete (17 Oct).
+Batches 211-213 follow launch: 211 (the payments service's own database login) after launch,
+212 (members see the money) and 213 (notifications for the organiser and members) raised by the
+owner on launch day, 2026-10-17.
 
 - [x] **Batch 205 — A member can pick in a league that charges a fee without having paid ✅ 2026-10-13**
   — specified from ADR 0009, amended 2026-10-13 for weekly dues. 2-1 Hibs members pay £1 a
@@ -1256,6 +1259,73 @@ owner decision (2026-10-16), is complete (17 Oct).
 
   Scope boundary: the payments service's database access. **Runs after launch; needs an
   owner credential change.**
+
+- [ ] **Batch 212 — Members cannot see the prize fund's targets, or who has paid**
+  — raised on launch day (owner, 2026-10-17). Members see the season pot on the standings
+  page and their own position on the round's pay panel, nothing else. The organiser's
+  Payments screen is site-admin only.
+
+  Owner decisions of 2026-10-17:
+  - Every member of a league with a fee sees every member's status: paid up, in credit £X,
+    or owes £X. A friends' league, and the nudge is the point.
+  - "Target" shows both: **to date** (the fee × this season's rounds that have opened) and
+    **full season** (the fee × the season's rounds, labelled an estimate while the season's
+    last round is not known).
+
+  API:
+  - `GET /api/v1/leagues/{slug}/money` for members (and site admins) of a league with a
+    fee; a league without one answers `404`. It returns the season pot, the target per
+    person and in total, both to date and full season, and each active member's public
+    name and status. No payer names, notes, Monzo ids or ledger rows.
+  - The full-season round count comes from the season calendar where it is known; where it
+    is not, the batch picks a documented rule (for example, weekly rounds to 31 May) and
+    flags the figure as an estimate. To-date figures are exact.
+  - `round_fee_status` carries earlier charges that are not rounds (an organiser's
+    adjustment, such as "owed before the app") as a single "earlier balance" amount, so the
+    pay panel's lines add up to what it asks for. Never the organiser's note.
+
+  Web:
+  - A **Money** card on the league page: prize fund so far, target to date and full
+    season (per person and total), and how far short of the to-date target the pot is.
+  - Every member's status, sorted owes first, then paid up, then credit; a former member
+    is not listed.
+  - The pay panel lists "Earlier balance £X" beside the rounds it owes.
+  - A league without a fee renders exactly as before.
+
+  Verification:
+  - API: a member reads; a non-member and a league without a fee are refused; the pot,
+    both targets and every status against a seeded ledger (payments, dues, reversals,
+    charges, credit); nothing private in the payload.
+  - Web vitest: the Money card, the status list and its order, the earlier-balance line,
+    and an API that sends neither.
+  - Screenshots at 390 and 1280 px in both themes.
+
+  Scope boundary: the money read and its two screens. No change to the dues rules, the pick
+  gate or the ledger. **API + web: close-out needs the owner to schedule its `/ship-prod`.**
+
+- [ ] **Batch 213 — The organiser learns of a queued payment or a broken Monzo link only by looking**
+  — raised on launch day (owner, 2026-10-17). On the first morning the owner had to watch
+  "Waiting to be matched" by hand, and a Monzo link needing reconnection shows only on the
+  Payments screen. Members are not told when their payment arrives.
+
+  - Site admins get a notification (push, and the in-app inbox) when a link payment lands in
+    the queue, at most one per payment.
+  - Site admins get one when the Monzo link needs connecting again, or has failed to read
+    for an hour, and one when it recovers; never one per failed read.
+  - A member gets one when a payment of theirs is recorded (matched automatically or
+    assigned), saying the amount and whether they can now pick.
+  - The API's scheduler sends all three, reading the ledger and the connection's health
+    columns: the payments service holds no push keys (ADR 0009 option B) and keeps none.
+    Each event is sent once, so the batch records what has been sent (likely a migration).
+  - Each is a mutable notification category, like the ones migration 027 added.
+
+  Verification: tests for each trigger, sent once across repeated runs, the admin-only
+  audience for the first two, mute respected, and no payer name or Monzo id in a member's
+  notification.
+
+  Scope boundary: the three notifications and what records they were sent. No change to how
+  payments are read or matched. **API (+ web if the categories need settings copy):
+  `/ship-prod` owed after close-out.**
 
 ## Verification
 

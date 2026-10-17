@@ -117,7 +117,9 @@ league's Monzo link payments into the ledger, migration `029` — is complete (1
 208 (the link-id field and link health) — is complete and live on the web (17 Oct, `1e12109`,
 web-only). Batch 211 —
 a least-privilege database login for `payments` — is open and deferred until after launch
-(owner, 16 Oct). The Monzo
+(owner, 16 Oct). Batches 212 (members see the prize fund, targets and everyone's status) and 213
+(notifications for queued payments, Monzo link trouble and payments received) are open
+(owner, 17 Oct). The Monzo
 launch steps in ADR 0009 are the owner's, including making sure every member is 18 or over.
 
 ## Toolchain
