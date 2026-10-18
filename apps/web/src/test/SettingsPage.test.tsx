@@ -211,6 +211,76 @@ describe('SettingsPage', () => {
     });
   });
 
+  // ── Batch 213: the payment categories ─────────────────────────────────────
+
+  const PAYMENT_PREFS = {
+    ...DEFAULT_PREFS,
+    mute_pick_activity: false,
+    mute_round_updates: false,
+    mute_results: false,
+    mute_payment_queue: false,
+    mute_monzo_link: false,
+    mute_payments: false,
+  };
+
+  function renderAsSiteAdmin(fetchMock: ReturnType<typeof makeFetch>) {
+    vi.stubGlobal(
+      'localStorage',
+      makeStorage({
+        coupon_player: JSON.stringify({ ...JSON.parse(STORED_PLAYER), role: 'admin' }),
+        coupon_access: FAKE_JWT,
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    return render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <AuthProvider>
+            <SettingsPage />
+          </AuthProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  function patchBody(fetch: ReturnType<typeof makeFetch>) {
+    const patchCall = (fetch.mock.calls as [string, RequestInit?][]).find(
+      ([url, opts]) => url.includes('/api/v1/notifications/preferences') && opts?.method === 'PATCH',
+    );
+    return patchCall ? JSON.parse(patchCall[1]!.body as string) : undefined;
+  }
+
+  it('offers a member the payment mute but not the site-admin ones', async () => {
+    const fetch = makeFetch(PAYMENT_PREFS, PAYMENT_PREFS);
+    renderPage(fetch);
+    fireEvent.click(await screen.findByRole('switch', { name: 'Your payments arriving' }));
+    await waitFor(() => expect(patchBody(fetch)).toEqual({ mute_payments: true }));
+    expect(screen.queryByRole('switch', { name: 'Payments waiting to be matched' })).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Monzo link down or back' })).toBeNull();
+  });
+
+  it('offers a site admin both admin payment mutes, each on its own', async () => {
+    const fetch = makeFetch(PAYMENT_PREFS, PAYMENT_PREFS);
+    renderAsSiteAdmin(fetch);
+    fireEvent.click(await screen.findByRole('switch', { name: 'Monzo link down or back' }));
+    await waitFor(() => expect(patchBody(fetch)).toEqual({ mute_monzo_link: true }));
+    expect(screen.getByRole('switch', { name: 'Payments waiting to be matched' })).toBeTruthy();
+    expect(screen.getByText('Site admin')).toBeTruthy();
+  });
+
+  it('shows no payment mutes to an API older than them', async () => {
+    const older = {
+      ...DEFAULT_PREFS,
+      mute_pick_activity: false,
+      mute_round_updates: false,
+      mute_results: false,
+    };
+    renderPage(makeFetch(older, older));
+    await screen.findByRole('switch', { name: 'Picks and moves' });
+    expect(screen.queryByRole('switch', { name: 'Your payments arriving' })).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Payments waiting to be matched' })).toBeNull();
+  });
+
   it('shows a per-league toggle and sends league_mutes on change', async () => {
     const fetch = makeFetch(PREFS_WITH_LEAGUES);
     renderPage(fetch);

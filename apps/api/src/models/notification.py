@@ -3,7 +3,17 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -78,6 +88,12 @@ class NotificationPreferences(Base):
         Boolean, nullable=False, server_default="false"
     )
     mute_results: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    #: Batch 213. The two site-admin categories, and the member's own payments.
+    mute_payment_queue: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    mute_monzo_link: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    mute_payments: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     quiet_hours_start: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=False), nullable=True
     )
@@ -110,6 +126,26 @@ class MemberNotification(Base, UUIDPrimaryKeyMixin):
         DateTime(timezone=False), nullable=False, server_default="now()"
     )
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
+
+
+class NotificationSend(Base, UUIDPrimaryKeyMixin):
+    """A notice that has gone out, once. Batch 213.
+
+    ``(kind, subject)`` is unique: the subject is a ledger entry's id for the payment
+    notices, or the outage a Monzo-link notice is about. A scheduler run claims the pair
+    before it sends, so two runs overlapping a redeploy cannot both send it.
+    """
+
+    __tablename__ = "notification_sends"
+    __table_args__ = (
+        UniqueConstraint("kind", "subject", name="uq_notification_sends_kind_subject"),
+    )
+
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    subject: Mapped[str] = mapped_column(String(64), nullable=False)
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False), nullable=False, server_default="now()"
+    )
 
 
 class AuditLog(Base, UUIDPrimaryKeyMixin):

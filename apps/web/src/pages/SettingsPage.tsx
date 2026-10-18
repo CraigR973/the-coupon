@@ -32,6 +32,10 @@ interface NotificationPreferences {
   mute_pick_activity?: boolean;
   mute_round_updates?: boolean;
   mute_results?: boolean;
+  // Batch 213. The first two only ever reach site admins.
+  mute_payment_queue?: boolean;
+  mute_monzo_link?: boolean;
+  mute_payments?: boolean;
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;
   leagues: LeagueMute[];
@@ -204,6 +208,8 @@ function InstallSection() {
 
 function PreferencesSection() {
   const queryClient = useQueryClient();
+  const { player } = useAuth();
+  const isSiteAdmin = player?.role === 'admin';
 
   const { data: prefs, isLoading } = useQuery<NotificationPreferences>({
     queryKey: keys.notificationPreferences(),
@@ -317,6 +323,33 @@ function PreferencesSection() {
               onChange={(enabled) => update({ mute_results: !enabled })}
               label="Results and corrections"
             />
+            {typeof prefs.mute_payments === 'boolean' && (
+              <Toggle
+                checked={!prefs.mute_payments}
+                disabled={muted}
+                onChange={(enabled) => update({ mute_payments: !enabled })}
+                label="Your payments arriving"
+              />
+            )}
+            {isSiteAdmin &&
+              typeof prefs.mute_payment_queue === 'boolean' &&
+              typeof prefs.mute_monzo_link === 'boolean' && (
+                <>
+                  <p className="mt-2 mb-1 font-sans text-xs text-text-muted">Site admin</p>
+                  <Toggle
+                    checked={!prefs.mute_payment_queue}
+                    disabled={muted}
+                    onChange={(enabled) => update({ mute_payment_queue: !enabled })}
+                    label="Payments waiting to be matched"
+                  />
+                  <Toggle
+                    checked={!prefs.mute_monzo_link}
+                    disabled={muted}
+                    onChange={(enabled) => update({ mute_monzo_link: !enabled })}
+                    label="Monzo link down or back"
+                  />
+                </>
+              )}
           </div>
         )}
 

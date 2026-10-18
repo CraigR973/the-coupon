@@ -120,6 +120,11 @@ class PreferencesOut(BaseModel):
     mute_pick_activity: bool
     mute_round_updates: bool
     mute_results: bool
+    #: Batch 213. The first two only ever fire for site admins; the third for a member
+    #: whose payment is recorded.
+    mute_payment_queue: bool
+    mute_monzo_link: bool
+    mute_payments: bool
     quiet_hours_start: str | None  # "HH:MM"
     quiet_hours_end: str | None  # "HH:MM"
     leagues: list[LeagueMuteOut]
@@ -130,6 +135,9 @@ class PreferencesPatch(BaseModel):
     mute_pick_activity: bool | None = None
     mute_round_updates: bool | None = None
     mute_results: bool | None = None
+    mute_payment_queue: bool | None = None
+    mute_monzo_link: bool | None = None
+    mute_payments: bool | None = None
     quiet_hours_start: str | None = None  # "HH:MM" or empty string to clear
     quiet_hours_end: str | None = None
     #: league_id -> desired mute state. Only the leagues named here are touched.
@@ -374,6 +382,9 @@ async def get_preferences(user: CurrentUser, db: Db) -> PreferencesOut:
         mute_pick_activity=prefs.mute_pick_activity,
         mute_round_updates=prefs.mute_round_updates,
         mute_results=prefs.mute_results,
+        mute_payment_queue=prefs.mute_payment_queue,
+        mute_monzo_link=prefs.mute_monzo_link,
+        mute_payments=prefs.mute_payments,
         quiet_hours_start=_time_str(prefs.quiet_hours_start),
         quiet_hours_end=_time_str(prefs.quiet_hours_end),
         leagues=await _league_mutes(db, user.id),
@@ -405,6 +416,12 @@ async def patch_preferences(
         prefs.mute_round_updates = body.mute_round_updates
     if body.mute_results is not None:
         prefs.mute_results = body.mute_results
+    if body.mute_payment_queue is not None:
+        prefs.mute_payment_queue = body.mute_payment_queue
+    if body.mute_monzo_link is not None:
+        prefs.mute_monzo_link = body.mute_monzo_link
+    if body.mute_payments is not None:
+        prefs.mute_payments = body.mute_payments
 
     def _parse_time(val: str | None) -> _dt | None:
         if val is None:
@@ -451,6 +468,9 @@ async def patch_preferences(
         mute_pick_activity=prefs.mute_pick_activity,
         mute_round_updates=prefs.mute_round_updates,
         mute_results=prefs.mute_results,
+        mute_payment_queue=prefs.mute_payment_queue,
+        mute_monzo_link=prefs.mute_monzo_link,
+        mute_payments=prefs.mute_payments,
         quiet_hours_start=_time_str(prefs.quiet_hours_start),
         quiet_hours_end=_time_str(prefs.quiet_hours_end),
         leagues=await _league_mutes(db, user.id),

@@ -111,7 +111,14 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
             "live_scores",
             "prune_refresh_tokens",
             "prune_rate_limit_counters",
+            "payment_notices",
         }
+
+        # Batch 213. Every ten minutes, on minutes nothing else uses, so a queued payment
+        # reaches the organiser well inside the hour.
+        notices = scheduler.get_job("payment_notices")
+        assert notices is not None
+        assert str(notices.trigger) == "cron[minute='7,17,27,37,47,57']"
 
         # Batch 72. Ten minutes, and almost always free: the job reads the database first
         # and returns without a request unless some league has a round in play.
@@ -164,6 +171,7 @@ def test_create_scheduler_registers_baseline_jobs() -> None:
             "refresh_slate": 3600,
             "sync_football_data": 3600,
             "settle_gameweeks": 3600,
+            "payment_notices": 300,
         }
         for job_id, grace in expected_grace.items():
             job = scheduler.get_job(job_id)

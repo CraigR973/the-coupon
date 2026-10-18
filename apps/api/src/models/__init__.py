@@ -15,6 +15,7 @@ from src.models.notification import (
     AuditLog,
     MemberNotification,
     NotificationPreferences,
+    NotificationSend,
     PushSubscription,
 )
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
@@ -48,6 +49,7 @@ __all__ = [
     "MonzoLinkStatus",
     "MemberNotification",
     "NotificationPreferences",
+    "NotificationSend",
     "PayerMapping",
     "Pick",
     "PickMarket",

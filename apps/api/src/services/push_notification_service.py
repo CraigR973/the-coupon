@@ -104,6 +104,10 @@ _notification_intents: ContextVar[list[NotificationIntent] | None] = ContextVar(
 
 # Every league-scoped member event has one inbox category. Admin, account and test
 # pushes have no league history. Quiet hours affect delivery, not this durable copy.
+#
+# Batch 213 adds the payment notices. A category mutes its kind whether or not it carries
+# a league: the Monzo-link notice has none when no league has a link id yet, and is then
+# push only, but its mute still holds.
 INBOX_KIND_CATEGORY = {
     "pick_made": "pick_activity",
     "pick_changed": "pick_activity",
@@ -113,7 +117,16 @@ INBOX_KIND_CATEGORY = {
     "fixture_postponed": "round_updates",
     "round_settled": "results",
     "result_corrected": "results",
+    "payment_queued": "payment_queue",
+    "monzo_link_down": "monzo_link",
+    "monzo_link_recovered": "monzo_link",
+    "payment_recorded": "payments",
 }
+
+
+def _kind_category(data: dict[str, Any] | None) -> str | None:
+    kind = data.get("type") if data is not None else None
+    return INBOX_KIND_CATEGORY.get(kind) if isinstance(kind, str) else None
 
 
 def _inbox_details(data: dict[str, Any] | None, league_id: UUID | None) -> tuple[str, str] | None:
@@ -135,6 +148,9 @@ def _category_muted(prefs: NotificationPreferences | None, category: str) -> boo
         (category == "pick_activity" and prefs.mute_pick_activity)
         or (category == "round_updates" and prefs.mute_round_updates)
         or (category == "results" and prefs.mute_results)
+        or (category == "payment_queue" and prefs.mute_payment_queue)
+        or (category == "monzo_link" and prefs.mute_monzo_link)
+        or (category == "payments" and prefs.mute_payments)
     )
 
 
@@ -307,10 +323,12 @@ async def _prepare_notification(
         log.debug("notification suppressed by preferences", user_id=str(user_id))
         return empty, []
 
+    category = _kind_category(data)
+    if category is not None and _category_muted(prefs, category):
+        return empty, []
+
     if inbox is not None:
         kind, url = inbox
-        if _category_muted(prefs, INBOX_KIND_CATEGORY[kind]):
-            return empty, []
         assert league_id is not None
         _record_inbox(
             session,
@@ -410,11 +428,12 @@ async def prepare_collected_notifications(
         local_current = _local_now(intent.timezone_name, intent.now)
         if prefs is not None and prefs.global_mute:
             continue
+        category = _kind_category(intent.data)
+        if category is not None and _category_muted(prefs, category):
+            continue
         inbox = _inbox_details(intent.data, intent.league_id)
         if inbox is not None:
             kind, url = inbox
-            if _category_muted(prefs, INBOX_KIND_CATEGORY[kind]):
-                continue
             assert intent.league_id is not None
             _record_inbox(
                 session,

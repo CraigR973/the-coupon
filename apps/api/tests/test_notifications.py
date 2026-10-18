@@ -69,6 +69,9 @@ def _prefs(user_id: uuid.UUID, **overrides: Any) -> MagicMock:
     p.mute_pick_activity = False
     p.mute_round_updates = False
     p.mute_results = False
+    p.mute_payment_queue = False
+    p.mute_monzo_link = False
+    p.mute_payments = False
     p.quiet_hours_start = None
     p.quiet_hours_end = None
     for k, v in overrides.items():
@@ -387,6 +390,9 @@ async def test_get_preferences_creates_defaults() -> None:
             obj.mute_pick_activity = False
             obj.mute_round_updates = False
             obj.mute_results = False
+            obj.mute_payment_queue = False
+            obj.mute_monzo_link = False
+            obj.mute_payments = False
             obj.quiet_hours_start = None
             obj.quiet_hours_end = None
 
@@ -401,6 +407,10 @@ async def test_get_preferences_creates_defaults() -> None:
         data = r.json()
         assert data["global_mute"] is False
         assert data["leagues"] == []
+        # Batch 213: the payment categories start unmuted.
+        assert data["mute_payment_queue"] is False
+        assert data["mute_monzo_link"] is False
+        assert data["mute_payments"] is False
         mock_db.add.assert_called_once()
     finally:
         app.dependency_overrides.clear()
@@ -415,6 +425,9 @@ async def test_patch_preferences() -> None:
     prefs.mute_pick_activity = False
     prefs.mute_round_updates = False
     prefs.mute_results = False
+    prefs.mute_payment_queue = False
+    prefs.mute_monzo_link = False
+    prefs.mute_payments = False
     prefs.quiet_hours_start = None
     prefs.quiet_hours_end = None
 
@@ -440,6 +453,9 @@ async def test_patch_preferences() -> None:
                     "mute_pick_activity": True,
                     "mute_round_updates": True,
                     "mute_results": True,
+                    "mute_payment_queue": True,
+                    "mute_monzo_link": True,
+                    "mute_payments": True,
                     "quiet_hours_start": "22:00",
                     "quiet_hours_end": "07:00",
                 },
@@ -449,6 +465,9 @@ async def test_patch_preferences() -> None:
         assert prefs.mute_pick_activity is True
         assert prefs.mute_round_updates is True
         assert prefs.mute_results is True
+        assert prefs.mute_payment_queue is True
+        assert prefs.mute_monzo_link is True
+        assert prefs.mute_payments is True
     finally:
         app.dependency_overrides.clear()
 
@@ -462,6 +481,9 @@ async def test_get_preferences_includes_league_mutes() -> None:
     prefs.mute_pick_activity = False
     prefs.mute_round_updates = False
     prefs.mute_results = False
+    prefs.mute_payment_queue = False
+    prefs.mute_monzo_link = False
+    prefs.mute_payments = False
     prefs.quiet_hours_start = None
     prefs.quiet_hours_end = None
 
@@ -498,6 +520,9 @@ async def test_patch_preferences_updates_league_mute() -> None:
     prefs.mute_pick_activity = False
     prefs.mute_round_updates = False
     prefs.mute_results = False
+    prefs.mute_payment_queue = False
+    prefs.mute_monzo_link = False
+    prefs.mute_payments = False
     prefs.quiet_hours_start = None
     prefs.quiet_hours_end = None
 

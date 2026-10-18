@@ -60,15 +60,18 @@ from src.services.gameweek import (
 from src.services.live_scores import poll_live_scores
 from src.services.notification_triggers import (
     announce_round_settled,
+    deliver_prepared_fanout,
     notify_backup_failed,
     notify_discovery_silence,
     notify_football_provider_trouble,
     notify_picks_open,
+    record_prepared_fanout,
     send_pick_reminders,
 )
 from src.services.odds_provider import SlateWindow
 from src.services.odds_session import odds_session
 from src.services.odds_warm import warm_round
+from src.services.payment_notices import prepare_payment_notices
 from src.services.scoring import (
     settle_gameweeks_via_provider,
     standings,
@@ -892,6 +895,35 @@ async def run_pick_reminders() -> bool:
         return False
 
 
+async def run_payment_notices() -> bool:
+    """Tell the site admins and members about the league's money. Batch 213.
+
+    The payments service holds no push keys (ADR 0009 option B), so it only writes the
+    ledger and the Monzo link's health; this reads both. Every ten minutes, so a queued
+    payment reaches the organiser well inside the hour (owner, 2026-10-18).
+
+    The claims and inbox rows commit before any push is sent, which is what makes a
+    notice go out once even when a run overlaps the next or a redeploy: the second run
+    finds the claims already taken. Most runs find nothing.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            prepared = await prepare_payment_notices(session, _utc_now())
+            await session.commit()
+        if prepared.targeted == 0:
+            log.debug("payment notices: nothing new")
+            return True
+        delivered = await deliver_prepared_fanout(prepared)
+        async with AsyncSessionLocal() as session:
+            await record_prepared_fanout(session, delivered)
+            await session.commit()
+        log.info("payment notices sent", targeted=prepared.targeted)
+        return True
+    except Exception:
+        log.exception("payment notices failed")
+        return False
+
+
 def create_scheduler() -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone="UTC")
     scheduler.add_job(
@@ -1062,6 +1094,19 @@ def create_scheduler() -> AsyncIOScheduler:
         coalesce=True,
         max_instances=1,
         misfire_grace_time=_HOURLY_JOB_GRACE_SECONDS,
+    )
+    scheduler.add_job(
+        run_payment_notices,
+        trigger="cron",
+        # Every ten minutes — Batch 213. :07 and its tens are free: live scores take :x2,
+        # and the hourly and daily jobs sit on :00, :01, :05, :15, :30 and :35.
+        minute="7,17,27,37,47,57",
+        timezone="UTC",
+        id="payment_notices",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=_FREQUENT_JOB_GRACE_SECONDS,
     )
     scheduler.add_job(
         run_open_gameweeks,

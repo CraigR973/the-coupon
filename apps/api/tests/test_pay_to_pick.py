@@ -11,7 +11,9 @@ pick. These are the row's verification cases plus the edges its design leans on:
 * picking, changing a pick and re-picking after a postponement cost nothing extra;
 * a voided round, a withdrawn round and leaving before the lock all reverse the due;
 * only a site admin sets the fee and the link, and a league with a fee stays private;
-* the season pot across a season boundary.
+* the season pot across a season boundary;
+* Batch 213's payment notices: each trigger, once across repeated and overlapping runs,
+  the admin-only audience, mutes, and no payer details in a member's notice.
 
 Postgres-backed. The HTTP cases commit, because the app reads through its own sessions,
 and every row they write is removed again by the ``world`` fixture; the service cases run
@@ -21,21 +23,26 @@ suite labels (2063 onwards) and lock two hours out, clear of the reminder window
 
 from __future__ import annotations
 
+import asyncio
+import importlib.util
+import json
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient, Response
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from src.auth import create_access_token, hash_pin
+from src.config import settings
 from src.database import AsyncSessionLocal
 from src.deps import get_odds_provider, get_optional_odds_provider
 from src.main import app
@@ -44,7 +51,15 @@ from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
 from src.models.league import League, LeaguePrivacy
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.ledger import LedgerEntry, LedgerKind, PayerMapping
-from src.models.notification import ActionType, AuditLog
+from src.models.monzo_connection import MonzoConnection, MonzoLinkStatus
+from src.models.notification import (
+    ActionType,
+    AuditLog,
+    MemberNotification,
+    NotificationPreferences,
+    NotificationSend,
+    PushSubscription,
+)
 from src.models.pick import Pick
 from src.models.profile import Profile, UserRole
 from src.models.season_calendar import SeasonCalendar
@@ -82,6 +97,17 @@ from src.services.gameweek import (
 )
 from src.services.notification_triggers import send_pick_reminders
 from src.services.odds_provider import SlateFixture
+from src.services.payment_notices import (
+    MONZO_LINK_DOWN,
+    MONZO_LINK_RECOVERED,
+    PAYMENT_QUEUED,
+    PAYMENT_RECORDED,
+    notify_monzo_link,
+    notify_queued_payments,
+    notify_recorded_payments,
+    prepare_payment_notices,
+)
+from src.services.push_notification_service import send_notification
 
 FEE = 100
 PIN = "1234"
@@ -1579,3 +1605,451 @@ async def test_the_pay_panel_carries_an_earlier_charge_as_one_amount_without_its
         await db.commit()
     fee = await _fee_of(client, league, member, gameweek)
     assert (fee["owed_pence"], fee["earlier_balance_pence"]) == (FEE, 0)
+
+
+# ── Batch 213: payment notices ─────────────────────────────────────────────────
+
+_SECRET_NAME = "Sam Secretpayer"
+_SECRET_USER = "user_0000SECRETPAYER"
+
+
+def _link_payment(
+    league: League, member: Profile | None, pence: int, *, assigned_by: Profile | None = None
+) -> LedgerEntry:
+    """A payment through the league's link, matched to ``member`` or queued without one."""
+    return LedgerEntry(
+        league_id=league.id,
+        player_id=member.id if member is not None else None,
+        kind=LedgerKind.payment,
+        amount_pence=pence,
+        monzo_transaction_id=f"tx_0000{uuid.uuid4().hex[:20]}",
+        payer_monzo_user_id=_SECRET_USER,
+        payer_name=_SECRET_NAME,
+        assigned_by=assigned_by.id if assigned_by is not None else None,
+        assigned_at=_now() if assigned_by is not None else None,
+    )
+
+
+@dataclass
+class Sent:
+    user_id: uuid.UUID
+    title: str
+    body: str
+    data: dict[str, Any]
+    league_id: uuid.UUID | None
+
+
+def _recorder() -> tuple[list[Sent], Any]:
+    sent: list[Sent] = []
+
+    async def record(
+        _db: AsyncSession, user_id: uuid.UUID, title: str, body: str, **kwargs: Any
+    ) -> int:
+        sent.append(Sent(user_id, title, body, kwargs["data"], kwargs.get("league_id")))
+        return 1
+
+    return sent, record
+
+
+async def _admin_ids(db: AsyncSession) -> set[uuid.UUID]:
+    return set(
+        (await db.execute(select(Profile.id).where(Profile.role == UserRole.admin))).scalars()
+    )
+
+
+async def test_a_queued_payment_tells_only_the_site_admins_and_only_once(
+    session: AsyncSession,
+) -> None:
+    owner = await _profile(session, None, "owner", UserRole.admin)
+    member = await _profile(session, None, "member")
+    league = await _league(session, None, [member])
+    queued = _link_payment(league, None, 2 * FEE)
+    session.add(queued)
+    await session.flush()
+
+    sent, record = _recorder()
+    with patch("src.services.payment_notices.send_notification", new=record):
+        await notify_queued_payments(session, _now())
+        first = [item for item in sent if league.name in item.body]
+        await notify_queued_payments(session, _now())
+        await notify_queued_payments(session, _now() + timedelta(minutes=10))
+
+    mine = [item for item in sent if league.name in item.body]
+    assert mine == first, "a second and third run send nothing more"
+    assert owner.id in {item.user_id for item in mine}
+    assert member.id not in {item.user_id for item in sent}
+    assert {item.user_id for item in mine} <= await _admin_ids(session)
+    assert len([item for item in mine if item.user_id == owner.id]) == 1
+    notice = next(item for item in mine if item.user_id == owner.id)
+    assert notice.title == "Payment waiting to be matched"
+    assert notice.body.startswith("£2 from Sam Secretpayer to ")
+    assert notice.data == {
+        "type": PAYMENT_QUEUED,
+        "league_id": str(league.id),
+        "url": f"/leagues/{league.slug}/admin/payments",
+    }
+    assert notice.league_id == league.id
+    claims = (
+        await session.execute(
+            select(NotificationSend).where(NotificationSend.subject == str(queued.id))
+        )
+    ).scalars()
+    assert [claim.kind for claim in claims] == [PAYMENT_QUEUED]
+
+
+async def test_a_matched_or_assigned_payment_tells_its_member_once_without_payer_details(
+    session: AsyncSession,
+) -> None:
+    owner = await _profile(session, None, "owner", UserRole.admin)
+    matched = await _profile(session, None, "matched")
+    assigned = await _profile(session, None, "assigned")
+    by_cash = await _profile(session, None, "cash")
+    league = await _league(session, None, [matched, assigned, by_cash])
+    gameweek = await _round(session, league, _saturday(2067, 9, 1))
+    await _open_with_dues(session, league, gameweek)
+    automatic = _link_payment(league, matched, FEE)
+    by_hand = _link_payment(league, None, FEE // 2)
+    session.add_all([automatic, by_hand, _cash(league, by_cash, FEE)])
+    await session.flush()
+
+    sent, record = _recorder()
+    with patch("src.services.payment_notices.send_notification", new=record):
+        await notify_recorded_payments(session, _now())
+        # The organiser assigns the queued payment; the next run tells its member.
+        by_hand.player_id = assigned.id
+        by_hand.assigned_by = owner.id
+        by_hand.assigned_at = _now()
+        await session.flush()
+        await notify_recorded_payments(session, _now())
+        await notify_recorded_payments(session, _now() + timedelta(minutes=10))
+
+    told = {item.user_id: item for item in sent if item.league_id == league.id}
+    assert set(told) == {matched.id, assigned.id}, "cash and admins hear nothing"
+    assert len([item for item in sent if item.league_id == league.id]) == 2
+    assert told[matched.id].title == "Payment received"
+    assert told[matched.id].body == (
+        f"Your £1 payment to {league.name} is in. You're paid up and can pick."
+    )
+    assert told[assigned.id].body == (
+        f"Your £0.50 payment to {league.name} is in. You still owe £0.50 before you can pick."
+    )
+    for item in told.values():
+        assert item.data == {
+            "type": PAYMENT_RECORDED,
+            "league_id": str(league.id),
+            "url": f"/leagues/{league.slug}/predictions",
+        }
+        everything = item.title + item.body + json.dumps(item.data)
+        for secret in (
+            _SECRET_NAME,
+            "Secretpayer",
+            _SECRET_USER,
+            automatic.monzo_transaction_id,
+            by_hand.monzo_transaction_id,
+        ):
+            assert secret is not None and secret not in everything
+
+
+async def test_a_member_told_with_no_round_open_hears_their_balance(
+    session: AsyncSession,
+) -> None:
+    ahead = await _profile(session, None, "ahead")
+    behind = await _profile(session, None, "behind")
+    league = await _league(session, None, [ahead, behind])
+    session.add(
+        LedgerEntry(
+            league_id=league.id,
+            player_id=behind.id,
+            kind=LedgerKind.adjustment,
+            amount_pence=-3 * FEE,
+            note="owed before the app",
+        )
+    )
+    session.add_all([_link_payment(league, ahead, 2 * FEE), _link_payment(league, behind, FEE)])
+    await session.flush()
+
+    sent, record = _recorder()
+    with patch("src.services.payment_notices.send_notification", new=record):
+        await notify_recorded_payments(session, _now())
+
+    told = {item.user_id: item.body for item in sent if item.league_id == league.id}
+    assert told[ahead.id].endswith("is in. You're paid up for the next round.")
+    assert told[behind.id].endswith("is in. You still owe £2.")
+    assert "owed before" not in told[behind.id]
+
+
+async def _monzo_row(db: AsyncSession) -> MonzoConnection:
+    row = (await db.execute(select(MonzoConnection))).scalar_one_or_none()
+    if row is None:
+        row = MonzoConnection(status=MonzoLinkStatus.connected)
+        db.add(row)
+    return row
+
+
+async def test_the_monzo_link_tells_the_admins_once_when_it_breaks_and_once_when_it_reads(
+    session: AsyncSession,
+) -> None:
+    owner = await _profile(session, None, "owner", UserRole.admin)
+    member = await _profile(session, None, "member")
+    await _league(session, None, [member])
+    start = _now()
+    row = await _monzo_row(session)
+    row.status = MonzoLinkStatus.connected
+    row.last_success_at = start - timedelta(minutes=20)
+    row.last_error = None
+    row.last_error_at = None
+    await session.flush()
+
+    sent, record = _recorder()
+
+    async def run(after: timedelta) -> list[str]:
+        before = len(sent)
+        with patch("src.services.payment_notices.send_notification", new=record):
+            await notify_monzo_link(session, start + after)
+        return [item.title for item in sent[before:] if item.user_id == owner.id]
+
+    assert await run(timedelta(0)) == [], "a healthy link says nothing"
+
+    # Reads start failing. Every failure is recorded, but under an hour is not news.
+    for minutes in (5, 10, 15, 20, 25, 30):
+        row.last_error = "monzo_unavailable"
+        row.last_error_at = start + timedelta(minutes=minutes)
+        await session.flush()
+        assert await run(timedelta(minutes=minutes)) == []
+
+    # An hour since the last good read: one notice, however many runs see it.
+    assert await run(timedelta(minutes=41)) == ["Monzo has stopped reading"]
+    down = next(item for item in sent if item.user_id == owner.id)
+    assert "The last problem was monzo_unavailable." in down.body
+    assert down.data["type"] == MONZO_LINK_DOWN
+    for minutes in (51, 61, 71):
+        row.last_error_at = start + timedelta(minutes=minutes)
+        await session.flush()
+        assert await run(timedelta(minutes=minutes)) == []
+
+    # It reads again: one recovery notice.
+    row.last_success_at = start + timedelta(minutes=75)
+    await session.flush()
+    assert await run(timedelta(minutes=77)) == ["Monzo is reading again"]
+    assert await run(timedelta(minutes=87)) == []
+
+    # Monzo refuses the login: one notice straight away, and one when it reads again.
+    row.status = MonzoLinkStatus.needs_reconnect
+    row.last_error = "refresh_refused"
+    row.last_error_at = start + timedelta(minutes=90)
+    await session.flush()
+    assert await run(timedelta(minutes=91)) == ["Monzo needs connecting again"]
+    assert await run(timedelta(minutes=101)) == []
+    row.status = MonzoLinkStatus.awaiting_approval
+    await session.flush()
+    assert await run(timedelta(minutes=111)) == [], "half-way through a connect"
+    row.status = MonzoLinkStatus.connected
+    row.last_success_at = start + timedelta(minutes=115)
+    await session.flush()
+    assert await run(timedelta(minutes=121)) == ["Monzo is reading again"]
+    assert await run(timedelta(minutes=131)) == []
+
+    assert member.id not in {item.user_id for item in sent}
+    assert {item.user_id for item in sent} <= await _admin_ids(session)
+    kinds = (
+        await session.execute(
+            select(NotificationSend.kind).where(
+                NotificationSend.kind.in_([MONZO_LINK_DOWN, MONZO_LINK_RECOVERED])
+            )
+        )
+    ).scalars()
+    assert sorted(kinds) == sorted([MONZO_LINK_DOWN, MONZO_LINK_RECOVERED] * 2)
+
+
+async def test_a_muted_category_gets_neither_the_push_nor_the_inbox_row(
+    session: AsyncSession,
+) -> None:
+    muted_admin = await _profile(session, None, "quiet-owner", UserRole.admin)
+    loud_admin = await _profile(session, None, "loud-owner", UserRole.admin)
+    muted = await _profile(session, None, "quiet")
+    loud = await _profile(session, None, "loud")
+    league = await _league(session, None, [muted, loud])
+    session.add_all(
+        [
+            NotificationPreferences(
+                user_id=muted_admin.id, mute_payment_queue=True, mute_monzo_link=True
+            ),
+            NotificationPreferences(user_id=muted.id, mute_payments=True),
+            # Each mute is its own category: muting the link leaves the queue on.
+            NotificationPreferences(user_id=loud_admin.id, mute_monzo_link=True),
+        ]
+    )
+    for profile in (muted_admin, loud_admin, muted, loud):
+        session.add(
+            PushSubscription(
+                user_id=profile.id,
+                subscription={
+                    "endpoint": f"https://fcm.googleapis.com/push/{profile.id}",
+                    "keys": {"auth": "x", "p256dh": "y"},
+                },
+            )
+        )
+    session.add_all(
+        [
+            _link_payment(league, None, FEE),
+            _link_payment(league, muted, FEE),
+            _link_payment(league, loud, FEE),
+        ]
+    )
+    await session.flush()
+
+    with (
+        patch.object(settings, "vapid_private_key", "priv"),
+        patch.object(settings, "vapid_public_key", "pub"),
+    ):
+        prepared = await prepare_payment_notices(session, _now())
+    await session.flush()
+
+    pushed = {push.user_id for plan in prepared.notifications for push in plan.pushes}
+    rows = (
+        await session.execute(
+            select(MemberNotification.user_id, MemberNotification.kind).where(
+                MemberNotification.league_id == league.id,
+                # Every site admin is told, including any another module left committed.
+                MemberNotification.user_id.in_([muted_admin.id, loud_admin.id, muted.id, loud.id]),
+            )
+        )
+    ).all()
+    inbox = {(row.user_id, row.kind) for row in rows}
+    assert inbox == {(loud_admin.id, PAYMENT_QUEUED), (loud.id, PAYMENT_RECORDED)}
+    assert {loud_admin.id, loud.id} <= pushed
+    assert not {muted_admin.id, muted.id} & pushed
+
+
+async def test_a_muted_link_notice_stays_quiet_without_a_league_to_file_it_under(
+    session: AsyncSession,
+) -> None:
+    """Push only when no league has a link id yet, and the category mute still holds."""
+    muted = await _profile(session, None, "quiet-owner", UserRole.admin)
+    loud = await _profile(session, None, "loud-owner", UserRole.admin)
+    session.add(NotificationPreferences(user_id=muted.id, mute_monzo_link=True))
+    for profile in (muted, loud):
+        session.add(
+            PushSubscription(
+                user_id=profile.id,
+                subscription={
+                    "endpoint": f"https://fcm.googleapis.com/push/{profile.id}",
+                    "keys": {"auth": "x", "p256dh": "y"},
+                },
+            )
+        )
+    await session.flush()
+
+    data = {"type": MONZO_LINK_DOWN, "url": "/admin"}
+    with (
+        patch.object(settings, "vapid_private_key", "priv"),
+        patch.object(settings, "vapid_public_key", "pub"),
+        patch("src.services.push_notification_service._send_push_sync") as push,
+    ):
+        assert await send_notification(session, muted.id, "Monzo", "down", data=data) == 0
+        assert push.call_count == 0
+        assert await send_notification(session, loud.id, "Monzo", "down", data=data) == 1
+        assert push.call_count == 1
+
+
+async def test_two_runs_at_once_send_each_payment_notice_once(world: World) -> None:
+    """Runs overlap across a redeploy; the unique claim, not a read, keeps them apart."""
+    async with AsyncSessionLocal() as db:
+        owner = await _profile(db, world, "owner", UserRole.admin)
+        member = await _profile(db, world, "member")
+        league = await _league(db, world, [member])
+        entries = [_link_payment(league, None, FEE), _link_payment(league, member, FEE)]
+        db.add_all(entries)
+        await db.commit()
+    subjects = [str(entry.id) for entry in entries]
+
+    sent, record = _recorder()
+
+    async def one_run() -> None:
+        async with AsyncSessionLocal() as db:
+            await notify_queued_payments(db, _now())
+            await notify_recorded_payments(db, _now())
+            await db.commit()
+
+    try:
+        with patch("src.services.payment_notices.send_notification", new=record):
+            await asyncio.gather(one_run(), one_run())
+            await one_run()
+        mine = [item for item in sent if item.league_id == league.id]
+        assert sorted(
+            (item.user_id == owner.id, item.data["type"])
+            for item in mine
+            if item.user_id in (owner.id, member.id)
+        ) == [
+            (False, PAYMENT_RECORDED),
+            (True, PAYMENT_QUEUED),
+        ]
+        async with AsyncSessionLocal() as db:
+            claims = (
+                await db.execute(
+                    select(NotificationSend.kind, func.count())
+                    .where(NotificationSend.subject.in_(subjects))
+                    .group_by(NotificationSend.kind)
+                )
+            ).all()
+        assert sorted(tuple(claim) for claim in claims) == [
+            (PAYMENT_QUEUED, 1),
+            (PAYMENT_RECORDED, 1),
+        ]
+    finally:
+        async with AsyncSessionLocal() as db:
+            await db.execute(delete(NotificationSend).where(NotificationSend.subject.in_(subjects)))
+            await db.commit()
+
+
+def _migration_030() -> Any:
+    path = (
+        Path(__file__).resolve().parents[3] / "migrations" / "versions" / "030_payment_notices.py"
+    )
+    spec = importlib.util.spec_from_file_location("migration_030", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+async def test_migration_030_marks_the_ledger_it_finds_as_already_told(
+    session: AsyncSession,
+) -> None:
+    """The first run after the shipment must not announce launch week's payments again."""
+    member = await _profile(session, None, "member")
+    waiting = await _profile(session, None, "waiting")
+    league = await _league(session, None, [member, waiting])
+    queued = _link_payment(league, None, FEE)
+    matched = _link_payment(league, member, FEE)
+    session.add_all([queued, matched, _cash(league, member, FEE)])
+    await session.flush()
+
+    await session.execute(text(_migration_030().SEED_SENT_NOTICES))
+
+    claims = (
+        await session.execute(
+            select(NotificationSend.kind, NotificationSend.subject).where(
+                NotificationSend.subject.in_([str(queued.id), str(matched.id)])
+            )
+        )
+    ).all()
+    assert sorted(tuple(claim) for claim in claims) == sorted(
+        [
+            (PAYMENT_QUEUED, str(queued.id)),
+            (PAYMENT_QUEUED, str(matched.id)),
+            (PAYMENT_RECORDED, str(matched.id)),
+        ]
+    )
+
+    sent, record = _recorder()
+    with patch("src.services.payment_notices.send_notification", new=record):
+        await notify_queued_payments(session, _now())
+        await notify_recorded_payments(session, _now())
+        assert [item for item in sent if item.league_id == league.id] == []
+        # A payment queued before the shipment still tells its member once assigned.
+        queued.player_id = waiting.id
+        queued.assigned_at = _now()
+        await session.flush()
+        await notify_recorded_payments(session, _now())
+    assert [item.user_id for item in sent if item.league_id == league.id] == [waiting.id]

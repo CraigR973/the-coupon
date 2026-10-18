@@ -103,6 +103,12 @@ export function NotificationsPromptModal({ onClose, playerId }: Props) {
             </span>
             <span>if a fixture is postponed and your pick is returned</span>
           </li>
+          <li className="flex gap-2">
+            <span aria-hidden className="text-text-muted">
+              •
+            </span>
+            <span>in a league with a fee, when a payment of yours arrives</span>
+          </li>
         </ul>
         <p className="text-xs font-sans text-text-muted leading-relaxed">
           You can mute a single league, or all of them, in Settings.

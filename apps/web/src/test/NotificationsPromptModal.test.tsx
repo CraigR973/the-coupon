@@ -100,6 +100,8 @@ describe('NotificationsPromptModal', () => {
     expect(screen.getByText(/when someone else in the league picks/i)).toBeTruthy();
     expect(screen.getByText(/when all picks are in/i)).toBeTruthy();
     expect(screen.getByText(/if a fixture is postponed/i)).toBeTruthy();
+    // Batch 213's `payment_recorded`, sent only where a league charges a fee.
+    expect(screen.getByText(/when a payment of yours arrives/i)).toBeTruthy();
   });
 
   it('promises nothing the application does not send', () => {
