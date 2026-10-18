@@ -8990,3 +8990,13 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - The scheduled `/ship-prod` for `8797aa7` (owner-scheduled 2026-10-18T12:05:00Z), which ships both services with migration `030`; the owner says when to run it.
 
 **Next:** `/ship-prod` for Batch 213 when the owner says; Batch 211 stays deferred until after launch.
+
+## Shipment — 2026-10-18, `0a7457b` (Batch 213; migration 030)
+**Railway:** API `0ac1f12c-eb0b-45ba-bcee-40dffeff791b` and payments `ae129cb8-423c-4bbd-8e28-a3a6b7f737a1` `SUCCESS` · IaC redeploys `03ad7d4e` / `36e19a56` · Vercel no-op (`dpl_28fvGgLaB5DREt5fd7eSpF49MUhR`, `0a7457b`) · drift **in sync** for both · exact-SHA CI `39125542792` and `39126181385` green · reused gate stamp `410c9b4` (backend 1,556; frontend 1,411; journey 1)
+
+### Key facts for future sessions
+- **Batch 213 is live.** Both services report `0a7457b` / `030`; RLS forced on 26 of 26 tables with no public-role grants. Owner-scheduled at 2026-10-18T12:05:00Z, run on the owner's `/ship-prod`. The `payment_notices` job's first run (12:57 UTC) succeeded with nothing to send, so the seed held: no old payment was announced.
+- Railway's JSON logs tag every stderr line `error`, so uvicorn's and Alembic's normal startup lines hit a naive failure-term scan; classify before reporting.
+- **Recovery:** migration `030` retires `03ad7d4e` / `36e19a56` as rollback targets; forward recovery is `docs/runbooks/migration-030-recovery.md`.
+
+**Next:** ADR 0009's remaining launch steps; Batch 211 after launch.

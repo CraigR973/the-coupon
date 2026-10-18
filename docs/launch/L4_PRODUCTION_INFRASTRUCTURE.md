@@ -4006,3 +4006,37 @@ on the same bundle, exact-origin CORS `200` with credentials, a foreign origin `
 Backup/restore-point identity: **none yet**. No migration was applied, so `d352f6eb` and
 `1acf1785` remain valid rollback targets; the web's is `dpl_8JDQVTectLaQEjrA4frPC83FaxPw`
 (`83c2663`, before Batch 212's web half).
+
+### 2026-10-18 — `0a7457b`, Batch 213: payment notices (migration `030`)
+
+Owner-scheduled in chat (Craig Robinson, 2026-10-18T12:05:00Z) before close-out, and run on the
+owner's `/ship-prod` the same day. Implementation `8797aa7`, exact-SHA CI green (`39125542792`);
+close-out `0a7457b`, exact-SHA CI green (`39126181385`). The complete gate stamped tree `410c9b4`
+(12 checks, backend 1,556, frontend 1,411, journey 1, zero skips); the shipped tree differs only in
+the three close-out documents.
+
+Preflight: exact targets, null `railwayConfigFile` on both services, all required variable names
+on both and kept apart, both Vercel production names encrypted. Supabase `pugujiiojitstkilphrz`
+listed in London; the CLI in use shows no status column, so the database was proved by the API's
+readiness instead (`ok` before and after). The migration recovery check passed for `030`
+(`docs/runbooks/migration-030-recovery.md`). The pinned IaC plan had 0 additions, the 4 recurring
+null-to-explicit updates and 0 deletions; its redeploys of the running images, API `03ad7d4e` and
+payments `36e19a56` (`88d8541` / `029`), reached `SUCCESS` and were the rollback baselines.
+
+API `0ac1f12c-eb0b-45ba-bcee-40dffeff791b` reached `SUCCESS` and applied `029 -> 030` on boot; then
+payments `ae129cb8-423c-4bbd-8e28-a3a6b7f737a1` reached `SUCCESS`. Both: one replica in
+`europe-west4-drams3a`, no sleep, IPv6 egress, 0.25 vCPU and 500 MB; both report `0a7457b` and
+`030`, and both readiness checks database `ok` at `030`. Bounded logs: API 45 lines and payments 6.
+The API's 7 failure-term hits were Railway labelling stderr startup lines (Alembic, uvicorn) as
+`error`, and its 1 credential-pattern hit was the job name `run_prune_refresh_tokens`; payments had
+none, and no access-log line. The catalogue-only audit found head `030`, RLS forced on 26 of 26
+tables (`notification_sends` included), no public-role grants and the three new mute columns.
+Vercel was a no-op (GitHub deployed `0a7457b`, `dpl_28fvGgLaB5DREt5fd7eSpF49MUhR`); the web root and
+`/settings` returned `200` on the same bundle, exact-origin CORS `200` with credentials, a foreign
+origin `400`. The new `payment_notices` job first ran at 12:57 UTC and executed successfully with
+nothing to send. Drift: **in sync** for both.
+
+Backup/restore-point identity: **none yet**. Migration `030` retires `03ad7d4e`, `36e19a56` and
+every earlier image as rollback targets; forward recovery is `docs/runbooks/migration-030-recovery.md`.
+The web's rollback target is `dpl_3cdY7qgCCKUrZb8pucb2ByK9kTs5` (`a41af46`, before Batch 213's web
+half).

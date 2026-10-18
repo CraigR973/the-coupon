@@ -13,11 +13,11 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `88d8541` (through Batch 212) at migration `029` (17 Oct) |
-| API deployment | Railway `2966c35b-6eb3-4191-a57c-98ce88c5dc8e` succeeded, one replica, `europe-west4` (17 Oct) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `88d8541` at `029`, Railway `f8be2071-1a85-4644-bc59-9317a97d6587`, one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC; nothing is read until a league has a Monzo link id (16 Oct) |
+| API | `api-production-109b1.up.railway.app` serves `0a7457b` (through Batch 213) at migration `030` (18 Oct) |
+| API deployment | Railway `0ac1f12c-eb0b-45ba-bcee-40dffeff791b` succeeded, one replica, `europe-west4` (18 Oct) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `0a7457b` at `030`, Railway `ae129cb8-423c-4bbd-8e28-a3a6b7f737a1`, one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC; nothing is read until a league has a Monzo link id (16 Oct) |
 | Web | Batch 202's build (Vite 8, Tailwind 4) is live at `the-coupon-production.vercel.app` from `628aa0a` (2026-10-11: its stylesheet served, sign-in rendered at 390 and 1280 px with no console errors). Later documentation-only deployments leave the web code unchanged. |
-| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 25 of 25 tables, no public-role grants (16 Oct) |
+| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 26 of 26 tables, no public-role grants (18 Oct) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
 | Football data | FotMob, no key |
@@ -53,9 +53,10 @@ Checked 2026-10-10 unless a line says otherwise.
   spent, and since `bca0aaa` (shipped 17 Oct) the service writes no access log.
 - **Batch 203 shipped unrecorded on 11 Oct** (Railway `de1b8aa8`, `5882b0f`), found from
   Railway's deployment list on 13 Oct and now in the L4 record.
-- **Batch 213 is pushed, not shipped** (18 Oct, `8797aa7`, migration `030`). The web half is
-  live; its new Settings toggles stay hidden until the API sends their fields. `/ship-prod` was
-  scheduled by the owner at 2026-10-18T12:05:00Z and waits for the owner's word. Recovery:
+- **Batch 213 is shipped and verified** (18 Oct, `0a7457b`, migration `030`). Both services
+  report `0a7457b` / `030`, drift is in sync, and the catalogue audit found RLS forced on 26 of 26
+  tables with no public-role grants. The `payment_notices` job runs every ten minutes; its first
+  run sent nothing. Migration `030` requires forward recovery:
   `docs/runbooks/migration-030-recovery.md`.
 - **Migration `029` requires forward recovery.** It is additive, but the older images'
   boot checks cannot start against revision `029`. Use
@@ -124,8 +125,7 @@ a least-privilege database login for `payments` — is open and deferred until a
 (owner, 16 Oct). Batch 212 — members see the prize fund, both targets and everyone's status,
 and the pay panel's earlier balance — is complete and shipped (17 Oct, `06a32f6`, shipped as
 `88d8541`). Batch 213 — notifications for queued payments, Monzo link trouble and payments
-received, migration `030` — is complete (18 Oct, `8797aa7`); its web half is live and its
-`/ship-prod` (both services) is owner-scheduled and not yet run. The Monzo
+received, migration `030` — is complete and shipped (18 Oct, `8797aa7`, shipped as `0a7457b`). The Monzo
 launch steps in ADR 0009 are the owner's, including making sure every member is 18 or over.
 
 ## Toolchain
@@ -171,7 +171,7 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** `/ship-prod` for Batch 213 when the owner says; then ADR 0009's remaining launch steps (Monzo is connected): set 2-1
+**Next:** ADR 0009's remaining launch steps (Monzo is connected): set 2-1
 Hibs' fee, link and link id after checking every member is 18 or over, record opening
 balances up to 21:29 UTC on 16 Oct, and pay £1 through the link. The season-calendar backfill remains owner-gated,
 unblocked since 4 Oct.
