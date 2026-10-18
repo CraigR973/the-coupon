@@ -1303,7 +1303,7 @@ owner on launch day, 2026-10-17.
   Scope boundary: the money read and its two screens. No change to the dues rules, the pick
   gate or the ledger. **API + web: close-out needs the owner to schedule its `/ship-prod`.**
 
-- [ ] **Batch 213 — The organiser learns of a queued payment or a broken Monzo link only by looking**
+- [x] **Batch 213 — The organiser learns of a queued payment or a broken Monzo link only by looking** ✅ 2026-10-18
   — raised on launch day (owner, 2026-10-17). On the first morning the owner had to watch
   "Waiting to be matched" by hand, and a Monzo link needing reconnection shows only on the
   Payments screen. Members are not told when their payment arrives.

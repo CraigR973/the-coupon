@@ -53,6 +53,10 @@ Checked 2026-10-10 unless a line says otherwise.
   spent, and since `bca0aaa` (shipped 17 Oct) the service writes no access log.
 - **Batch 203 shipped unrecorded on 11 Oct** (Railway `de1b8aa8`, `5882b0f`), found from
   Railway's deployment list on 13 Oct and now in the L4 record.
+- **Batch 213 is pushed, not shipped** (18 Oct, `8797aa7`, migration `030`). The web half is
+  live; its new Settings toggles stay hidden until the API sends their fields. `/ship-prod` was
+  scheduled by the owner at 2026-10-18T12:05:00Z and waits for the owner's word. Recovery:
+  `docs/runbooks/migration-030-recovery.md`.
 - **Migration `029` requires forward recovery.** It is additive, but the older images'
   boot checks cannot start against revision `029`. Use
   `docs/runbooks/migration-029-recovery.md` for forward repair. Production has no backup
@@ -119,8 +123,9 @@ web-only). Batch 211 —
 a least-privilege database login for `payments` — is open and deferred until after launch
 (owner, 16 Oct). Batch 212 — members see the prize fund, both targets and everyone's status,
 and the pay panel's earlier balance — is complete and shipped (17 Oct, `06a32f6`, shipped as
-`88d8541`). Batch 213 (notifications for
-queued payments, Monzo link trouble and payments received) is open (owner, 17 Oct). The Monzo
+`88d8541`). Batch 213 — notifications for queued payments, Monzo link trouble and payments
+received, migration `030` — is complete (18 Oct, `8797aa7`); its web half is live and its
+`/ship-prod` (both services) is owner-scheduled and not yet run. The Monzo
 launch steps in ADR 0009 are the owner's, including making sure every member is 18 or over.
 
 ## Toolchain
@@ -166,7 +171,7 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** ADR 0009's remaining launch steps (Monzo is connected): set 2-1
+**Next:** `/ship-prod` for Batch 213 when the owner says; then ADR 0009's remaining launch steps (Monzo is connected): set 2-1
 Hibs' fee, link and link id after checking every member is 18 or over, record opening
 balances up to 21:29 UTC on 16 Oct, and pay £1 through the link. The season-calendar backfill remains owner-gated,
 unblocked since 4 Oct.

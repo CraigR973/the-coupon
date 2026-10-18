@@ -8975,3 +8975,18 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - **Recovery:** no migration, so `d352f6eb` / `1acf1785` are valid rollback targets.
 
 **Next:** Batch 213 in a later session.
+
+## Batch 213 — The organiser hears of a queued payment or a broken Monzo link, and members of their payments
+**Commits:** `8797aa7` · verified: complete 12-check local gate, 1,556 backend and 1,411 frontend tests, journey 1, zero skips · CI: https://github.com/CraigR973/the-coupon/actions/runs/39125542792 PASS for `8797aa77f93835248270aa3fd0bd92e3ae49aabe`
+
+### Key facts for future sessions
+- The API job `payment_notices` (every ten minutes, :07–:57 UTC) sends three notices: each queued link payment to every site admin; the Monzo link needing reconnection, or no successful read for an hour (from the last success, so a stopped payments service counts), and its recovery, to site admins; and a matched or assigned link payment to its member, with the amount and whether they can pick. Cash sends nothing. Owner decisions (18 Oct): two admin categories, the hour from the last success, ten minutes, link payments only.
+- "Once" is migration `030`'s `notification_sends` unique `(kind, subject)`: the claim commits with the inbox rows before any push, so overlapping runs send once and a crash loses a push, never repeats one. A link outage's subject is the `last_success_at` before it. The migration seeds every existing link payment as told; never empty the table to "retry". Recovery plan: `docs/runbooks/migration-030-recovery.md`.
+- Mute columns `mute_payment_queue`, `mute_monzo_link`, `mute_payments`. A category now mutes its kind with or without a league, because the link notice is push-only when no league has a link id. Settings shows the member toggle always and the two admin toggles to site admins only; an older API's payload shows none. Screenshots at 390 and 1280 px in both themes, admin and member (`artifacts/overnight/batch-213-shots/`): no sideways scroll, no console errors.
+- Gate: attempt 1 failed one new test. Admin profiles committed by earlier modules also, correctly, received the queued notice, so the exact inbox set had extra rows; the check now reads only the test's own four accounts, expected value unchanged. Attempt 2 passed all 12 after waiting for load under 6. No assertion was replaced and no protected file changed; the scheduler job set and grace dict and the preferences mocks each gained keys.
+- **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-18T12:05:00Z; pre-push deployed-API drift in sync; /ship-prod owed immediately after push
+
+### Follow-ups
+- The scheduled `/ship-prod` for `8797aa7` (owner-scheduled 2026-10-18T12:05:00Z), which ships both services with migration `030`; the owner says when to run it.
+
+**Next:** `/ship-prod` for Batch 213 when the owner says; Batch 211 stays deferred until after launch.
