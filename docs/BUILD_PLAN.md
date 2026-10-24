@@ -1252,7 +1252,8 @@ owner on launch day, 2026-10-17.
   launch. `payments`' `DATABASE_URL` is the Railway reference `${{api.DATABASE_URL}}`, so a
   compromised payments process could reach every table the API can. Give it its own role
   with only what it uses: read `alembic_version`, `leagues`, `league_memberships` and
-  `payer_mappings`; read and insert `ledger_entries`; read and write `monzo_connections`.
+  `payer_mappings`; read and insert `ledger_entries`; read and write `monzo_connections`;
+  read and insert Batch 214's pot table.
   The owner creates the role's credential in Supabase and repoints the variable; the batch
   decides whether the grants live in a migration or a runbook, and proves the service
   still boots, reads and writes with nothing more.
@@ -1326,6 +1327,95 @@ owner on launch day, 2026-10-17.
   Scope boundary: the three notifications and what records they were sent. No change to how
   payments are read or matched. **API (+ web if the categories need settings copy):
   `/ship-prod` owed after close-out.**
+
+- [ ] **Batch 214 — The owner's own top-ups into the pot are never counted, and Monzo's 90-day approval lapses unannounced**
+  — raised by the owner on 2026-10-24. The owner pays their £1 by moving it from their
+  current account into the league's Monzo pot, and the app never sees it.
+  `ingest.link_payment` keeps only money *in* that carries the league's `unipaylink_` id; a
+  pot transfer is money *out* of the current account with no link id, so it is dropped
+  before matching and never even queued. Production on 24 Oct: the owner's ledger held two
+  dues and one £1 recorded by hand (17 Oct), and no payment read from Monzo, so the owner
+  owed £1 on the morning of a lock; all 20 link payments from members had been read and matched.
+
+  Owner decision (2026-10-24): the owner never puts other members' cash into the pot, so
+  every top-up from the connected Monzo account into a league's pot is the owner's own
+  payment, booked to them automatically.
+
+  Top-ups (payments service):
+  - A top-up is a transaction read from the connected account that moves money from a
+    current account into a pot: a negative amount, not declined, in sterling, made after
+    counting started. The owner's July samples (`~/monzo-spike/out/`) show a pot deposit
+    as scheme `uk_retail_pot` with `pot_id`, `pot_account_id`, `pot_deposit_id`, `trigger`
+    and `user_id` in its metadata. It is recorded as a payment of the amount moved, keyed
+    by its transaction id like a link payment, so the webhook and the catch-up write it once.
+  - It counts only into a league's own pot. The service learns a league's pot from the pot
+    identifiers its link payments carry (`collectionpot_…` per ADR 0009's evidence, which
+    never recorded the field: read the transaction and its metadata, as Batch 208 did for
+    the link id; never the transaction's own `account_id`). Migration `031` stores them in a
+    payments-owned table, one league per pot, with when each was learned. At first run the
+    service learns them from the link payments still in Monzo's history, so the first
+    top-up need not wait for a member's payment; it never re-reads history every five
+    minutes.
+  - A top-up counts only if it was made after its pot was learned, so no week the owner has
+    already recorded by hand is counted again.
+  - The payer is the Monzo user who moved the money (`metadata.user_id`), matched through the
+    payer map like a Monzo-app payer. The first top-up waits in the queue, and Batch 213's
+    notice asks the organiser to match it. Once it is assigned, every later top-up is booked
+    automatically and sends Batch 213's "payment received". The queue and its notice name
+    the account holder from `/accounts`' owners, not "a payer".
+  - Ignored: money taken out of the pot (the payout happens outside the app; a top-up taken
+    back out is corrected with an adjustment), and moves into any other pot.
+  - Fail safe: a pot transfer the service cannot place is ignored, as today. Until the
+    first top-up is recognised, each manual pot move it reads logs one structure-only line
+    (scheme, sign, metadata keys, id prefixes, trigger, and whether its pot matches a
+    learned one), and learning logs which field held the pot. Never an amount, name, note,
+    description or full id. The capture stops once a top-up has been recognised.
+  - No new Monzo call: `/pots` stays refused and the allow-list is unchanged.
+
+  Monzo's 90-day approval:
+  - Monzo makes the owner approve a developer app again every 90 days. After that the
+    token still refreshes, but every read is refused (`forbidden.insufficient_permissions`).
+    The old `~/monzo-spike` hit exactly this on 24 Oct, 90 days after its 26 Jul approval.
+    The payments service was approved on 16 Oct, so its turn comes around 14 Jan 2027.
+  - Record when approval was last given: `monzo_connections.approved_at`, set when the
+    status turns `connected`. Migration `031` backfills the live row from
+    `webhook_registered_at`, which the first connected read set.
+  - The existing `payment_notices` job sends site admins one notice seven days before
+    approval plus 90 days, with the date and how to connect again, once per approval. It
+    mutes with the Monzo-link category; no new job or mute column.
+  - The Monzo card shows the date approval lasts until. A `forbidden` read is described as
+    the approval having lapsed or been withdrawn, with how to connect again, both on the
+    card and in Batch 213's "stopped reading" notice.
+
+  Webhook re-reads:
+  - Every webhook re-read is refused: 26 `monzo link error: refused` lines between 07:17 and
+    09:44 UTC on 24 Oct, four or five per payment, each payment then found by the
+    five-minute read. Log Monzo's status and short error code for a refused call (never the
+    body). Stop recording a refused re-read as the link's last problem, which makes the card
+    show "Reading from Monzo failed (refused)" for a few minutes after every payment. Fixing
+    the cause is a follow-up once the code is known; pots have their own transaction feed,
+    which is a likely reason.
+
+  Verification:
+  - Unit: top-up parsing (deposit, withdrawal, declined, other currency, no user id); a pot
+    learned from each field a link payment could carry it in; a pot claimed by a second
+    league refused; capture lines carrying no amount, name, note or full id.
+  - Database: the first top-up queued under the holder's name, assigned, then the next
+    booked automatically; the webhook and the catch-up write one entry; a top-up made before
+    its pot was learned, or into another pot, is not counted; the first-run history read
+    learns the pot and is not repeated every run; `approved_at` set on approval and
+    backfilled; the warning sent once, to site admins only, and muted by its category; a
+    refused re-read logged and not recorded.
+  - Migration `031` on clean PostgreSQL, with RLS forced on the new table and no public-role
+    grants, and its forward-recovery runbook.
+  - Web vitest: the approval line, the lapsed wording, and an API that sends neither.
+    Screenshots of the card at 390 and 1280 px in both themes.
+
+  Scope boundary: the payments service's reading (top-ups and webhook re-reads), the
+  approval warning and its card line. No change to dues, the pick gate, or how link payments
+  match. **API (migration `031`) + payments + web: close-out needs the owner to schedule its
+  `/ship-prod`.** Once it ships, the owner stops recording their own £1 by hand and assigns
+  the first top-up once.
 
 ## Verification
 

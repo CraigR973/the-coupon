@@ -15,7 +15,7 @@ Checked 2026-10-10 unless a line says otherwise.
 | --- | --- |
 | API | `api-production-109b1.up.railway.app` serves `0a7457b` (through Batch 213) at migration `030` (18 Oct) |
 | API deployment | Railway `0ac1f12c-eb0b-45ba-bcee-40dffeff791b` succeeded, one replica, `europe-west4` (18 Oct) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `0a7457b` at `030`, Railway `ae129cb8-423c-4bbd-8e28-a3a6b7f737a1`, one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC; nothing is read until a league has a Monzo link id (16 Oct) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `0a7457b` at `030`, Railway `ae129cb8-423c-4bbd-8e28-a3a6b7f737a1`, one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read, because every webhook re-read is refused; the owner's own top-ups into the pot are not read (Batch 214) (24 Oct) |
 | Web | Batch 202's build (Vite 8, Tailwind 4) is live at `the-coupon-production.vercel.app` from `628aa0a` (2026-10-11: its stylesheet served, sign-in rendered at 390 and 1280 px with no console errors). Later documentation-only deployments leave the web code unchanged. |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 26 of 26 tables, no public-role grants (18 Oct) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
@@ -82,6 +82,17 @@ These are not batches; nothing here will happen unless the owner does it or auth
   and delete rules for other repositories (checked 2026-09-24).
 - **Avatars stay off** until the owner follows `docs/runbooks/avatar-storage.md`. They
   would share the Supabase project whose egress quota was exceeded.
+- **The owner's own £1 each week is recorded by hand** (as cash, on the Payments screen)
+  until Batch 214 ships: a top-up from the owner's account into the pot is not read
+  (2026-10-24).
+- **Monzo needs approving again by about 14 Jan 2027.** Monzo makes the owner re-approve a
+  developer app every 90 days, and the payments service was approved on 16 Oct; after
+  that nothing is read until the owner connects again from the payments service. Batch 214
+  adds a warning a week before (2026-10-24).
+- **Delete the old Monzo spike's OAuth client** at developers.monzo.com (ADR 0009 launch
+  step 1, still open). Its client secret, echoed into a transcript on 7 Sep, still works: a
+  token refresh with it succeeded on 2026-10-24. Its data access lapsed the same day, and
+  the payments service has its own client, so nothing needs it.
 
 ## Members
 
@@ -125,8 +136,11 @@ a least-privilege database login for `payments` — is open and deferred until a
 (owner, 16 Oct). Batch 212 — members see the prize fund, both targets and everyone's status,
 and the pay panel's earlier balance — is complete and shipped (17 Oct, `06a32f6`, shipped as
 `88d8541`). Batch 213 — notifications for queued payments, Monzo link trouble and payments
-received, migration `030` — is complete and shipped (18 Oct, `8797aa7`, shipped as `0a7457b`). The Monzo
-launch steps in ADR 0009 are the owner's, including making sure every member is 18 or over.
+received, migration `030` — is complete and shipped (18 Oct, `8797aa7`, shipped as `0a7457b`).
+2-1 Hibs has its fee, link and link id, and members' link payments are read and matched (24
+Oct); making sure every member is 18 or over stays the owner's check (ADR 0009). Batch 214 —
+the owner's own top-ups into the pot, a warning before Monzo's 90-day approval lapses, and
+the refused webhook re-reads, migration `031` — is open (owner, 24 Oct).
 
 ## Toolchain
 
@@ -171,7 +185,6 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** ADR 0009's remaining launch steps (Monzo is connected): set 2-1
-Hibs' fee, link and link id after checking every member is 18 or over, record opening
-balances up to 21:29 UTC on 16 Oct, and pay £1 through the link. The season-calendar backfill remains owner-gated,
+**Next:** Batch 214 (the owner's top-ups and the 90-day approval warning); until it ships
+the owner records their own £1 by hand. The season-calendar backfill remains owner-gated,
 unblocked since 4 Oct.
