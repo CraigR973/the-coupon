@@ -80,6 +80,8 @@ Railway project (one per environment)
      /monzo/oauth/start → Monzo (browser, then the app) → /monzo/oauth/callback
      webhook /monzo/webhook/<secret> (a nudge only) + a catch-up read every 5 min
         → re-read from Monzo → the league's unipaylink id? → ledger, matched or queued
+                             (learning the pot it names → monzo_pots)
+                           → a top-up into a learned pot? → ledger, matched or queued
   both → the same Supabase Postgres · /ship-prod ships api first, then payments
 ```
 
@@ -102,6 +104,16 @@ since the last complete read. Only payments carrying a league's `monzo_link_id`
 matched by Monzo user id, card payers by normalised name, and anyone else is queued for the
 organiser. Its Monzo calls are allow-listed (token, accounts, transactions, webhooks). The
 API reads only the row's health columns, for the organiser's payments screen.
+
+Batch 214 adds the owner's own top-ups (ADR 0009's 24 Oct amendment). A league's link
+payments name the pot Monzo files them into, and the service keeps each such pot in
+`monzo_pots`, one league per pot; a process that starts without a league's pot reads back
+to the counting start once to learn it. A move from the connected account into a learned
+pot, made after it was learned, is a payment from the Monzo user who moved it, matched
+through the payer map like an app payer. Until the first top-up is recognised, the service
+logs a structure-only line for each pot move it cannot place. The connection records when
+Monzo approved it (`approved_at`); the API warns site admins a week before the 90-day
+approval lapses.
 
 Odds sit behind the provider-neutral `OddsProvider` port
 (`services/odds_provider.py`). `OddsApiProvider` is production — odds-api.io

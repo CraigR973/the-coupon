@@ -341,4 +341,37 @@ describe('LeaguePaymentsPage — Monzo link health (Batch 210)', () => {
       '/leagues/2-1-hibs/admin/settings',
     );
   });
+
+  // Batch 214: Monzo asks the owner to approve the app again every 90 days.
+  it('says until when Monzo’s approval lasts', async () => {
+    stub(withLink({ ...CONNECTED, approval_lapses_at: '2027-01-14T21:32:44Z' }));
+    renderPage();
+    const approval = await screen.findByTestId('monzo-approval');
+    expect(approval.textContent).toMatch(/^Approved until Thu 14 Jan, 21:32\./);
+    expect(approval.textContent).toMatch(/every 90 days/i);
+    expect(screen.getByTestId('monzo-last-read').textContent).toBe(
+      'Last read Fri 16 Oct, 21:32 · login renews before Sun 18 Oct, 03:28',
+    );
+  });
+
+  it('says nothing about approval when the API does not send its date', async () => {
+    stub(withLink(CONNECTED));
+    renderPage();
+    await screen.findByTestId('monzo-last-read');
+    expect(screen.queryByTestId('monzo-approval')).toBeNull();
+  });
+
+  it('explains a refused read as an approval that lapsed or was withdrawn', async () => {
+    stub(
+      withLink({
+        ...CONNECTED,
+        last_error: 'forbidden',
+        last_error_at: '2026-10-16T21:40:00Z',
+      }),
+    );
+    renderPage();
+    expect((await screen.findByTestId('monzo-problem')).textContent).toMatch(
+      /approval lasts 90 days, or it was withdrawn in the Monzo app/i,
+    );
+  });
 });

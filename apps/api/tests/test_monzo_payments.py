@@ -46,15 +46,21 @@ from src.main import app as api_app
 from src.models.league import League, LeaguePrivacy
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.ledger import LedgerEntry, LedgerKind, PayerMapping
-from src.models.monzo_connection import MonzoConnection, MonzoLinkStatus
+from src.models.monzo_connection import MonzoConnection, MonzoLinkStatus, MonzoPot
 from src.models.notification import ActionType, AuditLog
 from src.models.profile import Profile, UserRole
 from src.payments_service import __main__ as payments_main
 from src.payments_service import app as payments_app
 from src.payments_service.__main__ import configure_payments_logging
 from src.payments_service.crypto import TokenCipher, TokenCipherUnavailable, TokenUnreadable
-from src.payments_service.ingest import link_payment
-from src.payments_service.monzo import ALLOWED_CALLS, MonzoCallRefused, MonzoClient
+from src.payments_service.ingest import (
+    account_holders,
+    link_payment,
+    pot_ref_fields,
+    pot_top_up,
+    transaction_shape,
+)
+from src.payments_service.monzo import ALLOWED_CALLS, MonzoCallRefused, MonzoClient, MonzoRefused
 from src.payments_service.reader import (
     ConnectOutcome,
     PaymentsReader,
@@ -161,6 +167,8 @@ class FakeMonzo:
         self.live_access: set[str] = set()
         self.live_refresh: set[str] = set()
         self.refreshed_with: list[str] = []
+        #: Every ``since`` a transactions read asked for, in order (Batch 214).
+        self.since_asked: list[str] = []
         self._issued = 0
 
     def add(self, transaction: dict[str, Any], account: str = "acc_00009Main") -> None:
@@ -220,6 +228,7 @@ class FakeMonzo:
         if path == "/transactions":
             listed = self.transactions.get(query["account_id"][0], [])
             since = query["since"][0]
+            self.since_asked.append(since)
             if since.startswith("tx_"):
                 ids = [transaction["id"] for transaction in listed]
                 page = listed[ids.index(since) + 1 :]
@@ -277,6 +286,7 @@ async def world(db_engine: AsyncEngine) -> AsyncIterator[World]:
                 await db.execute(
                     delete(PayerMapping).where(PayerMapping.league_id.in_(created.leagues))
                 )
+                await db.execute(delete(MonzoPot).where(MonzoPot.league_id.in_(created.leagues)))
                 await db.execute(
                     delete(LeagueMembership).where(LeagueMembership.league_id.in_(created.leagues))
                 )
@@ -1198,5 +1208,403 @@ async def test_the_organisers_screen_reports_link_health_and_never_a_token(
         "token_expires_at": "2026-10-17T18:00:00Z",
         "counting_since": "2026-10-16T12:00:00Z",
         "webhook_registered": True,
+        "approval_lapses_at": "2027-01-14T12:00:00Z",
     }
     assert not re.search(r"access-|refresh-|gAAAA", after.text)
+
+
+# ── Batch 214: the owner's own top-ups into the league's pot ──────────────────
+#
+# Shaped like the owner's July samples (`~/monzo-spike/out/`): a pot deposit is a
+# `uk_retail_pot` debit naming the pot in `pot_id`, its ledger in `pot_account_id` and
+# the mover in `user_id`. Where a link payment names its collection pot was never
+# recorded, so these cases put it in each place the parser reads.
+
+LEAGUE_POT = "collectionpot_00009League"
+LINK_FIELD = "universal_payment_link_id"
+
+
+def _pot_account(pot: str) -> str:
+    return "acc_" + pot.split("_", 1)[1]
+
+
+def paid_into(
+    transaction: dict[str, Any], pot: str, field_name: str = "collection_pot_id"
+) -> dict[str, Any]:
+    """A link payment that names the pot Monzo filed it into, under ``field_name``."""
+    return {**transaction, "metadata": {**transaction["metadata"], field_name: pot}}
+
+
+def pot_deposit(
+    tx_id: str,
+    pot: str,
+    *,
+    user: str | None = OWNER,
+    amount: int = FEE,
+    created: datetime = NOW + timedelta(minutes=2),
+) -> dict[str, Any]:
+    """The owner moving money from the current account into a pot."""
+    plain = tx_id.removeprefix("tx_")
+    metadata: dict[str, Any] = {
+        "pot_id": pot,
+        "pot_account_id": _pot_account(pot),
+        "pot_deposit_id": f"potdep_{plain}",
+        "external_id": f"user_pot_deposit_{plain}",
+        "trigger": "user",
+    }
+    if user is not None:
+        metadata["user_id"] = user
+    return {
+        "id": tx_id,
+        "created": _rfc3339(created),
+        "amount": -amount,
+        "currency": "GBP",
+        "description": pot,
+        "scheme": "uk_retail_pot",
+        "notes": "",
+        "metadata": metadata,
+        "counterparty": {},
+        "account_id": "acc_00009Main",
+    }
+
+
+def _holders(fake: FakeMonzo, name: str = "Pat Owner") -> None:
+    """Give the main account one holder, the owner, as ``/accounts`` lists owners."""
+    fake.accounts[0]["owners"] = [
+        {"user_id": OWNER, "preferred_name": name, "preferred_first_name": name.split()[0]}
+    ]
+
+
+async def _pots(s: Setup) -> dict[str, uuid.UUID]:
+    async with s.world.sessions() as db:
+        rows = await db.execute(select(MonzoPot.pot_ref, MonzoPot.league_id))
+        return {row.pot_ref: row.league_id for row in rows if row.league_id in s.world.leagues}
+
+
+async def _learn_the_pot(s: Setup, *, at: datetime = NOW + timedelta(minutes=5)) -> None:
+    """A member's link payment names the league's pot, and a catch-up learns it."""
+    link = s.league.monzo_link_id
+    assert link is not None
+    s.fake.add(paid_into(app_payment(f"tx_00009Link{uuid.uuid4().hex[:6]}", link), LEAGUE_POT))
+    s.clock.at = at
+    await s.reader.catch_up()
+
+
+def test_a_top_up_into_a_pot_is_read_as_a_payment_from_whoever_moved_it() -> None:
+    top_up = pot_top_up(pot_deposit("tx_00009Top", LEAGUE_POT))
+    assert top_up is not None
+    assert (top_up.amount_pence, top_up.payer_user_id) == (FEE, OWNER)
+    assert top_up.pot_refs == {LEAGUE_POT, _pot_account(LEAGUE_POT)}
+    assert top_up.occurred_at == NOW + timedelta(minutes=2)
+
+
+@pytest.mark.parametrize(
+    ("change", "why"),
+    [
+        ({"amount": FEE}, "money taken back out of the pot"),
+        ({"amount": 0}, "nothing moved"),
+        ({"decline_reason": "INSUFFICIENT_FUNDS"}, "declined"),
+        ({"currency": "EUR"}, "not sterling"),
+        ({"scheme": "mastercard"}, "not a pot transfer"),
+        ({"metadata": {"trigger": "user"}, "description": "Weekly coupon"}, "names no pot"),
+        ({"metadata": {"pot_id": LEAGUE_POT, LINK_FIELD: "unipaylink_00009X"}}, "a link's"),
+        ({"created": "2026-10-16T12:02:00"}, "no time zone"),
+        ({"id": "not-a-transaction"}, "not a transaction id"),
+    ],
+)
+def test_anything_but_money_into_a_pot_is_not_a_top_up(change: dict[str, Any], why: str) -> None:
+    assert pot_top_up({**pot_deposit("tx_00009Top", LEAGUE_POT), **change}) is None, why
+
+
+@pytest.mark.parametrize(
+    ("where", "found_in"),
+    [
+        ({"metadata": {"collection_pot_id": LEAGUE_POT}}, "metadata.collection_pot_id"),
+        ({"metadata": {"pot_id": LEAGUE_POT}}, "metadata.pot_id"),
+        ({"metadata": {"pot_account_id": "acc_00009Ledger"}}, "metadata.pot_account_id"),
+        ({"description": LEAGUE_POT}, "description"),
+    ],
+)
+def test_a_link_payment_names_its_pot_wherever_monzo_puts_it(
+    where: dict[str, Any], found_in: str
+) -> None:
+    base = app_payment("tx_00009Named", _link())
+    transaction = {**base, **where}
+    transaction["metadata"] = {**base["metadata"], **where.get("metadata", {})}
+    payment = link_payment(transaction)
+    assert payment is not None
+    assert [field_name for _ref, field_name in payment.pots] == [found_in]
+
+
+def test_the_current_account_and_a_deposit_id_are_never_taken_for_a_pot() -> None:
+    transaction = {**app_payment("tx_00009Plain", _link()), "account_id": "acc_00009Main"}
+    transaction["metadata"] = {
+        **transaction["metadata"],
+        "pot_deposit_id": "potdep_00009X",
+        "account_id": "acc_00009Main",
+    }
+    assert pot_ref_fields(transaction) == {}
+
+
+def test_a_sole_holder_is_known_and_a_joint_account_has_none() -> None:
+    holders = account_holders(
+        [
+            {"id": "acc_00009Main", "owners": [{"user_id": OWNER, "preferred_name": " Pat "}]},
+            {
+                "id": "acc_00009Joint",
+                "owners": [
+                    {"user_id": OWNER},
+                    {"user_id": "user_00009Two", "preferred_name": "Sam"},
+                ],
+            },
+            {"id": "acc_00009Odd", "owners": "nobody"},
+        ]
+    )
+    assert holders.sole_holder == {"acc_00009Main": OWNER}
+    assert holders.names == {OWNER: "Pat", "user_00009Two": "Sam"}
+
+
+def test_the_shape_of_an_unplaced_pot_move_carries_no_value() -> None:
+    transaction = {
+        **pot_deposit("tx_00009Shape", "pot_00009Savings", amount=12_345),
+        "notes": "MESSAGE-MARKER",
+    }
+    transaction["metadata"]["note"] = "NOTE-MARKER"
+    shape = transaction_shape(transaction, {LEAGUE_POT})
+    assert shape.startswith("scheme=uk_retail_pot sign=- description=pot_…")
+    assert (
+        "ids=external_id=user_…,pot_account_id=acc_…,pot_deposit_id=potdep_…,pot_id=pot_…,"
+        "user_id=user_…"
+    ) in shape
+    assert "kinds=trigger=user" in shape
+    assert "pot_fields=description,metadata.pot_account_id,metadata.pot_id" in shape
+    assert shape.endswith("league_pot=no")
+    for marker in ("12345", "123.45", "00009Savings", "00009Owner", "MARKER", "tx_00009Shape"):
+        assert marker not in shape
+
+
+async def test_a_refused_call_carries_its_status_and_only_a_real_monzo_code() -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("tx_00009Coded"):
+            return httpx.Response(
+                404,
+                json={"code": "not_found.transaction_not_found", "message": "MESSAGE-MARKER"},
+            )
+        return httpx.Response(400, json={"code": "Bad Request <b>MARKER</b>"})
+
+    client = MonzoClient(httpx.MockTransport(answer))
+    with pytest.raises(MonzoRefused) as coded:
+        await client.transaction("access", "tx_00009Coded")
+    assert (coded.value.status, coded.value.monzo_code) == (404, "not_found.transaction_not_found")
+    assert coded.value.code == "refused"
+    with pytest.raises(MonzoRefused) as odd:
+        await client.transaction("access", "tx_00009Odd")
+    assert (odd.value.status, odd.value.monzo_code) == (400, None)
+
+
+async def test_the_owners_first_top_up_waits_once_and_every_later_one_books_itself(
+    setup: Setup,
+) -> None:
+    _holders(setup.fake)
+    await _connect(setup)
+    await _learn_the_pot(setup)
+    owner_member = setup.members[0]
+
+    setup.fake.add(pot_deposit("tx_00009Top1", LEAGUE_POT, created=NOW + timedelta(minutes=6)))
+    setup.clock.at = NOW + timedelta(minutes=10)
+    await setup.reader.catch_up()
+    queued = [e for e in await _entries(setup) if e.monzo_transaction_id == "tx_00009Top1"]
+    assert [(e.player_id, e.amount_pence, e.payer_monzo_user_id, e.payer_name) for e in queued] == [
+        (None, FEE, OWNER, "Pat Owner")
+    ]
+
+    async with AsyncClient(transport=ASGITransport(app=api_app), base_url="http://test") as api:
+        assigned = await api.post(
+            f"/api/v1/leagues/{setup.league.slug}/payments/{queued[0].id}/assign",
+            json={"player_id": str(owner_member.id)},
+            headers=_auth(setup.admin),
+        )
+    assert assigned.status_code == 200, assigned.text
+    assert assigned.json()["remembered_by"] == "monzo_user"
+
+    setup.fake.add(
+        pot_deposit("tx_00009Top2", LEAGUE_POT, amount=2 * FEE, created=NOW + timedelta(minutes=11))
+    )
+    setup.clock.at = NOW + timedelta(minutes=15)
+    await setup.reader.catch_up()
+    entries = await _entries(setup)
+    (later,) = (e for e in entries if e.monzo_transaction_id == "tx_00009Top2")
+    assert (later.kind, later.player_id, later.amount_pence) == (
+        LedgerKind.payment,
+        owner_member.id,
+        2 * FEE,
+    )
+
+
+async def test_a_top_up_counts_only_into_the_leagues_pot_and_only_once_it_is_known(
+    setup: Setup,
+) -> None:
+    await _connect(setup)
+    # Before any link payment names the pot, a top-up into it is not counted...
+    setup.fake.add(pot_deposit("tx_00009Early", LEAGUE_POT, created=NOW + timedelta(minutes=1)))
+    setup.clock.at = NOW + timedelta(minutes=3)
+    await setup.reader.catch_up()
+    assert await _entries(setup) == []
+    # ...nor once it is known, because it was made before then: that week was by hand.
+    await _learn_the_pot(setup, at=NOW + timedelta(minutes=5))
+    later = NOW + timedelta(minutes=6)
+    setup.fake.add(pot_deposit("tx_00009Savings", "pot_00009Savings", created=later))
+    setup.fake.add({**pot_deposit("tx_00009Back", LEAGUE_POT, created=later), "amount": FEE})
+    setup.fake.add(pot_deposit("tx_00009Counted", LEAGUE_POT, created=later))
+    setup.clock.at = NOW + timedelta(minutes=10)
+    await setup.reader.catch_up()
+
+    mine = [e.monzo_transaction_id for e in await _entries(setup) if e.payer_monzo_user_id == OWNER]
+    assert mine == ["tx_00009Counted"]
+    assert await _pots(setup) == {LEAGUE_POT: setup.league.id}
+
+
+async def test_a_new_process_learns_the_pot_from_history_once(setup: Setup) -> None:
+    await _connect(setup)
+    link = setup.league.monzo_link_id
+    assert link is not None
+    setup.fake.add(paid_into(app_payment("tx_00009Old", link), LEAGUE_POT))
+    setup.clock.at = NOW + timedelta(minutes=5)
+    await setup.reader.catch_up()
+    setup.clock.at = NOW + timedelta(hours=3)
+    await setup.reader.catch_up()
+    # As the shipment finds it: the payment long recorded, no pot kept.
+    async with setup.world.sessions() as db:
+        await db.execute(delete(MonzoPot).where(MonzoPot.league_id == setup.league.id))
+        await db.commit()
+
+    restarted = PaymentsReader(
+        setup.reader.settings,
+        setup.world.sessions,
+        MonzoClient(httpx.MockTransport(setup.fake)),
+        now=setup.clock,
+    )
+    setup.clock.at = NOW + timedelta(hours=3, minutes=5)
+    await restarted.catch_up()
+    assert setup.fake.since_asked[-1] == _rfc3339(NOW), "read back to the counting start"
+    assert await _pots(setup) == {LEAGUE_POT: setup.league.id}
+    assert [e.monzo_transaction_id for e in await _entries(setup)] == ["tx_00009Old"]
+
+    # Once per process, even while a pot is still unknown: never history every five minutes.
+    async with setup.world.sessions() as db:
+        await db.execute(delete(MonzoPot).where(MonzoPot.league_id == setup.league.id))
+        await db.commit()
+    setup.clock.at = NOW + timedelta(hours=3, minutes=10)
+    await restarted.catch_up()
+    assert setup.fake.since_asked[-1] == _rfc3339(NOW + timedelta(hours=2, minutes=5))
+
+
+async def test_a_top_up_named_by_a_webhook_is_written_once(setup: Setup) -> None:
+    _holders(setup.fake)
+    await _connect(setup)
+    await _learn_the_pot(setup)
+    top_up = pot_deposit("tx_00009Hook", LEAGUE_POT, created=NOW + timedelta(minutes=6))
+    setup.fake.add(top_up)
+    setup.clock.at = NOW + timedelta(minutes=7)
+    for event in ("transaction.created", "transaction.updated"):
+        assert (await _webhook(setup, {"type": event, "data": top_up})).status_code == 200
+    setup.clock.at = NOW + timedelta(minutes=10)
+    await setup.reader.catch_up()
+
+    hooked = [e for e in await _entries(setup) if e.monzo_transaction_id == "tx_00009Hook"]
+    assert [(e.amount_pence, e.payer_name) for e in hooked] == [(FEE, "Pat Owner")]
+
+
+async def test_a_refused_webhook_re_read_is_logged_for_its_reason_and_is_no_link_problem(
+    setup: Setup, caplog: pytest.LogCaptureFixture, live_loggers: None
+) -> None:
+    await _connect(setup)
+    with caplog.at_level(logging.INFO, logger="payments.reader"):
+        answered = await _webhook(
+            setup, {"type": "transaction.created", "data": {"id": "tx_00009Hidden"}}
+        )
+    assert answered.status_code == 200
+    connection = await _connection(setup)
+    assert (connection.last_error, connection.last_error_at) == (None, None)
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert "monzo webhook re-read refused: status=404 code=none" in logged
+
+
+async def test_approval_is_dated_when_monzo_first_answers_and_again_on_a_reconnect(
+    setup: Setup,
+) -> None:
+    await _connect(setup, approve=False)
+    assert (await _connection(setup)).approved_at is None
+    setup.fake.approved = True
+    setup.clock.at = NOW + timedelta(minutes=5)
+    await setup.reader.catch_up()
+    assert (await _connection(setup)).approved_at == NOW + timedelta(minutes=5)
+
+    # Connecting again, as the 90-day renewal asks, dates the new approval.
+    setup.clock.at = NOW + timedelta(days=85)
+    await _connect(setup)
+    assert (await _connection(setup)).approved_at == NOW + timedelta(days=85)
+
+
+async def test_unplaced_pot_moves_are_described_once_until_a_top_up_is_recognised(
+    setup: Setup, caplog: pytest.LogCaptureFixture, live_loggers: None
+) -> None:
+    _holders(setup.fake)
+    await _connect(setup)
+    link = setup.league.monzo_link_id
+    assert link is not None
+    setup.fake.add(pot_deposit("tx_00009Savings1", "pot_00009Savings", amount=4_321))
+    with caplog.at_level(logging.INFO, logger="payments.reader"):
+        for minutes in (5, 10):
+            setup.clock.at = NOW + timedelta(minutes=minutes)
+            await setup.reader.catch_up()
+
+        # The league's link payments name no pot: said once, by shape alone.
+        setup.fake.add(app_payment("tx_00009NoPot1", link, created=NOW + timedelta(minutes=11)))
+        setup.fake.add(app_payment("tx_00009NoPot2", link, created=NOW + timedelta(minutes=12)))
+        setup.clock.at = NOW + timedelta(minutes=15)
+        await setup.reader.catch_up()
+
+        # Once a top-up is recognised, the capture stops.
+        await _learn_the_pot(setup, at=NOW + timedelta(minutes=20))
+        moved = NOW + timedelta(minutes=21)
+        setup.fake.add(pot_deposit("tx_00009Mine", LEAGUE_POT, created=moved))
+        setup.fake.add(pot_deposit("tx_00009Savings2", "pot_00009Savings", created=moved))
+        setup.clock.at = NOW + timedelta(minutes=25)
+        await setup.reader.catch_up()
+
+    messages = [record.getMessage() for record in caplog.records]
+    described = [m for m in messages if m.startswith("monzo pot move not placed: ")]
+    assert len(described) == 1
+    assert "scheme=uk_retail_pot sign=-" in described[0]
+    assert len([m for m in messages if m.startswith("monzo link payment names no pot: ")]) == 1
+    assert "monzo pot learned from a league's link payment: fields=metadata.collection_pot_id" in (
+        messages
+    )
+    assert "monzo top-up recorded: queued" in messages
+    logged = "\n".join(messages)
+    for marker in ("4321", "43.21", "00009Savings", "Pat Owner", "DESCRIPTION-MARKER"):
+        assert marker not in logged
+
+
+async def test_a_pot_stays_with_the_first_league_whose_link_named_it(setup: Setup) -> None:
+    await _connect(setup)
+    await _learn_the_pot(setup)
+    other_link = _link()
+    await _league(setup.world, [setup.members[1]], other_link)
+    theirs = app_payment("tx_00009Theirs", other_link, created=NOW + timedelta(minutes=6))
+    setup.fake.add(paid_into(theirs, LEAGUE_POT))
+    setup.fake.add(pot_deposit("tx_00009Which", LEAGUE_POT, created=NOW + timedelta(minutes=7)))
+    setup.clock.at = NOW + timedelta(minutes=10)
+    await setup.reader.catch_up()
+
+    assert await _pots(setup) == {LEAGUE_POT: setup.league.id}
+    async with setup.world.sessions() as db:
+        booked = (
+            await db.scalars(
+                select(LedgerEntry.league_id).where(
+                    LedgerEntry.monzo_transaction_id == "tx_00009Which"
+                )
+            )
+        ).all()
+    assert booked == [setup.league.id]

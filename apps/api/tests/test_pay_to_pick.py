@@ -98,10 +98,12 @@ from src.services.gameweek import (
 from src.services.notification_triggers import send_pick_reminders
 from src.services.odds_provider import SlateFixture
 from src.services.payment_notices import (
+    MONZO_APPROVAL_DUE,
     MONZO_LINK_DOWN,
     MONZO_LINK_RECOVERED,
     PAYMENT_QUEUED,
     PAYMENT_RECORDED,
+    notify_monzo_approval,
     notify_monzo_link,
     notify_queued_payments,
     notify_recorded_payments,
@@ -2053,3 +2055,136 @@ async def test_migration_030_marks_the_ledger_it_finds_as_already_told(
         await session.flush()
         await notify_recorded_payments(session, _now())
     assert [item.user_id for item in sent if item.league_id == league.id] == [waiting.id]
+
+
+# ── Batch 214: Monzo's 90-day approval ─────────────────────────────────────────
+
+
+async def test_monzo_approval_warns_the_admins_once_a_week_before_it_lapses(
+    session: AsyncSession,
+) -> None:
+    owner = await _profile(session, None, "owner", UserRole.admin)
+    member = await _profile(session, None, "member")
+    await _league(session, None, [member])
+    approved = datetime(2063, 10, 16, 21, 32)
+    row = await _monzo_row(session)
+    row.status = MonzoLinkStatus.connected
+    row.approved_at = approved
+    await session.flush()
+
+    sent, record = _recorder()
+
+    async def run(at: datetime) -> list[Sent]:
+        before = len(sent)
+        with patch("src.services.payment_notices.send_notification", new=record):
+            await notify_monzo_approval(session, at)
+        return [item for item in sent[before:] if item.user_id == owner.id]
+
+    assert await run(approved + timedelta(days=82)) == [], "too early to say"
+    (warned,) = await run(approved + timedelta(days=83, hours=1))
+    assert warned.title == "Monzo needs approving again"
+    assert "before Mon 14 Jan, 21:32" in warned.body
+    assert warned.data["type"] == MONZO_APPROVAL_DUE
+    assert await run(approved + timedelta(days=84)) == [], "once per approval"
+
+    # Connecting again is a new approval, which warns in its own last week...
+    row.approved_at = approved + timedelta(days=88)
+    await session.flush()
+    (again,) = await run(approved + timedelta(days=88 + 84))
+    assert "before Fri 11 Apr, 21:32" in again.body
+    # ...and never once an approval has lapsed, or while the link is not reading.
+    row.approved_at = approved + timedelta(days=200)
+    await session.flush()
+    assert await run(approved + timedelta(days=200 + 91)) == [], "the lapse is told otherwise"
+    row.status = MonzoLinkStatus.needs_reconnect
+    await session.flush()
+    assert await run(approved + timedelta(days=200 + 85)) == []
+
+    assert member.id not in {item.user_id for item in sent}
+    assert {item.user_id for item in sent} <= await _admin_ids(session)
+
+
+async def test_a_refused_read_is_explained_as_a_lapsed_or_withdrawn_approval(
+    session: AsyncSession,
+) -> None:
+    owner = await _profile(session, None, "owner", UserRole.admin)
+    start = _now()
+    row = await _monzo_row(session)
+    row.status = MonzoLinkStatus.connected
+    row.last_success_at = start - timedelta(hours=2)
+    row.last_error = "forbidden"
+    row.last_error_at = start - timedelta(minutes=5)
+    await session.flush()
+
+    sent, record = _recorder()
+    with patch("src.services.payment_notices.send_notification", new=record):
+        await notify_monzo_link(session, start)
+    (down,) = (item for item in sent if item.user_id == owner.id)
+    assert down.title == "Monzo has stopped reading"
+    assert "its approval lasts 90 days, or it was withdrawn in the Monzo app" in down.body
+    assert "forbidden" not in down.body
+
+
+async def test_the_approval_warning_mutes_with_the_monzo_link(session: AsyncSession) -> None:
+    muted = await _profile(session, None, "quiet-owner", UserRole.admin)
+    loud = await _profile(session, None, "loud-owner", UserRole.admin)
+    session.add(NotificationPreferences(user_id=muted.id, mute_monzo_link=True))
+    for profile in (muted, loud):
+        session.add(
+            PushSubscription(
+                user_id=profile.id,
+                subscription={
+                    "endpoint": f"https://fcm.googleapis.com/push/{profile.id}",
+                    "keys": {"auth": "x", "p256dh": "y"},
+                },
+            )
+        )
+    await session.flush()
+
+    data = {"type": MONZO_APPROVAL_DUE, "url": "/admin"}
+    with (
+        patch.object(settings, "vapid_private_key", "priv"),
+        patch.object(settings, "vapid_public_key", "pub"),
+        patch("src.services.push_notification_service._send_push_sync") as push,
+    ):
+        assert await send_notification(session, muted.id, "Monzo", "approve", data=data) == 0
+        assert push.call_count == 0
+        assert await send_notification(session, loud.id, "Monzo", "approve", data=data) == 1
+        assert push.call_count == 1
+
+
+def _migration_031() -> Any:
+    path = (
+        Path(__file__).resolve().parents[3]
+        / "migrations"
+        / "versions"
+        / "031_monzo_pots_and_approval.py"
+    )
+    spec = importlib.util.spec_from_file_location("migration_031", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+async def test_migration_031_dates_the_live_approval_from_the_first_read(
+    session: AsyncSession,
+) -> None:
+    """The connection approved on 16 Oct warns in January, not never."""
+    registered = datetime(2063, 10, 16, 21, 32, 44)
+    row = await _monzo_row(session)
+    row.status = MonzoLinkStatus.connected
+    row.webhook_registered_at = registered
+    row.approved_at = None
+    await session.flush()
+    await session.execute(text(_migration_031().BACKFILL_APPROVED_AT))
+    await session.refresh(row)
+    assert row.approved_at == registered
+
+    # A connection that is not reading is left alone.
+    row.status = MonzoLinkStatus.needs_reconnect
+    row.approved_at = None
+    await session.flush()
+    await session.execute(text(_migration_031().BACKFILL_APPROVED_AT))
+    await session.refresh(row)
+    assert row.approved_at is None

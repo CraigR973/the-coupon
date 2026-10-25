@@ -35,7 +35,7 @@ from src.display_name import public_name
 from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.ledger import LedgerEntry, LedgerKind, PayerMapping
-from src.models.monzo_connection import MonzoConnection
+from src.models.monzo_connection import APPROVAL_LASTS, MonzoConnection
 from src.models.profile import Profile
 from src.rate_limit import limiter, per_user_key
 from src.schemas import UtcDatetime
@@ -129,6 +129,9 @@ class MonzoLinkHealth(BaseModel):
     #: Payments before this are the organiser's to record as opening balances.
     counting_since: UtcDatetime | None
     webhook_registered: bool
+    #: When Monzo stops honouring the owner's approval in its app, 90 days after it was
+    #: given, unless the owner connects again first (Batch 214).
+    approval_lapses_at: UtcDatetime | None = None
 
 
 class PaymentsOverview(BaseModel):
@@ -278,6 +281,7 @@ async def _monzo_link_health(db: AsyncSession) -> MonzoLinkHealth | None:
                 MonzoConnection.access_expires_at,
                 MonzoConnection.counting_since,
                 MonzoConnection.webhook_registered_at,
+                MonzoConnection.approved_at,
             )
         )
     ).one_or_none()
@@ -291,6 +295,9 @@ async def _monzo_link_health(db: AsyncSession) -> MonzoLinkHealth | None:
         token_expires_at=row.access_expires_at,
         counting_since=row.counting_since,
         webhook_registered=row.webhook_registered_at is not None,
+        approval_lapses_at=(
+            row.approved_at + APPROVAL_LASTS if row.approved_at is not None else None
+        ),
     )
 
 

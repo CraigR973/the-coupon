@@ -10,12 +10,20 @@ How a payment arrives::
     Monzo ──webhook (unsigned, so only a nudge)──▶ nudge(tx id) ──re-read──┐
     every 5 min ──────────────────────────────────▶ catch_up() ──read─────┤
                                                                            ▼
-                                        ingest.link_payment → record_link_payment → ledger
+                     ingest.link_payment → record_link_payment → ledger, + learn_pots
+                     ingest.pot_top_up → a league's pot? → record_top_up → ledger
+
+The owner's own top-ups (Batch 214) are moves from the connected account into a pot that
+some league's link payments name. A read handles its link payments first, so a pot they
+name counts a top-up in the same read. While some league with a link id has no pot yet,
+the first catch-up of the process reads back to the counting start, so the pot is learned
+from the payments already in Monzo's history rather than waiting for the next one.
 
 Neither path trusts anything it did not read from Monzo's API itself. A failure records a
 short code and a time for the organiser's link-health line and changes nothing else; the
-next catch-up starts again from the last complete read. Manual entry on the API never
-depends on any of it.
+next catch-up starts again from the last complete read. A webhook re-read Monzo refuses is
+logged with its reason and not recorded: the catch-up finds the payment anyway. Manual
+entry on the API never depends on any of it.
 """
 
 from __future__ import annotations
@@ -25,10 +33,11 @@ import hashlib
 import hmac
 import logging
 import secrets
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -36,7 +45,24 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.models.league import League
 from src.models.monzo_connection import MonzoConnection, MonzoLinkStatus
 from src.payments_service.crypto import TokenCipher, TokenCipherUnavailable, TokenUnreadable
-from src.payments_service.ingest import Recorded, link_payment, record_link_payment
+from src.payments_service.ingest import (
+    POT_TRANSFER,
+    AccountHolders,
+    LinkPayment,
+    PotTopUp,
+    Recorded,
+    a_league_lacks_its_pot,
+    a_top_up_was_recognised,
+    account_holders,
+    league_pot_refs,
+    learn_pots,
+    link_payment,
+    pot_ref_fields,
+    pot_top_up,
+    record_link_payment,
+    record_top_up,
+    transaction_shape,
+)
 from src.payments_service.monzo import (
     MonzoClient,
     MonzoError,
@@ -61,6 +87,9 @@ HISTORY_LIMIT = timedelta(days=89)
 REFRESH_MARGIN = timedelta(minutes=10)
 #: How long a started connect stays valid.
 CONNECT_WINDOW = timedelta(minutes=10)
+#: How many transaction ids the structure-only capture remembers having described, so a
+#: pot move re-read by every overlapping catch-up is logged once.
+CAPTURE_MEMORY = 5_000
 
 
 def _utc_now() -> datetime:
@@ -73,6 +102,11 @@ def _rfc3339(moment: datetime) -> str:
 
 def _state_hash(state: str) -> str:
     return hashlib.sha256(state.encode()).hexdigest()
+
+
+def _names_a_pot(transaction: Mapping[str, Any]) -> bool:
+    """A move between a current account and a pot, or anything else that names a pot."""
+    return transaction.get("scheme") == POT_TRANSFER or bool(pot_ref_fields(transaction))
 
 
 class ConnectOutcome(StrEnum):
@@ -115,6 +149,16 @@ class PaymentsReader:
         self._now = now
         self._lock = asyncio.Lock()
         self._cipher = TokenCipher(settings.encryption_key)
+        #: From the last catch-up's accounts: who a top-up is from, and their name.
+        self._holders = AccountHolders(names={}, sole_holder={})
+        #: Whether this process has read back to the counting start to learn the leagues'
+        #: pots. Once per process: a pot that no link payment names is not found by
+        #: reading history every five minutes.
+        self._history_read = False
+        #: The structure-only capture's memory, and whether it has said that the league's
+        #: link payments name no pot.
+        self._described: set[str] = set()
+        self._said_no_pot = False
 
     # ── The row ──────────────────────────────────────────────────────────────────
 
@@ -310,7 +354,10 @@ class PaymentsReader:
                     started = self._now()
                     if connection.status == MonzoLinkStatus.awaiting_approval:
                         connection.status = MonzoLinkStatus.connected
+                        # Monzo has released the account: its 90 days start now.
+                        connection.approved_at = started
                         log.info("monzo approved in the app; reading")
+                    self._holders = account_holders(accounts)
                     webhook_error: str | None = None
                     if connection.webhook_registered_at is None:
                         # Not fatal: the catch-up below is what guarantees nothing is
@@ -325,19 +372,41 @@ class PaymentsReader:
                     if links and connection.counting_since is not None:
                         floor = max(connection.counting_since, started - HISTORY_LIMIT)
                         since = floor
-                        if connection.read_through is not None:
+                        learning = not self._history_read and await a_league_lacks_its_pot(db)
+                        if connection.read_through is not None and not learning:
                             since = max(floor, connection.read_through - READ_OVERLAP)
+                        top_ups: list[tuple[Mapping[str, Any], PotTopUp]] = []
+                        unplaced: list[Mapping[str, Any]] = []
                         for account_id in account_ids:
                             for transaction in await self._client.transactions(
                                 access_token, account_id, _rfc3339(since)
                             ):
                                 payment = link_payment(transaction)
-                                if payment is None or payment.link_id not in links:
+                                if payment is not None:
+                                    if payment.link_id in links:
+                                        outcome = await self._link_payment(
+                                            db, transaction, payment, connection.counting_since
+                                        )
+                                        recorded[outcome] = recorded.get(outcome, 0) + 1
                                     continue
-                                outcome = await record_link_payment(
-                                    db, payment, counting_since=connection.counting_since
-                                )
-                                recorded[outcome] = recorded.get(outcome, 0) + 1
+                                top_up = pot_top_up(transaction)
+                                if top_up is not None:
+                                    top_ups.append(
+                                        (transaction, self._with_mover(top_up, account_id))
+                                    )
+                                elif _names_a_pot(transaction):
+                                    unplaced.append(transaction)
+                        # After the read's link payments, which may have named the pot.
+                        pots = await league_pot_refs(db)
+                        for moved, top_up in top_ups:
+                            if not top_up.pot_refs & pots:
+                                unplaced.append(moved)
+                                continue
+                            outcome = await self._top_up(db, top_up, connection.counting_since)
+                            recorded[outcome] = recorded.get(outcome, 0) + 1
+                        await self._describe_unplaced(db, unplaced, pots)
+                        if learning:
+                            self._history_read = True
                         # Only a read that reached every account moves the start point.
                         connection.read_through = started
                     connection.last_success_at = started
@@ -377,21 +446,102 @@ class PaymentsReader:
                         access_token = await self._refreshed_token(db, connection)
                         transaction = await self._client.transaction(access_token, transaction_id)
                     payment = link_payment(transaction)
+                    top_up = pot_top_up(transaction) if payment is None else None
                     if payment is not None and payment.link_id in links:
-                        outcome = await record_link_payment(
-                            db, payment, counting_since=connection.counting_since
+                        outcome = await self._link_payment(
+                            db, transaction, payment, connection.counting_since
                         )
+                        recorded[outcome] = 1
+                    elif top_up is not None and top_up.pot_refs & await league_pot_refs(db):
+                        account = transaction.get("account_id")
+                        if isinstance(account, str):
+                            top_up = self._with_mover(top_up, account)
+                        outcome = await self._top_up(db, top_up, connection.counting_since)
                         recorded[outcome] = 1
                     connection.last_success_at = self._now()
                     connection.updated_at = self._now()
                     await db.commit()
             except NotConnected:
                 return ReadReport(ReadOutcome.failed, recorded)
+            except MonzoRefused as refused:
+                # Monzo will not show this one transaction (every re-read was refused on
+                # 24 Oct 2026). The catch-up still finds the payment within five minutes,
+                # so it is no problem of the link's: logged for its reason, not recorded.
+                log.info(
+                    "monzo webhook re-read refused: status=%s code=%s",
+                    refused.status,
+                    refused.monzo_code or "none",
+                )
+                return ReadReport(ReadOutcome.failed, {})
             except (MonzoError, TokenUnreadable, TokenCipherUnavailable) as failure:
                 await self._record_error(getattr(failure, "code", "token_unreadable"))
                 return ReadReport(ReadOutcome.failed, {})
         self._log_recorded("webhook", recorded)
         return ReadReport(ReadOutcome.read, recorded)
+
+    # ── Link payments and top-ups ───────────────────────────────────────────────
+
+    async def _link_payment(
+        self,
+        db: AsyncSession,
+        transaction: Mapping[str, Any],
+        payment: LinkPayment,
+        counting_since: datetime,
+    ) -> Recorded:
+        """Record a league's link payment, and learn the pot it was filed into."""
+        outcome = await record_link_payment(db, payment, counting_since=counting_since)
+        learned = await learn_pots(db, payment, now=self._now())
+        if learned.fields:
+            # Which field held it is what ADR 0009's evidence never recorded.
+            log.info(
+                "monzo pot learned from a league's link payment: fields=%s",
+                ",".join(sorted(learned.fields)),
+            )
+        if learned.clash:
+            log.warning("monzo pot already belongs to another league's link; it stays theirs")
+        if not payment.pots and not self._said_no_pot:
+            self._said_no_pot = True
+            log.info("monzo link payment names no pot: %s", transaction_shape(transaction, ()))
+        return outcome
+
+    def _with_mover(self, top_up: PotTopUp, account_id: str) -> PotTopUp:
+        """Who moved the money: as Monzo says, else the account's only holder."""
+        if top_up.payer_user_id is not None:
+            return top_up
+        holder = self._holders.sole_holder.get(account_id)
+        return replace(top_up, payer_user_id=holder) if holder is not None else top_up
+
+    async def _top_up(
+        self, db: AsyncSession, top_up: PotTopUp, counting_since: datetime
+    ) -> Recorded:
+        outcome = await record_top_up(
+            db,
+            top_up,
+            counting_since=counting_since,
+            payer_name=self._holders.names.get(top_up.payer_user_id or ""),
+            now=self._now(),
+        )
+        if outcome in (Recorded.matched, Recorded.queued):
+            log.info("monzo top-up recorded: %s", outcome.value)
+        return outcome
+
+    async def _describe_unplaced(
+        self, db: AsyncSession, transactions: list[Mapping[str, Any]], pots: set[str]
+    ) -> None:
+        """Until a top-up is recognised, describe each pot move that could not be placed.
+
+        Structure only (:func:`~src.payments_service.ingest.transaction_shape`), once per
+        transaction however many overlapping reads see it. It stops for good once any top-up
+        has been recognised: from then on the shape is known.
+        """
+        fresh = [t for t in transactions if str(t.get("id")) not in self._described]
+        if not fresh or await a_top_up_was_recognised(db):
+            return
+        if len(self._described) > CAPTURE_MEMORY:
+            self._described.clear()
+        for transaction in fresh:
+            self._described.add(str(transaction.get("id")))
+            log.info("monzo pot move not placed: %s", transaction_shape(transaction, pots))
 
     @staticmethod
     def _log_recorded(source: str, recorded: dict[Recorded, int]) -> None:

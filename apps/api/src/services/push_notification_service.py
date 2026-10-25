@@ -120,6 +120,7 @@ INBOX_KIND_CATEGORY = {
     "payment_queued": "payment_queue",
     "monzo_link_down": "monzo_link",
     "monzo_link_recovered": "monzo_link",
+    "monzo_approval_due": "monzo_link",
     "payment_recorded": "payments",
 }
 

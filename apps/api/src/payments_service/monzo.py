@@ -9,7 +9,8 @@ The two POSTs on the list are not writes to the owner's account. ``/oauth2/token
 connect finishes and how the token is refreshed; ``/webhooks`` asks Monzo to nudge this
 service when a transaction appears (owner decision, 2026-10-16).
 
-Errors carry a short ``code`` for the organiser's link-health line and nothing from the
+Errors carry a short ``code`` for the organiser's link-health line. A refusal also carries
+its status and Monzo's own error code, checked to be one (Batch 214); nothing else from the
 response body, which can echo account data.
 """
 
@@ -71,9 +72,34 @@ class MonzoForbidden(MonzoError):
 
 
 class MonzoRefused(MonzoError):
-    """Any other 4xx — for the token endpoint, a code or refresh token Monzo will not take."""
+    """Any other 4xx — for the token endpoint, a code or refresh token Monzo will not take.
+
+    Carries the HTTP status and Monzo's own short error code (``not_found.…``, say), which
+    name the reason without repeating anything from the request or the account (Batch 214).
+    """
 
     code = "refused"
+
+    def __init__(self, message: str, *, status: int | None = None, monzo_code: str | None = None):
+        super().__init__(message)
+        self.status = status
+        self.monzo_code = monzo_code
+
+
+#: Monzo's error codes are dotted lowercase words. Anything else is not repeated.
+_MONZO_CODE = re.compile(r"[a-z0-9_]+(?:\.[a-z0-9_]+)*")
+
+
+def _monzo_code(response: httpx.Response) -> str | None:
+    """Monzo's short error code from a refusal's body, when it is one."""
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    code = body.get("code") if isinstance(body, dict) else None
+    if isinstance(code, str) and len(code) <= 64 and _MONZO_CODE.fullmatch(code):
+        return code
+    return None
 
 
 class MonzoMalformed(MonzoError):
@@ -139,7 +165,11 @@ class MonzoClient:
         if response.status_code == 429 or response.status_code >= 500:
             raise MonzoUnavailable(f"{method} {path}: {response.status_code}")
         if response.status_code >= 400:
-            raise MonzoRefused(f"{method} {path}: {response.status_code}")
+            raise MonzoRefused(
+                f"{method} {path}: {response.status_code}",
+                status=response.status_code,
+                monzo_code=_monzo_code(response),
+            )
         try:
             body = response.json()
         except ValueError:

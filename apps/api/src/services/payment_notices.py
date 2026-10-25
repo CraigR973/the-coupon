@@ -9,7 +9,9 @@ notices from the API:
   read anything for an hour, and once when it reads again; never once per failed read;
 * **a payment recorded** — to the member whose link payment was matched or assigned,
   with the amount and whether they can now pick. Never the payer's name or a Monzo id.
-  Cash an organiser records sends nothing (owner, 2026-10-18).
+  Cash an organiser records sends nothing (owner, 2026-10-18);
+* **Monzo's approval running out** — to the site admins, once per approval, a week before
+  Monzo stops honouring it (Batch 214). Monzo asks for it again every 90 days.
 
 **Each goes out once.** Before a notice is sent its ``(kind, subject)`` pair is inserted
 into ``notification_sends`` under a unique constraint, in the same transaction as its
@@ -33,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.gameweek import Gameweek
 from src.models.league import League
 from src.models.ledger import LedgerEntry, LedgerKind
-from src.models.monzo_connection import MonzoConnection, MonzoLinkStatus
+from src.models.monzo_connection import APPROVAL_LASTS, MonzoConnection, MonzoLinkStatus
 from src.models.notification import NotificationSend
 from src.models.profile import Profile
 from src.services.dues import fee_standings, format_pence, member_balance
@@ -49,6 +51,17 @@ PAYMENT_QUEUED = "payment_queued"
 PAYMENT_RECORDED = "payment_recorded"
 MONZO_LINK_DOWN = "monzo_link_down"
 MONZO_LINK_RECOVERED = "monzo_link_recovered"
+MONZO_APPROVAL_DUE = "monzo_approval_due"
+
+#: How long before Monzo's approval lapses the site admins are told (Batch 214).
+APPROVAL_WARNING = timedelta(days=7)
+
+#: What a refused read means, said plainly: after 90 days, or once the owner withdraws the
+#: app in Monzo, every read is refused until the owner connects again.
+_FORBIDDEN = (
+    " Monzo has stopped sharing the account: its approval lasts 90 days, or it was"
+    " withdrawn in the Monzo app. Connect again from the payments service."
+)
 
 #: How far back a run looks for payments nobody has been told about. Migration 030 marked
 #: everything before it as told; this only bounds the scan, and still covers a scheduler
@@ -76,6 +89,16 @@ def _local_label(moment: datetime, timezone_name: str) -> str:
     except ZoneInfoNotFoundError:
         zone = ZoneInfo("UTC")
     return moment.replace(tzinfo=UTC).astimezone(zone).strftime("%a %H:%M")
+
+
+def _local_date_label(moment: datetime, timezone_name: str) -> str:
+    """``Thu 14 Jan, 21:32`` on the reader's own clock, falling back to UTC."""
+    try:
+        zone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        zone = ZoneInfo("UTC")
+    local = moment.replace(tzinfo=UTC).astimezone(zone)
+    return f"{local:%a} {local.day} {local:%b}, {local:%H:%M}"
 
 
 async def _claim(session: AsyncSession, kind: str, subject: str, now: datetime) -> bool:
@@ -315,6 +338,8 @@ async def notify_monzo_link(session: AsyncSession, now: datetime) -> int:
             row.last_success_at is None or row.last_error_at > row.last_success_at
         )
         problem = f" The last problem was {row.last_error}." if failing and row.last_error else ""
+        if failing and row.last_error == "forbidden":
+            problem = _FORBIDDEN
         return await _tell_admins(
             session,
             MONZO_LINK_DOWN,
@@ -348,6 +373,37 @@ async def notify_monzo_link(session: AsyncSession, now: datetime) -> int:
     )
 
 
+async def notify_monzo_approval(session: AsyncSession, now: datetime) -> int:
+    """One notice a week before Monzo's approval lapses. Batch 214.
+
+    Monzo honours the owner's approval in its app for 90 days; after that the token still
+    refreshes but every read is refused. The approval's own time is the subject, so each
+    approval warns once, and connecting again (a new approval) warns again 83 days later.
+    Never after the lapse: by then "Monzo has stopped reading" says so.
+    """
+    row = (
+        await session.execute(select(MonzoConnection.status, MonzoConnection.approved_at))
+    ).one_or_none()
+    if row is None or row.approved_at is None or row.status != MonzoLinkStatus.connected:
+        return 0
+    lapses = row.approved_at + APPROVAL_LASTS
+    if not lapses - APPROVAL_WARNING <= now < lapses:
+        return 0
+    if not await _claim(session, MONZO_APPROVAL_DUE, row.approved_at.isoformat(), now):
+        return 0
+    return await _tell_admins(
+        session,
+        MONZO_APPROVAL_DUE,
+        "Monzo needs approving again",
+        lambda admin: (
+            "Monzo asks you to approve the app again every 90 days. Connect again from the "
+            f"payments service before {_local_date_label(lapses, admin.timezone)}, or "
+            "payments stop being read then."
+        ),
+        now,
+    )
+
+
 # ── One run ─────────────────────────────────────────────────────────────────────
 
 
@@ -360,6 +416,7 @@ async def prepare_payment_notices(session: AsyncSession, now: datetime) -> Prepa
         targeted = (
             await notify_queued_payments(session, now)
             + await notify_monzo_link(session, now)
+            + await notify_monzo_approval(session, now)
             + await notify_recorded_payments(session, now)
         )
     notifications = await prepare_collected_notifications(session, intents)

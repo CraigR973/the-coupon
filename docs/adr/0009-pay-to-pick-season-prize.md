@@ -1,7 +1,8 @@
 # ADR 0009 — Pay to pick: a per-round entry fee towards a season prize
 
 Status: **accepted**, 2026-10-13, and amended twice the same day: for weekly dues, and
-to drop the in-app 18+ confirmation (below). Batches 205 and 206 are built; Batch 209,
+to drop the in-app 18+ confirmation (below). Amended again on 2026-10-24, so the owner's
+own top-ups into the pot count (below). Batches 205 and 206 are built; Batch 209,
 then 207 and 208, follow. It amends
 the product contract's last bullet in `docs/BUILD_PLAN.md` and the README's
 "does not place bets or handle money".
@@ -22,6 +23,30 @@ Owner decision, 2026-10-13T21:41Z (Craig Robinson), after Batch 206 went live on
   before a tap and not only a refusal after one. The API's refusal is unchanged.
 - Batch 209 carries the change, ahead of Batches 207 and 208. The `adult_confirmed_at`
   column and the confirmation route stay in place, unused; no migration removes them.
+
+## Amendment — 24 Oct 2026: the owner's own top-ups count
+
+Owner decision, 2026-10-24 (Craig Robinson), after the first week of reading payments:
+
+- The owner pays their own dues by moving money from their current account into the
+  league's Monzo pot. The sixth rule below counted only payments through the link, so these
+  top-ups were dropped before matching, and the owner owed £1 on the morning of a lock.
+- A top-up from the connected Monzo account into a league's pot now counts as a payment.
+  The owner never puts other members' cash into the pot, so every such top-up is the
+  owner's own. Other money from the same friends still never reaches the ledger.
+- A league's pot is the one its own link payments name; the payments service learns it
+  from them. A top-up counts only if it was made after that pot was learned, so nothing the
+  owner had already recorded by hand is counted twice.
+- The payer is the Monzo user who moved the money, matched through the payer map like a
+  Monzo-app payer: the first top-up waits in the queue, and once it is assigned the rest
+  are booked automatically.
+- Money taken out of the pot is ignored: the payout happens outside the app, and a top-up
+  taken back out is corrected with an adjustment.
+- Monzo makes the owner approve a developer app again every 90 days; after that the token
+  still refreshes but every read is refused. The old `~/monzo-spike` lost access this way
+  on 24 Oct, 90 days after its approval. The payments service, approved on 16 Oct, would
+  lapse around 14 Jan 2027, so the site admins are now warned a week before.
+- Batch 214 carries the change, with migration `031`.
 
 ## Context
 
@@ -90,7 +115,9 @@ payments made to the organiser and refuses an unpaid pick.
    no pot moves, no feed items.
 6. **Matching on the payer, not a reference.**
    - Only payments that carry the league's payment-link id count, so other
-     money from the same friends, such as a dinner split, is ignored.
+     money from the same friends, such as a dinner split, is ignored. The one
+     exception is the owner's own top-up into the league's pot (amended 24 Oct
+     2026).
    - A Monzo-app payer is recognised by their Monzo user id.
    - A card payer gets a new anonymous id on every payment, so they are
      recognised by their name, normalised.

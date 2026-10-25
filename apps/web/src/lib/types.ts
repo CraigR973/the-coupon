@@ -375,6 +375,11 @@ export interface MonzoLinkHealth {
   /** Payments before this are the organiser's to record as opening balances. */
   counting_since: string | null;
   webhook_registered: boolean;
+  /**
+   * When Monzo stops honouring the owner's approval, 90 days after it was given (Batch
+   * 214). Absent from an older API.
+   */
+  approval_lapses_at?: string | null;
 }
 
 /** GET /leagues/{slug}/payments — the site admin's payments screen. */

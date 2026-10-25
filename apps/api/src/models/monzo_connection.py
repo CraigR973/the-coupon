@@ -13,14 +13,30 @@ Monzo invalidates a client's previous token whenever a new one is issued.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import StrEnum
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, String, Text, func, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.models.base import Base
+from src.models.base import Base, UUIDPrimaryKeyMixin
+
+#: How long Monzo honours the owner's approval in its app (Batch 214). After it, the token
+#: still refreshes but every read is refused until the owner connects again.
+APPROVAL_LASTS = timedelta(days=90)
 
 
 class MonzoLinkStatus(StrEnum):
@@ -84,6 +100,10 @@ class MonzoConnection(Base):
     webhook_registered_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=False), nullable=True
     )
+    #: When the owner last approved the connection in the Monzo app: the first read that
+    #: Monzo answered after a connect (Batch 214). The approval lapses ``APPROVAL_LASTS``
+    #: later.
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
     #: A half-finished connect: the SHA-256 of the OAuth ``state`` it sent, and when that
     #: stops being accepted. Cleared when the callback uses it.
     oauth_state_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -102,4 +122,34 @@ class MonzoConnection(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), server_default=func.now(), nullable=False
+    )
+
+
+class MonzoPot(Base, UUIDPrimaryKeyMixin):
+    """A pot a league's payment link files money into, as its link payments name it.
+
+    Batch 214. The payments service learns these from the league's own link payments, and
+    counts a top-up from the connected account into one of them as the owner's payment.
+    One league per pot, so a top-up can never be counted towards two. A pot may be known
+    by more than one identifier (its pot id and its pot account, say); each is a row.
+    """
+
+    __tablename__ = "monzo_pots"
+    __table_args__ = (
+        UniqueConstraint("pot_ref", name="uq_monzo_pots_pot_ref"),
+        Index("ix_monzo_pots_league", "league_id"),
+    )
+
+    league_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("leagues.id"), nullable=False
+    )
+    pot_ref: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: A top-up made before this is never counted: the owner recorded it by hand.
+    learned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False), server_default=func.now(), nullable=False
+    )
+    #: The first top-up into this pot that was recognised. Until any pot has one, the
+    #: service logs the shape of the pot moves it cannot place.
+    first_top_up_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True
     )

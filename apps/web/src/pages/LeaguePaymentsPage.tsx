@@ -190,7 +190,7 @@ function monzoProblem(code: string): string {
     case 'token_unreadable':
       return 'The saved login could not be opened, so the owner needs to connect again.';
     case 'forbidden':
-      return 'Monzo refused access to the account.';
+      return 'Monzo has stopped sharing the account: its approval lasts 90 days, or it was withdrawn in the Monzo app. The owner needs to connect again.';
     default:
       return `Reading from Monzo failed (${code}).`;
   }
@@ -247,6 +247,12 @@ function MonzoLink({
           <p className="text-xs text-text-muted" data-testid="monzo-last-read">
             Last read {when(link.last_success_at)}
             {link.token_expires_at ? ` · login renews before ${when(link.token_expires_at)}` : ''}
+          </p>
+        )}
+        {link?.status === 'connected' && link.approval_lapses_at && (
+          <p className="text-xs text-text-muted" data-testid="monzo-approval">
+            Approved until {when(link.approval_lapses_at)}. Monzo asks for approval again
+            every 90 days: the owner connects again from the payments service before then.
           </p>
         )}
         {link?.status === 'needs_reconnect' && (
