@@ -4078,3 +4078,29 @@ Backup/restore-point identity: **none yet**. Migration `031` retires `0ac1f12c`,
 every earlier image as rollback targets; forward recovery is `docs/runbooks/migration-031-recovery.md`.
 The web's rollback target is `dpl_5Uqmnr1Wb1fkbehKmFBGw6bseFos` (`02f96cc`, before Batch 214's web
 half).
+
+### 2026-10-25 — `b7a4d72`, Batch 216: the pot's other name, learned from Monzo's filings (no migration)
+
+Owner-scheduled in chat (Craig Robinson, 2026-10-25T13:30:20Z) for straight after close-out.
+Implementation `bbedccf`, exact-SHA CI green (`40204248583`); close-out `b7a4d72`, exact-SHA CI
+green (`40205212259`). The complete gate stamped tree `d671994` (12 checks, backend 1,595,
+frontend 1,414, journey 1, zero skips); the shipped tree differs only in the three close-out
+documents. The migration recovery check found nothing to apply (production at `031`).
+
+The pinned IaC plan was the same 0 / 4 / 0 as the morning's, and again started no redeploy, so
+the baselines were API `10e37f4a` and payments `fabe2608` (`06d6070` / `031`). API
+`f1dc894d-8393-4d95-aee9-90f68e9b03e4` reached `SUCCESS`; then payments
+`d2ba459a-ecfe-483e-bb25-7ba55c0a6bc1`. Both report `b7a4d72` and `031`, readiness `ok`; drift in
+sync for both. Bounded logs: API 46 lines with no failure term (its one credential-pattern hit the
+job name `run_prune_refresh_tokens`); payments 8 lines with none and no access-log line. RLS
+forced on 27 of 27 tables, no public-role grants. Vercel was a no-op
+(`dpl_D62zHzMT6B9ukGdrPjBjMRYrGZBp`, `b7a4d72`); the web root and the payments deep link `200`,
+exact-origin CORS `200` with credentials, a foreign origin `400`.
+
+The payments service's first read learned 2-1 Hibs' pot's `pot_…` id and its `acc_…` ledger from a
+link payment's filing (`joined_by=payer`), recognised the owner's two earlier moves as top-ups
+into it made before it was known (`before_pot_known=2`, not counted), and re-read the 23 link
+payments as duplicates. No entry was written.
+
+Backup/restore-point identity: **none yet**. No migration was applied, so `10e37f4a` and
+`fabe2608` remain valid rollback targets; this shipment changed no web code.

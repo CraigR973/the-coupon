@@ -9044,3 +9044,12 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - Batch 215 (open row): why Monzo refuses every webhook re-read.
 
 **Next:** `/ship-prod` for Batch 216; the owner's next move into the pot lands in the queue once.
+
+## Shipment — 2026-10-25, `b7a4d72` (Batch 216; no migration)
+**Railway:** API `f1dc894d-8393-4d95-aee9-90f68e9b03e4` and payments `d2ba459a-ecfe-483e-bb25-7ba55c0a6bc1` `SUCCESS` · IaC applied with no redeploy · Vercel no-op (`dpl_D62zHzMT6B9ukGdrPjBjMRYrGZBp`, `b7a4d72`) · drift **in sync** for both · exact-SHA CI `40204248583` and `40205212259` green · reused gate stamp `d671994` (backend 1,595; frontend 1,414; journey 1)
+
+### Key facts for future sessions
+- **The owner's top-ups are now matched.** The first read learned the pot's `pot_…` and `acc_…` names from a filing (`joined_by=payer`, so the contributor id equals the link payment's payer id in real data), saw the owner's two earlier moves as top-ups made before the pot was known (`before_pot_known=2`, not counted), and wrote nothing. The owner's next move queues once; assigning it remembers them.
+- **Recovery:** no migration, so `10e37f4a` / `fabe2608` remain valid rollback targets.
+
+**Next:** the owner's next move into the pot (Sat 31 Oct) confirms the booking; Batch 215 after.
