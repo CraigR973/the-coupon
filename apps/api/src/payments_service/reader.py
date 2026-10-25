@@ -11,10 +11,14 @@ How a payment arrives::
     every 5 min ──────────────────────────────────▶ catch_up() ──read─────┤
                                                                            ▼
                      ingest.link_payment → record_link_payment → ledger, + learn_pots
+                     ingest.filing → its link payment's league? → learn its pot's name
                      ingest.pot_top_up → a league's pot? → record_top_up → ledger
 
 The owner's own top-ups (Batch 214) are moves from the connected account into a pot that
-some league's link payments name. A read handles its link payments first, so a pot they
+some league's link payments name. Monzo also files every link payment into its pot with a
+deposit of its own, which names the pot the way the owner's moves do (``pot_…``), so that
+name is learned from those filings, tied to their link payments (Batch 216); a filing is
+never a payment. A read handles its link payments first, then its filings, so a pot they
 name counts a top-up in the same read. While some league with a link id has no pot yet,
 the first catch-up of the process reads back to the counting start, so the pot is learned
 from the payments already in Monzo's history rather than waiting for the next one.
@@ -48,14 +52,17 @@ from src.payments_service.crypto import TokenCipher, TokenCipherUnavailable, Tok
 from src.payments_service.ingest import (
     POT_TRANSFER,
     AccountHolders,
+    Filing,
     LinkPayment,
     PotTopUp,
     Recorded,
     a_league_lacks_its_pot,
     a_top_up_was_recognised,
     account_holders,
+    filing,
     league_pot_refs,
     learn_pots,
+    learn_pots_from_filing,
     link_payment,
     pot_ref_fields,
     pot_top_up,
@@ -375,6 +382,7 @@ class PaymentsReader:
                         learning = not self._history_read and await a_league_lacks_its_pot(db)
                         if connection.read_through is not None and not learning:
                             since = max(floor, connection.read_through - READ_OVERLAP)
+                        filings: list[tuple[Mapping[str, Any], Filing]] = []
                         top_ups: list[tuple[Mapping[str, Any], PotTopUp]] = []
                         unplaced: list[Mapping[str, Any]] = []
                         for account_id in account_ids:
@@ -389,6 +397,10 @@ class PaymentsReader:
                                         )
                                         recorded[outcome] = recorded.get(outcome, 0) + 1
                                     continue
+                                filed = filing(transaction)
+                                if filed is not None:
+                                    filings.append((transaction, filed))
+                                    continue
                                 top_up = pot_top_up(transaction)
                                 if top_up is not None:
                                     top_ups.append(
@@ -396,7 +408,11 @@ class PaymentsReader:
                                     )
                                 elif _names_a_pot(transaction):
                                     unplaced.append(transaction)
-                        # After the read's link payments, which may have named the pot.
+                        # After the read's link payments: a filing is tied to one, and either
+                        # may name the pot.
+                        for moved, filed in filings:
+                            if not await self._filing(db, filed):
+                                unplaced.append(moved)
                         pots = await league_pot_refs(db)
                         for moved, top_up in top_ups:
                             if not top_up.pot_refs & pots:
@@ -446,12 +462,15 @@ class PaymentsReader:
                         access_token = await self._refreshed_token(db, connection)
                         transaction = await self._client.transaction(access_token, transaction_id)
                     payment = link_payment(transaction)
+                    filed = filing(transaction) if payment is None else None
                     top_up = pot_top_up(transaction) if payment is None else None
                     if payment is not None and payment.link_id in links:
                         outcome = await self._link_payment(
                             db, transaction, payment, connection.counting_since
                         )
                         recorded[outcome] = 1
+                    elif filed is not None:
+                        await self._filing(db, filed)
                     elif top_up is not None and top_up.pot_refs & await league_pot_refs(db):
                         account = transaction.get("account_id")
                         if isinstance(account, str):
@@ -503,6 +522,23 @@ class PaymentsReader:
             self._said_no_pot = True
             log.info("monzo link payment names no pot: %s", transaction_shape(transaction, ()))
         return outcome
+
+    async def _filing(self, db: AsyncSession, filed: Filing) -> bool:
+        """Learn the pot's deposit name from Monzo filing a link payment; never a payment.
+
+        Returns whether the filing was placed: tied to a league's link payment, or into a pot
+        already known. One that is not is described by the structure-only capture.
+        """
+        learned = await learn_pots_from_filing(db, filed, now=self._now())
+        if learned.fields:
+            log.info(
+                "monzo pot learned from a link payment's filing: fields=%s joined_by=%s",
+                ",".join(sorted(learned.fields)),
+                learned.joined_by,
+            )
+        if learned.clash:
+            log.warning("monzo pot already belongs to another league's link; it stays theirs")
+        return learned.joined_by is not None or bool(filed.pot_refs & await league_pot_refs(db))
 
     def _with_mover(self, top_up: PotTopUp, account_id: str) -> PotTopUp:
         """Who moved the money: as Monzo says, else the account's only holder."""

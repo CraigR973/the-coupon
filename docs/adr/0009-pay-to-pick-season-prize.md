@@ -47,6 +47,12 @@ Owner decision, 2026-10-24 (Craig Robinson), after the first week of reading pay
   on 24 Oct, 90 days after its approval. The payments service, approved on 16 Oct, would
   lapse around 14 Jan 2027, so the site admins are now warned a week before.
 - Batch 214 carries the change, with migration `031`.
+- **Correction, 25 Oct 2026, from production's first read under Batch 214.** The evidence
+  below says link payments reach the pot with no pot transfer. In fact Monzo files every link
+  payment into the pot with a pot deposit of its own (`trigger=collection_pot`, carrying who
+  contributed), and pot deposits name the pot `pot_…`, while link payments name it
+  `collectionpot_…`. Batch 216 learns the `pot_…` name from those filings, tied to their
+  link payments, and never counts a filing as anyone's payment.
 
 ## Context
 

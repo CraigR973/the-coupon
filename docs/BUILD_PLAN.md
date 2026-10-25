@@ -113,7 +113,10 @@ pot, made after it was learned, is a payment from the Monzo user who moved it, m
 through the payer map like an app payer. Until the first top-up is recognised, the service
 logs a structure-only line for each pot move it cannot place. The connection records when
 Monzo approved it (`approved_at`); the API warns site admins a week before the 90-day
-approval lapses.
+approval lapses. Since Batch 216 a league's pot is known by both its names: the
+`collectionpot_…` its link payments carry, and the `pot_…` that pot deposits use, learned
+from the deposit Monzo makes to file each link payment (`trigger=collection_pot`), tied to
+that payment by amount, time and payer. A filing is never a payment.
 
 Odds sit behind the provider-neutral `OddsProvider` port
 (`services/odds_provider.py`). `OddsApiProvider` is production — odds-api.io

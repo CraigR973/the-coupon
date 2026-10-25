@@ -14,7 +14,11 @@ cash into the pot). The payer is matched on who paid, not on a reference:
 
 A top-up counts only into a pot that the league's own link payments name, which this
 module learns from them (:func:`learn_pots`), and only if it was made after that pot was
-learned: what the owner moved before then was recorded by hand.
+learned: what the owner moved before then was recorded by hand. Link payments name the pot
+``collectionpot_…``, but pot deposits name it ``pot_…``; that second name is learned from
+the deposit Monzo makes to file each link payment into the pot (:func:`filing`,
+:func:`learn_pots_from_filing`, Batch 216). A filing is the member's money moving, already
+counted as their link payment, so it is never a top-up.
 
 Each payment is written at most once, keyed by Monzo's transaction id: the webhook's
 ``transaction.created`` and ``transaction.updated`` and every catch-up read all arrive at
@@ -30,7 +34,7 @@ import re
 import uuid
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
@@ -55,6 +59,19 @@ ACCOUNT_ID = re.compile(r"acc_[A-Za-z0-9]+")
 #: How Monzo files money moved between a current account and a pot (the owner's July
 #: samples): a deposit is negative, a withdrawal positive.
 POT_TRANSFER = "uk_retail_pot"
+#: How Monzo marks the deposit that files a link payment into its pot, and who contributed
+#: it: an app payer's user id, or a card payer's name (production, 25 Oct 2026).
+FILING_TRIGGER = "collection_pot"
+CONTRIBUTOR_FIELDS = (
+    "collection_pot_contributor_user_id",
+    "contributor_user_id",
+    "contributor_name",
+)
+#: How far apart a link payment and the deposit filing it may be. Monzo files at once; this
+#: only bounds the search.
+FILING_WINDOW = timedelta(minutes=10)
+#: A pot the link payments name, as against the id pot deposits use for the same pot.
+LINK_POT_PREFIX = "collectionpot_"
 #: The ledger's own column widths.
 _MAX_NAME = 140
 _MAX_ID = 64
@@ -94,6 +111,28 @@ class PotTopUp:
 
 
 @dataclass(frozen=True)
+class Filing:
+    """Monzo filing a link payment into its pot, a deposit of its own. Batch 216.
+
+    It names the pot the way pot deposits do (``pot_…`` and its ``acc_…`` ledger), which is
+    how the owner's own moves name it too, so it is where that name is learned. It is never
+    a payment: the money is the member's link payment, already counted.
+    """
+
+    transaction_id: str
+    pots: tuple[tuple[str, str], ...]
+    amount_pence: int
+    occurred_at: datetime
+    #: Who contributed: an app payer's stable user id, or a card payer's name.
+    contributor_user_id: str | None
+    contributor_name: str | None
+
+    @property
+    def pot_refs(self) -> frozenset[str]:
+        return frozenset(ref for ref, _field in self.pots)
+
+
+@dataclass(frozen=True)
 class AccountHolders:
     """Who holds the connected accounts, from ``/accounts``' owners. Batch 214."""
 
@@ -111,6 +150,9 @@ class PotsLearned:
     #: The payment named a pot another league's link already files into, which stays
     #: that league's.
     clash: bool
+    #: For a filing: how it was tied to its link payment, ``payer`` or ``amount_and_time``;
+    #: ``None`` when no one league's link payment matched. Batch 216.
+    joined_by: str | None = None
 
 
 class Recorded(StrEnum):
@@ -244,13 +286,25 @@ def link_payment(transaction: Mapping[str, Any]) -> LinkPayment | None:
     )
 
 
-def pot_top_up(transaction: Mapping[str, Any]) -> PotTopUp | None:
-    """The top-up a transaction is, if it moves money from a current account into a pot.
+@dataclass(frozen=True)
+class _PotDeposit:
+    transaction_id: str
+    pots: tuple[tuple[str, str], ...]
+    amount_pence: int
+    occurred_at: datetime
+    metadata: Mapping[str, Any]
+
+    @property
+    def pot_refs(self) -> frozenset[str]:
+        return frozenset(ref for ref, _field in self.pots)
+
+
+def _pot_deposit(transaction: Mapping[str, Any]) -> _PotDeposit | None:
+    """Money moved from a current account into a pot, whoever moved it.
 
     A deposit into a pot is money out of the current account, so its amount is negative.
-    Money taken back out of a pot is not a top-up: the season's payout happens outside the
-    app, and a top-up taken back out is corrected with an adjustment. Whether the pot is a
-    league's is :func:`record_top_up`'s question.
+    Money taken back out of a pot is never counted: the season's payout happens outside the
+    app, and a top-up taken back out is corrected with an adjustment.
     """
     transaction_id = _transaction_id(transaction)
     if transaction_id is None or transaction.get("scheme") != POT_TRANSFER:
@@ -263,20 +317,70 @@ def pot_top_up(transaction: Mapping[str, Any]) -> PotTopUp | None:
     if transaction.get("currency") != "GBP":
         return None
     if _link_id(transaction) is not None:
-        # Money through a link is a link payment, never a top-up.
+        # Money through a link is a link payment, never a pot deposit of its own.
         return None
-    refs = frozenset(pot_ref_fields(transaction))
+    pots = tuple(sorted(set(pot_mentions(transaction))))
     occurred_at = _created(transaction.get("created"))
-    if not refs or occurred_at is None:
+    if not pots or occurred_at is None:
         return None
     metadata = transaction.get("metadata")
-    mover = metadata.get("user_id") if isinstance(metadata, Mapping) else None
-    return PotTopUp(
+    return _PotDeposit(
         transaction_id=transaction_id,
-        pot_refs=refs,
+        pots=pots,
         amount_pence=-amount,
         occurred_at=occurred_at,
-        payer_user_id=_user_id(mover),
+        metadata=metadata if isinstance(metadata, Mapping) else {},
+    )
+
+
+def _is_filing(metadata: Mapping[str, Any]) -> bool:
+    """Whether a pot deposit is Monzo filing a link payment into its pot (Batch 216).
+
+    Production's first read under Batch 214 showed every link payment followed by a deposit
+    of its own into the pot, marked ``trigger=collection_pot`` and carrying who contributed.
+    Either mark is enough: such a deposit is the member's money, already counted as their
+    link payment, and must never also be counted as the owner's top-up.
+    """
+    return metadata.get("trigger") == FILING_TRIGGER or any(
+        metadata.get(field_name) for field_name in CONTRIBUTOR_FIELDS
+    )
+
+
+def pot_top_up(transaction: Mapping[str, Any]) -> PotTopUp | None:
+    """The top-up a transaction is, if someone moved money from a current account into a pot.
+
+    Monzo filing a link payment into its pot is not one (:func:`filing`). Whether the pot is
+    a league's is :func:`record_top_up`'s question.
+    """
+    deposit = _pot_deposit(transaction)
+    if deposit is None or _is_filing(deposit.metadata):
+        return None
+    return PotTopUp(
+        transaction_id=deposit.transaction_id,
+        pot_refs=deposit.pot_refs,
+        amount_pence=deposit.amount_pence,
+        occurred_at=deposit.occurred_at,
+        payer_user_id=_user_id(deposit.metadata.get("user_id")),
+    )
+
+
+def filing(transaction: Mapping[str, Any]) -> Filing | None:
+    """The filing a transaction is, if it is Monzo moving a link payment into its pot."""
+    deposit = _pot_deposit(transaction)
+    if deposit is None or not _is_filing(deposit.metadata):
+        return None
+    metadata = deposit.metadata
+    contributor = _user_id(metadata.get("collection_pot_contributor_user_id")) or _user_id(
+        metadata.get("contributor_user_id")
+    )
+    name = metadata.get("contributor_name")
+    return Filing(
+        transaction_id=deposit.transaction_id,
+        pots=deposit.pots,
+        amount_pence=deposit.amount_pence,
+        occurred_at=deposit.occurred_at,
+        contributor_user_id=contributor,
+        contributor_name=(name.strip()[:_MAX_NAME] or None) if isinstance(name, str) else None,
     )
 
 
@@ -435,22 +539,17 @@ async def record_link_payment(
     return Recorded.matched if player_id is not None else Recorded.queued
 
 
-async def learn_pots(db: AsyncSession, payment: LinkPayment, *, now: datetime) -> PotsLearned:
-    """Remember the pot this link payment was filed into as its league's. The caller commits.
-
-    Learned from any of the league's link payments, however early or often read: each says
-    the same thing. One league per pot, so a pot another league's link already files into
-    stays that league's, and the clash is reported for the log.
-    """
-    league_id = await db.scalar(select(League.id).where(League.monzo_link_id == payment.link_id))
-    if league_id is None or not payment.pot_refs:
-        return PotsLearned(fields=frozenset(), clash=False)
+async def _learn(
+    db: AsyncSession, league_id: uuid.UUID, pots: tuple[tuple[str, str], ...], now: datetime
+) -> PotsLearned:
+    """Keep each pot identifier as this league's. One league per pot: a held one stays put."""
+    refs = frozenset(ref for ref, _field in pots)
     rows = await db.execute(
-        select(MonzoPot.pot_ref, MonzoPot.league_id).where(MonzoPot.pot_ref.in_(payment.pot_refs))
+        select(MonzoPot.pot_ref, MonzoPot.league_id).where(MonzoPot.pot_ref.in_(refs))
     )
     held: dict[str, uuid.UUID] = {row.pot_ref: row.league_id for row in rows}
     learned: set[str] = set()
-    for ref in sorted(payment.pot_refs - held.keys()):
+    for ref in sorted(refs - held.keys()):
         inserted = await db.scalar(
             insert(MonzoPot)
             .values(id=uuid.uuid4(), league_id=league_id, pot_ref=ref, learned_at=now)
@@ -460,8 +559,71 @@ async def learn_pots(db: AsyncSession, payment: LinkPayment, *, now: datetime) -
         if inserted is not None:
             learned.add(ref)
     clash = any(holder != league_id for holder in held.values())
-    fields = frozenset(field_name for ref, field_name in payment.pots if ref in learned)
+    fields = frozenset(field_name for ref, field_name in pots if ref in learned)
     return PotsLearned(fields=fields, clash=clash)
+
+
+async def learn_pots(db: AsyncSession, payment: LinkPayment, *, now: datetime) -> PotsLearned:
+    """Remember the pot this link payment was filed into as its league's. The caller commits.
+
+    Learned from any of the league's link payments, however early or often read: each says
+    the same thing. One league per pot, so a pot another league's link already files into
+    stays that league's, and the clash is reported for the log.
+    """
+    league_id = await db.scalar(select(League.id).where(League.monzo_link_id == payment.link_id))
+    if league_id is None or not payment.pots:
+        return PotsLearned(fields=frozenset(), clash=False)
+    return await _learn(db, league_id, payment.pots, now)
+
+
+def _same_payer(filed: Filing, payer_user_id: str | None, payer_name: str | None) -> bool:
+    """Whether a link payment's payer is who Monzo says contributed the filed money."""
+    if filed.contributor_user_id is not None and payer_user_id is not None:
+        return filed.contributor_user_id == payer_user_id
+    if filed.contributor_name and payer_name:
+        mine = normalise_payer_name(filed.contributor_name)
+        return bool(mine) and mine == normalise_payer_name(payer_name)
+    return False
+
+
+async def learn_pots_from_filing(db: AsyncSession, filed: Filing, *, now: datetime) -> PotsLearned:
+    """Learn how pot deposits name a league's pot, from Monzo filing one of its link payments.
+
+    The filing is tied to its league through the link payment it files, which the ledger
+    already holds: the same amount, made within :data:`FILING_WINDOW`, from the filing's
+    contributor. If no contributor matches, a single league whose link payment fits the
+    amount and time is taken; anything less certain teaches nothing. The caller commits.
+    """
+    candidates = (
+        await db.execute(
+            select(LedgerEntry.league_id, LedgerEntry.payer_monzo_user_id, LedgerEntry.payer_name)
+            .join(League, League.id == LedgerEntry.league_id)
+            .where(
+                League.monzo_link_id.is_not(None),
+                LedgerEntry.kind == LedgerKind.payment,
+                LedgerEntry.monzo_transaction_id.is_not(None),
+                LedgerEntry.amount_pence == filed.amount_pence,
+                LedgerEntry.occurred_at >= filed.occurred_at - FILING_WINDOW,
+                LedgerEntry.occurred_at <= filed.occurred_at + FILING_WINDOW,
+            )
+        )
+    ).all()
+    by_payer = {
+        row.league_id
+        for row in candidates
+        if _same_payer(filed, row.payer_monzo_user_id, row.payer_name)
+    }
+    by_amount = {row.league_id for row in candidates}
+    if len(by_payer) == 1:
+        (league_id,) = by_payer
+        joined_by = "payer"
+    elif not by_payer and len(by_amount) == 1:
+        (league_id,) = by_amount
+        joined_by = "amount_and_time"
+    else:
+        return PotsLearned(fields=frozenset(), clash=False)
+    learned = await _learn(db, league_id, filed.pots, now)
+    return PotsLearned(fields=learned.fields, clash=learned.clash, joined_by=joined_by)
 
 
 async def league_pot_refs(db: AsyncSession) -> set[str]:
@@ -470,13 +632,21 @@ async def league_pot_refs(db: AsyncSession) -> set[str]:
 
 
 async def a_league_lacks_its_pot(db: AsyncSession) -> bool:
-    """Whether some league with a link id has not had its pot named yet."""
+    """Whether some league with a link id has no pot that pot deposits can name yet.
+
+    Its link payments name the link's ``collectionpot_…``, but pot deposits, the owner's
+    among them, name the same pot by ``pot_…`` (Batch 216), learned from Monzo's filings.
+    Until a league has one of those, reading history once for them is worth it.
+    """
     return bool(
         await db.scalar(
             select(
                 exists().where(
                     League.monzo_link_id.is_not(None),
-                    ~exists().where(MonzoPot.league_id == League.id),
+                    ~exists().where(
+                        MonzoPot.league_id == League.id,
+                        ~MonzoPot.pot_ref.startswith(LINK_POT_PREFIX),
+                    ),
                 )
             )
         )

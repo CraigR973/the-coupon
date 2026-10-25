@@ -55,6 +55,7 @@ from src.payments_service.__main__ import configure_payments_logging
 from src.payments_service.crypto import TokenCipher, TokenCipherUnavailable, TokenUnreadable
 from src.payments_service.ingest import (
     account_holders,
+    filing,
     link_payment,
     pot_ref_fields,
     pot_top_up,
@@ -1608,3 +1609,239 @@ async def test_a_pot_stays_with_the_first_league_whose_link_named_it(setup: Setu
             )
         ).all()
     assert booked == [setup.league.id]
+
+
+# ── Batch 216: Monzo's filings, and the pot's other name ──────────────────────
+#
+# Copied, keys only, from what production's first read logged on 25 Oct 2026. Monzo files
+# every link payment into its pot with a `uk_retail_pot` debit of its own, marked
+# `trigger=collection_pot` with who contributed, and names the pot there `pot_…`; the
+# owner's own moves are `trigger=user` with a `move_money_transfer_id`.
+
+DEPOSIT_POT = "pot_00009League"
+
+
+def filed(
+    payment: dict[str, Any],
+    *,
+    pot: str = DEPOSIT_POT,
+    card: bool = False,
+    after: timedelta = timedelta(seconds=2),
+) -> dict[str, Any]:
+    """Monzo filing ``payment`` into its pot: a contributor's user id, or a card payer's name."""
+    plain = payment["id"].removeprefix("tx_")
+    paid_at = datetime.fromisoformat(payment["created"].replace("Z", "+00:00")).replace(tzinfo=None)
+    metadata: dict[str, Any] = {
+        "external_id": f"collection_contribution_{plain}",
+        "ledger_insertion_id": f"entryset_{plain}",
+        "ledger_committed_timestamp_earliest": payment["created"],
+        "ledger_committed_timestamp_latest": payment["created"],
+        "pot_account_id": _pot_account(pot),
+        "pot_deposit_id": f"potdep_{plain}",
+        "pot_id": pot,
+        "user_id": OWNER,
+        "trigger": "collection_pot",
+        "transaction_description_localised": "Weekly Coupon",
+        "transaction_locale_country": "GBR",
+    }
+    payer = payment["counterparty"]
+    if card:
+        metadata["contributor_name"] = payer["name"]
+    else:
+        metadata["collection_pot_contributor_user_id"] = payer["user_id"]
+        metadata["contributor_user_id"] = payer["user_id"]
+    return {
+        "id": f"tx_{plain}Filed",
+        "created": _rfc3339(paid_at + after),
+        "amount": -payment["amount"],
+        "currency": "GBP",
+        "description": pot,
+        "scheme": "uk_retail_pot",
+        "notes": "",
+        "metadata": metadata,
+        "counterparty": {},
+        "account_id": "acc_00009Main",
+    }
+
+
+def owner_move(
+    tx_id: str,
+    *,
+    pot: str = DEPOSIT_POT,
+    created: datetime = NOW + timedelta(minutes=6),
+    amount: int = FEE,
+) -> dict[str, Any]:
+    """The owner moving money into the pot by hand, as production logged it."""
+    move = pot_deposit(tx_id, pot, created=created, amount=amount)
+    transfer = f"mvmnytrnsfr_{tx_id.removeprefix('tx_')}"
+    move["metadata"] = {
+        **move["metadata"],
+        "move_money_transfer_id": transfer,
+        "external_id": transfer,
+    }
+    return move
+
+
+@pytest.mark.parametrize("card", [False, True], ids=["app payer", "card payer"])
+def test_monzo_filing_a_link_payment_into_its_pot_is_never_a_top_up(card: bool) -> None:
+    link = _link()
+    payment = card_payment("tx_00009Paid", link) if card else app_payment("tx_00009Paid", link)
+    leg = filed(payment, card=card)
+    assert pot_top_up(leg) is None
+    found = filing(leg)
+    assert found is not None
+    assert found.amount_pence == FEE
+    assert found.pot_refs == {DEPOSIT_POT, _pot_account(DEPOSIT_POT)}
+    contributor = (None, "J. Smith") if card else ("user_00009Jamie", None)
+    assert (found.contributor_user_id, found.contributor_name) == contributor
+
+
+def test_either_mark_of_a_filing_keeps_a_deposit_from_being_a_top_up() -> None:
+    by_trigger = owner_move("tx_00009Trigger")
+    by_trigger["metadata"] = {**by_trigger["metadata"], "trigger": "collection_pot"}
+    by_contributor = owner_move("tx_00009Named")
+    by_contributor["metadata"] = {**by_contributor["metadata"], "contributor_name": "Sam"}
+    for deposit in (by_trigger, by_contributor):
+        assert pot_top_up(deposit) is None
+        assert filing(deposit) is not None
+    assert pot_top_up(owner_move("tx_00009Mine")) is not None
+    assert filing(owner_move("tx_00009Mine")) is None
+
+
+async def test_a_filing_teaches_the_pots_other_name_and_the_owners_move_then_counts(
+    setup: Setup,
+) -> None:
+    _holders(setup.fake)
+    await _connect(setup)
+    link = setup.league.monzo_link_id
+    assert link is not None
+    paid = paid_into(app_payment("tx_00009Member", link), LEAGUE_POT)
+    setup.fake.add(paid)
+    setup.fake.add(filed(paid))
+    setup.clock.at = NOW + timedelta(minutes=5)
+    await setup.reader.catch_up()
+    assert await _pots(setup) == {
+        LEAGUE_POT: setup.league.id,
+        DEPOSIT_POT: setup.league.id,
+        _pot_account(DEPOSIT_POT): setup.league.id,
+    }
+    # The filing is the member's money moving, already counted: never an entry of its own.
+    assert [e.monzo_transaction_id for e in await _entries(setup)] == ["tx_00009Member"]
+
+    setup.fake.add(owner_move("tx_00009Move"))
+    setup.clock.at = NOW + timedelta(minutes=10)
+    await setup.reader.catch_up()
+    entries = await _entries(setup)
+    moved = [e for e in entries if e.monzo_transaction_id == "tx_00009Move"]
+    assert [(e.player_id, e.amount_pence, e.payer_monzo_user_id, e.payer_name) for e in moved] == [
+        (None, FEE, OWNER, "Pat Owner")
+    ]
+    assert len(entries) == 2
+
+
+async def test_a_card_payers_filing_is_tied_to_their_payment_by_name(
+    setup: Setup, caplog: pytest.LogCaptureFixture, live_loggers: None
+) -> None:
+    await _connect(setup)
+    link = setup.league.monzo_link_id
+    assert link is not None
+    paid = paid_into(card_payment("tx_00009Card", link, name="J. Smith"), LEAGUE_POT)
+    setup.fake.add(paid)
+    setup.fake.add(filed(paid, card=True))
+    setup.clock.at = NOW + timedelta(minutes=5)
+    with caplog.at_level(logging.INFO, logger="payments.reader"):
+        await setup.reader.catch_up()
+    assert (await _pots(setup)).get(DEPOSIT_POT) == setup.league.id
+    messages = [record.getMessage() for record in caplog.records]
+    assert (
+        "monzo pot learned from a link payment's filing: "
+        "fields=description,metadata.pot_account_id,metadata.pot_id joined_by=payer"
+    ) in messages
+    assert "J. Smith" not in "\n".join(messages)
+
+
+async def test_a_filing_that_no_payment_fits_teaches_nothing(setup: Setup) -> None:
+    await _connect(setup)
+    link = setup.league.monzo_link_id
+    assert link is not None
+    paid = paid_into(app_payment("tx_00009Fits", link), LEAGUE_POT)
+    setup.fake.add(paid)
+    # A different amount, and a filing an hour away from the payment: neither files it.
+    setup.fake.add({**filed(paid), "id": "tx_00009OtherAmount", "amount": -2 * FEE})
+    setup.fake.add(filed({**paid, "id": "tx_00009Later"}, after=timedelta(hours=1)))
+    setup.clock.at = NOW + timedelta(hours=1, minutes=5)
+    await setup.reader.catch_up()
+    assert await _pots(setup) == {LEAGUE_POT: setup.league.id}
+    assert [e.monzo_transaction_id for e in await _entries(setup)] == ["tx_00009Fits"]
+
+
+async def test_a_filing_two_leagues_could_claim_is_tied_only_by_its_payer(setup: Setup) -> None:
+    await _connect(setup)
+    ours_link = setup.league.monzo_link_id
+    assert ours_link is not None
+    theirs_link = _link()
+    other = await _league(setup.world, [setup.members[1]], theirs_link)
+    ours = paid_into(app_payment("tx_00009Ours", ours_link, user="user_00009Ours"), LEAGUE_POT)
+    theirs = paid_into(
+        app_payment("tx_00009Theirs", theirs_link, user="user_00009Theirs"),
+        "collectionpot_00009Other",
+    )
+    setup.fake.add(ours)
+    setup.fake.add(theirs)
+    # A contributor who paid neither link fits both leagues by amount and time: no one's.
+    stranger = {**ours, "id": "tx_00009Stranger", "counterparty": {"user_id": "user_00009X"}}
+    setup.fake.add(filed(stranger, pot="pot_00009Unknown"))
+    setup.fake.add(filed(theirs, pot="pot_00009Other"))
+    setup.clock.at = NOW + timedelta(minutes=5)
+    await setup.reader.catch_up()
+
+    pots = await _pots(setup)
+    assert "pot_00009Unknown" not in pots
+    assert pots["pot_00009Other"] == other.id
+
+
+async def test_a_league_that_knows_only_its_link_pot_reads_history_once_for_the_other(
+    setup: Setup,
+) -> None:
+    await _connect(setup)
+    link = setup.league.monzo_link_id
+    assert link is not None
+    paid = paid_into(app_payment("tx_00009Week", link), LEAGUE_POT)
+    setup.fake.add(paid)
+    setup.clock.at = NOW + timedelta(minutes=5)
+    await setup.reader.catch_up()
+    setup.clock.at = NOW + timedelta(hours=3)
+    await setup.reader.catch_up()
+    assert await _pots(setup) == {LEAGUE_POT: setup.league.id}, "Batch 214's state"
+
+    # The day this ships: Monzo has held the filing all along, and the owner's move of a
+    # week recorded by hand.
+    setup.fake.add(filed(paid))
+    setup.fake.add(owner_move("tx_00009ByHand", created=NOW + timedelta(hours=2)))
+    restarted = PaymentsReader(
+        setup.reader.settings,
+        setup.world.sessions,
+        MonzoClient(httpx.MockTransport(setup.fake)),
+        now=setup.clock,
+    )
+    setup.clock.at = NOW + timedelta(hours=3, minutes=5)
+    await restarted.catch_up()
+    assert setup.fake.since_asked[-1] == _rfc3339(NOW), "read back to the counting start"
+    assert (await _pots(setup)).get(DEPOSIT_POT) == setup.league.id
+    assert [e.monzo_transaction_id for e in await _entries(setup)] == ["tx_00009Week"]
+
+
+async def test_a_filing_named_by_a_webhook_is_learned_and_never_booked(setup: Setup) -> None:
+    await _connect(setup)
+    link = setup.league.monzo_link_id
+    assert link is not None
+    paid = paid_into(app_payment("tx_00009Hooked", link), LEAGUE_POT)
+    setup.fake.add(paid)
+    setup.clock.at = NOW + timedelta(minutes=5)
+    await setup.reader.catch_up()
+    leg = filed(paid)
+    setup.fake.add(leg)
+    answered = await _webhook(setup, {"type": "transaction.created", "data": leg})
+    assert answered.status_code == 200
+    assert (await _pots(setup)).get(DEPOSIT_POT) == setup.league.id
+    assert [e.monzo_transaction_id for e in await _entries(setup)] == ["tx_00009Hooked"]
