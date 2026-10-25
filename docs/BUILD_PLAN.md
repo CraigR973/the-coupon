@@ -1340,7 +1340,7 @@ owner on launch day, 2026-10-17.
   payments are read or matched. **API (+ web if the categories need settings copy):
   `/ship-prod` owed after close-out.**
 
-- [ ] **Batch 214 — The owner's own top-ups into the pot are never counted, and Monzo's 90-day approval lapses unannounced**
+- [x] **Batch 214 — The owner's own top-ups into the pot are never counted, and Monzo's 90-day approval lapses unannounced** ✅ 2026-10-25
   — raised by the owner on 2026-10-24. The owner pays their £1 by moving it from their
   current account into the league's Monzo pot, and the app never sees it.
   `ingest.link_payment` keeps only money *in* that carries the league's `unipaylink_` id; a
@@ -1428,6 +1428,21 @@ owner on launch day, 2026-10-17.
   match. **API (migration `031`) + payments + web: close-out needs the owner to schedule its
   `/ship-prod`.** Once it ships, the owner stops recording their own £1 by hand and assigns
   the first top-up once.
+
+- [ ] **Batch 215 — Monzo refuses every webhook re-read, so webhooks never speed anything up**
+  — raised by Batch 214. On 24 Oct every webhook nudge's `GET /transactions/<id>` was refused
+  (26 between 07:17 and 09:44 UTC, four or five per payment), and each payment then arrived
+  through the five-minute read. Batch 214 logs the HTTP status and Monzo's error code for a
+  refused re-read (`monzo webhook re-read refused: …`) and no longer records it as a link
+  problem. Read those lines after Batch 214's shipment, find the cause (pots keep their own
+  transaction feed, a likely one), and either make the re-read work for the transactions that
+  matter or stop registering a webhook that never helps.
+
+  Verification: tests for whichever fix, against a synthetic Monzo that refuses as production
+  does.
+
+  Scope boundary: the webhook path of the payments service. No change to the five-minute read
+  or to matching. **API-only (payments service): `/ship-prod` owed after close-out.**
 
 ## Verification
 

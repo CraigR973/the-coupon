@@ -9000,3 +9000,20 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - **Recovery:** migration `030` retires `03ad7d4e` / `36e19a56` as rollback targets; forward recovery is `docs/runbooks/migration-030-recovery.md`.
 
 **Next:** ADR 0009's remaining launch steps; Batch 211 after launch.
+
+## Batch 214 — The owner's own top-ups into the pot count, and Monzo's 90-day approval is announced
+**Commits:** `d4880b1` · verified: complete 12-check local gate, 1,586 backend and 1,414 frontend tests, journey 1, zero skips · CI: https://github.com/CraigR973/the-coupon/actions/runs/40180631545 PASS for `d4880b11a19c244e03461c1e4a73e9d56cad27f1`
+
+### Key facts for future sessions
+- The payments service learns each league's pot from the pot identifiers its link payments carry (`monzo_pots`, migration `031`; read from the transaction and its metadata, never its own `account_id`) and books a later `uk_retail_pot` debit into a learned pot as a payment from `metadata.user_id`, else the account's sole holder, through the payer map. A process that starts while a league lacks a pot reads back to `counting_since` once. Owner decision (24 Oct): every top-up is the owner's own; ADR 0009 amended.
+- **Unverified against real Monzo:** where a link payment names its collection pot was never recorded. A shape miss fails safe (ignored, as before), and until the first top-up is recognised the payments log carries structure-only `monzo pot move not placed:` lines and at most one `monzo link payment names no pot:` per process. The owner's first top-up after shipping is the test, and it lands in the queue once.
+- Monzo's approval lapses 90 days after it is given (the token still refreshes, then reads are refused); the old `~/monzo-spike` hit it on 24 Oct, 90 days after 26 Jul. `approved_at` is set on the approval flip and backfilled from `webhook_registered_at`; production's lapses about 14 Jan 2027, and `payment_notices` warns site admins a week before (Monzo-link mute).
+- Every webhook re-read was refused in production (26 between 07:17 and 09:44 UTC on 24 Oct, four or five per payment); a refused re-read is now logged with Monzo's status and code instead of being recorded as the link's last problem. The cause is a follow-up once the code is in the log.
+- Gate: attempt 1 passed all 12 checks after waiting for load under 6; no failure to fix. Only three test import lines changed; no assertion was removed. Screenshots at 390 and 1280 px in both themes (`artifacts/overnight/batch-214-shots/`, synthetic data): no sideways scroll, no console errors.
+- **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-10-25T09:25:36Z; pre-push deployed-API drift in sync; /ship-prod owed immediately after push
+
+### Follow-ups
+- The scheduled `/ship-prod` for Batch 214 (owner-scheduled 2026-10-25T09:25:36Z), run in this session straight after close-out.
+- Batch 215 (open row): why Monzo refuses every webhook re-read, from the status and code Batch 214 now logs.
+
+**Next:** `/ship-prod` for Batch 214; then the owner's first top-up confirms the shape.
