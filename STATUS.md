@@ -147,8 +147,10 @@ received, migration `030` — is complete and shipped (18 Oct, `8797aa7`, shippe
 Oct); making sure every member is 18 or over stays the owner's check (ADR 0009). Batch 214 —
 the owner's own top-ups into the pot, a warning before Monzo's 90-day approval lapses, and
 the refused webhook re-reads logged, migration `031` — is complete and shipped (25 Oct,
-`d4880b1`, shipped as `06d6070`). Batch 215 — why Monzo refuses every webhook re-read — and
-Batch 216 — the owner's top-ups, matched by the pot's other id — are open.
+`d4880b1`, shipped as `06d6070`). Batch 216 — the owner's top-ups matched by the pot's
+`pot_…` name, learned from Monzo's filings, which are never counted — is complete (25 Oct,
+`bbedccf`); its `/ship-prod` was scheduled by the owner for straight after close-out. Batch
+215 — why Monzo refuses every webhook re-read — is open.
 
 ## Toolchain
 
@@ -193,6 +195,6 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** Batch 216 before the owner's next top-up (Sat 31 Oct); until it ships the owner
-records their own £1 by hand. Then Batch 215. The season-calendar backfill remains owner-gated,
+**Next:** `/ship-prod` for Batch 216 (scheduled 25 Oct); until it ships the owner records
+their own £1 by hand. Then Batch 215. The season-calendar backfill remains owner-gated,
 unblocked since 4 Oct.

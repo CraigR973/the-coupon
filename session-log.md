@@ -9028,3 +9028,19 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - **Recovery:** migration `031` retires `0ac1f12c` / `ae129cb8` as rollback targets; forward recovery is `docs/runbooks/migration-031-recovery.md`.
 
 **Next:** Batch 216 before the owner's next top-up (Sat 31 Oct); Batch 215 after it.
+
+## Batch 216 — The owner's top-ups are matched by the pot's other name, and Monzo's filings are never counted
+**Commits:** `bbedccf` · verified: complete 12-check local gate, 1,595 backend and 1,414 frontend tests, journey 1, zero skips · CI: https://github.com/CraigR973/the-coupon/actions/runs/40204248583 PASS for `bbedccf4e492a55ebd47d9ba32ad4f77a35033f9`
+
+### Key facts for future sessions
+- A **filing** is Monzo's own `uk_retail_pot` debit that files a link payment into its pot (`trigger=collection_pot`, or any of `collection_pot_contributor_user_id`, `contributor_user_id`, `contributor_name`). It names the pot `pot_…` / `acc_…`, as the owner's moves do; link payments name it `collectionpot_…`. `ingest.filing` parses one, and `pot_top_up` refuses it, so a member's payment is never also booked to the owner.
+- `learn_pots_from_filing` ties a filing to the ledger's link payment of the same amount within ten minutes, from the same payer (user id, or normalised card name); with no payer match it takes the single league that fits by amount and time, and otherwise learns nothing. The log says `joined_by=payer` or `amount_and_time`.
+- `a_league_lacks_its_pot` now means "no pot ref outside `collectionpot_`", so the first process after this ships reads back to the counting start once and learns the `pot_…` name from this week's filings; the owner's earlier moves fall before it and are not counted.
+- Gate: attempt 1 passed all 12 checks after waiting for load under 6; no failure to fix. No assertion changed; only tests and one import were added.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+### Follow-ups
+- The `/ship-prod` for Batch 216, owner-scheduled in chat at 2026-10-25T13:30:20Z for straight after close-out, run in this session.
+- Batch 215 (open row): why Monzo refuses every webhook re-read.
+
+**Next:** `/ship-prod` for Batch 216; the owner's next move into the pot lands in the queue once.

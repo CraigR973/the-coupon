@@ -1447,7 +1447,7 @@ owner on launch day, 2026-10-17.
   Scope boundary: the webhook path of the payments service. No change to the five-minute read
   or to matching. **API-only (payments service): `/ship-prod` owed after close-out.**
 
-- [ ] **Batch 216 — The owner's top-ups are still not counted: the pot has a different id on each side**
+- [x] **Batch 216 — The owner's top-ups are still not counted: the pot has a different id on each side** ✅ 2026-10-25
   — raised by Batch 214's shipment (25 Oct). Batch 214 learns a league's pot from its link
   payments, which name it in `metadata.collection_pot_id` (`collectionpot_…`). Every pot deposit
   names the same pot by `pot_id` (`pot_…`) and `pot_account_id`, so nothing matched and no
