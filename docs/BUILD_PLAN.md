@@ -1444,6 +1444,38 @@ owner on launch day, 2026-10-17.
   Scope boundary: the webhook path of the payments service. No change to the five-minute read
   or to matching. **API-only (payments service): `/ship-prod` owed after close-out.**
 
+- [ ] **Batch 216 — The owner's top-ups are still not counted: the pot has a different id on each side**
+  — raised by Batch 214's shipment (25 Oct). Batch 214 learns a league's pot from its link
+  payments, which name it in `metadata.collection_pot_id` (`collectionpot_…`). Every pot deposit
+  names the same pot by `pot_id` (`pot_…`) and `pot_account_id`, so nothing matched and no
+  top-up was booked (the designed safe failure). The first read after the shipment logged the
+  real shapes, structure only:
+  - 23 **contribution legs**, one per link payment: `uk_retail_pot` debits with
+    `trigger=collection_pot`, `external_id` `collection_…`, and either
+    `collection_pot_contributor_user_id` and `contributor_user_id` (10, app payers) or
+    `contributor_name` (13, card payers). This is Monzo filing each member's link payment into
+    the pot, which ADR 0009's evidence missed.
+  - 2 **owner moves**: `uk_retail_pot` debits with `trigger=user` and a `move_money_transfer_id`,
+    no contributor field.
+
+  The fix, in the payments service:
+  - Learn the pot's `pot_…` id and `pot_account_id` from a contribution leg, tied to the league
+    by the link payment it files: the same amount, its contributor the payer (user id for an app
+    payer, name for a card payer), and close in time. If a link payment and its leg share an id
+    such as `ledger_insertion_id`, prefer that. Never "the only league with a link".
+  - **A contribution leg is never a top-up**: `trigger=collection_pot` or any contributor field
+    excludes it. Without this, every member's payment would also be booked to the owner.
+  - Top-ups count from when the `pot_…` id is learned, as Batch 214 rules.
+  - The structure-only capture stays until the first top-up is recognised.
+
+  Verification: fixtures copied from the logged shapes (keys only); a contribution leg never
+  booked as a top-up; the pot learned from a leg only through its own link payment, and not
+  from another league's; an owner move into it booked once and queued the first time.
+
+  Scope boundary: how the payments service places pot moves. No change to link-payment matching,
+  dues or the API. **API-only (payments service): `/ship-prod` owed after close-out.** Until it
+  ships, the owner records their own £1 by hand.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

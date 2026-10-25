@@ -13,11 +13,11 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `0a7457b` (through Batch 213) at migration `030` (18 Oct) |
-| API deployment | Railway `0ac1f12c-eb0b-45ba-bcee-40dffeff791b` succeeded, one replica, `europe-west4` (18 Oct) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `0a7457b` at `030`, Railway `ae129cb8-423c-4bbd-8e28-a3a6b7f737a1`, one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read, because every webhook re-read is refused; the owner's own top-ups into the pot are not read (Batch 214) (24 Oct) |
+| API | `api-production-109b1.up.railway.app` serves `06d6070` (through Batch 214) at migration `031` (25 Oct) |
+| API deployment | Railway `10e37f4a-4728-4edb-8fc4-99ecab8f43e8` succeeded, one replica, `europe-west4` (25 Oct) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `06d6070` at `031`, Railway `fabe2608-645e-4b60-9034-0f4c8f46c61b`, one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read, because every webhook re-read is refused; the owner's own top-ups into the pot are still not matched: Monzo names the pot differently on each side (Batch 216); Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
 | Web | Batch 202's build (Vite 8, Tailwind 4) is live at `the-coupon-production.vercel.app` from `628aa0a` (2026-10-11: its stylesheet served, sign-in rendered at 390 and 1280 px with no console errors). Later documentation-only deployments leave the web code unchanged. |
-| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 26 of 26 tables, no public-role grants (18 Oct) |
+| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 27 of 27 tables, no public-role grants (25 Oct) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
 | Football data | FotMob, no key |
@@ -53,6 +53,12 @@ Checked 2026-10-10 unless a line says otherwise.
   spent, and since `bca0aaa` (shipped 17 Oct) the service writes no access log.
 - **Batch 203 shipped unrecorded on 11 Oct** (Railway `de1b8aa8`, `5882b0f`), found from
   Railway's deployment list on 13 Oct and now in the L4 record.
+- **Batch 214 is shipped and verified** (25 Oct, `06d6070`, migration `031`). Both services
+  report `06d6070` / `031`, drift is in sync, and the catalogue audit found RLS forced on 27 of 27
+  tables with no public-role grants. The payments service learned 2-1 Hibs' pot from its link
+  payments, but Monzo names that pot by a different id in pot deposits, so the owner's top-ups
+  are still not matched (Batch 216). Migration `031` requires forward recovery:
+  `docs/runbooks/migration-031-recovery.md`.
 - **Batch 213 is shipped and verified** (18 Oct, `0a7457b`, migration `030`). Both services
   report `0a7457b` / `030`, drift is in sync, and the catalogue audit found RLS forced on 26 of 26
   tables with no public-role grants. The `payment_notices` job runs every ten minutes; its first
@@ -83,8 +89,8 @@ These are not batches; nothing here will happen unless the owner does it or auth
 - **Avatars stay off** until the owner follows `docs/runbooks/avatar-storage.md`. They
   would share the Supabase project whose egress quota was exceeded.
 - **The owner's own £1 each week is recorded by hand** (as cash, on the Payments screen)
-  until Batch 214 ships: a top-up from the owner's account into the pot is not read
-  (2026-10-24).
+  until Batch 216 ships: Batch 214 is live, but its pot match misses the owner's top-ups
+  (2026-10-25).
 - **Monzo needs approving again by about 14 Jan 2027.** Monzo makes the owner re-approve a
   developer app every 90 days, and the payments service was approved on 16 Oct; after
   that nothing is read until the owner connects again from the payments service. Batch 214
@@ -140,9 +146,9 @@ received, migration `030` — is complete and shipped (18 Oct, `8797aa7`, shippe
 2-1 Hibs has its fee, link and link id, and members' link payments are read and matched (24
 Oct); making sure every member is 18 or over stays the owner's check (ADR 0009). Batch 214 —
 the owner's own top-ups into the pot, a warning before Monzo's 90-day approval lapses, and
-the refused webhook re-reads logged, migration `031` — is complete (25 Oct, `d4880b1`); its
-`/ship-prod` was scheduled by the owner for straight after close-out. Batch 215 — why Monzo
-refuses every webhook re-read — is open.
+the refused webhook re-reads logged, migration `031` — is complete and shipped (25 Oct,
+`d4880b1`, shipped as `06d6070`). Batch 215 — why Monzo refuses every webhook re-read — and
+Batch 216 — the owner's top-ups, matched by the pot's other id — are open.
 
 ## Toolchain
 
@@ -187,7 +193,6 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** `/ship-prod` for Batch 214 (scheduled 25 Oct); until it ships the owner records
-their own £1 by hand, and their first top-up after it confirms Monzo's shape. Then Batch
-215. The season-calendar backfill remains owner-gated,
+**Next:** Batch 216 before the owner's next top-up (Sat 31 Oct); until it ships the owner
+records their own £1 by hand. Then Batch 215. The season-calendar backfill remains owner-gated,
 unblocked since 4 Oct.

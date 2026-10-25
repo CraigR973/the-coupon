@@ -9017,3 +9017,14 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - Batch 215 (open row): why Monzo refuses every webhook re-read, from the status and code Batch 214 now logs.
 
 **Next:** `/ship-prod` for Batch 214; then the owner's first top-up confirms the shape.
+
+## Shipment — 2026-10-25, `06d6070` (Batch 214; migration 031)
+**Railway:** API `10e37f4a-4728-4edb-8fc4-99ecab8f43e8` and payments `fabe2608-645e-4b60-9034-0f4c8f46c61b` `SUCCESS` · IaC applied with no redeploy · Vercel no-op (`dpl_EkyjbgVewksk5DfjC9RsERRnofga`, `06d6070`) · drift **in sync** for both · exact-SHA CI `40180631545` and `40181555208` green · reused gate stamp `ca02675` (backend 1,586; frontend 1,414; journey 1)
+
+### Key facts for future sessions
+- **Batch 214 is live.** Both services report `06d6070` / `031`; RLS forced on 27 of 27 tables with no public-role grants; `approved_at` backfilled to 16 Oct 21:32 UTC. Owner-scheduled at 2026-10-25T09:25:36Z and run straight after close-out.
+- **The capture answered Batch 214's open question, and the answer means its match misses.** Link payments name the pot in `metadata.collection_pot_id` (`collectionpot_…`, learned). But Monzo files every link payment into the pot with its own `uk_retail_pot` debit (`trigger=collection_pot`, contributor fields: 23 of them) that names the pot by `pot_…`, and so do the owner's moves (`trigger=user`, `move_money_transfer_id`: 2). Nothing matched, so nothing was booked. Batch 216 is the fix, and it must never count a contribution leg as a top-up.
+- The pinned IaC plan's four recurring updates started no redeploy this time (they did on 18 Oct), so the running deployments were the baselines. Payments sat in `DEPLOYING` for nine minutes before `SUCCESS`.
+- **Recovery:** migration `031` retires `0ac1f12c` / `ae129cb8` as rollback targets; forward recovery is `docs/runbooks/migration-031-recovery.md`.
+
+**Next:** Batch 216 before the owner's next top-up (Sat 31 Oct); Batch 215 after it.

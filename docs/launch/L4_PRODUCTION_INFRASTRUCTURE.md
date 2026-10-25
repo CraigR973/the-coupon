@@ -4040,3 +4040,41 @@ Backup/restore-point identity: **none yet**. Migration `030` retires `03ad7d4e`,
 every earlier image as rollback targets; forward recovery is `docs/runbooks/migration-030-recovery.md`.
 The web's rollback target is `dpl_3cdY7qgCCKUrZb8pucb2ByK9kTs5` (`a41af46`, before Batch 213's web
 half).
+
+### 2026-10-25 — `06d6070`, Batch 214: the owner's top-ups and Monzo's approval date (migration `031`)
+
+Owner-scheduled in chat (Craig Robinson, 2026-10-25T09:25:36Z) before close-out, to run straight
+after it. Implementation `d4880b1`, exact-SHA CI green (`40180631545`); close-out `06d6070`,
+exact-SHA CI green (`40181555208`). The complete gate stamped tree `ca02675` (12 checks, backend
+1,586, frontend 1,414, journey 1, zero skips); the shipped tree differs only in the three close-out
+documents.
+
+Preflight: exact targets, null `railwayConfigFile` on both services, all required variable names
+on both and kept apart, both Vercel production names encrypted. The migration recovery check
+passed for `031` (`docs/runbooks/migration-031-recovery.md`). The pinned IaC plan had 0 additions,
+the 4 recurring null-to-explicit updates and 0 deletions; unlike 18 Oct, applying it started no
+redeploy, so the rollback baselines were the running API `0ac1f12c` and payments `ae129cb8`
+(`0a7457b` / `030`).
+
+API `10e37f4a-4728-4edb-8fc4-99ecab8f43e8` reached `SUCCESS` and applied `030 -> 031` on boot; then
+payments `fabe2608-645e-4b60-9034-0f4c8f46c61b` reached `SUCCESS` after nine minutes deploying.
+Both: one replica in `europe-west4-drams3a`, no sleep, IPv6 egress, 0.25 vCPU and 500 MB; both
+report `06d6070` and `031`, and both readiness checks database `ok` at `031`. Bounded logs: API 49
+lines with no failure term, its 1 credential-pattern hit the job name `run_prune_refresh_tokens`;
+payments 33 lines with none and no access-log line. The catalogue-only audit found head `031`, RLS
+forced on 27 of 27 tables (`monzo_pots` included), no public-role grants, and the live connection's
+`approved_at` backfilled to 2026-10-16 21:32:44 UTC (approval lapses about 14 Jan 2027). Vercel was
+a no-op (GitHub deployed `06d6070`, `dpl_EkyjbgVewksk5DfjC9RsERRnofga`); the web root and
+`/leagues/2-1-hibs/admin/payments` returned `200` on the same bundle with the security headers,
+exact-origin CORS `200` with credentials, a foreign origin `400`. Drift: **in sync** for both.
+
+The payments service's first read learned 2-1 Hibs' pot from its link payments'
+`metadata.collection_pot_id` and logged the real pot-move shapes: Monzo files every link payment
+into the pot with its own `uk_retail_pot` debit (`trigger=collection_pot`, contributor fields), and
+names the pot there by a `pot_…` id, not the `collectionpot_…` one. So no top-up was matched, as
+designed for an unrecognised shape; Batch 216 is the fix.
+
+Backup/restore-point identity: **none yet**. Migration `031` retires `0ac1f12c`, `ae129cb8` and
+every earlier image as rollback targets; forward recovery is `docs/runbooks/migration-031-recovery.md`.
+The web's rollback target is `dpl_5Uqmnr1Wb1fkbehKmFBGw6bseFos` (`02f96cc`, before Batch 214's web
+half).
