@@ -4143,3 +4143,20 @@ odds-api.io in the hours before a lock.**
 Rollback means setting `ODDS_API_BOOKMAKER=Bet365` again. That only works on a paid
 odds-api.io plan; on the free key it brings the outage back.
 Backup/restore-point identity: **none yet**. No migration was applied, and this changed no web code.
+
+Later that day the owner chose to stay on Betfair Sportsbook rather than buy a paid plan
+(ADR 0002's 31 Oct amendment). No variable changed.
+
+### 2026-10-31 — the 24 Oct round settled by hand (no code change, no deploy)
+
+The owner approved this in chat (Craig Robinson, 2026-10-31, shortly before 17:26 UTC):
+void the abandoned Scottish Cup tie, Cumbernauld Colts v Banks O'Dee (24 Oct, event
+`75364002`, abandoned at 3-2 and replayed on 31 Oct). odds-api.io answers 404 for that
+event, so its one pick stayed pending and the 24 Oct round could not settle by itself.
+
+- **What ran:** the body of `POST /admin/results/{gameweek_id}/settle` with one "Not played" result, using `voided_settlement`, `settle_gameweek`, the same `manual_settlement` audit row with the owner as actor, then `announce_round_settled`. It would have refused unless the round was unsettled with exactly one pending pick, on that tie.
+- **Where it ran:** from the owner's Mac under `railway run`, with `DATABASE_URL` pointed at the session pooler, because the direct host is IPv6-only. Two `railway ssh` attempts at 17:26 and 17:30 never reached the container (`Connection closed` / `reset by 66.33.22.3 port 22`) and ran nothing.
+- **Result at 17:33:42 UTC:** the tie's pick (away, 2.45) is `void` with 0 points. The round is `settled` with 4 won, 6 lost and 1 void. The audit row reads `manual_settlement` with `picks_resolved` 1, and 12 member notifications were created.
+
+Rollback: a pick's result can be corrected through the admin correction path (Batch 187),
+which audits it. Backup/restore-point identity: **none yet**.

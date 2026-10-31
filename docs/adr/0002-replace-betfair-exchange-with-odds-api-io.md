@@ -30,6 +30,10 @@ Owner decision, 2026-10-31 (Craig Robinson), during that morning's open round:
 - Going back to Bet365 needs a paid plan, then `ODDS_API_BOOKMAKER=Bet365`, plus the new
   key if the upgrade issues one. The last bullet under Consequences no longer holds: the
   free key now has one selected book, not two, and it is not Bet365.
+- The owner then chose to stay on Betfair Sportsbook rather than buy a paid plan (Craig
+  Robinson, 2026-10-31, after that round locked). The Highland League stays unpriced. The
+  basis changes again only if that coverage comes to matter or odds-api.io changes its
+  free tier.
 
 ## Context
 
