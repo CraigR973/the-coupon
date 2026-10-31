@@ -4104,3 +4104,42 @@ payments as duplicates. No entry was written.
 
 Backup/restore-point identity: **none yet**. No migration was applied, so `10e37f4a` and
 `fabe2608` remain valid rollback targets; this shipment changed no web code.
+
+### 2026-10-31 — `b7a4d72`, the odds bookmaker switched to Betfair Sportsbook (no code change, no migration)
+
+The owner approved this in chat (Craig Robinson, 2026-10-31, shortly before 10:36 UTC).
+odds-api.io had moved Bet365 onto paid plans at 19:00 UTC on 26 Oct, and from the 31 Oct
+round's 03:00 opening every pick was refused with `pick refused: odds unavailable` (503).
+A direct probe through `railway run` read the 403 body: `Bet365 is only available on our
+paid plans`. `/v3/bookmakers/selected` showed `Betfair Sportsbook` as the key's only book.
+
+At 10:36 UTC `ODDS_API_BOOKMAKER` on the API service changed from `Bet365` to
+`Betfair Sportsbook`. That redeployed the same image as API
+`205b3765-b52e-443f-8923-15e0e371834c`, which reached `SUCCESS` (created 10:36:27 UTC) and
+replaced `f1dc894d`.
+- Health reports `b7a4d72` / `031` and readiness `ok`. Drift is in sync: one docs-only commit behind.
+- The payments service was not touched.
+- The boot log registered the scheduler and its 14 jobs, with no failure term.
+- Before the switch, the app's own parser priced 78 of the card's 85 fixtures with Betfair Sportsbook, none in the Highland League.
+- After it, `/v3/odds` for a refused fixture (`72204322`) answered `200` with that book's prices.
+- A member's `POST /api/v1/leagues/2-1-hibs/picks` then returned `201 Created` on the new deployment.
+- The probes spent about 13 of that hour's 100 requests.
+
+The restart then caused a second, shorter lockout. At 11:05:43 `/odds/multi` answered `429`, and
+the app held off for its 300-second cooldown. Every pick until about 11:10:43 was refused
+(14 attempts, `OddsProviderRateLimited`). The provider's hour, which reset at 11:08:14, had been
+spent four ways:
+- the old process, before the switch;
+- the probes above;
+- the new process's cold sweep of the card, plus its picks;
+- the 11:05 slate refresh, which walks 21 leagues.
+
+The new process could not see the first two. Its budget counter is a sliding window of its own
+requests and starts empty on every boot, so the 50-request pick reserve never engaged. Picks
+saved again from 11:13. By then the counter covered every request the provider still counted,
+which keeps it on the safe side until the next restart. **Do not restart the API or probe
+odds-api.io in the hours before a lock.**
+
+Rollback means setting `ODDS_API_BOOKMAKER=Bet365` again. That only works on a paid
+odds-api.io plan; on the free key it brings the outage back.
+Backup/restore-point identity: **none yet**. No migration was applied, and this changed no web code.

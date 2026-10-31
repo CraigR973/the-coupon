@@ -14,12 +14,12 @@ Checked 2026-10-10 unless a line says otherwise.
 | | |
 | --- | --- |
 | API | `api-production-109b1.up.railway.app` serves `b7a4d72` (through Batch 216) at migration `031` (25 Oct) |
-| API deployment | Railway `f1dc894d-8393-4d95-aee9-90f68e9b03e4` succeeded, one replica, `europe-west4` (25 Oct) |
+| API deployment | Railway `205b3765-b52e-443f-8923-15e0e371834c` succeeded, a variable-only redeploy of the same `b7a4d72` image for the bookmaker switch (31 Oct); one replica, `europe-west4` (25 Oct) |
 | Payments | `payments-production-0aa1.up.railway.app` serves `b7a4d72` at `031`, Railway `d2ba459a-ecfe-483e-bb25-7ba55c0a6bc1`, one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read, because every webhook re-read is refused; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
 | Web | Batch 202's build (Vite 8, Tailwind 4) is live at `the-coupon-production.vercel.app` from `628aa0a` (2026-10-11: its stylesheet served, sign-in rendered at 390 and 1280 px with no console errors). Later documentation-only deployments leave the web code unchanged. |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 27 of 27 tables, no public-role grants (25 Oct) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
-| Odds | `odds-api.io` priced by Bet365; 100 requests/hour and 500/day for the whole deployment |
+| Odds | `odds-api.io` priced by **Betfair Sportsbook** since 10:36 UTC on 31 Oct (ADR 0002's 31 Oct amendment). Bet365 has been paid-only since 26 Oct, 19:00 UTC, and a free key gets a 403. Free key: 100 requests/hour and 500/day for the whole deployment. On the 31 Oct card it priced 78 of 85 fixtures, none in the Highland League (31 Oct) |
 | Football data | FotMob, no key |
 | Scheduler | on (`SCHEDULER_ENABLED=true`) |
 | Avatars | built and off (`AVATAR_STORAGE=none`) |
@@ -56,6 +56,13 @@ Checked 2026-10-10 unless a line says otherwise.
 - **Batch 216 is shipped and verified** (25 Oct, `b7a4d72`, no migration). Both services report
   `b7a4d72` / `031` and drift is in sync. The first read learned the pot's `pot_…` name from a
   link payment's filing and wrote nothing; the owner's two earlier moves fell before it.
+- **The bookmaker switch is live** (31 Oct, API `205b3765`, no code change, no migration).
+  Every pick in the 31 Oct round was refused until `ODDS_API_BOOKMAKER` moved from `Bet365`
+  to `Betfair Sportsbook`. Health reports `b7a4d72` / `031` and drift is in sync. A refused
+  fixture's live odds call now returns Betfair Sportsbook prices, and a member's pick then
+  saved (`201`). The restart emptied the app's odds budget counter, so a `429` at 11:05
+  refused picks again until about 11:10, and they have saved since. The payments service was
+  not touched. Record: L4, 2026-10-31.
 - **Batch 214 is shipped and verified** (25 Oct, `06d6070`, migration `031`). Both services
   report `06d6070` / `031`, drift is in sync, and the catalogue audit found RLS forced on 27 of 27
   tables with no public-role grants. The payments service learned 2-1 Hibs' pot from its link
@@ -98,6 +105,15 @@ These are not batches; nothing here will happen unless the owner does it or auth
   developer app every 90 days, and the payments service was approved on 16 Oct; after
   that nothing is read until the owner connects again from the payments service. Batch 214
   adds a warning a week before (2026-10-24).
+- **Choose the bookmaker for good** (2026-10-31). Betfair Sportsbook is free but prices
+  nothing in the Highland League. Keeping Bet365 needs odds-api.io's Solo plan, £49/mo or
+  £490/yr (2 bookmakers, 5,000 requests/hour). After upgrading, set
+  `ODDS_API_BOOKMAKER=Bet365`, plus the new key if the upgrade issues one.
+- **Void the abandoned Scottish Cup tie** (2026-10-31). Cumbernauld Colts v Banks O'Dee
+  (24 Oct, event `75364002`) was abandoned at 3-2 and is replayed on 31 Oct. odds-api.io
+  answers 404 for the event, so its one pick stays pending and the 24 Oct round cannot
+  settle by itself. Admin → Results → the 24 Oct round → tick "Not played" on that tie →
+  Settle round.
 - **Delete the old Monzo spike's OAuth client** at developers.monzo.com (ADR 0009 launch
   step 1, still open). Its client secret, echoed into a transcript on 7 Sep, still works: a
   token refresh with it succeeded on 2026-10-24. Its data access lapsed the same day, and

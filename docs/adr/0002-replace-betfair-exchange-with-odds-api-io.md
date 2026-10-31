@@ -1,6 +1,35 @@
 # ADR 0002 — Replace the Betfair Exchange with odds-api.io, priced by Bet365
 
-Status: **accepted, not implemented**, 2026-08-04. Scoped as Batch 7.
+Status: **accepted**, 2026-08-04, and implemented by Batch 7 the same day. Amended on
+2026-10-31: Betfair Sportsbook replaces Bet365 as the price basis (below).
+
+## Amendment — 31 Oct 2026: Betfair Sportsbook replaces Bet365
+
+Owner decision, 2026-10-31 (Craig Robinson), during that morning's open round:
+
+- odds-api.io moved Bet365 onto its paid plans at 19:00 UTC on 26 Oct 2026. Since then a
+  free key gets `403 {"error":"Bet365 is only available on our paid plans. ..."}` on every
+  Bet365 request, and Bet365 was taken out of the key's selected bookmakers. New free keys
+  are paused. The cheapest paid plan, Solo, is £49/mo or £490/yr for 2 bookmakers and
+  5,000 requests/hour.
+- Every pick needs a live price, so the 31 Oct round refused every pick from its 03:00 UTC
+  opening (`pick refused: odds unavailable`, a 503). The card meanwhile showed Bet365
+  prices cached before the cut-off. The application logged the 403 as "rejected the API
+  key", which hid the real reason for five days.
+- The price basis is now **Betfair Sportsbook**, the one book still selected on the free
+  key. It was set through `ODDS_API_BOOKMAKER` on Railway production at 10:36 UTC on
+  31 Oct, with no code change. The rule above still holds: one bookmaker prices the
+  whole game.
+- On the 31 Oct card it priced 78 of 85 fixtures with both `ML` and `Both Teams To
+  Score`. It prices nothing in `Scotland - Highland League`, so those fixtures render
+  unpriced and cannot be picked.
+- Rounds up to 24 Oct were scored on Bet365 prices, and rounds from 31 Oct on Betfair
+  Sportsbook's. As with the Exchange change below, points either side of that line are
+  not strictly comparable. No round mixes the two, because nobody had picked in the
+  31 Oct round before the switch.
+- Going back to Bet365 needs a paid plan, then `ODDS_API_BOOKMAKER=Bet365`, plus the new
+  key if the upgrade issues one. The last bullet under Consequences no longer holds: the
+  free key now has one selected book, not two, and it is not Bet365.
 
 ## Context
 
