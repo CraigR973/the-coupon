@@ -165,7 +165,9 @@ the refused webhook re-reads logged, migration `031` — is complete and shipped
 `d4880b1`, shipped as `06d6070`). Batch 216 — the owner's top-ups matched by the pot's
 `pot_…` name, learned from Monzo's filings, which are never counted — is complete (25 Oct,
 `bbedccf`) and shipped (25 Oct, as `b7a4d72`). Batch 215 — why Monzo refuses every webhook
-re-read — is open.
+re-read — is open. Batch 217 — the odds provider's own reason on a refused request, a
+quarter-hour hold-off after a refused key or bookmaker, and a notice to site admins when picks
+are refused for odds — is open (owner, 31 Oct).
 
 ## Toolchain
 

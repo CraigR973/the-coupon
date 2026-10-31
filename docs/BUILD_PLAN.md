@@ -1479,6 +1479,82 @@ owner on launch day, 2026-10-17.
   dues or the API. **API-only (payments service): `/ship-prod` owed after close-out.** Until it
   ships, the owner records their own £1 by hand.
 
+- [ ] **Batch 217 — Picks are refused for hours when the odds provider says no, and the log blames the key**
+  — raised by the 31 Oct incident. odds-api.io moved Bet365 onto paid plans at 19:00 UTC on
+  26 Oct, and the free key then got `403 {"error":"Bet365 is only available on our paid plans.
+  Upgrade at https://odds-api.io/dashboard"}` on every Bet365 odds request. `odds_api._get`
+  turns every 401/403 into "odds-api.io rejected the API key (403)" and drops the body. The
+  31 Oct round opened at 03:00 UTC and refused every pick with `ODDS_UNAVAILABLE` (16 by
+  10:30) while the card showed cached prices, and nothing told anyone. A `403` never started a
+  hold-off either, so every card load re-asked every stale chunk: between 06:27 and 10:36 UTC
+  the old process spent about 135 requests on refused chunks and 34 on refused picks, close to
+  emptying the 500-a-day plan. The owner switched production to Betfair Sportsbook at 10:36 UTC
+  with no code change. At 11:05 a `429` started the 300-second hold-off and refused 14 more
+  attempts, again silently.
+
+  The provider's reason:
+  - A 401/403 still raises `OddsProviderAuthError`, now carrying the provider's own words: the
+    body's `error` text (or the raw body) with whitespace collapsed, the key masked if the body
+    echoes it, cut to 200 characters. Never the request URL, which carries the key.
+  - When those words name the pinned bookmaker (or say "bookmaker"), it raises a subclass,
+    "bookmaker not on this plan", which also names the bookmaker. Every other 401/403 stays
+    "key rejected", and its message still opens "odds-api.io rejected the API key".
+  - The port names five reasons a pick could not be priced: bookmaker not on this plan, key
+    rejected, rate limited (a `429` or the hold-off), fixture refused (a `400` on its id) and
+    provider error (everything else).
+  - `pick refused: odds unavailable` and `odds refresh failed, serving cached` log the reason
+    and the provider's words as fields of their own, beside the existing `error`.
+
+  The hold-off:
+  - A refused key or a bookmaker not on the plan holds the odds cache off upstream for
+    `ODDS_REFUSED_COOLDOWN_SECONDS` (900, a quarter of an hour), the way a `429` holds it off
+    for five minutes. The refill stops at the first refused chunk rather than asking the rest.
+  - Inside it the card serves its cached prices marked degraded, and a pick is refused with the
+    same typed error and the provider's words without sending a request, so the notice below
+    still names the reason.
+  - It survives a cache invalidation, like the `429` cooldown. A restart clears it, so a fix
+    made through a variable (as on 31 Oct) works at once; a fix made at the provider without a
+    restart (buying the plan) is picked up within the quarter hour.
+  - A refusal that lasts all day costs at most one request per hold-off, 4 an hour and 96 a
+    day, instead of one per chunk on every card load.
+
+  The admin notice:
+  - The first pick refused for odds in an open round tells every site admin, by push and the
+    in-app inbox, which league, why and what the provider said. Once per round per reason: the
+    claim is Batch 213's `notification_sends` row (`odds_unavailable`, `<round id>:<reason>`),
+    so concurrent refusals and redeploys still send it once.
+  - Sent from the refused request itself, so it arrives within seconds. The claim and inbox rows
+    commit first, then the pushes go, then the member gets the `503`, so that member waits for
+    the admins' pushes once (each bounded by the existing 5-second timeout). A later refusal
+    costs one insert that finds the claim taken. A notice that fails is logged, and the member
+    still gets the `503`.
+  - The inbox row hangs on the round's league and links to the admin dashboard. No mute toggle
+    of its own, like the backup and discovery alarms, so no migration and no web change. Global
+    mute, a muted league and quiet hours still apply, as for every notice.
+
+  Verification:
+  - Mock-transport tests, no live call: the recorded 31 Oct body raises the bookmaker error with
+    the provider's words; a key-rejection body (401 and 403) raises the key error; a body that
+    echoes the key is masked; an over-long or HTML body is cut; no message carries the URL or the
+    key; still one request, never retried. Each error maps to its reason.
+  - Both log lines carry the reason and the provider's words.
+  - Cache tests: a refused chunk stops the refill and starts the hold-off; card loads and picks
+    inside it send nothing; the pick gets the typed error with the provider's words; the first
+    call after it asks once; it survives an invalidation; other failures still retry on the
+    next load.
+  - Budget tests (`test_request_budget.py`): the 31 Oct morning replayed against a refusing
+    provider, a card load a minute for four hours and 34 picks, costs at most one request per
+    hold-off; a whole day of it fits the daily limit beside discovery.
+  - Database tests: a refused pick notifies the test's own admins once, with the reason in the
+    copy; a second refusal for the same reason in the same round sends nothing; another reason,
+    or the same reason in another round, sends again; members who are not admins get nothing;
+    a notice that raises still answers `503`.
+
+  Scope boundary: the odds error's reason, the refusal hold-off, the two log lines and the
+  pick-path notice. No change to the `429` hold-off, the browse fallback or the budget limits;
+  no recovery notice, no migration, no web change. **API-only: `/ship-prod` owed after
+  close-out.** Paying for Bet365 stays the owner's decision.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
