@@ -52,7 +52,8 @@ from src.services.competitions import (
 from src.services.gameweek import slate_odds_max_age, upcoming_slate_dates
 from src.services.odds_cache import CachingOddsProvider
 from src.services.odds_pricing import askable, record_observations
-from tests.test_odds_cache import _Clock, _CountingProvider
+from src.services.odds_provider import OddsProviderBookmakerNotOnPlan
+from tests.test_odds_cache import PAID_ONLY, _Clock, _CountingProvider, _paid_only
 from tests.test_odds_pricing import _fixture
 
 HOURLY_LIMIT = 100
@@ -1073,3 +1074,81 @@ def test_the_installation_bucket_still_lets_a_full_league_take_its_picks() -> No
     inside the hour before lock — the same property the per-league bound is held to.
     """
     assert _pick_installation_limits()["hour"] >= LEAGUE_MAX_MEMBERS
+
+
+# ── A refused key or bookmaker (Batch 217) ────────────────────────────────────
+#
+# From 26 Oct, 19:00 UTC odds-api.io refused every Bet365 request with a `403`, and a `403`
+# started no hold-off. Between 06:27 and 10:36 UTC on 31 Oct the old process spent about
+# 135 requests on refused chunks and 34 on refused picks, close to emptying the day.
+
+#: The 31 Oct morning as production logged it: 06:27 to 10:36 UTC, and 34 refused picks.
+OUTAGE_MINUTES = 4 * 60 + 9
+OUTAGE_PICKS = 34
+
+
+def _refused_cache(
+    clock: _Clock, shape: RoundShape
+) -> tuple[CachingOddsProvider, _CountingProvider]:
+    """The production cache in front of a provider that prices the round, until it refuses."""
+    inner = _CountingProvider(priced=set(_priced_event_ids(shape)))
+    cache = CachingOddsProvider(
+        inner,
+        ttl_seconds=FAR_TTL,
+        refused_cooldown_seconds=settings.odds_refused_cooldown_seconds,
+        clock=clock,
+    )
+    return cache, inner
+
+
+async def test_the_31_oct_morning_costs_one_request_per_hold_off(round_shape: RoundShape) -> None:
+    """A card load a minute for four hours and 34 picks, against a provider that says no."""
+    clock = _Clock()
+    cache, inner = _refused_cache(clock, round_shape)
+    fixtures = _round_fixtures(round_shape)
+    picked = _priced_event_ids(round_shape)
+    await _card_load(cache, fixtures, clock, max_age=NEAR_TTL)  # priced before it began
+    clock.advance(NEAR_TTL)  # so every entry is stale when the refusals start
+    before = _sweeps(inner)
+    inner.odds_error = _paid_only()
+
+    picks = 0
+    for minute in range(OUTAGE_MINUTES):
+        await _card_load(cache, fixtures, clock, max_age=NEAR_TTL)
+        if minute % (OUTAGE_MINUTES // OUTAGE_PICKS) == 0 and picks < OUTAGE_PICKS:
+            with pytest.raises(OddsProviderBookmakerNotOnPlan) as refused:
+                await cache.fetch_odds_for_pick(
+                    [picked[picks % len(picked)]],
+                    max_age_seconds=PICK_TTL,
+                    before_upstream=lambda: None,
+                )
+            assert refused.value.provider_said == PAID_ONLY
+            picks += 1
+        clock.advance(60)
+
+    hold_offs = math.ceil(OUTAGE_MINUTES * 60 / settings.odds_refused_cooldown_seconds)
+    spent = _sweeps(inner) - before
+    assert picks == OUTAGE_PICKS
+    assert (
+        spent == hold_offs
+    ), f"the refused morning cost {spent} requests, where one per hold-off is {hold_offs}"
+
+
+async def test_a_whole_day_refused_fits_the_daily_limit_beside_discovery(
+    round_shape: RoundShape,
+) -> None:
+    clock = _Clock()
+    cache, inner = _refused_cache(clock, round_shape)
+    inner.odds_error = _paid_only()
+
+    await _browse_for(
+        cache, clock, _round_fixtures(round_shape), hours=24, max_age=NEAR_TTL, every_seconds=60
+    )
+
+    refused_day = _sweeps(inner)
+    per_hour = 3600 / settings.odds_refused_cooldown_seconds
+    assert refused_day == 24 * per_hour, f"{refused_day} requests, not one per hold-off"
+    assert refused_day + _daily_discovery() <= DAILY_LIMIT, (
+        f"a refused day ({refused_day}) and discovery ({_daily_discovery()}) "
+        f"must fit inside {DAILY_LIMIT}"
+    )

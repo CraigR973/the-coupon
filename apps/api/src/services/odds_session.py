@@ -105,6 +105,9 @@ class OddsProviderSession:
             # process counts against rather than a comment in `config.py`.
             unpriced_ttl_seconds=settings.odds_cache_unpriced_ttl_seconds,
             rate_limited_cooldown_seconds=settings.odds_rate_limited_cooldown_seconds,
+            # Batch 217. A refused key or bookmaker is asked once a quarter hour, not once
+            # per chunk on every card load.
+            refused_cooldown_seconds=settings.odds_refused_cooldown_seconds,
             hourly_request_limit=settings.odds_hourly_request_limit,
             daily_request_limit=settings.odds_daily_request_limit,
             pick_reserve_requests=settings.odds_pick_reserve_requests,

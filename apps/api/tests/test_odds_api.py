@@ -38,10 +38,18 @@ from src.services.odds_api import (
 from src.services.odds_provider import (
     SATURDAY_THREE_PM,
     Market,
+    OddsFailure,
     OddsProviderAPIError,
     OddsProviderAuthError,
+    OddsProviderBadRequest,
+    OddsProviderBookmakerNotOnPlan,
+    OddsProviderError,
+    OddsProviderKeyRejected,
+    OddsProviderRateLimited,
+    OddsProviderRefused,
     Outcome,
     is_void_status,
+    odds_failure,
 )
 
 SATURDAY = date(2026, 8, 8)
@@ -849,3 +857,157 @@ class TestTransport:
         provider = _provider(transport)
         leagues = await provider._all_leagues()
         assert [lg.id for lg in leagues] == [lg["slug"] for lg in LEAGUES]
+
+
+# ── Refusals carry the provider's own words (Batch 217) ───────────────────────
+
+#: What odds-api.io answered every Bet365 odds request with from 26 Oct, 19:00 UTC, as
+#: production logged it on 31 Oct. The free key still worked for everything else.
+BET365_PAID_ONLY = (
+    '{"error":"Bet365 is only available on our paid plans. '
+    'Upgrade at https://odds-api.io/dashboard"}'
+)
+BET365_PAID_ONLY_WORDS = (
+    "Bet365 is only available on our paid plans. Upgrade at https://odds-api.io/dashboard"
+)
+
+
+def _refusing(status_code: int, body: str, record: list[httpx.Request]) -> httpx.MockTransport:
+    """A provider that answers every request with one refusal, recording each request."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        record.append(request)
+        return httpx.Response(status_code, text=body)
+
+    return httpx.MockTransport(handler)
+
+
+class TestRefusals:
+    async def test_the_31_oct_body_is_a_bookmaker_not_on_the_plan(self) -> None:
+        """The words named Bet365; the log said "rejected the API key" and dropped them."""
+        record: list[httpx.Request] = []
+        provider = _provider(_refusing(403, BET365_PAID_ONLY, record))
+
+        with pytest.raises(OddsProviderBookmakerNotOnPlan) as raised:
+            await provider.fetch_odds([AIRDRIE_ID, "72203847"])
+
+        refusal = raised.value
+        assert refusal.provider_said == BET365_PAID_ONLY_WORDS
+        assert refusal.bookmaker == "Bet365"
+        assert str(refusal) == (
+            f"odds-api.io does not offer Bet365 on this plan (403): {BET365_PAID_ONLY_WORDS}"
+        )
+        assert isinstance(refusal, OddsProviderAuthError), "still the type callers catch"
+        assert len(record) == 1, "refused once and never retried"
+
+    @pytest.mark.parametrize("status_code", [401, 403])
+    async def test_a_refused_key_is_still_the_key(self, status_code: int) -> None:
+        record: list[httpx.Request] = []
+        provider = _provider(_refusing(status_code, '{"error":"Invalid API key"}', record))
+
+        with pytest.raises(OddsProviderKeyRejected) as raised:
+            await provider.fetch_odds([AIRDRIE_ID])
+
+        assert raised.value.provider_said == "Invalid API key"
+        assert str(raised.value) == (
+            f"odds-api.io rejected the API key ({status_code}): Invalid API key"
+        )
+        assert len(record) == 1
+
+    async def test_the_rule_follows_the_pinned_bookmaker(self) -> None:
+        """Production prices from Betfair Sportsbook since 31 Oct; the words must follow."""
+        body = '{"error":"Betfair Sportsbook is only available on our paid plans."}'
+        provider = _provider(_refusing(403, body, []), bookmaker="Betfair Sportsbook")
+
+        with pytest.raises(OddsProviderBookmakerNotOnPlan) as raised:
+            await provider.fetch_odds([AIRDRIE_ID])
+
+        assert raised.value.bookmaker == "Betfair Sportsbook"
+
+    async def test_words_that_say_bookmaker_are_the_plan(self) -> None:
+        body = '{"error":"This bookmaker is not included in your plan"}'
+        provider = _provider(_refusing(403, body, []))
+
+        with pytest.raises(OddsProviderBookmakerNotOnPlan):
+            await provider.fetch_odds([AIRDRIE_ID])
+
+    async def test_a_body_that_echoes_the_key_is_masked(self) -> None:
+        provider = _provider(_refusing(401, '{"error":"API key test-key is not valid"}', []))
+
+        with pytest.raises(OddsProviderKeyRejected) as raised:
+            await provider.fetch_odds([AIRDRIE_ID])
+
+        assert raised.value.provider_said == "API key [key] is not valid"
+        assert "test-key" not in str(raised.value)
+
+    async def test_an_html_body_loses_its_markup_and_is_cut(self) -> None:
+        page = (
+            "<html><head><title>403 Forbidden</title></head><body>\n"
+            + "<p>Request blocked.</p>\n" * 40
+            + "</body></html>"
+        )
+        provider = _provider(_refusing(403, page, []))
+
+        with pytest.raises(OddsProviderKeyRejected) as raised:
+            await provider.fetch_odds([AIRDRIE_ID])
+
+        said = raised.value.provider_said
+        assert said.startswith("403 Forbidden Request blocked. Request blocked.")
+        assert "<" not in said and "\n" not in said
+        assert len(said) == 200 and said.endswith("...")
+
+    async def test_an_over_long_error_is_cut_to_200_characters(self) -> None:
+        provider = _provider(_refusing(403, '{"error":"' + "no " * 300 + '"}', []))
+
+        with pytest.raises(OddsProviderKeyRejected) as raised:
+            await provider.fetch_odds([AIRDRIE_ID])
+
+        assert len(raised.value.provider_said) == 200
+
+    async def test_an_empty_body_reads_as_the_key_with_no_words(self) -> None:
+        provider = _provider(_refusing(403, "", []))
+
+        with pytest.raises(OddsProviderKeyRejected) as raised:
+            await provider.fetch_odds([AIRDRIE_ID])
+
+        assert raised.value.provider_said == ""
+        assert str(raised.value) == "odds-api.io rejected the API key (403)"
+
+    @pytest.mark.parametrize(
+        "body",
+        [BET365_PAID_ONLY, '{"error":"Invalid API key test-key"}', ""],
+        ids=["bookmaker", "echoed-key", "empty"],
+    )
+    async def test_no_refusal_carries_the_request_url_or_the_key(self, body: str) -> None:
+        record: list[httpx.Request] = []
+        provider = _provider(_refusing(403, body, record))
+
+        with pytest.raises(OddsProviderRefused) as raised:
+            await provider.fetch_odds([AIRDRIE_ID, "72203847"])
+
+        url = str(record[0].url)
+        assert "apiKey=test-key" in url, "the premise: the key travels in the query string"
+        everything = f"{raised.value} {raised.value!r} {raised.value.provider_said}"
+        assert url not in everything
+        assert "test-key" not in everything and "apiKey" not in everything
+
+
+@pytest.mark.parametrize(
+    ("error", "reason"),
+    [
+        (
+            OddsProviderBookmakerNotOnPlan("plan", bookmaker="Bet365"),
+            OddsFailure.BOOKMAKER_NOT_ON_PLAN,
+        ),
+        (OddsProviderKeyRejected("key"), OddsFailure.KEY_REJECTED),
+        # A Betfair session or a missing key: credentials, though nothing is held off.
+        (OddsProviderAuthError("Not logged in"), OddsFailure.KEY_REJECTED),
+        (OddsProviderRateLimited("429"), OddsFailure.RATE_LIMITED),
+        (OddsProviderBadRequest("400 One or more eventIds not found"), OddsFailure.FIXTURE_REFUSED),
+        (OddsProviderAPIError("503 after 3 retries"), OddsFailure.PROVIDER_ERROR),
+        (OddsProviderError("hourly allowance held for the pick path"), OddsFailure.PROVIDER_ERROR),
+    ],
+    ids=lambda value: value.value if isinstance(value, OddsFailure) else type(value).__name__,
+)
+def test_each_error_names_its_reason(error: OddsProviderError, reason: OddsFailure) -> None:
+    assert odds_failure(error) is reason

@@ -36,6 +36,8 @@ slate), so the UK set is derived from each league's own country and name.
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -57,7 +59,10 @@ from src.services.odds_provider import (
     OddsProviderAPIError,
     OddsProviderAuthError,
     OddsProviderBadRequest,
+    OddsProviderBookmakerNotOnPlan,
+    OddsProviderKeyRejected,
     OddsProviderRateLimited,
+    OddsProviderRefused,
     Outcome,
     OutcomeResult,
     Selection,
@@ -89,6 +94,12 @@ _TIMEOUT = 30.0
 # the budget suite have to convert event counts into request counts without importing
 # this module. The alias stays for the call site below, which reads as a chunk size.
 _MULTI_ODDS_CHUNK = EVENTS_PER_ODDS_REQUEST
+
+# How much of a refusal's body is kept (Batch 217): enough for the provider's own
+# sentence, never a page. The body is the provider's to change, so this bounds what a log
+# line and an admin's phone can be handed whatever comes back.
+_PROVIDER_WORDS_LIMIT = 200
+_MARKUP = re.compile(r"<[^>]*>")
 
 # The four home nations as odds-api.io labels them. Verified against the live catalogue on
 # 2026-08-04: 728 football leagues, none of which carry a ``country`` field, so the country
@@ -660,9 +671,10 @@ class OddsApiProvider(OddsProvider):
         this one function, and a counter anywhere else would see a subset (Batch 160).
 
         Retries the cases where trying again is the right answer — network errors and
-        5xx — with exponential backoff. A ``401``/``403`` is an unusable key and raises
-        immediately rather than burning retries against a rate-limited plan; a ``429``
-        does the same, for the reason spelled out where it is raised.
+        5xx — with exponential backoff. A ``401``/``403`` is a refused key or plan and
+        raises immediately rather than burning retries against a rate-limited plan,
+        carrying the provider's own words (Batch 217, :func:`_refusal`); a ``429`` does
+        the same, for the reason spelled out where it is raised.
 
         ``missing_ok`` turns a ``404`` into ``None`` for lookups where absence is a real
         answer: an event the provider no longer lists simply has no result yet, which
@@ -687,8 +699,11 @@ class OddsApiProvider(OddsProvider):
                 continue
 
             if response.status_code in (401, 403):
-                raise OddsProviderAuthError(
-                    f"odds-api.io rejected the API key ({response.status_code})"
+                raise _refusal(
+                    response.status_code,
+                    response.text,
+                    bookmaker=self._bookmaker,
+                    api_key=self._api_key,
                 )
             if response.status_code == 404 and missing_ok:
                 return None
@@ -746,6 +761,65 @@ class OddsApiProvider(OddsProvider):
         raise OddsProviderAPIError(  # pragma: no cover — loop always returns or raises
             f"odds-api.io {path} exhausted retries"
         )
+
+
+# ── Refusals (Batch 217) ───────────────────────────────────────────────────────
+
+
+def _provider_words(body: str, api_key: str) -> str:
+    """What the provider said in a refusal, fit for a log line and a phone.
+
+    The JSON body's ``error`` text when it carries one, which is the shape odds-api.io
+    answered with on 31 Oct; otherwise the raw body with any markup stripped. Whitespace
+    is collapsed, the key is masked if the body echoes it, and the result is cut to
+    :data:`_PROVIDER_WORDS_LIMIT` characters. Never the request URL: its query string
+    carries the key, which is why nothing here uses ``raise_for_status()``.
+    """
+    words: str | None = None
+    try:
+        decoded = json.loads(body)
+    except ValueError:
+        decoded = None
+    if isinstance(decoded, str):
+        words = decoded
+    elif isinstance(decoded, dict):
+        for key in ("error", "message", "detail"):
+            value = decoded.get(key)
+            if isinstance(value, str) and value.strip():
+                words = value
+                break
+    if words is None:
+        words = _MARKUP.sub(" ", body)
+    if api_key:
+        words = words.replace(api_key, "[key]")
+    words = " ".join(words.split())
+    if len(words) > _PROVIDER_WORDS_LIMIT:
+        words = words[: _PROVIDER_WORDS_LIMIT - 3].rstrip() + "..."
+    return words
+
+
+def _refusal(status_code: int, body: str, *, bookmaker: str, api_key: str) -> OddsProviderRefused:
+    """The typed error for a ``401``/``403``, carrying what the provider said.
+
+    Told apart by the provider's words because the status cannot do it: odds-api.io
+    answers a bookmaker the plan does not include with a ``403``, the same status as a key
+    it refuses. Words that name the pinned bookmaker, or say "bookmaker", mean the plan;
+    anything else, an empty body included, is the key. The key's message still opens
+    "odds-api.io rejected the API key", as it did before the words were kept.
+    """
+    words = _provider_words(body, api_key)
+    folded = words.casefold()
+    wanted = bookmaker.strip().casefold()
+    said = f": {words}" if words else ""
+    if (wanted and wanted in folded) or "bookmaker" in folded:
+        return OddsProviderBookmakerNotOnPlan(
+            f"odds-api.io does not offer {bookmaker} on this plan ({status_code}){said}",
+            provider_said=words,
+            bookmaker=bookmaker,
+        )
+    return OddsProviderKeyRejected(
+        f"odds-api.io rejected the API key ({status_code}){said}", provider_said=words
+    )
 
 
 # ── Response-shape helpers ─────────────────────────────────────────────────────

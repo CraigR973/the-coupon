@@ -68,11 +68,52 @@ EVENTS_PER_ODDS_REQUEST = 10
 
 
 class OddsProviderError(Exception):
-    """Base error for any odds-provider failure."""
+    """Base error for any odds-provider failure.
+
+    ``provider_said`` is the provider's own explanation, when it gave one (Batch 217). On
+    31 Oct odds-api.io answered every Bet365 request with a ``403`` whose body said Bet365
+    had moved to its paid plans, and the log said "rejected the API key": the one sentence
+    that named the cause was dropped at the transport. It is kept apart from the message so
+    a log line and the site admins' notice can each carry it as a field of its own.
+    """
+
+    def __init__(self, *args: object, provider_said: str = "") -> None:
+        super().__init__(*args)
+        self.provider_said = provider_said
 
 
 class OddsProviderAuthError(OddsProviderError):
     """Authentication failed, or an operation was attempted before authenticating."""
+
+
+class OddsProviderRefused(OddsProviderAuthError):
+    """The provider answered ``401``/``403``: it will not serve this key what was asked.
+
+    Batch 217. Separated from its parent because it wants a hold-off and a lapsed Betfair
+    session does not. A re-login fixes the session at once; a refused key or plan stays
+    refused until somebody changes the key, the bookmaker or the plan. So
+    :class:`~src.services.odds_cache.CachingOddsProvider` asks once per hold-off rather than
+    once per chunk on every card load, which on 31 Oct spent about 169 requests between
+    06:27 and 10:36 UTC on the answer *no*.
+    """
+
+
+class OddsProviderKeyRejected(OddsProviderRefused):
+    """A ``401``/``403`` whose words name no bookmaker: the key itself is refused."""
+
+
+class OddsProviderBookmakerNotOnPlan(OddsProviderRefused):
+    """A ``403`` whose words name the pinned bookmaker: the key's plan does not cover it.
+
+    The 31 Oct body was ``{"error":"Bet365 is only available on our paid plans. Upgrade at
+    https://odds-api.io/dashboard"}``. The key still works for everything else, so the fix
+    is another bookmaker or a paid plan, never a new key, which is why the two are told
+    apart.
+    """
+
+    def __init__(self, *args: object, provider_said: str = "", bookmaker: str = "") -> None:
+        super().__init__(*args, provider_said=provider_said)
+        self.bookmaker = bookmaker
 
 
 class OddsProviderAPIError(OddsProviderError):
@@ -110,6 +151,37 @@ class OddsProviderRateLimited(OddsProviderAPIError):
     :class:`~src.services.odds_cache.CachingOddsProvider` holds a short cooldown on this
     type alone, so a rate limit costs one request rather than one per attempt.
     """
+
+
+class OddsFailure(StrEnum):
+    """Why a price could not be had, as one of five answers an admin can act on. Batch 217.
+
+    What the pick refusal's log line, the refill's log line and the site admins' notice
+    name. The words are the port's, not a provider's, so a notice reads the same whichever
+    source is live.
+    """
+
+    BOOKMAKER_NOT_ON_PLAN = "bookmaker_not_on_plan"
+    KEY_REJECTED = "key_rejected"
+    #: A ``429``, or the hold-off one started.
+    RATE_LIMITED = "rate_limited"
+    #: A ``400`` on the fixture's own id: the provider no longer knows it.
+    FIXTURE_REFUSED = "fixture_refused"
+    #: Anything else: a ``5xx``, the network, a body that could not be read.
+    PROVIDER_ERROR = "provider_error"
+
+
+def odds_failure(exc: OddsProviderError) -> OddsFailure:
+    """The reason ``exc`` stands for. The types nest, so the most specific is asked first."""
+    if isinstance(exc, OddsProviderBookmakerNotOnPlan):
+        return OddsFailure.BOOKMAKER_NOT_ON_PLAN
+    if isinstance(exc, OddsProviderAuthError):
+        return OddsFailure.KEY_REJECTED
+    if isinstance(exc, OddsProviderRateLimited):
+        return OddsFailure.RATE_LIMITED
+    if isinstance(exc, OddsProviderBadRequest):
+        return OddsFailure.FIXTURE_REFUSED
+    return OddsFailure.PROVIDER_ERROR
 
 
 # ── Domain models ──────────────────────────────────────────────────────────────

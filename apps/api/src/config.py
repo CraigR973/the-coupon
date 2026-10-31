@@ -149,6 +149,16 @@ class Settings(BaseSettings):
     # prices after the allowance came back.
     odds_rate_limited_cooldown_seconds: int = 300
 
+    # How long a refused key or bookmaker (a `401`/`403`) suppresses upstream odds calls
+    # (Batch 217). On 31 Oct odds-api.io refused every Bet365 request once Bet365 went
+    # paid-only, and with no hold-off every card load re-asked every stale chunk. A refusal
+    # holds until somebody changes the key, the bookmaker or the plan, so this is longer
+    # than the `429` one: a quarter hour costs 4 requests an hour and 96 a day for as long
+    # as the refusal lasts, where five minutes would allow 288 of the 500. A fix made
+    # through a variable restarts the process and clears it at once; a fix made at the
+    # provider (buying the plan) is seen within the quarter hour.
+    odds_refused_cooldown_seconds: int = 900
+
     # The plan, as numbers the process can count against rather than a comment. Nothing
     # counted what had been spent, which is why an exhausted allowance and a five-hour-old
     # card looked identical from outside. These are the free plan's published limits; a

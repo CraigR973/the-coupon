@@ -41,7 +41,7 @@ from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
 from src.models.league import League, PickScope
 from src.models.league_membership import LeagueMemberRole, LeagueMembership
 from src.models.match import Match
-from src.models.notification import PushSubscription
+from src.models.notification import MemberNotification, NotificationSend, PushSubscription
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile, UserRole
 from src.models.team import Team
@@ -71,11 +71,14 @@ from src.services.odds_provider import (
     FixtureOdds,
     Market,
     OddsProviderAPIError,
+    OddsProviderError,
+    OddsProviderRateLimited,
     Outcome,
     Selection,
 )
 from src.services.team_matching import normalise_name
 from tests.season_dates import same_weekday_in_current_season
+from tests.test_odds_cache import PAID_ONLY, _paid_only
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set — Postgres-backed test"
@@ -2526,6 +2529,176 @@ async def test_a_pick_is_refused_rather_than_frozen_at_a_price_we_could_not_conf
             select(func.count()).select_from(Pick).where(Pick.gameweek_id == gameweek.id)
         )
         assert picks.scalar_one() == 0, "nothing was written at an unconfirmed price"
+
+
+# ── Batch 217: the site admins are told why picks are refused ────────────────
+#
+# On 31 Oct every pick was refused from 03:00 UTC and nothing told anybody. The first
+# refusal in a round now tells the site admins which league, why and what the provider
+# said: once per round per reason, claimed in `notification_sends`.
+
+
+class _RefusingOdds(FakeBetfair):
+    """The canned provider, with prices that raise ``refusal`` while it is set."""
+
+    refusal: OddsProviderError | None = None
+
+    async def fetch_odds(
+        self, event_ids: Sequence[str], *, max_age_seconds: float | None = None
+    ) -> list[FixtureOdds]:
+        if self.refusal is not None:
+            raise self.refusal
+        return await super().fetch_odds(event_ids, max_age_seconds=max_age_seconds)
+
+
+async def _site_admin(session: AsyncSession) -> Profile:
+    """A site admin with a phone to push to. Not a member of any league."""
+    admin = Profile(
+        display_name=f"site-{uuid.uuid4().hex[:8]}", pin_hash=hash_pin("1234"), role=UserRole.admin
+    )
+    session.add(admin)
+    await session.flush()
+    session.add(
+        PushSubscription(
+            user_id=admin.id,
+            subscription={
+                "endpoint": f"https://fcm.googleapis.com/push/{admin.id}",
+                "keys": {"auth": "x", "p256dh": "y"},
+            },
+        )
+    )
+    await session.commit()
+    await session.refresh(admin)
+    return admin
+
+
+async def _inbox(user_ids: Sequence[uuid.UUID]) -> list[MemberNotification]:
+    async with AsyncSessionLocal() as session:
+        rows = await session.execute(
+            select(MemberNotification)
+            .where(MemberNotification.user_id.in_(user_ids))
+            .order_by(MemberNotification.created_at, MemberNotification.id)
+        )
+        return list(rows.scalars())
+
+
+async def test_a_refused_pick_tells_the_site_admins_once_per_round_per_reason(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice, bob), league = await _seed_league(session, ["refused", "again"])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        fixtures = await _fixture_ids(session, gameweek.id)
+        admin = await _site_admin(session)
+    epl = fixtures[SAMPLE_EPL_EVENT_ID]
+
+    stub = _RefusingOdds.with_sample_data()
+    stub.refusal = _paid_only()
+    cached = CachingOddsProvider(stub, ttl_seconds=0.0)
+    app.dependency_overrides[get_odds_provider] = lambda: cached
+    try:
+        with (
+            patch.object(settings, "vapid_private_key", "priv"),
+            patch.object(settings, "vapid_public_key", "pub"),
+            patch("src.services.push_notification_service._send_push_sync") as push,
+        ):
+            first = await _submit(client, league.slug, alice, epl, "MATCH_ODDS", "HOME")
+            second = await _submit(client, league.slug, bob, epl, "MATCH_ODDS", "AWAY")
+    finally:
+        app.dependency_overrides[get_odds_provider] = lambda: fake
+
+    assert (first.status_code, second.status_code) == (503, 503)
+    assert first.json()["detail"] == second.json()["detail"] == "ODDS_UNAVAILABLE"
+    # Other modules leave site admins committed, and they are told too; count only ours.
+    to_admin = [
+        call for call in push.call_args_list if call.args[0]["endpoint"].endswith(str(admin.id))
+    ]
+    assert len(to_admin) == 1, "one push for the round's first refusal, none for the second"
+
+    [notice] = await _inbox([admin.id, alice.id, bob.id])
+    assert (notice.user_id, notice.kind, notice.league_id, notice.url) == (
+        admin.id,
+        "odds_unavailable",
+        league.id,
+        "/admin",
+    )
+    assert notice.body == (
+        f"{league.name}: a pick was refused because the odds plan does not include Bet365. "
+        f'The provider said: "{PAID_ONLY}"'
+    )
+
+
+async def test_another_reason_or_another_round_tells_them_again(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["reasons"])
+        (carol,), other = await _seed_league(session, ["elsewhere"])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        other_round = await _open_sample_gameweek(session, fake, other)
+        epl = (await _fixture_ids(session, gameweek.id))[SAMPLE_EPL_EVENT_ID]
+        other_epl = (await _fixture_ids(session, other_round.id))[SAMPLE_EPL_EVENT_ID]
+        admin = await _site_admin(session)
+
+    stub = _RefusingOdds.with_sample_data()
+    cached = CachingOddsProvider(stub, ttl_seconds=0.0)
+    app.dependency_overrides[get_odds_provider] = lambda: cached
+    try:
+        stub.refusal = _paid_only()
+        await _submit(client, league.slug, alice, epl, "MATCH_ODDS", "HOME")
+        stub.refusal = OddsProviderRateLimited("odds-api.io /odds rate-limited (429), not retried")
+        await _submit(client, league.slug, alice, epl, "MATCH_ODDS", "HOME")
+        stub.refusal = _paid_only()
+        await _submit(client, other.slug, carol, other_epl, "MATCH_ODDS", "HOME")
+    finally:
+        app.dependency_overrides[get_odds_provider] = lambda: fake
+
+    told = await _inbox([admin.id])
+    assert [notice.league_id for notice in told] == [league.id, league.id, other.id]
+    assert "does not include Bet365" in told[0].body
+    assert "request allowance is used up" in told[1].body
+    async with AsyncSessionLocal() as session:
+        claims = await session.execute(
+            select(NotificationSend.subject).where(
+                NotificationSend.kind == "odds_unavailable",
+                NotificationSend.subject.like(f"{gameweek.id}:%")
+                | NotificationSend.subject.like(f"{other_round.id}:%"),
+            )
+        )
+        assert set(claims.scalars()) == {
+            f"{gameweek.id}:bookmaker_not_on_plan",
+            f"{gameweek.id}:rate_limited",
+            f"{other_round.id}:bookmaker_not_on_plan",
+        }
+
+
+async def test_a_notice_that_fails_still_answers_503(
+    client_and_fake: tuple[AsyncClient, FakeBetfair],
+) -> None:
+    """The member is owed their answer whatever happens to the admins' notice."""
+    client, fake = client_and_fake
+    async with AsyncSessionLocal() as session:
+        (alice,), league = await _seed_league(session, ["unlucky"])
+        gameweek = await _open_sample_gameweek(session, fake, league)
+        epl = (await _fixture_ids(session, gameweek.id))[SAMPLE_EPL_EVENT_ID]
+
+    stub = _RefusingOdds.with_sample_data()
+    stub.refusal = _paid_only()
+    cached = CachingOddsProvider(stub, ttl_seconds=0.0)
+    app.dependency_overrides[get_odds_provider] = lambda: cached
+    try:
+        with patch(
+            "src.routers.picks.prepare_odds_unavailable_notice",
+            side_effect=RuntimeError("the notice could not be written"),
+        ):
+            refused = await _submit(client, league.slug, alice, epl, "MATCH_ODDS", "HOME")
+    finally:
+        app.dependency_overrides[get_odds_provider] = lambda: fake
+
+    assert refused.status_code == 503
+    assert refused.json()["detail"] == "ODDS_UNAVAILABLE"
 
 
 # ── Batch 57: a malformed id is a client error, not a 500 ────────────────────

@@ -122,6 +122,10 @@ INBOX_KIND_CATEGORY = {
     "monzo_link_recovered": "monzo_link",
     "monzo_approval_due": "monzo_link",
     "payment_recorded": "payments",
+    # Batch 217. A site admins' alarm with no toggle of its own, like the backup and
+    # discovery alarms: no preference mutes its category, so only global mute, a muted
+    # league and quiet hours hold it back.
+    "odds_unavailable": "odds_alarm",
 }
 
 

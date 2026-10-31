@@ -26,6 +26,8 @@ from src.services.odds_provider import (
     Market,
     OddsProvider,
     OddsProviderAPIError,
+    OddsProviderAuthError,
+    OddsProviderBookmakerNotOnPlan,
     OddsProviderError,
     OddsProviderRateLimited,
     Outcome,
@@ -879,3 +881,179 @@ async def test_invalidate_does_not_forget_the_cooldown_or_the_spend() -> None:
     assert cache.budget().rate_limited_for == 300.0
     await cache.fetch_odds_best_effort(["a"])
     assert len(inner.odds_calls) == 1
+
+
+# ── Batch 217: a refused key or bookmaker holds everyone off ─────────────────
+#
+# From 26 Oct, 19:00 UTC odds-api.io refused every Bet365 request with a `403`, and only a
+# `429` held callers off, so every card load re-asked every stale chunk and was told *no*
+# each time: about 135 requests between 06:27 and 10:36 UTC on 31 Oct.
+
+#: Production's hold-off, `ODDS_REFUSED_COOLDOWN_SECONDS`.
+HOLD_OFF = 900.0
+PAID_ONLY = "Bet365 is only available on our paid plans. Upgrade at https://odds-api.io/dashboard"
+
+
+def _paid_only() -> OddsProviderBookmakerNotOnPlan:
+    """The refusal odds-api.io's transport raised for the 31 Oct body."""
+    return OddsProviderBookmakerNotOnPlan(
+        f"odds-api.io does not offer Bet365 on this plan (403): {PAID_ONLY}",
+        provider_said=PAID_ONLY,
+        bookmaker="Bet365",
+    )
+
+
+def _holding_off(inner: OddsProvider, clock: _Clock, *, ttl: float = 300.0) -> CachingOddsProvider:
+    return CachingOddsProvider(
+        inner,
+        ttl_seconds=ttl,
+        refused_cooldown_seconds=HOLD_OFF,
+        hourly_request_limit=100,
+        daily_request_limit=500,
+        clock=clock,
+    )
+
+
+class _Log:
+    """Stands in for a module's logger and keeps every line it is handed."""
+
+    def __init__(self) -> None:
+        self.lines: list[tuple[str, dict[str, object]]] = []
+
+    def _keep(self, event: str, **fields: object) -> None:
+        self.lines.append((event, fields))
+
+    debug = info = warning = error = exception = _keep
+
+    def fields(self, event: str) -> list[dict[str, object]]:
+        return [fields for name, fields in self.lines if name == event]
+
+
+async def test_a_refused_chunk_stops_the_refill_and_starts_the_hold_off() -> None:
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _holding_off(inner, clock)
+    inner.odds_error = _paid_only()
+
+    snapshot = await cache.fetch_odds_best_effort([f"ev{i}" for i in range(25)])
+
+    assert len(inner.odds_calls) == 1, "the first refused chunk, not all three"
+    assert snapshot.degraded is True
+    assert cache.budget().hour_used == 1, "charged for the one request that left"
+
+
+async def test_card_loads_inside_the_hold_off_send_nothing_and_keep_their_prices() -> None:
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _holding_off(inner, clock, ttl=60.0)
+    events = [f"ev{i}" for i in range(25)]
+    await cache.fetch_odds_best_effort(events)  # the card, priced before the outage
+    clock.advance(61)
+    inner.odds_error = _paid_only()
+
+    loads = []
+    for _ in range(14):  # a load a minute for the rest of the quarter hour
+        loads.append(await cache.fetch_odds_best_effort(events))
+        clock.advance(60)
+
+    assert len(inner.odds_calls) == 3 + 1, "the warm sweep, then one refused request"
+    assert all(load.degraded for load in loads), "the card says its prices may be old"
+    assert all(len(load.odds) == 25 for load in loads), "and keeps showing them"
+
+
+async def test_a_pick_inside_the_hold_off_gets_the_providers_words_without_a_request() -> None:
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _holding_off(inner, clock)
+    inner.odds_error = _paid_only()
+    await cache.fetch_odds_best_effort(["a", "b"])
+    clock.advance(600)
+    charges = 0
+
+    def charge() -> None:
+        nonlocal charges
+        charges += 1
+
+    with pytest.raises(OddsProviderBookmakerNotOnPlan) as raised:
+        await cache.fetch_odds_for_pick(["a"], max_age_seconds=60.0, before_upstream=charge)
+
+    assert raised.value.provider_said == PAID_ONLY, "so the admins' notice still names it"
+    assert raised.value.bookmaker == "Bet365"
+    assert "holding off for 300s" in str(raised.value)
+    assert len(inner.odds_calls) == 1 and charges == 0, "no request and no charge"
+
+
+async def test_the_first_call_after_the_hold_off_asks_once() -> None:
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _holding_off(inner, clock)
+    inner.odds_error = _paid_only()
+    await cache.fetch_odds_best_effort(["a"])
+    clock.advance(HOLD_OFF)
+
+    await cache.fetch_odds_best_effort(["a"])  # still refused: asks once, holds off again
+    clock.advance(60)
+    await cache.fetch_odds_best_effort(["a"])
+    assert len(inner.odds_calls) == 2
+
+    clock.advance(HOLD_OFF)
+    inner.odds_error = None  # the bookmaker changed, or the plan was bought
+    recovered = await cache.fetch_odds_best_effort(["a"])
+
+    assert len(inner.odds_calls) == 3
+    assert recovered.degraded is False
+    assert [o.provider_event_id for o in recovered.odds] == ["a"]
+
+
+async def test_the_hold_off_survives_an_invalidation() -> None:
+    """A re-login must not become a way to keep asking a provider that said no."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _holding_off(inner, clock)
+    inner.odds_error = _paid_only()
+    await cache.fetch_odds_best_effort(["a"])
+
+    cache.invalidate()
+    await cache.fetch_odds_best_effort(["a"])
+    with pytest.raises(OddsProviderBookmakerNotOnPlan):
+        await cache.fetch_odds(["a"])
+
+    assert len(inner.odds_calls) == 1
+
+
+async def test_a_lapsed_session_is_not_held_off() -> None:
+    """A re-login fixes a Betfair session at once, so it keeps trying like any blip."""
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _holding_off(inner, clock)
+    inner.odds_error = OddsProviderAuthError("Betfair session expired")
+
+    for _ in range(3):
+        await cache.fetch_odds_best_effort(["a"])
+        clock.advance(1)
+
+    assert len(inner.odds_calls) == 3
+
+
+async def test_the_refill_log_names_the_reason_and_the_providers_words(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recorded = _Log()
+    monkeypatch.setattr("src.services.odds_cache.log", recorded)
+    inner = _CountingProvider()
+    clock = _Clock()
+    cache = _holding_off(inner, clock)
+
+    inner.odds_error = _paid_only()
+    await cache.fetch_odds_best_effort(["a"])
+    clock.advance(HOLD_OFF)
+    inner.odds_error = OddsProviderAPIError("odds-api.io /odds failed with status 503")
+    await cache.fetch_odds_best_effort(["a"])
+
+    refused, failed = recorded.fields("odds refresh failed, serving cached")
+    assert refused["reason"] == "bookmaker_not_on_plan"
+    assert refused["provider_said"] == PAID_ONLY
+    assert refused["holding_off_seconds"] == HOLD_OFF
+    assert failed["reason"] == "provider_error"
+    assert failed["provider_said"] == ""
+    assert "503" in str(failed["error"])

@@ -27,7 +27,7 @@ served a price the endpoint could not confirm.
 
 import asyncio
 import uuid
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Any, TypeVar
@@ -64,7 +64,8 @@ from src.services.notification_triggers import (
     prepare_pick_made_fanout,
     record_prepared_fanout,
 )
-from src.services.odds_provider import OddsProviderError, Selection
+from src.services.odds_notices import prepare_odds_unavailable_notice
+from src.services.odds_provider import OddsProviderError, Selection, odds_failure
 from src.services.round_completion import record_completion
 from src.services.selection_text import selection_summary
 
@@ -371,6 +372,11 @@ async def submit_pick(
         )
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=PICKS_BUSY)
 
+    # Batch 217. A pick refused for odds tells the site admins why, once per round per
+    # reason, before the member is answered.
+    async def tell_admins(exc: OddsProviderError) -> None:
+        await _tell_admins_odds_unavailable(db, league, gameweek, exc)
+
     selection = await _snapshot_selection(
         provider,
         fixture,
@@ -378,6 +384,7 @@ async def submit_pick(
         body.outcome,
         body.odds,
         before_upstream=consume_installation_budget,
+        on_unavailable=tell_admins,
     )
 
     # And again, because the line above left the process. `_snapshot_selection` is an
@@ -695,6 +702,49 @@ async def _run_pick_fanout(
     await _record_fanout(delivered)
 
 
+async def _tell_admins_odds_unavailable(
+    db: AsyncSession, league: League, gameweek: Gameweek, exc: OddsProviderError
+) -> None:
+    """Tell the site admins a pick was refused for odds, once per round per reason.
+
+    Batch 217. The steps Batch 213's notices take, each with its own session: the claim
+    and the inbox rows commit before any push, so a refusal racing this one finds the
+    claim taken and sends nothing, and the pushes go with no connection held. The
+    request's own transaction holds only reads by now and is ended first for the same
+    reason. Never raises: the member is owed their ``503`` whatever happens here.
+    """
+    league_id, league_name, gameweek_id = league.id, league.name, gameweek.id
+    try:
+        await db.commit()
+        async with AsyncSessionLocal() as session:
+            prepared = await prepare_odds_unavailable_notice(
+                session,
+                league_id=league_id,
+                league_name=league_name,
+                gameweek_id=gameweek_id,
+                exc=exc,
+                now=_now(),
+            )
+            await session.commit()
+        if prepared is None:
+            return
+        delivered = await deliver_prepared_fanout(prepared)
+        await _record_fanout(delivered)
+        log.info(
+            "odds unavailable notice sent",
+            league_id=str(league_id),
+            gameweek_id=str(gameweek_id),
+            reason=odds_failure(exc).value,
+            targeted=prepared.targeted,
+        )
+    except Exception:
+        log.exception(
+            "odds unavailable notice failed",
+            league_id=str(league_id),
+            gameweek_id=str(gameweek_id),
+        )
+
+
 async def _run_fanout_safely(
     what: str,
     league_id: uuid.UUID,
@@ -864,6 +914,7 @@ async def _snapshot_selection(
     displayed: Decimal | None = None,
     *,
     before_upstream: Callable[[], None],
+    on_unavailable: Callable[[OddsProviderError], Awaitable[None]],
 ) -> Selection:
     """Fetch the fixture's odds and return the chosen priced selection.
 
@@ -887,6 +938,11 @@ async def _snapshot_selection(
     — it reads the answer the fetch above already returned — which is what makes the
     guarantee independent of the TTLs, and is why this path can go back to being strict
     and fresh instead of holding an hour-long cache to hide the movement.
+
+    ``on_unavailable`` runs before the ``503`` (Batch 217). On 31 Oct this refusal was
+    the only sign of an outage that lasted the whole morning, and it went to a log line
+    that blamed the key; the reason and the provider's words are now fields of that line,
+    and the site admins are told.
     """
     # The one price that gets frozen onto a scored pick, so it buys freshness the
     # browse path cannot afford — but for a single fixture, which is one request.
@@ -900,8 +956,11 @@ async def _snapshot_selection(
         log.warning(
             "pick refused: odds unavailable",
             fixture=fixture.provider_event_id,
+            reason=odds_failure(exc).value,
+            provider_said=exc.provider_said,
             error=repr(exc),
         )
+        await on_unavailable(exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="ODDS_UNAVAILABLE"
         ) from exc

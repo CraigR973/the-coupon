@@ -41,11 +41,19 @@ was exhausted at 08:06 on a match morning with a lock five hours away:
   what reserves a floor of the hour for the pick path, and what widens the browse ceiling
   as the remaining budget falls — so freshness degrades along a slope rather than stopping
   at a cliff nobody can see.
+
+Batch 217 gave a refused key or bookmaker the hold-off a ``429`` already had. On 31 Oct
+odds-api.io moved Bet365 onto its paid plans, every odds request came back ``403``, and
+because only a rate limit held callers off, every card load re-asked every stale chunk:
+about 135 requests on refused chunks between 06:27 and 10:36 UTC, plus 34 refused picks,
+against a 500-a-day plan. A refusal now stops the refill and holds everyone off for a
+quarter hour, so it costs one request per hold-off.
 """
 
 from __future__ import annotations
 
 import asyncio
+import copy
 import math
 import time
 from collections.abc import AsyncIterator, Callable, Collection, Sequence
@@ -64,9 +72,11 @@ from src.services.odds_provider import (
     OddsProviderBadRequest,
     OddsProviderError,
     OddsProviderRateLimited,
+    OddsProviderRefused,
     OddsSnapshot,
     Slate,
     SlateWindow,
+    odds_failure,
 )
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -129,6 +139,11 @@ class CachingOddsProvider(OddsProvider):
     defaults to ``0`` — a refused chunk simply loses its ten their prices, which is the
     isolation this batch is mainly about; the production session passes
     ``ODDS_ISOLATION_REQUESTS`` so the dead id is also recorded rather than re-asked.
+
+    ``refused_cooldown_seconds`` is how long a refused key or bookmaker holds every caller
+    off upstream (Batch 217). It defaults to ``0``, no hold-off, though a refill still stops
+    at the first refused chunk; the production session passes
+    ``ODDS_REFUSED_COOLDOWN_SECONDS``.
     """
 
     def __init__(
@@ -138,6 +153,7 @@ class CachingOddsProvider(OddsProvider):
         ttl_seconds: float,
         unpriced_ttl_seconds: float | None = None,
         rate_limited_cooldown_seconds: float = 0.0,
+        refused_cooldown_seconds: float = 0.0,
         hourly_request_limit: int | None = None,
         daily_request_limit: int | None = None,
         pick_reserve_requests: int = 0,
@@ -149,6 +165,7 @@ class CachingOddsProvider(OddsProvider):
         self._ttl = ttl_seconds
         self._unpriced_ttl = ttl_seconds if unpriced_ttl_seconds is None else unpriced_ttl_seconds
         self._cooldown = rate_limited_cooldown_seconds
+        self._refused_cooldown = refused_cooldown_seconds
         self._hour_limit = hourly_request_limit
         self._day_limit = daily_request_limit
         self._reserve = pick_reserve_requests
@@ -160,6 +177,9 @@ class CachingOddsProvider(OddsProvider):
         #: Monotonic timestamps of upstream odds requests, newest last. Pruned to a day.
         self._spent: list[float] = []
         self._rate_limited_until: float | None = None
+        #: The refusal that started the current hold-off, and when the hold-off ends.
+        self._refusal: OddsProviderRefused | None = None
+        self._refused_until: float | None = None
 
     @property
     def inner(self) -> OddsProvider:
@@ -298,7 +318,7 @@ class CachingOddsProvider(OddsProvider):
                     # is the same shape as Batch 48's fallback and for the same reason.
                     if not best_effort:
                         raise refusal
-                    degraded = isinstance(refusal, OddsProviderRateLimited)
+                    degraded = isinstance(refusal, OddsProviderRateLimited | OddsProviderRefused)
                     log.info(
                         "odds refresh withheld",
                         requested=len(wanted),
@@ -343,13 +363,16 @@ class CachingOddsProvider(OddsProvider):
         The wrapped provider still chunks internally for a caller that hands it more than
         one request's worth directly. Nothing is asked twice: the chunks below are the
         same size it would have used.
+
+        Charged a chunk at a time since Batch 217, as each one is sent, because a refill can
+        now stop part-way: a card of nine chunks refused at the first was charged nine.
         """
-        self._charge(now, len(stale))
         observed: set[str] = set()
         rejected: list[Sequence[str]] = []
         degraded = False
 
         for chunk in self._chunks(stale):
+            self._charge(now, len(chunk))
             try:
                 fetched = await self._inner.fetch_odds(chunk)
             except OddsProviderRateLimited as exc:
@@ -366,6 +389,22 @@ class CachingOddsProvider(OddsProvider):
                 if not best_effort:
                     raise
                 return frozenset(observed), True
+            except OddsProviderRefused as exc:
+                # Batch 217. The key or the plan is refused, and every chunk after this
+                # one would be refused the same way, so stop here and hold every caller
+                # off: nothing a page load can do changes a key or a plan.
+                self._hold_off_refused(now, exc)
+                if not best_effort:
+                    raise
+                log.warning(
+                    "odds refresh failed, serving cached",
+                    stale=len(chunk),
+                    reason=odds_failure(exc).value,
+                    provider_said=exc.provider_said,
+                    holding_off_seconds=self._refused_cooldown,
+                    error=repr(exc),
+                )
+                return frozenset(observed), True
             except OddsProviderBadRequest as exc:
                 if not best_effort:
                     raise
@@ -381,11 +420,15 @@ class CachingOddsProvider(OddsProvider):
                 # The stale entries stay exactly as they are, so the next call tries
                 # upstream again — a provider that recovers is served fresh prices on
                 # the next page load rather than on the next TTL boundary. That reason
-                # holds for a blip and not for a `429`, which is why the branch above
-                # is separate.
+                # holds for a blip and not for a `429` or a refusal, which is why the
+                # branches above are separate.
                 degraded = True
                 log.warning(
-                    "odds refresh failed, serving cached", stale=len(chunk), error=repr(exc)
+                    "odds refresh failed, serving cached",
+                    stale=len(chunk),
+                    reason=odds_failure(exc).value,
+                    provider_said=exc.provider_said,
+                    error=repr(exc),
                 )
                 continue
             self._store(chunk, fetched)
@@ -460,6 +503,16 @@ class CachingOddsProvider(OddsProvider):
                     log.warning(
                         "odds provider rate limited while isolating a rejected chunk",
                         cooldown_seconds=self._cooldown,
+                        error=repr(exc),
+                    )
+                    return observed, True
+                except OddsProviderRefused as exc:
+                    self._hold_off_refused(now, exc)
+                    log.warning(
+                        "odds provider refused while isolating a rejected chunk",
+                        reason=odds_failure(exc).value,
+                        provider_said=exc.provider_said,
+                        holding_off_seconds=self._refused_cooldown,
                         error=repr(exc),
                     )
                     return observed, True
@@ -558,11 +611,19 @@ class CachingOddsProvider(OddsProvider):
         )
 
     def _prune(self, now: float) -> None:
-        """Drop spend older than a day, and a cooldown that has expired."""
+        """Drop spend older than a day, and a cooldown or hold-off that has expired."""
         if self._spent and now - self._spent[0] >= _DAY:
             self._spent = [sent for sent in self._spent if now - sent < _DAY]
         if self._rate_limited_until is not None and now >= self._rate_limited_until:
             self._rate_limited_until = None
+        if self._refused_until is not None and now >= self._refused_until:
+            self._refused_until = None
+            self._refusal = None
+
+    def _hold_off_refused(self, now: float, exc: OddsProviderRefused) -> None:
+        """Hold every caller off upstream after a refused key or bookmaker. Batch 217."""
+        self._refusal = exc
+        self._refused_until = now + self._refused_cooldown
 
     def _charge(self, now: float, events: int) -> None:
         """Record what asking about ``events`` events costs, in *requests*."""
@@ -609,12 +670,25 @@ class CachingOddsProvider(OddsProvider):
     def _refuse_upstream(self, now: float, *, for_pick: bool) -> OddsProviderError | None:
         """Why this call must not go upstream, or ``None`` if it may.
 
-        Two reasons, and they bind differently on purpose. A ``429`` cooldown holds
-        everybody, because the budget is gone and the pick path cannot conjure one — it is
-        told so without spending another request on the same answer. The pick reserve
-        holds *browsing* only: it exists precisely so the action with a deadline still has
-        an allowance when a card someone left open has spent the rest of the hour.
+        Three reasons, and they bind differently on purpose. A refusal's hold-off (Batch
+        217) and a ``429`` cooldown hold everybody, because the key, the plan or the budget
+        is gone and the pick path cannot conjure one — it is told so without spending
+        another request on the same answer. The pick reserve holds *browsing* only: it
+        exists precisely so the action with a deadline still has an allowance when a card
+        someone left open has spent the rest of the hour.
+
+        Inside a refusal's hold-off the caller gets a copy of the refusal itself, type and
+        provider's words included, so the pick refused at minute ten names the same reason
+        as the one refused at minute one.
         """
+        if (
+            self._refusal is not None
+            and self._refused_until is not None
+            and now < self._refused_until
+        ):
+            again = copy.copy(self._refusal)
+            again.args = (f"{self._refusal}; holding off for {self._refused_until - now:.0f}s",)
+            return again
         if self._rate_limited_until is not None and now < self._rate_limited_until:
             return OddsProviderRateLimited(
                 f"odds provider rate-limited, holding off for "
@@ -634,8 +708,9 @@ class CachingOddsProvider(OddsProvider):
     def invalidate(self) -> None:
         """Drop every cached entry — used when a session is re-established.
 
-        The spend counters and the cooldown deliberately survive: the plan does not
-        forget what this process spent just because the session was rebuilt, and a
-        re-login inside a ``429`` cooldown must not become a way to keep asking.
+        The spend counters, the cooldown and a refusal's hold-off deliberately survive: the
+        plan does not forget what this process spent just because the session was rebuilt,
+        and a re-login inside a ``429`` cooldown or a refusal must not become a way to keep
+        asking.
         """
         self._entries.clear()
