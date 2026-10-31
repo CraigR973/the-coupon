@@ -1479,7 +1479,7 @@ owner on launch day, 2026-10-17.
   dues or the API. **API-only (payments service): `/ship-prod` owed after close-out.** Until it
   ships, the owner records their own £1 by hand.
 
-- [ ] **Batch 217 — Picks are refused for hours when the odds provider says no, and the log blames the key**
+- [x] **Batch 217 — Picks are refused for hours when the odds provider says no, and the log blames the key** ✅ 2026-10-31
   — raised by the 31 Oct incident. odds-api.io moved Bet365 onto paid plans at 19:00 UTC on
   26 Oct, and the free key then got `403 {"error":"Bet365 is only available on our paid plans.
   Upgrade at https://odds-api.io/dashboard"}` on every Bet365 odds request. `odds_api._get`

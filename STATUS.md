@@ -167,7 +167,8 @@ the refused webhook re-reads logged, migration `031` — is complete and shipped
 `bbedccf`) and shipped (25 Oct, as `b7a4d72`). Batch 215 — why Monzo refuses every webhook
 re-read — is open. Batch 217 — the odds provider's own reason on a refused request, a
 quarter-hour hold-off after a refused key or bookmaker, and a notice to site admins when picks
-are refused for odds — is open (owner, 31 Oct).
+are refused for odds — is complete (31 Oct, `4d28412`) and not shipped; its `/ship-prod` is
+owed and is the owner's to schedule.
 
 ## Toolchain
 
@@ -212,6 +213,7 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** the owner's next move into the pot (Sat 31 Oct) confirms the booking; then Batch
-215. The season-calendar backfill remains owner-gated,
+**Next:** `/ship-prod` for Batch 217 when the owner schedules it, never in the hours before a
+lock (the restart empties the odds budget counter); the owner's next move into the pot (Sat 31
+Oct) confirms the booking; then Batch 215. The season-calendar backfill remains owner-gated,
 unblocked since 4 Oct.

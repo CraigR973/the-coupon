@@ -9053,3 +9053,20 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - **Recovery:** no migration, so `10e37f4a` / `fabe2608` remain valid rollback targets.
 
 **Next:** the owner's next move into the pot (Sat 31 Oct) confirms the booking; Batch 215 after.
+
+## Batch 217 — Picks are refused for hours when the odds provider says no, and the log blames the key
+**Commits:** `170ec93`, `4d28412` · verified: complete 12-check local gate, 1,632 backend and 1,414 frontend tests, journey 1, zero skips · CI: https://github.com/CraigR973/the-coupon/actions/runs/41228430404 PASS for `4d284120d2e249afa709ef2a0f824f7c0cc36d6f`
+
+### Key facts for future sessions
+- odds-api.io's `401`/`403` raises `OddsProviderRefused` carrying `provider_said` (the body's `error` text, key masked, at most 200 characters, never the URL): `OddsProviderBookmakerNotOnPlan` when the words name the pinned bookmaker or say "bookmaker", otherwise `OddsProviderKeyRejected`, whose message still opens "odds-api.io rejected the API key". `odds_failure()` names one of five reasons, logged as `reason` and `provider_said` on `pick refused: odds unavailable` and `odds refresh failed, serving cached`.
+- A refusal stops the refill at the first refused chunk and holds every caller off for `ODDS_REFUSED_COOLDOWN_SECONDS` (900): the card serves cached prices marked degraded, and a pick gets a copy of the refusal without a request. It survives `invalidate()`; a restart clears it; a plain `OddsProviderAuthError` (a lapsed Betfair session) is not held off. The refill is now charged chunk by chunk as each is sent, so one a `429` or a refusal stops is charged for what left. The admin dashboard's hold-off line still shows the `429` cooldown only.
+- The first pick refused for odds in an open round sends `odds_unavailable` ("A pick was refused: no odds") to every site admin, by push and the inbox under the round's league, linking `/admin`, claimed in `notification_sends` as `<round id>:<reason>`. It runs inline on the refused request after ending that request's read transaction, and never raises; its inbox category `odds_alarm` has no mute toggle.
+- Replayed against the recorded 31 Oct body, the morning (06:27–10:36 UTC, a card load a minute, 34 picks) costs 17 requests where the day spent about 169, and a whole refused day costs 96.
+- Gate: attempt 1 passed all 12 checks at load 2.5; no failure to fix. No assertion changed; only tests were added and two test import lines widened.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+### Follow-ups
+- `/ship-prod` for Batch 217 is owed; the owner schedules it, never in the hours before a lock (the next is 7 Nov, 14:30 UTC), because the restart also empties the odds budget counter.
+- Batch 215 (open row): why Monzo refuses every webhook re-read.
+
+**Next:** `/ship-prod` for Batch 217 when the owner schedules it; then Batch 215.
