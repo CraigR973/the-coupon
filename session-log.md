@@ -9087,3 +9087,14 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - Batch 215 (open row): why Monzo refuses every webhook re-read.
 
 **Next:** `/ship-prod` for Batch 217 tonight; then Batch 215.
+
+## Shipment — 2026-11-07, `0d00825` (Batch 217, with Batch 218's web half; no migration)
+**Railway:** API `1da6cb79-5e98-4b11-bfe9-67e3e9f1cc4e` and payments `2be8c8ea-7bdd-425b-8d59-8a5958b1511b` `SUCCESS` · IaC applied with redeploys `3a4a68bc` / `8999e0e9` of the previous images (the rollback baselines) · Vercel no-op (`dpl_4hZoKDKWB4qSPHXKeJ2aH8JmgCQK`, `0d00825`) · drift **in sync** for both · exact-SHA CI `42396353125` and `42397218255` green · gate tree `24a0eae`
+
+### Key facts for future sessions
+- **Two restarts, not one.** The IaC plan now changes `payments` too (4 changes, all null-to-default), and applying it redeployed both previous images at 19:01 before the 19:04 upload. Each restart empties the odds budget counter, so time a shipment for both.
+- **The close-out stamp did not carry over.** Batch 218's stamp lived in its worktree's git dir, which close-out deleted, so the shipment reran the full gate on `main`. Attempt 1 failed only the deep-link smoke on a port-4173 clash with another project's e2e preview.
+- **Recovery:** no migration, so `3a4a68bc` / `8999e0e9` remain valid rollback targets.
+
+**Next:** the owner's next move into the pot confirms the booking; Batch 215 after.
+

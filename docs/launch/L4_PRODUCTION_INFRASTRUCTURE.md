@@ -4160,3 +4160,45 @@ event, so its one pick stayed pending and the 24 Oct round could not settle by i
 
 Rollback: a pick's result can be corrected through the admin correction path (Batch 187),
 which audits it. Backup/restore-point identity: **none yet**.
+
+### 2026-11-07 — `0d00825`, Batch 217 (no migration)
+
+The owner instructed it in chat (Craig Robinson, "Ship 217 now", shortly before 17:57 UTC),
+having scheduled it at 17:26 UTC for that evening, after the 7 Nov lock. It also carries
+Batch 218, whose web half was already live; the API half of 218 is nothing.
+
+Timing: after the 14:30 lock, and between the 18:05 and 20:05 settlement sweeps. The 18:05
+sweep settled nothing (the 7 Nov round still had 12 pending picks), and no round locks within
+three hours, so the 19:15 pick reminders had nothing to send during the overlap. The next lock
+is `yer-leagues-a-joke` on Fri 13 Nov, 17:30 UTC.
+
+Preflight: Railway targets matched the recorded project, environment, both services and both
+domains, `railwayConfigFile` was null on both, and every required variable was present by name
+on each service, with no `MONZO_*` name on `api` and none of the API's credentials on
+`payments`. `DATABASE_URL` names `pugujiiojitstkilphrz` on both. Vercel held the two encrypted
+production variables, and its stable alias was already `READY` at `0d00825`
+(`dpl_4hZoKDKWB4qSPHXKeJ2aH8JmgCQK`), so the web step was a no-op. The migration-recovery
+check passed with production and the repository both at `031`.
+
+Source: `scripts/ci-local.sh` on clean `main`. Attempt 1 failed only the prod-bundle deep-link
+smoke, `Port 4173 is already in use`: another project's e2e preview held the port. Attempt 2
+passed all 12 checks (1,632 backend, 1,418 frontend, journey 1, no skips) and stamped tree
+`24a0eae`. Exact-SHA GitHub Actions runs `42396353125` (`2fa77bd`) and `42397218255`
+(`0d00825`) passed.
+
+The pinned IaC plan reported 0 to add, 4 to change and 0 to destroy: the same null-to-default
+fields as before (Nixpacks config path, one replica, restart policy, sleep), now on `api` and
+`payments`. Applying it created redeploys of the previous images, API
+`3a4a68bc-3551-4a38-8483-cba7615cef04` and payments `8999e0e9-ff84-4cfc-b851-f12b4f2f9019`.
+Both reached `SUCCESS` before the upload and are this shipment's rollback baselines.
+
+- **API** `1da6cb79-5e98-4b11-bfe9-67e3e9f1cc4e`, `SUCCESS` at 19:04:50. `/health` `200`, SHA `0d00825`, migration `031`; `/health/ready` `200`, `db: ok`, `031`. Manifest: one replica in `europe-west4-drams3a`, sleep off, restart `ON_FAILURE`, healthcheck `/api/v1/health/ready` at 300 seconds, IPv6 egress on, Nixpacks, 0.25 vCPU / 500 MB. Boot log: 48 lines through 19:07:39, the scheduler with its 14 jobs, no failure term, no leak pattern, five `200`s.
+- **Payments** `2be8c8ea-7bdd-425b-8d59-8a5958b1511b`, `SUCCESS` at 19:07:19. `/health` `200` (`service: payments`, `0d00825`, `031`); `/health/ready` `200`, `db: ok`, `031`. Boot log clean.
+- **Drift:** in sync for both services.
+- **Smoke:** the web root and `/leagues/2-1-hibs/standings` answered `200` with the same SPA asset and the committed security headers; an `OPTIONS` preflight from the stable origin answered `200` with that origin and credentials allowed.
+- **Database:** RLS forced on 27 of 27 tables; no table grants and no schema usage for `anon`, `authenticated` or `PUBLIC`; head `031`.
+
+The restarts at 19:01 and 19:04 emptied the odds budget counter, clear of any lock.
+Backup/restore-point identity: **none yet**. No migration was applied, so `3a4a68bc` and
+`8999e0e9` remain valid rollback targets.
+
