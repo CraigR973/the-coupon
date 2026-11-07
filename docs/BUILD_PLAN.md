@@ -1555,6 +1555,33 @@ owner on launch day, 2026-10-17.
   no recovery notice, no migration, no web change. **API-only: `/ship-prod` owed after
   close-out.** Paying for Bet365 stays the owner's decision.
 
+- [ ] **Batch 218 — "Take the new price" re-sends the old one, so a moved price can never be taken**
+  — raised by the owner on 7 Nov. Batch 114 refuses a pick whose price moved with
+  `409 PRICE_MOVED:<new price>`, and the toast offers "Take <new price>". That button re-sends
+  the original body, which still carries the price the card showed, so the API refuses it again
+  with the same `409`, every time. The card is not re-read either, so tapping the selection
+  again sends the old price too. Each try counts against the member's 10 submissions an hour,
+  and the eleventh gets the rate limiter's `429`, which has no `detail`, so the app shows
+  "API error 429". On 7 Nov two members were caught: one at 06:58 UTC (1.17 to 1.18, nine
+  refusals, then the `429`) and one at 11:53 (2.50 to 2.63, ten refusals, then the `429`). Each
+  then could not pick for up to an hour, and every futile try spent the league's 50-an-hour,
+  100-a-day submission budget.
+
+  - "Take <new price>" sends the price it names. A price the app cannot read offers no button,
+    because a missing price skips the API's check and would freeze a number the member never
+    saw.
+  - A `PRICE_MOVED` refusal re-reads the round, so the card draws the price the API now has (the
+    pick-time fetch refreshed that fixture's cached entry), and tapping the card works as well.
+  - A `429` from the pick route that is not `PICKS_BUSY` is the member's own hourly limit, and
+    says so: the pick was not saved, and they can try again later.
+
+  Tests (`usePickEditor.test.tsx`): the retake sends the named price; the refusal re-reads the
+  round; an unreadable price offers no button; the member's own `429` reads as its own refusal
+  while `PICKS_BUSY` keeps its copy.
+
+  Scope boundary: the web pick editor only. No API change, so the 10-an-hour limit and what
+  counts against it stay as they are. **Web-only.**
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
