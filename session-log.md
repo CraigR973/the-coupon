@@ -9070,3 +9070,20 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 - Batch 215 (open row): why Monzo refuses every webhook re-read.
 
 **Next:** `/ship-prod` for Batch 217 when the owner schedules it; then Batch 215.
+
+## Batch 218 — "Take the new price" re-sends the old one, so a moved price can never be taken
+**Commits:** `b7a448f`, `2fa77bd` · verified: complete 12-check local gate, 1,632 backend and 1,418 frontend tests, journey 1, zero skips · CI: https://github.com/CraigR973/the-coupon/actions/runs/42396353125 PASS for `2fa77bd8a9fda7bc3469e3abdb5be26b19a81e98`
+
+### Key facts for future sessions
+- The retake button re-sent the original body, whose `odds` was the card's price, so every tap got the same `409 PRICE_MOVED`. It now sends `{ ...body, odds: <named price> }`. The old test checked the re-sent body with `toMatchObject` on fixture, market and outcome only, which is how the stale `odds` got through.
+- A `PRICE_MOVED` refusal now re-reads the round, as `PAYMENT_REQUIRED` does. Browse and pick reads share `CachingOddsProvider._entries`, so the re-read card draws the price the pick-time fetch just stored.
+- The rate limiter's `429` has no `detail` (slowapi answers `{"error": ...}`), so `apiFetch` falls back to "API error 429". The hook maps any pick-route `429` that is not `PICKS_BUSY` to the client-side code `TOO_MANY_TRIES`.
+- The member's `10/hour` pick window starts at their first counted try, not on the hour (slowapi's in-memory store under `limits` 5.8.0), and refused tries count. On 7 Nov the 11:53 member was refused again at 12:16 and 12:17 and picked at 12:56.
+- Gate: attempt 1 passed all 12 checks at load 13–21 (another project's vitest running); no failure to fix. No assertion changed or removed: one assertion added to the existing retake test, plus three tests and one table row. The owner's answer to the shipment question arrived at 17:26 UTC, after the 14:30 lock, so the fix did not reach members for the 7 Nov round.
+- **Close-out safety:** PASS — web-only over existing API debt; shipment scheduled by Craig Robinson at 2026-11-07T17:26:25Z; pre-push /ship-prod debt present; /ship-prod owed immediately after push
+
+### Follow-ups
+- `/ship-prod` for Batch 217, scheduled by the owner at 17:26 UTC on 7 Nov for that evening, after the lock.
+- Batch 215 (open row): why Monzo refuses every webhook re-read.
+
+**Next:** `/ship-prod` for Batch 217 tonight; then Batch 215.

@@ -1555,7 +1555,7 @@ owner on launch day, 2026-10-17.
   no recovery notice, no migration, no web change. **API-only: `/ship-prod` owed after
   close-out.** Paying for Bet365 stays the owner's decision.
 
-- [ ] **Batch 218 — "Take the new price" re-sends the old one, so a moved price can never be taken**
+- [x] **Batch 218 — "Take the new price" re-sends the old one, so a moved price can never be taken** ✅ 2026-11-07
   — raised by the owner on 7 Nov. Batch 114 refuses a pick whose price moved with
   `409 PRICE_MOVED:<new price>`, and the toast offers "Take <new price>". That button re-sends
   the original body, which still carries the price the card showed, so the API refuses it again

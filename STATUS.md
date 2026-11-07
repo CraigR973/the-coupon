@@ -16,7 +16,7 @@ Checked 2026-10-10 unless a line says otherwise.
 | API | `api-production-109b1.up.railway.app` serves `b7a4d72` (through Batch 216) at migration `031` (25 Oct) |
 | API deployment | Railway `205b3765-b52e-443f-8923-15e0e371834c` succeeded, a variable-only redeploy of the same `b7a4d72` image for the bookmaker switch (31 Oct); one replica, `europe-west4` (25 Oct) |
 | Payments | `payments-production-0aa1.up.railway.app` serves `b7a4d72` at `031`, Railway `d2ba459a-ecfe-483e-bb25-7ba55c0a6bc1`, one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read, because every webhook re-read is refused; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
-| Web | Batch 202's build (Vite 8, Tailwind 4) is live at `the-coupon-production.vercel.app` from `628aa0a` (2026-10-11: its stylesheet served, sign-in rendered at 390 and 1280 px with no console errors). Later documentation-only deployments leave the web code unchanged. |
+| Web | Batch 218's build is live at `the-coupon-production.vercel.app` from `2fa77bd` (7 Nov: Vercel's production deployment `dpl_9EHN8Tw25XjR8sGmQRstv1ysyj5v` reports that commit, and the served pick-editor chunk carries Batch 218's copy). Batch 202 (Vite 8, Tailwind 4) is the last toolchain change. |
 | Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 27 of 27 tables, no public-role grants (25 Oct) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by **Betfair Sportsbook** since 10:36 UTC on 31 Oct (ADR 0002's 31 Oct amendment). Bet365 has been paid-only since 26 Oct, 19:00 UTC, and a free key gets a 403. Free key: 100 requests/hour and 500/day for the whole deployment. On the 31 Oct card it priced 78 of 85 fixtures, none in the Highland League (31 Oct). The owner chose to keep it rather than pay £49/mo for Bet365 (31 Oct) |
@@ -34,6 +34,10 @@ Checked 2026-10-10 unless a line says otherwise.
   readiness report `028`, drift is in sync, and the read-only audit found RLS forced on all
   24 tables with no `anon`, `authenticated` or `PUBLIC` table or schema grants. The web alias
   is Ready on the same SHA. Pay to pick is inert until a site admin sets a league's fee.
+- **Batch 218 is live on the web** (7 Nov, `2fa77bd`, web-only). "Take <new price>" now sends
+  that price, a moved price re-reads the round, and the member's own hourly pick limit is named
+  instead of "API error 429". It went out at 17:27 UTC, after the 7 Nov lock: two members lost
+  up to an hour of picking to the dead button that morning (06:58 and 11:53 UTC).
 - **Batch 206 is live on the web** (13 Oct, `32a8aef`, web-only, exact-SHA CI green): the pay
   panel, the season pot, the site-admin fee fields and the Payments screen. No league has a
   fee, so no member sees any of it yet.
@@ -167,8 +171,9 @@ the refused webhook re-reads logged, migration `031` — is complete and shipped
 `bbedccf`) and shipped (25 Oct, as `b7a4d72`). Batch 215 — why Monzo refuses every webhook
 re-read — is open. Batch 217 — the odds provider's own reason on a refused request, a
 quarter-hour hold-off after a refused key or bookmaker, and a notice to site admins when picks
-are refused for odds — is complete (31 Oct, `4d28412`) and not shipped; its `/ship-prod` is
-owed and is the owner's to schedule.
+are refused for odds — is complete (31 Oct, `4d28412`) and not shipped; the owner scheduled its
+`/ship-prod` at 17:26 UTC on 7 Nov, for that evening after the lock. Batch 218 — "Take the new
+price" sends the price it names — is complete and live on the web (7 Nov, `2fa77bd`, web-only).
 
 ## Toolchain
 
@@ -213,7 +218,7 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** `/ship-prod` for Batch 217 when the owner schedules it, never in the hours before a
-lock (the restart empties the odds budget counter); the owner's next move into the pot (Sat 31
-Oct) confirms the booking; then Batch 215. The season-calendar backfill remains owner-gated,
+**Next:** `/ship-prod` for Batch 217, scheduled by the owner for the evening of 7 Nov after the
+lock, and never in the hours before one (the restart empties the odds budget counter); the
+owner's next move into the pot confirms the booking; then Batch 215. The season-calendar backfill remains owner-gated,
 unblocked since 4 Oct.
