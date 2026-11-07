@@ -56,6 +56,17 @@ export const PRICE_MOVED = 'PRICE_MOVED';
 export const PAYMENT_REQUIRED = 'PAYMENT_REQUIRED';
 
 /**
+ * The refusal a member gets for their own hourly allowance of submissions, the API's
+ * `PICK_SUBMIT_LIMIT` (Batch 218).
+ *
+ * Not a code the API sends. The rate limiter answers `429` with no `detail`, so `ApiError`
+ * carries only its fallback text and the member was shown "API error 429". The league's
+ * budget answers `429` too, but names itself `PICKS_BUSY`, so any other `429` from the pick
+ * route is this one.
+ */
+export const TOO_MANY_TRIES = 'TOO_MANY_TRIES';
+
+/**
  * What a refusal is, beyond its sentence.
  *
  * Batch 139. The app had 57 error toasts, 44 success, two informational and zero
@@ -139,6 +150,8 @@ export function pickErrorMessage(detail: string): string {
       return 'Too many picks are being made in your league right now. Try again in a few minutes.';
     case PAYMENT_REQUIRED:
       return 'This league asks you to be paid up before you pick. What you owe is shown above the fixtures.';
+    case TOO_MANY_TRIES:
+      return 'You have tried too many times this hour. Wait a while, then try again.';
     default:
       // Batch 114. `PRICE_MOVED:<price>` — the code alone is not an answer, because what
       // the member has to decide is whether to take the *new* number, and they cannot
@@ -167,6 +180,7 @@ export function pickToastTitle(detail: string): string {
     case 'ODDS_UNAVAILABLE':
       return 'Prices are unavailable';
     case 'PICKS_BUSY':
+    case TOO_MANY_TRIES:
       return 'Your pick was not saved';
     case PAYMENT_REQUIRED:
       return 'Pay to pick';
@@ -424,10 +438,15 @@ export function usePickEditor(
       // pick did not land and they know exactly why, so nothing is held.
       if (err instanceof ApiError) {
         hold(null);
-        const refusal = pickRefusal(err.message);
+        const refusal = pickRefusal(refusalDetail(err));
         // The slate carries what the member owes. Re-read it so the pay panel shows the
         // amount the server just refused on, not whatever the screen last fetched.
-        if (err.message === PAYMENT_REQUIRED) invalidate();
+        //
+        // And the price the card draws (Batch 218). After a moved price the card still
+        // shows the old number, and tapping it would send that number again and be refused
+        // again. The fetch that refused it refreshed the fixture's cached price, so the
+        // re-read draws the one the toast names.
+        if (err.message === PAYMENT_REQUIRED || refusal.action === 'retake-price') invalidate();
         const notify = refusal.tone === 'warning' ? toast.warning : toast.error;
         notify(refusal.title, {
           description: refusal.message,
@@ -544,18 +563,31 @@ function actionFor(
       // The claim that just failed is still drawn as available, which is precisely
       // what makes a member tap it a second time. Refetching the slate greys it out.
       return { action: { label: 'Refresh the card', onClick: invalidate } };
-    case 'retake-price':
+    case 'retake-price': {
       // One tap on the number the server actually has. The sentence still says the
       // card works too, because it does.
+      //
+      // Sent *with* that number (Batch 218). Re-sending the original body sent the old
+      // price, which the API refused with this same answer on every tap until the
+      // member's hourly limit ran out. A price that does not read as one gets no button:
+      // a missing price skips the API's check and would freeze a number nobody saw.
+      const odds = Number(refusal.price);
+      if (!Number.isFinite(odds) || odds <= 0) return undefined;
       return {
         action: {
           label: `Take ${refusal.price}`,
-          onClick: () => sendRef.current(body),
+          onClick: () => sendRef.current({ ...body, odds }),
         },
       };
+    }
     default:
       return undefined;
   }
+}
+
+/** The refusal code an `ApiError` stands for: its `detail`, or the one a bare `429` lacks. */
+function refusalDetail(err: ApiError): string {
+  return err.status === 429 && err.message !== 'PICKS_BUSY' ? TOO_MANY_TRIES : err.message;
 }
 
 function keyFor(body: SubmitPickBody): string {

@@ -448,6 +448,8 @@ describe('pickRefusal', () => {
     ['PICKS_LOCKED', 'error', undefined],
     ['PICKS_NOT_OPEN', 'error', undefined],
     ['SELECTION_NOT_AVAILABLE', 'error', undefined],
+    // Batch 218. The member's own hourly limit: nothing they tap changes it either.
+    ['TOO_MANY_TRIES', 'error', undefined],
     ['', 'error', undefined],
   ])('reads %s as a %s', (detail, tone, action) => {
     const refusal = pickRefusal(detail);
@@ -512,6 +514,68 @@ describe('the action a refusal carries', () => {
     // Re-sent as the member last asked for it — same fixture, same selection.
     const body = JSON.parse((submits()[0][1] as { body: string }).body) as Record<string, unknown>;
     expect(body).toMatchObject({ fixture_id: 'fx1', market: 'MATCH_ODDS', outcome: 'HOME' });
+    // At the price the button named (Batch 218). The card's 3.4 was refused with this same
+    // answer on every tap, until the member's hourly limit ran out.
+    expect(body.odds).toBe(3.5);
+  });
+
+  it('re-reads the round when the price moved, so the card draws the new price', async () => {
+    mockApiFetch.mockRejectedValue(new ApiError(409, 'PRICE_MOVED:3.50'));
+    const client = makeClient();
+    const invalidated: unknown[][] = [];
+    vi.spyOn(client, 'invalidateQueries').mockImplementation((...args: unknown[]) => {
+      invalidated.push(args);
+      return Promise.resolve();
+    });
+    const { result } = renderHook(() => usePickEditor('test-league', 'gw1'), {
+      wrapper: wrapperWith(client),
+    });
+
+    act(() => {
+      result.current.submit('fx1', 'MATCH_ODDS', 'HOME', 3.4);
+    });
+    await waitFor(() => expect(mockToast.warning).toHaveBeenCalled());
+
+    // Before the member taps anything. The card still drew 3.4, and tapping it there
+    // would send 3.4 again and be refused again.
+    expect(invalidated.map(([options]) => (options as { queryKey: unknown[] }).queryKey[0])).toEqual(
+      expect.arrayContaining(['gameweek', 'coupon']),
+    );
+    expect(submits()).toHaveLength(1);
+  });
+
+  it('offers no button for a moved price it cannot read', async () => {
+    mockApiFetch.mockRejectedValue(new ApiError(409, 'PRICE_MOVED:'));
+    const { result } = renderHook(() => usePickEditor('test-league', 'gw1'), { wrapper });
+
+    act(() => {
+      result.current.submit('fx1', 'MATCH_ODDS', 'HOME', 3.4);
+    });
+    await waitFor(() => expect(mockToast.warning).toHaveBeenCalled());
+
+    // A price that is not a number would reach the API as no price at all, which skips its
+    // check and freezes whatever it has: a number the member never saw.
+    expect(actionOf(warningToasts().at(-1))).toBeUndefined();
+  });
+
+  it('names the member’s own hourly limit rather than "API error 429"', async () => {
+    // The rate limiter's answer carries no `detail`, so `apiFetch` falls back to its own text.
+    mockApiFetch.mockRejectedValue(new ApiError(429, 'API error 429'));
+    const { result } = renderHook(() => usePickEditor('test-league', 'gw1'), { wrapper });
+
+    act(() => {
+      result.current.submit('fx1', 'MATCH_ODDS', 'HOME');
+    });
+    await waitFor(() => expect(mockToast.error).toHaveBeenCalled());
+
+    expect(errorToasts().at(-1)?.[0]).toBe('Your pick was not saved');
+    const description = (errorToasts().at(-1)?.[1] as { description?: string } | undefined)
+      ?.description;
+    expect(description).toMatch(/too many times this hour/i);
+    expect(description).not.toMatch(/API error/i);
+    // Not the league's budget: this one is about the member, and must not blame the league.
+    expect(description).not.toMatch(/your league/i);
+    expect(actionOf(errorToasts().at(-1))).toBeUndefined();
   });
 
   it('leaves a genuine failure red and actionless', async () => {
