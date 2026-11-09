@@ -1440,7 +1440,7 @@ owner on launch day, 2026-10-17.
   `/ship-prod`.** Once it ships, the owner stops recording their own £1 by hand and assigns
   the first top-up once.
 
-- [ ] **Batch 215 — Monzo refuses every webhook re-read, so webhooks never speed anything up**
+- [x] **Batch 215 — Monzo refuses every webhook re-read, so webhooks never speed anything up** ✅ 2026-11-09
   — raised by Batch 214. On 24 Oct every webhook nudge's `GET /transactions/<id>` was refused
   (26 between 07:17 and 09:44 UTC, four or five per payment), and each payment then arrived
   through the five-minute read. Batch 214 logs the HTTP status and Monzo's error code for a
