@@ -40,6 +40,10 @@ ALLOWED_CALLS: tuple[tuple[str, re.Pattern[str]], ...] = (
 PAGE_LIMIT = 100
 MAX_PAGES = 50
 
+#: Each webhook lookup attempt gets at most three recent list pages across all accounts.
+#: The scheduled reader remains responsible for older or busier feeds (Batch 215).
+WEBHOOK_MAX_PAGES = 3
+
 TIMEOUT_SECONDS = 15.0
 
 
@@ -258,6 +262,54 @@ class MonzoClient:
         if not isinstance(transaction, dict):
             raise MonzoMalformed("transaction response without a transaction")
         return transaction
+
+    async def webhook_transaction_from_list(
+        self, access_token: str, transaction_id: str, since: str
+    ) -> dict[str, Any] | None:
+        """Find only the nudged id in authenticated recent account feeds (Batch 215).
+
+        Monzo returns ``app_version_outdated`` for a league-link payment's individual
+        endpoint while listing that same transaction successfully. No webhook field
+        except its id enters this lookup. The caller supplies the time floor; list
+        limits, pagination and account provenance are checked here, independently of
+        the scheduled reader's complete read.
+        """
+        pages_left = WEBHOOK_MAX_PAGES
+        for account in await self.accounts(access_token):
+            account_id = account.get("id")
+            if not isinstance(account_id, str) or account.get("closed"):
+                continue
+            cursor = since
+            seen_cursors: set[str] = set()
+            while pages_left:
+                pages_left -= 1
+                body = await self._call(
+                    "GET",
+                    "/transactions",
+                    access_token=access_token,
+                    params={"account_id": account_id, "since": cursor, "limit": PAGE_LIMIT},
+                )
+                page = body.get("transactions")
+                if not isinstance(page, list):
+                    raise MonzoMalformed("webhook list response without transactions")
+                for transaction in page:
+                    if isinstance(transaction, dict) and transaction.get("id") == transaction_id:
+                        # The account comes from the authenticated list, including when
+                        # the transaction itself omits it (the top-up holder's name).
+                        return {**transaction, "account_id": account_id}
+                last = page[-1] if page else None
+                last_id = last.get("id") if isinstance(last, dict) else None
+                if (
+                    len(page) < PAGE_LIMIT
+                    or not isinstance(last_id, str)
+                    or last_id in seen_cursors
+                ):
+                    break
+                seen_cursors.add(last_id)
+                cursor = last_id
+            if not pages_left:
+                break
+        return None
 
     async def webhooks(self, access_token: str, account_id: str) -> list[dict[str, Any]]:
         body = await self._call(

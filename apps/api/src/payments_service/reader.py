@@ -8,6 +8,7 @@ would each invalidate the other.
 How a payment arrives::
 
     Monzo ──webhook (unsigned, so only a nudge)──▶ nudge(tx id) ──re-read──┐
+                        app_version_outdated? ──recent list, exact id──┤
     every 5 min ──────────────────────────────────▶ catch_up() ──read─────┤
                                                                            ▼
                      ingest.link_payment → record_link_payment → ledger, + learn_pots
@@ -25,9 +26,12 @@ from the payments already in Monzo's history rather than waiting for the next on
 
 Neither path trusts anything it did not read from Monzo's API itself. A failure records a
 short code and a time for the organiser's link-health line and changes nothing else; the
-next catch-up starts again from the last complete read. A webhook re-read Monzo refuses is
-logged with its reason and not recorded: the catch-up finds the payment anyway. Manual
-entry on the API never depends on any of it.
+next catch-up starts again from the last complete read. A webhook re-read refused with
+``app_version_outdated`` looks for that exact id in authenticated recent account feeds,
+bounded to three pages per attempt in the last hour (Batch 215). The existing one-time
+401 refresh/retry can repeat that attempt. Other refusals, or an id not found there, are
+logged with their reason and not recorded: the catch-up finds the payment anyway.
+Manual entry on the API never depends on any of it.
 """
 
 from __future__ import annotations
@@ -439,6 +443,23 @@ class PaymentsReader:
         self._log_recorded("catch-up", recorded)
         return ReadReport(ReadOutcome.read, recorded)
 
+    async def _webhook_transaction(
+        self, access_token: str, transaction_id: str, counting_since: datetime
+    ) -> dict[str, Any]:
+        try:
+            return await self._client.transaction(access_token, transaction_id)
+        except MonzoRefused as refused:
+            if refused.status != 400 or refused.monzo_code != "bad_request.app_version_outdated":
+                raise
+            since = max(counting_since, self._now() - READ_OVERLAP)
+            transaction = await self._client.webhook_transaction_from_list(
+                access_token, transaction_id, _rfc3339(since)
+            )
+            if transaction is None:
+                raise refused
+            log.info("monzo webhook re-read recovered through exact-id list lookup")
+            return transaction
+
     async def nudge(self, transaction_id: str) -> ReadReport:
         """A webhook said this transaction exists. Re-read it; trust nothing else."""
         recorded: dict[Recorded, int] = {}
@@ -457,10 +478,14 @@ class PaymentsReader:
                         return ReadReport(ReadOutcome.idle, recorded)
                     access_token = await self._access_token(db, connection)
                     try:
-                        transaction = await self._client.transaction(access_token, transaction_id)
+                        transaction = await self._webhook_transaction(
+                            access_token, transaction_id, connection.counting_since
+                        )
                     except MonzoUnauthorised:
                         access_token = await self._refreshed_token(db, connection)
-                        transaction = await self._client.transaction(access_token, transaction_id)
+                        transaction = await self._webhook_transaction(
+                            access_token, transaction_id, connection.counting_since
+                        )
                     payment = link_payment(transaction)
                     filed = filing(transaction) if payment is None else None
                     top_up = pot_top_up(transaction) if payment is None else None
@@ -483,9 +508,8 @@ class PaymentsReader:
             except NotConnected:
                 return ReadReport(ReadOutcome.failed, recorded)
             except MonzoRefused as refused:
-                # Monzo will not show this one transaction (every re-read was refused on
-                # 24 Oct 2026). The catch-up still finds the payment within five minutes,
-                # so it is no problem of the link's: logged for its reason, not recorded.
+                # A refusal not recovered through the exact-id lookup is no problem of
+                # the link's: the unchanged catch-up still finds the payment.
                 log.info(
                     "monzo webhook re-read refused: status=%s code=%s",
                     refused.status,

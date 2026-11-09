@@ -61,7 +61,14 @@ from src.payments_service.ingest import (
     pot_top_up,
     transaction_shape,
 )
-from src.payments_service.monzo import ALLOWED_CALLS, MonzoCallRefused, MonzoClient, MonzoRefused
+from src.payments_service.monzo import (
+    ALLOWED_CALLS,
+    WEBHOOK_MAX_PAGES,
+    MonzoCallRefused,
+    MonzoClient,
+    MonzoMalformed,
+    MonzoRefused,
+)
 from src.payments_service.reader import (
     ConnectOutcome,
     PaymentsReader,
@@ -170,6 +177,8 @@ class FakeMonzo:
         self.refreshed_with: list[str] = []
         #: Every ``since`` a transactions read asked for, in order (Batch 214).
         self.since_asked: list[str] = []
+        self.refused_single: dict[str, tuple[int, str]] = {}
+        self.refuse_lists = False
         self._issued = 0
 
     def add(self, transaction: dict[str, Any], account: str = "acc_00009Main") -> None:
@@ -227,6 +236,8 @@ class FakeMonzo:
         if path == "/accounts":
             return httpx.Response(200, json={"accounts": self.accounts})
         if path == "/transactions":
+            if self.refuse_lists:
+                return httpx.Response(503)
             listed = self.transactions.get(query["account_id"][0], [])
             since = query["since"][0]
             self.since_asked.append(since)
@@ -237,6 +248,9 @@ class FakeMonzo:
                 page = [t for t in listed if t["created"] >= since]
             return httpx.Response(200, json={"transactions": page[: int(query["limit"][0])]})
         if path.startswith("/transactions/"):
+            refusal = self.refused_single.get(path.removeprefix("/transactions/"))
+            if refusal is not None:
+                return httpx.Response(refusal[0], json={"code": refusal[1]})
             found = self.find(path.removeprefix("/transactions/"))
             if found is None:
                 return httpx.Response(404)
@@ -1845,3 +1859,263 @@ async def test_a_filing_named_by_a_webhook_is_learned_and_never_booked(setup: Se
     assert answered.status_code == 200
     assert (await _pots(setup)).get(DEPOSIT_POT) == setup.league.id
     assert [e.monzo_transaction_id for e in await _entries(setup)] == ["tx_00009Hooked"]
+
+
+# ── Selectively refused individual reads (Batch 215) ──────────────────────────
+
+
+APP_VERSION_REFUSAL = (400, "bad_request.app_version_outdated")
+
+
+@pytest.mark.parametrize("payer_kind", ["app", "card"])
+async def test_a_refused_link_payment_arrives_by_webhook_before_the_scheduled_read(
+    setup: Setup, payer_kind: str, caplog: pytest.LogCaptureFixture, live_loggers: None
+) -> None:
+    await _connect(setup)
+    link = setup.league.monzo_link_id
+    assert link is not None
+    make = app_payment if payer_kind == "app" else card_payment
+    paid = make("tx_00009Recovered", link)
+    setup.fake.add(paid)
+    setup.fake.add(make("tx_00009Unrelated", link))
+    setup.fake.refused_single[paid["id"]] = APP_VERSION_REFUSAL
+    before = await _connection(setup)
+    setup.clock.at = NOW + timedelta(minutes=2)
+    forged = {**paid, "amount": 99_999, "created": _rfc3339(NOW - timedelta(days=100))}
+    with caplog.at_level(logging.INFO, logger="payments.reader"):
+        answer = await _webhook(setup, {"type": "transaction.created", "data": forged})
+    assert answer.status_code == 200
+    (entry,) = await _entries(setup)
+    assert (entry.monzo_transaction_id, entry.amount_pence) == (paid["id"], FEE)
+    after = await _connection(setup)
+    assert after.read_through == before.read_through
+    assert after.last_error is None
+    assert setup.fake.since_asked[-1] == _rfc3339(NOW)
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert "monzo webhook re-read recovered through exact-id list lookup" in logged
+    for secret in (paid["id"], link, "99_999", "DESCRIPTION-MARKER", "access-", PATH_SECRET):
+        assert secret not in logged
+
+
+async def test_recovered_created_updated_and_scheduled_reads_write_once(setup: Setup) -> None:
+    await _connect(setup)
+    link = setup.league.monzo_link_id
+    assert link is not None
+    setup.fake.add(app_payment("tx_00009RecoveredOnce", link))
+    setup.fake.refused_single["tx_00009RecoveredOnce"] = APP_VERSION_REFUSAL
+    for event in ("transaction.created", "transaction.updated"):
+        assert (
+            await _webhook(setup, {"type": event, "data": {"id": "tx_00009RecoveredOnce"}})
+        ).status_code == 200
+    setup.clock.at = NOW + timedelta(minutes=5)
+    await setup.reader.catch_up()
+    assert [entry.monzo_transaction_id for entry in await _entries(setup)] == [
+        "tx_00009RecoveredOnce"
+    ]
+
+
+async def test_a_refused_top_up_uses_its_list_account_to_name_the_holder(setup: Setup) -> None:
+    _holders(setup.fake)
+    await _connect(setup)
+    await _learn_the_pot(setup)
+    top_up = pot_deposit("tx_00009RecoveredTopUp", LEAGUE_POT, created=NOW + timedelta(minutes=6))
+    top_up.pop("account_id")
+    setup.fake.add(top_up)
+    setup.fake.refused_single[top_up["id"]] = APP_VERSION_REFUSAL
+    setup.clock.at = NOW + timedelta(minutes=7)
+    assert (
+        await _webhook(setup, {"type": "transaction.created", "data": {"id": top_up["id"]}})
+    ).status_code == 200
+    recovered = [e for e in await _entries(setup) if e.monzo_transaction_id == top_up["id"]]
+    assert [(e.amount_pence, e.payer_name) for e in recovered] == [(FEE, "Pat Owner")]
+
+
+async def test_recovery_routes_each_link_payment_to_its_own_league(setup: Setup) -> None:
+    await _connect(setup)
+    other = await _league(setup.world, setup.members, _link())
+    assert other.monzo_link_id is not None
+    setup.fake.accounts.append({"id": "acc_00009Second", "closed": False})
+    paid = app_payment("tx_00009OtherLeague", other.monzo_link_id)
+    setup.fake.add(paid, "acc_00009Second")
+    setup.fake.refused_single[paid["id"]] = APP_VERSION_REFUSAL
+    assert (await setup.reader.nudge(paid["id"])).outcome == ReadOutcome.read
+    assert await _entries(setup) == []
+    async with setup.world.sessions() as db:
+        rows = list(await db.scalars(select(LedgerEntry).where(LedgerEntry.league_id == other.id)))
+    assert [e.monzo_transaction_id for e in rows] == [paid["id"]]
+
+
+async def test_a_forged_or_missing_list_id_never_ingests_a_different_payment(setup: Setup) -> None:
+    await _connect(setup)
+    link = setup.league.monzo_link_id
+    assert link is not None
+    setup.fake.add(app_payment("tx_00009Different", link))
+    setup.fake.refused_single["tx_00009Invented"] = APP_VERSION_REFUSAL
+    before = await _connection(setup)
+    assert (
+        await _webhook(
+            setup,
+            {"type": "transaction.created", "data": app_payment("tx_00009Invented", link)},
+        )
+    ).status_code == 200
+    assert await _entries(setup) == []
+    after = await _connection(setup)
+    assert (after.read_through, after.last_error, after.last_success_at) == (
+        before.read_through,
+        before.last_error,
+        before.last_success_at,
+    )
+
+
+async def test_recovery_does_not_make_a_non_league_link_into_a_payment(setup: Setup) -> None:
+    await _connect(setup)
+    paid = app_payment("tx_00009WrongLink", _link())
+    setup.fake.add(paid)
+    setup.fake.refused_single[paid["id"]] = APP_VERSION_REFUSAL
+    assert (await setup.reader.nudge(paid["id"])).outcome == ReadOutcome.read
+    assert await _entries(setup) == []
+
+
+@pytest.mark.parametrize(
+    "refusal",
+    [(404, "not_found.transaction"), (400, "bad_request.other"), (422, APP_VERSION_REFUSAL[1])],
+)
+async def test_other_refusals_do_not_start_a_list_lookup(
+    setup: Setup, refusal: tuple[int, str]
+) -> None:
+    await _connect(setup)
+    setup.fake.calls.clear()
+    setup.fake.refused_single["tx_00009OtherRefusal"] = refusal
+    assert (await setup.reader.nudge("tx_00009OtherRefusal")).outcome == ReadOutcome.failed
+    assert setup.fake.calls == [("GET", "/transactions/tx_00009OtherRefusal")]
+    assert (await _connection(setup)).last_error is None
+
+
+async def test_an_individual_read_that_works_does_not_start_a_list_lookup(setup: Setup) -> None:
+    await _connect(setup)
+    assert setup.league.monzo_link_id is not None
+    setup.fake.add(app_payment("tx_00009Working", setup.league.monzo_link_id))
+    setup.fake.calls.clear()
+    assert (await setup.reader.nudge("tx_00009Working")).outcome == ReadOutcome.read
+    assert setup.fake.calls == [("GET", "/transactions/tx_00009Working")]
+
+
+async def test_a_failed_recovery_leaves_the_scheduled_reader_able_to_find_the_payment(
+    setup: Setup,
+) -> None:
+    await _connect(setup)
+    assert setup.league.monzo_link_id is not None
+    setup.fake.add(app_payment("tx_00009ListOutage", setup.league.monzo_link_id))
+    setup.fake.refused_single["tx_00009ListOutage"] = APP_VERSION_REFUSAL
+    before = await _connection(setup)
+    setup.fake.refuse_lists = True
+    assert (await setup.reader.nudge("tx_00009ListOutage")).outcome == ReadOutcome.failed
+    assert (await _connection(setup)).read_through == before.read_through
+    assert await _entries(setup) == []
+    setup.fake.refuse_lists = False
+    setup.clock.at = NOW + timedelta(minutes=5)
+    await setup.reader.catch_up()
+    assert [e.monzo_transaction_id for e in await _entries(setup)] == ["tx_00009ListOutage"]
+
+
+async def test_recovery_only_searches_the_last_hour_and_preserves_older_catch_up(
+    setup: Setup,
+) -> None:
+    await _connect(setup)
+    assert setup.league.monzo_link_id is not None
+    setup.fake.add(app_payment("tx_00009OldHook", setup.league.monzo_link_id))
+    setup.fake.refused_single["tx_00009OldHook"] = APP_VERSION_REFUSAL
+    setup.clock.at = NOW + timedelta(hours=2)
+    assert (await setup.reader.nudge("tx_00009OldHook")).outcome == ReadOutcome.failed
+    assert setup.fake.since_asked[-1] == _rfc3339(NOW + timedelta(hours=1))
+    assert await _entries(setup) == []
+    await setup.reader.catch_up()
+    assert [e.monzo_transaction_id for e in await _entries(setup)] == ["tx_00009OldHook"]
+
+
+async def test_webhook_list_lookup_pages_to_the_exact_id_and_ignores_closed_accounts() -> None:
+    fake = FakeMonzo()
+    fake.approved = True
+    fake.live_access.add("access-test")
+    fake.accounts.insert(0, {"id": "acc_00009ClosedFirst", "closed": True})
+    for index in range(101):
+        fake.add(app_payment(f"tx_00009Page{index}", _link()))
+    client = MonzoClient(httpx.MockTransport(fake))
+    found = await client.webhook_transaction_from_list(
+        "access-test", "tx_00009Page100", _rfc3339(NOW)
+    )
+    assert found is not None
+    assert (found["id"], found["account_id"]) == ("tx_00009Page100", "acc_00009Main")
+    assert fake.since_asked == [_rfc3339(NOW), "tx_00009Page99"]
+
+
+async def test_webhook_list_lookup_has_a_total_page_budget_across_accounts() -> None:
+    calls: list[str] = []
+
+    def monzo(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path == "/accounts":
+            return httpx.Response(
+                200,
+                json={"accounts": [{"id": f"acc_{i}", "closed": False} for i in range(8)]},
+            )
+        return httpx.Response(200, json={"transactions": []})
+
+    client = MonzoClient(httpx.MockTransport(monzo))
+    assert await client.webhook_transaction_from_list("token", "tx_Missing", _rfc3339(NOW)) is None
+    assert calls == ["/accounts", *(["/transactions"] * WEBHOOK_MAX_PAGES)]
+
+
+async def test_webhook_list_lookup_stops_on_a_repeated_cursor() -> None:
+    calls: list[str] = []
+
+    def monzo(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path == "/accounts":
+            return httpx.Response(200, json={"accounts": [{"id": "acc_Main"}]})
+        return httpx.Response(200, json={"transactions": [{"id": "tx_Repeated"}] * 100})
+
+    client = MonzoClient(httpx.MockTransport(monzo))
+    assert await client.webhook_transaction_from_list("token", "tx_Missing", _rfc3339(NOW)) is None
+    assert calls == ["/accounts", "/transactions", "/transactions"]
+
+
+async def test_webhook_list_lookup_refuses_a_malformed_page() -> None:
+    def monzo(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/accounts":
+            return httpx.Response(200, json={"accounts": [{"id": "acc_Main"}]})
+        return httpx.Response(200, json={"transactions": {"id": "tx_NotAList"}})
+
+    client = MonzoClient(httpx.MockTransport(monzo))
+    with pytest.raises(MonzoMalformed):
+        await client.webhook_transaction_from_list("token", "tx_NotAList", _rfc3339(NOW))
+
+
+async def test_a_401_on_the_third_recovery_page_refreshes_once_and_retries(setup: Setup) -> None:
+    await _connect(setup)
+    assert setup.league.monzo_link_id is not None
+    paid = app_payment("tx_00009ExpiredLookup", setup.league.monzo_link_id)
+    setup.fake.refused_single[paid["id"]] = APP_VERSION_REFUSAL
+    calls: list[tuple[str, str]] = []
+    pages = 0
+
+    def monzo(request: httpx.Request) -> httpx.Response:
+        nonlocal pages
+        calls.append((request.method, request.url.path))
+        if request.url.path == "/transactions":
+            pages += 1
+            if pages == 3:
+                return httpx.Response(401)
+            page = [{"id": f"tx_00009Page{pages}Row{i}"} for i in range(100)]
+            if pages == 6:
+                page[-1] = paid
+            return httpx.Response(200, json={"transactions": page})
+        return setup.fake(request)
+
+    setup.reader._client = MonzoClient(httpx.MockTransport(monzo))
+    assert (await setup.reader.nudge(paid["id"])).outcome == ReadOutcome.read
+    assert setup.fake.refreshed_with == ["refresh-1"]
+    assert sum(method == "GET" for method, _path in calls) == 10
+    assert [path for method, path in calls if method == "POST"] == ["/oauth2/token"]
+    assert [e.monzo_transaction_id for e in await _entries(setup)] == [paid["id"]]
+    assert (await _connection(setup)).last_error is None

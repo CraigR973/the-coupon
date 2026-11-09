@@ -78,7 +78,9 @@ Railway project (one per environment)
      boot: database revision == the image's sole head? → no: exit, nothing served
                                                      → yes: serve
      /monzo/oauth/start → Monzo (browser, then the app) → /monzo/oauth/callback
-     webhook /monzo/webhook/<secret> (a nudge only) + a catch-up read every 5 min
+     webhook /monzo/webhook/<secret> (a nudge only)
+        → individual re-read; app_version_outdated? → recent list, exact id only
+     catch-up read every 5 min (unchanged, complete read)
         → re-read from Monzo → the league's unipaylink id? → ledger, matched or queued
                              (learning the pot it names → monzo_pots)
                            → a top-up into a learned pot? → ledger, matched or queued
@@ -98,8 +100,14 @@ Staging's stays off.
 Batch 208 gives it the Monzo reading. The owner connects once; the tokens live in the
 one-row `monzo_connections` table, sealed with a key only this service holds, and are
 refreshed (rotating the refresh token) by its single replica. A webhook at a secret path is
-only a nudge to re-read one transaction; a catch-up every five minutes reads everything
-since the last complete read. Only payments carrying a league's `monzo_link_id`
+only a nudge to re-read one transaction. If Monzo refuses that individual read with
+`400 bad_request.app_version_outdated`, Batch 215 looks for that exact id in the last
+hour's authenticated account feeds, never before the counting start and capped at three
+list pages across all open accounts per attempt (one 401 refresh/retry is allowed).
+Nothing else in the unsigned webhook body is used;
+other listed transactions are never ingested. A missing id or exhausted cap waits for the
+unchanged catch-up, which every five minutes reads everything since the last complete
+read. Only payments carrying a league's `monzo_link_id`
 (`unipaylink_…`, set by a site admin) and made after the connect count. App payers are
 matched by Monzo user id, card payers by normalised name, and anyone else is queued for the
 organiser. Its Monzo calls are allow-listed (token, accounts, transactions, webhooks). The
