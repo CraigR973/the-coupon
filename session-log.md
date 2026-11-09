@@ -9114,3 +9114,18 @@ old-trusted-guard comparison; prod-bundle and seeded coupon journey jobs passed
 
 **Next:** the owner schedules `/ship-prod` for Batch 215, then confirms a natural payment on the organiser's Payments screen.
 
+
+
+## Shipment — 2026-11-09, `c18e81e` (Batch 215; no migration)
+**Railway:** API `8e7bde40-0910-4dab-9709-c6382ffbb13a` and payments `4066c2fb-77a1-4fd2-b3e7-ba72af3bad3c` `SUCCESS` · IaC redeploys `574829bd` / `46be6c9f` healthy before upload · Vercel no-op (`dpl_9wDdY5D1AhJaDD59qjRNUL9nBGyX`, `c18e81e`) · drift **in sync** for both · exact-SHA CI `42709866012` (`68f0a19`) and `42711742354` (`c18e81e`) green · reused gate tree `3f5f8f166793e7212e476151c03d9a4c2b9decb7` (backend 1,650; frontend 1,418; journey 1; zero skips)
+
+### Key facts for future sessions
+- The owner instructed `proceed` in chat after the completed batch and its shipment recommendation. Production was checked live: next locks 13 Nov 17:30 UTC and 14 Nov 14:30 UTC; the 23:08–23:16 UTC restarts were clear of the 18:05/20:05/22:05 sweeps. No migration applied; both services serve `c18e81e` / `031` and report database readiness `ok`.
+- The pinned IaC plan changed only four existing-service default settings, with no additions, deletions or variable deletions. Apply redeployed both previous images; both reached `SUCCESS` before the API upload, then the payments upload followed the new API's readiness. Each final manifest has one replica in `europe-west4-drams3a`, sleep off, IPv6 on, Nixpacks, 300-second readiness checks and 0.25 vCPU / 500 MB.
+- Live verification: root and standings deep link `200`, identical SPA asset, exact committed security/cache headers; exact-origin CORS `200` with credentials; RLS enabled/forced on 27/27 tables, no effective or explicit `anon`/`authenticated`/`PUBLIC` table or schema grants. Bounded Railway logs: API 52 lines and payments 6, no startup-failure or credential/name patterns; Vercel's 30-minute bounded scan returned zero records. The connector could not list environment metadata; scoped CLI confirmed both encrypted production variables without values. No shipment gate failed.
+- **Recovery:** no migration and no backup/restore point (existing owner deferral). Healthy post-IaC rollback baselines are API `574829bd-6f4d-4e28-99e7-fceeb5b823fd` and payments `46be6c9f-f916-44cf-af82-610e808a9ac9`, both `0d00825` / `031`. Vercel's baseline is the unchanged `dpl_9wDdY5D1AhJaDD59qjRNUL9nBGyX`.
+
+### Follow-ups
+- Owner acceptance: the next natural league-link payment must demonstrate the recovery log and one ledger entry. No recovery event appeared in the startup sample; no bank probe, synthetic webhook or manufactured payment was used. No production webhook registration was deliberately changed. The repair is deployed; this live payment observation remains open.
+
+**Next:** observe a natural payment on the organiser's Payments screen; no API shipment is owed. Batch 211 remains owner-deferred.

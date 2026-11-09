@@ -4202,3 +4202,62 @@ The restarts at 19:01 and 19:04 emptied the odds budget counter, clear of any lo
 Backup/restore-point identity: **none yet**. No migration was applied, so `3a4a68bc` and
 `8999e0e9` remain valid rollback targets.
 
+
+
+### 2026-11-09 — `c18e81e`, Batch 215: recover refused webhook reads (no migration)
+
+The owner instructed `proceed` in chat after the completed batch and its recommendation to
+run `/ship-prod`. No production bank probe or webhook registration change was part of this
+shipment. Source: clean `main`, exact reviewed commit
+`c18e81ecf4c758132b5c0a139efe8a4e2694018e`, present on `origin/main`.
+
+Preflight re-read the exact Railway project/environment/services/domains, null
+`railwayConfigFile` on both, required variable names and credential separation, and the
+Supabase production project (`pugujiiojitstkilphrz`, London, `ACTIVE_HEALTHY`). Vercel's
+project and alias matched the production target. The connector's environment endpoint was
+unavailable; the explicitly scoped CLI confirmed encrypted production `VITE_API_URL` and
+`VITE_VAPID_PUBLIC_KEY`, without values. Its stable alias was already `READY` at `c18e81e`
+(`dpl_9wDdY5D1AhJaDD59qjRNUL9nBGyX`), so the web deployment step was a no-op.
+
+The migration recovery check passed: both production and the repository were at `031`,
+with no migration to apply. The guard reused the complete local gate stamp for tree
+`3f5f8f166793e7212e476151c03d9a4c2b9decb7` (12 checks, 1,650 backend, 1,418 frontend,
+journey 1, zero skips); only the three close-out documents differed. Exact-SHA Quality
+runs `42709866012` (`68f0a19`) and `42711742354` (`c18e81e`) were successful. No local gate
+was repeated at shipment. A read-only database transaction established the next locks:
+13 Nov 17:30 UTC (`yer-leagues-a-joke`) and 14 Nov 14:30 UTC (`2-1-hibs`). Shipment was
+23:08–23:16 UTC, clear of those locks and the 18:05/20:05/22:05 settlement sweeps.
+
+The reviewed pinned IaC plan (SHA-256
+`5cd849778161b52a4a2accea44a87b0f051255d73387d9f3d2787e3fe7f16063`) had 0 additions,
+4 changes and 0 deletions: existing `api` and `payments` Nixpacks path, replica, restart
+and sleep defaults only. No resources or variables were deleted. Applying it redeployed
+both old images, API `574829bd-6f4d-4e28-99e7-fceeb5b823fd` and payments
+`46be6c9f-f916-44cf-af82-610e808a9ac9`; both reached `SUCCESS` and reported
+`0d00825` / `031` before either source upload. These are the healthy rollback baselines;
+the temporary pinned plan was removed after apply.
+
+- API `8e7bde40-0910-4dab-9709-c6382ffbb13a`: `SUCCESS`; health `200`, `c18e81e`,
+  migration `031`; readiness `200`, database `ok`, `031`.
+- Payments `4066c2fb-77a1-4fd2-b3e7-ba72af3bad3c`: uploaded only after API readiness;
+  `SUCCESS`; health `200`, `service: payments`, `c18e81e`, `031`; readiness `200`, `ok`, `031`.
+- Both manifests: exactly one active deployment and one replica in `europe-west4-drams3a`,
+  no sleep, IPv6 egress on, Nixpacks, `ON_FAILURE` with three retries, 300-second readiness
+  timeout, 0.25 vCPU / 500 MB, correct service-specific health path; no legacy config file.
+- Bounded final log samples: API 52 lines and payments 6, startup complete and no failure,
+  credential or real-name assignment pattern. Vercel's explicitly scoped 30-minute scan
+  returned zero records. No raw log, variable value, token, DSN or member name was recorded.
+- Combined smoke: web root and `/leagues/2-1-hibs/standings` `200`, the same
+  `/assets/index-Bp7Or0RB.js`, all committed security headers, immutable asset cache and
+  revalidating service worker cache; exact-origin `OPTIONS` `200` with credentials; final
+  API/payments readiness `200`. Drift is in sync for both. The catalogue-only audit found
+  RLS enabled/forced on 27/27 public tables and zero effective or explicit public-role
+  table/schema grants.
+
+Backup/restore-point identity: **none yet**, under the existing owner deferral. No
+migration applied, so the healthy post-IaC API and payments images remain valid rollback
+targets. Vercel's unchanged healthy deployment is `dpl_9wDdY5D1AhJaDD59qjRNUL9nBGyX`.
+
+The webhook repair is deployed. A natural payment must still demonstrate recovery and
+one ledger entry; none occurred in the bounded startup sample, and no bank probe,
+synthetic webhook, manual bank refresh or manufactured payment was used to claim it.

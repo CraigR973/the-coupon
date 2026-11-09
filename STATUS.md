@@ -13,11 +13,11 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `0d00825` (through Batch 218) at migration `031` (7 Nov) |
-| API deployment | Railway `1da6cb79-5e98-4b11-bfe9-67e3e9f1cc4e` succeeded, one replica, `europe-west4` (7 Nov) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `0d00825` at `031`, Railway `2be8c8ea-7bdd-425b-8d59-8a5958b1511b`, one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
-| Web | Batch 218's build is live at `the-coupon-production.vercel.app` from `2fa77bd` (7 Nov: Vercel's production deployment `dpl_9EHN8Tw25XjR8sGmQRstv1ysyj5v` reports that commit, and the served pick-editor chunk carries Batch 218's copy). Batch 202 (Vite 8, Tailwind 4) is the last toolchain change. |
-| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 27 of 27 tables, no public-role grants (25 Oct) |
+| API | `api-production-109b1.up.railway.app` serves `c18e81e` at migration `031` (9 Nov) |
+| API deployment | Railway `8e7bde40-0910-4dab-9709-c6382ffbb13a` succeeded, one replica, `europe-west4` (9 Nov) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `c18e81e` at `031`, Railway `4066c2fb-77a1-4fd2-b3e7-ba72af3bad3c` (9 Nov), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
+| Web | `the-coupon-production.vercel.app` is healthy; root and standings deep link serve the same SPA asset with the committed security/cache headers (9 Nov). Batch 215 changes no web code; Batch 218 is the latest web feature and Batch 202 (Vite 8, Tailwind 4) the latest toolchain change. |
+| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 27 of 27 tables, no public-role table or schema grants (9 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by **Betfair Sportsbook** since 10:36 UTC on 31 Oct (ADR 0002's 31 Oct amendment). Bet365 has been paid-only since 26 Oct, 19:00 UTC, and a free key gets a 403. Free key: 100 requests/hour and 500/day for the whole deployment. On the 31 Oct card it priced 78 of 85 fixtures, none in the Highland League (31 Oct). The owner chose to keep it rather than pay £49/mo for Bet365 (31 Oct) |
 | Football data | FotMob, no key |
@@ -30,13 +30,14 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
-- **Batch 215 is complete and unshipped** (9 Nov, `68f0a19`, payments service only, no migration).
-  The exact listed transaction is recovered when Monzo refuses its individual re-read with
-  `400 bad_request.app_version_outdated`; the five-minute read and matching are unchanged.
-  The complete local gate passed (1,650 backend, 1,418 frontend, journey 1, zero skips), and
-  implementation CI passed for the exact SHA. Pre-push drift was in sync; `/ship-prod` is
-  now owed; timing remains the owner's decision. Production recovery needs a natural payment readback
-  after shipment. No production webhook registration was changed.
+- **Batch 215 is shipped and verified** (9 Nov, `c18e81e`, no migration). Both services
+  report `c18e81e` / `031`, readiness is `db: ok`, drift is in sync, and the catalogue audit
+  found RLS forced on all 27 tables with no public-role table or schema grants. The exact
+  listed transaction is recovered after `400 bad_request.app_version_outdated`; the
+  five-minute read and matching are unchanged. The complete local gate and both exact-SHA
+  CI runs passed (1,650 backend, 1,418 frontend, journey 1, zero skips). Both services
+  restarted twice, clear of locks and settlement sweeps. Natural-payment acceptance
+  remains open; no webhook was deliberately deregistered or re-registered.
 - **Batch 205 is shipped and verified** (13 Oct, `9731776`). API health and database
   readiness report `028`, drift is in sync, and the read-only audit found RLS forced on all
   24 tables with no `anon`, `authenticated` or `PUBLIC` table or schema grants. The web alias
@@ -181,7 +182,7 @@ the refused webhook re-reads logged, migration `031` — is complete and shipped
 `d4880b1`, shipped as `06d6070`). Batch 216 — the owner's top-ups matched by the pot's
 `pot_…` name, learned from Monzo's filings, which are never counted — is complete (25 Oct,
 `bbedccf`) and shipped (25 Oct, as `b7a4d72`). Batch 215 — why Monzo refuses every webhook
-re-read — is complete (9 Nov, `68f0a19`): the exact refused id is recovered from recent authenticated account feeds; `/ship-prod` is owed. Batch 217 — the odds provider's own reason on a refused request, a
+re-read — is complete and shipped (9 Nov, `c18e81e`): the exact refused id is recovered from recent authenticated account feeds; natural-payment acceptance remains open. Batch 217 — the odds provider's own reason on a refused request, a
 quarter-hour hold-off after a refused key or bookmaker, and a notice to site admins when picks
 are refused for odds — is complete (31 Oct, `4d28412`) and shipped (7 Nov, as `0d00825`). Batch 218 — "Take the new
 price" sends the price it names — is complete and live on the web (7 Nov, `2fa77bd`, web-only).
@@ -229,6 +230,6 @@ Checked 2026-10-03.
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
 
-**Next:** the owner schedules `/ship-prod` for Batch 215, then confirms a natural payment
-on the organiser's Payments screen. Batch 211 stays deferred; the season-calendar backfill
+**Next:** confirm a natural payment on the organiser's Payments screen after Batch 215's
+shipment. No API shipment is owed. Batch 211 stays deferred; the season-calendar backfill
 remains owner-gated, unblocked since 4 Oct.
