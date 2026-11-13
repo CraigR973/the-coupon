@@ -2,8 +2,12 @@
 
 ## Product contract
 
-The Coupon is a private weekly football accumulator game for friends. A member
-may play in several leagues at once, and every rule below is per-league.
+The Coupon is a private weekly football game for friends. A member may play in
+several leagues at once; each league owns its games, rules and payment credit.
+
+### Legacy format — currently live
+
+The following contract remains the default and preserves existing rounds:
 
 - A league owns its rounds. Each round covers that league's weekly fixture
   window — a range in Europe/London, defaulting to the single Saturday 15:00
@@ -29,6 +33,36 @@ may play in several leagues at once, and every rule below is per-league.
   paid to the organiser's Monzo payment link. The app records them and refuses an unpaid
   pick, and it never holds or moves money.
 
+### Two-game format — inactive, local build only
+
+The approved future format has one football-week parent, labelled by Saturday,
+with independent group and fantasy children. The parent format is immutable;
+legacy picks, deadlines, fees, results and points are never reinterpreted.
+Concrete methods, snake_case fields, refusal codes and F/C/Q acceptance mapping:
+`docs/two-games-per-week-api-contract.md` (Batch 219).
+
+- Group: Saturday 15:00 London fixtures only; 14:30 lock; one contribution/member
+  and one whole fixture across the group. No odds or points. Voids are neutral;
+  all-void is void; zero picks is “No coupon”; incomplete participation is valid.
+- Fantasy: Saturday 12:30 through Monday 00:00 exclusive, London; Saturday noon
+  lock; up to six independently saved different fixtures/member. Members may
+  overlap and either game may use the same selection. Partial entries count.
+  Each winning leg adds the existing rounded frozen-odds × 10 points; losses
+  and voids add zero. Existing season points continue exactly once.
+- Next fantasy opens at the preceding eligible Saturday noon, using London
+  calendar arithmetic across DST. Confirmed breaks require recorded schedule
+  evidence; empty provider data alone proves no break. Home exposes every
+  actionable game, current results and next entry, including mixed legacy/new.
+- Every active member owes £1 each Monday-to-Monday London calendar week,
+  labelled by its Saturday, regardless of entries, fixtures, skips, results or
+  suspension. Joining is inclusive and departure exclusive. Early entry owes
+  through its target, including intervening weeks; unique weekly obligations
+  share existing pooled FIFO credit. Preserve already-owed and legacy fees.
+- Default-disabled installation and exact league/week gates precede all new
+  games, billing, notices and provider workers. Suspension stops entries and
+  openings, retaining settlement, corrections, history and weekly billing.
+  Local acceptance, production shipment and exact-week activation are separate.
+
 ## Architecture
 
 The FastAPI backend owns auth, leagues, the weekly slate, pick uniqueness,
@@ -36,13 +70,26 @@ settlement, standings, notifications, and scheduled jobs. PostgreSQL is the
 source of truth. The React PWA consumes snake_case `/api/v1/` JSON.
 
 ```text
-Invite link → React join page → public token preview → FastAPI → PostgreSQL
-                            → sign-in or registration → invite claim → league
+React PWA / invite / inbox
+           ↓ /api/v1, explicit league + week + game + slot
+FastAPI + scheduler ─────────────────── payments service
+           ↓                            Monzo reads only
+PostgreSQL ← pooled ledger / FIFO credit ────────┘
+  ├─ legacy gameweeks → legacy picks → existing results / points
+  └─ [INACTIVE: installation + exact league/week gates]
+     football-week parent (immutable format)
+       ├─ group child → unpriced fixture claims → group result
+       ├─ fantasy child → six slots → leg / week / season points
+       └─ membership intervals → £1 calendar-week due → same ledger
+     durable rolling attempt budget → provider transport (all callers)
+     paginated census / snapshots / fair queues → shared real fixtures
+     game/week/version events → recipient policy → inbox / allowed push
 
-League event → recipient + mute policy → PostgreSQL inbox (30 days)
-                                     → Web Push (when allowed and subscribed)
-Home bell → member-only inbox read → mark read on view
+API boot migrates; payments never migrates and requires matching image head.
+Local build → tested recovery point → API/payments same-head shipment (off)
+            → web release → separately approved exact-week activation
 ```
+
 
 The public preview exposes only league name, inviter name and active member
 count for a valid unspent token. Registration or an authenticated claim creates
@@ -53,14 +100,7 @@ League events are copied once per eligible member into the inbox even without a
 push subscription or during quiet hours. Global, league and kind mutes suppress
 both channels. A daily retention pass removes messages older than 30 days.
 
-```text
-Round opens (open job, or discovery for a round born open)
-  → league has a fee? → one round_due per active member, idempotent
-Member joins while a round is open → owes that round, nothing earlier
-Pick submitted → paid up through this round? → no: 402 PAYMENT_REQUIRED
-                                            → yes: budget, odds, pick as before
-Void / withdrawn round / leaving before the lock → reversing entry, never a delete
-```
+
 
 Pay to pick (ADR 0009, Batch 205) is a per-league ledger, `ledger_entries`, of
 signed pence: payments (cash, or through the league's payment link and queued
@@ -71,21 +111,7 @@ recorded inside the existing round-opening step, the paid-up check sits in
 `submit_pick` between the market check and the odds budget charge, and only a
 site admin sets a league's fee and link. A league without a fee runs none of it.
 
-```text
-Railway project (one per environment)
-  api       — FastAPI app + scheduler · migrates on boot (alembic upgrade head)
-  payments  — ADR 0009 option B · never migrates · production switched on 2026-10-15
-     boot: database revision == the image's sole head? → no: exit, nothing served
-                                                     → yes: serve
-     /monzo/oauth/start → Monzo (browser, then the app) → /monzo/oauth/callback
-     webhook /monzo/webhook/<secret> (a nudge only)
-        → individual re-read; app_version_outdated? → recent list, exact id only
-     catch-up read every 5 min (unchanged, complete read)
-        → re-read from Monzo → the league's unipaylink id? → ledger, matched or queued
-                             (learning the pot it names → monzo_pots)
-                           → a top-up into a learned pot? → ledger, matched or queued
-  both → the same Supabase Postgres · /ship-prod ships api first, then payments
-```
+
 
 The payments service (Batch 207) is the second Railway process, built from the same
 repository and image, and the only one that will hold Monzo credentials (Batch 208). It
@@ -1589,6 +1615,199 @@ owner on launch day, 2026-10-17.
 
   Scope boundary: the web pick editor only. No API change, so the 10-an-hour limit and what
   counts against it stay as they are. **Web-only.**
+
+### Two games per football week — inactive build, then gated activation
+
+Defined 12 Nov from `docs/two-games-per-week-plan.md`, the review and the three
+feasibility reports. Saturday's 14 Nov noon provider observation runs alongside
+the build; it gates accepted live opening coverage and activation, not local
+implementation. The free account is the baseline. No price-coverage exception,
+smaller membership limit, stale frozen price or subscription is adopted here.
+
+Order: **219 → 220 → 221 → 222 → 223 → 224 → 225 → 226 → 227 → 228**.
+Every implementation batch keeps its own branch and full gate. Batch 227 may
+be developed/tested locally before production shipment, then pauses at its
+close-out checkpoint. Batch 228 follows successful shipment and 227 close-out;
+these rows do not introduce a stacked-branch workflow. Web close-outs and pushes
+require the API checkpoint after 226: explicit `/ship-prod`, successful API and
+payments shipment on the same image/migration head, with the new format disabled.
+A shipment scheduling acknowledgement does not satisfy this stronger checkpoint.
+No `/group-start` alias is assigned by these rows. Batch 211 remains deferred
+and is not silently included in this sequence.
+
+12 Nov owner scope: complete/test locally and leave production for review. When
+invoked, `docs/two-games-per-week-overnight-prompt.md` permits a local branch stack
+through 228 without the usual clean-main, automatic close-out or production
+shipment prerequisites between local builds. It permits no merge/push/deploy or
+checked batch rows; the normal shipment and formal close-out gates remain.
+
+Build/test acceptance, production shipment and feature activation are distinct.
+Until explicit exact-league/week activation, the new format must create no live
+games, picks, weekly dues or notices and start no new provider workers. Existing
+legacy leagues retain their behaviour. A flag does not waive migration recovery,
+old-writer compatibility, full gates or failed component acceptance.
+
+- [ ] **Batch 219 — Define the two-game contracts and separate the release gates**
+  — prerequisites: approved rules and the revised plan. Record group/fantasy
+  windows, locks, independence, partial entries, scoring, continuous season totals
+  and unconditional £1 calendar-week billing. Specify explicit league/week/game/
+  slot API identities, inactive/legacy responses, three-state Saturday home,
+  price provenance, fee status and addressed notifications. Update the product
+  contract and architecture map with the opt-in design, labelled inactive.
+  Record unresolved coverage, quota, supported-load and latency criteria in an
+  activation checklist; the 14 Nov observation is not a start prerequisite.
+  Include all F1–F6, C1–C6 and Q1–Q9 examples from
+  `docs/two-games-per-week-acceptance-examples.md`: exact billing-week boundary,
+  legacy-to-new fee cutover and early/intervening dues; the first live legacy
+  coupon alongside next-week fantasy; rolling hour/day boundaries, spent quote
+  followed by rollback, counted retries, refused admission and process restart.
+  Map each case to contract fields/responses and its downstream test batch.
+  Use the owner-approved Monday 00:00–Monday 00:00 Europe/London interval, labelled
+  by its Saturday. Define membership mapping/cutover before 220; do not infer a
+  different monetary boundary or mark incomplete contract work accepted.
+  Acceptance: every approved rule has a concrete API/state acceptance example;
+  fake-provider/scratch-database work can begin while live activation stays
+  blocked. Scope: contracts and documentation; no live billing or activation.
+
+- [ ] **Batch 220 — Add isolated two-game storage and a default-disabled rollout gate**
+  — prerequisite: 219. Add the parent/child format model, separate group/fantasy
+  picks, explicit fixture memberships, future membership/billing provenance and
+  durable provider-budget/snapshot/work-cursor storage. Enforce same-league/week
+  ownership, immutable week format, group member/fixture uniqueness, fantasy
+  slots 1–6 and per-member fixture uniqueness. Fence old writes/jobs from new
+  weeks; do not copy or reinterpret historical picks. Introduce the disabled
+  rollout gate before any new worker or billing caller can run.
+  Acceptance: clean and representative populated current-head upgrades;
+  historical identifiers/results/points/ledger/events preserved; forced RLS,
+  indexed foreign keys and no public grants; concurrent constraints and atomic
+  replacement failures; old-reader/writer compatibility and rehearsed forward
+  recovery. Restart cannot reset spent provider quota or lose committed work.
+  Trace the F/C/Q acceptance examples to the chosen week identity, constraints
+  and budget representation; an existing fixed-window counter is not a rolling
+  transport allowance.
+  Scope: schema, persistence primitives and isolation; no new member entry flow.
+
+- [ ] **Batch 221 — Retrieve both game windows in paced chunks within one provider budget**
+  — prerequisite: 220. Share a paginated global weekend census, apply separate
+  group/fantasy filters and store London-derived openings/locks. Charge actual
+  HTTP attempts atomically across discovery, pricing, retries, manual and legacy
+  callers; honour provider headers and preserve spend/cooldown on restart. Queue
+  ten-fixture price chunks, coalesce work and serve stored browse prices with
+  age. Prioritise fresh saves and bounded opening/new-market negative rechecks.
+  Keep the proposed 90/hour, provisional 450/day and queue allocations configurable
+  and explicitly unaccepted for activation until quota/latency gates are met.
+  Acceptance: counting mock transport plus database-backed concurrent callers;
+  warm/cold/restarted caches, exhausted budget, refused chunks, pending and late
+  publication, complete/truncated census and no false empty-week classification;
+  14/30/100-membership timelines and larger cards with refusals/age recorded;
+  skips, bounded lookahead, both DST crossings, recovery and misfire fairness.
+  Known overload stays visible. Disabled mode starts no new provider work.
+  Include Q1–Q8 clock-boundary, rollback, retry, admission, restart and cache
+  cases using transport/consumer fakes; repeat actual entry failures in 224 and
+  settlement Q9 in 225. Preserve spend independently of business transactions.
+  Scope: discovery, price scheduling and shared admission; no scoring or fee rule.
+
+- [ ] **Batch 222 — Charge one £1 calendar-week fee independently of participation**
+  — prerequisites: 220–221. For activated leagues only, record one idempotent due
+  per member/Monday-to-Monday London week, labelled by Saturday, including
+  no-entry, partial, all-void, cancelled, fixture-free,
+  skipped and suspended weeks. Preserve owed fees on departure and retain FIFO
+  league credit; future entry requires paid-through status including intervening
+  weeks. Never earmark incoming bank payments to a chosen future week, rewrite
+  old dues or bill past non-membership. Keep billing independent of discovery
+  and both games' locks/outcomes; use the existing payment allocation service.
+  Acceptance: join/leave/rejoin and between-lock cases; current group paid/next
+  fantasy unpaid; arrears, early credit and delayed matching; concurrent calendar
+  catch-up/payments create no missing or duplicate dues; inactive and legacy
+  leagues are unchanged; F1–F6 cover the precise billing boundary, existing
+  legacy due and early/intervening weeks. Tests use fake transactions, not Monzo.
+  Scope: weekly
+  entitlement/roster lifecycle; no bank-reader or OAuth change.
+
+- [ ] **Batch 223 — Add the unpriced Saturday group API**
+  — prerequisites: 220–222. Explicitly target league/week/group for submit,
+  replace and read. One contribution per member and one member per whole fixture;
+  Saturday 15:00 fixtures only, 14:30 lock, weekly entitlement required. Do not
+  call/store/display odds or award points. A fantasy claim never reserves it.
+  Acceptance: database/HTTP races for member and fixture claims; failed atomic
+  replacement retains the prior pick; unpriced fixtures work; lock boundary,
+  fee refusal, inactive/stale clients and cross-league/week/game isolation;
+  incomplete participation and zero-entry state. Scope: group entry/read API.
+
+- [ ] **Batch 224 — Add six independent fantasy slots with fresh frozen prices**
+  — prerequisites: 220–223. Explicit league/week/fantasy/slot save and replace;
+  six different matches per member, shared across members and independent of
+  group claims. Preserve partial entries and each leg's positive quote freshness
+  and price-moved confirmation. Replace one-pick-era admission limits for this
+  format while retaining legacy limits and abuse protection. Current-week last
+  saves and next-week first saves share the same rolling provider allowance.
+  Acceptance: database/HTTP concurrent fills, slot seven and duplicate fixture
+  refusal; atomic replacement; accepted-price retry, budget/refusal/cooldown and
+  uncertain-write readback; early future-week fee; noon opening/lock and Sunday
+  boundaries. Every upstream attempt is counted; no implicit bulk-save redesign.
+  Scope: fantasy entry/read API and format-aware pick admission.
+
+- [ ] **Batch 225 — Settle both games, preserve season totals and handle corrections/events**
+  — prerequisites: 223–224. Use fair persisted chunks of distinct eligible
+  picked fixtures, retaining completed results and delaying pending/error work.
+  Group voids are neutral, all-void is void, zero picks is “No coupon”. Score each
+  winning fantasy leg with rounded frozen odds × 10 and sum weekly points; final
+  fantasy waits for the Sunday window and no pending leg, including empty weeks.
+  Preserve legacy totals exactly once; add future fantasy points. Correct shared
+  fixtures across games/leagues idempotently. Add game/week-specific events,
+  zero-entry-only fantasy reminders, statistics and export/erasure coverage;
+  suspension stops entries/openings but retains settlement and weekly billing.
+  Acceptance: partial-result commits survive failure/restart; pending prefixes
+  cannot starve later results; measured latency under concurrent picks; late
+  Sunday and no-pending finalisation; mixed history/cutover totals; repeated and
+  concurrent corrections; independent notification claims/deep links and mute
+  policy; Q9 commits/charges survive later failure and restart without duplicate
+  results or notices. Scope: results, corrections and game-aware lifecycle/events.
+
+- [ ] **Batch 226 — Expose all actionable games, legacy history and week-specific payment status**
+  — prerequisites: 222–225. Return current group entry, current fantasy results
+  and next fantasy entry together with exact targets, deadlines, progress and
+  fee entitlement. Support multiple leagues, partial entries, leg metrics versus
+  weekly aggregates, legacy archives/links and addressed payment notices.
+  Acceptance: HTTP contracts for all three Saturday states, no hidden next week,
+  no cross-game/slot/week inference, old-client compatibility, stable legacy
+  totals, bounded query growth and no price lookups on group/locked results.
+  Scope: read APIs and addressed navigation/payment contracts.
+  Include C1–C6's first mixed-format live Saturday, not only archived legacy
+  history and the steady-state three-game home.
+  **API checkpoint:** before web close-out/push, explicit `/ship-prod`; API then
+  payments at the same SHA/head, readiness/drift/RLS and legacy smoke evidence,
+  new format off. Test old running payments during migration; readiness is not a
+  stop switch. Production migration requires a tested recovery point. Do not
+  manufacture bank payments or notification receipt evidence.
+
+- [ ] **Batch 227 — Build the separate Saturday group screen and legacy archive flow**
+  — prerequisite: 226 contracts; local build can use the new backend before its
+  production shipment. Show contribution, missing contributors, 14:30 deadline,
+  neutral/all-void/no-coupon results and week-specific fee state without odds or
+  points. Preserve history and exact game/week destinations.
+  Acceptance: seeded real-database browser journey, mobile/accessibility checks,
+  concurrent-claim refusal, offline/uncertain replacement, stale client/API
+  compatibility and inactive-format invisibility. API checkpoint required before
+  close-out/push because Vercel releases the pushed web app automatically.
+  Scope: group and shared home/archive presentation, no activation.
+
+- [ ] **Batch 228 — Build six-slot fantasy, simultaneous home states and the continuing table**
+  — prerequisites: 226 contracts, successful API checkpoint and closed 227. Show six independent slots,
+  Saturday/Sunday choices, noon deadline and seven-day next-week entry; per-leg
+  results/weekly sum and continuing legacy-plus-fantasy standings. Explain valid
+  partial entries, price age/unavailability and £1 every calendar week, including
+  the future paid-through requirement. Reminders target zero-entry members.
+  Acceptance: two offline fills survive; uncertain-write and replacement retry
+  cannot cross slots/games/weeks; same selection can be held in both games;
+  three-state Saturday home, early future fee, both locks, Sunday/late results,
+  partial/all-void/no-entry, legacy links and mobile/accessibility journeys.
+  API checkpoint required before close-out/push; the new format stays hidden.
+  **Activation checkpoint:** accepted live opening coverage/quota and supported
+  traffic/latency evidence, exact future untouched league/week/opening, recovery
+  and suspension procedure, owner approval. Saturday's observation alone does
+  not activate anything. Observe natural member use/results afterwards; tests
+  do not prove provider availability, delivery receipt or owner acceptance.
 
 ## Verification
 

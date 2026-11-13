@@ -145,6 +145,17 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
+Batches **219–228** define the two-game build. Batch 219 contracts are in local
+progress on the owner-authorised branch stack (13 Nov); no batch is locally
+verified or formally closed yet. Canonical rows remain unchecked. Inactive
+implementation and local verification can proceed while the scheduled 14 Nov
+noon provider observation runs separately. Live coverage, quota and traffic/
+latency acceptance gate activation. API/payments shipment, tested migration
+recovery and the exact league/week switch retain their own checkpoints.
+The owner selected Monday-to-Monday London billing and local-only overnight
+completion/testing; production stays for review (12 Nov). The separate overnight
+prompt permits local stacking when invoked, without closing or shipping batches.
+
 Batches 170-203 are drafted from the 2026-09-28 review and every owner decision they needed
 was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is complete
 (172, 173, 174 and 170, closed 3 Oct; web-only, nothing to ship). Group AC is complete,
