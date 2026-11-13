@@ -80,7 +80,10 @@ PostgreSQL ← pooled ledger / FIFO credit ────────┘
      football-week parent (immutable format)
        ├─ group child → unpriced fixture claims → group result
        ├─ fantasy child → six slots → leg / week / season points
-       └─ membership intervals → £1 calendar-week due → same ledger
+       └─ membership intervals → Monday catch-up / early entry → £1 due
+          independent financial commit → same ledger / pooled FIFO
+     member deletion barrier → sorted league locks → exclusive departure
+     read-only target fee projection → no future due merely from browsing
      rolling attempt admission → commit → HTTP (all callers / retries)
      paginated shared census → snapshots / real fixtures
      short token-fenced leases → fair work / shared quotes

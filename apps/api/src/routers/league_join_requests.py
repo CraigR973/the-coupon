@@ -21,6 +21,7 @@ from src.routers.leagues import (
     _audit,
     _now,
     _upsert_membership,
+    lock_roster,
 )
 from src.schemas import UtcDatetime
 
@@ -104,6 +105,7 @@ async def approve_join_request(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     player, league = admin_ctx
+    await lock_roster(db, league)
     join_req = await _load_pending_request(request_id, league.id, db)
 
     member_count = await _active_member_count(league.id, db)

@@ -30,13 +30,15 @@ from src.routers.leagues import (
     _now,
     _resolve_active_membership,
     _upsert_membership,
+    lock_roster,
+    notify_join_committed,
 )
 from src.schemas import UtcDatetime
 from src.services.gameweek import release_unlocked_picks
 from src.services.notification_triggers import (
-    notify_member_joined,
     settle_completion_after_roster_change,
 )
+from src.services.weekly_fees import close_memberships, financial_lock
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -108,7 +110,7 @@ async def claim_invite_authenticated(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ClaimInviteResponse:
     league = await stage_invite_claim(body.token, player, db)
-    await notify_member_joined(db, player.display_name, league.name, league.id)
+    await notify_join_committed(db, player, league)
 
     await db.commit()
     log.info("invite claimed", league_id=str(league.id), player_id=str(player.id))
@@ -121,11 +123,22 @@ async def stage_invite_claim(token: str, player: Profile, db: AsyncSession) -> L
     Registration calls this before its single token-issuing commit. Row locks keep a
     simultaneous redemption or last-place join from passing the same checks twice.
     """
-    invite_result = await db.execute(select(Invite).where(Invite.token == token).with_for_update())
+    with db.no_autoflush:
+        resolved_league_id = await db.scalar(select(Invite.league_id).where(Invite.token == token))
+        if resolved_league_id is not None:
+            await financial_lock(db, resolved_league_id)
+    invite_result = await db.execute(
+        select(Invite)
+        .where(Invite.token == token)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     invite = invite_result.scalar_one_or_none()
 
     if invite is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid invite token")
+    if invite.league_id != resolved_league_id:
+        raise HTTPException(status_code=409, detail="Invite changed; try again")
     if not invite.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invite has been revoked"
@@ -143,6 +156,7 @@ async def stage_invite_claim(token: str, player: Profile, db: AsyncSession) -> L
         select(League)
         .where(League.id == invite.league_id, League.deleted_at.is_(None))
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     league = league_result.scalar_one_or_none()
     if league is None:
@@ -205,6 +219,7 @@ async def join_league_by_code(
     if league is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid join code")
 
+    await lock_roster(db, league)
     existing = await _resolve_active_membership(league.id, player.id, db)
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="ALREADY_MEMBER")
@@ -225,7 +240,7 @@ async def join_league_by_code(
 
     await _upsert_membership(league.id, player.id, db)
     db.add(_audit(player, ActionType.member_joined, "league_memberships", league.id))
-    await notify_member_joined(db, player.display_name, league.name, league.id)
+    await notify_join_committed(db, player, league)
     await db.commit()
     log.info("joined by code", league_id=str(league.id), player_id=str(player.id))
     return JoinByCodeResponse(league_slug=league.slug, league_name=league.name, status="joined")
@@ -359,6 +374,7 @@ async def remove_member(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     player, league = admin_ctx
+    await lock_roster(db, league)
     membership = await _resolve_active_membership(league.id, target_player_id, db)
     if membership is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
@@ -367,10 +383,14 @@ async def remove_member(
             status_code=status.HTTP_409_CONFLICT,
             detail="Demote the member from admin before removing",
         )
-    membership.deleted_at = _now()
+    departure = _now()
+    await close_memberships(db, [league.id], departure, player_id=target_player_id)
+    membership.deleted_at = departure
     membership.updated_at = _now()
     # Batch 185. A removed member's open claims are released like a leaver's.
-    await release_unlocked_picks(db, target_player_id, [league.id], actor_id=player.id)
+    await release_unlocked_picks(
+        db, target_player_id, [league.id], actor_id=player.id, now=departure
+    )
     db.add(
         _audit(
             player,

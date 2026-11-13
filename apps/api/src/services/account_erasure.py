@@ -56,6 +56,7 @@ from src.models.rate_limit import RateLimitCounter
 from src.models.refresh_token import RefreshToken
 from src.services.avatar_storage import AvatarStorage
 from src.services.gameweek import release_unlocked_picks
+from src.services.weekly_fees import close_memberships, financial_locks, member_barrier
 
 
 class SoleAdminError(Exception):
@@ -132,6 +133,27 @@ async def erase_account(db: AsyncSession, member: Profile, storage: AvatarStorag
             )
         ).scalars()
     )
+    # Remove the external avatar before acquiring any financial or row locks.
+    # Failure still aborts before database erasure; the caller owns its commit.
+    avatar_removed = bool(member.avatar_url)
+    if avatar_removed:
+        await storage.delete(player_id=str(member.id))
+    await member_barrier(db, member.id, deleting=True)
+    await db.refresh(member)
+    memberships = list(
+        await db.scalars(
+            select(LeagueMembership)
+            .where(LeagueMembership.player_id == member.id)
+            .execution_options(populate_existing=True)
+        )
+    )
+    league_ids = [membership.league_id for membership in memberships]
+    await financial_locks(db, league_ids)
+    stranded = await leagues_they_alone_run(db, member.id)
+    if stranded:
+        raise SoleAdminError(stranded)
+    departure = datetime.now(UTC).replace(tzinfo=None)
+    await close_memberships(db, league_ids, departure, player_id=member.id)
     invites = list(
         (await db.execute(select(Invite).where(Invite.claimed_by == member.id))).scalars()
     )
@@ -176,7 +198,7 @@ async def erase_account(db: AsyncSession, member: Profile, storage: AvatarStorag
 
     # Batch 185. A pick on a round still open is a claim, not history: it goes, so the
     # selection is free for the members still playing. Locked and settled picks stay.
-    await release_unlocked_picks(db, member.id, actor_id=member.id)
+    await release_unlocked_picks(db, member.id, actor_id=member.id, now=departure)
 
     # Batch 205. Their ledger entries stay — the amounts are other members' prize pot —
     # but not the name or bank id a payment arrived under, nor their name in a note, and
@@ -208,9 +230,7 @@ async def erase_account(db: AsyncSession, member: Profile, storage: AvatarStorag
         )
     )
 
-    if member.avatar_url:
-        await storage.delete(player_id=str(member.id))
-    now = datetime.now(UTC).replace(tzinfo=None)
+    now = departure
     member.display_name = former_member_placeholder()
     member.avatar_url = None
     member.pin_hash = None

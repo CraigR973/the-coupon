@@ -5,7 +5,7 @@ formal batch close-out performed. Canonical batch rows remain unchecked.
 
 ## Current checkpoint
 
-2 of 10 batches locally verified. Batch 219 contracts passed independent review
+3 of 10 batches locally verified. Batch 219 contracts passed independent review
 and the unmodified full 12-check gate: backend 1,650, frontend 1,418, seeded
 journey 1, zero skips. Exact verified tree `532b4c0ae32249051381f4f4c0192d8a3fc5e2d9`
 matches commit `1a0ca8f2d78c6334bd14e1caf5c74e41943238b0`; evidence is in
@@ -18,17 +18,23 @@ Verified tree `bb0a4067b0c99994b0ca7a540cac79a48a32ff0e` matches local commit
 `e458ec8c8b93eae747c52c088750ee6db42ef2a2`; log
 `.local/overnight-two-games/220-gate-attempt2.log`. The report in that commit
 records the pending gate at invocation; this later branch records its result.
-Current Batch 221 edits are not covered by either earlier stamp.
+Later batch edits are not covered by either earlier stamp.
 
-Batch 221 provider work is in progress. Batches 222–228 have not started.
+Batch 221 provider work passed its full gate. Batch 222 weekly billing is implemented locally;
+Batches 223–228 have not started.
 Production remains unchanged. Both new UI flows remain unimplemented.
 
 Batch 221's implementation now passes independent source review. Focused
 transport/quote/provider/scheduler checks passed 290 tests with zero skips;
 health, mixed-format fixture moves, storage and scheduler regressions then
 passed 115 with zero skips. The latest API lint/format and mypy checks pass.
-These focused results predate the final milestone gate and do not verify the
-entire candidate. No full Batch 221 gate has run yet.
+These focused results preceded the full milestone gate. Its unmodified first
+full gate then passed all 12 checks: backend 1,749, frontend 1,418 and seeded
+journey 1, zero skips. Tree `b24a51d85e5a5cbdba0375d15239e183d40708e0` matches
+local commit `278e1fa578f222503e9f4c852764aa70795ec837`; log
+`.local/overnight-two-games/221-gate-attempt1.log`. The report in that commit
+records the pending gate at invocation; this branch records its result. The
+221 stamp does not cover later 222 changes.
 
 The draft includes shared paginated census, independent windows and London/DST
 clocks, confirmed-break lookahead/recovery, short token-fenced quote/work leases,
@@ -78,14 +84,92 @@ run. The second gate verified the entire corrected tree.
 | --- | --- | --- |
 | 219 contracts | Locally verified; commit `1a0ca8f` | `feat/batch-219-two-game-contracts` / `dfb39fe` |
 | 220 storage/isolation | Locally verified; commit `e458ec8` | `feat/batch-220-two-game-storage` / `1a0ca8f` |
-| 221 provider work | In progress | `feat/batch-221-two-game-provider` / `e458ec8` |
-| 222 weekly billing | Not started | Pending verified 221 |
+| 221 provider work | Locally verified; commit `278e1fa` | `feat/batch-221-two-game-provider` / `e458ec8` |
+| 222 weekly billing | Focused checks pass; full gate pending | `feat/batch-222-weekly-dues` / `278e1fa` |
 | 223 group API | Not started | Pending verified 222 |
 | 224 fantasy API | Not started | Pending verified 223 |
 | 225 results/lifecycle | Not started | Pending verified 224 |
 | 226 read APIs | Not started | Pending verified 225 |
 | 227 group web | Not started | Pending verified 226 |
 | 228 fantasy web | Not started | Pending verified 227 |
+
+## Weekly billing implementation (222, full gate pending)
+
+New-format members owe exactly £1 per intersected Monday-to-Monday London
+calendar week, labelled Saturday. A minute catch-up job and natural membership
+joins share one league financial lock and immutable obligation/ledger pairing.
+No participation, fixture, result, confirmed break or suspension exempts a week.
+Departure closes the interval exclusively before catch-up; early future dues
+already owed stay owed. Default-disabled installations create no new money.
+Recorded provenance continues closing/rejoining after a later gate shutdown,
+so reactivation cannot mistake a departed member for continuously active.
+
+Fee reads project intervening weeks without writing future obligations. An
+eligible early-entry attempt separately commits its target/intervening dues
+before later game/provider work can fail. Pooled ledger credit clears oldest
+dues first; queued fake payments count only after the unchanged assignment
+route matches them. `paid_through` is a boolean for the exact target, and
+unallocated pooled credit is separate from the through-target amount owed.
+No bank-reader or OAuth behaviour changed.
+
+Per-member shared TRY/exclusive deletion barriers prevent first joins escaping
+account erasure's roster collection. Deletion collects current leagues after
+its barrier, takes league locks in order and uses one final departure instant.
+Joins fail with a controlled retry instead of waiting on deletion while holding
+a league lock. Avatar deletion and join notification delivery hold no financial
+or member barrier lock. Unlocked new claims are released with durable revision
+tombstones; locked fantasy history stays when group remains unlocked.
+Accepted operation replay and actual entry writes are for 223/224.
+
+Focused evidence: 102 billing/unchanged legacy, membership and erasure checks
+passed, zero skips; six lifecycle concurrency/assignment/release checks then
+passed, zero skips. The final expanded new monetary matrix passed 44 tests,
+zero skips, including boundary milliseconds, 167/169-hour DST weeks, same-week
+rejoin, closed catch-up, early due retention, actual partial/void picks and
+confirmed breaks, new-current-group paid/next-fantasy unpaid, immutable erasure,
+queued assignment, commit/rollback recovery and independent sessions.
+The discovery calendar was subsequently added to the existing F6 race; its
+final focused rerun passed, one test with zero skips. The expanded unchanged
+auth/admin/scheduler slice passed 224 tests with zero skips before the last
+billing-failure/current-game test additions; the full gate covers all of them. Latest
+source lint and mypy pass. The count ratchet only increases 1,749→1,794;
+no existing test assertion, fixture, guard or gate is weakened. Independent
+source review accepted billing; late API-envelope review found the new fee
+errors needed structured `code`/`message` and the exact legacy destination.
+Those responses are corrected with an additional HTTP oracle. The first
+full gate was interrupted during its backend run after lint/format/mypy passed;
+its candidate has no acceptance stamp. A complete second full gate is mandatory.
+
+### Failures, review corrections and limits
+
+The first new billing slice passed 24 and failed two newly written tests:
+its legacy entitlement assertion used `None` for an existing boolean helper
+whose allowed state is `False`; the intended paid-up entitlement remains
+unchanged. Its fake ingestion call omitted required `counting_since`, now
+supplied with a synthetic cutover. No existing oracle was edited.
+One broader diagnostic named absent test files and collected nothing; the
+correct discovered test paths then passed. Strict typing found three optional/
+Any errors and generic entry-model inference errors; explicit types fixed them.
+Draft import/format lint errors were fixed without suppressions.
+
+Independent review found and corrected monetary defects before the full gate:
+Monday departure was planned while still open; cached league deletion could be
+stale after a lock wait; an earlier attempt clock could admit a later rejoin
+without an early due; name scrubbing could mutate a generated immutable due
+note; and independently sampled departure/release clocks could cross a lock.
+Closures now precede planning, league/member state refreshes under admission,
+entry time follows the financial lock, system dues carry no personal note, and
+one departure instant drives closure/stamps/release. Added real regressions
+exercise these causes. One failing league now rolls back independently, later
+leagues still commit, and aggregate failure remains visible; the next pass
+charges only still-pending work. No full 222 gate or verification stamp exists
+yet; local API entry flows and both web flows remain for later batches.
+The additional envelope oracle initially omitted the legacy fixture's required
+stored lock timestamp; its setup now supplies the Saturday 14:30 deadline,
+with every error/destination assertion unchanged. The 44-test matrix and final
+F6 integration results above precede this isolated response correction. The
+45th test passed with zero skips after its fixture correction. Final independent
+source review passes; the complete second gate is pending for the final tree.
 
 ## Evidence and recovery
 
@@ -180,9 +264,10 @@ source or assertions. No full milestone failure is hidden by focused passes.
 
 ## Remaining release gates and exact next step
 
-Run the unmodified full Batch 221 gate on the documented candidate. Stack 222
-only on its exact verified local commit, then continue through both web flows
-and final review. The last tree stamps above do not cover 221. Do not merge or push.
+Verify the frozen Batch 222 tree with the complete unmodified local gate,
+then explicitly commit its in-scope files and stack Batch 223 on that verified
+commit. Continue the authorised stack through both web flows and final review.
+The 221 stamp does not cover 222 edits. Do not merge or push.
 
 Owner review/release follows completion: review the local stack and report,
 integrate under normal gates with fresh exact-head CI, create/test a production

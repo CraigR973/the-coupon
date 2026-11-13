@@ -82,6 +82,7 @@ from src.services.season_calendar import (
     season_label,
     withdraw_extra_week,
 )
+from src.services.weekly_fees import close_memberships, financial_locks, member_barrier
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -425,12 +426,20 @@ async def delete_player(request: Request, player_id: uuid.UUID, admin: AdminUser
     if player.deleted_at is not None:
         return
 
-    player.deleted_at = _now()
+    await member_barrier(db, player.id, deleting=True)
+    affected_leagues = await _leagues_of(db, player.id)
+    await financial_locks(db, affected_leagues)
+    await db.refresh(player)
+    if player.deleted_at is not None:
+        return
+    departure = _now()
+    await close_memberships(db, affected_leagues, departure, player_id=player.id)
+    player.deleted_at = departure
     player.is_active = False
     player.updated_at = _now()
     revoked = await revoke_all_refresh_tokens(db, player.id)
     # Batch 185. Every league they were in loses their open claims; their history stays.
-    await release_unlocked_picks(db, player.id, actor_id=admin.id)
+    await release_unlocked_picks(db, player.id, actor_id=admin.id, now=departure)
     db.add(
         _audit(
             admin,

@@ -218,7 +218,11 @@ blocked by unpaid W1; W1 cannot consume credit ahead of W0.
 `WeekFee`: `league_id`, `week_id`, `week_label`, `billing_starts_at`,
 `billing_ends_at`, `obligation_pence`, `amount_owed_pence` (through target),
 `paid_through`, `pooled_credit_pence`, `payment_url`, `destination`,
-`obligations` (labels and remaining pence). Group and every fantasy slot share
+`obligations` (parent UUID, stored label and remaining pence). `paid_through`
+is a boolean for this addressed target; it is not a payment date. Virtual future
+obligations may have a null parent UUID until materialised. A retained orphan
+legacy balance has null parent/label and remains oldest in FIFO. Legacy custom
+round dates remain their historical labels. Group and every fantasy slot share
 the same target-week due. No picks, partial picks, all-void, cancellation,
 confirmed breaks, missing fixtures or suspension never waive that due.
 Leave/remove/delete releases only unlocked entries, retains locked anonymous

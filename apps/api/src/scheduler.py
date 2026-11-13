@@ -78,6 +78,7 @@ from src.services.scoring import (
     standings,
 )
 from src.services.two_game_discovery import DiscoveryWorker
+from src.services.weekly_fees import bill_all
 
 #: How long a dead refresh token is kept before ``run_prune_refresh_tokens`` removes it.
 #: Long enough that a revoked row still serves as evidence for reuse detection in
@@ -405,6 +406,16 @@ def _two_game_discovery_worker() -> DiscoveryWorker:
         negative_seconds=settings.two_game_negative_recheck_seconds,
         verify_rows=verify_rows,
     )
+
+
+async def run_weekly_dues() -> bool:
+    try:
+        charged = await bill_all(AsyncSessionLocal, _utc_now())
+        log.info("weekly fee catch-up", obligations=charged)
+        return True
+    except Exception:
+        log.exception("weekly fee catch-up failed")
+        return False
 
 
 async def run_two_game_discovery() -> bool:
@@ -1253,6 +1264,18 @@ def create_scheduler() -> AsyncIOScheduler:
             misfire_grace_time=_INFREQUENT_JOB_GRACE_SECONDS,
         )
     if settings.two_games_enabled:
+        # A short catch-up pass covers Monday and missed runs without relying on
+        # discovery or a fixture existing. Only exact enabled rollouts accrue.
+        scheduler.add_job(
+            run_weekly_dues,
+            trigger="interval",
+            minutes=1,
+            id="weekly_dues",
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+            misfire_grace_time=_FREQUENT_JOB_GRACE_SECONDS,
+        )
         scheduler.add_job(
             run_two_game_discovery,
             trigger="interval",

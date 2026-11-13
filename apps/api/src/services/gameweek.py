@@ -1642,6 +1642,9 @@ async def release_unlocked_picks(
     if league_ids is not None and not league_ids:
         return 0
     moment = _naive_utc(now) if now is not None else _utc_now()
+    from src.services.weekly_fees import release_new_entries
+
+    new_released = await release_new_entries(db, player_id, league_ids, moment)
     await reverse_unlocked_dues(db, player_id, league_ids, now=moment, actor_id=actor_id)
     unlocked = select(Gameweek.id).where(
         Gameweek.format == "legacy",
@@ -1652,7 +1655,7 @@ async def release_unlocked_picks(
     if league_ids is not None:
         conditions.append(Pick.league_id.in_(list(league_ids)))
     result = await db.execute(delete(Pick).where(*conditions))
-    released = result.rowcount or 0
+    released = (result.rowcount or 0) + new_released
     if released:
         log.info(
             "released a departing member's unlocked picks",

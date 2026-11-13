@@ -53,6 +53,14 @@ from src.services.notification_triggers import (
 )
 from src.services.odds_provider import UK_TZ, OddsProvider, OddsProviderError
 from src.services.season_calendar import labels_for_gameweeks
+from src.services.weekly_fees import (
+    close_memberships,
+    financial_lock,
+    materialize_dues,
+    member_barrier,
+    track_join,
+    tracking_enabled,
+)
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -842,13 +850,35 @@ async def _upsert_membership(
     a fee is charged here too (Batch 205, ADR 0009): a member who joins while a round is
     open owes that round on joining, and nothing before it.
     """
-    result = await db.execute(
-        select(LeagueMembership).where(
-            LeagueMembership.league_id == league_id,
-            LeagueMembership.player_id == player_id,
-        )
+    if not await member_barrier(db, player_id):
+        raise HTTPException(status_code=409, detail="MEMBERSHIP_CHANGING")
+    if await tracking_enabled(db):
+        profile = await db.get(Profile, player_id, populate_existing=True)
+        if profile is None or not profile.is_active or profile.deleted_at is not None:
+            raise HTTPException(status_code=404, detail="Member not found")
+    tracked = await financial_lock(db, league_id)
+    query = select(LeagueMembership).where(
+        LeagueMembership.league_id == league_id,
+        LeagueMembership.player_id == player_id,
     )
+    if tracked:
+        league = await db.get(League, league_id, populate_existing=True)
+        profile = await db.get(Profile, player_id, populate_existing=True)
+        if (
+            league is None
+            or league.deleted_at is not None
+            or profile is None
+            or not profile.is_active
+            or profile.deleted_at is not None
+        ):
+            raise HTTPException(status_code=404, detail="League or member not found")
+        query = query.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(query)
     existing = result.scalar_one_or_none()
+    if tracked and existing is not None and existing.deleted_at is None:
+        await track_join(db, existing)
+        await materialize_dues(db, league_id, player_id, _now())
+        return existing
     if existing is not None:
         # Restore soft-deleted row
         existing.deleted_at = None
@@ -865,8 +895,29 @@ async def _upsert_membership(
             created_at=_now(),
         )
         db.add(membership)
+    if tracked:
+        await db.flush()
+        await track_join(db, membership)
+        await materialize_dues(db, league_id, player_id, _now())
     await charge_open_rounds_on_join(db, league_id, player_id)
     return membership
+
+
+async def lock_roster(db: AsyncSession, league: League) -> bool:
+    tracked = await financial_lock(db, league.id)
+    if tracked:
+        await db.refresh(league)
+        if league.deleted_at is not None:
+            raise HTTPException(status_code=404, detail="League not found")
+    return tracked
+
+
+async def notify_join_committed(db: AsyncSession, player: Profile, league: League) -> None:
+    # The new financial lock ends before notification delivery. Legacy-only
+    # transactions retain their existing commit/notification behaviour.
+    if await tracking_enabled(db):
+        await db.commit()
+    await notify_member_joined(db, player.display_name, league.name, league.id)
 
 
 # ---------------------------------------------------------------------------
@@ -912,6 +963,11 @@ async def create_league(
         if body.offered_markets is not None
         else list(DEFAULT_OFFERED_MARKETS)
     )
+    if not await member_barrier(db, player.id):
+        raise HTTPException(status_code=409, detail="MEMBERSHIP_CHANGING")
+    await db.refresh(player)
+    if not player.is_active or player.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Member not found")
     league = League(
         slug=slug,
         name=body.name,
@@ -1269,6 +1325,7 @@ async def update_league(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> LeagueResponse:
     player, league = admin_ctx
+    await lock_roster(db, league)
 
     # Pay to pick (Batch 205, ADR 0009), checked before anything is touched. The fee and
     # the payment link are a site admin's alone, so nobody can swap in a link of their own;
@@ -1821,6 +1878,8 @@ async def delete_league(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="confirm_name does not match league name",
         )
+    await lock_roster(db, league)
+    await close_memberships(db, [league.id], _now())
     league.deleted_at = _now()
     league.updated_at = _now()
     db.add(_audit(player, ActionType.league_deleted, "leagues", league.id, {"name": league.name}))
@@ -1846,6 +1905,7 @@ async def join_league(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> JoinResponse:
     league = await _resolve_league(slug, db)
+    await lock_roster(db, league)
 
     if league.privacy == LeaguePrivacy.private:
         raise HTTPException(
@@ -1871,7 +1931,7 @@ async def join_league(
     if league.privacy == LeaguePrivacy.public_open:
         await _upsert_membership(league.id, player.id, db)
         db.add(_audit(player, ActionType.member_joined, "league_memberships", league.id))
-        await notify_member_joined(db, player.display_name, league.name, league.id)
+        await notify_join_committed(db, player, league)
         await db.commit()
         log.info("league joined", league_id=str(league.id), player_id=str(player.id))
         return JoinResponse(status="joined")
@@ -1897,6 +1957,7 @@ async def leave_league(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     league = await _resolve_league(slug, db)
+    await lock_roster(db, league)
     membership = await _resolve_active_membership(league.id, player.id, db)
     if membership is None:
         raise HTTPException(
@@ -1913,12 +1974,14 @@ async def leave_league(
                 detail="LAST_ADMIN: promote another member to admin before leaving",
             )
 
-    membership.deleted_at = _now()
+    departure = _now()
+    await close_memberships(db, [league.id], departure, player_id=player.id)
+    membership.deleted_at = departure
     membership.updated_at = _now()
     # Batch 185. Their claims on rounds still open go with them, so nobody else is kept
     # off a selection all week by somebody who will never play it. Locked and settled
     # picks stay: those are history.
-    await release_unlocked_picks(db, player.id, [league.id], actor_id=player.id)
+    await release_unlocked_picks(db, player.id, [league.id], actor_id=player.id, now=departure)
     db.add(_audit(player, ActionType.member_left, "league_memberships", league.id))
     await db.commit()
     log.info("left league", league_id=str(league.id), player_id=str(player.id))
