@@ -8,6 +8,8 @@ formal batch close-out performed. Canonical batch rows remain unchecked.
 0 of 10 batches locally verified. Batch 219's concrete API contract, product
 contract and architecture map passed independent review after two fixes. The
 unmodified baseline gate failed its two browser checks; 10 of 12 checks passed.
+The unmodified journey diagnostic subsequently passed. Port 4173 is now free;
+the complete Batch 219 gate is being rerun on the stable documentation tree.
 Backend: 1,650 passed, zero skipped. Frontend: 1,418 passed, zero skipped.
 The seeded journey passed zero of one. Subsequent batches
 have not started; no missing check is represented as passed.
@@ -30,6 +32,8 @@ have not started; no missing check is represented as passed.
 The starting branch, HEAD/main and planning diff matched the saved prompt.
 Existing planning files are preserved for explicit inclusion in Batch 219.
 Main remains `dfb39fef90dd4a171248c79117d6bdc72d63ce8d`.
+Local draft commit `fd7db37dd8d20a368d97fb1c1a7fbf21d2911cc5` contains exactly
+13 in-scope planning/contract/report files. It is not a verified milestone.
 The ignored `.local/overnight-two-games/` contains the initial diff/status,
 `state.json`, append-only `journal.md` and gate logs. Resume from that state and
 verify current Git state before taking the recorded next action.
@@ -59,15 +63,16 @@ lock and undefined legacy fields on new-format parents. Replay now precedes
 mutable entry gates, and parent sentinel fields plus mandatory legacy filters
 and database fences are explicit. Baseline browser failures are under diagnosis; no milestone is accepted.
 
-- Deep-link smoke: fixed port 4173 is held by another project’s active MCU test
-  preview. It was preserved; no port/gate workaround was applied.
+- Deep-link smoke: fixed port 4173 was held by another project’s active MCU test
+  preview. It was preserved and has now exited; no port/gate workaround was applied.
 - Seeded journey: the home-card assertion failed with the app showing offline
   and a lazy-chunk update fallback. Runtime source/tests/scripts are byte-for-byte
   unchanged from local main. The retained trace archive is truncated. System
   load was 99 when diagnosed; timing pressure is a possible cause, not proved.
-- An unmodified journey-only diagnostic is running against the same main runtime
-  source and fresh scratch database, without changing timeouts or assertions.
-  This is diagnosis, not a substitute for the full gate.
+- An unmodified journey-only diagnostic passed: one test, zero skipped, against
+  the same main runtime source and fresh scratch database, without changes to
+  timeouts/assertions. The first failure was transient; its exact cause is not
+  proved. This diagnostic is not a substitute for the full gate.
 
 A read-only exploration used an absent
 `models/membership.py` path; membership wiring was located through league routes.

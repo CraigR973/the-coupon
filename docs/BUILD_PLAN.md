@@ -154,7 +154,7 @@ that payment by amount, time and payer. A filing is never a payment.
 
 Odds sit behind the provider-neutral `OddsProvider` port
 (`services/odds_provider.py`). `OddsApiProvider` is production — odds-api.io
-priced by Bet365, per ADR 0002 — with `BetfairAdapter` / `Betfair` retained as a
+priced by its configured bookmaker, per ADR 0002 — with `BetfairAdapter` / `Betfair` retained as a
 fallback and `FakeBetfair` supplying deterministic catalogue and market-book
 shapes for tests (`ODDS_PROVIDER=fake`). Football tables and results come through
 a second port, `FootballDataProvider`. `FotMobProvider` is production per ADR 0007
