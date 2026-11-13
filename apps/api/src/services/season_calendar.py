@@ -140,6 +140,7 @@ async def ensure_calendar_for_new_season(
         .select_from(Gameweek)
         .join(League, League.id == Gameweek.league_id)
         .where(
+            Gameweek.format == "legacy",
             Gameweek.starts_on >= first_day,
             Gameweek.starts_on <= last_day,
             League.deleted_at.is_(None),
@@ -219,7 +220,7 @@ class SeasonLabels:
                 await db.execute(
                     select(Gameweek.starts_on)
                     .join(League, League.id == Gameweek.league_id)
-                    .where(or_(*clauses), League.deleted_at.is_(None))
+                    .where(Gameweek.format == "legacy", or_(*clauses), League.deleted_at.is_(None))
                     .distinct()
                 )
             )
@@ -290,6 +291,7 @@ class SeasonLabels:
             )
             rows = await db.execute(
                 select(Gameweek.league_id, Gameweek.starts_on).where(
+                    Gameweek.format == "legacy",
                     Gameweek.league_id.in_(sorted({league_id for league_id, _ in missing})),
                     Gameweek.starts_on.in_(shared_dates),
                 )
@@ -388,7 +390,11 @@ async def move_anchor(db: AsyncSession, season: int, anchor: date) -> SeasonCale
         has_rounds = await db.scalar(
             select(func.count())
             .select_from(Gameweek)
-            .where(Gameweek.starts_on >= first_day, Gameweek.starts_on <= last_day)
+            .where(
+                Gameweek.format == "legacy",
+                Gameweek.starts_on >= first_day,
+                Gameweek.starts_on <= last_day,
+            )
         )
         if has_rounds:
             raise LookupError("SEASON_CALENDAR_REQUIRES_BACKFILL")
@@ -403,6 +409,7 @@ async def move_anchor(db: AsyncSession, season: int, anchor: date) -> SeasonCale
         select(func.count())
         .select_from(Gameweek)
         .where(
+            Gameweek.format == "legacy",
             Gameweek.starts_on >= first_day,
             Gameweek.starts_on <= last_day,
             Gameweek.status == GameweekStatus.settled,
@@ -467,6 +474,7 @@ async def _week_has_settled_round(db: AsyncSession, day: date) -> bool:
         select(func.count())
         .select_from(Gameweek)
         .where(
+            Gameweek.format == "legacy",
             Gameweek.starts_on >= first,
             Gameweek.starts_on <= last,
             Gameweek.status == GameweekStatus.settled,
@@ -498,6 +506,7 @@ async def reanchor_from_earliest_round(db: AsyncSession, season: int) -> SeasonC
         select(func.min(Gameweek.starts_on))
         .join(League, League.id == Gameweek.league_id)
         .where(
+            Gameweek.format == "legacy",
             Gameweek.starts_on >= first_day,
             Gameweek.starts_on <= last_day,
             League.deleted_at.is_(None),
@@ -513,6 +522,7 @@ async def reanchor_from_earliest_round(db: AsyncSession, season: int) -> SeasonC
         .select_from(Gameweek)
         .join(League, League.id == Gameweek.league_id)
         .where(
+            Gameweek.format == "legacy",
             Gameweek.starts_on >= first_day,
             Gameweek.starts_on <= last_day,
             Gameweek.status == GameweekStatus.settled,
@@ -542,7 +552,7 @@ async def withdraw_extra_week(db: AsyncSession, season: int, starts_on: date) ->
         select(func.count())
         .select_from(Gameweek)
         .join(Pick, Pick.gameweek_id == Gameweek.id)
-        .where(Gameweek.starts_on == starts_on)
+        .where(Gameweek.format == "legacy", Gameweek.starts_on == starts_on)
     )
     if pick_exists:
         raise PermissionError("EXTRA_WEEK_HAS_PICKS")

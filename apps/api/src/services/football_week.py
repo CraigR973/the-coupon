@@ -64,6 +64,7 @@ async def _rounds_in_week(db: AsyncSession, league_id: uuid.UUID, day: date) -> 
     rows = await db.execute(
         select(Gameweek)
         .where(
+            Gameweek.format == "legacy",
             Gameweek.league_id == league_id,
             Gameweek.starts_on >= week_start,
             Gameweek.starts_on <= week_end,

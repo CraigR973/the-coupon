@@ -57,6 +57,7 @@ from src.services.season_calendar import (
     labels_for_gameweeks,
     season_bounds,
 )
+from src.services.two_game_storage import is_two_game
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -144,6 +145,8 @@ async def round_fee(db: AsyncSession, league: League, gameweek: Gameweek) -> int
     the fee was set, and owes nothing — which is what "dues start with the first round
     that opens after the fee is set" means.
     """
+    if is_two_game(gameweek):
+        return None
     if league.entry_fee_pence is None:
         return None
     recorded = await _recorded_round_fee(db, gameweek.id)
@@ -182,6 +185,8 @@ async def ensure_round_due(
     still open, has the reversal undone by an opposite one; the due row is locked first,
     so two writers cannot both do that either.
     """
+    if await db.scalar(select(Gameweek.format).where(Gameweek.id == gameweek_id)) == "two_game":
+        return False
     inserted = await db.scalar(
         insert(LedgerEntry)
         .values(
@@ -235,6 +240,8 @@ async def record_round_dues(db: AsyncSession, league: League, gameweek: Gameweek
     The amount is the one already charged for this round if any member has been, so a fee
     edited between two runs cannot split a round in two. Flushes; the caller commits.
     """
+    if is_two_game(gameweek):
+        return 0
     if league.entry_fee_pence is None or league.deleted_at is not None:
         return 0
     amount = await _recorded_round_fee(db, gameweek.id) or league.entry_fee_pence
@@ -261,6 +268,7 @@ async def record_round_dues(db: AsyncSession, league: League, gameweek: Gameweek
 
 async def record_dues_for_opened(db: AsyncSession, gameweeks: Sequence[Gameweek]) -> int:
     """:func:`record_round_dues` for every round an opening just moved."""
+    gameweeks = [g for g in gameweeks if not is_two_game(g)]
     if not gameweeks:
         return 0
     leagues = {
@@ -311,6 +319,7 @@ async def charge_open_rounds_on_join(
             .join(LedgerEntry, LedgerEntry.gameweek_id == Gameweek.id)
             .where(
                 Gameweek.league_id == league_id,
+                Gameweek.format == "legacy",
                 Gameweek.status == GameweekStatus.open,
                 Gameweek.locks_at_utc > moment,
                 LedgerEntry.kind == LedgerKind.round_due,
@@ -355,7 +364,15 @@ async def reverse_round_dues(
     """
     if not gameweek_ids:
         return 0
-    ids = list(gameweek_ids)
+    ids = list(
+        (
+            await db.scalars(
+                select(Gameweek.id).where(
+                    Gameweek.id.in_(gameweek_ids), Gameweek.format == "legacy"
+                )
+            )
+        ).all()
+    )
     dues = (
         (
             await db.execute(
@@ -432,6 +449,7 @@ async def reverse_unlocked_dues(
         .where(
             LedgerEntry.player_id == player_id,
             LedgerEntry.kind == LedgerKind.round_due,
+            Gameweek.format == "legacy",
             Gameweek.status.in_(PICKABLE_STATES),
             Gameweek.locks_at_utc > now,
         )
@@ -640,6 +658,8 @@ async def record_due_on_pick(
     nobody plays a round the ledger never charged them for. Picking, changing a pick and
     picking again after a postponement all land here and cost nothing extra.
     """
+    if is_two_game(gameweek):
+        return
     if league.entry_fee_pence is None:
         return
     amount = await round_fee(db, league, gameweek)

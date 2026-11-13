@@ -25,6 +25,7 @@ from src.models.gameweek import Gameweek
 from src.models.gameweek_completion import GameweekCompletion
 from src.models.pick import PickMarket, PickOutcome
 from src.services.gameweek import PICKABLE_STATES, round_progress
+from src.services.two_game_storage import is_two_game
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -64,6 +65,8 @@ async def record_completion(
     round conflicts, returns ``False``, and sends its ordinary alert — there is no second
     completion event to be had for that round, ever.
     """
+    if is_two_game(gameweek):
+        return False
     result = await session.execute(
         insert(GameweekCompletion)
         .values(
@@ -149,6 +152,7 @@ async def complete_rounds_after_roster_change(
         (
             await session.execute(
                 select(Gameweek).where(
+                    Gameweek.format == "legacy",
                     Gameweek.league_id == league_id,
                     Gameweek.status.in_(PICKABLE_STATES),
                 )

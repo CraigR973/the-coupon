@@ -1,3 +1,4 @@
+from src.models import two_game as two_game
 from src.models.base import Base
 from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekStatus

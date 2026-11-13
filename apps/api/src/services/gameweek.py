@@ -60,6 +60,7 @@ from src.services.season_calendar import (
     season_label,
 )
 from src.services.slate_verification import verify_slate
+from src.services.two_game_storage import is_two_game, legacy_date_blocked
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -140,6 +141,7 @@ async def seasons_played(db: AsyncSession, league_id: Any) -> list[SeasonSummary
     rows = await db.execute(
         select(Gameweek.starts_on).where(
             Gameweek.league_id == league_id,
+            Gameweek.format == "legacy",
             Gameweek.status == GameweekStatus.settled,
         )
     )
@@ -188,6 +190,8 @@ def pick_refusal(gameweek: Gameweek, now: datetime) -> str | None:
     ``PICKS_NOT_OPEN`` is a distinct code from ``PICKS_LOCKED`` because the two ask
     opposite things of a member: come back later, versus it is over.
     """
+    if is_two_game(gameweek):
+        return "UNSUPPORTED_FORMAT"
     if gameweek.status not in PICKABLE_STATES:
         return "PICKS_LOCKED"
     if gameweek.picks_open_at_utc is not None and now < gameweek.picks_open_at_utc:
@@ -279,6 +283,7 @@ async def rederive_claim_periods(
     moment = _utc_now() if now is None else now
     result = await db.execute(
         select(Gameweek).where(
+            Gameweek.format == "legacy",
             Gameweek.league_id == league.id,
             Gameweek.status.in_(PICKABLE_STATES),
             Gameweek.locks_at_utc > moment,
@@ -348,6 +353,7 @@ def accepting_picks(now: datetime) -> ColumnElement[bool]:
     ahead. ``now`` is naive-UTC, as stored.
     """
     return and_(
+        Gameweek.format == "legacy",
         Gameweek.status.in_(PICKABLE_STATES),
         or_(Gameweek.picks_open_at_utc.is_(None), Gameweek.picks_open_at_utc <= now),
         Gameweek.locks_at_utc > now,
@@ -414,6 +420,7 @@ def in_play(now: datetime) -> ColumnElement[bool]:
         0, 0, 0, 0, 0, _minutes_from_lock_to_window_close() + IN_PLAY_GRACE_MINUTES
     )
     return and_(
+        Gameweek.format == "legacy",
         Gameweek.status != GameweekStatus.settled,
         Gameweek.locks_at_utc <= now,
         stale_at > now,
@@ -499,7 +506,7 @@ async def latest_gameweek(db: AsyncSession, league_id: uuid.UUID) -> Gameweek | 
     """
     result = await db.execute(
         select(Gameweek)
-        .where(Gameweek.league_id == league_id)
+        .where(Gameweek.format == "legacy", Gameweek.league_id == league_id)
         .order_by(*current_round_order())
         .limit(1)
     )
@@ -551,6 +558,14 @@ async def resolve_gameweek(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No gameweek yet" if gameweek_id is None else "Gameweek not found",
         )
+    if is_two_game(gameweek):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "UNSUPPORTED_FORMAT",
+                "destination": f"/leagues/{league_id}/weeks/{gameweek.id}/group",
+            },
+        )
     return gameweek
 
 
@@ -561,7 +576,9 @@ async def all_gameweeks(db: AsyncSession, league_id: uuid.UUID) -> list[Gameweek
     forty rows, which is small enough not to need paging.
     """
     result = await db.execute(
-        select(Gameweek).where(Gameweek.league_id == league_id).order_by(Gameweek.starts_on.desc())
+        select(Gameweek)
+        .where(Gameweek.format == "legacy", Gameweek.league_id == league_id)
+        .order_by(Gameweek.starts_on.desc())
     )
     return list(result.scalars().all())
 
@@ -616,6 +633,10 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
         )
     )
     gameweek = result.scalar_one_or_none()
+    if gameweek is not None and is_two_game(gameweek):
+        return None
+    if gameweek is None and await legacy_date_blocked(db, league.id, slate.starts_on):
+        return None
     if gameweek is None:
         # Nothing this league plays on this date, and no round to preserve — create none.
         # Keyed on the *playable* fixtures rather than every selected one: a date whose
@@ -836,6 +857,7 @@ async def unlocked_round_dates(
         return {}
     rows = await db.execute(
         select(Gameweek.league_id, Gameweek.starts_on).where(
+            Gameweek.format == "legacy",
             Gameweek.league_id.in_(league_ids),
             Gameweek.status.in_(PICKABLE_STATES),
             Gameweek.starts_on >= today,
@@ -918,6 +940,7 @@ async def retire_stranded_rounds(
 
     rows = await db.execute(
         select(Gameweek).where(
+            Gameweek.format == "legacy",
             Gameweek.league_id == league.id,
             Gameweek.starts_on >= today,
             Gameweek.starts_on <= retirement_end,
@@ -1104,8 +1127,24 @@ async def discover_fixtures(
     per_walk = len(set(competition_ids)) if competition_ids is not None else MEASURED_CATALOGUE
     spent = 0
 
+    # Resolve format fences with the other preparation reads. With commit_each,
+    # starting a new business transaction between a completed date's commit and
+    # the next provider await would make a later provider failure expire the
+    # caller's league objects on rollback. Database write fences still protect
+    # against a cutover changed concurrently after this snapshot.
+    walks: list[tuple[SlateWindow, list[League], date]] = []
+    for window, sharing, starts_on, scheduled in schedule:
+        playing = (
+            sharing
+            if starts_on in scheduled or starts_on in extras
+            else [lg for lg in sharing if starts_on in off_cadence.get(lg.id, set())]
+        )
+        playing = [lg for lg in playing if not await legacy_date_blocked(db, lg.id, starts_on)]
+        if playing:
+            walks.append((window, playing, starts_on))
+
     discovered: list[Gameweek] = []
-    for index, (window, sharing, starts_on, scheduled) in enumerate(schedule):
+    for index, (window, playing, starts_on) in enumerate(walks):
         if request_budget is not None and spent + per_walk > request_budget:
             # Stop cleanly rather than walk into a 429. Everything already bought is
             # committed (``commit_each``), which is what Batch 119 requires of a run that
@@ -1116,14 +1155,9 @@ async def discover_fixtures(
                 budget=request_budget,
                 spent=spent,
                 per_walk=per_walk,
-                walks_skipped=len(schedule) - index,
+                walks_skipped=len(walks) - index,
             )
             break
-        playing = (
-            sharing
-            if starts_on in scheduled or starts_on in extras
-            else [lg for lg in sharing if starts_on in off_cadence.get(lg.id, set())]
-        )
         slate = await provider.fetch_slate(window, starts_on, competition_ids=competition_ids)
         spent += per_walk
         if not slate.fixtures:
@@ -1178,6 +1212,8 @@ async def refresh_slate(
     selected = selected_competition_slugs(league)
     if selected is None:
         selected = frozenset(await pooled_competition_ids(db)) or None
+    if await legacy_date_blocked(db, league.id, starts_on):
+        return None
     slate = await provider.fetch_slate(window_for(league), starts_on, competition_ids=selected)
     if not slate.fixtures:
         return None
@@ -1323,6 +1359,9 @@ async def populate_cadence_rounds(
     out_of_budget = False
 
     for starts_on in dates:
+        if await legacy_date_blocked(db, league.id, starts_on):
+            skipped.append(starts_on)
+            continue
         status = existing.get(starts_on)
         if status is not None and status not in PICKABLE_STATES:
             skipped.append(starts_on)
@@ -1392,6 +1431,7 @@ async def open_due_gameweeks(db: AsyncSession, now: datetime) -> list[Gameweek]:
     """
     result = await db.execute(
         select(Gameweek).where(
+            Gameweek.format == "legacy",
             Gameweek.status == GameweekStatus.scheduled,
             Gameweek.picks_open_at_utc.is_not(None),
             Gameweek.picks_open_at_utc <= now,
@@ -1422,6 +1462,7 @@ async def lock_due_gameweeks(db: AsyncSession, now: datetime) -> list[Gameweek]:
     """
     result = await db.execute(
         select(Gameweek).where(
+            Gameweek.format == "legacy",
             Gameweek.status.in_(PICKABLE_STATES),
             Gameweek.locks_at_utc <= now,
         )
@@ -1442,6 +1483,7 @@ async def settleable_gameweeks(db: AsyncSession, now: datetime) -> list[Gameweek
     result = await db.execute(
         select(Gameweek)
         .where(
+            Gameweek.format == "legacy",
             Gameweek.status != GameweekStatus.settled,
             Gameweek.locks_at_utc <= now,
         )
@@ -1483,6 +1525,7 @@ async def gameweeks_due_a_reminder(db: AsyncSession, now: datetime) -> list[Game
     result = await db.execute(
         select(Gameweek)
         .where(
+            Gameweek.format == "legacy",
             Gameweek.status.in_(PICKABLE_STATES),
             Gameweek.locks_at_utc >= window_opens,
             Gameweek.locks_at_utc < window_closes,
@@ -1524,6 +1567,7 @@ async def warmable_gameweeks(
     result = await db.execute(
         select(Gameweek)
         .where(
+            Gameweek.format == "legacy",
             Gameweek.status.in_(PICKABLE_STATES),
             Gameweek.locks_at_utc > now + WARM_LOCK_CLEARANCE,
             Gameweek.starts_on <= until,
@@ -1554,6 +1598,7 @@ async def current_open_gameweeks(db: AsyncSession, now: datetime) -> list[Gamewe
     result = await db.execute(
         select(Gameweek)
         .where(
+            Gameweek.format == "legacy",
             Gameweek.status == GameweekStatus.open,
             Gameweek.locks_at_utc > now,
         )
@@ -1599,6 +1644,7 @@ async def release_unlocked_picks(
     moment = _naive_utc(now) if now is not None else _utc_now()
     await reverse_unlocked_dues(db, player_id, league_ids, now=moment, actor_id=actor_id)
     unlocked = select(Gameweek.id).where(
+        Gameweek.format == "legacy",
         Gameweek.status.in_(PICKABLE_STATES),
         Gameweek.locks_at_utc > moment,
     )

@@ -427,7 +427,7 @@ async def _latest_rounds(
             )
             .label("rn"),
         )
-        .where(Gameweek.league_id.in_(league_ids))
+        .where(Gameweek.format == "legacy", Gameweek.league_id.in_(league_ids))
         .subquery()
     )
     gameweek_rows = (await db.execute(select(newest).where(newest.c.rn == 1))).all()
@@ -511,6 +511,7 @@ async def _last_results(
         )
         .where(
             Gameweek.league_id.in_(league_ids),
+            Gameweek.format == "legacy",
             Gameweek.status == GameweekStatus.settled,
         )
         .subquery()
@@ -594,6 +595,7 @@ async def _next_openings(
             )
             .where(
                 Gameweek.league_id.in_(league_ids),
+                Gameweek.format == "legacy",
                 Gameweek.status.in_(PICKABLE_STATES),
                 Gameweek.picks_open_at_utc.is_not(None),
                 Gameweek.picks_open_at_utc > now,

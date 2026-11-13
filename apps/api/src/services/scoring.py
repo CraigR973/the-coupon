@@ -47,6 +47,7 @@ from src.services.season_calendar import (
     labels_for_gameweeks,
     season_bounds,
 )
+from src.services.two_game_storage import is_two_game
 
 _POINTS_MULTIPLIER = 10
 
@@ -163,6 +164,8 @@ async def settle_gameweek(
     that league's picks. It used to mean *every* league's, which held one league's
     round open until an unrelated league had also finished settling.
     """
+    if is_two_game(gameweek):
+        return 0
     if not await _same_week_round_may_settle(db, gameweek):
         return 0
 
@@ -216,6 +219,7 @@ async def pending_event_ids(
     leagues holding the same match report the same ``provider_event_id`` here, which is
     what lets the caller ask for it once.
     """
+    gameweeks = [g for g in gameweeks if not is_two_game(g)]
     if not gameweeks:
         return {}
     result = await db.execute(
@@ -257,6 +261,7 @@ async def settle_gameweeks_via_provider(
     Returns the count resolved per gameweek id; a round with nothing pending is absent.
     Flushes but does not commit — the job owns the transaction.
     """
+    gameweeks = [g for g in gameweeks if not is_two_game(g)]
     by_gameweek = await pending_event_ids(db, gameweeks)
     event_ids = list(dict.fromkeys(eid for ids in by_gameweek.values() for eid in ids))
     resolved: dict[uuid.UUID, int] = {}
@@ -292,7 +297,9 @@ async def _settle_empty_rounds(db: AsyncSession, gameweeks: Sequence[Gameweek]) 
     picks there is nothing stranded, and Batch 184's operator void is its way out.
     """
     candidates = [
-        gameweek for gameweek in gameweeks if gameweek.status is not GameweekStatus.settled
+        gameweek
+        for gameweek in gameweeks
+        if not is_two_game(gameweek) and gameweek.status is not GameweekStatus.settled
     ]
     if not candidates:
         return
@@ -331,6 +338,8 @@ async def settle_gameweek_via_provider(
     genuinely hold one — the scheduler passes its whole run at once so the shared fixtures
     are only paid for once. Returns the count resolved (0 when nothing is pending).
     """
+    if is_two_game(gameweek):
+        return 0
     return (await settle_gameweeks_via_provider(db, provider, [gameweek])).get(gameweek.id, 0)
 
 
@@ -769,6 +778,7 @@ async def gameweek_results(
         .outerjoin(Profile, Profile.id == Pick.player_id)
         .where(
             Gameweek.league_id == league_id,
+            Gameweek.format == "legacy",
             Gameweek.status == GameweekStatus.settled,
             Gameweek.starts_on >= first_day,
             Gameweek.starts_on <= last_day,

@@ -145,9 +145,13 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Batches **219–228** define the two-game build. Batch 219 contracts are in local
-progress on the owner-authorised branch stack (13 Nov); no batch is locally
-verified or formally closed yet. Canonical rows remain unchecked. Inactive
+Batches **219–228** define the two-game build. Batch 219 contracts passed the full local
+12-check gate (13 Nov, tree `532b4c0`, commit `1a0ca8f`): 1 of 10 locally
+verified. Batch 220 storage/isolation passed 86 focused PostgreSQL checks,
+including populated upgrade/forward restore, concurrency, legacy reader isolation
+and repairs for three failures in its first full gate. The second full gate is
+pending on the authorised local stack.
+No batch is formally closed. Canonical rows remain unchecked. Inactive
 implementation and local verification can proceed while the scheduled 14 Nov
 noon provider observation runs separately. Live coverage, quota and traffic/
 latency acceptance gate activation. API/payments shipment, tested migration

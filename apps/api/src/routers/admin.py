@@ -880,7 +880,11 @@ async def dashboard(request: Request, admin: AdminUser, db: Db) -> AdminDashboar
             .over(partition_by=Gameweek.league_id, order_by=Gameweek.locks_at_utc.asc())
             .label("rn"),
         )
-        .where(Gameweek.status.in_(PICKABLE_STATES), Gameweek.locks_at_utc > now)
+        .where(
+            Gameweek.format == "legacy",
+            Gameweek.status.in_(PICKABLE_STATES),
+            Gameweek.locks_at_utc > now,
+        )
         .subquery()
     )
     lock_rows = (
@@ -915,6 +919,7 @@ async def dashboard(request: Request, admin: AdminUser, db: Db) -> AdminDashboar
             .join(League, League.id == Gameweek.league_id)
             .outerjoin(pending_on_round, pending_on_round.c.gameweek_id == Gameweek.id)
             .where(
+                Gameweek.format == "legacy",
                 Gameweek.status != GameweekStatus.settled,
                 Gameweek.locks_at_utc <= now,
                 League.deleted_at.is_(None),
@@ -1180,6 +1185,7 @@ async def pending_results(request: Request, admin: AdminUser, db: Db) -> list[Pe
             select(Gameweek, League.slug, League.name)
             .join(League, League.id == Gameweek.league_id)
             .where(
+                Gameweek.format == "legacy",
                 Gameweek.status != GameweekStatus.settled,
                 Gameweek.locks_at_utc <= now,
                 League.deleted_at.is_(None),
@@ -1270,6 +1276,8 @@ async def settle_manually(
     ).scalar_one_or_none()
     if gameweek is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Round not found")
+    if gameweek.format == "two_game":
+        raise HTTPException(status_code=409, detail={"code": "UNSUPPORTED_FORMAT"})
     if gameweek.status == GameweekStatus.settled:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -1398,6 +1406,8 @@ async def void_non_scoring_round(
     ).scalar_one_or_none()
     if gameweek is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Round not found")
+    if gameweek.format == "two_game":
+        raise HTTPException(status_code=409, detail={"code": "UNSUPPORTED_FORMAT"})
     if gameweek.status == GameweekStatus.settled:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -1414,6 +1424,7 @@ async def void_non_scoring_round(
             .select_from(Gameweek)
             .where(
                 Gameweek.id.in_(refusal.intentional_gameweek_ids),
+                Gameweek.format == "legacy",
                 Gameweek.status != GameweekStatus.settled,
             )
         )

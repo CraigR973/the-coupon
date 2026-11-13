@@ -47,6 +47,7 @@ from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek, GameweekFixture
 from src.models.league import League, PickScope
 from src.models.pick import Pick, PickMarket, PickOutcome
+from src.models.two_game import TwoGame, TwoGameFixture
 from src.rate_limit import consume_shared_limit, limiter, per_user_key
 from src.services.dues import PAYMENT_REQUIRED, payment_required, record_due_on_pick
 from src.services.football_week import settle_refusal
@@ -802,6 +803,17 @@ async def my_pick(
     one. It used to be ``str``, which reached the query and raised inside the driver as an
     unhandled 500 — every other router in this codebase already types its ids this way.
     """
+    parent_format = await db.scalar(
+        select(Gameweek.format).where(Gameweek.id == gameweek_id, Gameweek.league_id == league.id)
+    )
+    if parent_format == "two_game":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "UNSUPPORTED_FORMAT",
+                "destination": f"/leagues/{league.id}/weeks/{gameweek_id}/group",
+            },
+        )
     result = await db.execute(
         select(Pick, Fixture)
         .join(Fixture, Fixture.id == Pick.fixture_id)
@@ -888,9 +900,25 @@ async def _round_playing(db: AsyncSession, league: League, fixture: Fixture) -> 
     )
     gameweek = result.scalar_one_or_none()
     if gameweek is None:
+        new_game = await db.scalar(
+            select(TwoGame)
+            .join(TwoGameFixture, TwoGameFixture.game_id == TwoGame.id)
+            .where(TwoGame.league_id == league.id, TwoGameFixture.fixture_id == fixture.id)
+            .limit(1)
+        )
+        if new_game is not None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "UNSUPPORTED_FORMAT",
+                    "destination": f"/leagues/{league.id}/weeks/{new_game.week_id}/{new_game.kind}",
+                },
+            )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Fixture is not on this league's slate"
         )
+    if gameweek.format == "two_game":
+        raise HTTPException(status_code=409, detail={"code": "UNSUPPORTED_FORMAT"})
     return gameweek
 
 

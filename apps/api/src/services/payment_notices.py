@@ -182,6 +182,7 @@ async def _standing_line(
             select(Gameweek)
             .where(
                 Gameweek.league_id == league.id,
+                Gameweek.format == "legacy",
                 Gameweek.status.in_(PICKABLE_STATES),
                 Gameweek.locks_at_utc > now,
             )

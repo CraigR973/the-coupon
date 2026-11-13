@@ -101,12 +101,18 @@ async def discovery_health(
     ``now`` is passed rather than taken so the caller's clock decides — the dashboard's,
     the job's, or a test's.
     """
-    newest = (await db.execute(select(func.max(Gameweek.created_at)))).scalar_one_or_none()
+    newest = (
+        await db.execute(select(func.max(Gameweek.created_at)).where(Gameweek.format == "legacy"))
+    ).scalar_one_or_none()
     hours = None if newest is None else (now - newest).total_seconds() / 3600.0
 
     claimable = (
         select(Gameweek.league_id)
-        .where(Gameweek.status.in_(PICKABLE_STATES), Gameweek.locks_at_utc > now)
+        .where(
+            Gameweek.format == "legacy",
+            Gameweek.status.in_(PICKABLE_STATES),
+            Gameweek.locks_at_utc > now,
+        )
         .distinct()
         .scalar_subquery()
     )

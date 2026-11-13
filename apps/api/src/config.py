@@ -74,6 +74,9 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/the_coupon"
 
+    # Inert until both this gate and an exact league/week rollout are enabled.
+    two_games_enabled: bool = False
+
     # Auth
     jwt_access_secret: str
     jwt_refresh_secret: str
