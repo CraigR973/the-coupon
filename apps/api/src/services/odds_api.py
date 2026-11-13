@@ -39,18 +39,19 @@ import asyncio
 import json
 import re
 from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import httpx
 import structlog
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError
 
 from src.config import settings
 from src.services.competitions import is_played
 from src.services.odds_provider import (
     EVENTS_PER_ODDS_REQUEST,
+    CensusPage,
     Competition,
     EventSettlement,
     FixtureOdds,
@@ -75,6 +76,7 @@ from src.services.odds_provider import (
     outcomes_from_score,
     split_event_name,
 )
+from src.services.provider_budget import ProviderBudget
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -352,6 +354,7 @@ class OddsApiProvider(OddsProvider):
         bookmaker: str = "Bet365",
         base_url: str = DEFAULT_BASE_URL,
         client: httpx.AsyncClient | None = None,
+        budget: ProviderBudget | None = None,
     ) -> None:
         if not api_key:
             raise OddsProviderAuthError("odds-api.io key not configured (ODDS_API_KEY)")
@@ -359,6 +362,9 @@ class OddsApiProvider(OddsProvider):
         self._bookmaker = bookmaker
         self._client = client or httpx.AsyncClient(base_url=base_url, timeout=_TIMEOUT)
         self._leagues: list[OALeague] | None = None
+        self._budget = budget or (
+            ProviderBudget.from_settings() if settings.two_games_enabled else None
+        )
         #: Every HTTP request this client has actually sent, counted at the one
         #: chokepoint they all pass through (:meth:`_get`). Batch 160: the plan counter
         #: was charged only from the odds cache's own refills, so it saw roughly 127 of
@@ -465,6 +471,86 @@ class OddsApiProvider(OddsProvider):
             fixtures=len(fixtures),
         )
         return Slate(starts_on=starts_on, fixtures=fixtures)
+
+    async def fetch_census_page(
+        self, week_label: date, *, cursor: str | None = None, limit: int = 5000
+    ) -> CensusPage:
+        """One global football page with no price/bookmaker filter.
+
+        The public v3 contract documents limit+skip and an array response. A full
+        page never proves completeness; the durable caller resumes the next offset.
+        Empty or malformed data cannot establish an approved calendar break.
+        """
+        from src.services.two_game_storage import london_utc
+
+        if week_label.weekday() != 5:
+            raise ValueError("census requires a Saturday")
+        return await self.fetch_event_page(
+            london_utc(week_label),
+            london_utc(week_label + timedelta(days=2)),
+            cursor=cursor,
+            limit=limit,
+        )
+
+    async def fetch_event_page(
+        self, first: datetime, last: datetime, *, cursor: str | None = None, limit: int = 5000
+    ) -> CensusPage:
+        first = as_utc(first).replace(tzinfo=None)
+        last = as_utc(last).replace(tzinfo=None)
+        if first >= last or not 1 <= limit <= 5000:
+            raise ValueError("census requires ordered bounds and page size 1–5000")
+        if cursor is not None and (not cursor.isdigit() or len(cursor) > 12):
+            raise ValueError("invalid census cursor")
+        offset = int(cursor or "0")
+        result = await self._get(
+            "/events",
+            {
+                "sport": SPORT_FOOTBALL,
+                "from": iso_z(first),
+                "to": iso_z(last),
+                "limit": str(limit),
+                "skip": str(offset),
+            },
+        )
+        if not isinstance(result, list) or len(result) > limit:
+            raise OddsProviderAPIError("invalid or oversized census page")
+        fixtures: list[SlateFixture] = []
+        for item in result:
+            try:
+                event = OAEvent.model_validate(item)
+            except ValidationError as exc:
+                raise OddsProviderAPIError("invalid census event") from exc
+            league = event.league
+            if league is None:
+                raise OddsProviderAPIError("census event has no competition identity")
+            slug = league.slug
+            uk = slug.startswith(("england-", "scotland-", "wales-", "northern-ireland-"))
+            if not uk or not is_played(slug):
+                continue
+            teams = _teams(event)
+            if not event.id or event.date is None or teams is None:
+                raise OddsProviderAPIError("UK census event is incomplete")
+            kickoff = as_utc(event.date)
+            if not first <= kickoff.replace(tzinfo=None) < last:
+                continue
+            fixtures.append(
+                SlateFixture(
+                    provider_event_id=event.id,
+                    home=teams[0],
+                    away=teams[1],
+                    kickoff_utc=kickoff,
+                    competition=league.name or slug,
+                    competition_id=slug,
+                    status=event.status,
+                )
+            )
+        full = len(result) == limit
+        return CensusPage(
+            fixtures=fixtures,
+            raw_count=len(result),
+            next_cursor=str(offset + len(result)) if full else None,
+            complete=not full,
+        )
 
     async def fetch_competitions(self) -> list[Competition]:
         """Every UK competition the provider carries, in name order.
@@ -683,6 +769,7 @@ class OddsApiProvider(OddsProvider):
         query = {**params, "apiKey": self._api_key}
         backoff = _INITIAL_BACKOFF
         for attempt in range(_MAX_RETRIES + 1):
+            reservation = await self._budget.admit() if self._budget is not None else None
             try:
                 # Counted before the await, so a request that errors or is retried is
                 # still a request the plan was charged for by the provider.
@@ -698,6 +785,8 @@ class OddsApiProvider(OddsProvider):
                 backoff *= 2
                 continue
 
+            if self._budget is not None and reservation is not None:
+                await self._budget.observe(reservation, response.status_code, response.headers)
             if response.status_code in (401, 403):
                 raise _refusal(
                     response.status_code,

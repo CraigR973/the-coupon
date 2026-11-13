@@ -286,6 +286,15 @@ class Slate(BaseModel):
     fixtures: list[SlateFixture]
 
 
+class CensusPage(BaseModel):
+    """A bounded global page; completeness is independent of eligible fixture count."""
+
+    fixtures: list[SlateFixture]
+    raw_count: int
+    next_cursor: str | None
+    complete: bool
+
+
 class OutcomeResult(BaseModel):
     """Whether one market+outcome won, once its market has a final result."""
 
@@ -562,6 +571,21 @@ class OddsProvider(ABC):
         answers for itself, and it is cheap on both: one already-memoised ``/leagues``
         call on odds-api.io, one ``listCompetitions`` on the Exchange.
         """
+
+    async def fetch_census_page(
+        self, week_label: date, *, cursor: str | None = None, limit: int = 5000
+    ) -> CensusPage:
+        """Optional pagination: a legacy slate cannot prove a complete census.
+
+        Nonabstract so existing legacy providers and fakes keep their contract.
+        """
+        raise OddsProviderAPIError("This provider does not offer a paginated weekend census")
+
+    async def fetch_event_page(
+        self, first: datetime, last: datetime, *, cursor: str | None = None, limit: int = 5000
+    ) -> CensusPage:
+        """Optional global census for arbitrary legacy calendar windows too."""
+        raise OddsProviderAPIError("This provider does not offer a paginated event census")
 
     @abstractmethod
     async def fetch_odds(

@@ -68,14 +68,16 @@ from src.services.notification_triggers import (
     record_prepared_fanout,
     send_pick_reminders,
 )
-from src.services.odds_provider import SlateWindow
+from src.services.odds_provider import SlateFixture, SlateWindow
 from src.services.odds_session import odds_session
 from src.services.odds_warm import warm_round
 from src.services.payment_notices import prepare_payment_notices
+from src.services.provider_budget import provider_category
 from src.services.scoring import (
     settle_gameweeks_via_provider,
     standings,
 )
+from src.services.two_game_discovery import DiscoveryWorker
 
 #: How long a dead refresh token is kept before ``run_prune_refresh_tokens`` removes it.
 #: Long enough that a revoked row still serves as evidence for reuse detection in
@@ -370,6 +372,71 @@ async def report_discovery_silence() -> bool:
     return True
 
 
+def _two_game_discovery_worker() -> DiscoveryWorker:
+    async def verify_rows(rows: list[SlateFixture]) -> list[SlateFixture]:
+        from src.services.odds_provider import Slate, as_utc
+        from src.services.slate_verification import verify_slate
+        from src.services.two_game_storage import LONDON
+
+        football = await football_session.acquire()
+        dates = sorted({as_utc(row.kickoff_utc).astimezone(LONDON).date() for row in rows})
+        verified = []
+        for day in dates:
+            slate = Slate(
+                starts_on=day,
+                fixtures=[
+                    row for row in rows if as_utc(row.kickoff_utc).astimezone(LONDON).date() == day
+                ],
+            )
+            checked, _ = await verify_slate(slate, football)
+            verified.extend(checked.fixtures)
+        return verified
+
+    return DiscoveryWorker(
+        AsyncSessionLocal,
+        odds_session.acquire,
+        source=settings.odds_provider.value,
+        bookmaker=settings.odds_api_bookmaker,
+        clock=_utc_now,
+        page_size=settings.two_game_census_page_size,
+        units_per_pass=settings.two_game_census_pages_per_pass,
+        lookahead=settings.two_game_lookahead_saturdays,
+        lease_seconds=settings.two_game_work_lease_seconds,
+        negative_seconds=settings.two_game_negative_recheck_seconds,
+        verify_rows=verify_rows,
+    )
+
+
+async def run_two_game_discovery() -> bool:
+    """Resumable shared work; exact rollout gates precede provider acquisition."""
+    active = False
+    try:
+        worker = _two_game_discovery_worker()
+        if not await worker.enabled():
+            return True
+        active = True
+        completed = await worker.run()
+        log.info("two-game discovery pass", completed_units=completed)
+        return True
+    except Exception:
+        log.exception("two-game discovery pass failed")
+        return False
+    finally:
+        if active:
+            await report_discovery_silence()
+            await report_football_provider_health()
+
+
+async def _two_game_discovery_if_active() -> bool | None:
+    try:
+        if await _two_game_discovery_worker().enabled():
+            return await run_two_game_discovery()
+        return None
+    except Exception:
+        log.exception("two-game rollout lookup failed")
+        return False
+
+
 async def run_discover_full_catalogue() -> bool:
     """Walk the whole played catalogue once a week, in its own hour. Batch 119.
 
@@ -398,6 +465,10 @@ async def run_discover_full_catalogue() -> bool:
     next one is six days out — and at 04:00, clear of the 06:00 daily run so the two never
     share an hour's allowance.
     """
+    if settings.two_games_enabled:
+        result = await _two_game_discovery_if_active()
+        if result is not None:
+            return result
     try:
         provider = await odds_session.acquire()
         football = await football_session.acquire()
@@ -454,6 +525,10 @@ async def run_warm_odds_marker() -> bool:
     pass that is rate-limited partway keeps what the earlier rounds taught it — the same
     rule discovery now follows, for the same reason.
     """
+    if settings.two_games_enabled:
+        result = await _two_game_discovery_if_active()
+        if result is not None:
+            return result
     try:
         provider = await odds_session.acquire()
         now = datetime.now(UTC).replace(tzinfo=None)
@@ -518,6 +593,10 @@ async def run_discover_fixtures() -> bool:
     The horizon is deliberately untouched. It exists so a member picking on Tuesday
     already has a full card.
     """
+    if settings.two_games_enabled:
+        result = await _two_game_discovery_if_active()
+        if result is not None:
+            return result
     try:
         provider = await odds_session.acquire()
         football = await football_session.acquire()
@@ -592,6 +671,10 @@ async def run_refresh_slate() -> bool:
     competitions cannot fit inside a 100-request hour, so the same date-ranked stop keeps
     the job inside the plan instead of relying on the provider's ``429``.
     """
+    if settings.two_games_enabled:
+        result = await _two_game_discovery_if_active()
+        if result is not None:
+            return result
     try:
         provider = await odds_session.acquire()
         football = await football_session.acquire()
@@ -695,10 +778,12 @@ async def run_settle_gameweeks() -> bool:
     after the commit (Batch 135); ``announce_round_settled`` says why that cannot repeat.
     """
     try:
-        provider = await odds_session.acquire()
+        with provider_category("settlement"):
+            provider = await odds_session.acquire()
         async with AsyncSessionLocal() as session:
             gameweeks = await settleable_gameweeks(session, _utc_now())
-            resolved = await settle_gameweeks_via_provider(session, provider, gameweeks)
+            with provider_category("settlement"):
+                resolved = await settle_gameweeks_via_provider(session, provider, gameweeks)
             # Keyed over every settleable round, so the log still names the rounds this
             # run considered and not only the ones that moved.
             resolved_by_gameweek = {str(g.id): resolved.get(g.id, 0) for g in gameweeks}
@@ -1166,5 +1251,16 @@ def create_scheduler() -> AsyncIOScheduler:
             coalesce=True,
             max_instances=1,
             misfire_grace_time=_INFREQUENT_JOB_GRACE_SECONDS,
+        )
+    if settings.two_games_enabled:
+        scheduler.add_job(
+            run_two_game_discovery,
+            trigger="interval",
+            minutes=1,
+            id="two_game_discovery",
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+            misfire_grace_time=_FREQUENT_JOB_GRACE_SECONDS,
         )
     return scheduler

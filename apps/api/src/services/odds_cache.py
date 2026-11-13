@@ -59,12 +59,13 @@ import time
 from collections.abc import AsyncIterator, Callable, Collection, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 import structlog
 
 from src.services.odds_provider import (
     EVENTS_PER_ODDS_REQUEST,
+    CensusPage,
     Competition,
     EventSettlement,
     FixtureOdds,
@@ -213,6 +214,18 @@ class CachingOddsProvider(OddsProvider):
         estimate = len(set(competition_ids)) if competition_ids is not None else 1
         async with self._charging(estimate=estimate):
             return await self._inner.fetch_slate(window, starts_on, competition_ids=competition_ids)
+
+    async def fetch_census_page(
+        self, week_label: date, *, cursor: str | None = None, limit: int = 5000
+    ) -> CensusPage:
+        async with self._charging(estimate=1):
+            return await self._inner.fetch_census_page(week_label, cursor=cursor, limit=limit)
+
+    async def fetch_event_page(
+        self, first: datetime, last: datetime, *, cursor: str | None = None, limit: int = 5000
+    ) -> CensusPage:
+        async with self._charging(estimate=1):
+            return await self._inner.fetch_event_page(first, last, cursor=cursor, limit=limit)
 
     async def settle(self, event_ids: Sequence[str]) -> list[EventSettlement]:
         # One ``/events/{id}`` lookup per distinct event: settlement is read from the

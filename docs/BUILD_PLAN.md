@@ -81,8 +81,9 @@ PostgreSQL ← pooled ledger / FIFO credit ────────┘
        ├─ group child → unpriced fixture claims → group result
        ├─ fantasy child → six slots → leg / week / season points
        └─ membership intervals → £1 calendar-week due → same ledger
-     durable rolling attempt budget → provider transport (all callers)
-     paginated census / snapshots / fair queues → shared real fixtures
+     rolling attempt admission → commit → HTTP (all callers / retries)
+     paginated shared census → snapshots / real fixtures
+     short token-fenced leases → fair work / shared quotes
      game/week/version events → recipient policy → inbox / allowed push
 
 API boot migrates; payments never migrates and requires matching image head.

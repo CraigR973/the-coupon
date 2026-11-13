@@ -76,6 +76,22 @@ class Settings(BaseSettings):
 
     # Inert until both this gate and an exact league/week rollout are enabled.
     two_games_enabled: bool = False
+    # Candidate operational ceilings, NOT accepted provider entitlement. They apply
+    # only to the enabled transport meter; every category shares the global caps.
+    two_game_hourly_attempts: int = Field(default=90, gt=0)
+    two_game_daily_attempts: int = Field(default=450, gt=0)
+    two_game_background_hourly: int = Field(default=10, gt=0)
+    two_game_background_daily: int = Field(default=120, gt=0)
+    two_game_background_spacing_seconds: int = Field(default=360, gt=0)
+    two_game_opening_attempts: int = Field(default=5, gt=0)
+    two_game_settlement_hourly: int = Field(default=30, gt=0)
+    two_game_settlement_daily: int = Field(default=200, gt=0)
+    two_game_census_page_size: int = Field(default=5000, ge=1, le=5000)
+    two_game_census_pages_per_pass: int = Field(default=3, gt=0)
+    two_game_lookahead_saturdays: int = Field(default=12, gt=0)
+    two_game_quote_fresh_seconds: int = Field(default=60, gt=0, le=60)
+    two_game_negative_recheck_seconds: int = Field(default=300, gt=0)
+    two_game_work_lease_seconds: int = Field(default=45, gt=0)
 
     # Auth
     jwt_access_secret: str

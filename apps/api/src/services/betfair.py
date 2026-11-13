@@ -36,7 +36,7 @@ import asyncio
 from abc import abstractmethod
 from collections import defaultdict
 from collections.abc import Collection, Mapping, Sequence
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -48,6 +48,8 @@ from src.config import settings
 from src.services.odds_provider import (
     MARKET_BTTS,
     MARKET_MATCH_ODDS,
+    UK_TZ,
+    CensusPage,
     Competition,
     EventSettlement,
     FixtureOdds,
@@ -68,6 +70,7 @@ from src.services.odds_provider import (
     match_odds_outcome,
     split_event_name,
 )
+from src.services.provider_budget import ProviderBudget
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -605,6 +608,7 @@ class Betfair(BetfairAdapter):
         key_file: str = "",
         identity_client: httpx.AsyncClient | None = None,
         betting_client: httpx.AsyncClient | None = None,
+        budget: ProviderBudget | None = None,
     ) -> None:
         self._app_key = app_key
         self._username = username
@@ -620,6 +624,9 @@ class Betfair(BetfairAdapter):
             base_url=_BETTING_BASE_URL, timeout=_TIMEOUT
         )
         self._session_token: str | None = None
+        self._budget = budget or (
+            ProviderBudget.from_settings() if settings.two_games_enabled else None
+        )
 
     @classmethod
     def from_settings(cls) -> Betfair:
@@ -655,11 +662,14 @@ class Betfair(BetfairAdapter):
             else "/api/login"
         )
         try:
+            reservation = await self._budget.admit() if self._budget is not None else None
             response = await self._identity.post(
                 path,
                 data={"username": self._username, "password": self._password},
                 headers={"X-Application": self._app_key, "Accept": "application/json"},
             )
+            if self._budget is not None and reservation is not None:
+                await self._budget.observe(reservation, response.status_code, response.headers)
             response.raise_for_status()
         except httpx.HTTPError as exc:
             raise BetfairAuthError(f"Betfair login request failed: {exc!r}") from exc
@@ -676,6 +686,7 @@ class Betfair(BetfairAdapter):
     async def keep_alive(self) -> None:
         token = self._require_token()
         try:
+            reservation = await self._budget.admit() if self._budget is not None else None
             response = await self._identity.post(
                 "/api/keepAlive",
                 headers={
@@ -684,6 +695,8 @@ class Betfair(BetfairAdapter):
                     "Accept": "application/json",
                 },
             )
+            if self._budget is not None and reservation is not None:
+                await self._budget.observe(reservation, response.status_code, response.headers)
             response.raise_for_status()
         except httpx.HTTPError as exc:
             raise BetfairAuthError(f"Betfair keepAlive request failed: {exc!r}") from exc
@@ -782,6 +795,7 @@ class Betfair(BetfairAdapter):
 
         backoff = _INITIAL_BACKOFF
         for attempt in range(_MAX_RETRIES + 1):
+            reservation = await self._budget.admit() if self._budget is not None else None
             try:
                 response = await self._betting.post(_RPC_PATH, json=body, headers=headers)
             except httpx.RequestError as exc:
@@ -796,6 +810,8 @@ class Betfair(BetfairAdapter):
                 backoff *= 2
                 continue
 
+            if self._budget is not None and reservation is not None:
+                await self._budget.observe(reservation, response.status_code, response.headers)
             if response.status_code == 429 or response.status_code >= 500:
                 if attempt == _MAX_RETRIES:
                     raise BetfairAPIError(
@@ -860,6 +876,53 @@ class FakeBetfair(BetfairAdapter):
         self._books = {b.marketId: b for b in books}
         self._session_token = session_token
         self._logged_in = False
+
+    async def fetch_census_page(
+        self, week_label: date, *, cursor: str | None = None, limit: int = 5000
+    ) -> CensusPage:
+        from src.services.two_game_storage import london_utc
+
+        if week_label.weekday() != 5:
+            raise ValueError("census requires a Saturday")
+        return await self.fetch_event_page(
+            london_utc(week_label),
+            london_utc(week_label + timedelta(days=2)),
+            cursor=cursor,
+            limit=limit,
+        )
+
+    async def fetch_event_page(
+        self, first: datetime, last: datetime, *, cursor: str | None = None, limit: int = 5000
+    ) -> CensusPage:
+        first, last = as_utc(first), as_utc(last)
+        if first >= last or not 1 <= limit <= 5000:
+            raise ValueError("invalid fake census bounds or page size")
+        if cursor is not None and (not cursor.isdigit() or len(cursor) > 12):
+            raise ValueError("invalid census cursor")
+        fixtures_by_id: dict[str, SlateFixture] = {}
+        day = first.astimezone(UK_TZ).date()
+        while day <= last.astimezone(UK_TZ).date():
+            window = SlateWindow(
+                start_weekday=day.weekday(),
+                start_minute=0,
+                end_weekday=(day.weekday() + 1) % 7,
+                end_minute=0,
+            )
+            slate = await self.fetch_slate(window, day)
+            for fixture in slate.fixtures:
+                if first <= as_utc(fixture.kickoff_utc) < last:
+                    fixtures_by_id[fixture.provider_event_id] = fixture
+            day += timedelta(days=1)
+        all_fixtures = sorted(fixtures_by_id.values(), key=lambda row: row.provider_event_id)
+        offset = int(cursor or "0")
+        fixtures = all_fixtures[offset : offset + limit]
+        complete = offset + len(fixtures) >= len(all_fixtures)
+        return CensusPage(
+            fixtures=fixtures,
+            raw_count=len(fixtures),
+            complete=complete,
+            next_cursor=None if complete else str(offset + len(fixtures)),
+        )
 
     # -- primitives ------------------------------------------------------------
 

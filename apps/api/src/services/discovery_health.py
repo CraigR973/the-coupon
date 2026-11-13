@@ -34,13 +34,16 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek
 from src.models.league import League
 from src.models.league_membership import LeagueMembership
+from src.models.two_game import ProviderSnapshot, TwoGame, TwoGameFixture, TwoGameRollout
 from src.services.gameweek import PICKABLE_STATES
+from src.services.odds_provider import VOID_STATUSES
 
 
 @dataclass(frozen=True)
@@ -70,18 +73,25 @@ class DiscoveryHealth:
     stale_after_hours: float
     #: Leagues with at least one member and no round still claimable.
     leagues_without_open_round: tuple[SilentLeague, ...]
+    #: Fresh completed new-format census progress is independent of row creation.
+    hours_since_usable_discovery: float | None = None
 
     @property
     def stale(self) -> bool:
-        """Whether round creation has stopped.
+        """Whether legacy creation and usable new-format discovery have stopped.
 
         A deployment with **no rounds at all** is stale. That is not a degenerate case to
         guard away: a deployment whose discovery has never once succeeded is the worst
         version of exactly this fault, and reading it as healthy is how it stays hidden.
         """
-        if self.hours_since_newest_round is None:
+        ages = [
+            age
+            for age in (self.hours_since_newest_round, self.hours_since_usable_discovery)
+            if age is not None
+        ]
+        if not ages:
             return True
-        return self.hours_since_newest_round >= self.stale_after_hours
+        return min(ages) >= self.stale_after_hours
 
     @property
     def silent_leagues(self) -> bool:
@@ -94,9 +104,13 @@ class DiscoveryHealth:
 
 
 async def discovery_health(
-    db: AsyncSession, now: datetime, *, stale_after_hours: float
+    db: AsyncSession,
+    now: datetime,
+    *,
+    stale_after_hours: float,
+    provider_source: str | None = None,
 ) -> DiscoveryHealth:
-    """Take both reads. Two queries, no provider requests, no writes.
+    """Two legacy queries plus one enabled-only evidence query, no provider I/O.
 
     ``now`` is passed rather than taken so the caller's clock decides — the dashboard's,
     the job's, or a test's.
@@ -104,6 +118,56 @@ async def discovery_health(
     newest = (
         await db.execute(select(func.max(Gameweek.created_at)).where(Gameweek.format == "legacy"))
     ).scalar_one_or_none()
+    from src.config import settings
+
+    new_leagues: set[uuid.UUID] = set()
+    usable_hours = None
+    if settings.two_games_enabled:
+        evidence = list(
+            await db.execute(
+                select(
+                    TwoGame.league_id,
+                    func.max(TwoGame.created_at),
+                    func.max(ProviderSnapshot.observed_at),
+                )
+                .join(Gameweek, Gameweek.id == TwoGame.week_id)
+                .join(TwoGameRollout, TwoGameRollout.league_id == TwoGame.league_id)
+                .join(League, League.id == TwoGame.league_id)
+                .join(TwoGameFixture, TwoGameFixture.game_id == TwoGame.id)
+                .join(Fixture, Fixture.id == TwoGameFixture.fixture_id)
+                .join(ProviderSnapshot, ProviderSnapshot.fixture_id == TwoGameFixture.fixture_id)
+                .where(
+                    TwoGameRollout.enabled.is_(True),
+                    TwoGameRollout.suspended.is_(False),
+                    Gameweek.starts_on >= TwoGameRollout.first_week,
+                    TwoGame.coverage_state == "complete",
+                    TwoGame.locks_at > now,
+                    TwoGame.status.in_(("scheduled", "open")),
+                    League.deleted_at.is_(None),
+                    ProviderSnapshot.key.like("fixture-state:v1:%"),
+                    ProviderSnapshot.payload["source"].astext
+                    == (provider_source or settings.odds_provider.value),
+                    ProviderSnapshot.observed_at <= now,
+                    or_(
+                        and_(TwoGame.kind == "group", Fixture.kickoff_utc == TwoGame.window_start),
+                        and_(
+                            TwoGame.kind == "fantasy",
+                            Fixture.kickoff_utc >= TwoGame.window_start,
+                            Fixture.kickoff_utc < TwoGame.window_end,
+                        ),
+                    ),
+                    func.lower(func.trim(ProviderSnapshot.payload["status"].astext)).notin_(
+                        VOID_STATUSES
+                    ),
+                )
+                .group_by(TwoGame.league_id)
+            )
+        )
+        new_leagues = {row[0] for row in evidence}
+        if evidence:
+            newest = max([row[1] for row in evidence] + ([newest] if newest is not None else []))
+            observed = max(row[2] for row in evidence)
+            usable_hours = (now - observed).total_seconds() / 3600.0
     hours = None if newest is None else (now - newest).total_seconds() / 3600.0
 
     claimable = (
@@ -129,6 +193,7 @@ async def discovery_health(
                 League.deleted_at.is_(None),
                 LeagueMembership.deleted_at.is_(None),
                 League.id.not_in(claimable),
+                League.id.notin_(new_leagues),
             )
             .group_by(League.id, League.slug, League.name)
             .order_by(League.slug)
@@ -139,6 +204,7 @@ async def discovery_health(
         newest_round_created_at=newest,
         hours_since_newest_round=hours,
         stale_after_hours=stale_after_hours,
+        hours_since_usable_discovery=usable_hours,
         leagues_without_open_round=tuple(
             SilentLeague(league_id=league_id, slug=slug, name=name, members=members)
             for league_id, slug, name, members in rows
