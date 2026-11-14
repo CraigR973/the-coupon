@@ -76,6 +76,9 @@ class Settings(BaseSettings):
 
     # Inert until both this gate and an exact league/week rollout are enabled.
     two_games_enabled: bool = False
+    # Action abuse ceilings, independent of provider admission and legacy limits.
+    two_game_member_actions_hourly: int = Field(default=120, gt=0)
+    two_game_league_actions_hourly: int = Field(default=2000, gt=0)
     # Candidate operational ceilings, NOT accepted provider entitlement. They apply
     # only to the enabled transport meter; every category shares the global caps.
     two_game_hourly_attempts: int = Field(default=90, gt=0)

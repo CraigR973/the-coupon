@@ -8,7 +8,7 @@ There is no provider/bank I/O here and no money earmarked to a particular week.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from hashlib import sha256
@@ -488,7 +488,7 @@ class FeeProjection:
             paid_through=owed == 0,
             pooled_credit_pence=max(0, self.credit - self.actual_total),
             payment_url=self.league.payment_link_url,
-            destination=f"/leagues/{self.league.id}/payments",
+            destination=f"/leagues/{self.league.id}/weeks/{week.id}/group#payment",
             obligations=obligations,
         )
 
@@ -555,12 +555,13 @@ async def materialize_entry_fees(
     game_kind: str,
     player_id: uuid.UUID,
     now: datetime | None = None,
+    clock: Callable[[], datetime] | None = None,
 ) -> WeekFee:
     """Independent early fee commit survives any later quote/pick refusal/rollback."""
     async with sessions() as db, db.begin():
         if not await financial_lock(db, league_id):
             raise EntryFeeRefused("NOT_FOUND")
-        moment = naive_utc(now or utc_now())
+        moment = naive_utc(clock() if clock is not None else now or utc_now())
         rollout = await _rollout(db, league_id)
         parent = await db.get(Gameweek, week_id)
         game = await db.get(TwoGame, game_id)

@@ -28,6 +28,7 @@ from src.routers import (
     payments,
     picks,
     players,
+    two_game_group,
     weekly_fees,
 )
 from src.routers.config import router as config_router
@@ -142,4 +143,5 @@ app.include_router(payments.router)
 app.include_router(coupon.router)
 app.include_router(players.router)
 app.include_router(weekly_fees.router)
+app.include_router(two_game_group.router)
 app.include_router(admin.router)

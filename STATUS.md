@@ -145,13 +145,15 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Batches **219–228** define the two-game build. Contracts, storage/isolation and
-provider work (219–221) passed their full local 12-check gates: 3 of 10 locally
-verified. Provider commit `278e1fa` matches tree `b24a51d`; backend 1,749,
-frontend 1,418 and seeded journey 1 passed with zero skips. Failures/fixes and
-capacity limits are in the overnight report. Batch 222 weekly billing now has 44 passing focused PostgreSQL checks;
-its unmodified full gate is pending on local parent `278e1fa`. Large-card replay exposes
-17-hour browse snapshots; live coverage/load acceptance stays open.
+Batches **219–228** define the two-game build. Contracts, storage, provider work
+and weekly billing (219–222) passed their full local 12-check gates: 4 of 10
+locally verified. Billing commit `7a98d95` matches tree `63483d4`;
+backend 1,794, frontend 1,418 and seeded journey 1 passed with zero skips.
+Failures, corrections and capacity limits are in the overnight report.
+Batch 223 group API has 58 new HTTP/concurrency checks passing. Gate 2 passed;
+gate 3 is pending after a shared-pool authentication fix (14 Nov).
+Both new web flows remain unimplemented. Large-card
+replay exposes 17-hour browse snapshots; live coverage/load acceptance stays open.
 No batch is formally closed. Canonical rows remain unchecked. Inactive
 implementation and local verification can proceed while the scheduled 14 Nov
 noon provider observation runs separately. Live coverage, quota and traffic/

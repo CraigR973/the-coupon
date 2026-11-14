@@ -95,8 +95,8 @@ two-game card. Insufficient horizon/coverage blocks activation, not payment.
 | Method and path | Response | Purpose |
 | --- | --- | --- |
 | `GET /leagues/{league_id}/weeks/{week_id}/games/{game_kind}` | `200 GameView` | Addressed game, fixtures, own entries, progress, result, fee |
-| `PUT /leagues/{league_id}/weeks/{week_id}/games/group/pick` | `200 GroupPick` | Atomically fill/replace own contribution |
-| `GET /leagues/{league_id}/weeks/{week_id}/games/group/pick` | `200 {pick, revision}` | Own pick readback; null if absent |
+| `PUT /leagues/{league_id}/weeks/{week_id}/games/group/pick` | `200 GroupEntry` | Atomically fill/replace own contribution |
+| `GET /leagues/{league_id}/weeks/{week_id}/games/group/pick` | `200 GroupEntry` | Own pick readback; null if absent |
 | `PUT /leagues/{league_id}/weeks/{week_id}/games/fantasy/slots/{slot}` | `200 FantasyPick` | Atomically fill/replace one independent slot |
 | `GET /leagues/{league_id}/weeks/{week_id}/games/fantasy/slots/{slot}` | `200 {pick, revision}` | Exact slot readback; null if empty |
 | `GET /leagues/{league_id}/weeks/{week_id}/fee` | `200 WeekFee` | Paid-through obligation, pooled credit and amount owed |
@@ -111,6 +111,15 @@ format before fees, odds admission or any pick mutation. A valid legacy W0 write
 still works while W1 fantasy is open, regardless of the league's rollout flag.
 New-game routes to a legacy week return `409 UNSUPPORTED_FORMAT`. Old backend
 responses lacking the optional new summary keep the new web flow hidden.
+
+`GroupEntry` is the same addressed envelope for save and readback: `league_id`,
+`week_id`, `game_id`, `game_kind=group`, `pick`, `revision`, `operation_id`.
+`pick` is nullable and otherwise contains its UUID, target, member/fixture UUIDs,
+market/outcome, runner name, revision/operation UUID and `result`; it contains no
+price or points. An empty initial entry has revision 0 and null operation UUID.
+A released entry remains null with its durable tombstone revision/operation UUID.
+Both children expose the parent's stored `number` as `week_number`; legacy
+season labels/readers retain their separate historical behaviour.
 
 Group body: `fixture_id`, `market`, `outcome`, `expected_revision`, `operation_id`.
 Fantasy adds `odds` (the displayed/confirmed decimal price). `operation_id` is a
@@ -128,9 +137,15 @@ suspension → market/outcome/fixture membership → revision → entitlement �
 quote/admission → atomic uniqueness/save. An authenticated owner can replay the
 same accepted operation after the lock or suspension without another mutation,
 fee or quote; a changed body still conflicts. Fresh operations remain fully
-gated. A response lost just before noon therefore remains reconcilable after
+gated. Baseline authorisation still requires the exact nondeleted league/parent
+and retained own membership before a historical operation can be replayed.
+A response lost just before noon therefore remains reconcilable after
 noon. All refusal paths preserve
-the previous choice. Persist early dues independently of a later pick refusal;
+the previous choice. Final eligibility holds a Fixture SHARE lock compatible
+with census's Fixture-then-status write order, and checks the deadline again
+after waiting. Future status writers must retain that order. The independent
+fee preflight evaluates its clock after acquiring the league lock.
+Persist early dues independently of a later pick refusal;
 provider spend likewise survives business rollback. An ambiguous HTTP response
 causes addressed readback before resend; equality of selection alone is not
 proof that a different slot/week/game operation succeeded.
@@ -178,6 +193,7 @@ Errors use `{"detail":{"code":"…","message":"…",…}}`:
 | `409 FIXTURE_TAKEN`, `409 FIXTURE_ALREADY_PICKED` | Group claim or own fantasy fixture conflict |
 | `409 ENTRY_CHANGED`, `409 OPERATION_CONFLICT` | Concurrent edit or mismatched retry |
 | `409 PRICE_MOVED` | Explicit named-price confirmation required |
+| `400/422 INVALID_REQUEST` | Parser errors (400), or typed JSON/path/body/revision errors (422); scoped to the new APIs |
 | `422 INVALID_SLOT`, `422 INVALID_SELECTION` | Slot outside 1–6 or ineligible fixture/market/outcome |
 | `429 PICKS_BUSY`, `429 TOO_MANY_TRIES` | Shared capacity or per-member abuse refusal, `retry_after_seconds` |
 | `503 ODDS_UNAVAILABLE` | No fresh valid quote/provider refusal; preserve old slot |
@@ -219,7 +235,11 @@ blocked by unpaid W1; W1 cannot consume credit ahead of W0.
 `billing_ends_at`, `obligation_pence`, `amount_owed_pence` (through target),
 `paid_through`, `pooled_credit_pence`, `payment_url`, `destination`,
 `obligations` (parent UUID, stored label and remaining pence). `paid_through`
-is a boolean for this addressed target; it is not a payment date. Virtual future
+is a boolean for this addressed target; it is not a payment date. Its default
+`destination` is the canonical exact group URL with `#payment`, with fantasy
+entry refusals using their addressed fantasy URL/anchor. The dedicated panels
+and anchors are local web acceptance work in 227/228; no member `/payments`
+route exists. `payment_url` remains the separate external league payment link. Virtual future
 obligations may have a null parent UUID until materialised. A retained orphan
 legacy balance has null parent/label and remains oldest in FIFO. Legacy custom
 round dates remain their historical labels. Group and every fantasy slot share

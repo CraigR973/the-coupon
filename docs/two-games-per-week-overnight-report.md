@@ -1,11 +1,11 @@
 # Two games per week — local implementation report
 
-13 Nov 2026 · work in progress. Production unchanged; no shipment, activation or
+14 Nov 2026 · work in progress. Production unchanged; no shipment, activation or
 formal batch close-out performed. Canonical batch rows remain unchecked.
 
 ## Current checkpoint
 
-3 of 10 batches locally verified. Batch 219 contracts passed independent review
+4 of 10 batches locally verified. Batch 219 contracts passed independent review
 and the unmodified full 12-check gate: backend 1,650, frontend 1,418, seeded
 journey 1, zero skips. Exact verified tree `532b4c0ae32249051381f4f4c0192d8a3fc5e2d9`
 matches commit `1a0ca8f2d78c6334bd14e1caf5c74e41943238b0`; evidence is in
@@ -20,8 +20,10 @@ Verified tree `bb0a4067b0c99994b0ca7a540cac79a48a32ff0e` matches local commit
 records the pending gate at invocation; this later branch records its result.
 Later batch edits are not covered by either earlier stamp.
 
-Batch 221 provider work passed its full gate. Batch 222 weekly billing is implemented locally;
-Batches 223–228 have not started.
+Batch 222 weekly billing passed its full gate. Batch 223 group API passed gate 2,
+but acceptance is held for a later authentication connection fix. Its corrected
+134-check focused matrix passes; full gate 3 is pending.
+Batches 224–228 have not started.
 Production remains unchanged. Both new UI flows remain unimplemented.
 
 Batch 221's implementation now passes independent source review. Focused
@@ -85,15 +87,111 @@ run. The second gate verified the entire corrected tree.
 | 219 contracts | Locally verified; commit `1a0ca8f` | `feat/batch-219-two-game-contracts` / `dfb39fe` |
 | 220 storage/isolation | Locally verified; commit `e458ec8` | `feat/batch-220-two-game-storage` / `1a0ca8f` |
 | 221 provider work | Locally verified; commit `278e1fa` | `feat/batch-221-two-game-provider` / `e458ec8` |
-| 222 weekly billing | Focused checks pass; full gate pending | `feat/batch-222-weekly-dues` / `278e1fa` |
-| 223 group API | Not started | Pending verified 222 |
+| 222 weekly billing | Locally verified; commit `7a98d95` | `feat/batch-222-weekly-dues` / `278e1fa` |
+| 223 group API | Gate 3 pending; 58 new checks pass | `feat/batch-223-group-api` / `7a98d95` |
 | 224 fantasy API | Not started | Pending verified 223 |
 | 225 results/lifecycle | Not started | Pending verified 224 |
 | 226 read APIs | Not started | Pending verified 225 |
 | 227 group web | Not started | Pending verified 226 |
 | 228 fantasy web | Not started | Pending verified 227 |
 
-## Weekly billing implementation (222, full gate pending)
+## Group API implementation (223, full gate pending)
+
+Explicit UUID group reads, saves and replacements now use an unpriced DTO and
+local fixture/market labels. No provider is acquired. A whole fixture belongs
+to one member in that group; fantasy and another league can use the same match.
+Incomplete participation remains valid; zero entries reads “No coupon”. Both
+children use the stored parent week number, without changing legacy labels.
+
+A save first authorises its exact target and checks accepted-operation replay,
+then validates its free local choices under the league lock. It releases that
+transaction before independently committing any early/intervening weekly fees.
+The final short transaction reacquires the league lock, replays an operation
+that committed while it waited, and refreshes membership, schedule, entitlement,
+revision and fixture eligibility. Fixture SHARE stabilises census metadata and
+its status publication; the deadline is checked again after waits. Replacement
+updates the existing pick atomically with its next revision and saved operation
+response. A failed replacement leaves the original unchanged. Historical replay
+returns the old response without recreating an old pick or charging again.
+
+Design decisions made locally: group save/read use one nullable `GroupEntry`
+envelope with exact target/revision/operation identity; week-only fees name the
+exact group `#payment` destination; the web panels/anchors remain acceptance
+work for 227/228. Existing legacy rate limits, responses and season labels stay
+unchanged. New action ceilings are the approved 120/member/hour and
+2,000/league/hour; twelve legitimate edits and replay after refusal are tested.
+
+Focused verification: 134 PostgreSQL-backed checks pass, zero skips (21.28s),
+including 58 added group HTTP/concurrency cases and 76 unchanged billing,
+lifecycle and storage checks. The matrix covers actual fixture/member races,
+real foreign league/week and fantasy-only fixtures, atomic failed replacement,
+accepted operation races across lock waits, stale/tombstone revisions, actual
+leave between committed fee and save, census writer blocking, moved/void data,
+14:30 microseconds and inclusive opening, early £3 future-fee persistence,
+business rollback, payment/refusal/replay and inactive invisibility. Every case
+forbids provider acquisition and confirms no added ProviderAttempt; successful
+nested responses have no price or points fields. API lint/format passes.
+This focused run is not the full gate. Gate 2 passed all 12 checks with backend
+1,845, frontend 1,418 and journey 1, zero skips, on tree
+`e79a5393e6018ca1c25ac11326dff087cbcec911`. That stamp predates the authentication
+fix below and does not verify the corrected tree. No 223 commit exists;
+gate 3 must pass before local acceptance.
+
+Failures and fixes: the first 30-case run failed in the new JWT test helper
+before requests because it omitted the required role. A subsequent single-case
+diagnostic passed a string instead of the role enum; the helper now matches the
+existing UUID/enum API, without changing assertions. The next matrix passed 29
+and failed one real read: a legacy-only season label resolver excluded new
+parents. Group now uses its already stored parent week number; legacy resolver
+and assertions are untouched. Independent review found stale pre-lock fee time,
+replay before baseline authorisation and concurrent census eligibility races.
+Those source defects were fixed and regressed. Review then requested three
+deterministic timing cases and real existing foreign-target cases, all present
+in the 116-check run before validation additions. The fee destination previously named a nonexistent
+member payments route; it now names the planned exact game payment panel.
+Late review found typed malformed-input validation bypassed the explicit new
+error envelope. Gate 1 was interrupted at 35% backend progress after lint,
+format and mypy passed; it has no acceptance stamp. A scoped route wrapper now
+maps typed malformed group/fee inputs to `422 INVALID_REQUEST`, raw parser
+errors to `400 INVALID_REQUEST`, and read-rate refusal
+to `429 TOO_MANY_TRIES` with Retry-After. Existing legacy handlers remain intact.
+Seven malformed-input cases, a legacy validation preservation check and a real
+121-read rate check now pass. Raw invalid-UTF8 JSON exercises the parser 400
+path. A final fee-read race also needed the league financial lock: deletion
+between initial access checks and projection could otherwise raise an internal
+ValueError. Fee reads now refresh access after waiting and project in the same
+transaction. Its deterministic deletion-wait regression returns structured 404
+and creates no due. Independent review accepts both final fixes. The new legacy preservation test first targeted a
+manually parsed string UUID route (404); its fixture now uses a genuinely typed
+invalid legacy auth body, preserving its original 422/list assertion. The
+corrected dedicated test passed before the integrated run. Full gate
+3 is required on the final corrected tree. No existing oracle, protected
+fixture/config, gate, or assertion was weakened.
+
+Late source review found request-lifetime authentication retained a database
+connection while the group service opened its independent transactions. Both
+GET and PUT reproduced QueuePoolTimeout with a shared one-connection pool.
+Authentication on the new group routes now completes and releases its own
+short session before service work, retaining the existing token/profile checks.
+The returned profile is detached before commit, so expiration cannot cause
+later implicit database access. Legacy authentication stays unchanged.
+The same GET/PUT regressions pass with commit expiration both on and off;
+two concurrent authenticated requests release all connections before entering
+the service barrier. Inactive/deleted profiles still receive 401 and create no
+entry or due. The integrated 134-check matrix passes without changing the pool
+limits, timeouts or original failure assertions. One lint invocation used a
+repository-relative path from the API directory and reported E902; the corrected
+absolute-path checks pass, with no source or assertion change for that error.
+
+## Weekly billing implementation (222, locally verified)
+
+The corrected unmodified full gate passed all 12 checks: backend 1,794,
+frontend 1,418, seeded journey 1, zero skips. Verified tree
+`63483d4ab47aae9bffc665348ec185f7c9af161e` matches local commit
+`7a98d95deb0eeaa82f4612b4a8ef29d80e0eaddd`; log `.local/overnight-two-games/222-gate-attempt2.log`.
+The report in that commit records the pending gate at invocation; this next
+branch records the result. Subsequent 223 edits are not covered by that stamp.
+
 
 New-format members owe exactly £1 per intersected Monday-to-Monday London
 calendar week, labelled Saturday. A minute catch-up job and natural membership
@@ -264,10 +362,10 @@ source or assertions. No full milestone failure is hidden by focused passes.
 
 ## Remaining release gates and exact next step
 
-Verify the frozen Batch 222 tree with the complete unmodified local gate,
-then explicitly commit its in-scope files and stack Batch 223 on that verified
-commit. Continue the authorised stack through both web flows and final review.
-The 221 stamp does not cover 222 edits. Do not merge or push.
+Run corrected Batch 223's complete unmodified gate 3 on local parent `7a98d95`,
+then commit its explicitly staged files if all 12 checks pass. Continue the
+authorised stack through both web flows and final review. Earlier stamps do not
+cover the changed tree. Do not merge or push.
 
 Owner review/release follows completion: review the local stack and report,
 integrate under normal gates with fresh exact-head CI, create/test a production
