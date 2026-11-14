@@ -97,8 +97,8 @@ two-game card. Insufficient horizon/coverage blocks activation, not payment.
 | `GET /leagues/{league_id}/weeks/{week_id}/games/{game_kind}` | `200 GameView` | Addressed game, fixtures, own entries, progress, result, fee |
 | `PUT /leagues/{league_id}/weeks/{week_id}/games/group/pick` | `200 GroupEntry` | Atomically fill/replace own contribution |
 | `GET /leagues/{league_id}/weeks/{week_id}/games/group/pick` | `200 GroupEntry` | Own pick readback; null if absent |
-| `PUT /leagues/{league_id}/weeks/{week_id}/games/fantasy/slots/{slot}` | `200 FantasyPick` | Atomically fill/replace one independent slot |
-| `GET /leagues/{league_id}/weeks/{week_id}/games/fantasy/slots/{slot}` | `200 {pick, revision}` | Exact slot readback; null if empty |
+| `PUT /leagues/{league_id}/weeks/{week_id}/games/fantasy/slots/{slot}` | `200 FantasyEntry` | Atomically fill/replace one independent slot |
+| `GET /leagues/{league_id}/weeks/{week_id}/games/fantasy/slots/{slot}` | `200 FantasyEntry` | Exact slot readback; nullable pick if empty |
 | `GET /leagues/{league_id}/weeks/{week_id}/fee` | `200 WeekFee` | Paid-through obligation, pooled credit and amount owed |
 | `GET /leagues/{league_id}/games` | `200 {games, legacy_rounds, next_cursor}` | All actionable/current games plus addressed history |
 | `GET /me/games` | `200 {leagues}` | Batched home summary for all memberships |
@@ -120,6 +120,12 @@ price or points. An empty initial entry has revision 0 and null operation UUID.
 A released entry remains null with its durable tombstone revision/operation UUID.
 Both children expose the parent's stored `number` as `week_number`; legacy
 season labels/readers retain their separate historical behaviour.
+
+`FantasyEntry` carries the same target, nullable pick, revision and operation
+UUID, with `game_kind=fantasy` and the addressed `slot` (1–6). A fantasy view
+also exposes all six `slots`, including empty/tombstone readback, and its filled
+`my_entries`. The slot and member remain part of operation scope even if two
+clients happen to use the same operation UUID at different addresses.
 
 Group body: `fixture_id`, `market`, `outcome`, `expected_revision`, `operation_id`.
 Fantasy adds `odds` (the displayed/confirmed decimal price). `operation_id` is a
@@ -181,6 +187,21 @@ Confirmation resends that named price; it does not accept an unspecified future
 price. A newly published market can be rechecked under the bounded negative
 policy instead of being blocked by the legacy six-hour negative cache.
 
+New fantasy prices are exactly representable in four decimal places, from
+0.0001 through 999999.9999. Equivalent trailing zeros canonicalise before body
+hashing. Invalid client prices are `422 INVALID_REQUEST`; an unrepresentable
+source price is `503 ODDS_UNAVAILABLE`, never a rounded substitute or a
+confirmation that could not be stored. `current_odds` is the exact canonical
+decimal string. A second movement requires another named confirmation.
+Legacy price comparison/storage retain their existing representation.
+
+Browse `quote.prices` lists `{market, outcome, odds}` alongside the provenance,
+observation, age and availability fields above. Only a refresh-lease owner
+acquires a provider; browse and fresh durable hits require no client. The
+production factory verifies the acquired adapter's actual source/bookmaker;
+identity changes cannot relabel or reuse the previous key. All actual login,
+keepAlive, pricing and retry dispatches still share the installation meter.
+
 Errors use `{"detail":{"code":"…","message":"…",…}}`:
 
 | Status/code | Meaning |
@@ -197,6 +218,13 @@ Errors use `{"detail":{"code":"…","message":"…",…}}`:
 | `422 INVALID_SLOT`, `422 INVALID_SELECTION` | Slot outside 1–6 or ineligible fixture/market/outcome |
 | `429 PICKS_BUSY`, `429 TOO_MANY_TRIES` | Shared capacity or per-member abuse refusal, `retry_after_seconds` |
 | `503 ODDS_UNAVAILABLE` | No fresh valid quote/provider refusal; preserve old slot |
+
+An actual upstream 429 and a locally refused capacity attempt both use
+`429 PICKS_BUSY` with a retry delay; the first retains its dispatched attempt
+and durable cooldown, while a later pre-dispatch refusal costs no HTTP.
+Authentication/plan refusal and malformed provider data use
+`503 ODDS_UNAVAILABLE`. A shared in-progress refresh uses the latter with a
+one-second retry hint. Legacy error handling is unchanged.
 
 Format-aware abuse admission permits twelve legitimate saves across the noon
 overlap plus edits; new-format defaults are configurable 120 actions/member/hour
@@ -247,6 +275,14 @@ the same target-week due. No picks, partial picks, all-void, cancellation,
 confirmed breaks, missing fixtures or suspension never waive that due.
 Leave/remove/delete releases only unlocked entries, retains locked anonymous
 history and owed ledger entries; no automatic refund is authorised.
+
+Accepted operation receipts also take precedence at the independent fee
+transaction handoff. Before returning a late fee/payment or fantasy action
+refusal, the server rechecks the exact operation under baseline historical
+ownership and the league lock. A matching receipt returns its original response;
+a different body conflicts, a different operation retains the refusal, and a
+deleted league remains inaccessible. Reconciliation creates no further due or
+provider request.
 
 ## Durable provider work and results
 

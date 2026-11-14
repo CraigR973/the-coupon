@@ -5,7 +5,7 @@ formal batch close-out performed. Canonical batch rows remain unchecked.
 
 ## Current checkpoint
 
-4 of 10 batches locally verified. Batch 219 contracts passed independent review
+5 of 10 batches locally verified. Batch 219 contracts passed independent review
 and the unmodified full 12-check gate: backend 1,650, frontend 1,418, seeded
 journey 1, zero skips. Exact verified tree `532b4c0ae32249051381f4f4c0192d8a3fc5e2d9`
 matches commit `1a0ca8f2d78c6334bd14e1caf5c74e41943238b0`; evidence is in
@@ -20,10 +20,12 @@ Verified tree `bb0a4067b0c99994b0ca7a540cac79a48a32ff0e` matches local commit
 records the pending gate at invocation; this later branch records its result.
 Later batch edits are not covered by either earlier stamp.
 
-Batch 222 weekly billing passed its full gate. Batch 223 group API passed gate 2,
-but acceptance is held for a later authentication connection fix. Its corrected
-134-check focused matrix passes; full gate 3 is pending.
-Batches 224–228 have not started.
+Batch 223 group API passed full gate 3 on corrected tree
+`a013bb2526b6b9c2ab6bbc2d108ffde031d1d621`, matching local commit
+`8dfd28d5b2cecbecdc0d48efc1245097b63e6b69`: backend 1,852, frontend 1,418,
+journey 1, zero skips. Log: `.local/overnight-two-games/223-gate-attempt3.log`.
+Its report records the pending invocation; this branch records the result.
+Batch 224 fantasy API is now in progress; 225–228 have not started.
 Production remains unchanged. Both new UI flows remain unimplemented.
 
 Batch 221's implementation now passes independent source review. Focused
@@ -88,14 +90,178 @@ run. The second gate verified the entire corrected tree.
 | 220 storage/isolation | Locally verified; commit `e458ec8` | `feat/batch-220-two-game-storage` / `1a0ca8f` |
 | 221 provider work | Locally verified; commit `278e1fa` | `feat/batch-221-two-game-provider` / `e458ec8` |
 | 222 weekly billing | Locally verified; commit `7a98d95` | `feat/batch-222-weekly-dues` / `278e1fa` |
-| 223 group API | Gate 3 pending; 58 new checks pass | `feat/batch-223-group-api` / `7a98d95` |
-| 224 fantasy API | Not started | Pending verified 223 |
+| 223 group API | Locally verified; commit `8dfd28d` | `feat/batch-223-group-api` / `7a98d95` |
+| 224 fantasy API | In progress | `feat/batch-224-fantasy-api` / `8dfd28d` |
 | 225 results/lifecycle | Not started | Pending verified 224 |
 | 226 read APIs | Not started | Pending verified 225 |
 | 227 group web | Not started | Pending verified 226 |
 | 228 fantasy web | Not started | Pending verified 227 |
 
-## Group API implementation (223, full gate pending)
+## Fantasy API implementation (224, full gate pending)
+
+Six independent UUID-addressed slots now save and replace one leg at a time.
+The slot envelope includes its nullable pick, revision and operation UUID;
+readback includes release tombstones. Members share fixtures, including group
+claims; only the same member's other fantasy slots reserve that fixture.
+Partial entries remain valid. Group DTOs stay unpriced.
+
+The save validates its exact target and replay before mutable admission,
+commits early/intervening fees separately, then obtains the named fixture's
+fresh quote without a request/auth/financial/fixture transaction. The final
+short transaction refreshes access, slot revision, membership, eligibility,
+paid-through status and deadline, and freezes the named price only through
+exactly 60 seconds. It checks time and price after its last database wait,
+immediately before mutation. Accepted operation and slot commit together.
+After a quote failure, a short replay/state reconciliation still returns an
+already accepted operation or the current lock/revision refusal. No second
+provider request or fee is bought to do this.
+
+Quote snapshots now have a DB-only reader that can reuse the caller's session.
+Only the committed refresh-lease owner acquires a client. Fresh cache hits,
+negatives, coalesced waiters and locked/browse reads acquire none. Slow login
+rechecks token ownership before pricing. A cancelled dispatch retains spend
+and its conservative lease; ordinary failure releases only owned tokens.
+Known provider JSON/schema/decimal failures become sanitised quote refusal;
+a failed login never publishes a fixture-negative. Actual source/bookmaker
+identity is checked at production acquisition and used by the discovery factory
+as well. Betfair Exchange is no longer stamped with the OddsAPI bookmaker.
+Real Betfair census/activation acceptance remains unsupported and unperformed.
+
+Local design decisions: prices use exact four-place decimal confirmation and
+storage, from 0.0001 through 999999.9999; unrepresentable source values refuse
+instead of rounding. Equivalent trailing zeros canonicalise before hashing.
+A representable moved price returns PRICE_MOVED and needs a new explicit
+operation at that named price. Legacy two-place comparison stays unchanged.
+Actual upstream 429 and local budget refusal both return 429 PICKS_BUSY as
+capacity refusals, with retry delay; provider authentication/plan and unusable
+quote failures return 503 ODDS_UNAVAILABLE. Read-rate abuse remains separate.
+The approved 120/member/hour and 2,000/league/hour edit ceilings share both games;
+actual transport attempts retain the separate assumed installation meter.
+
+Prior focused verification passed 159 PostgreSQL-backed tests, zero skips
+(31.00s): 86 new checks and 73 unchanged quote/provider-budget/legacy oracles.
+The current two new files add 87 checks after a further port/storage boundary
+oracle described below. They cover six partial slots,
+real independent-session races, failed replacement, canonical named-price
+confirmation, sharing/isolation, uncertain lost success and exact readback,
+actual retries and pre-dispatch refusal, real mock Betfair-login cancellation,
+price cancellation/restart, current/next/another league/opening shared capacity,
+twelve saves across noon, sixty-second and post-lock-wait freshness, future
+observations, exact Saturday/Sunday/Monday boundaries, retained early £3 dues,
+rollback/cache/spend persistence, a shared one-connection pool, actual production
+factory provenance, parser failures, departure/tombstone/rejoin and mid-HTTP
+roster/suspension/void/move races. The minimum positive quote uses an explicit
+port/storage oracle, not a claim that OddsAPI offers sub-1 betting prices.
+Independent review accepts the source and both added competition/confirmation
+oracles. Full gate 1 passed all executed tests but failed its count check;
+gate 2 was later interrupted for cumulative findings; full gate 3 is pending.
+
+Failures and fixes: the first new identity fixture omitted required cache TTL;
+its setup was corrected without changing assertions (then 21/21 passed).
+The first API fixture incorrectly linked a Monday-exclusive fixture, which the
+storage trigger correctly refused: all 36 API setups failed before HTTP.
+It now links a valid fixture, then models a census move to Monday; all original
+boundary assertions remain. The next matrix passed 56 and failed one real
+state-precedence case: a long quote wait crossed noon and its lease, returning
+refresh-busy instead of LOCKED. Post-error replay/state reconciliation fixed
+that source defect; all 57 then passed. The expanded matrix passed 132.
+Four later new tests lacked a restored ProviderSnapshot import after an earlier
+unused-import cleanup: 151 passed and four failed; the import was fixed and
+all 157 then passed. Two independent-review gaps were then added: a four-way
+actual current/next/other-league/opening barrier races for one remaining
+dispatch after one legacy dispatch; and a second price movement preserves the
+old slot until its newly named price is confirmed. All 159 now pass. Source lint/format and six initial mypy errors were corrected
+with explicit types, timestamp narrowing and the existing cooldown setting;
+no suppressions or assertions changed. One lint command used a repository path
+from the API directory; corrected absolute paths pass. Patch-context misses
+made no edits and were reapplied against the formatted source.
+
+Full gate 1 failed 1 of 12 checks: all 1,938 backend tests passed with zero
+skips, but the expected count was 1,939. I miscounted the additions as 87
+instead of 86; collect-only confirms 71 API plus 15 quote tests. Frontend
+1,418, seeded journey 1 and every other check passed. No tests were removed,
+and the threshold was retained at 1,939 for that repair. The log is
+`.local/overnight-two-games/224-gate-attempt1.log`.
+
+Independent review identified a missing direct port/storage lower-bound oracle:
+OddsAPI filters sub-1 prices before storage admission, so its existing invalid
+HTTP tests cannot prove refusal of a positive 0.00001 port quote. A new test
+passes that raw price through SharedQuotes and the HTTP save, requires sanitised
+503 on two attempts, and proves the raw cached value is never rounded into a
+pick or substituted for the original slot/revision/operation. Existing dues
+and actual spend remain unchanged. The new test and its accepted 0.0001
+counterpart pass 2/2, zero skips (4.21s); this is explicitly port/storage evidence,
+not new actual HTTP capacity evidence. No old assertion changed, and that
+repair retained the 1,939 threshold; later new regressions legitimately raise it.
+Those two files now collect 87 new tests. No 224 commit exists.
+
+Cumulative independent review then found an accepted-operation replay handoff
+defect introduced in the group API (223) and fantasy API (224). Two identical
+requests can both pass initial admission; one commits while the other waits
+for fee preflight. A later lock, suspension, global-off, departure, unpaid
+projection or action refusal could mask that already accepted receipt. Gate 2
+was interrupted after 616 backend passes (218.74s, one warning), with lint,
+format and types passing. It has no acceptance stamp. The log is
+`.local/overnight-two-games/224-gate-attempt2.log`.
+
+Thirteen deterministic independent-request cases reproduced 11 failures and
+two passing different-operation controls before repair. Both services now
+reconcile mutable fee/payment refusals through a short baseline-authorised
+league-locked accepted-operation read; fantasy also reconciles its action
+refusal. If no matching accepted operation exists, the original refusal stays.
+This does not repeat fees, quote acquisition or provider I/O. Seventeen final
+race checks include unchanged-body success, wrong-body operation conflict,
+different-operation refusal and deleted-league baseline denial. A combined
+entry/fee/quote/group run passes 217 tests, zero skips (40.49s).
+
+A second cumulative finding came from discovery (221): a fixture postponed
+in W0, moved active to W1 and then reinstated in W0 by another legacy league
+via its real empty-pool on-demand refresh could be deleted from both new cards
+by W0's stale cached void status. The initial overlapping-range hypothesis was
+withdrawn after checking canonical non-overlapping census keys; the actual
+legacy-writer path was then reproduced. Its new regression failed with no
+links before repair. Cleanup now consistently trusts the current shared
+fixture/status facts, as insertion already does, retaining accepted history.
+Discovery/storage then pass 61 tests, zero skips (12.05s), including existing
+active-to-void and moved-fixture assertions unchanged. The new observation
+uses a provider-port seam after two counted census HTTP calls; it is writer/
+recovery evidence, not an additional HTTP-capacity claim.
+
+The reinstatement check was expanded to four actual fresh-status combinations,
+including a fresh all-void legacy response that creates no parent. Three of four
+then exposed missing publication of the fresh legacy status: old W1 status could
+still veto a newly active W0 fixture. Fresh on-demand fetches now publish actual
+native-source metadata/status atomically; cached/pooled DTOs never publish status.
+The first expanded fixture IDs exceeded the schema's 64-character limit; shorter
+synthetic IDs fixed setup without changing assertions. Discovery/storage then
+passed 64 tests, zero skips (13.19s); old population/lifecycle passed 25 (6.95s),
+and the independent payments runtime passed 19 (1.77s).
+
+Review of that repair confirmed a new calendar/fixture lock inversion: fresh
+publication held a fixture before a later legacy season reanchor, while cached
+legacy creation could hold the calendar before changing that fixture. Parent
+creation/refusal/reanchor now precedes fixture writes. Fresh facts still publish
+when no legacy parent is created. Fresh and genuinely changed legacy metadata
+use one provider-event ordering; unchanged cached metadata retains no-write
+behaviour. Three new PostgreSQL lock regressions pass (2.29s), proving a blocked
+reanchor owns no fixture lock and both writers use the same ordering even when
+DTO/UUID ordering is reversed. Independent review accepts this repair; it does
+not claim all pre-existing repeated-sync transaction lock cycles are eliminated.
+An earlier combined affected regression run passed 108, zero skips (19.59s);
+the final combined run passes 111, zero skips (19.78s), including all three new
+lock cases and the unchanged-row preservation refinement.
+
+The replay fixture import first triggered Ruff F811 shadowing; an explicit
+fixture alias assignment fixes it without suppression. Removing stale void
+handling also left an unused import, removed without suppressions. Final API
+lint/format and mypy (123 source files) pass. All 1,963 backend tests collect (3.37s). The ratchet increases
+to 1,963: the prior 1,939 plus 17 replay cases, four fresh-observation cases
+and three lock-order cases. No old assertions or protected gates changed.
+Full gate 3 must verify these independently reviewed cumulative repairs
+on the 224 tree. Earlier 221/223 stamps remain historical evidence for their
+then-tested trees and do not cover these later fixes.
+
+## Group API implementation (223, locally verified)
 
 Explicit UUID group reads, saves and replacements now use an unpriced DTO and
 local fixture/market labels. No provider is acquired. A whole fixture belongs
@@ -134,8 +300,10 @@ nested responses have no price or points fields. API lint/format passes.
 This focused run is not the full gate. Gate 2 passed all 12 checks with backend
 1,845, frontend 1,418 and journey 1, zero skips, on tree
 `e79a5393e6018ca1c25ac11326dff087cbcec911`. That stamp predates the authentication
-fix below and does not verify the corrected tree. No 223 commit exists;
-gate 3 must pass before local acceptance.
+fix below and does not verify the corrected tree. Gate 3 subsequently passed
+all 12 checks with backend 1,852, frontend 1,418 and journey 1, zero skips,
+on tree `a013bb2526b6b9c2ab6bbc2d108ffde031d1d621`, matching local commit
+`8dfd28d5b2cecbecdc0d48efc1245097b63e6b69`. Later 224 edits are not covered.
 
 Failures and fixes: the first 30-case run failed in the new JWT test helper
 before requests because it omitted the required role. A subsequent single-case
@@ -165,7 +333,7 @@ and creates no due. Independent review accepts both final fixes. The new legacy 
 manually parsed string UUID route (404); its fixture now uses a genuinely typed
 invalid legacy auth body, preserving its original 422/list assertion. The
 corrected dedicated test passed before the integrated run. Full gate
-3 is required on the final corrected tree. No existing oracle, protected
+3 passed the final corrected tree before local acceptance. No existing oracle, protected
 fixture/config, gate, or assertion was weakened.
 
 Late source review found request-lifetime authentication retained a database
@@ -362,8 +530,8 @@ source or assertions. No full milestone failure is hidden by focused passes.
 
 ## Remaining release gates and exact next step
 
-Run corrected Batch 223's complete unmodified gate 3 on local parent `7a98d95`,
-then commit its explicitly staged files if all 12 checks pass. Continue the
+Finish Batch 224 full gate 3 on verified local parent `8dfd28d`, then commit
+only its verified tree and stack Batch 225. Continue the
 authorised stack through both web flows and final review. Earlier stamps do not
 cover the changed tree. Do not merge or push.
 

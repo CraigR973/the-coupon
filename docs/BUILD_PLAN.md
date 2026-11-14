@@ -81,14 +81,18 @@ PostgreSQL ← pooled ledger / FIFO credit ────────┘
        ├─ group child → exact UUID / revision / accepted-operation replay
        │  short validation → independent fee commit → atomic unpriced claim
        │  Fixture SHARE + final deadline → group result
-       ├─ fantasy child → six slots → leg / week / season points
+       ├─ fantasy child → six addressed slots / revision / operation replay
+       │  short auth + validation → independent fee → lazy fresh quote
+       │  actual source/bookmaker + exact price ≤60s → atomic slot
+       │  final deadline / Fixture SHARE → leg / week / season points
        └─ membership intervals → Monday catch-up / early entry → £1 due
           independent financial commit → same ledger / pooled FIFO
      member deletion barrier → sorted league locks → exclusive departure
      read-only target fee projection + league lock → no browsing due
      rolling attempt admission → commit → HTTP (all callers / retries)
      paginated shared census → snapshots / real fixtures
-     short token-fenced leases → fair work / shared quotes
+     short token-fenced leases → refresh-owner-only client / shared quotes
+     DB-only quote browse → caller session / no provider acquisition
      game/week/version events → recipient policy → inbox / allowed push
 
 API boot migrates; payments never migrates and requires matching image head.

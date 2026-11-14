@@ -16,7 +16,7 @@ from typing import Any, NoReturn, TypedDict, Unpack
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import Integer, cast, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.config import settings
 from src.models.fixture import Fixture
@@ -135,6 +135,23 @@ async def authorise_history(
         or member is None
     ):
         refuse(404, "NOT_FOUND", "No accessible game target")
+
+
+async def replay_after_refusal(
+    sessions: async_sessionmaker[AsyncSession], **request: Unpack[OperationRequest]
+) -> dict[str, Any] | None:
+    """Reconcile a handoff failure with an independently committed receipt.
+
+    The first admission and the fee preflight use separate transactions. An
+    identical caller can commit between them. Take the same short league lock
+    before the final read, but never apply current entry/payment gates to an
+    already accepted receipt. Baseline historical ownership still applies.
+    """
+    async with sessions() as db, db.begin():
+        await authorise_history(db, request["league_id"], request["week_id"], request["player_id"])
+        await financial_lock(db, request["league_id"])
+        await authorise_history(db, request["league_id"], request["week_id"], request["player_id"])
+        return await replay(db, **request)
 
 
 @dataclass

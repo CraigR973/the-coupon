@@ -7,6 +7,7 @@ from collections.abc import Callable
 from datetime import date, datetime
 from typing import Any, Literal
 
+from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -31,6 +32,7 @@ from src.services.two_game_entry import (
     operation_revision,
     refuse,
     replay,
+    replay_after_refusal,
     require_open,
     resolve_target,
     selection,
@@ -214,22 +216,28 @@ class GroupEntries:
             await require_revision(db, target, player_id, body.expected_revision)
             game_id = target.game.id
         try:
-            fee = await materialize_entry_fees(
-                self.sessions,
-                league_id=league_id,
-                week_id=week_id,
-                game_id=game_id,
-                game_kind="group",
-                player_id=player_id,
-                clock=self.now,
-            )
-        except EntryFeeRefused as exc:
-            refuse(
-                404 if exc.code == "NOT_FOUND" else 409,
-                exc.code,
-                "This game is not accepting entries",
-            )
-        require_paid(fee)
+            try:
+                fee = await materialize_entry_fees(
+                    self.sessions,
+                    league_id=league_id,
+                    week_id=week_id,
+                    game_id=game_id,
+                    game_kind="group",
+                    player_id=player_id,
+                    clock=self.now,
+                )
+            except EntryFeeRefused as exc:
+                refuse(
+                    404 if exc.code == "NOT_FOUND" else 409,
+                    exc.code,
+                    "This game is not accepting entries",
+                )
+            require_paid(fee)
+        except HTTPException:
+            original = await replay_after_refusal(self.sessions, **identity)
+            if original is not None:
+                return GroupEntry.model_validate(original)
+            raise
         # Phase 3: serialise on the same league lock as roster/discovery/billing,
         # then refresh every mutable fact. No provider is ever acquired.
         try:

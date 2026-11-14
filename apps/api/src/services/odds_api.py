@@ -372,6 +372,10 @@ class OddsApiProvider(OddsProvider):
         #: reserve that protects the pick path read that gauge.
         self.requests_made = 0
 
+    @property
+    def bookmaker(self) -> str:
+        return self._bookmaker
+
     @classmethod
     def from_settings(cls) -> OddsApiProvider:
         """Build a client from ``ODDS_API_KEY`` / ``ODDS_API_BOOKMAKER`` (env)."""

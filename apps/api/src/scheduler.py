@@ -68,7 +68,7 @@ from src.services.notification_triggers import (
     record_prepared_fanout,
     send_pick_reminders,
 )
-from src.services.odds_provider import SlateFixture, SlateWindow
+from src.services.odds_provider import OddsProvider, SlateFixture, SlateWindow
 from src.services.odds_session import odds_session
 from src.services.odds_warm import warm_round
 from src.services.payment_notices import prepare_payment_notices
@@ -374,6 +374,13 @@ async def report_discovery_silence() -> bool:
 
 
 def _two_game_discovery_worker() -> DiscoveryWorker:
+    from src.services.two_game_provider import acquire_matching, configured_identity
+
+    identity = configured_identity()
+
+    async def acquire_provider() -> OddsProvider:
+        return await acquire_matching(identity)
+
     async def verify_rows(rows: list[SlateFixture]) -> list[SlateFixture]:
         from src.services.odds_provider import Slate, as_utc
         from src.services.slate_verification import verify_slate
@@ -395,9 +402,9 @@ def _two_game_discovery_worker() -> DiscoveryWorker:
 
     return DiscoveryWorker(
         AsyncSessionLocal,
-        odds_session.acquire,
-        source=settings.odds_provider.value,
-        bookmaker=settings.odds_api_bookmaker,
+        acquire_provider,
+        source=identity.source,
+        bookmaker=identity.bookmaker,
         clock=_utc_now,
         page_size=settings.two_game_census_page_size,
         units_per_pass=settings.two_game_census_pages_per_pass,

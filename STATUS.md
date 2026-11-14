@@ -145,13 +145,19 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Batches **219–228** define the two-game build. Contracts, storage, provider work
-and weekly billing (219–222) passed their full local 12-check gates: 4 of 10
+Batches **219–228** define the two-game build. Contracts, storage, provider work,
+weekly billing and group API (219–223) passed their full local 12-check gates: 5 of 10
 locally verified. Billing commit `7a98d95` matches tree `63483d4`;
 backend 1,794, frontend 1,418 and seeded journey 1 passed with zero skips.
 Failures, corrections and capacity limits are in the overnight report.
-Batch 223 group API has 58 new HTTP/concurrency checks passing. Gate 2 passed;
-gate 3 is pending after a shared-pool authentication fix (14 Nov).
+Batch 223 group API passed corrected gate 3, commit `8dfd28d`, tree `a013bb25`;
+backend 1,852, frontend 1,418, journey 1, zero skips. Batch 224 fantasy API has
+217 focused entry/fee/quote checks pass; fresh-observation and lock-order
+regressions pass with legacy population and payment-runtime checks, zero skips.
+Cumulative review found late-fee replay (introduced in 223/224) and stale void
+reinstatement (221) defects, now repaired locally with new unchanged-oracle regressions.
+Gate 1 failed its miscounted test ratchet; gate 2 was interrupted for these findings.
+Full gate 3 is pending at 1,963 backend tests; no 224 commit yet (14 Nov).
 Both new web flows remain unimplemented. Large-card
 replay exposes 17-hour browse snapshots; live coverage/load acceptance stays open.
 No batch is formally closed. Canonical rows remain unchecked. Inactive

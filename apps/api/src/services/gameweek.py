@@ -583,7 +583,9 @@ async def all_gameweeks(db: AsyncSession, league_id: uuid.UUID) -> list[Gameweek
     return list(result.scalars().all())
 
 
-async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek | None:
+async def sync_slate(
+    db: AsyncSession, league: League, slate: Slate, *, fresh_source: str | None = None
+) -> Gameweek | None:
     """Upsert this league's round for ``slate.starts_on`` and the fixtures it plays.
 
     Fixtures go into the **shared pool**, keyed on ``provider_event_id``: a match another
@@ -626,6 +628,66 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
     )
     playable = [sf for sf in selected if not is_void_status(sf.status)]
 
+    # Calendar/round locks always precede shared Fixture locks. Fresh source facts
+    # still publish when no legacy parent is created (for example, an all-void card).
+    gameweek = await _round_for_slate(db, league, slate, playable)
+    if fresh_source is not None:
+        from src.services.two_game_fixture_state import record_fixture_observations
+
+        observed_at = _utc_now()
+        await record_fixture_observations(
+            db,
+            fresh_source,
+            slate.fixtures,
+            observed_at=observed_at,
+            expires_at=observed_at + timedelta(hours=6),
+        )
+    if gameweek is None:
+        return None
+
+    if not selected:
+        return gameweek
+
+    from src.services.two_game_fixture_state import upsert_fixture_metadata
+
+    if fresh_source is None:
+        await upsert_fixture_metadata(db, selected, skip_unchanged=True)
+    events = [sf.provider_event_id for sf in selected]
+    pooled = await db.execute(
+        select(Fixture)
+        .where(Fixture.provider_event_id.in_(events))
+        .execution_options(populate_existing=True)
+    )
+    by_event = {f.provider_event_id: f for f in pooled.scalars().all()}
+
+    linked = await db.execute(
+        select(GameweekFixture.fixture_id).where(GameweekFixture.gameweek_id == gameweek.id)
+    )
+    already = set(linked.scalars().all())
+    for sf in playable:
+        fixture = by_event[sf.provider_event_id]
+        if fixture.id not in already:
+            db.add(GameweekFixture(gameweek_id=gameweek.id, fixture_id=fixture.id))
+
+    await _drop_voided_fixtures(
+        db,
+        league,
+        gameweek,
+        {
+            by_event[sf.provider_event_id].id: sf
+            for sf in selected
+            if is_void_status(sf.status) and by_event[sf.provider_event_id].id in already
+        },
+    )
+
+    await db.flush()
+    return gameweek
+
+
+async def _round_for_slate(
+    db: AsyncSession, league: League, slate: Slate, playable: Sequence[SlateFixture]
+) -> Gameweek | None:
+    """Resolve/create the legacy parent before acquiring any shared fixture lock."""
     window = window_for(league)
     result = await db.execute(
         select(Gameweek).where(
@@ -686,48 +748,6 @@ async def sync_slate(db: AsyncSession, league: League, slate: Slate) -> Gameweek
         if gameweek.status is GameweekStatus.open:
             await record_round_dues(db, league, gameweek)
 
-    if not selected:
-        return gameweek
-
-    events = [sf.provider_event_id for sf in selected]
-    pooled = await db.execute(select(Fixture).where(Fixture.provider_event_id.in_(events)))
-    by_event = {f.provider_event_id: f for f in pooled.scalars().all()}
-
-    for sf in selected:
-        fixture = by_event.get(sf.provider_event_id)
-        if fixture is None:
-            fixture = Fixture(provider_event_id=sf.provider_event_id)
-            db.add(fixture)
-            by_event[sf.provider_event_id] = fixture
-        # Names/kick-off can shift as the provider firms up the card before lock.
-        fixture.home = sf.home
-        fixture.away = sf.away
-        fixture.kickoff_utc = _naive_utc(sf.kickoff_utc)
-        fixture.competition = sf.competition
-        fixture.competition_id = sf.competition_id
-    await db.flush()
-
-    linked = await db.execute(
-        select(GameweekFixture.fixture_id).where(GameweekFixture.gameweek_id == gameweek.id)
-    )
-    already = set(linked.scalars().all())
-    for sf in playable:
-        fixture = by_event[sf.provider_event_id]
-        if fixture.id not in already:
-            db.add(GameweekFixture(gameweek_id=gameweek.id, fixture_id=fixture.id))
-
-    await _drop_voided_fixtures(
-        db,
-        league,
-        gameweek,
-        {
-            by_event[sf.provider_event_id].id: sf
-            for sf in selected
-            if is_void_status(sf.status) and by_event[sf.provider_event_id].id in already
-        },
-    )
-
-    await db.flush()
     return gameweek
 
 
@@ -1215,9 +1235,27 @@ async def refresh_slate(
     if await legacy_date_blocked(db, league.id, starts_on):
         return None
     slate = await provider.fetch_slate(window_for(league), starts_on, competition_ids=selected)
+    # Only actual source responses may publish shared eligibility. Pooled/cached
+    # sync callers retain legacy linking without asserting a new provider observation.
+    from src.config import settings
+
+    fresh_source = None
+    if settings.two_games_enabled:
+        from src.models.two_game import TwoGameRollout
+
+        active = await db.scalar(
+            select(TwoGameRollout.league_id)
+            .join(League, League.id == TwoGameRollout.league_id)
+            .where(TwoGameRollout.enabled.is_(True), League.deleted_at.is_(None))
+            .limit(1)
+        )
+        if active is not None:
+            from src.services.two_game_provider import native_identity
+
+            fresh_source = native_identity(provider).source
     if not slate.fixtures:
         return None
-    return await sync_slate(db, league, slate)
+    return await sync_slate(db, league, slate, fresh_source=fresh_source)
 
 
 # ── Populating a league's rounds on demand (Batch 47) ───────────────────────────

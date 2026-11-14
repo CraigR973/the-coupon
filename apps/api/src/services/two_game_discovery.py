@@ -48,7 +48,6 @@ from src.services.odds_provider import (
     Slate,
     SlateFixture,
     as_utc,
-    is_void_status,
 )
 from src.services.provider_budget import (
     Category,
@@ -59,7 +58,11 @@ from src.services.provider_budget import (
 )
 from src.services.provider_work import WorkLease, WorkQueue, enqueue
 from src.services.season_calendar import extra_weeks_between
-from src.services.two_game_fixture_state import explicitly_void, fixture_state_key
+from src.services.two_game_fixture_state import (
+    explicitly_void,
+    fixture_state_key,
+    record_fixture_observations,
+)
 from src.services.two_game_quotes import SharedQuotes
 from src.services.two_game_schedule import prepare_calendar
 from src.services.two_game_storage import LONDON, legacy_date_blocked, london_utc
@@ -270,7 +273,6 @@ class DiscoveryWorker:
         wanted = selected_competition_slugs(league)
         raw = snapshot.payload.get("rows", [])
         fixtures = [SlateFixture.model_validate(value) for value in raw]
-        voided = {sf.provider_event_id for sf in fixtures if is_void_status(sf.status)}
         for sf in fixtures:
             fixture = await db.scalar(
                 select(Fixture).where(Fixture.provider_event_id == sf.provider_event_id)
@@ -295,8 +297,9 @@ class DiscoveryWorker:
                 .values(game_id=game.id, fixture_id=fixture.id)
                 .on_conflict_do_nothing()
             )
-        # A moved fixture can leave an unclaimed card. Accepted picks retain their
-        # original link and history, and are resolved by settlement/corrections.
+        # Range rows identify candidates; the shared current state decides eligibility.
+        # A legacy refresh can reinstate a fixture while this range still caches a void.
+        # Accepted picks retain their original link and settlement/correction history.
         for fixture in await db.scalars(
             select(Fixture)
             .join(TwoGameFixture, TwoGameFixture.fixture_id == Fixture.id)
@@ -310,7 +313,6 @@ class DiscoveryWorker:
             )
             if (
                 in_window
-                and fixture.provider_event_id not in voided
                 and not await explicitly_void(db, self.source, fixture.provider_event_id)
                 and (wanted is None or fixture.competition_id in wanted)
             ):
@@ -480,53 +482,13 @@ class DiscoveryWorker:
                 if not first <= naive_utc(sf.kickoff_utc) < last:
                     raise OddsProviderAPIError("census returned an out-of-range fixture")
                 rows[sf.provider_event_id] = sf.model_dump(mode="json")
-                fixture_id = await db.scalar(
-                    insert(Fixture)
-                    .values(
-                        provider_event_id=sf.provider_event_id,
-                        home=sf.home,
-                        away=sf.away,
-                        kickoff_utc=naive_utc(sf.kickoff_utc),
-                        competition=sf.competition,
-                        competition_id=sf.competition_id,
-                    )
-                    .on_conflict_do_update(
-                        constraint="uq_fixtures_provider_event",
-                        set_={
-                            "home": sf.home,
-                            "away": sf.away,
-                            "kickoff_utc": naive_utc(sf.kickoff_utc),
-                            "competition": sf.competition,
-                            "competition_id": sf.competition_id,
-                        },
-                    )
-                    .returning(Fixture.id)
-                )
-                state = {
-                    "source": self.source,
-                    "event_id": sf.provider_event_id,
-                    "status": sf.status,
-                    "kickoff_utc": naive_utc(sf.kickoff_utc).isoformat(),
-                }
-                await db.execute(
-                    insert(ProviderSnapshot)
-                    .values(
-                        key=fixture_state_key(self.source, sf.provider_event_id),
-                        payload=state,
-                        fixture_id=fixture_id,
-                        observed_at=now,
-                        expires_at=now + timedelta(seconds=self.sweep_seconds),
-                    )
-                    .on_conflict_do_update(
-                        index_elements=[ProviderSnapshot.key],
-                        set_={
-                            "payload": state,
-                            "fixture_id": fixture_id,
-                            "observed_at": now,
-                            "expires_at": now + timedelta(seconds=self.sweep_seconds),
-                        },
-                    )
-                )
+            await record_fixture_observations(
+                db,
+                self.source,
+                page.fixtures,
+                observed_at=now,
+                expires_at=now + timedelta(seconds=self.sweep_seconds),
+            )
             payload: dict[str, Any] = {
                 "state": "complete" if page.complete else "pending",
                 "rows": list(rows.values()),

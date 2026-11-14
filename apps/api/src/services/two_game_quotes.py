@@ -6,9 +6,10 @@ import asyncio
 import hashlib
 import json
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from decimal import DecimalException
 
 from pydantic import ValidationError
 from sqlalchemy import select, update
@@ -42,30 +43,17 @@ class SharedQuoteBusy(OddsProviderAPIError):
     """Another short lease owns the refresh; no extra HTTP was dispatched."""
 
 
-class SharedQuotes:
+class QuoteSnapshots:
     def __init__(
         self,
         sessions: async_sessionmaker[AsyncSession],
-        provider: OddsProvider,
         *,
         source: str,
         bookmaker: str,
         clock: Callable[[], datetime] = utc_now,
-        fresh_seconds: int = 60,
-        negative_seconds: int = 300,
-        lease_seconds: int = 45,
-        browse_seconds: int = 6 * 3600,
     ) -> None:
-        if not 0 < fresh_seconds <= 60 or min(negative_seconds, lease_seconds, browse_seconds) <= 0:
-            raise ValueError("invalid quote freshness or lease policy")
-        while isinstance(provider, CachingOddsProvider):
-            # Preserve the protected legacy six-hour negative cache. The new format
-            # uses its own durable recheck policy; HTTP still passes the same meter.
-            provider = provider.inner
-        self.sessions, self.provider = sessions, provider
+        self.sessions = sessions
         self.source, self.bookmaker, self.clock = source, bookmaker, clock
-        self.fresh_seconds, self.negative_seconds = fresh_seconds, negative_seconds
-        self.lease_seconds, self.browse_seconds = lease_seconds, browse_seconds
 
     def key(self, event_id: str) -> str:
         identity = json.dumps([self.source, self.bookmaker, event_id], separators=(",", ":"))
@@ -78,7 +66,12 @@ class SharedQuotes:
             )
         age = (now - row.observed_at).total_seconds()
         odds = None
-        if row.payload.get("state") == "available" and age >= 0:
+        if (
+            row.payload.get("state") == "available"
+            and age >= 0
+            and row.payload.get("provider") == self.source
+            and row.payload.get("bookmaker") == self.bookmaker
+        ):
             try:
                 odds = FixtureOdds.model_validate(row.payload.get("odds"))
             except ValidationError:
@@ -102,14 +95,17 @@ class SharedQuotes:
             and 0 <= view.age_seconds <= max_age
         )
 
-    async def peek_many(self, event_ids: Sequence[str]) -> dict[str, QuoteView]:
+    async def peek_many(
+        self, event_ids: Sequence[str], *, db: AsyncSession | None = None
+    ) -> dict[str, QuoteView]:
         """Stored browse state only. This method can never request prices."""
         if not event_ids:
             return {}
         now = naive_utc(self.clock())
-        async with self.sessions() as db:
+
+        async def read(session: AsyncSession) -> dict[str, QuoteView]:
             rows = (
-                await db.scalars(
+                await session.scalars(
                     select(ProviderSnapshot).where(
                         ProviderSnapshot.key.in_([self.key(event_id) for event_id in event_ids])
                     )
@@ -120,6 +116,36 @@ class SharedQuotes:
                 event_id: self._view(event_id, by_key.get(self.key(event_id)), now)
                 for event_id in event_ids
             }
+
+        if db is not None:
+            return await read(db)
+        async with self.sessions() as session:
+            return await read(session)
+
+
+class SharedQuotes(QuoteSnapshots):
+    def __init__(
+        self,
+        sessions: async_sessionmaker[AsyncSession],
+        provider: OddsProvider | None = None,
+        *,
+        acquire: Callable[[], Awaitable[OddsProvider]] | None = None,
+        source: str,
+        bookmaker: str,
+        clock: Callable[[], datetime] = utc_now,
+        fresh_seconds: int = 60,
+        negative_seconds: int = 300,
+        lease_seconds: int = 45,
+        browse_seconds: int = 6 * 3600,
+    ) -> None:
+        if (provider is None) == (acquire is None):
+            raise ValueError("supply one provider or lazy acquisition callback")
+        if not 0 < fresh_seconds <= 60 or min(negative_seconds, lease_seconds, browse_seconds) <= 0:
+            raise ValueError("invalid quote freshness or lease policy")
+        super().__init__(sessions, source=source, bookmaker=bookmaker, clock=clock)
+        self.provider, self.acquire = provider, acquire
+        self.fresh_seconds, self.negative_seconds = fresh_seconds, negative_seconds
+        self.lease_seconds, self.browse_seconds = lease_seconds, browse_seconds
 
     async def _claim(
         self, event_ids: Sequence[str], *, force: bool, opening_at: datetime | None
@@ -184,14 +210,32 @@ class SharedQuotes:
             return
         try:
             with provider_category(category):
-                fetched = await self.provider.fetch_odds(list(claimed))
-        except OddsProviderBadRequest:
-            if len(claimed) > 1:
-                await self._release_failed(claimed)
-                raise
-            # An explicit rejection of this one fixture is a bounded negative, not
-            # permission to re-buy the same failure on every tap.
-            fetched = []
+                provider = self.provider
+                if provider is None:
+                    if self.acquire is None:
+                        raise RuntimeError("missing quote acquisition callback")
+                    try:
+                        provider = await self.acquire()
+                    except OddsProviderBadRequest as exc:
+                        # A rejected login says nothing about this fixture.
+                        raise OddsProviderAPIError("Quote provider acquisition failed") from exc
+                while isinstance(provider, CachingOddsProvider):
+                    # Preserve the protected legacy six-hour negative policy.
+                    provider = provider.inner
+                # Login/keepAlive may outlast the lease. Do not buy pricing after
+                # a newer owner has already taken over, even if login was spent.
+                claimed = await self._owned(claimed)
+                if not claimed:
+                    return
+                try:
+                    fetched = await provider.fetch_odds(list(claimed))
+                except OddsProviderBadRequest:
+                    if len(claimed) > 1:
+                        raise
+                    fetched = []
+        except (ValidationError, json.JSONDecodeError, DecimalException) as exc:
+            await self._release_failed(claimed)
+            raise OddsProviderAPIError("The quote provider returned invalid data") from exc
         except Exception:
             # Cancellation/crash leaves its conservative lease until expiry. Known
             # failures release only leases still owned by this caller; old data stays.
@@ -241,6 +285,22 @@ class SharedQuotes:
                     )
                 )
         # An expired/overwritten token never writes a result or returns its old price.
+
+    async def _owned(self, claimed: dict[str, uuid.UUID]) -> dict[str, uuid.UUID]:
+        now = naive_utc(self.clock())
+        async with self.sessions() as db:
+            rows = (
+                await db.execute(
+                    select(ProviderSnapshot.key, ProviderSnapshot.lease_token).where(
+                        ProviderSnapshot.key.in_([self.key(event) for event in claimed]),
+                        ProviderSnapshot.lease_until > now,
+                    )
+                )
+            ).all()
+            tokens = {key: token for key, token in rows}
+        return {
+            event: token for event, token in claimed.items() if tokens.get(self.key(event)) == token
+        }
 
     async def get_fresh(self, event_id: str) -> QuoteView:
         """Coalesce one fixture, reuse only positive <=60s, never freeze stale data."""

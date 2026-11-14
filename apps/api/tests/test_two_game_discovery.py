@@ -1045,3 +1045,321 @@ async def test_cached_legacy_w0_cannot_overwrite_newer_shared_w1_fixture_move(so
         )
         assert len(new) == 2 and all(link.fixture_id == fixture.id for link in new)
         assert (await db.get(Gameweek, old_id)).format == "legacy"
+
+
+@pytest.mark.parametrize(
+    ("moved_status", "fresh_status", "year"),
+    [
+        ("pending", "pending", 2300),
+        ("postponed", "pending", 2301),
+        ("pending", "postponed", 2302),
+        ("postponed", "postponed", 2303),
+    ],
+)
+@pytest.mark.asyncio
+async def test_legacy_fresh_reschedule_reinstates_new_cards_despite_old_void_census(
+    source, monkeypatch, moved_status, fresh_status, year
+):
+    from src.services import gameweek as legacy_service
+    from src.services.gameweek import populate_cadence_rounds
+    from src.services.odds_provider import Slate, SlateFixture
+    from src.services.two_game_fixture_state import fixture_state_key
+
+    # A separate season keeps the legacy pool genuinely empty at the fallback.
+    label = date(year, 1, 1)
+    label += timedelta(days=(5 - label.weekday()) % 7)
+    source.clock.now = london_utc(label - timedelta(days=1), 9)
+    monkeypatch.setattr(legacy_service, "_utc_now", source.clock)
+    source.source = "oddsapi"
+    league_id = await source.league(first=label)
+    event = source.event(f"restored-{uuid.uuid4().hex[:12]}", day=label)
+    source.rows[0]["status"] = "postponed"
+    worker = source.worker(include_legacy=True)
+    await one_census(source, worker, label)
+
+    moved = label + timedelta(days=7)
+    source.rows[0].update(date=london_utc(moved, 15).isoformat() + "Z", status=moved_status)
+    source.clock.now += timedelta(minutes=6)
+    await one_census(source, worker, moved)
+
+    async def fresh_legacy(window, starts_on, **kwargs):
+        assert starts_on == label
+        return Slate(
+            starts_on=label,
+            fixtures=[
+                SlateFixture(
+                    provider_event_id=event,
+                    home="Reinstated home",
+                    away="Reinstated away",
+                    competition="Premier League",
+                    competition_id="england-premier-league",
+                    kickoff_utc=london_utc(label, 15),
+                    status=fresh_status,
+                )
+            ],
+        )
+
+    monkeypatch.setattr(source.client, "fetch_slate", fresh_legacy)
+    async with source.sessions() as db, db.begin():
+        owner = await db.get(League, league_id)
+        legacy = League(
+            slug=f"legacy-reinstatement-{uuid.uuid4().hex}",
+            name="Synthetic legacy reinstatement",
+            created_by=owner.created_by,
+        )
+        db.add(legacy)
+        await db.flush()
+        source.leagues.append(legacy.id)
+        populated = await populate_cadence_rounds(
+            db, source.client, legacy, label - timedelta(days=1), 1, now=source.clock.now
+        )
+        # This proves the real on-demand empty-pool -> refresh_slate -> sync_slate path.
+        assert populated.fetched_dates == [label]
+        assert populated.created_dates == ([label] if fresh_status == "pending" else [])
+        fixture = await db.scalar(select(Fixture).where(Fixture.provider_event_id == event))
+        assert fixture.kickoff_utc == london_utc(label, 15)
+        shared = await db.get(ProviderSnapshot, fixture_state_key(source.source, event))
+        assert shared.payload["status"] == fresh_status
+    old = await snapshot(source, worker, label)
+    assert old.payload["rows"][0]["status"] == "postponed"
+    before = len(source.calls)
+    for _ in range(2):
+        await worker.prepare()
+        async with source.sessions() as db:
+            rows = (
+                await db.execute(
+                    select(TwoGame.kind, Fixture.provider_event_id)
+                    .join(TwoGameFixture, TwoGameFixture.game_id == TwoGame.id)
+                    .join(Fixture, Fixture.id == TwoGameFixture.fixture_id)
+                    .join(Gameweek, Gameweek.id == TwoGame.week_id)
+                    .where(TwoGame.league_id == league_id, Gameweek.starts_on == label)
+                    .order_by(TwoGame.kind)
+                )
+            ).all()
+            expected = [("fantasy", event), ("group", event)] if fresh_status == "pending" else []
+            assert rows == expected
+    # The last observation is a provider-port seam; preparation buys no new HTTP.
+    assert len(source.calls) == before == 2
+
+
+@pytest.mark.asyncio
+async def test_fresh_legacy_waiting_for_calendar_does_not_hold_shared_fixture(source, monkeypatch):
+    import asyncio
+
+    from sqlalchemy import text
+
+    from src.models.season_calendar import SeasonCalendar
+    from src.services import gameweek as legacy_service
+    from src.services.football_provider import season_for
+    from src.services.odds_provider import Slate, SlateFixture
+    from src.services.two_game_fixture_state import fixture_state_key
+
+    label = date(2310, 1, 1)
+    label += timedelta(days=(5 - label.weekday()) % 7)
+    source.clock.now = london_utc(label - timedelta(days=1), 9)
+    source.source = "oddsapi"
+    enabled = await source.league(first=label)
+    event = f"calendar-lock-{uuid.uuid4().hex[:12]}"
+    observed = SlateFixture(
+        provider_event_id=event,
+        home="Fresh home",
+        away="Fresh away",
+        kickoff_utc=london_utc(label, 15),
+        competition="Premier League",
+        competition_id="england-premier-league",
+    )
+    monkeypatch.setattr(legacy_service, "_utc_now", source.clock)
+
+    async def fresh(*args, **kwargs):
+        return Slate(starts_on=label, fixtures=[observed])
+
+    monkeypatch.setattr(source.client, "fetch_slate", fresh)
+    async with source.sessions() as db, db.begin():
+        owner = await db.get(League, enabled)
+        legacy = League(
+            slug=f"calendar-lock-{uuid.uuid4().hex}",
+            name="Calendar lock",
+            created_by=owner.created_by,
+        )
+        fixture = Fixture(
+            provider_event_id=event,
+            home="Prior home",
+            away=observed.away,
+            kickoff_utc=london_utc(label + timedelta(days=7), 15),
+            competition=observed.competition,
+            competition_id=observed.competition_id,
+        )
+        db.add_all(
+            [
+                legacy,
+                fixture,
+                SeasonCalendar(
+                    season=season_for(label),
+                    week_one_anchor=label + timedelta(days=7),
+                    extra_weeks=[],
+                ),
+            ]
+        )
+        await db.flush()
+        legacy_id, fixture_id = legacy.id, fixture.id
+        source.leagues.append(legacy_id)
+
+    pid_ready = asyncio.Event()
+    pid = None
+
+    async def refresh():
+        nonlocal pid
+        async with source.sessions() as db, db.begin():
+            pid = await db.scalar(text("SELECT pg_backend_pid()"))
+            pid_ready.set()
+            league = await db.get(League, legacy_id)
+            parent = await legacy_service.refresh_slate(db, source.client, league, label)
+            assert parent is not None and parent.starts_on == label
+
+    task = None
+    try:
+        async with source.sessions() as held, held.begin():
+            await held.scalar(
+                select(SeasonCalendar)
+                .where(SeasonCalendar.season == season_for(label))
+                .with_for_update()
+            )
+            task = asyncio.create_task(refresh())
+            await asyncio.wait_for(pid_ready.wait(), timeout=3)
+            async with source.sessions() as monitor:
+                async with asyncio.timeout(3):
+                    while not await monitor.scalar(
+                        text("SELECT cardinality(pg_blocking_pids(:pid)) > 0"), {"pid": pid}
+                    ):
+                        await asyncio.sleep(0.01)
+            # A real calendar wait must not also retain Fixture UPDATE: another
+            # metadata writer can complete, preventing the inverse lock cycle.
+            async with source.sessions() as probe, probe.begin():
+                row = await probe.scalar(
+                    select(Fixture).where(Fixture.id == fixture_id).with_for_update(nowait=True)
+                )
+                row.home = "Concurrent census home"
+        await asyncio.wait_for(task, timeout=3)
+    finally:
+        if task is not None and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    async with source.sessions() as db:
+        row = await db.get(Fixture, fixture_id)
+        state = await db.get(ProviderSnapshot, fixture_state_key("oddsapi", event))
+        calendar = await db.get(SeasonCalendar, season_for(label))
+        assert row.home == observed.home and row.kickoff_utc == observed.kickoff_utc
+        assert state.payload["status"] == observed.status
+        assert calendar.week_one_anchor == label
+
+
+@pytest.mark.parametrize("writer", ["legacy", "census"])
+@pytest.mark.asyncio
+async def test_legacy_and_census_lock_shared_metadata_in_the_same_order(source, writer):
+    import asyncio
+
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    from src.services.gameweek import sync_slate
+    from src.services.odds_provider import Slate, SlateFixture
+    from src.services.two_game_fixture_state import record_fixture_observations
+
+    label = date(2320 if writer == "legacy" else 2321, 1, 1)
+    label += timedelta(days=(5 - label.weekday()) % 7)
+    enabled = await source.league(first=label)
+    prefix = f"ordered-{uuid.uuid4().hex[:12]}"
+    fixtures = [
+        SlateFixture(
+            provider_event_id=f"{prefix}-{suffix}",
+            home=f"Home {suffix}",
+            away=f"Away {suffix}",
+            kickoff_utc=london_utc(label, 15),
+            competition="Premier League",
+            competition_id="england-premier-league",
+        )
+        for suffix in ("a", "z")
+    ]
+    async with source.sessions() as db, db.begin():
+        owner = await db.get(League, enabled)
+        legacy = League(
+            slug=f"ordered-{uuid.uuid4().hex}", name="Ordered writes", created_by=owner.created_by
+        )
+        db.add(legacy)
+        await db.flush()
+        legacy_id = legacy.id
+        source.leagues.append(legacy_id)
+        parent = Gameweek(
+            league_id=legacy_id,
+            starts_on=label,
+            locks_at_utc=london_utc(label, 14, 30),
+            status=GameweekStatus.open,
+        )
+        rows = [
+            Fixture(
+                provider_event_id=fixture.provider_event_id,
+                home="Prior " + fixture.home,
+                away=fixture.away,
+                kickoff_utc=fixture.kickoff_utc,
+                competition=fixture.competition,
+                competition_id=fixture.competition_id,
+            )
+            for fixture in fixtures
+        ]
+        # Reverse the PK ordering and provider DTO ordering relative to event IDs.
+        # Both paths must still take a before z for genuinely changed metadata.
+        for row in rows:
+            row.id = uuid.uuid4()
+        rows.sort(key=lambda row: row.id.int, reverse=True)
+        rows[0].provider_event_id, rows[1].provider_event_id = (
+            fixtures[0].provider_event_id,
+            fixtures[1].provider_event_id,
+        )
+        db.add_all([parent, *rows])
+        await db.flush()
+        first_id, last_id = rows[0].id, rows[1].id
+    pid_ready = asyncio.Event()
+    pid = None
+
+    async def write():
+        nonlocal pid
+        async with source.sessions() as db, db.begin():
+            pid = await db.scalar(text("SELECT pg_backend_pid()"))
+            pid_ready.set()
+            if writer == "legacy":
+                league = await db.get(League, legacy_id)
+                await sync_slate(
+                    db, league, Slate(starts_on=label, fixtures=list(reversed(fixtures)))
+                )
+            else:
+                await record_fixture_observations(
+                    db,
+                    source.source,
+                    list(reversed(fixtures)),
+                    observed_at=source.clock.now,
+                    expires_at=source.clock.now + timedelta(hours=6),
+                )
+
+    task = None
+    try:
+        async with source.sessions() as held, held.begin():
+            await held.scalar(select(Fixture).where(Fixture.id == last_id).with_for_update())
+            task = asyncio.create_task(write())
+            await asyncio.wait_for(pid_ready.wait(), timeout=3)
+            async with source.sessions() as monitor:
+                async with asyncio.timeout(3):
+                    while not await monitor.scalar(
+                        text("SELECT cardinality(pg_blocking_pids(:pid)) > 0"), {"pid": pid}
+                    ):
+                        await asyncio.sleep(0.01)
+            async with source.sessions() as probe:
+                with pytest.raises(DBAPIError) as locked:
+                    await probe.scalar(
+                        select(Fixture).where(Fixture.id == first_id).with_for_update(nowait=True)
+                    )
+                assert locked.value.orig.sqlstate == "55P03"
+        await asyncio.wait_for(task, timeout=3)
+    finally:
+        if task is not None and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
