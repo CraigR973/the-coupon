@@ -88,7 +88,10 @@ PostgreSQL ← pooled ledger / FIFO credit ────────┘
        └─ membership intervals → Monday catch-up / early entry → £1 due
           independent financial commit → same ledger / pooled FIFO
      member deletion barrier → sorted league locks → exclusive departure
-     read-only target fee projection + league lock → no browsing due
+     batched repeatable-read / read-only target cards → no browsing due
+     all actionable children + parent-key archive → exact destinations
+     member/week form (aggregate then limit) / shared season totals
+     API-only payment receipt context → same FIFO / one receipt per payment
      rolling attempt admission → commit → HTTP (all callers / retries)
      paginated shared census → snapshots / real fixtures
      short token-fenced leases → refresh-owner-only client / shared quotes

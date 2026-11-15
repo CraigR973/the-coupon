@@ -5,7 +5,7 @@ formal batch close-out performed. Canonical batch rows remain unchecked.
 
 ## Current checkpoint
 
-6 of 10 batches locally verified. Batch 219 contracts passed independent review
+7 of 10 batches locally verified. Batch 219 contracts passed independent review
 and the unmodified full 12-check gate: backend 1,650, frontend 1,418, seeded
 journey 1, zero skips. Exact verified tree `532b4c0ae32249051381f4f4c0192d8a3fc5e2d9`
 matches commit `1a0ca8f2d78c6334bd14e1caf5c74e41943238b0`; evidence is in
@@ -29,8 +29,13 @@ Batch 224 fantasy API passed full gate 3: backend 1,963, frontend 1,418,
 journey 1, zero skips. Verified tree `f219e657a98d9d5d20faa0ac3eeb68b02dfc319d`
 matches local commit `f29adbc0a6f09669adf8966d91e8edd96ff691e0`; log
 `.local/overnight-two-games/224-gate-attempt3.log`. Eight existing AsyncMock
-coroutine warnings remain in the backend log. Batch 225 is now in progress;
-226–228 have not started.
+coroutine warnings remain in the backend log. Batch 225 passed all 12 checks:
+backend 2,028, frontend 1,418 and journey 1, zero skips. Verified tree
+`fab96dcde4f36e34cef455aa44b147f310594aaf` matches local commit
+`92c903b776739d6c2a285774aa608dd1dd2f4f96`; log
+`.local/overnight-two-games/225-gate-attempt1.log`. Backend took 1,772.42 seconds
+and retained the same eight existing AsyncMock warnings. Batch 226 is in progress;
+227–228 have not started.
 Production remains unchanged. Both new UI flows remain unimplemented.
 
 Batch 221's implementation now passes independent source review. Focused
@@ -97,15 +102,71 @@ run. The second gate verified the entire corrected tree.
 | 222 weekly billing | Locally verified; commit `7a98d95` | `feat/batch-222-weekly-dues` / `278e1fa` |
 | 223 group API | Locally verified; commit `8dfd28d` | `feat/batch-223-group-api` / `7a98d95` |
 | 224 fantasy API | Locally verified; commit `f29adbc` | `feat/batch-224-fantasy-api` / `8dfd28d` |
-| 225 results/lifecycle | In progress | `feat/batch-225-two-game-results` / `f29adbc` |
-| 226 read APIs | Not started | Pending verified 225 |
+| 225 results/lifecycle | Locally verified; commit `92c903b` | `feat/batch-225-two-game-results` / `f29adbc` |
+| 226 read APIs | In progress | `feat/batch-226-game-reads` / `92c903b` |
 | 227 group web | Not started | Pending verified 226 |
 | 228 fantasy web | Not started | Pending verified 227 |
 
-## Results and lifecycle implementation (225, verification in progress)
+## Addressed read APIs (226, implementation in progress)
+
+The active branch is `feat/batch-226-game-reads`, stacked on verified 225 commit
+`92c903b`. Home, league-games and exact-week results use one repeatable-read,
+read-only snapshot and typed cards. Every actionable target remains outside
+parent-key archive pagination. Group stays unpriced; fantasy exposes six exact
+receipts and weekly results, with only public member/week aggregates after lock.
+Loaded ledger/membership projection reuses pooled FIFO without creating dues;
+legacy fees keep the recorded-round policy. Weekly form aggregates before its
+five-week limit and preserves no-entry/all-void. Unknown next opening stays pending.
+
+The API scheduler now composes one payment receipt per claimed payment using
+those same real targets in its existing transaction. Current paid Group and
+unpaid next Fantasy remain separate entitlements. Unavailable entry uses an exact
+known payment target without promising a pick; a billing-only parent invents no
+child. The payments process and pooled assignment remain unchanged.
+
+The final focused matrix passed 139 tests, zero skips, in 45.12 seconds,
+including 39 new read/receipt cases and 100 unchanged Group/legacy payment cases. They cover
+C1–C6 actual legacy/new writes, actual concurrent W0 replacement and W1 save,
+FIFO parity/intervening fees, both exact locks, three simultaneous targets,
+five leagues and ten actionable cards with unchanged query count, both-child
+archive pages, readonly repeatable snapshots, six-leg weekly aggregation,
+no-entry/all-void/late join, global/exact-off retained totals, suspension,
+retained pending history and delayed HTTP payment assignment with concurrent
+single receipt claim. The isolated production-environment payments import
+checks no API settings dependency. The no-child HTTP/receipt regression confirms
+no invented game, fee, provider work or pick promise. Independent source review passes after the recorded fixes; the full gate remains
+pending. Earlier milestone stamps do not cover this branch.
+
+Independent review found malformed typed cursor payloads causing 500, inconsistent
+locked Group audiences, unavailable-entry receipt links falling back to legacy,
+deleted leagues starving other receipts, departed pending history disappearing,
+a departed member's still-open sibling appearing actionable, and inactive
+fantasy form links leading to 404. Source fixes and new regressions address these
+without weakening existing oracles. The historical audience is membership at
+lock plus accepted owners; pre-lock roster behaviour stays current.
+
+New test setup failures were a shadowed fixture parameter, missing interval
+provenance, a legacy route mistyped as `/my-pick`, and attempts to update an
+immutable announced opening. Setup now uses valid provenance, the actual legacy
+route and initial custom schedules. A new early-entry assertion initially used
+the legacy refusal name; the saved contract explicitly defines new-game
+`NOT_OPEN`, which the new test now checks. Existing assertions are unchanged.
+The no-child test initially queried a nonexistent ProviderWork column; its
+assertion now checks the actual whole work table is empty, a stronger negative.
+Ruff/import/type iterations used explicit source types and normal imports,
+including WeekFee's `amount_owed_pence`, with no suppressions. Mypy passed 133
+source files after the last form filter. Collection is 2,067, exactly 39 above
+the verified predecessor; only the legitimate backend count ratchet is raised.
+The unmodified full gate will run with no skips or production-bundle override.
+
+Both web flows remain unimplemented. Production checkpoint remains unperformed
+under the owner's local-only exception: no recovery point, shipment, live setting,
+provider/banking probe, activation or formal close-out is claimed.
+
+## Results and lifecycle implementation (225, locally verified)
 
 The active branch is `feat/batch-225-two-game-results`, stacked on verified
-224 commit `f29adbc`. The full unmodified 225 gate is the next frozen-candidate check; no 225 full-gate pass or commit is claimed yet. Both web flows
+224 commit `f29adbc`. Its full unmodified gate passed on the exact tree recorded above; the report in that frozen commit recorded the pending invocation. Both web flows
 and the complete read API remain pending in 226–228.
 
 Settlement now takes a persisted, leased unit for each distinct picked fixture.
@@ -207,7 +268,7 @@ another next-week slot committed took 0.883836 seconds. Earlier samples are
 recorded above; no supported traffic or production threshold is claimed.
 Independent source review confirmed the repaired races and found no further
 material defect in its scope; its agent subsequently reached a usage limit.
-Full gate acceptance still remains required. Backend collection is 2,028:
+The subsequent full gate passed all 12 checks. Backend collection is 2,028:
 1,963 predecessor tests plus 65 new cases. The count ratchet rises only by those
 new cases; frontend 1,418 and journey 1 are unchanged. New future-dated integration tests use an
 additional fully migrated database in the gate's scratch PostgreSQL cluster,
@@ -646,8 +707,8 @@ source or assertions. No full milestone failure is hidden by focused passes.
 
 ## Remaining release gates and exact next step
 
-Complete Batch 225 on verified local parent `f29adbc`, then commit
-only its verified tree and stack Batch 226. Continue the
+Complete Batch 226 on verified local parent `92c903b`, then commit
+only its verified tree and stack Batch 227. Continue the
 authorised stack through both web flows and final review. Earlier stamps do not
 cover the changed tree. Do not merge or push.
 

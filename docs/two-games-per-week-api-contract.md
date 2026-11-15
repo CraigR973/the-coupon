@@ -378,7 +378,7 @@ remain readable when the entry feature is disabled.
 ## Home and state examples
 
 `GET /me/games` returns each league's `games` array plus `legacy_rounds`, not
-one current round. A game carries exact destination, purpose (`entry`/`results`),
+one current round. A game carries exact destination, purpose (`entry`/`results`/`upcoming`),
 deadline, progress and its own `WeekFee`. Return all actionable games, without
 an artificial three-card cap. Use batched queries with bounded query growth;
 group and locked results never request prices. A fixture-only cache key is invalid.
@@ -398,7 +398,7 @@ Representative states (UUID values abbreviated here only):
   "league_id": "L",
   "games": [
     {"week_id": "W0", "game_kind": "group", "entry_state": "open",
-     "locks_at": "2026-11-14T14:30:00Z", "progress": {"picked": 8, "members": 12},
+     "locks_at": "2026-11-14T14:30:00Z", "progress": {"picked_count": 8, "member_count": 12, "missing_contributors": 4, "all_picked": false},
      "fee": {"week_label": "2026-11-14", "amount_owed_pence": 0}},
     {"week_id": "W0", "game_kind": "fantasy", "entry_state": "locked",
      "locks_at": "2026-11-14T12:00:00Z", "progress": {"slots_filled": 3, "entered": true},
@@ -420,6 +420,65 @@ score 22/0/0 under existing half-up rounding, weekly sum 22; three unfilled slot
 score zero. That score remains provisional until the window end and all submitted
 fixtures resolve. An entry with only void legs is `all_void`; no saved legs is
 `no_entry`, each with weekly sum zero and its normal £1 obligation.
+
+## Implemented read and payment contract (226, local verification pending)
+
+`GET /api/v1/me/games?season=2026` returns `{leagues:[LeagueGames]}`;
+Home keeps five archive parents per league alongside every actionable child.
+`GET /api/v1/leagues/{league_id}/games?page_size=20&cursor=…&season=2026`
+returns one `LeagueGames`. Page size is 1–50; the opaque base64url cursor is a
+validated `[league_uuid, starts_on, parent_uuid]` tuple. Invalid/cross-league
+cursors return scoped `422 INVALID_CURSOR`; unknown/foreign targets return
+`404 NOT_FOUND`. Pagination orders parent date and UUID descending and returns
+both children on a history page; actionable cards remain outside that limit.
+
+`LeagueGames` contains `league_id`, `slug`, `name`, `two_games_enabled`,
+`suspended`, `server_now`, `season`, the caller's `season_stats`, `weekly_form`,
+`games`, `legacy_rounds` and `next_cursor`. `next_game_state` is `known` or
+`pending`, with nullable `next_game_opens_at` and `calendar_state`. These values
+come from stored announcements, never a guess that an empty slate means a break.
+All wire timestamps use UTC `Z`.
+
+Every game card carries league/week/game UUIDs, `game_kind`, `format`,
+`week_label`, stored `week_number`, exact `destination`, `opens_at`, `locks_at`,
+window endpoints, `entry_state`, `purpose`, `coverage_state`, `result_version`,
+`archived` and its target-specific `WeekFee`. Group progress uses
+`picked_count`, `member_count`, `missing_contributors` and `all_picked`;
+`my_entry` is the addressed current receipt. Group `result` contains `status`
+and `final`, with no odds or points. Fantasy contains six addressed `slots`,
+`slots_filled/slot_count/entered/partial` progress, its own weekly `result`
+(`entry_result`, `entered`, `slots_filled`, `weekly_points`, `final`, `provisional`), public
+member/week aggregates after lock, and final `winner_ids`. Before lock other
+members' slot choices/aggregates are not exposed. Tombstone and current operation
+identities come from the addressed live state, never an old receipt body.
+
+Weekly form aggregates fantasy legs to one member/week row before the five-week
+limit. `no_entry` and `all_void` stay distinct. Historical membership at that
+child's lock or accepted ownership determines participation; later joiners are
+not assigned a missed entry. Locked Group progress uses the same historical
+universe. Retained members can discover their locked pending history without
+an open sibling becoming actionable. Disabled fantasy links are excluded before
+the form limit; already-earned season points remain in canonical totals.
+
+`GET /api/v1/leagues/{league_id}/weeks/{week_id}/results` returns
+`{league_id,week_id,week_label,format,group,fantasy,legacy}`. Legacy calls the
+existing DB-only coupon projection; new children retain independent finality.
+The route never falls back to another league/week. New parent sentinels and
+billing-only parents never become fake legacy rounds or games. Legacy cards
+keep their original fee policy, frozen pick, clock and exact slug/`gw` link.
+
+All three reads own one repeatable-read, read-only transaction; the query count
+is bounded across leagues/cards. They acquire no provider and create no fee,
+operation, quote, calendar work or provider attempt. The API scheduler reuses
+the same loaded projection inside its existing payment-claim transaction without
+opening another connection. One receipt per payment carries `targets` with each
+real league/week/game/kind/label/entitlement/payment destination; pooled credit
+is not earmarked. Primary navigation is the earliest-deadline unpaid open target,
+then earliest-deadline paid open target, then an existing known unpaid/known
+payment target. Suspension/departure never promises entry. With no real child,
+wording stays neutral and legacy league navigation is used; no target is
+invented. Disabled/deleted/inaccessible new context retains existing legacy
+receipt policy. The payments process still imports no API settings/secrets.
 
 ## Acceptance trace
 

@@ -9,14 +9,20 @@ from typing import Any, Literal
 
 from fastapi import HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.models.fixture import Fixture
 from src.models.league_membership import LeagueMembership
 from src.models.profile import Profile
-from src.models.two_game import GameOperation, GroupPick, ProviderSnapshot, TwoGameFixture
+from src.models.two_game import (
+    GameOperation,
+    GroupPick,
+    MembershipInterval,
+    ProviderSnapshot,
+    TwoGameFixture,
+)
 from src.schemas import UtcDatetime
 from src.services.gameweek import selected_competition_slugs
 from src.services.odds_provider import is_void_status
@@ -450,6 +456,22 @@ class GroupEntries:
                 )
                 or 0
             )
+            if now >= target.game.locks_at:
+                # A later join or departure cannot rewrite a locked game's audience.
+                owners = {pick.player_id for _, pick, _ in rows if pick is not None}
+                historical = set(
+                    await db.scalars(
+                        select(MembershipInterval.player_id).where(
+                            MembershipInterval.league_id == league_id,
+                            MembershipInterval.joined_at <= target.game.locks_at,
+                            or_(
+                                MembershipInterval.left_at.is_(None),
+                                MembershipInterval.left_at > target.game.locks_at,
+                            ),
+                        )
+                    )
+                )
+                member_count, picked = len(historical | owners), len(owners)
             return GroupGameView(
                 **target.identity(),
                 week_label=target.week.starts_on,

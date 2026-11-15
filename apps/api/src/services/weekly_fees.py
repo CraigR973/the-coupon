@@ -34,7 +34,14 @@ from src.models.two_game import (
     WeeklyFeeObligation,
 )
 from src.schemas import UtcDatetime
-from src.services.dues import RoundDue, _dues_of, _member_ledgers, _round_dates, allocate
+from src.services.dues import (
+    MemberLedger,
+    RoundDue,
+    _dues_of,
+    _member_ledgers,
+    _round_dates,
+    allocate,
+)
 from src.services.provider_budget import naive_utc, utc_now
 from src.services.two_game_storage import LONDON, ensure_two_game_week, london_utc
 
@@ -493,6 +500,40 @@ class FeeProjection:
         )
 
 
+def project_loaded_fees(
+    league: League,
+    first_week: date,
+    intervals: Collection[Interval],
+    membership: LeagueMembership | None,
+    ledger: MemberLedger | None,
+    rounds: dict[uuid.UUID, Gameweek],
+    parents: dict[date, uuid.UUID],
+    through: date,
+    now: datetime,
+) -> FeeProjection:
+    """The shared read arithmetic over already loaded inputs; no settings, SQL or writes."""
+    intervals = list(intervals)
+    if membership is not None and not any(item.left_at is None for item in intervals):
+        intervals.append(Interval(None, membership.joined_at, None))
+    credit = ledger.credit_pence if ledger else 0
+    dues = _dues_of(ledger, rounds) if ledger else []
+    actual_total = sum(due.amount_pence for due in dues)
+    amounts = {
+        parent.starts_on: owed
+        for parent_id, owed in (ledger.owed_by_round.items() if ledger else [])
+        if parent_id is not None
+        and (parent := rounds.get(parent_id)) is not None
+        and parent.format == "two_game"
+    }
+    for planned in plan_dues(intervals, first_week, through, now, early=True):
+        if planned.label not in amounts:
+            amounts[planned.label] = 100
+            dues.append(RoundDue(parents.get(planned.label), planned.label, 100))
+    if credit < 0:
+        dues.append(RoundDue(None, None, -credit))
+    return FeeProjection(league, dues, max(credit, 0), actual_total, amounts)
+
+
 async def project_fees(
     db: AsyncSession,
     league: League,
@@ -506,21 +547,9 @@ async def project_fees(
         raise ValueError("inactive weekly billing")
     intervals = await _intervals(db, league.id, player_id)
     membership = await _active_membership(db, league.id, player_id)
-    if membership is not None and not any(item.left_at is None for item in intervals):
-        intervals.append(Interval(None, membership.joined_at, None))
     ledgers = await _member_ledgers(db, league.id, [player_id])
     ledger = ledgers.get(player_id)
-    credit = ledger.credit_pence if ledger else 0
     rounds = await _round_dates(db, ledger.owed_by_round if ledger else [])
-    dues = _dues_of(ledger, rounds) if ledger else []
-    actual_total = sum(due.amount_pence for due in dues)
-    amounts = {
-        parent.starts_on: owed
-        for parent_id, owed in (ledger.owed_by_round.items() if ledger else [])
-        if parent_id is not None
-        and (parent := rounds.get(parent_id)) is not None
-        and parent.format == "two_game"
-    }
     parents = {
         row.starts_on: row.id
         for row in await db.scalars(
@@ -531,13 +560,9 @@ async def project_fees(
             )
         )
     }
-    for planned in plan_dues(intervals, rollout.first_week, through, now, early=True):
-        if planned.label not in amounts:
-            amounts[planned.label] = 100
-            dues.append(RoundDue(parents.get(planned.label), planned.label, 100))
-    if credit < 0:
-        dues.append(RoundDue(None, None, -credit))
-    return FeeProjection(league, dues, max(credit, 0), actual_total, amounts)
+    return project_loaded_fees(
+        league, rollout.first_week, intervals, membership, ledger, rounds, parents, through, now
+    )
 
 
 class EntryFeeRefused(Exception):

@@ -226,17 +226,28 @@ async def notify_recorded_payments(session: AsyncSession, now: datetime) -> int:
     for entry, league, member in rows:
         if not await _claim(session, PAYMENT_RECORDED, str(entry.id), now):
             continue
-        standing = await _standing_line(session, league, member.id, now)
+        from src.config import settings
+        from src.services.two_game_payment_context import payment_game_context
+
+        context = await payment_game_context(
+            session, league, member.id, now, two_games_enabled=settings.two_games_enabled
+        )
+        standing = (
+            context.standing if context else await _standing_line(session, league, member.id, now)
+        )
+        notice_data: dict[str, object] = {
+            "type": PAYMENT_RECORDED,
+            "league_id": str(league.id),
+            "url": context.destination if context else f"/leagues/{league.slug}/predictions",
+        }
+        if context:
+            notice_data["targets"] = context.targets
         await send_notification(
             session,
             member.id,
             "Payment received",
             f"Your {format_pence(entry.amount_pence)} payment to {league.name} is in. {standing}",
-            data={
-                "type": PAYMENT_RECORDED,
-                "league_id": str(league.id),
-                "url": f"/leagues/{league.slug}/predictions",
-            },
+            data=notice_data,
             tag=f"payment-recorded-{entry.id}",
             timezone_name=member.timezone,
             now_utc=now,
