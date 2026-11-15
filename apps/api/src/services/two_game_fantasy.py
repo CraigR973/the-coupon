@@ -44,6 +44,7 @@ from src.services.two_game_entry import (
 from src.services.two_game_group import require_paid
 from src.services.two_game_provider import acquire_matching, configured_identity
 from src.services.two_game_quotes import QuoteView, SharedQuoteBusy, SharedQuotes
+from src.services.two_game_results import fantasy_entry_status
 from src.services.weekly_fees import EntryFeeRefused, WeekFee, materialize_entry_fees, project_fees
 
 
@@ -613,9 +614,11 @@ class FantasyEntries:
                 slots=slots,
                 progress=dict(filled_count=len(mine), slot_count=6, partial=0 < len(mine) < 6),
                 result=dict(
-                    status="pending" if mine else "no_entry",
+                    status=fantasy_entry_status([pick.result for pick in mine]),
                     points=points,
-                    provisional=target.game.status != "settled",
+                    provisional=(
+                        target.game.finalized_at is None and target.game.status != "settled"
+                    ),
                 ),
                 fee=fantasy_fee(
                     (

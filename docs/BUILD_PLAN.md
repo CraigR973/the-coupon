@@ -93,7 +93,11 @@ PostgreSQL ← pooled ledger / FIFO credit ────────┘
      paginated shared census → snapshots / real fixtures
      short token-fenced leases → refresh-owner-only client / shared quotes
      DB-only quote browse → caller session / no provider acquisition
-     game/week/version events → recipient policy → inbox / allowed push
+     distinct picked fixture → leased result chunk → independent commit
+     league locks → generation / token / Fixture SHARE → accepted results
+     legacy + fantasy leg UNION ALL → continuous season totals
+     game/week/version + sequenced legacy facts → policy / inbox / claim commit
+     closed DB session → allowed push → recorded outcome (receipt unproven)
 
 API boot migrates; payments never migrates and requires matching image head.
 Local build → tested recovery point → API/payments same-head shipment (off)

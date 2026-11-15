@@ -1,11 +1,11 @@
 # Two games per week — local implementation report
 
-14 Nov 2026 · work in progress. Production unchanged; no shipment, activation or
+15 Nov 2026 · work in progress. Production unchanged; no shipment, activation or
 formal batch close-out performed. Canonical batch rows remain unchecked.
 
 ## Current checkpoint
 
-5 of 10 batches locally verified. Batch 219 contracts passed independent review
+6 of 10 batches locally verified. Batch 219 contracts passed independent review
 and the unmodified full 12-check gate: backend 1,650, frontend 1,418, seeded
 journey 1, zero skips. Exact verified tree `532b4c0ae32249051381f4f4c0192d8a3fc5e2d9`
 matches commit `1a0ca8f2d78c6334bd14e1caf5c74e41943238b0`; evidence is in
@@ -25,7 +25,12 @@ Batch 223 group API passed full gate 3 on corrected tree
 `8dfd28d5b2cecbecdc0d48efc1245097b63e6b69`: backend 1,852, frontend 1,418,
 journey 1, zero skips. Log: `.local/overnight-two-games/223-gate-attempt3.log`.
 Its report records the pending invocation; this branch records the result.
-Batch 224 fantasy API is now in progress; 225–228 have not started.
+Batch 224 fantasy API passed full gate 3: backend 1,963, frontend 1,418,
+journey 1, zero skips. Verified tree `f219e657a98d9d5d20faa0ac3eeb68b02dfc319d`
+matches local commit `f29adbc0a6f09669adf8966d91e8edd96ff691e0`; log
+`.local/overnight-two-games/224-gate-attempt3.log`. Eight existing AsyncMock
+coroutine warnings remain in the backend log. Batch 225 is now in progress;
+226–228 have not started.
 Production remains unchanged. Both new UI flows remain unimplemented.
 
 Batch 221's implementation now passes independent source review. Focused
@@ -91,13 +96,124 @@ run. The second gate verified the entire corrected tree.
 | 221 provider work | Locally verified; commit `278e1fa` | `feat/batch-221-two-game-provider` / `e458ec8` |
 | 222 weekly billing | Locally verified; commit `7a98d95` | `feat/batch-222-weekly-dues` / `278e1fa` |
 | 223 group API | Locally verified; commit `8dfd28d` | `feat/batch-223-group-api` / `7a98d95` |
-| 224 fantasy API | In progress | `feat/batch-224-fantasy-api` / `8dfd28d` |
-| 225 results/lifecycle | Not started | Pending verified 224 |
+| 224 fantasy API | Locally verified; commit `f29adbc` | `feat/batch-224-fantasy-api` / `8dfd28d` |
+| 225 results/lifecycle | In progress | `feat/batch-225-two-game-results` / `f29adbc` |
 | 226 read APIs | Not started | Pending verified 225 |
 | 227 group web | Not started | Pending verified 226 |
 | 228 fantasy web | Not started | Pending verified 227 |
 
-## Fantasy API implementation (224, full gate pending)
+## Results and lifecycle implementation (225, verification in progress)
+
+The active branch is `feat/batch-225-two-game-results`, stacked on verified
+224 commit `f29adbc`. The full unmodified 225 gate is the next frozen-candidate check; no 225 full-gate pass or commit is claimed yet. Both web flows
+and the complete read API remain pending in 226–228.
+
+Settlement now takes a persisted, leased unit for each distinct picked fixture.
+One counted result request serves eligible legacy, group and fantasy claims
+across leagues. Every completed unit commits independently; pending/error work
+moves behind ready work. A cancelled request retains its lease and spent quota.
+A reclaimed token or a later manual generation rejects an older response.
+Shared fixture observations are rechecked under a Fixture SHARE fence before
+claim locks: reinstating a postponed match cannot apply an earlier inferred void
+or reuse an old provider void against a later accepted week. Already settled
+historical legs retain their results. No business or budget session spans HTTP.
+
+Group resolves without a price or point calculation. Fantasy sums independently
+rounded frozen leg prices, keeping its result provisional through the exclusive
+Monday window end and any late pending leg. Provider-free finalisers cover empty
+and Saturday-only weeks and recover legacy rounds whose last chunks committed
+independently. The same aggregate joins a UNION ALL of legacy and fantasy legs,
+so each contributes once; group contributes no scoring rows. Fantasy void legs
+are excluded from leg denominators; existing legacy void metrics are retained.
+A late 30 Jun Sunday result belongs to its stored Saturday's season. Weekly
+winners compare entered weekly sums; no-entry/all-void entries are excluded and
+scored zero-point ties remain eligible. Weekly form presentation follows in 226.
+
+Shared HTTP correction updates resolved claims in every affected league, with
+one audit per league, immutable frozen prices, separate recursively unpriced
+group changes, and semantic result versions. All four manual writers use the
+same ordered league locks and per-fixture result generation. Scoped legacy
+correction/settlement/void fences in-flight results without promoting its local
+input to global fixture truth. Repeated correction is a no-op; a genuine later
+change advances identity even when restoring earlier global input.
+
+Game opening, lock, reminder, final result and correction facts have independent
+recipient claims and exact destinations. Reminder delivery rechecks zero-entry
+status. Existing mute and quiet-hour policy remains authoritative. Explicit
+cancellation survives recomputation and suppresses entry lifecycle notices;
+accepted results, history, corrections and weekly billing remain retained.
+Legacy result/correction copy is frozen in the result transaction and sequenced
+per parent so queued corrections follow the original result. The mixed-mode
+correction HTTP response reports `members_told=0` and `delivery_pending=true`;
+the enabled minute worker prepares inbox/claims, commits, closes its session,
+then invokes transport. This is delivery pending, never proof of receipt.
+
+Push retains the existing at-most-once limitation: a crash after claim commit
+can lose an external send, while the inbox survives. Concurrent external
+transports can arrive out of order; local sequencing is not a provider delivery
+or receipt guarantee. All verification uses fake transports, never live push.
+Requester-only export includes new entries, operation identities, membership
+intervals and weekly dues without raw other-member/provider payloads. Actual
+HTTP erasure releases unlocked group/next-fantasy entries, retains locked
+frozen history and already-owed fees, and anonymises the profile.
+
+Focused evidence before the final matrix: 42 new checks passed in separately
+migrated scratch databases; mixed-statistics and June/July late-Sunday checks
+passed 2/2; held-lock/concurrent/scoped manual HTTP races passed 6/6; the expanded
+55-check new matrix passed with zero skips. During paused real counting-transport
+settlement, next-week entry plus financial commit took 0.093–0.101 seconds in
+local samples, with zero sessions held during HTTP. This is not supported-load
+or production latency acceptance. Full local acceptance is still pending.
+
+Iteration failures and repairs (all retained assertions): the first expanded
+matrix had a missing lifecycle import (30 passed/1 failed); the first lifecycle
+matrix used a tuple as an object (10 passed/1 failed); a later integrated matrix
+missed a GroupPick import (97 passed/1 failed). Erasure setup tried to enter next
+week before its opening (17 passed/1 failed); its clock now advances to the
+approved Saturday noon. A new legacy-outbox capture initially filtered a field
+absent from the established legacy notice payload; it now selects the actual
+league identity. New fixture SQL length/import/format and mypy annotations were
+corrected. One lint command used a wrong relative directory; rerun uses absolute
+paths. No baseline fixture, assertion, skip, timeout or gate was changed.
+
+The combined subset of new tests plus selected old notification/scheduler tests
+finished 188 passed/3 failed. Old notification fixtures had committed only their
+synthetic competition into the global fixture pool, so later old refresh tests
+narrowed discovery to that unrelated pool. The unchanged scheduler module then
+passed all 42 checks on a fresh migrated scratch database (39.35 seconds).
+No old assertion, fixture, source expectation or gate was altered. The full
+canonical gate remains required with its normal ordering and complete seed set.
+A separate new 60-check matrix passed in 49.60 seconds with zero skips; the two
+new shared-correction scope-race checks passed in 9.69 seconds. Shared correction
+now locks pending as well as resolved claim leagues and refuses a newly appearing
+league with `409 RESULT_SCOPE_CHANGED` before any mutation. Queued entry notices
+also recheck cancellation, suspension and the current deadline. Cancelled result
+views use persisted finality, so accepted results do not stay provisional forever.
+
+Independent review found and prompted actual source repairs: legacy-only locks
+were skipped; non-empty all-resolved legacy recovery was missing; moved-future
+postponements were not eligible; a preloaded result generation could be stale;
+queued reminders could target a new entrant; UUID order could reverse game
+result versions; two manual parent reads could miss settlement while waiting;
+legacy correction hash order could reverse frozen notices; reinstatement could
+reuse stale inferred/provider void; cancellation state could be overwritten;
+shared→scoped→shared correction could reuse a notice identity; and shared
+correction could discover a newly resolved league without owning its lock. Dedicated
+regressions cover these repairs. The final expanded new matrix passed 65 checks, zero skips, in 54.98 seconds;
+the additional cancelled-result HTTP views passed 3/3. A final measured
+concurrent-entry run passed: paused-settlement entry plus fee commit took
+0.343453 seconds; settlement completion and addressed result visibility while
+another next-week slot committed took 0.883836 seconds. Earlier samples are
+recorded above; no supported traffic or production threshold is claimed.
+Independent source review confirmed the repaired races and found no further
+material defect in its scope; its agent subsequently reached a usage limit.
+Full gate acceptance still remains required. Backend collection is 2,028:
+1,963 predecessor tests plus 65 new cases. The count ratchet rises only by those
+new cases; frontend 1,418 and journey 1 are unchanged. New future-dated integration tests use an
+additional fully migrated database in the gate's scratch PostgreSQL cluster,
+preserving installation-wide selection and all baseline fixtures/data/oracles.
+
+## Fantasy API implementation (224, locally verified)
 
 Six independent UUID-addressed slots now save and replace one leg at a time.
 The slot envelope includes its nullable pick, revision and operation UUID;
@@ -154,7 +270,7 @@ roster/suspension/void/move races. The minimum positive quote uses an explicit
 port/storage oracle, not a claim that OddsAPI offers sub-1 betting prices.
 Independent review accepts the source and both added competition/confirmation
 oracles. Full gate 1 passed all executed tests but failed its count check;
-gate 2 was later interrupted for cumulative findings; full gate 3 is pending.
+gate 2 was later interrupted for cumulative findings; full gate 3 subsequently passed.
 
 Failures and fixes: the first new identity fixture omitted required cache TTL;
 its setup was corrected without changing assertions (then 21/21 passed).
@@ -193,7 +309,7 @@ and actual spend remain unchanged. The new test and its accepted 0.0001
 counterpart pass 2/2, zero skips (4.21s); this is explicitly port/storage evidence,
 not new actual HTTP capacity evidence. No old assertion changed, and that
 repair retained the 1,939 threshold; later new regressions legitimately raise it.
-Those two files now collect 87 new tests. No 224 commit exists.
+At that checkpoint those two files collected 87 new tests. The later cumulative repairs and verified 224 commit are recorded above.
 
 Cumulative independent review then found an accepted-operation replay handoff
 defect introduced in the group API (223) and fantasy API (224). Two identical
@@ -257,8 +373,8 @@ handling also left an unused import, removed without suppressions. Final API
 lint/format and mypy (123 source files) pass. All 1,963 backend tests collect (3.37s). The ratchet increases
 to 1,963: the prior 1,939 plus 17 replay cases, four fresh-observation cases
 and three lock-order cases. No old assertions or protected gates changed.
-Full gate 3 must verify these independently reviewed cumulative repairs
-on the 224 tree. Earlier 221/223 stamps remain historical evidence for their
+Full gate 3 verified these independently reviewed cumulative repairs
+on the exact 224 tree named above. Earlier 221/223 stamps remain historical evidence for their
 then-tested trees and do not cover these later fixes.
 
 ## Group API implementation (223, locally verified)
@@ -530,8 +646,8 @@ source or assertions. No full milestone failure is hidden by focused passes.
 
 ## Remaining release gates and exact next step
 
-Finish Batch 224 full gate 3 on verified local parent `8dfd28d`, then commit
-only its verified tree and stack Batch 225. Continue the
+Complete Batch 225 on verified local parent `f29adbc`, then commit
+only its verified tree and stack Batch 226. Continue the
 authorised stack through both web flows and final review. Earlier stamps do not
 cover the changed tree. Do not merge or push.
 

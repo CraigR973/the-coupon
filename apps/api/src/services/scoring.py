@@ -23,8 +23,9 @@ from typing import Any
 
 import structlog
 from pydantic import BaseModel
-from sqlalchemy import Select, case, func, select, true
+from sqlalchemy import Select, String, case, cast, func, literal, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.selectable import Subquery
 
 from src.display_name import public_name_sql
 from src.models.fixture import Fixture
@@ -33,6 +34,7 @@ from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile
+from src.models.two_game import FantasyPick
 from src.services.coupon import accumulator
 from src.services.football_provider import current_season
 from src.services.football_week import settle_refusal
@@ -112,27 +114,14 @@ async def _same_week_round_may_settle(db: AsyncSession, gameweek: Gameweek) -> b
     return False
 
 
-def resolve_pick(
-    market: PickMarket,
-    outcome: PickOutcome,
-    odds: Decimal,
-    settlement: EventSettlement,
-) -> PickResolution | None:
-    """Score a single pick against its fixture's settlement.
-
-    Returns ``None`` — leave the pick pending — when the fixture has no result yet, or
-    when it has one but *this* market does not. That distinction is what stops a
-    half-settled fixture from voiding picks that are merely still waiting.
-
-    Once the market has settled: ``won`` when the outcome won, ``lost`` when it did not,
-    and ``void`` when the fixture was postponed or abandoned, or the outcome has vanished
-    from a settled market (a withdrawn selection). A void pick scores nothing but is not
-    counted as a loss.
-    """
+def resolve_status(
+    market: PickMarket, outcome: PickOutcome, settlement: EventSettlement
+) -> PickStatus | None:
+    """Resolve an unpriced selection; absent markets stay pending, voids stay neutral."""
     if not settlement.settled:
         return None
     if settlement.void:
-        return PickResolution(status=PickStatus.void, points=0)
+        return PickStatus.void
     if Market(market.value) not in settlement.settled_markets:
         return None
     result = next(
@@ -144,14 +133,33 @@ def resolve_pick(
         None,
     )
     if result is None:
-        return PickResolution(status=PickStatus.void, points=0)
+        return PickStatus.void
     if result.won:
-        return PickResolution(status=PickStatus.won, points=points_for(odds))
-    return PickResolution(status=PickStatus.lost, points=0)
+        return PickStatus.won
+    return PickStatus.lost
+
+
+def resolve_pick(
+    market: PickMarket,
+    outcome: PickOutcome,
+    odds: Decimal,
+    settlement: EventSettlement,
+) -> PickResolution | None:
+    """Resolve the same market status and score a priced legacy/fantasy leg."""
+    verdict = resolve_status(market, outcome, settlement)
+    if verdict is None:
+        return None
+    return PickResolution(
+        status=verdict, points=points_for(odds) if verdict is PickStatus.won else 0
+    )
 
 
 async def settle_gameweek(
-    db: AsyncSession, gameweek: Gameweek, settlements: list[EventSettlement]
+    db: AsyncSession,
+    gameweek: Gameweek,
+    settlements: list[EventSettlement],
+    *,
+    now: datetime | None = None,
 ) -> int:
     """Apply event settlements to a round's pending picks; returns the count resolved.
 
@@ -198,7 +206,7 @@ async def settle_gameweek(
     )
     if remaining.scalar_one() == 0 and gameweek.status != GameweekStatus.settled:
         gameweek.status = GameweekStatus.settled
-        gameweek.settled_at = _now()
+        gameweek.settled_at = now or _now()
 
     await db.flush()
     return resolved
@@ -278,7 +286,9 @@ async def settle_gameweeks_via_provider(
     return resolved
 
 
-async def _settle_empty_rounds(db: AsyncSession, gameweeks: Sequence[Gameweek]) -> None:
+async def _settle_empty_rounds(
+    db: AsyncSession, gameweeks: Sequence[Gameweek], *, now: datetime | None = None
+) -> None:
     """Settle each round nobody picked on, once its play window has closed. Batch 187.
 
     CORR-23: the sweep asked the provider only about rounds with pending picks, so a
@@ -314,7 +324,7 @@ async def _settle_empty_rounds(db: AsyncSession, gameweeks: Sequence[Gameweek]) 
         .scalars()
         .all()
     )
-    now = _now()
+    now = now or _now()
     for gameweek in candidates:
         if gameweek.id in picked or gameweek.locks_at_utc > now:
             continue
@@ -326,7 +336,7 @@ async def _settle_empty_rounds(db: AsyncSession, gameweeks: Sequence[Gameweek]) 
             continue
         if await settle_refusal(db, gameweek) is not None:
             continue
-        await settle_gameweek(db, gameweek, [])
+        await settle_gameweek(db, gameweek, [], now=now)
 
 
 async def settle_gameweek_via_provider(
@@ -590,6 +600,49 @@ async def recent_form_by_league(
     return form
 
 
+def scoring_legs(season: int, exclude_gameweek_ids: Sequence[uuid.UUID] | None = None) -> Subquery:
+    """One scoring row per leg, preserving legacy void and fantasy non-void metrics."""
+    first, last = season_bounds(season)
+    legacy = select(
+        Pick.id,
+        Pick.league_id,
+        Pick.player_id,
+        Pick.gameweek_id.label("week_id"),
+        cast(Pick.status, String).label("status"),
+        Pick.odds_at_pick,
+        Pick.points_awarded,
+        literal(1).label("played"),
+    ).where(
+        Pick.status.in_((PickStatus.won, PickStatus.lost, PickStatus.void)),
+        Pick.gameweek_id.in_(_season_round_ids(season)),
+    )
+    fantasy = (
+        select(
+            FantasyPick.id,
+            FantasyPick.league_id,
+            FantasyPick.player_id,
+            FantasyPick.week_id,
+            FantasyPick.status,
+            FantasyPick.frozen_odds.label("odds_at_pick"),
+            case((FantasyPick.status != "void", FantasyPick.points_awarded), else_=None).label(
+                "points_awarded"
+            ),
+            case((FantasyPick.status != "void", 1), else_=0).label("played"),
+        )
+        .join(Gameweek, Gameweek.id == FantasyPick.week_id)
+        .where(
+            Gameweek.format == "two_game",
+            Gameweek.starts_on >= first,
+            Gameweek.starts_on <= last,
+            FantasyPick.status.in_(("won", "lost", "void")),
+        )
+    )
+    if exclude_gameweek_ids:
+        legacy = legacy.where(Pick.gameweek_id.notin_(exclude_gameweek_ids))
+        fantasy = fantasy.where(FantasyPick.week_id.notin_(exclude_gameweek_ids))
+    return union_all(legacy, fantasy).subquery("scoring_legs")
+
+
 async def standings_by_league(
     db: AsyncSession,
     league_ids: Sequence[uuid.UUID],
@@ -645,31 +698,31 @@ async def standings_by_league(
 
     season = resolve_season(season)
 
-    settled = Pick.status.in_((PickStatus.won, PickStatus.lost, PickStatus.void))
+    legs = scoring_legs(season, exclude_gameweek_ids)
     # The odds figures count only what actually ran. A void pick is a round the member
     # took part in — so it stays in ``picks_played`` — and a bet that was never struck,
     # so its price is not theirs to be credited with.
-    priced = Pick.status.in_((PickStatus.won, PickStatus.lost))
+    priced = legs.c.status.in_((PickStatus.won, PickStatus.lost))
     display_name = public_name_sql(Profile.display_name)
     rows = await db.execute(
         select(
             LeagueMembership.league_id,
             LeagueMembership.player_id,
             display_name.label("display_name"),
-            func.coalesce(func.sum(Pick.points_awarded), 0).label("total_points"),
-            func.count(Pick.id).label("picks_played"),
-            func.coalesce(func.sum(case((Pick.status == PickStatus.won, 1), else_=0)), 0).label(
+            func.coalesce(func.sum(legs.c.points_awarded), 0).label("total_points"),
+            func.coalesce(func.sum(legs.c.played), 0).label("picks_played"),
+            func.coalesce(func.sum(case((legs.c.status == PickStatus.won, 1), else_=0)), 0).label(
                 "picks_won"
             ),
             func.coalesce(func.sum(case((priced, 1), else_=0)), 0).label("picks_priced"),
-            func.coalesce(func.sum(case((priced, Pick.odds_at_pick), else_=0)), 0).label(
+            func.coalesce(func.sum(case((priced, legs.c.odds_at_pick), else_=0)), 0).label(
                 "cumulative_odds"
             ),
-            func.max(Pick.points_awarded).label("best_return"),
+            func.max(legs.c.points_awarded).label("best_return"),
             func.coalesce(
                 func.sum(
                     case(
-                        ((priced) & (Pick.odds_at_pick >= LONGSHOT_ODDS), 1),
+                        ((priced) & (legs.c.odds_at_pick >= LONGSHOT_ODDS), 1),
                         else_=0,
                     )
                 ),
@@ -679,12 +732,9 @@ async def standings_by_league(
         .select_from(LeagueMembership)
         .join(Profile, Profile.id == LeagueMembership.player_id)
         .outerjoin(
-            Pick,
-            (Pick.player_id == LeagueMembership.player_id)
-            & (Pick.league_id == LeagueMembership.league_id)
-            & settled
-            & Pick.gameweek_id.in_(_season_round_ids(season))
-            & (Pick.gameweek_id.notin_(exclude_gameweek_ids) if exclude_gameweek_ids else true()),
+            legs,
+            (legs.c.player_id == LeagueMembership.player_id)
+            & (legs.c.league_id == LeagueMembership.league_id),
         )
         .where(
             LeagueMembership.league_id.in_(league_ids),

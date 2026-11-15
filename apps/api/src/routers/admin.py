@@ -31,7 +31,7 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Subquery
 
@@ -47,6 +47,7 @@ from src.models.notification import ActionType, ActorType, AuditLog
 from src.models.pick import Pick, PickStatus
 from src.models.profile import Profile
 from src.models.season_calendar import SeasonCalendar
+from src.models.two_game import FantasyPick, GroupPick
 from src.rate_limit import consume_shared_limit, limiter, per_user_key
 from src.routers.leagues import PROVIDER_SLATE_FETCH_LIMIT, PROVIDER_SLATE_FETCH_SCOPE
 from src.schemas import UtcDatetime
@@ -1293,6 +1294,34 @@ async def settle_manually(
             detail="That round has already settled.",
         )
 
+    from src.services.two_game_settlement import (
+        active,
+        advance_generation,
+        result_locks,
+        settlement_locks,
+    )
+
+    mixed = await active(db)
+    before: dict[uuid.UUID, uuid.UUID] = {}
+    if mixed:
+        await settlement_locks(db, [gameweek.league_id])
+        before = {
+            pick_id: fixture_id
+            for pick_id, fixture_id in (
+                await db.execute(
+                    select(Pick.id, Pick.fixture_id).where(
+                        Pick.gameweek_id == gameweek.id, Pick.status == PickStatus.pending
+                    )
+                )
+            ).all()
+        }
+        await result_locks(db, set(before.values()))
+        await db.refresh(gameweek, with_for_update=True)
+        if GameweekStatus(gameweek.status.value) is GameweekStatus.settled:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="That round has already settled.",
+            )
     wanted = {result.fixture_id for result in body.results}
     fixtures = (await db.execute(select(Fixture).where(Fixture.id.in_(wanted)))).scalars().all()
     event_ids = {fixture.id: fixture.provider_event_id for fixture in fixtures}
@@ -1319,6 +1348,17 @@ async def settle_manually(
         )
 
     resolved = await settle_gameweek(db, gameweek, settlements)
+    if mixed and before:
+        changed_fixtures = set(
+            await db.scalars(
+                select(Pick.fixture_id).where(
+                    Pick.id.in_(before), Pick.status != PickStatus.pending
+                )
+            )
+        )
+        for changed_fixture in sorted(changed_fixtures):
+            await advance_generation(db, changed_fixture, _now())
+
     # Re-read through the enum rather than off the attribute: the guard above narrowed
     # `gameweek.status` to "not settled", and `settle_gameweek` is exactly the call that
     # can have made it settled since.
@@ -1343,6 +1383,10 @@ async def settle_manually(
             },
         )
     )
+    if mixed and final_status is GameweekStatus.settled:
+        from src.services.two_game_events import stage_legacy_fact
+
+        await stage_legacy_fact(db, gameweek, _now())
     await db.commit()
     log.info(
         "round settled by hand",
@@ -1352,7 +1396,7 @@ async def settle_manually(
         picks_resolved=resolved,
         settled=final_status is GameweekStatus.settled,
     )
-    if final_status is GameweekStatus.settled:
+    if not mixed and final_status is GameweekStatus.settled:
         # Last, after the commit and the log: it commits or discards its own work, never
         # raises, and nothing below reads a row it could have expired.
         await announce_round_settled(db, gameweek_id)
@@ -1410,8 +1454,33 @@ async def void_non_scoring_round(
     One audit row, ``league_updated`` against ``gameweeks`` like manual settlement, naming
     the league's slug so it appears in that league's own log (Batch 94).
     """
+    from src.services.two_game_settlement import (
+        active,
+        advance_generation,
+        result_locks,
+        settlement_locks,
+    )
+
+    mixed = await active(db)
+    if mixed:
+        candidate = await db.get(Gameweek, gameweek_id)
+        if candidate is not None:
+            await settlement_locks(db, [candidate.league_id])
+            fixture_ids = set(
+                await db.scalars(
+                    select(Pick.fixture_id).where(
+                        Pick.gameweek_id == gameweek_id, Pick.status == PickStatus.pending
+                    )
+                )
+            )
+            await result_locks(db, fixture_ids)
     gameweek = (
-        await db.execute(select(Gameweek).where(Gameweek.id == gameweek_id).with_for_update())
+        await db.execute(
+            select(Gameweek)
+            .where(Gameweek.id == gameweek_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
     ).scalar_one_or_none()
     if gameweek is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Round not found")
@@ -1457,6 +1526,9 @@ async def void_non_scoring_round(
     for pick in pending:
         pick.status = PickStatus.void
         pick.points_awarded = 0
+    if mixed:
+        for fixture_id in sorted({pick.fixture_id for pick in pending}):
+            await advance_generation(db, fixture_id, _now())
     # Batch 205 (ADR 0009). A voided round cancels its dues for everyone, by reversing
     # entries attributed to this admin; the ledger is the record, so the audit row below
     # is unchanged.
@@ -1481,6 +1553,10 @@ async def void_non_scoring_round(
             },
         )
     )
+    if mixed:
+        from src.services.two_game_events import stage_legacy_fact
+
+        await stage_legacy_fact(db, gameweek, _now())
     refusal_reason = refusal.reason
     await db.commit()
     log.info(
@@ -1493,7 +1569,8 @@ async def void_non_scoring_round(
     )
     # After the commit, as manual settlement does: it commits or discards its own work and
     # never raises, so a dead push service cannot undo the void.
-    await announce_round_settled(db, gameweek_id)
+    if not mixed:
+        await announce_round_settled(db, gameweek_id)
     return NonScoringVoidResult(
         gameweek_id=str(gameweek_id), refusal=refusal_reason, picks_voided=len(pending)
     )
@@ -1552,8 +1629,26 @@ async def correct_pick(
     ``picks``, as manual settlement records itself against ``gameweeks``: adding an
     ``ActionType`` is an ``ALTER TYPE`` that cannot be undone.
     """
+    from src.services.two_game_settlement import (
+        active,
+        advance_generation,
+        result_lock,
+        settlement_locks,
+    )
+
+    mixed = await active(db)
+    if mixed:
+        candidate = await db.get(Pick, pick_id)
+        if candidate is not None:
+            await settlement_locks(db, [candidate.league_id])
+            await result_lock(db, candidate.fixture_id)
     pick = (
-        await db.execute(select(Pick).where(Pick.id == pick_id).with_for_update())
+        await db.execute(
+            select(Pick)
+            .where(Pick.id == pick_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
     ).scalar_one_or_none()
     if pick is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pick not found")
@@ -1600,6 +1695,8 @@ async def correct_pick(
         await db.rollback()  # release the row lock; nothing to write
         return result
 
+    if mixed:
+        await advance_generation(db, pick.fixture_id, _now())
     pick.status = resolution.status
     pick.points_awarded = resolution.points
     db.add(
@@ -1619,6 +1716,14 @@ async def correct_pick(
             },
         )
     )
+    if mixed:
+        from src.models.two_game import ProviderSnapshot
+        from src.services.two_game_events import stage_legacy_corrections
+        from src.services.two_game_settlement import result_key
+
+        generation = await db.get(ProviderSnapshot, result_key(pick.fixture_id))
+        assert generation is not None
+        await stage_legacy_corrections(db, [pick.id], _now(), int(generation.payload["generation"]))
     await db.commit()
     log.info(
         "pick corrected",
@@ -1667,16 +1772,18 @@ async def settled_fixtures(request: Request, admin: AdminUser, db: Db) -> list[S
     admin actually knows is wrong, and it is the unit the correction now works on.
     """
     since = _now() - timedelta(days=SETTLED_FIXTURE_DAYS)
+    resolved = union_all(
+        *[
+            select(model.id, model.fixture_id, model.league_id).where(model.status != "pending")
+            for model in (Pick, GroupPick, FantasyPick)
+        ]
+    ).subquery("resolved_fixture_claims")
     rows = (
         await db.execute(
-            select(Fixture, League.name, func.count(Pick.id))
-            .join(Pick, Pick.fixture_id == Fixture.id)
-            .join(League, League.id == Pick.league_id)
-            .where(
-                Pick.status != PickStatus.pending,
-                League.deleted_at.is_(None),
-                Fixture.kickoff_utc >= since,
-            )
+            select(Fixture, League.name, func.count(resolved.c.id))
+            .join(resolved, resolved.c.fixture_id == Fixture.id)
+            .join(League, League.id == resolved.c.league_id)
+            .where(League.deleted_at.is_(None), Fixture.kickoff_utc >= since)
             .group_by(Fixture.id, League.name)
         )
     ).all()
@@ -1724,6 +1831,21 @@ class CorrectedPick(BaseModel):
     points: int | None
 
 
+class UnpricedCorrectedPick(BaseModel):
+    pick_id: str
+    league_slug: str
+    week_id: str
+    game_id: str
+    status_before: str
+    status: str
+
+
+class FantasyCorrectedPick(CorrectedPick):
+    week_id: str
+    game_id: str
+    slot: int
+
+
 class FixtureCorrectionResult(BaseModel):
     fixture_id: str
     #: Settled picks on the fixture across every live league — every one was re-scored.
@@ -1735,8 +1857,16 @@ class FixtureCorrectionResult(BaseModel):
     #: Members re-sent their settle line because their result changed.
     members_told: int
 
+    group_changed: list[UnpricedCorrectedPick] | None = None
+    fantasy_changed: list[FantasyCorrectedPick] | None = None
+    delivery_pending: bool | None = None
 
-@router.post("/fixtures/{fixture_id}/correct", response_model=FixtureCorrectionResult)
+
+@router.post(
+    "/fixtures/{fixture_id}/correct",
+    response_model=FixtureCorrectionResult,
+    response_model_exclude_unset=True,
+)
 @limiter.limit("20/hour", key_func=per_user_key)
 async def correct_fixture(
     request: Request,
@@ -1785,6 +1915,50 @@ async def correct_fixture(
             fixture.provider_event_id, body.home_goals, body.away_goals
         )
         entered = {"home_goals": body.home_goals, "away_goals": body.away_goals}
+
+    from src.services.two_game_settlement import active
+
+    if await active(db):
+        from src.services.two_game_corrections import CorrectionScopeChanged, correct_shared_fixture
+
+        try:
+            result = await correct_shared_fixture(db, fixture.id, settlement, _now())
+        except CorrectionScopeChanged:
+            raise HTTPException(status_code=409, detail={"code": "RESULT_SCOPE_CHANGED"}) from None
+        if not result.checked:
+            raise HTTPException(
+                status_code=409, detail="That fixture has no settled picks to correct."
+            )
+        for (league_id, slug), changes in result.by_league.items():
+            db.add(
+                _audit(
+                    admin,
+                    ActionType.league_updated,
+                    "fixtures",
+                    fixture.id,
+                    {
+                        "action": "fixture_corrected",
+                        "league_slug": slug,
+                        "league_id": str(league_id),
+                        "fixture": f"{fixture.home} v {fixture.away}",
+                        "result": entered,
+                        "reason": body.reason,
+                        "picks": changes,
+                    },
+                )
+            )
+        response = FixtureCorrectionResult(
+            fixture_id=str(fixture.id),
+            picks_checked=result.checked,
+            changed=[CorrectedPick(**row) for row in result.legacy],
+            group_changed=[UnpricedCorrectedPick(**row) for row in result.group],
+            fantasy_changed=[FantasyCorrectedPick(**row) for row in result.fantasy],
+            leagues_audited=sorted(slug for _, slug in result.by_league),
+            members_told=0,
+            delivery_pending=bool(result.by_league),
+        )
+        await db.commit()
+        return response
 
     # Locked while they are rewritten, so two admins correcting the same match — or this
     # and a per-pick correction — cannot interleave.

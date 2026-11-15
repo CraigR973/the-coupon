@@ -322,7 +322,10 @@ async def export_account(db: AsyncSession, member: Profile) -> dict[str, Any]:
         )
     ).all()
 
+    from src.services.two_game_accounts import export_two_game_records
+
     return {
+        **(await export_two_game_records(db, member.id)),
         "exported_at": datetime.now(UTC).isoformat(),
         "profile": {
             "display_name": member.display_name,

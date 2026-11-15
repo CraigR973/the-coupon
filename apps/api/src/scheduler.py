@@ -415,6 +415,35 @@ def _two_game_discovery_worker() -> DiscoveryWorker:
     )
 
 
+async def run_two_game_settlement() -> bool:
+    """Independent minute-level lifecycle, fair chunks and provider-free finalisers."""
+    from src.services.two_game_events import deliver_events, lifecycle_events
+    from src.services.two_game_provider import acquire_matching, configured_identity
+    from src.services.two_game_settlement import SettlementWorker
+
+    identity = configured_identity()
+
+    async def acquire_provider() -> OddsProvider:
+        return await acquire_matching(identity)
+
+    try:
+        worker = SettlementWorker(
+            AsyncSessionLocal,
+            acquire_provider,
+            source=identity.source,
+            clock=_utc_now,
+            lease_seconds=settings.two_game_work_lease_seconds,
+        )
+        stats = await worker.run()
+        await lifecycle_events(AsyncSessionLocal, _utc_now())
+        await deliver_events(AsyncSessionLocal, clock=_utc_now)
+        log.info("two-game settlement pass", **stats)
+        return stats["failures"] == 0
+    except Exception:
+        log.exception("two-game settlement pass failed")
+        return False
+
+
 async def run_weekly_dues() -> bool:
     try:
         charged = await bill_all(AsyncSessionLocal, _utc_now())
@@ -795,6 +824,13 @@ async def run_settle_gameweeks() -> bool:
     A round that finished settling in this run is then announced to its league, once and
     after the commit (Batch 135); ``announce_round_settled`` says why that cannot repeat.
     """
+    if settings.two_games_enabled:
+        from src.services.two_game_settlement import active
+
+        async with AsyncSessionLocal() as session:
+            mixed = await active(session)
+        if mixed:
+            return await run_two_game_settlement()
     try:
         with provider_category("settlement"):
             provider = await odds_session.acquire()
@@ -1278,6 +1314,16 @@ def create_scheduler() -> AsyncIOScheduler:
             trigger="interval",
             minutes=1,
             id="weekly_dues",
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+            misfire_grace_time=_FREQUENT_JOB_GRACE_SECONDS,
+        )
+        scheduler.add_job(
+            run_two_game_settlement,
+            trigger="interval",
+            minutes=1,
+            id="two_game_settlement",
             replace_existing=True,
             coalesce=True,
             max_instances=1,

@@ -37,6 +37,7 @@ from src.services.two_game_entry import (
     resolve_target,
     selection,
 )
+from src.services.two_game_results import group_outcome
 from src.services.two_game_storage import london_utc
 from src.services.weekly_fees import (
     EntryFeeRefused,
@@ -468,10 +469,11 @@ class GroupEntries:
                     "all_picked": member_count > 0 and picked == member_count,
                 },
                 result={
-                    "status": "no_coupon"
-                    if not any(pick for _, pick, _ in rows)
-                    else target.game.result_status,
-                    "final": target.game.status == "settled",
+                    "status": group_outcome(
+                        [pick.status for _, pick, _ in rows if pick is not None]
+                    ),
+                    "final": target.game.finalized_at is not None
+                    or target.game.status == "settled",
                 },
                 fee=(
                     await project_fees(db, target.league, player_id, target.week.starts_on, now)

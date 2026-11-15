@@ -341,6 +341,40 @@ retain their original contributions. Exports include only the requesting member'
 new records. Erasure releases unlocked claims and anonymises retained locked
 history under existing policy, preserving financial audit provenance.
 
+### Local result and lifecycle behaviour (225)
+
+A fixture result uses the canonical fixture UUID, source provenance and a manual
+mutation generation, separate from the queue's token/expiry. Generation and
+ownership are reread after ordered league locks. Shared source observations
+fence inferred voids; a newer active observation invalidates a provider void
+cache for a subsequently accepted rescheduled fixture. Historical resolved
+claims remain unchanged until an explicit correction.
+
+`POST /admin/fixtures/{fixture_id}/correct` retains its legacy `changed` list and
+adds separate `group_changed` and `fantasy_changed` lists in enabled mixed mode.
+Group changes contain status/identity only; fantasy changes contain the leg's
+frozen-price-derived points. `members_told=0, delivery_pending=true` means the
+committed notice awaits the enabled worker, never that push was received.
+A new affected league appearing during lock acquisition returns `409 RESULT_SCOPE_CHANGED` before any correction is written; the administrator can retry against the fresh scope. Pending claims are included in the initial league lock set.
+Inactive legacy responses retain their established JSON shape. The three
+scoped legacy manual routes keep their scope, advance the fixture generation
+only on actual change, and never establish global manual fixture truth.
+
+The enabled one-minute worker performs result chunks, provider-free finalisers,
+lifecycle facts and deferred delivery. Lifecycle claims use version 0; weekly
+result/correction claims use the semantic result version. Preparation orders
+new facts by game/version and frozen legacy facts by parent/commit sequence.
+Claims and inbox commit before external transport. At-most-once external send
+may be lost after a crash; cross-process/provider arrival order and receipt are
+not guaranteed. Cancellation preserves the explicit lifecycle state and stops
+entry lifecycle notices without deleting accepted legs or weekly obligations.
+
+Fantasy weekly winner IDs are empty before finality. Final scored weekly sums
+compete, including scored-zero ties; no-entry and all-void entries do not win.
+Leg statistics count resolved non-void fantasy legs; best return is one leg,
+not a weekly sum. Legacy contributions remain unchanged and retained totals
+remain readable when the entry feature is disabled.
+
 ## Home and state examples
 
 `GET /me/games` returns each league's `games` array plus `legacy_rounds`, not
