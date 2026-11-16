@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { detectStandalone } from '../hooks/useInstallPrompt';
 import { PIN_NOT_SET } from '../lib/api';
+import { isAddressedGamePath } from '../lib/leagues';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { PinInput } from './PinInput';
@@ -13,7 +14,7 @@ interface Props {
 
 export function ProtectedRoute({ requireAdmin = false }: Props) {
   const { player, sessionUnlockRequired, sessionResuming } = useAuth();
-  const { pathname } = useLocation();
+  const { pathname, search, hash } = useLocation();
 
   // Batch 123. The stored refresh token is being spent for a new pair. Showing the PIN
   // screen for the moment that takes would ask for a credential that is about to be
@@ -40,7 +41,8 @@ export function ProtectedRoute({ requireAdmin = false }: Props) {
     if (pathname === '/' && !detectStandalone()) {
       return <Navigate to="/welcome" replace />;
     }
-    return <Navigate to="/login" replace />;
+    const addressed = isAddressedGamePath(pathname);
+    return <Navigate to={addressed ? `/login?next=${encodeURIComponent(pathname + search + hash)}` : '/login'} replace />;
   }
 
   if (requireAdmin && player.role !== 'admin') {

@@ -180,7 +180,7 @@ export function isLeagueHubPath(pathname: string): boolean {
   // Tested against the shape rather than the section list, so the addresses Batch 51
   // retired — `/leagues/:slug/predictions/football` and its slug-less twin — do not
   // light the Leagues tab for the frame before their redirect lands.
-  if (PREDICTIONS_PATH.test(pathname)) return false;
+  if (PREDICTIONS_PATH.test(pathname) || isAddressedGamePath(pathname)) return false;
   return pathname === '/leagues' || pathname.startsWith('/leagues/');
 }
 
@@ -202,3 +202,10 @@ export function isLeagueHubPath(pathname: string): boolean {
 export function dropStaleMemberships(queryClient: QueryClient): void {
   queryClient.removeQueries({ queryKey: keys.leagues.mine() });
 }
+
+/** Exact addressed game routes are independent of the last-viewed league. */
+export function addressedGamesDestination(pathname:string):string|undefined {
+  const match=/^\/leagues\/([^/]+)\/(?:games|weeks\/[^/]+\/(?:group|fantasy))\/?$/.exec(pathname);
+  return match?`/leagues/${match[1]}/games`:undefined;
+}
+export const isAddressedGamePath=(pathname:string)=>addressedGamesDestination(pathname)!==undefined;

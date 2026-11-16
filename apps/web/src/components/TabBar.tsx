@@ -1,3 +1,5 @@
+import {addressedGamesDestination,isAddressedGamePath} from '../lib/leagues';
+import { useGameNavigation } from '../hooks/useGameIntents';
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSlidingIndicator } from '@/hooks/useSlidingIndicator';
@@ -44,10 +46,10 @@ interface TabDef {
  * Football Stats takes no slug at all since Batch 51 — it reads the whole pool, so
  * there is no bound league for it to be pointed at.
  */
-function primaryTabs(slug: string | null): ReadonlyArray<TabDef> {
+function primaryTabs(slug: string | null, gamesPath?: string): ReadonlyArray<TabDef> {
   return [
     { to: '/', label: 'Home', Icon: Home, match: (p) => p === '/' },
-    { to: predictionsPath(slug), label: 'Coupon', Icon: Ticket, match: isCouponPath },
+    { to: gamesPath??predictionsPath(slug), label: gamesPath?'Games':'Coupon', Icon: Ticket, match: p=>isCouponPath(p)||isAddressedGamePath(p) },
     { to: FOOTBALL_PATH, label: 'Football', Icon: Goal, match: isFootballPath },
     { to: '/leagues', label: 'Leagues', Icon: Trophy, match: isLeagueHubPath },
   ];
@@ -57,6 +59,8 @@ export function TabBar() {
   const { pathname } = useLocation();
   const { player, logout } = useAuth();
   const { activeSlug, hasLeagues } = useLeague();
+  const gameLeague=useGameNavigation().find(league=>league.slug===activeSlug);
+  const gamesPath=addressedGamesDestination(pathname)??(gameLeague?`/leagues/${gameLeague.league_id}/games`:undefined);
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
   // Where the keyboard goes when the sheet closes. Radix restores focus to a
@@ -71,7 +75,7 @@ export function TabBar() {
   // More. Counted here rather than off `tabs` below because the indicator hook needs it
   // before that list is built, and because the count is the only thing about the list
   // that moves the indicator on its own.
-  const tabCount = primaryTabs(hasLeagues ? activeSlug : null).length + 1;
+  const tabCount = primaryTabs(hasLeagues ? activeSlug : null,gamesPath).length + 1;
 
   // Batch 164. The sliding indicator, which was a framer-motion `layoutId` on a span
   // inside every tab. `pathname` is the dependency that matters — it is what changes
@@ -131,7 +135,7 @@ export function TabBar() {
   // A league still loading is not yet a league to address, so the tabs fall back
   // to the slug-less paths — which redirect the moment one resolves.
   const tabs: ReadonlyArray<Omit<TabDef, 'match'> & { isCurrent: boolean }> = [
-    ...primaryTabs(hasLeagues ? activeSlug : null).map((t) => ({
+    ...primaryTabs(hasLeagues ? activeSlug : null,gamesPath).map((t) => ({
       ...t,
       isCurrent: t.match(pathname),
     })),

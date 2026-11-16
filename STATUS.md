@@ -146,7 +146,7 @@ These are not batches; nothing here will happen unless the owner does it or auth
 ## Open batches
 
 Batches **219–228** define the two-game build. Contracts, storage, provider work,
-weekly billing, both entry APIs and results/lifecycle (219–225) passed their full local 12-check gates: 7 of 10
+weekly billing, both entry APIs and results/lifecycle/read APIs (219–226) passed their full local 12-check gates: 8 of 10
 locally verified. Billing commit `7a98d95` matches tree `63483d4`;
 backend 1,794, frontend 1,418 and seeded journey 1 passed with zero skips.
 Failures, corrections and capacity limits are in the overnight report.
@@ -161,9 +161,13 @@ Batch 224 full gate 3 passed 1,963 backend / 1,418 frontend / journey 1, zero sk
 commit `f29adbc`, exact tree `f219e657`. Eight existing AsyncMock warnings remain.
 Batch 225 results/lifecycle passed full gate 1: 2,028 backend / 1,418 frontend /
 journey 1, zero skips; commit `92c903b`, exact tree `fab96dcde`.
-Eight existing AsyncMock warnings remain. Batch 226 read/receipt APIs pass 139 focused
-checks (39 new, 100 Group/legacy); independent source review passes; full gate remains pending (15 Nov).
-Both new web flows remain unimplemented. Large-card
+Eight existing AsyncMock warnings remain. Batch 226 read/receipt APIs pass their full 12-check gate: 2,067 backend / 1,418
+frontend / journey 1, zero skips; commit `94659e2`, tree `70f38257` (15 Nov).
+Batch 227 has started on that verified parent.
+Group/Home/archive web passes all 16 real local browser checks (desktop and
+installed phone), zero failures/skips/retries, with 44 new unit tests and exact
+count reconciliation. Its unmodified full gate is next; the batch remains
+unverified until it passes. Fantasy editor is unimplemented. Large-card
 replay exposes 17-hour browse snapshots; live coverage/load acceptance stays open.
 No batch is formally closed. Canonical rows remain unchecked. Inactive
 implementation and local verification can proceed while the scheduled 14 Nov

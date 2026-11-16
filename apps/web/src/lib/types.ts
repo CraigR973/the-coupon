@@ -947,6 +947,8 @@ export interface RefreshRoundsResult {
 }
 
 export interface LeagueSummary {
+  /** Missing on older API/fixtures; never infer UUID gameplay from a slug. */
+  id?: string;
   slug: string;
   name: string;
   description: string | null;

@@ -1,4 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { useGameNavigation,useHomeGameStatus } from '../hooks/useGameIntents';
+import { GamesHome } from '../components/GamesHome';
 import { ArrowRight, Clock, Lock, Ticket, Trophy } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { type CountdownParts } from '../hooks/useCountdown';
@@ -143,16 +145,21 @@ export function DashboardPage() {
   const { player } = useAuth();
 
   const { data, isLoading, isError, refetch } = useCrossLeagueSummary();
-  const leagues = data?.per_league ?? [];
+  const games = useGameNavigation();
+  const gameStatus=useHomeGameStatus();
+  const enabledSlugs = new Set(games.map(league=>league.slug));
+  const leagues = (data?.per_league ?? []).filter(league=>!enabledSlugs.has(league.slug));
 
   return (
     <div className="relative">
       <div className="space-y-6">
-        <HomeHero
+        {games.length>0||gameStatus.isError?<header className="space-y-2"><h1 className="text-2xl font-semibold">Hello, {player?.displayName??'there'}</h1><p>Each game has its own entry, deadline and weekly payment status.</p></header>:<HomeHero
           displayName={player?.displayName ?? 'there'}
           summary={data}
           isLoading={isLoading}
-        />
+        />}
+        {gameStatus.isError&&<QueryErrorState title="Couldn't load game status" description="Your existing league history remains available." onRetry={gameStatus.refetch}/>}
+        {games.length>0&&<GamesHome leagues={games}/>}
 
         {isLoading && (
           <div className="flex flex-col gap-5" aria-label="Loading your leagues">
@@ -169,7 +176,7 @@ export function DashboardPage() {
           />
         )}
 
-        {!isLoading && !isError && leagues.length === 0 && (
+        {!isLoading && !isError && leagues.length === 0 && games.length === 0 && !gameStatus.isError && (
           <FirstLeaguePrompt />
         )}
 

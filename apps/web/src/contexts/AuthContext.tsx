@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     void refreshStoredSession().then((player) => {
       if (cancelled) return;
-      if (!player) {
+      if (!player || getStoredPlayer()?.id !== player.id) {
         setState((s) => ({ ...s, sessionResuming: false }));
         return;
       }

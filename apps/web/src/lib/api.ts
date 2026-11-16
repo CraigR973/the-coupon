@@ -7,6 +7,7 @@ import {
   getStoredPlayer,
   type StoredPlayer,
 } from './tokens';
+import { isAddressedGamePath } from './leagues';
 
 if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
   throw new Error('VITE_API_URL is required in production builds');
@@ -45,12 +46,16 @@ export const PIN_NOT_SET = 'PIN_NOT_SET';
 export class ApiError extends Error {
   readonly status: number;
   readonly detail: string;
+  readonly data: Record<string, unknown> | null;
+  readonly code: string | undefined;
 
-  constructor(status: number, detail: string) {
+  constructor(status: number, detail: string, data: Record<string, unknown> | null = null) {
     super(detail);
     this.name = 'ApiError';
     this.status = status;
     this.detail = detail;
+    this.data = data;
+    this.code = typeof data?.code === "string" ? data.code : undefined;
   }
 }
 
@@ -89,28 +94,79 @@ export interface ApiFetchOptions extends RequestInit {
    * of. Only the pick submission sets it today.
    */
   timeoutMs?: number;
+  /** Bind deferred writes to their originating member, including refresh/retry. */
+  expectedMemberId?: string;
 }
 
 let refreshPromise: Promise<void> | null = null;
 
+class SessionRejected extends Error {
+  constructor(message:string,readonly memberId:string|undefined,readonly accessToken:string|null,readonly refreshToken:string|null){super(message);}
+}
+
+async function expireSession(error:SessionRejected):Promise<never>{
+  requireMember(error.memberId);
+  if(getAccessToken()!==error.accessToken||getRefreshToken()!==error.refreshToken){
+    throw new ApiError(409,'The signed-in session changed.',{code:'SESSION_CHANGED'});
+  }
+  await clearTokens();
+  // Cache cleanup may await while another sign-in establishes a new session.
+  if(getStoredPlayer()||getAccessToken()||getRefreshToken()){
+    throw new ApiError(409,'The signed-in session changed.',{code:'SESSION_CHANGED'});
+  }
+  const {pathname,search,hash}=window.location;
+  window.location.href=isAddressedGamePath(pathname)
+    ? `/login?next=${encodeURIComponent(pathname+search+hash)}` : '/login';
+  throw new Error('Session expired',{cause:error});
+}
+
+function requireMember(expected?: string): void {
+  if (expected && getStoredPlayer()?.id !== expected) {
+    throw new ApiError(409, 'The signed-in member changed. Choose again.', {code:'SESSION_CHANGED'});
+  }
+}
+
 async function silentRefresh(): Promise<void> {
   const refreshToken = getRefreshToken();
-  if (!refreshToken) {
-    await clearTokens();
-    throw new Error('No refresh token');
-  }
-  const resp = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+  const player = getStoredPlayer();
+  const accessToken=getAccessToken();
+  if (!refreshToken || !player) throw new SessionRejected('No refresh token',player?.id,accessToken,refreshToken);
+  const resp = await sendRequest(`${API_BASE}/api/v1/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refresh_token: refreshToken }),
   });
-  if (!resp.ok) {
-    clearTokens();
-    throw new Error('Refresh failed');
-  }
   const data = await resp.json();
-  const player = getStoredPlayer()!;
+  // A late refresh must neither replace nor clear a different member's session.
+  if (getRefreshToken() !== refreshToken || getStoredPlayer()?.id !== player.id) {
+    throw new ApiError(409, 'The signed-in member changed. Choose again.', {code:'SESSION_CHANGED'});
+  }
+  if (!resp.ok) {
+    if (resp.status === 401 || resp.status === 403) {
+      throw new SessionRejected('Refresh failed',player.id,accessToken,refreshToken);
+    }
+    throw new ApiError(resp.status, 'Could not refresh this session');
+  }
   storeTokens(data.access_token, data.refresh_token, player);
+}
+
+async function responseValue<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    const fallback = `API error ${response.status}`;
+    let detail: unknown;
+    try { detail = (await response.json()).detail; } catch { detail = undefined; }
+    const data = detail && typeof detail === 'object' && !Array.isArray(detail)
+      ? detail as Record<string,unknown> : null;
+    const message = typeof detail === 'string' ? detail
+      : typeof data?.message === 'string' ? data.message
+      : typeof data?.code === 'string' ? data.code : fallback;
+    throw new ApiError(response.status, message, data);
+  }
+  if (response.status === 204) return undefined as T;
+  try { return await response.json() as T; }
+  catch (cause) {
+    throw new NetworkError('The response ended before its receipt could be read.', true, {cause});
+  }
 }
 
 /**
@@ -131,6 +187,7 @@ async function silentRefresh(): Promise<void> {
 export async function refreshStoredSession(): Promise<StoredPlayer | null> {
   const refreshToken = getRefreshToken();
   const player = getStoredPlayer();
+  const accessToken = getAccessToken();
   if (!refreshToken || !player) return null;
   try {
     const resp = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
@@ -140,6 +197,7 @@ export async function refreshStoredSession(): Promise<StoredPlayer | null> {
     });
     if (!resp.ok) return null;
     const data = (await resp.json()) as { access_token: string; refresh_token: string };
+    if (getRefreshToken() !== refreshToken || getAccessToken() !== accessToken || getStoredPlayer()?.id !== player.id) return null;
     storeTokens(data.access_token, data.refresh_token, player);
     return player;
   } catch {
@@ -163,10 +221,15 @@ export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {},
 ): Promise<T> {
-  await ensureFreshToken();
+  const expectedMemberId = options.expectedMemberId ?? getStoredPlayer()?.id;
+  requireMember(expectedMemberId);
+  try { await ensureFreshToken(); }
+  catch(error){ if(error instanceof SessionRejected)return expireSession(error);throw error; }
+  requireMember(expectedMemberId);
 
   const accessToken = getAccessToken();
-  const { timeoutMs, ...init } = options;
+  const { timeoutMs, expectedMemberId: requestedMemberId, ...init } = options;
+  void requestedMemberId;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
@@ -174,6 +237,8 @@ export async function apiFetch<T>(
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
   const resp = await sendRequest(`${API_BASE}${path}`, { ...init, headers }, timeoutMs);
+
+  requireMember(expectedMemberId);
 
   // 401 only, deliberately — do not add 403 here (Batch 61).
   //
@@ -194,35 +259,33 @@ export async function apiFetch<T>(
   // waits for `/ship-prod`, so for a while the old 403 arrives and takes exactly the
   // path it takes today.
   if (resp.status === 401) {
-    // Access token was rejected — attempt one refresh then retry
+    requireMember(expectedMemberId);
     try {
-      await silentRefresh();
-      const retryToken = getAccessToken();
-      if (retryToken) headers['Authorization'] = `Bearer ${retryToken}`;
-      const retry = await fetch(`${API_BASE}${path}`, { ...init, headers });
-      if (!retry.ok) throw new Error(`${retry.status}`);
-      return retry.json() as Promise<T>;
-    } catch {
-      await clearTokens();
-      window.location.href = '/login';
-      throw new Error('Session expired');
+      if (!refreshPromise) refreshPromise = silentRefresh().finally(() => { refreshPromise = null; });
+      await refreshPromise;
+    } catch (error) {
+      if (!(error instanceof SessionRejected)) throw error;
+      return expireSession(error);
     }
-  }
-
-  if (!resp.ok) {
-    // Try to surface the FastAPI `detail` field for a more useful error message.
-    const fallback = `API error ${resp.status}`;
-    let detail: string | undefined;
-    try {
-      const body = await resp.json();
-      detail = typeof body?.detail === 'string' ? body.detail : undefined;
-    } catch {
-      detail = undefined;
+    requireMember(expectedMemberId);
+    const retryToken = getAccessToken();
+    if (retryToken) headers['Authorization'] = `Bearer ${retryToken}`;
+    const retryRefreshToken = getRefreshToken();
+    const retry = await sendRequest(`${API_BASE}${path}`, { ...init, headers }, timeoutMs);
+    requireMember(expectedMemberId);
+    if (retry.status === 401) {
+      if (getAccessToken() !== retryToken || getRefreshToken() !== retryRefreshToken) {
+        throw new ApiError(409, 'This session changed while the request was in flight.', {code:'SESSION_CHANGED'});
+      }
+      return expireSession(new SessionRejected('Access token rejected',expectedMemberId,retryToken,retryRefreshToken));
     }
-    throw new ApiError(resp.status, detail ?? fallback);
+    const result = await responseValue<T>(retry);
+    requireMember(expectedMemberId);
+    return result;
   }
-  if (resp.status === 204) return undefined as T;
-  return resp.json() as Promise<T>;
+  const result = await responseValue<T>(resp);
+  requireMember(expectedMemberId);
+  return result;
 }
 
 /**

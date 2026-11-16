@@ -1,3 +1,5 @@
+import {addressedGamesDestination,isAddressedGamePath} from '../lib/leagues';
+import { useGameNavigation } from '../hooks/useGameIntents';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { Moon, Sun, Settings, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,10 +38,10 @@ interface DesktopNavItem {
 }
 
 /** The desktop mirror of `TabBar`'s primary tabs — same targets, same rules. */
-function desktopNav(slug: string | null): ReadonlyArray<DesktopNavItem> {
+function desktopNav(slug: string | null, gamesPath?: string): ReadonlyArray<DesktopNavItem> {
   return [
     { to: '/', label: 'Home', match: (p) => p === '/' },
-    { to: predictionsPath(slug), label: 'Coupon', match: isCouponPath },
+    { to: gamesPath??predictionsPath(slug), label: gamesPath?'Games':'Coupon', match: p=>isCouponPath(p)||isAddressedGamePath(p) },
     { to: FOOTBALL_PATH, label: 'Football Stats', shortLabel: 'Football', match: isFootballPath },
     { to: '/leagues', label: 'Leagues', match: isLeagueHubPath },
     {
@@ -54,9 +56,11 @@ function desktopNav(slug: string | null): ReadonlyArray<DesktopNavItem> {
 export function TopBar() {
   const { player, logout } = useAuth();
   const { activeSlug, hasLeagues } = useLeague();
+  const {pathname}=useLocation();
+  const gameLeague=useGameNavigation().find(league=>league.slug===activeSlug);
+  const gamesPath=addressedGamesDestination(pathname)??(gameLeague?`/leagues/${gameLeague.league_id}/games`:undefined);
   const { resolved, setMode } = useTheme();
-  const { pathname } = useLocation();
-  const navItems = desktopNav(hasLeagues ? activeSlug : null);
+  const navItems = desktopNav(hasLeagues ? activeSlug : null,gamesPath);
   function toggleTheme() {
     setMode(resolved === 'dark' ? 'light' : 'dark');
   }

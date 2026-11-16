@@ -5,7 +5,7 @@ formal batch close-out performed. Canonical batch rows remain unchecked.
 
 ## Current checkpoint
 
-7 of 10 batches locally verified. Batch 219 contracts passed independent review
+8 of 10 batches locally verified. Batch 219 contracts passed independent review
 and the unmodified full 12-check gate: backend 1,650, frontend 1,418, seeded
 journey 1, zero skips. Exact verified tree `532b4c0ae32249051381f4f4c0192d8a3fc5e2d9`
 matches commit `1a0ca8f2d78c6334bd14e1caf5c74e41943238b0`; evidence is in
@@ -34,9 +34,15 @@ backend 2,028, frontend 1,418 and journey 1, zero skips. Verified tree
 `fab96dcde4f36e34cef455aa44b147f310594aaf` matches local commit
 `92c903b776739d6c2a285774aa608dd1dd2f4f96`; log
 `.local/overnight-two-games/225-gate-attempt1.log`. Backend took 1,772.42 seconds
-and retained the same eight existing AsyncMock warnings. Batch 226 is in progress;
-227–228 have not started.
-Production remains unchanged. Both new UI flows remain unimplemented.
+and retained the same eight existing AsyncMock warnings. Batch 226 passed all 12
+checks: backend 2,067, frontend 1,418 and journey 1, zero skips. Verified tree
+`70f382573b7cee924584d264a2fcc24e3ae4e40c` matches local commit
+`94659e26bd9426ce3b4e5409c3b7d0d4b589c5ad`; log
+`.local/overnight-two-games/226-gate-attempt1.log`. Its committed report records
+the pending invocation; this branch records the result. Batch 227 has started;
+228 has not started.
+Production remains unchanged. Group/Home/archive UI is drafted but unverified;
+Fantasy has a read-only addressed landing, with its editor still pending 228.
 
 Batch 221's implementation now passes independent source review. Focused
 transport/quote/provider/scheduler checks passed 290 tests with zero skips;
@@ -103,13 +109,114 @@ run. The second gate verified the entire corrected tree.
 | 223 group API | Locally verified; commit `8dfd28d` | `feat/batch-223-group-api` / `7a98d95` |
 | 224 fantasy API | Locally verified; commit `f29adbc` | `feat/batch-224-fantasy-api` / `8dfd28d` |
 | 225 results/lifecycle | Locally verified; commit `92c903b` | `feat/batch-225-two-game-results` / `f29adbc` |
-| 226 read APIs | In progress | `feat/batch-226-game-reads` / `92c903b` |
-| 227 group web | Not started | Pending verified 226 |
+| 226 read APIs | Locally verified | `feat/batch-226-game-reads` / `94659e2` |
+| 227 group web | In progress | `feat/batch-227-group-web` / `94659e2` |
 | 228 fantasy web | Not started | Pending verified 227 |
 
-## Addressed read APIs (226, implementation in progress)
+## Group web implementation (227, draft)
 
-The active branch is `feat/batch-226-game-reads`, stacked on verified 225 commit
+The active branch is `feat/batch-227-group-web`, stacked on verified 226 commit
+`94659e2`. Exact UUID Group/Home/archive routes and target-specific payment panels
+are drafted. A shell-level member-bound queue retains choices across route
+remounts, reads before sending/retrying the same immutable operation, and ignores
+late responses to older choices. Structured 402/409 responses survive a successful
+401 refresh; an account switch during refresh cannot dispatch an old member's
+choice or install a late token pair. Login preserves exact new-game payment links.
+Legacy/inactive Home remains on its existing presentation; enabled Home uses
+explicit cards and neutral action copy. Retained history uses the read-only226
+results route when the current-entry view refuses access.
+
+The draft full web suite passed 1,455 tests across 86 files, zero skips; later
+readiness/auth regressions and source repairs require fresh full verification.
+The final focused readiness/protocol slice passes 25 tests. Type checking passes;
+lint last reported zero errors and 19 existing warnings. No Batch 227 full gate,
+staging, commit or acceptance is claimed. Fantasy editor remains pending 228.
+
+Browser failures and corrections are retained under the ignored journal:
+
+- Run 1 failed before tests: invalid inherited pgserver locale; the disposable
+  runner now pins en_US.UTF-8. New harness Ruff long strings/imports were fixed.
+- Run 2 passed 2 and failed 10 of 12: a Group market code leaked the word
+  “odds”; human labels now keep Group unpriced. Synthetic disabled activation
+  setup, reused seed login counters, lazy Home prewarming and clock setup were
+  repaired without changing production limits or any baseline assertions.
+- Run 3 was invalid: pausing timers also blocked React Query notifications. Only
+  its owned Playwright process was interrupted; owned services cleaned up.
+  Date-only fixed clocks now preserve normal timers and standard JWT lifetimes.
+- Run 4 passed its first accessibility journey, then timed out during the race
+  after two installed-PWA onboarding waits consumed the test budget. Normal
+  browser setup removes those unrelated waits; the 30-second timeout stays.
+- Run 5 passed two journeys, then exposed a real stale-revision bug in offline
+  replacement. An accepted receipt advertised readiness before its authoritative
+  GET finished. A paused-refresh component test failed before the fix. Edits
+  now wait for refresh, failed refreshes keep controls unavailable and the same
+  immutable operation can be checked again. Race evidence now requires both
+  actual PUT responses (200 and 409 FIXTURE_TAKEN) and the loser's old pick.
+
+Independent review also repaired session rejection losing its exact return URL,
+including #payment; three real refusal-protocol tests cover that redirect.
+Accepted operations refresh existing league, standings and results query roots;
+query key shapes remain unchanged. API refresh/member-switch, visible Home500,
+retained navigation, archive shell context and payment focus fixes are covered.
+Run 6 passed the first three, then found a clock setup error: fixed Date does
+not fire an existing deadline timer. Running installed clocks with fastForward
+now exercise the actual boundary; the production expiry hook is unchanged.
+Run 7 passed six, including both locks/settlement/history checks, then its
+logout setup wrongly expected Home after Bob signed in; the actual preserved
+Group destination is correct. That step now asserts Group and Bob's identity,
+while keeping the no-replay/database assertions. Cold archive login also now
+uses the shared exact-route predicate; its new mounted test failed 2 of 6 before
+that fix. All six new unit files pass 44 tests. Lost/truncated 200 bodies retain
+an uncertain operation for exact readback; cold refresh cannot restore an older
+member over a newer login. Representative screenshots now preserve actual
+1280px desktop and 390px phone viewports in both themes.
+
+Run 8 was not accepted; only its eight desktop checks passed. The
+reviewed full web suite passed 1,466 tests across 88 files before the last archive
+fix and six new route cases. Independent count review reconciled the unchanged viewport test's automatic
+case per TSX file: 1,418 baseline + 44 explicit new checks + 10 new TSX viewport
+cases = 1,472. Only that legitimate frontend ratchet is raised; the final gate
+must confirm 89 files and exactly 1,472 tests. A final new API test's two unknown
+error type errors were fixed with an explicit ApiError instance assertion.
+
+Run 8 passed all eight desktop journeys, then the actual phone UA encountered
+the unchanged mobile installation gate before login. Run 9 now models installed
+phones and the seeded members having already declined notification onboarding;
+no subscription, permission request, product gate or login limit is bypassed.
+Run 9 passed all 16 browser checks in 91.37 seconds: eight desktop and eight
+installed-phone journeys, zero failures, flaky retries or skips. This covers
+browser → real API → freshly migrated scratch PostgreSQL, real JWT/login/refresh,
+concurrent whole-fixture claims with 200/409 and preserved loser, offline route
+changes and uncertain readback, exact 14:30 boundary, real settlement, voids,
+No coupon, retained/legacy history, inactive/404 compatibility, visible 500,
+week-specific payment focus and member-switch discard. Counting fake transports
+prove Group triggered no quote requests. Dark/light axe includes colour contrast;
+320/640 reflow, 44px targets and keyboard focus pass. Actual 390px phone and
+1280px desktop captures were inspected; screenshots are test evidence, not a
+production preview. This supplemental pass does not replace the full gate.
+
+Independent source review accepted the repaired readiness, lost-body, session
+fences, cold archive routes and count accounting. Final type checking passes;
+Ruff check/format of the new test-only server and runner pass. The candidate is
+ready for the unmodified full 12-check gate, expected 2,067 backend / 1,472 web /
+journey 1 with zero skips; no Batch 227 milestone acceptance is claimed yet.
+
+Reproduce the seeded browser journey from this checkout:
+
+```bash
+PATH=/Users/craigrobinson/.nvm/versions/node/v24.21.0/bin:$PATH /Users/craigrobinson/.cache/the-coupon/ci-local-venv/bin/python /Users/craigrobinson/the-coupon/scripts/verify-two-game-web.py
+```
+
+The runner owns disposable loopback API/web ports and a scratch database, uses
+synthetic members/PINs and fake transports, and cleans up its own services.
+View `.local/overnight-two-games/227-browser/group-phone.png` and
+`group-phone-dark.png` (plus desktop counterparts); JSON stats and API/build logs
+are beside them. These files are ignored local evidence. No live credentials,
+provider account, banking or external payment link is used.
+
+## Addressed read APIs (226, locally verified)
+
+The verified branch is `feat/batch-226-game-reads`, stacked on verified 225 commit
 `92c903b`. Home, league-games and exact-week results use one repeatable-read,
 read-only snapshot and typed cards. Every actionable target remains outside
 parent-key archive pagination. Group stays unpriced; fantasy exposes six exact
@@ -134,8 +241,9 @@ no-entry/all-void/late join, global/exact-off retained totals, suspension,
 retained pending history and delayed HTTP payment assignment with concurrent
 single receipt claim. The isolated production-environment payments import
 checks no API settings dependency. The no-child HTTP/receipt regression confirms
-no invented game, fee, provider work or pick promise. Independent source review passes after the recorded fixes; the full gate remains
-pending. Earlier milestone stamps do not cover this branch.
+no invented game, fee, provider work or pick promise. Independent source review
+passes after the recorded fixes. Its full gate passed all 12 checks on the exact
+tree above; the frozen report recorded the pending invocation.
 
 Independent review found malformed typed cursor payloads causing 500, inconsistent
 locked Group audiences, unavailable-entry receipt links falling back to legacy,
@@ -157,17 +265,16 @@ Ruff/import/type iterations used explicit source types and normal imports,
 including WeekFee's `amount_owed_pence`, with no suppressions. Mypy passed 133
 source files after the last form filter. Collection is 2,067, exactly 39 above
 the verified predecessor; only the legitimate backend count ratchet is raised.
-The unmodified full gate will run with no skips or production-bundle override.
+The unmodified full gate passed with zero skips and no production-bundle override.
 
-Both web flows remain unimplemented. Production checkpoint remains unperformed
+Group web is drafted in 227; the Fantasy editor remains unimplemented. Production checkpoint remains unperformed
 under the owner's local-only exception: no recovery point, shipment, live setting,
 provider/banking probe, activation or formal close-out is claimed.
 
 ## Results and lifecycle implementation (225, locally verified)
 
 The active branch is `feat/batch-225-two-game-results`, stacked on verified
-224 commit `f29adbc`. Its full unmodified gate passed on the exact tree recorded above; the report in that frozen commit recorded the pending invocation. Both web flows
-and the complete read API remain pending in 226–228.
+224 commit `f29adbc`. Its full unmodified gate passed on the exact tree recorded above; the report in that frozen commit recorded the pending invocation. Read APIs are verified in 226; web acceptance remains pending in 227–228.
 
 Settlement now takes a persisted, leased unit for each distinct picked fixture.
 One counted result request serves eligible legacy, group and fantasy claims
@@ -707,8 +814,8 @@ source or assertions. No full milestone failure is hidden by focused passes.
 
 ## Remaining release gates and exact next step
 
-Complete Batch 226 on verified local parent `92c903b`, then commit
-only its verified tree and stack Batch 227. Continue the
+Complete Batch 227 on verified local parent `94659e2`, then commit
+only its verified tree and stack Batch 228. Continue the
 authorised stack through both web flows and final review. Earlier stamps do not
 cover the changed tree. Do not merge or push.
 

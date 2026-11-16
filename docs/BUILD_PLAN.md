@@ -71,6 +71,11 @@ source of truth. The React PWA consumes snake_case `/api/v1/` JSON.
 
 ```text
 React PWA / invite / inbox
+  └─ [INACTIVE: exact server-enabled game cards]
+     Home / UUID Group / parent archive / retained read-only results
+     authenticated shell → member-bound per-target operation queue
+     exact readback → same operation PUT → authoritative refresh → ready
+     route changes retain pending choices; logout discards member queue
            ↓ /api/v1, explicit league + week + game + slot
 FastAPI + scheduler ─────────────────── payments service
            ↓                            Monzo reads only

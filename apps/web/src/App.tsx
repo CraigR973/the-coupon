@@ -5,6 +5,7 @@ import { installResumeRefetch } from './lib/resumeRefetch';
 import { lazyRoute } from './lib/lazyRoute';
 import { AuthProvider } from './contexts/AuthContext';
 import { LeagueProvider } from './contexts/LeagueContext';
+import { GameIntentProvider } from './contexts/GameIntentContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -42,6 +43,10 @@ const CareerProfilePage = lazyRoute(() => import('./pages/CareerProfilePage').th
 const OfflinePage = lazyRoute(() => import('./pages/OfflinePage').then((m) => ({ default: m.OfflinePage })));
 const SettingsPage = lazyRoute(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const AboutPage = lazyRoute(() => import('./pages/AboutPage').then((m) => ({ default: m.AboutPage })));
+
+const FantasyWeekPage = lazyRoute(() => import('./pages/FantasyWeekPage').then(m => ({default:m.FantasyWeekPage})));
+const GroupGamePage = lazyRoute(() => import('./pages/GroupGamePage').then(m => ({default:m.GroupGamePage})));
+const GameArchivePage = lazyRoute(() => import('./pages/GameArchivePage').then(m => ({default:m.GameArchivePage})));
 
 // League management
 const MyLeaguesPage = lazyRoute(() => import('./pages/MyLeaguesPage').then((m) => ({ default: m.MyLeaguesPage })));
@@ -115,7 +120,7 @@ installResumeRefetch();
 function LeagueAwareLayout() {
   return (
     <LeagueProvider>
-      <Outlet />
+      <GameIntentProvider><Outlet /></GameIntentProvider>
     </LeagueProvider>
   );
 }
@@ -176,6 +181,9 @@ export function App() {
                       {/* Standard app shell with TopBar + TabBar */}
                       <Route element={<Layout />}>
                         <Route path="/" element={<DashboardPage />} />
+                        <Route path="/leagues/:leagueId/weeks/:weekId/group" element={<GroupGamePage />} />
+                        <Route path="/leagues/:leagueId/weeks/:weekId/fantasy" element={<FantasyWeekPage />} />
+                        <Route path="/leagues/:leagueId/games" element={<GameArchivePage />} />
 
                         {/* The weekly coupon, addressed at a league so a week can be
                             linked, shared and reopened at the league it came from. */}
