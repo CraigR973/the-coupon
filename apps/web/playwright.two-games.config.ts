@@ -3,7 +3,7 @@ if (!process.env.COUPON_TWO_GAME_WEB_URL)
   throw new Error("Use scripts/verify-two-game-web.py with isolated servers");
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: ["**/two-game-group.spec.ts"],
+  testMatch: ["**/two-game-group.spec.ts", "**/two-game-fantasy.spec.ts"],
   fullyParallel: false,
   forbidOnly: true,
   retries: 0,

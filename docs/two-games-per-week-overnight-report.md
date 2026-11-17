@@ -1,11 +1,181 @@
 # Two games per week — local implementation report
 
-15 Nov 2026 · work in progress. Production unchanged; no shipment, activation or
-formal batch close-out performed. Canonical batch rows remain unchecked.
+17 Nov 2026 · frozen local recovery checkpoint. Production unchanged; no shipment,
+activation or formal close-out. Canonical batch rows remain unchecked.
 
-## Current checkpoint
+## Final verification snapshot and outcome
 
-8 of 10 batches locally verified. Batch 219 contracts passed independent review
+At this document freeze, nine historical milestones (219–227) retain their
+verified local commits. Batch 228 has independent 21-case source review and
+strict 30-story desktop/installed-phone acceptance. It remains unaccepted and
+uncommitted because the complete canonical gate returned 11 of 12, not PASS.
+
+The latest full run passed all 2,067 backend tests, all 1,496 frontend test
+assertions, 38 production-bundle smoke stories and the seeded journey, with zero
+skips. The unchanged gate rejected the frontend count because ANSI escape bytes
+separated `Tests` from `1496`. This is a confirmed wrapper-environment defect,
+not a failed frontend assertion. No PASS stamp exists. The older backend/journey
+failures have passing component evidence in full order; the full gate is still red.
+The [failed canonical certificate](../.local/overnight-two-games/recovery-canonical-attempt2.certificate.json)
+and [complete gate log](../.local/overnight-two-games/recovery-canonical-attempt2.log)
+retain that exact-tree result (`2116dae3106bf939c7b6db0d84a614984839f14f`).
+
+The sanitised wrapper dropped the parent's colour controls. Independent read-only
+review confirmed installed Vitest enables ANSI with both controls absent. The
+concrete fix is explicit `NO_COLOR=1`, `TERM=dumb`, with `FORCE_COLOR` absent in
+the sanitised environment. Original source, parser, tests, counts, deadlines,
+configuration and full gate remain unchanged. No historical output is replayed,
+cleaned into acceptance or used to manufacture a stamp.
+Review: [frontend count investigation](../.local/overnight-two-games/recovery-frontend-count-review.md).
+
+Both backend families and the journey family have used all three renewed actual
+attempts. Their last component results passed, but another complete gate would
+execute attempt four. It therefore requires fresh, exact approval for one further
+full local `scripts/ci-local.sh` run (about 30 minutes), with the two presentation
+controls above. No extra full gate is run under a silent extension of the cap.
+No source repair, release, push or activation is part of that proposed approval.
+
+Strict browser attempt 2 passed all 30 on the failed-gate tree in 249.018 seconds,
+zero failed/flaky/skipped, retries zero. The report/STATUS update for this honest
+checkpoint changes only documentation. To verify this final frozen tree exactly,
+the third and final already-authorised browser attempt runs after this freeze.
+Its actual outcome is recorded in
+[final-tree browser evidence](../.local/overnight-two-games/recovery-browser-attempt3.json).
+No runtime source/test change is made and no failed story is retried hoping for green.
+
+The actual final outcome, accepted tree and matching local commit belong only to
+the [final local acceptance certificate](../.local/overnight-two-games/recovery-final-acceptance.json).
+It may be created only after an authorised unmodified complete gate passes on
+this unchanged document/source tree, the strict browser result matches that tree,
+independent runtime review passes, and the explicit local commit matches it.
+An absent/failing certificate means Batch 228 is not accepted. Keeping actual
+outcomes in ignored evidence avoids document drift or reuse of an old PASS stamp.
+The [resumable checkpoint](../.local/overnight-two-games/recovery-blocked-checkpoint.json)
+records exact refs, scope, attempts and the missing approval. Production remains
+unchanged; owner review, exact-head CI, tested production recovery, same-head
+API/payments shipment before web and exact-week activation remain separate gates.
+
+## Recovery evidence before the final freeze
+
+The owner expressly authorised separate baseline recovery, only two new legacy
+POST status corrections, a fresh maximum three attempts per failing family
+including diagnostics/full runs, and reviewed explicit local commits.
+All original failures and prior attempt history remain in this report/journal.
+No baseline source patch was justified; no worktree was created. Main,
+planning and all nine earlier milestone branch references remain unchanged.
+
+Renewed baseline observation 1 encountered confirmed low-battery system sleep
+for 68 seconds, followed by offline Home queries. Its 51.797-second animation
+wait and 54.892-second metrics gap coincide with system power records.
+This establishes the evening interruption, not the older afternoon timeouts'
+cause. The Mac was then on AC and charging; a temporary owned awake assertion
+protected verification without persistent power settings or unrelated changes.
+
+Exact unchanged main, canonical runner/test/config, fresh migration 031 and
+fake providers then passed the retained journey: one passed, zero failed,
+skipped or flaky, in 1.7 minutes. Original 240-second overall and 30-second
+teardown limits remain. Evidence is `recovery-baseline-diagnostic2.*` plus
+the power/timing investigation under `.local/overnight-two-games/`.
+No baseline source recovery commit is invented.
+
+The two newly written mixed-week POST expectations now require the established
+201 for initial save and replacement. The correct backend, other response,
+pressed-state, destination and database-isolation oracles remain unchanged.
+The shared-selection story overlaps Bob's real login with independent Alice
+interactions and Bob's real save only after Alice's first accepted selection.
+Every original request/success/share assertion, WCAG scan, theme, screenshot,
+viewport, focus and 44 px target check remains. All seven Fantasy route queries
+and the unchanged cancellation regression are retained.
+
+The strict original runner passed all 30 stories in 221.171 seconds:
+15 desktop and 15 installed-phone, zero failures/flaky/skipped, retries zero.
+Shared-selection/accessibility completed in 11.089 seconds on desktop and
+12.007 on phone, within its original 30-second limit. Those timings reflect
+both current environment and overlapping setup; the full improvement is not
+attributed to scheduling alone. Browser-tested tree:
+`5c890d4d924936f464f70d9f08c2acc4b3ff5593`; only report/STATUS change for freeze.
+Evidence: `recovery-browser-attempt1.json` and
+`recovery-browser-attempt1-evidence/`, with JSON, logs and desktop/phone
+light/dark screenshots. Representative captures were inspected.
+The runner still rejects an incomplete count or any failure, skip or flaky case.
+
+One renewed observation-only backend diagnostic passed both unchanged failing
+tests on fresh 032, zero skips, in 53.92 seconds. Observed response-before-
+notification: 0.198928 seconds to body, 0.240255 afterwards. The burst prepared
+twelve 49-recipient audiences and completed all 588 synthetic sends, with no
+observed phase/transport exception; original exact Counter, total-send and
+returned-pool assertions pass. Observation delegates original code and the
+test's actual slow transport, buffering direct JSONL outside file I/O.
+Its overhead makes it diagnostic only, not canonical acceptance.
+
+The older full-order missing audience and relative-timing failures retain
+unproved causes. In-process migration setup can disable existing loggers, so
+absent exception logs did not exclude a swallowed exception. No invented patch,
+environment attribution or removed mandatory parent-format fence is used.
+Only the final unmodified full-order gate clears their current acceptance
+requirement; its actual outcome belongs to the linked final certificate.
+Diagnostic evidence is `recovery-backend-isolated-attempt1.*`.
+
+Independent review directly inspected all 21 F1–F6/C1–C6/Q1–Q9 source mechanisms
+and meaningful regression assertions plus current Fantasy/Home/queue/session
+behaviour. No confirmed material functional defect was found.
+Review: `recovery-independent-review.md`. The final canonical gate and full
+browser suite revalidate migration recovery/legacy compatibility, provider admission, Monday fees/FIFO/
+membership, both entry APIs/replay, settlement/corrections/season totals,
+read-only summaries, and earlier Group/legacy web behaviour.
+
+Home now exposes independent exact game/week targets. Six Fantasy slots retain
+their own revisions/operations, two offline choices and uncertain-write readback.
+Fresh named-price consent precedes each atomic save; Group never reserves
+Fantasy choices. Authoritative results retain legacy plus Fantasy points once.
+Monday-to-Monday £1 dues remain independent of participation with pooled FIFO.
+The single architecture map in BUILD_PLAN records this inactive structure.
+
+```text
+Exact Home game/week
+        ↓
+Slot read + revision → member-bound operation queue
+        ↓
+Fresh named price → atomic slot → authoritative result/fee refresh
+```
+
+Recovery decisions: retain all seven freshness/cancellation queries; overlap
+only independent test setup; use temporary awake protection; preserve unexplained
+historical failures rather than invent a source repair. No product, money,
+authentication or release decision changed.
+
+Reproduce with the pinned Node 24 PATH and pinned CI-local Python running
+`scripts/verify-two-game-web.py`. It builds the real web bundle, creates and
+migrates disposable PostgreSQL, owns loopback-only API/web servers and uses
+fake transports/synthetic members, then cleans up. The exact command remains
+below. Production, provider availability, delivery receipt and natural payment
+acceptance remain separate and unperformed.
+
+One proposed final canonical invocation was interrupted before its seeded
+journey for a provider-environment review. The agent mistakenly interpreted
+fake transports as requiring global ODDS_PROVIDER=fake. The actual request
+requires fake football/odds/banking transports and synthetic credentials.
+Its full backend passed 2,067 tests with zero skips; guardrails, installer,
+deployment, lint and types passed. Frontend output was partial at interruption;
+its count-read failure is not a confirmed unit-test failure. No full PASS or
+stamp is claimed. Only owned gate descendants were interrupted.
+Read-only preflight found that global fake would fail the unchanged test of the
+oddsapi default. The full rerun therefore leaves ODDS_PROVIDER unset for that
+configuration oracle, while preserving fake/injected transports and synthetic
+credentials. No production credential file is loaded; the canonical E2E server
+binds FakeBetfair. No test, gate or provider implementation is changed.
+Superseded output/certificate remain in recovery-canonical-attempt1.*.
+The unnecessary interruption costs another full gate; it is not a source repair.
+The corrected run is backend family attempt 3 of 3. The interrupted invocation
+never executed its reserved canonical journey; that cancelled reservation is
+retained separately, leaving two actual journey runs before correction.
+The final strict 30-story suite also runs once more on the exact final frozen
+tree, within the approved three-attempt bound.
+Actual final outcomes remain only in the linked ignored certificate.
+
+## Historical milestone evidence
+
+Batch 219 contracts passed independent review
 and the unmodified full 12-check gate: backend 1,650, frontend 1,418, seeded
 journey 1, zero skips. Exact verified tree `532b4c0ae32249051381f4f4c0192d8a3fc5e2d9`
 matches commit `1a0ca8f2d78c6334bd14e1caf5c74e41943238b0`; evidence is in
@@ -39,10 +209,14 @@ checks: backend 2,067, frontend 1,418 and journey 1, zero skips. Verified tree
 `70f382573b7cee924584d264a2fcc24e3ae4e40c` matches local commit
 `94659e26bd9426ce3b4e5409c3b7d0d4b589c5ad`; log
 `.local/overnight-two-games/226-gate-attempt1.log`. Its committed report records
-the pending invocation; this branch records the result. Batch 227 has started;
-228 has not started.
-Production remains unchanged. Group/Home/archive UI is drafted but unverified;
-Fantasy has a read-only addressed landing, with its editor still pending 228.
+the pending invocation; this branch records the result. Batch 227 passes all 12
+checks: 2,067 backend / 1,472 frontend / journey 1, zero skips. Exact tree
+`3b140c8111958301719c451b147e5ca624a829fa` matches local commit
+`1fbc6df28fbc2319491a9f34dd06733f958d6841`; log
+`.local/overnight-two-games/227-gate-attempt1.log`. Backend raw summary is
+2,067 passed, eight existing AsyncMock warnings, 1,124.90 seconds. This later
+branch records that result; the report in 227 records its pending invocation.
+Batch 228 has a draft Fantasy editor; browser acceptance is blocked as above. Production unchanged.
 
 Batch 221's implementation now passes independent source review. Focused
 transport/quote/provider/scheduler checks passed 290 tests with zero skips;
@@ -109,15 +283,15 @@ run. The second gate verified the entire corrected tree.
 | 223 group API | Locally verified; commit `8dfd28d` | `feat/batch-223-group-api` / `7a98d95` |
 | 224 fantasy API | Locally verified; commit `f29adbc` | `feat/batch-224-fantasy-api` / `8dfd28d` |
 | 225 results/lifecycle | Locally verified; commit `92c903b` | `feat/batch-225-two-game-results` / `f29adbc` |
-| 226 read APIs | Locally verified | `feat/batch-226-game-reads` / `94659e2` |
-| 227 group web | In progress | `feat/batch-227-group-web` / `94659e2` |
-| 228 fantasy web | Not started | Pending verified 227 |
+| 226 read APIs | Locally verified; commit `94659e2` | `feat/batch-226-game-reads` / `92c903b` |
+| 227 group web | Locally verified; commit `1fbc6df` | `feat/batch-227-group-web` / `94659e2` |
+| 228 fantasy web | Final candidate; linked certificate records acceptance/commit | `feat/batch-228-fantasy-web` / `1fbc6df` |
 
-## Group web implementation (227, draft)
+## Group web implementation (227, locally verified)
 
-The active branch is `feat/batch-227-group-web`, stacked on verified 226 commit
+The verified branch is `feat/batch-227-group-web`, stacked on verified 226 commit
 `94659e2`. Exact UUID Group/Home/archive routes and target-specific payment panels
-are drafted. A shell-level member-bound queue retains choices across route
+are implemented. A shell-level member-bound queue retains choices across route
 remounts, reads before sending/retrying the same immutable operation, and ignores
 late responses to older choices. Structured 402/409 responses survive a successful
 401 refresh; an account switch during refresh cannot dispatch an old member's
@@ -126,11 +300,10 @@ Legacy/inactive Home remains on its existing presentation; enabled Home uses
 explicit cards and neutral action copy. Retained history uses the read-only226
 results route when the current-entry view refuses access.
 
-The draft full web suite passed 1,455 tests across 86 files, zero skips; later
-readiness/auth regressions and source repairs require fresh full verification.
-The final focused readiness/protocol slice passes 25 tests. Type checking passes;
-lint last reported zero errors and 19 existing warnings. No Batch 227 full gate,
-staging, commit or acceptance is claimed. Fantasy editor remains pending 228.
+The final full gate passes 12/12: 2,067 backend / 1,472 frontend / journey 1,
+zero skips. Its 44 explicit new unit cases plus ten automatic viewport cases
+explain the 54-test web ratchet. Type checking and lint pass; lint retains 19
+existing warnings. Commit `1fbc6df` matches the exact verified tree above.
 
 Browser failures and corrections are retained under the ignored journal:
 
@@ -198,8 +371,8 @@ production preview. This supplemental pass does not replace the full gate.
 Independent source review accepted the repaired readiness, lost-body, session
 fences, cold archive routes and count accounting. Final type checking passes;
 Ruff check/format of the new test-only server and runner pass. The candidate is
-ready for the unmodified full 12-check gate, expected 2,067 backend / 1,472 web /
-journey 1 with zero skips; no Batch 227 milestone acceptance is claimed yet.
+verified by the unmodified full 12-check gate: 2,067 backend / 1,472 web /
+journey 1 with zero skips.
 
 Reproduce the seeded browser journey from this checkout:
 
@@ -213,6 +386,247 @@ View `.local/overnight-two-games/227-browser/group-phone.png` and
 `group-phone-dark.png` (plus desktop counterparts); JSON stats and API/build logs
 are beside them. These files are ignored local evidence. No live credentials,
 provider account, banking or external payment link is used.
+
+## Historical fantasy checkpoint before recovery (228)
+
+This subsection preserves the stopped 15:57 checkpoint and original failures.
+Its then-current blockers and approval needs are superseded by the recovery
+snapshot above; no historical red result or missing criterion is erased.
+
+The branch `feat/batch-228-fantasy-web` is stacked on verified 227. Six separate
+slot/revision queries share the shell's exact member/league/week/kind/slot queue.
+The chooser preserves named decimal prices, records a fresh UUID for every
+explicit PRICE_MOVED confirmation and keeps other slots usable during a save.
+Saved prices/results come from authoritative reads, never a historical receipt.
+Slot reads poll with the view; explicit empty/tombstone reads cannot fall back to
+an older pick. Weekly results, member totals/ties, recent mixed-format history,
+exact payment targets and links to the existing canonical season table are shown.
+The browser does not add weekly points to the season total itself.
+
+Current focused component/protocol checks: 22 passed, zero skips. Browser suite
+now has 30 strict checks (seven new Fantasy plus eight retained Group stories,
+each desktop/phone). Its complete pass is blocked. Historical canonical gate 1
+passed all 12 checks on candidate tree
+`d5fe7719d989ff20d6fb4ebccf95211939074f9c`: backend 2,067, frontend 1,496,
+seeded journey 1, zero skips. The production-bundle deep-link smoke also passes.
+This is canonical-gate evidence for an unaccepted candidate, not Batch 228
+acceptance. The log and identity certificate are
+`.local/overnight-two-games/228-gate-attempt1.log` and
+`228-gate-attempt1.certificate.json`. The staged tree stayed unchanged during
+that run. Later report/status changes are not covered by that first stamp.
+
+The final unmodified gate 2 ran from 14:16 to 15:40 UTC on 16 Nov and failed;
+10 of 12 checks passed on frozen tree `5a96fd6f6b86b2f68718fe469073e9b78bb71a84`.
+Only STATUS.md and this report differed from gate 1; runtime source and tests
+were identical. Backend: 2,065 passed, two failed, zero skipped, eight existing
+AsyncMock warnings, 3,884.56 seconds. Frontend: 1,496 passed across 92 files,
+zero skipped, 362.58 seconds. Lint, format, types, frozen dependency install,
+deployment assertions, build and all 38 production-bundle smoke cases passed.
+The seeded journey failed: zero passed/skipped/flaky, one failed. Its exact
+tree/result and full raw output are retained in
+`228-gate-attempt2.certificate.json`, `228-gate-attempt2.log` and
+`228-gate-attempt2-all-raw.log` under the ignored evidence directory.
+
+The gate's staged tree and parent remained unchanged and no unstaged edits
+occurred. There is no canonical PASS stamp. The wrapper's
+`candidate_identity_matches: false` includes the missing PASS-stamp check;
+it does not indicate observed source drift. This report/status update follows
+the red run. Its exact final staged tree is saved separately in
+`final-review-checkpoint.json`; that checkpoint verifies scope and identity,
+not acceptance. No earlier stamp verifies the updated final document tree.
+
+### Latest canonical failures and classification
+
+1. The unchanged response-before-notification test failed for 12 members:
+   response 0.512749913 seconds versus fan-out 0.413683573 seconds. HTTP 201,
+   all 11 recipients and the minimum real fan-out duration passed. Independent
+   review confirms sends are scheduled after the response with BackgroundTasks;
+   the assertion's error text does not prove inline sending.
+2. The unchanged 12-pick/50-member burst received all twelve HTTP 201 responses
+   but failed its exact notification Counter. The abbreviated diff reports one
+   identical endpoint and 49 differing endpoints. It suggests an absent audience
+   but does not establish the exact actual send total. The expected total is
+   588; the later pool-check assertion was not reached. This is not a timing
+   assertion. No matching background exception is present in the captured log.
+3. The unchanged seeded journey exceeded its 240-second overall deadline near
+   the final registration step; the page remained `/register` instead of `/`.
+   The API records successful registration/HTTP 201, without a registration
+   rejection, 429 or 5xx. Trace teardown also exceeded 30 seconds and its zip is
+   truncated. Client navigation versus aggregate elapsed time remains unresolved.
+   All 68 preserved evidence files are in `228-gate2-journey-evidence/`.
+
+Classification used bounded comparisons, not another full gate or altered
+assertions. Both named backend tests are byte-for-byte identical to main.
+The exact two tests on exported main `dfb39fe`, freshly migrated to 031, passed
+in 73.79 seconds with zero skips. The same tests on the unchanged candidate and
+fresh 032 then produced one failure/one pass in 78.50 seconds: response timing
+failed again at 0.379385182 versus 0.303981636 seconds, while the burst's exact
+Counter, 588 sends and free-pool assertions all passed. Thus the candidate timing
+failure is reproduced; the full-order notification shortfall is not reproduced
+in isolation. The latter pass does not erase the earlier failure.
+
+Source review found no confirmed timing cause. Existing legacy links add no
+format-read SQL; free legacy dues remain query-free and imports precede the
+timed request. Migration 032 adds the mandatory parent-format fence lookup to
+legacy pick writes; its cost was not measured and it was not removed. There is
+no evidence justifying a source fix or a claim that load/environment caused
+either backend failure. The timing check has failed twice; another run is not
+used to fish for green. Diagnostic logs/JSON are
+`228-main-pick-tests-diagnostic1.*` and
+`228-candidate-pick-tests-diagnostic1.*`.
+
+The exact unchanged canonical journey runner body and test were then run on a
+read-only main source export, fresh 031, fake providers and the same deadlines.
+It also failed: zero passed/skipped/flaky, one failed, 240-second story timeout
+and 30-second trace teardown/truncated zip. Main's output does not establish
+the same registration stop. This reproduces a red main journey check, not its
+underlying cause. Evidence is `228-main-journey-diagnostic1.log`, its JSON and
+`228-main-journey-diagnostic1-evidence/`. AGENTS.md and the saved prompt require
+stopping the affected chain and recovering the baseline separately. No baseline
+fix, third full gate or further browser retry is folded into this batch.
+
+All comparisons used synthetic credentials, loopback servers and disposable
+databases without changing a checkout, branch, worktree, test, deadline or gate.
+An initial diagnostic database startup inherited an invalid locale before any
+test ran; pinning the helper process's LANG/LC_ALL corrected that environment
+error. The raw-log observer raced temporary-log cleanup and reported FileNotFound
+after preserving the gate output; it did not affect the gate. Optional py-spy
+inspection was refused because macOS required root; no escalation was attempted.
+The apparent slow backend run continued to completion; the proposed unbounded
+future-week catch-up hypothesis was rejected by source review, not patched.
+
+Independent cumulative source review of 219–227 found no confirmed material
+breach in billing, quote admission, provider accounting, replay or results.
+Independent 228 review found the stale cached-slot and explicit-null precedence
+issues described above; both have source fixes and semantic regressions.
+The stronger noon browser assertion also exposed stale Home cards in the mounted
+shell. Home now refetches at exact opens/locks, rearms after successful reads and
+polls enabled results every 30 seconds. Inactive installations do not gain that polling.
+
+Failures and fixes so far:
+
+- Browser 1: zero passed, one failed, 29 not run. A selected new control's light
+  hover colour failed contrast; new editor controls now use the established
+  outline/surface styles. No shared style, axe rule or threshold was changed.
+- New unit run 1: 11 passed, four failed because test actions preceded the
+  authoritative initial revision read. Waiting for enabled controls gives 15/15;
+  adding passive settlement/correction and tombstone regressions gives 17/17.
+- Browser 2: four passed, one failed, 25 not run. Advancing timers by 36 hours
+  correctly fired the unchanged ten-second request deadline on a held receipt.
+  The late-packet scenario now advances server/browser wall time with the
+  documented setSystemTime API, preserving normal elapsed-time deadlines.
+  Exact lock scenarios retain running timers and fastForward.
+- Browser 3: three passed, one failed, 26 not run. The new simultaneous-state
+  assertion exposed stale Home cards after noon. Deadline, passive result and
+  inactive-poll regressions now pass with the Home refresh fix.
+- Browser 4: one passed, one failed, 28 not run. A route was taken offline
+  before its fresh reads completed. A background network failure also hid the
+  cached Fantasy view. Cached views now survive network errors visibly, and a
+  known offline slot can queue from its last received revision; HTTP/auth refusals
+  remain blocking. Dispatch still requires exact fresh server readback. A mounted
+  regression proves cached-view survival and zero blind writes. The browser waits
+  for known revisions before going offline.
+- Browser 5: zero passed, one failed, 29 not run. Sequentially prewarming eight
+  synthetic quotes consumed the first story's 30-second budget. The fixture now
+  uses the actual SharedQuotes eight-event chunk in one counted fake
+  transport request. No timeout, quota, assertion or gate was loosened.
+- Browser 6: zero passed, one failed, 29 not run. The fixture bulk prewarm
+  selected background admission during the real opening pause. Explicit synthetic
+  prewarming now uses foreground admission, as the prior get_fresh calls did.
+  The actual budget/pause controls and production callers remain unchanged.
+- Browser 7: zero passed, one failed, 29 not run. The unchanged 30-second
+  story deadline expired before Group loaded, after three successful Fantasy
+  saves. Independent trace review found an 8.6-second seed repeatedly hashing
+  the same synthetic PIN. The guarded harness now hashes that fixed PIN once
+  at startup; all profiles still use normal bcrypt login verification. This is
+  the second duration failure; the corrected run is the third permitted attempt.
+- Browser 8: one passed, one failed, 28 not run. The first story now meets
+  its unchanged deadline. Reconnecting two offline fills resumed 20 reads,
+  including seven for an abandoned Fantasy week; both writes reached 200,
+  but confirmation missed its unchanged five-second check. Fantasy reads now
+  consume React Query cancellation signals, so leaving a route cancels its
+  paused reads while the shell-owned write queue survives. A new regression
+  retains the mounted query client across offline navigation and reconnect.
+- A draft type check rejected the new regression using Playwright-only `exact`
+  in Testing Library. Anchored role-name matching preserves exactness; no
+  assertion or suppression was relaxed.
+- Browser 9: four passed, one failed, 25 not run. Offline fills/reconciliation,
+  repeated price consent and noon/early payment pass. The late-results story
+  reached the canonical table with 52 points, then used a heading locator for
+  the existing paragraph season caption. The new test now requires the actual
+  league heading and the exact season caption; its 52-point, correction and
+  legacy assertions remain intact. Existing page/tests were not changed.
+- Browser 10: five passed, one failed, 24 not run. The complete late-results,
+  canonical 52-to-30 correction and legacy navigation story passes. The new
+  away-choice helper requested a two-decimal button name although quotes retain
+  four decimal places. The helper now names the exact server price; all result,
+  tie, all-void and no-entry assertions remain unchanged.
+- Browser 11: zero passed, one failed, 29 not run. The first story exhausted
+  its unchanged 30-second overall deadline during light-theme axe. Shared-selection
+  database assertions, dark-theme axe and captures had already completed; this
+  does not prove an individual product or accessibility defect. It is the third
+  total-duration failure (5/7/11), so no further retry, timeout increase or story
+  split is authorised. Evidence is preserved in
+  `.local/overnight-two-games/228-browser-attempt11-evidence/`.
+- Independent browser diagnostic 1: five desktop stories passed, including partial
+  zero-point ties/all-void/no-entry. Mixed-week navigation then failed because the
+  newly written first legacy save assertion expects 200; the unchanged legacy
+  route and baseline HTTP tests require 201, including replacement. The assertion
+  remains unchanged. Twenty-two checks did not run. This diagnostic cannot accept
+  the milestone; evidence is in
+  `.local/overnight-two-games/228-independent-browser-attempt1-evidence/`.
+- The first launch of the remaining diagnostic used an unquoted PATH containing
+  an application name with a space; the shell refused before any test started.
+  Quoting the environment assignment corrected the invocation without source edits.
+- The new cached-view unit initially asserted before React Query notified the
+  render; awaiting the visible error preserves its assertions. All 21 new cases
+  passed at that checkpoint; the later cancellation case brings the current total to 22. Initial formatter path/cwd mistakes made no source change; the correct
+  targeted formatting completed. New harness import sorting was fixed, without suppression.
+
+Independent final source re-review accepts the offline guards, slot and Home
+freshness fixes, per-target price consent and mixed legacy/Fantasy interaction
+coverage. Runtime acceptance remains the full browser/gate responsibility.
+
+The remaining independent diagnostic passed all 26 selected browser stories in
+4.9 minutes: five Fantasy plus eight Group stories on both desktop and installed
+phone, zero failures/flaky/skipped, retries 0. This proves two offline slot fills,
+uncertain replacement reconciliation, repeated price consent, both noon states,
+target-specific early payment, Sunday/late receipts, 52-to-30 correction,
+partial-zero ties/all-void/no-entry and all retained Group stories on this draft.
+The shared-selection/accessibility and mixed-week story families were not rerun;
+these 26 passes cannot replace the full 30-story acceptance. The unchanged runner
+correctly refused the incomplete count; the ignored wrapper labels it diagnostic
+only. Evidence: `.local/overnight-two-games/228-independent-browser-remaining/`
+and `228-remaining-browser-attempt1.log`.
+
+Final independent candidate re-review found no additional confirmed material
+production-source defect. It confirmed that the two new mixed-week response
+expectations, rather than legacy API behaviour, require review. Its durable
+notes are `.local/overnight-two-games/final-review-notes.md`.
+
+To reproduce the full local browser flow after the verification blockers are
+reviewed, run from the repository with the pinned Node directory on PATH:
+`/Users/craigrobinson/.cache/the-coupon/ci-local-venv/bin/python /Users/craigrobinson/the-coupon/scripts/verify-two-game-web.py`.
+This builds the actual web bundle, migrates a disposable local database and
+starts loopback-only fake-provider API/web servers, then cleans up its servers.
+The complete runner currently fails; do not treat its diagnostic subsets as
+acceptance. Preserved desktop Fantasy images/traces are in
+`.local/overnight-two-games/228-browser-attempt10-evidence/` and
+`228-browser-attempt11-evidence/`; no completed Fantasy phone accessibility
+capture is claimed. Group desktop/phone images remain in `227-browser/`.
+The first canonical gate passed all 12 checks on its exact frozen candidate,
+including the 22 added unit cases and two automatic viewport cases (1,496 total
+frontend tests). The second full gate failed as detailed above. Its certificate
+records the frozen tree, unchanged parent, 16 explicitly staged files and absent
+PASS stamp. Later report/status corrections are identity-checked in the final
+ignored review checkpoint but have no canonical PASS. No passing subset or
+historical gate accepts Batch 228 until both the full canonical gate and all
+30 browser checks pass on the final candidate.
+
+No Batch 228 milestone acceptance, commit, production change or close-out is
+claimed. Canonical stamps apply only to their recorded candidate trees; the
+required full browser acceptance remains red. Browser evidence is retained under
+`.local/overnight-two-games/228-browser`.
 
 ## Addressed read APIs (226, locally verified)
 
@@ -267,14 +681,14 @@ source files after the last form filter. Collection is 2,067, exactly 39 above
 the verified predecessor; only the legitimate backend count ratchet is raised.
 The unmodified full gate passed with zero skips and no production-bundle override.
 
-Group web is drafted in 227; the Fantasy editor remains unimplemented. Production checkpoint remains unperformed
+Group web is locally verified in 227; Fantasy editor acceptance is blocked in 228. The production checkpoint remains unperformed
 under the owner's local-only exception: no recovery point, shipment, live setting,
 provider/banking probe, activation or formal close-out is claimed.
 
 ## Results and lifecycle implementation (225, locally verified)
 
 The active branch is `feat/batch-225-two-game-results`, stacked on verified
-224 commit `f29adbc`. Its full unmodified gate passed on the exact tree recorded above; the report in that frozen commit recorded the pending invocation. Read APIs are verified in 226; web acceptance remains pending in 227–228.
+224 commit `f29adbc`. Its full unmodified gate passed on the exact tree recorded above; the report in that frozen commit recorded the pending invocation. Read APIs and Group web are verified in 226–227; Fantasy web acceptance remains blocked in 228.
 
 Settlement now takes a persisted, leased unit for each distinct picked fixture.
 One counted result request serves eligible legacy, group and fantasy claims
@@ -331,7 +745,8 @@ passed 2/2; held-lock/concurrent/scoped manual HTTP races passed 6/6; the expand
 55-check new matrix passed with zero skips. During paused real counting-transport
 settlement, next-week entry plus financial commit took 0.093–0.101 seconds in
 local samples, with zero sessions held during HTTP. This is not supported-load
-or production latency acceptance. Full local acceptance is still pending.
+or production latency acceptance. These focused checks preceded the full 225 gate
+recorded above. Production performance acceptance remains open.
 
 Iteration failures and repairs (all retained assertions): the first expanded
 matrix had a missing lifecycle import (30 passed/1 failed); the first lifecycle
@@ -712,14 +1127,14 @@ entry time follows the financial lock, system dues carry no personal note, and
 one departure instant drives closure/stamps/release. Added real regressions
 exercise these causes. One failing league now rolls back independently, later
 leagues still commit, and aggregate failure remains visible; the next pass
-charges only still-pending work. No full 222 gate or verification stamp exists
-yet; local API entry flows and both web flows remain for later batches.
+charges only still-pending work. At that historical checkpoint no full 222 gate or verification stamp existed;
+the corrected gate subsequently passed as recorded above.
 The additional envelope oracle initially omitted the legacy fixture's required
 stored lock timestamp; its setup now supplies the Saturday 14:30 deadline,
 with every error/destination assertion unchanged. The 44-test matrix and final
 F6 integration results above precede this isolated response correction. The
 45th test passed with zero skips after its fixture correction. Final independent
-source review passes; the complete second gate is pending for the final tree.
+source review passed; the complete second gate subsequently passed as recorded above.
 
 ## Evidence and recovery
 
@@ -812,16 +1227,31 @@ working directory and performed no edits; absolute paths corrected it. A static
 AST count diagnostic could not evaluate date constructor literals; it changed no
 source or assertions. No full milestone failure is hidden by focused passes.
 
-## Remaining release gates and exact next step
+## Final local action and separate release gates
 
-Complete Batch 227 on verified local parent `94659e2`, then commit
-only its verified tree and stack Batch 228. Continue the
-authorised stack through both web flows and final review. Earlier stamps do not
-cover the changed tree. Do not merge or push.
+At this document freeze, the remaining already-authorised verification is the
+third strict 30-story browser run on this exact tree. Preserve its actual outcome,
+then stop for fresh approval before any further complete gate: backend and
+journey renewed attempts are exhausted. The concrete request is one additional
+full local `scripts/ci-local.sh` without SKIP_PROD_BUNDLE, with explicit
+NO_COLOR=1 and TERM=dumb, FORCE_COLOR absent, and no source/test/gate change.
 
-Owner review/release follows completion: review the local stack and report,
-integrate under normal gates with fresh exact-head CI, create/test a production
-recovery point before migration, explicitly ship API then payments on the same
-SHA/head with mode off, then release web. Separate exact future league/week
-activation requires live opening coverage/quota and supported traffic/latency
-acceptance. Natural member use, payments and notification receipt remain open.
+If that additional run is approved, its pass must cover the full backend in
+canonical order, all database tests, frontend, 38 production-bundle cases and
+retained seeded journey. Record actual totals/skips and exact stamp/tree.
+Only after that gate, the exact-tree browser and independent runtime review pass,
+commit the explicitly reviewed 16 files locally and prove the commit matches.
+Preserve original failures and all actual attempt counts. Do not edit this
+frozen document to reuse a pass: the linked final certificate records any later
+accepted outcome and local commit. Production release remains separate.
+
+Owner review/release follows local acceptance: review this report and local
+stack, integrate under normal gates with fresh exact-head CI, and create/test a
+production recovery point before migration. Separately authorise API then
+payments shipment on the same SHA/migration head with mode off, verify readiness/
+RLS/legacy behaviour, then release web. Exact future untouched league/week/
+opening activation requires separate owner approval plus accepted live opening
+coverage/quota and supported traffic/latency evidence. Natural member use,
+payments and notification receipt remain open.
+No merge, push, PR, deployment, remote migration, live setting, activation or
+provider/banking probe is authorised or performed by this local recovery.

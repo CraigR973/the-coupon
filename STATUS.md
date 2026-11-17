@@ -145,38 +145,38 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Batches **219–228** define the two-game build. Contracts, storage, provider work,
-weekly billing, both entry APIs and results/lifecycle/read APIs (219–226) passed their full local 12-check gates: 8 of 10
-locally verified. Billing commit `7a98d95` matches tree `63483d4`;
-backend 1,794, frontend 1,418 and seeded journey 1 passed with zero skips.
-Failures, corrections and capacity limits are in the overnight report.
-Batch 223 group API passed corrected gate 3, commit `8dfd28d`, tree `a013bb25`;
-backend 1,852, frontend 1,418, journey 1, zero skips. Batch 224 fantasy API has
-217 focused entry/fee/quote checks pass; fresh-observation and lock-order
-regressions pass with legacy population and payment-runtime checks, zero skips.
-Cumulative review found late-fee replay (introduced in 223/224) and stale void
-reinstatement (221) defects, now repaired locally with new unchanged-oracle regressions.
-Gate 1 failed its miscounted test ratchet; gate 2 was interrupted for these findings.
-Batch 224 full gate 3 passed 1,963 backend / 1,418 frontend / journey 1, zero skips;
-commit `f29adbc`, exact tree `f219e657`. Eight existing AsyncMock warnings remain.
-Batch 225 results/lifecycle passed full gate 1: 2,028 backend / 1,418 frontend /
-journey 1, zero skips; commit `92c903b`, exact tree `fab96dcde`.
-Eight existing AsyncMock warnings remain. Batch 226 read/receipt APIs pass their full 12-check gate: 2,067 backend / 1,418
-frontend / journey 1, zero skips; commit `94659e2`, tree `70f38257` (15 Nov).
-Batch 227 has started on that verified parent.
-Group/Home/archive web passes all 16 real local browser checks (desktop and
-installed phone), zero failures/skips/retries, with 44 new unit tests and exact
-count reconciliation. Its unmodified full gate is next; the batch remains
-unverified until it passes. Fantasy editor is unimplemented. Large-card
-replay exposes 17-hour browse snapshots; live coverage/load acceptance stays open.
-No batch is formally closed. Canonical rows remain unchecked. Inactive
-implementation and local verification can proceed while the scheduled 14 Nov
-noon provider observation runs separately. Live coverage, quota and traffic/
-latency acceptance gate activation. API/payments shipment, tested migration
-recovery and the exact league/week switch retain their own checkpoints.
-The owner selected Monday-to-Monday London billing and local-only overnight
-completion/testing; production stays for review (12 Nov). The separate overnight
-prompt permits local stacking when invoked, without closing or shipping batches.
+Batches **219–228** are implemented locally with the new format inactive.
+At the 17 Nov checkpoint, 219–227 retain nine verified local commits. Batch 228
+has independent 21-case source review and all 30 strict desktop/installed-phone
+stories passing with zero retries/flaky/skipped. It is not accepted or committed.
+
+The latest full gate is 11 of 12: backend 2,067 and frontend assertions 1,496 pass,
+38 smoke stories and one seeded journey pass, zero skips. The protected parser
+rejects ANSI-coloured frontend count output after the sanitised wrapper dropped
+colour controls. No PASS stamp exists. Read-only review confirms the remedy is
+explicit NO_COLOR=1 and TERM=dumb, leaving FORCE_COLOR absent; no gate/test edit.
+Backend and journey renewed attempts are 3 of 3 consumed, so another complete
+gate needs fresh exact approval for one further local full run (about 30 minutes).
+
+The final already-authorised browser attempt verifies this corrected document
+freeze exactly; actual result is recovery-browser-attempt3.json in the ignored
+evidence directory. The report links the failed gate, source/runtime reviews and
+resumable checkpoint. Older timeout/timing/missing-audience causes remain unproved.
+Exact-main baseline recovery passed separately; no baseline source patch exists.
+Fake/injected transports and synthetic credentials remain required. The provider
+selector stays unset for the unchanged default-setting oracle, with no live probe.
+
+Only .local/overnight-two-games/recovery-final-acceptance.json may record future
+complete acceptance and a matching local commit, after the additionally approved
+full gate and exact-tree browser/review checks pass. Absent means 228 is not accepted.
+This frozen note does not claim acceptance from component passes or an older stamp.
+
+Production and main remain unchanged; no formal close-out or canonical row tick.
+Monday-to-Monday London £1 billing, membership intersections, early dues and
+pooled FIFO remain approved. Live coverage/quota, supported traffic/latency,
+tested production recovery, same-head API/payments shipment before web and exact
+future league/week activation approval remain separate.
+This recovery neither executes nor claims the separate 14 Nov provider observation.
 
 Batches 170-203 are drafted from the 2026-09-28 review and every owner decision they needed
 was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is complete

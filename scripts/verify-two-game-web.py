@@ -21,7 +21,7 @@ import pgserver
 ROOT = Path(__file__).resolve().parents[1]
 API = ROOT / "apps/api"
 WEB = ROOT / "apps/web"
-ARTIFACTS = ROOT / ".local/overnight-two-games/227-browser"
+ARTIFACTS = ROOT / ".local/overnight-two-games/228-browser"
 VITE = WEB / "node_modules/vite/bin/vite.js"
 SERVERS = []
 HANDLES = []
@@ -191,12 +191,12 @@ def main():
         if result.returncode:
             raise RuntimeError(f"browser checks failed; see {report}")
         stats = json.loads(report.read_text())["stats"]
-        if stats["expected"] != 16 or any(
+        if stats["expected"] != 30 or any(
             stats[key] for key in ("unexpected", "flaky", "skipped")
         ):
             raise RuntimeError(f"Incomplete browser acceptance: {stats}")
         print(
-            "two-game browser: PASS16, zero failures/flaky/skipped; real loopback API + migrated scratch PG"
+            "two-game browser: PASS30, zero failures/flaky/skipped; real loopback API + migrated scratch PG"
         )
     finally:
         for process in reversed(SERVERS):

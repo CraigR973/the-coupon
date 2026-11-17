@@ -33,6 +33,9 @@ export interface GamePick {
   operation_id: string;
   result: string;
   frozen_odds?: string;
+  quoted_at?: string;
+  provider?: string;
+  bookmaker?: string;
   points?: number;
 }
 export interface GameEntry {
@@ -71,6 +74,13 @@ export interface GameCard extends GameTarget {
     provisional?: boolean;
     weekly_points?: number;
   };
+  members?: {
+    player_id: string;
+    display_name: string;
+    weekly_points: number;
+    entry_result: string;
+  }[];
+  winner_ids?: string[];
   my_entry?: GameEntry;
   slots?: GameEntry[];
 }
@@ -151,3 +161,37 @@ export const gameQueryKey = (member: string, target: GameTarget) =>
     target.week_id,
     target.game_kind,
   ] as const;
+export interface FantasyFixture {
+  fixture_id: string;
+  home: string;
+  away: string;
+  competition_id: string;
+  kickoff_at: string;
+  status: string;
+  eligible: boolean;
+  quote: {
+    prices: { market: string; outcome: string; odds: string }[];
+    provider: string;
+    bookmaker: string;
+    observed_at: string | null;
+    age_seconds: number | null;
+    availability: string;
+    degraded: boolean;
+  };
+}
+export interface FantasyGame extends GameTarget {
+  game_id: string;
+  week_label: string;
+  destination: string;
+  opens_at: string;
+  locks_at: string;
+  window_start: string;
+  window_end: string;
+  entry_state: string;
+  coverage_state: string;
+  fixtures: FantasyFixture[];
+  slots: GameEntry[];
+  progress: { filled_count: number; slot_count: number; partial: boolean };
+  result: { status: string; points: number; provisional: boolean };
+  fee: WeekFee;
+}

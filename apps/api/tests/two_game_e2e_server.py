@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -26,6 +27,7 @@ from src.models.gameweek import Gameweek, GameweekFixture, GameweekStatus
 from src.models.league import League
 from src.models.league_membership import LeagueMembership
 from src.models.ledger import LedgerEntry, LedgerKind
+from src.models.pick import Pick, PickMarket, PickOutcome, PickStatus
 from src.models.profile import Profile
 from src.models.two_game import (
     FantasyPick,
@@ -43,6 +45,8 @@ from src.routers import me, picks, two_game_fantasy, two_game_group, two_game_re
 from src.services import dues, scoring, season_calendar
 from src.services import gameweek as weeks
 from src.services.odds_api import OddsApiProvider
+from src.services.odds_provider import EventSettlement, Market, Outcome, OutcomeResult
+from src.services.two_game_corrections import correct_shared_fixture
 from src.services.two_game_fantasy import FantasyEntries
 from src.services.two_game_group import GroupEntries
 from src.services.two_game_quotes import SharedQuotes
@@ -58,6 +62,8 @@ from src.services.weekly_fees import (
 from tests.test_two_game_quotes import Source
 
 WEEK = date(2026, 11, 21)
+# Hash the fixed synthetic PIN once; each login still exercises normal verification.
+SYNTHETIC_PIN_HASH = auth.hash_pin("1357")
 source = Source(engine)
 source.clock.now = london_utc(WEEK, 11, 59)
 source.source = "oddsapi"
@@ -133,11 +139,18 @@ class SeedRequest(BaseModel):
     mixed: bool = False
     enabled: bool = True
     credit_pence: int = 1000
+    fantasy: bool = False
+    legacy_points: bool = False
 
 
 @app.post("/__two_game_e2e/seed")
 async def seed(body: SeedRequest):
     source.clock.now = london_utc(WEEK - timedelta(days=7) if body.mixed else WEEK, 11, 59)
+    if body.fantasy and not body.mixed:
+        source.clock.now = london_utc(WEEK, 11, 50)
+    source.price, source.priced, source.status = "2.15", True, 200
+    source.send_unpriced_rows = source.block_first = False
+    source.entered, source.release = asyncio.Event(), asyncio.Event()
     source.calls.clear()
     result_calls.clear()
     result_statuses.clear()
@@ -152,7 +165,7 @@ async def seed(body: SeedRequest):
             )
         )
         players = [
-            Profile(display_name=name, pin_hash=auth.hash_pin("1357"), timezone="Europe/London")
+            Profile(display_name=name, pin_hash=SYNTHETIC_PIN_HASH, timezone="Europe/London")
             for name in ("Alice", "Bob", "Carol")
         ]
         db.add_all(players)
@@ -263,6 +276,22 @@ async def seed(body: SeedRequest):
         db.add_all([old, old_fixture])
         await db.flush()
         db.add(GameweekFixture(gameweek_id=old.id, fixture_id=old_fixture.id))
+        if body.legacy_points:
+            db.add(
+                Pick(
+                    league_id=league.id,
+                    gameweek_id=old.id,
+                    fixture_id=old_fixture.id,
+                    player_id=players[0].id,
+                    market=PickMarket.MATCH_ODDS,
+                    outcome=PickOutcome.HOME,
+                    runner_name="Legacy Home",
+                    odds_at_pick=3,
+                    points_awarded=30,
+                    status=PickStatus.won,
+                    pick_scope=league.pick_scope,
+                )
+            )
         identities.clear()
         identities.update(
             league_id=str(league.id),
@@ -327,6 +356,14 @@ async def state():
             )
             for pick in await db.scalars(select(GroupPick))
         ]
+        legacy = [
+            dict(
+                fixture_id=str(pick.fixture_id),
+                outcome=pick.outcome.value,
+                points=pick.points_awarded,
+            )
+            for pick in await db.scalars(select(Pick))
+        ]
         fantasy = [
             dict(
                 week_id=str(pick.week_id),
@@ -340,13 +377,19 @@ async def state():
             )
             for pick in await db.scalars(select(FantasyPick))
         ]
+        obligations = [
+            dict(player_id=str(row.player_id), week_label=str(row.week_label))
+            for row in await db.scalars(select(WeeklyFeeObligation))
+        ]
         counts = {
             model.__tablename__: await db.scalar(select(func.count()).select_from(model))
             for model in (GameOperation, WeeklyFeeObligation, ProviderAttempt)
         }
     return dict(
+        obligations=obligations,
         group=group,
         fantasy=fantasy,
+        legacy=legacy,
         counts=counts,
         quote_calls=len(source.calls),
         result_calls=len(result_calls),
@@ -430,3 +473,55 @@ async def invalid_auth_tokens():
             algorithm="HS256",
         ),
     }
+
+
+class QuoteRequest(BaseModel):
+    price: str = "2.15"
+    priced: bool = True
+    warm: bool = False
+    week: int = 0
+
+
+@app.post("/__two_game_e2e/quotes")
+async def control_quotes(body: QuoteRequest):
+    source.price, source.priced = body.price, body.priced
+    if body.warm:
+        await quotes.refresh_many(
+            [f"local-{body.week * 7}-{i}" for i in range(8)], category="foreground"
+        )
+    return {"calls": len(source.calls)}
+
+
+class CorrectionRequest(BaseModel):
+    fixture_id: uuid.UUID
+    home_won: bool
+
+
+@app.post("/__two_game_e2e/correct")
+async def correct(body: CorrectionRequest):
+    async with AsyncSessionLocal() as db, db.begin():
+        fixture = await db.get(Fixture, body.fixture_id)
+        if fixture is None:
+            raise HTTPException(404)
+        settlement = EventSettlement(
+            provider_event_id=fixture.provider_event_id,
+            status="finished",
+            settled=True,
+            settled_markets=[Market.MATCH_ODDS],
+            outcomes=[
+                OutcomeResult(
+                    market=Market.MATCH_ODDS,
+                    outcome=outcome,
+                    won=(outcome == Outcome.HOME if body.home_won else outcome == Outcome.AWAY),
+                )
+                for outcome in (Outcome.HOME, Outcome.DRAW, Outcome.AWAY)
+            ],
+        )
+        result = await correct_shared_fixture(db, fixture.id, settlement, clock())
+    return {"changed": len(result.fantasy) + len(result.group) + len(result.legacy)}
+
+
+@app.post("/__two_game_e2e/bill")
+async def run_billing():
+    await bill_all(AsyncSessionLocal, clock())
+    return {"billed": True}

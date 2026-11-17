@@ -106,6 +106,19 @@ export function GamesHome({ leagues }: { leagues: LeagueGames[] }) {
               Next fantasy opening is pending confirmation.
             </p>
           )}
+          {league.season_stats && (
+            <p>
+              Season total: {league.season_stats.total_points} points · Rank{" "}
+              {league.season_stats.rank}. Legacy points continue; Fantasy legs
+              add once. Group has no points.
+            </p>
+          )}
+          <Link
+            className="inline-flex min-h-11 items-center underline"
+            to={`/leagues/${league.slug}/leaderboard`}
+          >
+            Season table
+          </Link>
           <Link
             className="inline-flex min-h-11 items-center underline"
             to={`/leagues/${league.league_id}/games`}
