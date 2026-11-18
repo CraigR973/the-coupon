@@ -25,6 +25,9 @@ const LETTER: Record<FormRound['status'], string> = {
   lost: 'L',
   void: 'V',
   pending: '·',
+  scored: 'F',
+  no_entry: 'N',
+  all_void: 'V',
 };
 
 const WORD: Record<FormRound['status'], string> = {
@@ -32,6 +35,9 @@ const WORD: Record<FormRound['status'], string> = {
   lost: 'lost',
   void: 'void',
   pending: 'not settled',
+  scored: 'Fantasy week scored',
+  no_entry: 'Fantasy week no entry',
+  all_void: 'Fantasy week all void',
 };
 
 const PIP: Record<FormRound['status'], string> = {
@@ -39,6 +45,9 @@ const PIP: Record<FormRound['status'], string> = {
   lost: 'border-error/40 bg-error/[0.08] dark:bg-error/15 text-text-primary',
   void: 'border-border bg-surface-elevated text-text-muted',
   pending: 'border-border bg-surface-elevated text-text-muted',
+  scored: 'border-border bg-surface-elevated text-text-primary',
+  no_entry: 'border-border bg-surface-elevated text-text-muted',
+  all_void: 'border-border bg-surface-elevated text-text-muted',
 };
 
 export interface PickFormLineProps {
@@ -59,7 +68,7 @@ export function PickFormLine({ form, player, className }: PickFormLineProps) {
 
   const spoken = oldestFirst
     .map((round) =>
-      round.status === 'won' ? `won ${round.points} points` : WORD[round.status],
+      round.status === 'won' ? `won ${round.points} points` : round.status === 'scored' ? `Fantasy week scored ${round.points} points` : WORD[round.status],
     )
     .join(', ');
 

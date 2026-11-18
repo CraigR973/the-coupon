@@ -580,9 +580,13 @@ export interface SeasonSummary {
 export interface FormRound {
   gameweek_id: string;
   starts_on: string; // ISO date (yyyy-mm-dd)
-  status: PickStatus;
+  status: PickStatus | 'scored' | 'no_entry' | 'all_void';
   /** What the round scored — zero for anything that did not win. */
   points: number;
+  format?: 'legacy' | 'two_game';
+  game_kind?: 'legacy' | 'fantasy';
+  destination?: string | null;
+  slots_filled?: number;
 }
 
 export interface Standing {
@@ -642,6 +646,12 @@ export interface SettledPick {
   odds: number;
   status: PickStatus;
   points_awarded: number | null;
+  format?: 'legacy' | 'two_game';
+  game_kind?: 'legacy' | 'fantasy';
+  game_id?: string | null;
+  slot?: number | null;
+  destination?: string | null;
+  frozen_odds?: string | null;
 }
 
 /**

@@ -233,7 +233,8 @@ export function LeaderboardPage() {
           {standings.some((s) => (s.recent_form?.length ?? 0) > 0) && (
             <p className="mt-1 font-sans text-caption text-text-muted">
               Form covers the last five settled rounds, oldest first — W won, L lost, V void
-              — with what each one scored.
+              — with what each one scored. Each Fantasy week is one item: F weekly points,
+              N no entry, V all void. Group has no scoring form.
             </p>
           )}
           <div

@@ -20,7 +20,7 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import String, cast, literal, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
@@ -29,6 +29,7 @@ from src.models.fixture import Fixture
 from src.models.gameweek import Gameweek
 from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick, PickStatus
+from src.models.two_game import FantasyPick
 from src.services.scoring import standings
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -56,6 +57,12 @@ class SettledPick(BaseModel):
     odds: float
     status: str
     points_awarded: int | None
+    format: str = "legacy"
+    game_kind: str = "legacy"
+    game_id: str | None = None
+    slot: int | None = None
+    destination: str | None = None
+    frozen_odds: str | None = None
 
 
 class PlayerProfile(BaseModel):
@@ -131,44 +138,87 @@ async def player_profile(
         longshot_picks=row.longshot_picks,
         favourite_picks=row.favourite_picks,
         longshot_odds=row.longshot_odds,
-        history=await _settled_history(db, league.id, target),
+        history=await _settled_history(db, league.id, target, league.slug),
     )
 
 
 async def _settled_history(
-    db: AsyncSession, league_id: uuid.UUID, player_id: uuid.UUID
+    db: AsyncSession, league_id: uuid.UUID, player_id: uuid.UUID, slug: str
 ) -> list[SettledPick]:
-    """Every resolved pick this member has made in this league, newest first.
+    """Resolved legs behind the mixed totals, including partially resolved Fantasy weeks.
 
-    Pending picks are excluded: before a gameweek settles, a member's pick is
-    already visible on the coupon, and listing it here would be a second, worse
-    copy of that view.
+    Legacy history keeps its existing all-season scope and fields. Group has no
+    priced/scoring history. A leg need not wait for the whole Fantasy week to finalise.
     """
-    rows = await db.execute(
-        select(Pick, Fixture, Gameweek)
-        .join(Fixture, Fixture.id == Pick.fixture_id)
-        .join(Gameweek, Gameweek.id == Pick.gameweek_id)
-        .where(
-            Pick.league_id == league_id,
-            Pick.player_id == player_id,
-            Pick.status.in_(_SETTLED),
-        )
-        .order_by(Gameweek.starts_on.desc(), Fixture.kickoff_utc)
+    legacy = select(
+        Pick.gameweek_id,
+        Pick.fixture_id,
+        cast(Pick.market, String).label("market"),
+        cast(Pick.outcome, String).label("outcome"),
+        Pick.runner_name,
+        Pick.odds_at_pick.label("odds"),
+        cast(Pick.status, String).label("status"),
+        Pick.points_awarded,
+        literal("legacy").label("format"),
+        literal(None).label("game_id"),
+        literal(None).label("slot"),
+    ).where(
+        Pick.league_id == league_id,
+        Pick.player_id == player_id,
+        Pick.status.in_(_SETTLED),
     )
-    return [
-        SettledPick(
-            gameweek_id=str(gameweek.id),
-            starts_on=gameweek.starts_on.isoformat(),
-            fixture_id=str(fixture.id),
-            home=fixture.home,
-            away=fixture.away,
-            competition=fixture.competition,
-            market=pick.market.value,
-            outcome=pick.outcome.value,
-            runner_name=pick.runner_name,
-            odds=float(pick.odds_at_pick),
-            status=pick.status.value,
-            points_awarded=pick.points_awarded,
+    fantasy = select(
+        FantasyPick.week_id.label("gameweek_id"),
+        FantasyPick.fixture_id,
+        FantasyPick.market,
+        FantasyPick.outcome,
+        FantasyPick.runner_name,
+        FantasyPick.frozen_odds.label("odds"),
+        FantasyPick.status,
+        FantasyPick.points_awarded,
+        literal("two_game").label("format"),
+        FantasyPick.game_id,
+        FantasyPick.slot,
+    ).where(
+        FantasyPick.league_id == league_id,
+        FantasyPick.player_id == player_id,
+        FantasyPick.status.in_(("won", "lost", "void")),
+    )
+    legs = union_all(legacy, fantasy).subquery("history_legs")
+    rows = await db.execute(
+        select(legs, Fixture, Gameweek)
+        .join(Fixture, Fixture.id == legs.c.fixture_id)
+        .join(Gameweek, Gameweek.id == legs.c.gameweek_id)
+        .order_by(Gameweek.starts_on.desc(), Fixture.kickoff_utc, Fixture.id)
+    )
+    history = []
+    for row in rows.mappings():
+        fixture, gameweek = row["Fixture"], row["Gameweek"]
+        is_legacy = row["format"] == "legacy"
+        history.append(
+            SettledPick(
+                gameweek_id=str(gameweek.id),
+                starts_on=gameweek.starts_on.isoformat(),
+                fixture_id=str(fixture.id),
+                home=fixture.home,
+                away=fixture.away,
+                competition=fixture.competition,
+                market=row["market"],
+                outcome=row["outcome"],
+                runner_name=row["runner_name"],
+                odds=float(row["odds"]),
+                status=row["status"],
+                points_awarded=row["points_awarded"],
+                format=row["format"],
+                game_kind="legacy" if is_legacy else "fantasy",
+                game_id=str(row["game_id"]) if row["game_id"] is not None else None,
+                slot=row["slot"],
+                destination=(
+                    f"/leagues/{slug}/predictions?gw={gameweek.id}#coupon"
+                    if is_legacy
+                    else f"/leagues/{league_id}/weeks/{gameweek.id}/fantasy"
+                ),
+                frozen_odds=None if is_legacy else format(row["odds"], "f"),
+            )
         )
-        for pick, fixture, gameweek in rows.all()
-    ]
+    return history

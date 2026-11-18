@@ -549,6 +549,20 @@ test("a late save receipt cannot overwrite Sunday results, corrections or contin
       .filter({ hasText: "Alice" })
       .getByTestId("standing-points"),
   ).toHaveText("52 points");
+  const aliceStanding = page.getByTestId("standings").getByRole("listitem").filter({ hasText: "Alice" });
+  await expect(aliceStanding.getByTestId("pick-form")).toHaveText("W30F22");
+  await expect(aliceStanding.getByTestId("pick-form")).toHaveAccessibleName(/won 30 points, Fantasy week scored 22 points/);
+  await aliceStanding.getByRole("link").click();
+  await expect(page.getByTestId("profile-stats")).toContainText("52");
+  await expect(page.getByTestId("profile-history").getByRole("listitem")).toHaveCount(2);
+  await expect(page.getByTestId(`history-${s.fixtures[0][7]}`)).toContainText("22 pts");
+  await expect(page.getByRole("link", { name: "Fantasy slot 1 · 21 Nov 2026", exact: true })).toHaveAttribute("href", path(s));
+  await expect(page.getByRole("link", { name: "Legacy round · 14 Nov 2026", exact: true })).toHaveAttribute("href", `/leagues/${s.slug}/predictions?gw=${s.legacy_week}#coupon`);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const historyLink = page.getByRole("link", { name: "Fantasy slot 1 · 21 Nov 2026", exact: true });
+  expect((await historyLink.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await historyLink.focus();
+  await expect(historyLink).toBeFocused();
   expect(
     (
       await post(request, "correct", {
@@ -629,7 +643,7 @@ test("first mixed Saturday preserves the legacy game and exact next-week Fantasy
   context,
   request,
 }) => {
-  const s = await setup(request, context, page, { mixed: true });
+  const s = await setup(request, context, page, { mixed: true, mixed_paid_legacy: true, credit_pence: 100 });
   await login(page, s);
   await expect(
     page.getByText("Entry has not opened", { exact: true }),
@@ -641,6 +655,16 @@ test("first mixed Saturday preserves the legacy game and exact next-week Fantasy
   ).toBeEnabled();
   await home(page);
   const cards = page.getByTestId("two-game-home");
+  const legacyCard = cards.getByRole("link", { name: "Legacy round · 14 Nov", exact: true }).locator("..");
+  const nextCard = cards.getByRole("link", { name: "Fantasy · 21 Nov", exact: true }).locator("..");
+  await expect(legacyCard).toContainText("Your pick: Legacy Away");
+  await expect(legacyCard).toContainText("Frozen odds 4.00");
+  await expect(legacyCard).toContainText("£1.00 per legacy round · Paid through this round");
+  await expect(legacyCard).toContainText("Entry open");
+  await expect(legacyCard).toContainText("Locks Sat 14 Nov 14:30 London.");
+  await expect(nextCard).toContainText("£1.00 owed through this week");
+  await expect(nextCard.getByRole("link", { name: "Fantasy · 21 Nov", exact: true })).toHaveAttribute("href", path(s));
+  await expect(legacyCard.getByRole("link", { name: "Legacy round · 14 Nov", exact: true })).toHaveAttribute("href", `/leagues/${s.slug}/predictions?gw=${s.legacy_week}#coupon`);
   await expect(
     cards.getByRole("link", { name: "Legacy round · 14 Nov", exact: true }),
   ).toBeVisible();
@@ -687,6 +711,7 @@ test("first mixed Saturday preserves the legacy game and exact next-week Fantasy
     .first()
     .click();
   await warm(request);
+  await post(request, "credit", { player_id: s.players.Alice, amount_pence: 100 });
   await page
     .getByTestId("two-game-home")
     .getByRole("link", { name: "Fantasy · 21 Nov", exact: true })

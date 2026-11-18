@@ -1,7 +1,10 @@
 import { Link } from "react-router-dom";
 import type { LeagueGames } from "../lib/twoGameTypes";
 import { formatCalendarDate, formatInstant } from "../lib/time";
+import { useOddsFormat } from "../hooks/useOddsFormat";
+import { formatOdds, marketTag, pickStatusLabel } from "../lib/coupon";
 export function GamesHome({ leagues }: { leagues: LeagueGames[] }) {
+  const oddsFormat = useOddsFormat();
   return (
     <section aria-labelledby="your-games-heading" className="space-y-5">
       <h2 id="your-games-heading" className="text-xl font-semibold">
@@ -82,7 +85,7 @@ export function GamesHome({ leagues }: { leagues: LeagueGames[] }) {
             {league.legacy_rounds
               .filter((card) => !card.archived)
               .map((card) => (
-                <li key={card.week_id}>
+                <li key={card.week_id} className="rounded-lg border border-border p-3 space-y-1">
                   <Link
                     className="inline-flex min-h-11 items-center underline"
                     to={card.destination}
@@ -90,13 +93,38 @@ export function GamesHome({ leagues }: { leagues: LeagueGames[] }) {
                     Legacy round · {formatCalendarDate(card.starts_on, "d MMM")}
                   </Link>
                   <p>
-                    {card.can_pick ? "Entry open" : "Locked results"} ·{" "}
+                    {card.status === "cancelled"
+                      ? "Cancelled"
+                      : card.status === "settled"
+                        ? "Settled results"
+                        : card.picks_open_at && new Date(league.server_now) < new Date(card.picks_open_at)
+                          ? "Entry has not opened"
+                          : card.can_pick ? "Entry open" : "Locked results"}
+                  </p>
+                  {card.picks_open_at && (
+                    <p className="text-sm">
+                      Opens {formatInstant(card.picks_open_at, "Europe/London", "EEE d MMM HH:mm")} London.
+                    </p>
+                  )}
+                  <p className="text-sm">
+                    Locks{" "}
                     {formatInstant(
                       card.locks_at,
                       "Europe/London",
                       "EEE d MMM HH:mm",
                     )}{" "}
                     London.
+                  </p>
+                  {card.my_pick ? (
+                    <p>
+                      Your pick: {card.my_pick.runner_name} · {marketTag(card.my_pick.market)} · Frozen odds {formatOdds(Number(card.my_pick.odds), oddsFormat)}
+                      {card.my_pick.result !== "pending" && ` · ${pickStatusLabel(card.my_pick.result)} · ${card.my_pick.points ?? 0} points`}
+                    </p>
+                  ) : <p>No selection saved.</p>}
+                  <p>
+                    {card.fee
+                      ? `£${(card.fee.entry_fee_pence / 100).toFixed(2)} per legacy round · ${card.fee.owed_pence === 0 ? "Paid through this round" : `£${(card.fee.owed_pence / 100).toFixed(2)} owed through this round`}`
+                      : "No legacy entry fee required."}
                   </p>
                 </li>
               ))}

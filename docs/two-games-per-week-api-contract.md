@@ -482,6 +482,33 @@ receipt policy. The payments process still imports no API settings/secrets.
 
 ## Acceptance trace
 
+### Ordinary standings and member profiles (17 Nov local corrections)
+
+Ordinary `GET /leagues/{slug}/standings` retains `recent_form`'s existing
+`gameweek_id`, `starts_on`, `status` and `points` fields. It adds `format`,
+`game_kind`, exact `destination` and `slots_filled`. Legacy statuses remain
+`won`/`lost`/`void`. Each finalised Fantasy member/week is one aggregate with
+`scored`, `no_entry` or `all_void`; all legs are summed before the five-week
+window. Eligibility is historical membership at lock or accepted ownership.
+Group contributes neither items nor points. Ordinary standings retain earned
+Fantasy history when entry is disabled; Home keeps its existing visibility gates.
+The leaderboard displays Fantasy weekly points as F, no entry as N and all void
+as V, rather than treating a multi-leg week as a legacy win/loss.
+
+`GET /leagues/{slug}/players/{player_id}/profile` keeps legacy history and its
+existing fields/all-season scope. Settled history additionally includes resolved
+Fantasy legs, including legs resolved before the whole week finalises, matching
+the statistics' leg-based rules. Additive `format`, `game_kind`, `game_id`, `slot`,
+exact `destination` and decimal-string `frozen_odds` identify Fantasy history;
+legacy keeps its numeric `odds` and exact slug/`gw` link. Pending legs and Group
+are absent. History does not create a priced or scoring Group record.
+
+Mixed Home renders the existing legacy projection's saved selection/frozen odds,
+legacy fee policy/paid-through state, opening and lock separately from next-week
+Fantasy's fee and exact destination. A future legacy opening is not locked results.
+These are read/presentation corrections; no persistence, billing or activation
+rule changes.
+
 | Case | Concrete field/response or invariant | Test batch |
 | --- | --- | --- |
 | F1 | Membership interval intersection, `week_label`, `obligation_pence`: 22 Nov 23:59:59.999 owes W1+W2; 23 Nov 00:00/.001 owes W2 only; 20 Nov owes W1 | 220, 222 |

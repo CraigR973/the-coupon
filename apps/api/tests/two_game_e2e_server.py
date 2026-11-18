@@ -137,6 +137,7 @@ result_provider = OddsApiProvider(
 
 class SeedRequest(BaseModel):
     mixed: bool = False
+    mixed_paid_legacy: bool = False
     enabled: bool = True
     credit_pence: int = 1000
     fantasy: bool = False
@@ -276,6 +277,31 @@ async def seed(body: SeedRequest):
         db.add_all([old, old_fixture])
         await db.flush()
         db.add(GameweekFixture(gameweek_id=old.id, fixture_id=old_fixture.id))
+        if body.mixed_paid_legacy:
+            league.entry_fee_pence = 100
+            db.add(
+                LedgerEntry(
+                    league_id=league.id,
+                    player_id=players[0].id,
+                    kind=LedgerKind.round_due,
+                    amount_pence=-100,
+                    gameweek_id=old.id,
+                )
+            )
+            db.add(
+                Pick(
+                    league_id=league.id,
+                    gameweek_id=old.id,
+                    fixture_id=old_fixture.id,
+                    player_id=players[0].id,
+                    market=PickMarket.MATCH_ODDS,
+                    outcome=PickOutcome.AWAY,
+                    runner_name="Legacy Away",
+                    odds_at_pick=4,
+                    status=PickStatus.pending,
+                    pick_scope=league.pick_scope,
+                )
+            )
         if body.legacy_points:
             db.add(
                 Pick(

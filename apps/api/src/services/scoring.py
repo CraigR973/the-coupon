@@ -39,6 +39,7 @@ from src.services.coupon import accumulator
 from src.services.football_provider import current_season
 from src.services.football_week import settle_refusal
 from src.services.gameweek import window_for
+from src.services.member_week_form import member_weeks, recent_member_weeks
 from src.services.odds_provider import (
     EventSettlement,
     Market,
@@ -417,6 +418,10 @@ class FormRound(BaseModel):
     starts_on: date
     status: str
     points: int
+    format: str = "legacy"
+    game_kind: str = "legacy"
+    destination: str | None = None
+    slots_filled: int = 1
 
 
 class Standing(BaseModel):
@@ -556,45 +561,35 @@ async def recent_form_by_league(
     if not league_ids:
         return {}
 
-    first_day, last_day = season_bounds(resolve_season(season))
-
-    ranked = (
-        select(
-            Pick.league_id,
-            Pick.player_id,
-            Gameweek.id.label("gameweek_id"),
-            Gameweek.starts_on,
-            Pick.status,
-            Pick.points_awarded,
-            func.row_number()
-            .over(
-                partition_by=(Pick.league_id, Pick.player_id),
-                order_by=(Gameweek.starts_on.desc(), Gameweek.id.desc()),
-            )
-            .label("rn"),
-        )
-        .join(Gameweek, Gameweek.id == Pick.gameweek_id)
-        .where(
-            Pick.league_id.in_(league_ids),
-            Gameweek.status == GameweekStatus.settled,
-            Gameweek.starts_on >= first_day,
-            Gameweek.starts_on <= last_day,
-            Pick.status.in_((PickStatus.won, PickStatus.lost, PickStatus.void)),
-        )
-        .subquery()
+    weeks = member_weeks(
+        list(league_ids), resolve_season(season), two_game_leagues=list(league_ids)
     )
-    rows = (await db.execute(select(ranked).where(ranked.c.rn <= limit))).all()
-
+    recent = recent_member_weeks(weeks, limit)
+    rows = (
+        await db.execute(
+            select(recent, League.slug)
+            .join(League, League.id == recent.c.league_id)
+            .order_by(recent.c.position)
+        )
+    ).mappings()
     form: dict[tuple[uuid.UUID, uuid.UUID], list[FormRound]] = {}
-    for row in sorted(rows, key=lambda r: r.rn):
-        form.setdefault((row.league_id, row.player_id), []).append(
+    for row in rows:
+        legacy = row["format"] == "legacy"
+        destination = (
+            f"/leagues/{row['slug']}/predictions?gw={row['week_id']}#coupon"
+            if legacy
+            else f"/leagues/{row['league_id']}/weeks/{row['week_id']}/fantasy"
+        )
+        form.setdefault((row["league_id"], row["player_id"]), []).append(
             FormRound(
-                gameweek_id=str(row.gameweek_id),
-                starts_on=row.starts_on,
-                status=row.status.value,
-                # A void round scored nothing because it never ran, and a lost one because
-                # it lost. Both are zero here; the status is what tells them apart.
-                points=int(row.points_awarded or 0),
+                gameweek_id=str(row["week_id"]),
+                starts_on=row["week_label"],
+                status=row["status"],
+                points=int(row["weekly_points"]),
+                format=row["format"],
+                game_kind="legacy" if legacy else "fantasy",
+                destination=destination,
+                slots_filled=int(row["slots_filled"]),
             )
         )
     return form

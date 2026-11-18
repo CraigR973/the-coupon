@@ -1,3 +1,5 @@
+import type { PickMarket, PickOutcome, PickStatus, RoundFeeStatus } from "./types";
+
 export type GameKind = "group" | "fantasy";
 export interface GameTarget {
   league_id: string;
@@ -95,6 +97,20 @@ export interface LegacyGameCard {
   locks_at: string;
   can_pick: boolean;
   archived: boolean;
+  picks_open_at: string | null;
+  picked_count: number;
+  my_pick: {
+    id: string;
+    player_id: string;
+    fixture_id: string;
+    runner_name: string;
+    market: PickMarket;
+    outcome: PickOutcome;
+    odds: string;
+    result: PickStatus;
+    points: number | null;
+  } | null;
+  fee: RoundFeeStatus | null;
 }
 export interface LeagueGames {
   league_id: string;

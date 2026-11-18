@@ -149,7 +149,7 @@ export function PlayerProfilePage() {
           <ol className="flex flex-col gap-2" data-testid="profile-history">
             {profile.history.map((pick) => (
               <HistoryRow
-                key={`${pick.gameweek_id}:${pick.fixture_id}`}
+                key={`${pick.game_kind ?? 'legacy'}:${pick.gameweek_id}:${pick.fixture_id}`}
                 pick={pick}
                 oddsFormat={oddsFormat}
               />
@@ -187,6 +187,11 @@ function HistoryRow({
           <span className="mx-1.5">·</span>
           {formatCalendarDate(pick.starts_on, 'd MMM yyyy')}
         </p>
+        {pick.destination && (
+          <Link to={pick.destination} className="inline-flex min-h-11 items-center text-sm underline">
+            {pick.game_kind === 'fantasy' ? `Fantasy slot ${pick.slot}` : 'Legacy round'} · {formatCalendarDate(pick.starts_on, 'd MMM yyyy')}
+          </Link>
+        )}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5">
         <span className="font-mono text-sm tabular-nums text-text-primary">
@@ -194,7 +199,7 @@ function HistoryRow({
         </span>
         <span className="flex items-center gap-1.5">
           <span className="font-mono text-caption tabular-nums text-text-muted">
-            {formatOdds(pick.odds, oddsFormat)}
+            {formatOdds(Number(pick.frozen_odds ?? pick.odds), oddsFormat)}
           </span>
           <Badge variant={STATUS_VARIANT[pick.status]}>{pickStatusLabel(pick.status)}</Badge>
         </span>
