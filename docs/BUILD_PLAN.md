@@ -1640,6 +1640,39 @@ owner on launch day, 2026-10-17.
   Scope boundary: the web pick editor only. No API change, so the 10-an-hour limit and what
   counts against it stay as they are. **Web-only.**
 
+- [x] **Batch 229 — CI's browser jobs cannot install Chromium on GitHub's new Ubuntu 26.04 runner** ✅ 2026-11-19
+  — raised 18 Nov 2026. The Quality workflow's three jobs run on `ubuntu-latest`, which GitHub
+  now resolves to Ubuntu 26.04 (image 20261111.196.1). The pinned Playwright 1.60.0 refuses that
+  image ("Playwright does not support chromium on ubuntu26.04-x64"), so `prod-bundle` and
+  `coupon-journey` fail at `playwright install --with-deps chromium` before any test runs, on
+  every push, `main` included. First seen on run 44329972241 (18 Nov). The last green `main`
+  run (9 Nov, `dfb39fe`) ran on Ubuntu 24.04. The `gate` job is unaffected.
+
+  - All three Quality jobs run on `ubuntu-24.04`, the image the whole workflow last passed on.
+
+  Tests: none change. The exact-SHA Quality run must pass all three jobs on Ubuntu 24.04.
+
+  **Gate maintenance approved (owner, 2026-11-18):** this batch may change exactly one
+  protected file, `.github/workflows/ci.yml`, and in it only the three `runs-on` labels and a
+  comment saying why. No other protected file may change.
+
+  Scope boundary: the runner label only. No Playwright, Node, Python or dependency change; a
+  Playwright release that supports Ubuntu 26.04 is a separate toolchain decision.
+  **Tooling-only.**
+
+- [ ] **Batch 230 — CI stays pinned to Ubuntu 24.04 until Playwright supports the newer image**
+  — follow-up from Batch 229 (19 Nov 2026). The pin holds only until GitHub retires
+  `ubuntu-24.04`. Before then, move to a Playwright release that installs Chromium on GitHub's
+  current Ubuntu image, and return the three Quality jobs to it.
+
+  - Check first that the chosen Playwright still installs Chromium on this Mac (macOS 13), or
+    the local gate's browser checks stop working.
+  - Needs owner-approved gate maintenance: `apps/web/package.json` and `.github/workflows/ci.yml`
+    are protected.
+
+  Not urgent until GitHub announces the 24.04 retirement; the owner schedules it.
+  **Tooling-only.**
+
 ### Two games per football week — inactive build, then gated activation
 
 Defined 12 Nov from `docs/two-games-per-week-plan.md`, the review and the three

@@ -45,6 +45,7 @@ approved_gate_maintenance() {
     203) echo "docs/agent-commands/phase-closeout.md apps/api/pyproject.toml scripts/check-deploy-drift.sh" ;;
     204) echo "scripts/check-closeout-safety.sh docs/agent-commands/phase-closeout.md" ;;
     207) echo "scripts/check-deploy-drift.sh" ;;
+    229) echo ".github/workflows/ci.yml" ;;
   esac
 }
 
