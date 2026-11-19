@@ -9151,3 +9151,27 @@ old-trusted-guard comparison (`scripts/assert-quality-guardrails.sh`); `prod-bun
 
 **Next:** Batch 229 on its own `fix/` branch. Until it lands, this attestation's CI can be green
 only in the `gate` job; the two browser jobs keep failing at install.
+
+## Batch 229 — CI's browser jobs cannot install Chromium on GitHub's new Ubuntu 26.04 runner
+**Commits:** `aac726a` (approval), `c5e4187` (attestation), `bf9d5f5` · verified: full local gate
+12/12 (backend 1,650; frontend 1,418; journey 1; zero skips; tree `ddb17e6`) · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/44435409544 PASS for `bf9d5f5`
+
+### Key facts for future sessions
+- All three Quality jobs now run on `ubuntu-24.04`. GitHub's `ubuntu-latest` became Ubuntu 26.04
+  (image 20261111.196.1) by 18 Nov, where Playwright 1.60.0 refuses to install Chromium, so both
+  browser jobs failed at install on every push, `main` included.
+- CI history: the approval run 44424604140 failed by design at the old trusted guard; the
+  attestation run 44424804100 passed the `gate` job while both browser jobs still failed at
+  install; `bf9d5f5`'s run passed all three jobs on 24.04.
+- The local gate ran on `main`'s code from 00:56 to 01:14 UTC on 19 Nov (load 5.9 at start) and
+  passed on its first attempt; no check failed and nothing was fixed along the way.
+- **Close-out safety:** PASS — tooling/docs; pre-push deployed-API drift in sync; no application half changed
+
+### Follow-ups
+- Batch 230 (unchecked): return CI to GitHub's current Ubuntu image once a Playwright release
+  supports it, keeping this Mac's macOS 13 local gate working.
+
+**Next:** Batch 211 stays owner-deferred and Batch 230 is not urgent. The owner reviews the local
+two-game stack (`fix/two-game-owner-review`, `d425e2d`), whose exact-head CI should be rerun on
+top of this fix before integration.

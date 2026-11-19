@@ -186,6 +186,10 @@ re-read — is complete and shipped (9 Nov, `c18e81e`): the exact refused id is 
 quarter-hour hold-off after a refused key or bookmaker, and a notice to site admins when picks
 are refused for odds — is complete (31 Oct, `4d28412`) and shipped (7 Nov, as `0d00825`). Batch 218 — "Take the new
 price" sends the price it names — is complete and live on the web (7 Nov, `2fa77bd`, web-only).
+Batch 229 — CI's three jobs pinned to Ubuntu 24.04, because GitHub's `ubuntu-latest` became
+Ubuntu 26.04, where Playwright 1.60.0 cannot install Chromium — is complete (19 Nov, `bf9d5f5`,
+tooling-only, nothing to ship). Batch 230 — moving CI back once Playwright supports the newer
+image — is open and not urgent.
 
 ## Toolchain
 
@@ -229,6 +233,9 @@ Checked 2026-10-03.
 - **Deploys**: the web app ships on every push to `main`; the API ships only through
   `/ship-prod`. Close-out refuses API+web work, and web work over existing API debt, until the
   owner schedules the shipment; its durable verdict records who scheduled it and the UTC time.
+- **CI runners**: all three Quality jobs run on `ubuntu-24.04`, not `ubuntu-latest` (Batch 229,
+  19 Nov). On GitHub's Ubuntu 26.04 image Playwright 1.60.0 cannot install Chromium, so both
+  browser jobs failed at install on every push from about 18 Nov. Batch 230 moves back.
 
 **Next:** confirm a natural payment on the organiser's Payments screen after Batch 215's
 shipment. No API shipment is owed. Batch 211 stays deferred; the season-calendar backfill

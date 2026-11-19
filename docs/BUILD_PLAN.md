@@ -1590,7 +1590,7 @@ owner on launch day, 2026-10-17.
   Scope boundary: the web pick editor only. No API change, so the 10-an-hour limit and what
   counts against it stay as they are. **Web-only.**
 
-- [ ] **Batch 229 — CI's browser jobs cannot install Chromium on GitHub's new Ubuntu 26.04 runner**
+- [x] **Batch 229 — CI's browser jobs cannot install Chromium on GitHub's new Ubuntu 26.04 runner** ✅ 2026-11-19
   — raised 18 Nov 2026. The Quality workflow's three jobs run on `ubuntu-latest`, which GitHub
   now resolves to Ubuntu 26.04 (image 20261111.196.1). The pinned Playwright 1.60.0 refuses that
   image ("Playwright does not support chromium on ubuntu26.04-x64"), so `prod-bundle` and
@@ -1608,6 +1608,19 @@ owner on launch day, 2026-10-17.
 
   Scope boundary: the runner label only. No Playwright, Node, Python or dependency change; a
   Playwright release that supports Ubuntu 26.04 is a separate toolchain decision.
+  **Tooling-only.**
+
+- [ ] **Batch 230 — CI stays pinned to Ubuntu 24.04 until Playwright supports the newer image**
+  — follow-up from Batch 229 (19 Nov 2026). The pin holds only until GitHub retires
+  `ubuntu-24.04`. Before then, move to a Playwright release that installs Chromium on GitHub's
+  current Ubuntu image, and return the three Quality jobs to it.
+
+  - Check first that the chosen Playwright still installs Chromium on this Mac (macOS 13), or
+    the local gate's browser checks stop working.
+  - Needs owner-approved gate maintenance: `apps/web/package.json` and `.github/workflows/ci.yml`
+    are protected.
+
+  Not urgent until GitHub announces the 24.04 retirement; the owner schedules it.
   **Tooling-only.**
 
 ## Verification
