@@ -10,12 +10,16 @@ on:
   # run after the fact. `scripts/ci-local.sh` runs the same checks off-GitHub.
   workflow_dispatch:
 
+# Every job runs on a pinned image, not ubuntu-latest. GitHub moved ubuntu-latest to
+# Ubuntu 26.04 in November 2026, where the pinned Playwright 1.60.0 refuses to install
+# Chromium, so both browser jobs failed before any test ran (Batch 229). Ubuntu 24.04
+# is the image this whole workflow last passed on.
 jobs:
   # The same non-browser gate as local close-out: the trusted pre-push guard,
   # pinned tools, test-count ratchets and zero-skip checks all run here.  The
   # browser checks stay split below so their evidence remains easy to inspect.
   gate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       PUSH_BEFORE: ${{ github.event.before }}
       PULL_BASE: ${{ github.event.pull_request.base.sha }}
@@ -77,7 +81,7 @@ jobs:
       - run: SKIP_PROD_BUNDLE=1 scripts/ci-local.sh
 
   prod-bundle:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -98,7 +102,7 @@ jobs:
   # and standings are read through a production bundle and the real API on scratch
   # PostgreSQL. It runs the local gate's own runner, so the two cannot drift.
   coupon-journey:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
