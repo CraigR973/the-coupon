@@ -51,6 +51,36 @@ Suspension does not waive weekly dues or change parent format.
 For DDL failure, transactional rollback leaves 031 intact; diagnose the failed
 statement/lock, correct forward, then rehearse the entire upgrade again.
 
+## Before activation: the lossless undo
+
+Owner decision, 19 Nov 2026 (relayed verbatim: "yes proceed"). Until the format is
+switched on, every table 032 created is empty and every week is legacy, so none of
+the work the rules above protect exists yet. In that window only,
+`migration-032-undo.sql` reverses 032 exactly and keeps every legacy row written
+since it landed — a backup restore would lose those.
+
+- **Guards.** It refuses unless the revision is 032, all fifteen two-game tables are
+  empty and no week is non-legacy. One transaction, five-second lock timeout, no
+  CASCADE, so an unexpected dependency fails rather than disappearing.
+- **Order.** Stop `api`, then `payments` (`railway down` with explicit project,
+  environment and service). Run the script with `psql -X -v ON_ERROR_STOP=1 -f`,
+  over verified TLS (`backup-restore.md`). Roll both services back to their 031
+  deployments. Check `/health` and `/health/ready` report 031, rerun the RLS and grant
+  audit, and compare row counts with those taken just before.
+- **The revision tells the truth.** It records 031 only after removing everything 032
+  added, so the rule against editing `alembic_version` to make an old image boot
+  still stands.
+- **Afterwards it is forward-only.** Once any two-game table holds a row — a rollout,
+  a due, a provider attempt — the script refuses and the rules above apply.
+
+Tested by `tests/test_migration_032.py`: after the undo the schema equals a fresh 031
+schema as `pg_dump` prints it, later legacy writes survive and 032 re-applies; a
+refusal changes nothing. Rehearsed 19 Nov on a Supabase-shaped PostgreSQL 17 copy (anon
+and authenticated roles, auth policies, forced RLS): 0.1 s, schema identical to an
+untouched 031 copy line for line (742 lines), all 26 legacy tables kept the post-032
+writes, the 031 API booted on it, and one rollout row made it refuse. Real-data
+rehearsal: pending the production archive.
+
 ## Local rehearsal and required release evidence
 
 Use synthetic scratch databases only. Run the dedicated 032 migration/storage

@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 from pathlib import Path
 
+import asyncpg
 import pgserver
 import pytest
 import pytest_asyncio
@@ -391,3 +392,109 @@ async def test_synthetic_dump_restore_and_forward_restart_keep_spend_and_history
             )
             await conn.execute(text(f'DROP DATABASE "{target_name}"'))
         await admin.dispose()
+
+
+UNDO_032 = API.parents[1] / "docs" / "runbooks" / "migration-032-undo.sql"
+
+
+def libpq_url() -> str:
+    return (
+        make_url(os.environ["DATABASE_URL"])
+        .set(drivername="postgresql")
+        .render_as_string(hide_password=False)
+    )
+
+
+def schema_shape() -> list[str]:
+    """The schema exactly as pg_dump prints it, minus comments and session-only lines."""
+    binary = Path(pgserver.__file__).parent / "pginstall" / "bin"
+    dump = subprocess.run(
+        [str(binary / "pg_dump"), "--schema-only", "--dbname", libpq_url()],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    return [
+        line
+        for line in dump.splitlines()
+        if line.strip() and not line.startswith(("--", "\\restrict", "\\unrestrict"))
+    ]
+
+
+async def undo_032() -> None:
+    """Run the operator's script verbatim, as one session, the way psql would."""
+    conn = await asyncpg.connect(libpq_url())
+    try:
+        await conn.execute(UNDO_032.read_text())
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_undo_before_activation_restores_031_exactly_and_keeps_later_legacy_writes(
+    scratch: AsyncEngine,
+) -> None:
+    await migrate("031")
+    shape_031 = schema_shape()
+    league, player, _ = await seed_031(scratch)
+    await migrate()
+    week = uuid.uuid4()
+    async with scratch.begin() as conn:
+        # Legacy life at 032 with the format off: a new week, a re-scored pick, a new due.
+        await conn.execute(
+            text(
+                "INSERT INTO gameweeks (id,league_id,starts_on,number,status,locks_at_utc) "
+                "VALUES (:id,:league,'2060-01-17',4,'open','2060-01-17 14:30')"
+            ),
+            {"id": week, "league": league},
+        )
+        await conn.execute(text("UPDATE picks SET points_awarded = 23"))
+        await conn.execute(
+            text(
+                "INSERT INTO ledger_entries (id,league_id,player_id,gameweek_id,kind,amount_pence) "
+                "VALUES (:id,:league,:player,:week,'round_due',-100)"
+            ),
+            {"id": uuid.uuid4(), "league": league, "player": player, "week": week},
+        )
+    before = await history(scratch)
+
+    await undo_032()
+
+    assert schema_shape() == shape_031
+    assert await history(scratch) == before
+    async with scratch.connect() as conn:
+        assert await conn.scalar(text("SELECT version_num FROM alembic_version")) == "031"
+    await migrate()  # the shipment can be repeated once the fault is fixed
+    async with scratch.connect() as conn:
+        assert (
+            await conn.scalar(text("SELECT format FROM gameweeks WHERE id = :id"), {"id": week})
+            == "legacy"
+        )
+
+
+@pytest.mark.asyncio
+async def test_undo_refuses_and_changes_nothing_once_two_game_data_exists(
+    scratch: AsyncEngine,
+) -> None:
+    await migrate("031")
+    league, _, _ = await seed_031(scratch)
+    await migrate()
+    async with scratch.begin() as conn:
+        await conn.execute(
+            text(
+                "INSERT INTO two_game_rollouts (league_id,first_week,effective_opening) "
+                "VALUES (:league,'2060-01-24','2060-01-17 12:00')"
+            ),
+            {"league": league},
+        )
+    shape_032 = schema_shape()
+    before = await history(scratch)
+
+    with pytest.raises(asyncpg.PostgresError, match="undo-032 refused"):
+        await undo_032()
+
+    assert schema_shape() == shape_032
+    assert await history(scratch) == before
+    async with scratch.connect() as conn:
+        assert await conn.scalar(text("SELECT version_num FROM alembic_version")) == "032"
+        assert await conn.scalar(text("SELECT count(*) FROM two_game_rollouts")) == 1

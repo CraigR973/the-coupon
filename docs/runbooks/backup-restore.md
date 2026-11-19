@@ -74,6 +74,49 @@ public` and every new database already has one.
 `tests/test_offsite_backup.py` rehearses exactly this restore on every gate run: a settled
 week is archived, restored into an empty database and compared table by table.
 
+## Restoring production in place (last resort)
+
+Every write since the archive is lost, so the owner decides on the day that this
+beats a forward fix. Before the two-game format is activated, prefer the lossless
+undo in `migration-032-recovery.md`.
+
+Needs:
+
+- The archive's key, the SHA-256 of the downloaded copy and its revision, plus the
+  `api` and `payments` deployment ids that ran that revision.
+- A PostgreSQL 17 client with SSL. On the owner's Mac that is `~/.cache/the-coupon/pg17`,
+  built 19 Nov 2026 against OpenSSL 4.1.0 in `~/.cache/the-coupon/openssl-4.1.0`; the
+  system's OpenSSL 1.0.2 is too old. Keep both folders.
+- Supabase's CA certificate (dashboard, Database settings, SSL configuration). The
+  session pooler presents a chain to "Supabase Root 2021 CA", which no system bundle
+  trusts, so connect with `sslmode=verify-full sslrootcert=<that file>`. With
+  `require`, a TLS-intercepting proxy — this network has had one — would receive the
+  password unnoticed. Fail closed; never fall back.
+
+Steps:
+
+1. **Keep the broken state.** Run the off-site backup once more; it lands in R2 and the
+   bucket lock keeps it for 30 days.
+2. **Stop writes.** `railway down` for `api`, then `payments`, with explicit project,
+   environment and service.
+3. **Restore.** Password in a 0600 `PGPASSFILE`, connection string without it:
+   `DROP SCHEMA public CASCADE`, then the `pg_restore` above, which recreates the schema
+   with its grants and row-level-security policies.
+4. **Audit.** The revision and row counts equal the archive's; RLS is forced on every
+   table; no public-role table, schema or function grants remain.
+5. **Matching code.** Roll `api` and then `payments` back to their deployments for that
+   revision, poll both to SUCCESS, check `/health` and `/health/ready` agree, and set
+   `RAILWAY_GIT_COMMIT_SHA` on both to that commit.
+6. **Smoke and tell.** Web root, deep link, CORS preflight and the drift check; tell
+   members what was lost and from when.
+
+The outage is steps 2–5. Rehearsed 19 Nov on synthetic data: keep, drop and restore in
+0.6 s, every table identical to the archive, the 031 API booted. Real-data timing:
+pending. Two things a local rehearsal cannot show, so read them from production first:
+an extension installed in `public` would go with step 3, and an
+`ALTER DEFAULT PRIVILEGES FOR ROLE` entry in the archive needs membership of that role,
+which Supabase's `postgres` may lack.
+
 ## Free-plan staging rehearsal
 
 The staging Supabase project has no managed daily backup. For synthetic staging
