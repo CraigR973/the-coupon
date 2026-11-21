@@ -1,10 +1,11 @@
 # Backup And Restore Runbook
 
-**Production's only backup is the weekly off-site archive (Batch 95), and it is off until
-the owner switches it on.** Supabase is on the Free plan: no managed backup and no PITR.
-Batch 75 removed the old nightly dump because it wrote to `/tmp` and died with every
-redeploy. The owner's choices on 2026-09-25: Cloudflare R2, EU jurisdiction, every
-Monday at 04:00 London, built switched off.
+**Production's only backup is the weekly off-site archive (Batch 95), switched on
+21 Nov 2026.** Supabase is on the Free plan: no managed backup and no PITR. Batch 75
+removed the old nightly dump because it wrote to `/tmp` and died with every redeploy. The
+owner's choices: EU storage, every Monday at 04:00 London, built switched off
+(2026-09-25); Backblaze B2 rather than Cloudflare R2, on the account garmin-coach already
+uses (2026-11-20). The first archive, 21 Nov 13:27 UTC, was 830,665 bytes.
 
 ## What the job does
 
@@ -16,40 +17,59 @@ Monday at 04:00 London, built switched off.
 3. `pg_dump --format=custom --schema=public --no-owner` into a temporary directory. Grants
    and row-level-security policies stay in, so a Supabase restore brings the Data API
    lockdown back with the data.
-4. Uploads `production/the-coupon-<UTC timestamp>.dump`, declaring its SHA-256 so R2
-   refuses a corrupted body.
+4. Uploads `production/the-coupon-<UTC timestamp>.dump`, declaring its SHA-256
+   (`x-amz-content-sha256`) so the store refuses a corrupted body. It sends no
+   `Content-MD5` or `x-amz-checksum-*` header, which is why the bucket has no Object Lock
+   (below).
 
 A failure writes `backup_failed` to the audit log and pushes "The weekly backup failed" to
-every site admin, at most once a day. Each run moves about the database's size across
-Supabase's egress: 17 MB on 2026-09-24.
+every site admin, at most once a day. Each run reads the table data across Supabase's
+egress: about 4 MB on 2026-11-21, for a 20 MB database and a 0.8 MB archive.
 
 ## Switching it on (owner)
 
-Only after the `/ship-prod` that carries Batch 95; before that the variables do nothing.
+Done 20–21 Nov 2026 on Backblaze B2. The variables do nothing on an image without
+Batch 95.
 
-1. **Bucket.** Cloudflare dashboard, R2, Create bucket, Location: Specify jurisdiction,
-   **EU**. The jurisdiction cannot be changed afterwards. Suggested name:
-   `the-coupon-backups`.
-2. **Bucket lock.** The bucket's Settings, Bucket lock rules, Add rule: prefix
-   `production/`, retention **30 days**. R2 has no write-only key, so this is what stops a
-   leaked key deleting or overwriting a recent backup.
-3. **Lifecycle.** Settings, Object lifecycle rules: delete objects under `production/`
-   after **90 days**, about twelve weekly archives. It must be longer than the lock.
-4. **Key.** R2, Manage API tokens, Create: permission **Object Read & Write**, applied to
-   that one bucket only. Note the Access Key ID and the Secret Access Key; the secret is
-   shown once.
-5. **Egress.** Supabase organisation, Usage: confirm egress has headroom. The consumer
+1. **Bucket.** Backblaze (an EU-region account), B2 Cloud Storage, Create a Bucket:
+   private, default encryption on, **Object Lock off**. With a default retention, B2
+   answers this job's upload with HTTP 400 `InvalidRequest`: it demands `Content-MD5` or
+   an `x-amz-checksum-*` header the client does not send. Production's bucket:
+   `the-coupon-backups-hm58yp`.
+2. **Lifecycle.** One rule on prefix `production/`: hide after **90 days**, delete
+   **30 days** after hiding. About twelve weekly archives stay visible, plus a month of
+   hidden ones.
+3. **Key.** Exactly `listBuckets`, `listFiles` and `writeFiles`, restricted to that bucket
+   and the name prefix `production/`. Without `deleteFiles` a leaked key can at most hide
+   an archive, and a hidden archive stays restorable for 30 days: the guarantee R2's
+   30-day bucket lock gave. The console's key types are undocumented, so make it with the
+   master key through the B2 CLI or the native `b2_create_key`:
+   `b2 key create --bucket the-coupon-backups-hm58yp --name-prefix production/ the-coupon-backup listBuckets,listFiles,writeFiles`.
+   On 20 Nov a local stdlib helper did this, checked the bucket and its rule, and proved
+   the job's exact listing request returned 200; it is not in git.
+4. **Egress.** Supabase organisation, Usage: confirm egress has headroom. The consumer
    that exceeded the quota on 2026-08-25 was never identified (FEAT-A09).
-6. **Railway, production `api` service.** Set, with the secret sealed:
-   `BACKUP_S3_ENDPOINT=https://<account_id>.eu.r2.cloudflarestorage.com`,
-   `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, and last
-   `BACKUP_STORAGE=s3`. `BACKUP_S3_REGION` defaults to `auto` and `BACKUP_S3_PREFIX` to
-   `production/`.
-7. **Check.** The boot log must not say `offsite backup is switched on but misconfigured`.
-   Then run it once rather than waiting for Monday, from `/app/apps/api` inside the
-   container over `railway ssh`:
-   `/opt/venv/bin/python -m src.run_scheduled offsite-backup`. The archive should appear
-   in the bucket.
+5. **Railway, production `api` service.** `BACKUP_S3_ENDPOINT=https://s3.<region>.backblazeb2.com`,
+   `BACKUP_S3_REGION=<region>` (production: `eu-central-003`; the default `auto` is R2's
+   and B2 refuses the signature), `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID` (the key
+   ID), `BACKUP_S3_SECRET_ACCESS_KEY` (the application key), and last
+   `BACKUP_STORAGE=s3`. `BACKUP_S3_PREFIX` defaults to `production/`. Seal the secret and
+   deploy. To check the seal without seeing the value: `railway variables --json` with
+   explicit selectors never returns a sealed variable, so a filter that prints only
+   whether the secret came back answers it. On 21 Nov it still came back after the deploy.
+6. **Check.** The boot log must not say `offsite backup is switched on but misconfigured`.
+   Then run it once rather than waiting for Monday, inside the container over
+   `railway ssh` with explicit selectors: `/opt/venv/bin/python -m src.run_scheduled
+   offsite-backup` from `/app/apps/api`. The ssh shell lacks the image's
+   `LD_LIBRARY_PATH` and `PYTHONPATH` and the image has no `mktemp`, so run it with the
+   live process's environment (`/proc/1/environ`), at low priority: the container has
+   0.25 vCPU and 512 MB. It logs `offsite backup complete` with the key and size. On
+   21 Nov, 13:27 UTC: 830,665 bytes in 7 s, production's row counts identical before
+   and after, memory peak 276 of 512 MB.
+
+Cloudflare R2, the 2026-09-25 choice, works too: an EU-jurisdiction bucket with a 30-day
+bucket lock on `production/`, a 90-day expiry, an Object Read & Write token for that one
+bucket, and `BACKUP_S3_REGION` left at `auto`.
 
 ## Restoring
 
@@ -57,17 +77,29 @@ Into a **new, empty** database only — a new Supabase project in London, say. T
 drops and recreates the `public` schema, because the archive carries `CREATE SCHEMA
 public` and every new database already has one.
 
-1. Download the newest `production/the-coupon-*.dump` from the bucket.
+1. Download the newest `production/the-coupon-*.dump` from the bucket. Backblaze's web
+   console hands a selected file over as `backblaze_download_<timestamp>.zip` holding
+   `production/<name>.dump`; check it holds exactly that one file, at the size the job
+   logged, before extracting it.
 2. Check it reads: `pg_restore --list the-coupon-<ts>.dump` must list
    `TABLE DATA public picks`.
 3. Restore with a `pg_restore` of at least the dump's major version (production's image
-   has 17):
+   has 17). On Supabase you connect as `postgres`, which is not a superuser and cannot
+   set `supabase_admin`'s default privileges. The archive carries three such entries,
+   and `--exit-on-error` stops on the first ("permission denied to change default
+   privileges") after the data is in. So leave them out with a list:
 
    ```bash
-   pg_restore --clean --if-exists --no-owner --exit-on-error \
+   pg_restore --list the-coupon-<ts>.dump \
+     | grep -v 'DEFAULT ACL public DEFAULT PRIVILEGES FOR .* supabase_admin$' > restore.list
+   pg_restore --clean --if-exists --no-owner --exit-on-error --use-list restore.list \
      --dbname "<new database DSN>" the-coupon-<ts>.dump
    ```
 
+   Then, as `postgres`, `ALTER SCHEMA public OWNER TO pg_database_owner`, as Supabase
+   had it; the restore recreates `public` owned by `postgres`. Supabase's own default
+   privileges, for objects `supabase_admin` later creates in `public`, are not restored;
+   this app creates none.
 4. Confirm `alembic_version` matches the head of the image you will run, point
    `DATABASE_URL` at the new database, deploy, and check `/api/v1/health/ready`.
 
@@ -95,13 +127,14 @@ Needs:
 
 Steps:
 
-1. **Keep the broken state.** Run the off-site backup once more; it lands in R2 and the
-   bucket lock keeps it for 30 days.
+1. **Keep the broken state.** Run the off-site backup once more; it lands in the
+   bucket, where the backup key cannot delete it (a hidden copy stays 30 days).
 2. **Stop writes.** `railway down` for `api`, then `payments`, with explicit project,
    environment and service.
 3. **Restore.** Password in a 0600 `PGPASSFILE`, connection string without it:
-   `DROP SCHEMA public CASCADE`, then the `pg_restore` above, which recreates the schema
-   with its grants and row-level-security policies.
+   `DROP SCHEMA public CASCADE`, then the filtered `pg_restore` above, which recreates
+   the schema with its grants and row-level-security policies, then
+   `ALTER SCHEMA public OWNER TO pg_database_owner`.
 4. **Audit.** The revision and row counts equal the archive's; RLS is forced on every
    table; no public-role table, schema or function grants remain.
 5. **Matching code.** Roll `api` and then `payments` back to their deployments for that
@@ -110,12 +143,15 @@ Steps:
 6. **Smoke and tell.** Web root, deep link, CORS preflight and the drift check; tell
    members what was lost and from when.
 
-The outage is steps 2–5. Rehearsed 19 Nov on synthetic data: keep, drop and restore in
-0.6 s, every table identical to the archive, the 031 API booted. Real-data timing:
-pending. Two things a local rehearsal cannot show, so read them from production first:
-an extension installed in `public` would go with step 3, and an
-`ALTER DEFAULT PRIVILEGES FOR ROLE` entry in the archive needs membership of that role,
-which Supabase's `postgres` may lack.
+The outage is steps 2–5. Rehearsed 19 Nov on synthetic data and 21 Nov on the real
+archive (27 tables, 17,780 rows), on local PostgreSQL 17, so the network to Supabase
+comes on top: restore into an empty database 0.8 s; keep, drop and restore 2.4 s, every
+table identical to the archive, the 031 API booted. A Supabase-shaped copy, with
+`supabase_admin` the superuser and `postgres` not, showed the unfiltered restore failing
+on the `supabase_admin` entries once the data was in, and the filtered one passing with
+every table identical. Read from production on 21 Nov: no extension lives in `public`.
+Still to read before relying on step 3: that production's `postgres` owns the database,
+which dropping and recreating `public` needs.
 
 ## Free-plan staging rehearsal
 

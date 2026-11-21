@@ -78,8 +78,12 @@ schema as `pg_dump` prints it, later legacy writes survive and 032 re-applies; a
 refusal changes nothing. Rehearsed 19 Nov on a Supabase-shaped PostgreSQL 17 copy (anon
 and authenticated roles, auth policies, forced RLS): 0.1 s, schema identical to an
 untouched 031 copy line for line (742 lines), all 26 legacy tables kept the post-032
-writes, the 031 API booted on it, and one rollout row made it refuse. Real-data
-rehearsal: pending the production archive.
+writes, the 031 API booted on it, and one rollout row made it refuse. On the real
+archive (21 Nov 2026, 27 tables, 17,780 rows): 032 applied in 1.9–4.7 s, with every
+legacy table identical and the fifteen new ones empty; the undo took 0.1 s, left the
+schema identical to a fresh restore (790 lines) and kept the legacy writes made at 032
+in all 26 legacy tables; the 031 API booted on it; one rollout row made it refuse
+(exit 3) and change nothing.
 
 ## Local rehearsal and required release evidence
 
