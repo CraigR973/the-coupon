@@ -53,10 +53,14 @@ Batch 95.
    `BACKUP_S3_REGION=<region>` (production: `eu-central-003`; the default `auto` is R2's
    and B2 refuses the signature), `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID` (the key
    ID), `BACKUP_S3_SECRET_ACCESS_KEY` (the application key), and last
-   `BACKUP_STORAGE=s3`. `BACKUP_S3_PREFIX` defaults to `production/`. Seal the secret and
-   deploy. To check the seal without seeing the value: `railway variables --json` with
-   explicit selectors never returns a sealed variable, so a filter that prints only
-   whether the secret came back answers it. On 21 Nov it still came back after the deploy.
+   `BACKUP_STORAGE=s3`. `BACKUP_S3_PREFIX` defaults to `production/`. Seal the secret
+   (from its three-dot menu) and deploy. To check the seal without seeing the value:
+   `railway variables --json` with explicit selectors still lists a sealed variable, but
+   with an empty value, so pipe it to a filter that prints only whether the secret's
+   value is empty. On 21 Nov it came back with its value after the deploy (unsealed),
+   then empty once sealed, with no redeploy, as payments' sealed `MONZO_*` secrets do.
+   A cleared secret reads empty too; the next deploy's boot log tells the two apart,
+   because a missing secret makes step 6's line appear, naming it.
 6. **Check.** The boot log must not say `offsite backup is switched on but misconfigured`.
    Then run it once rather than waiting for Monday, inside the container over
    `railway ssh` with explicit selectors: `/opt/venv/bin/python -m src.run_scheduled
