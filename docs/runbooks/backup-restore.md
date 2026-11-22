@@ -61,6 +61,12 @@ Batch 95.
    then empty once sealed, with no redeploy, as payments' sealed `MONZO_*` secrets do.
    A cleared secret reads empty too; the next deploy's boot log tells the two apart,
    because a missing secret makes step 6's line appear, naming it.
+   Then add every name set here to `PRESERVED_VARIABLE_NAMES` in `.railway/railway.ts`
+   and to its copy in `scripts/assert-deployment-config.py` before the next
+   `/ship-prod`. IaC replaces the service's variables as a set, so its plan deletes any
+   name it does not preserve. On 22 Nov the plan for the two-game API shipment would have
+   deleted all six, the sealed secret with them; the shipment stopped on it and the
+   names were added.
 6. **Check.** The boot log must not say `offsite backup is switched on but misconfigured`.
    Then run it once rather than waiting for Monday, inside the container over
    `railway ssh` with explicit selectors: `/opt/venv/bin/python -m src.run_scheduled

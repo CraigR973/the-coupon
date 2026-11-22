@@ -91,6 +91,12 @@ const TARGETS = {
 // workflows deliberately refuse destructive plans.
 export const PRESERVED_VARIABLE_NAMES = [
   "AVATAR_STORAGE",
+  "BACKUP_S3_ACCESS_KEY_ID",
+  "BACKUP_S3_BUCKET",
+  "BACKUP_S3_ENDPOINT",
+  "BACKUP_S3_REGION",
+  "BACKUP_S3_SECRET_ACCESS_KEY",
+  "BACKUP_STORAGE",
   "BF_APP_KEY",
   "BF_CERT_FILE",
   "BF_CERT_PEM_B64",
