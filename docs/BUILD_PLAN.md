@@ -1704,7 +1704,7 @@ games, picks, weekly dues or notices and start no new provider workers. Existing
 legacy leagues retain their behaviour. A flag does not waive migration recovery,
 old-writer compatibility, full gates or failed component acceptance.
 
-- [ ] **Batch 219 — Define the two-game contracts and separate the release gates**
+- [x] **Batch 219 — Define the two-game contracts and separate the release gates** ✅ 2026-11-22
   — prerequisites: approved rules and the revised plan. Record group/fantasy
   windows, locks, independence, partial entries, scoring, continuous season totals
   and unconditional £1 calendar-week billing. Specify explicit league/week/game/
@@ -1726,7 +1726,7 @@ old-writer compatibility, full gates or failed component acceptance.
   fake-provider/scratch-database work can begin while live activation stays
   blocked. Scope: contracts and documentation; no live billing or activation.
 
-- [ ] **Batch 220 — Add isolated two-game storage and a default-disabled rollout gate**
+- [x] **Batch 220 — Add isolated two-game storage and a default-disabled rollout gate** ✅ 2026-11-22
   — prerequisite: 219. Add the parent/child format model, separate group/fantasy
   picks, explicit fixture memberships, future membership/billing provenance and
   durable provider-budget/snapshot/work-cursor storage. Enforce same-league/week
@@ -1744,7 +1744,7 @@ old-writer compatibility, full gates or failed component acceptance.
   transport allowance.
   Scope: schema, persistence primitives and isolation; no new member entry flow.
 
-- [ ] **Batch 221 — Retrieve both game windows in paced chunks within one provider budget**
+- [x] **Batch 221 — Retrieve both game windows in paced chunks within one provider budget** ✅ 2026-11-22
   — prerequisite: 220. Share a paginated global weekend census, apply separate
   group/fantasy filters and store London-derived openings/locks. Charge actual
   HTTP attempts atomically across discovery, pricing, retries, manual and legacy
@@ -1764,7 +1764,7 @@ old-writer compatibility, full gates or failed component acceptance.
   settlement Q9 in 225. Preserve spend independently of business transactions.
   Scope: discovery, price scheduling and shared admission; no scoring or fee rule.
 
-- [ ] **Batch 222 — Charge one £1 calendar-week fee independently of participation**
+- [x] **Batch 222 — Charge one £1 calendar-week fee independently of participation** ✅ 2026-11-22
   — prerequisites: 220–221. For activated leagues only, record one idempotent due
   per member/Monday-to-Monday London week, labelled by Saturday, including
   no-entry, partial, all-void, cancelled, fixture-free,
@@ -1781,7 +1781,7 @@ old-writer compatibility, full gates or failed component acceptance.
   Scope: weekly
   entitlement/roster lifecycle; no bank-reader or OAuth change.
 
-- [ ] **Batch 223 — Add the unpriced Saturday group API**
+- [x] **Batch 223 — Add the unpriced Saturday group API** ✅ 2026-11-22
   — prerequisites: 220–222. Explicitly target league/week/group for submit,
   replace and read. One contribution per member and one member per whole fixture;
   Saturday 15:00 fixtures only, 14:30 lock, weekly entitlement required. Do not
@@ -1791,7 +1791,7 @@ old-writer compatibility, full gates or failed component acceptance.
   fee refusal, inactive/stale clients and cross-league/week/game isolation;
   incomplete participation and zero-entry state. Scope: group entry/read API.
 
-- [ ] **Batch 224 — Add six independent fantasy slots with fresh frozen prices**
+- [x] **Batch 224 — Add six independent fantasy slots with fresh frozen prices** ✅ 2026-11-22
   — prerequisites: 220–223. Explicit league/week/fantasy/slot save and replace;
   six different matches per member, shared across members and independent of
   group claims. Preserve partial entries and each leg's positive quote freshness
@@ -1804,7 +1804,7 @@ old-writer compatibility, full gates or failed component acceptance.
   boundaries. Every upstream attempt is counted; no implicit bulk-save redesign.
   Scope: fantasy entry/read API and format-aware pick admission.
 
-- [ ] **Batch 225 — Settle both games, preserve season totals and handle corrections/events**
+- [x] **Batch 225 — Settle both games, preserve season totals and handle corrections/events** ✅ 2026-11-22
   — prerequisites: 223–224. Use fair persisted chunks of distinct eligible
   picked fixtures, retaining completed results and delaying pending/error work.
   Group voids are neutral, all-void is void, zero picks is “No coupon”. Score each
@@ -1821,7 +1821,7 @@ old-writer compatibility, full gates or failed component acceptance.
   policy; Q9 commits/charges survive later failure and restart without duplicate
   results or notices. Scope: results, corrections and game-aware lifecycle/events.
 
-- [ ] **Batch 226 — Expose all actionable games, legacy history and week-specific payment status**
+- [x] **Batch 226 — Expose all actionable games, legacy history and week-specific payment status** ✅ 2026-11-22
   — prerequisites: 222–225. Return current group entry, current fantasy results
   and next fantasy entry together with exact targets, deadlines, progress and
   fee entitlement. Support multiple leagues, partial entries, leg metrics versus
@@ -1838,7 +1838,7 @@ old-writer compatibility, full gates or failed component acceptance.
   stop switch. Production migration requires a tested recovery point. Do not
   manufacture bank payments or notification receipt evidence.
 
-- [ ] **Batch 227 — Build the separate Saturday group screen and legacy archive flow**
+- [x] **Batch 227 — Build the separate Saturday group screen and legacy archive flow** ✅ 2026-11-22
   — prerequisite: 226 contracts; local build can use the new backend before its
   production shipment. Show contribution, missing contributors, 14:30 deadline,
   neutral/all-void/no-coupon results and week-specific fee state without odds or
@@ -1849,7 +1849,7 @@ old-writer compatibility, full gates or failed component acceptance.
   close-out/push because Vercel releases the pushed web app automatically.
   Scope: group and shared home/archive presentation, no activation.
 
-- [ ] **Batch 228 — Build six-slot fantasy, simultaneous home states and the continuing table**
+- [x] **Batch 228 — Build six-slot fantasy, simultaneous home states and the continuing table** ✅ 2026-11-22
   — prerequisites: 226 contracts, successful API checkpoint and closed 227. Show six independent slots,
   Saturday/Sunday choices, noon deadline and seven-day next-week entry; per-leg
   results/weekly sum and continuing legacy-plus-fantasy standings. Explain valid
@@ -1865,6 +1865,17 @@ old-writer compatibility, full gates or failed component acceptance.
   and suspension procedure, owner approval. Saturday's observation alone does
   not activate anything. Observe natural member use/results afterwards; tests
   do not prove provider availability, delivery receipt or owner acceptance.
+
+- [ ] **Batch 231 — Two-game activation and suspension tooling**
+  — prerequisites: 219–228 shipped with the format off (22 Nov 2026, `874d89c`). Add an
+  audited site-admin action that writes one league's `two_game_rollouts` row for an
+  untouched future Saturday, and a tested suspension that stops entries and openings while
+  keeping billing, settlement and history. Make the mixed-Saturday browser story strict:
+  its final check passes today only because the seeded legacy pick already matches.
+  Acceptance: both actions audited and tested, shipped through `/ship-prod` from `main`;
+  then `TWO_GAMES_ENABLED` on with no rollout row and legacy healthy; then Batch 228's
+  activation checkpoint and a separate owner decision naming the league and first
+  Saturday.
 
 ## Verification
 

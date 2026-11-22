@@ -9175,3 +9175,76 @@ https://github.com/CraigR973/the-coupon/actions/runs/44435409544 PASS for `bf9d5
 **Next:** Batch 211 stays owner-deferred and Batch 230 is not urgent. The owner reviews the local
 two-game stack (`fix/two-game-owner-review`, `d425e2d`), whose exact-head CI should be rerun on
 top of this fix before integration.
+
+## Batches 219–228 — Two games per week, shipped with the format off
+**Commits:** `eed94e1..874d89c` (17: the 13-commit two-game stack ending `23867da`, then
+`abe00e1` (lossless 032 undo), `1bbc957` and `921f576` (recovery docs), `874d89c` (Railway
+keep list)) · verified: full local gate 12/12 (backend 2,074; frontend 1,505; journey 1; zero
+skips; tree `c901669`), two-game browser stories 30/30, old-web gate 12/12 (new API with
+`eed94e1`'s web: frontend 1,418, journey 1) · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/45015479879 PASS for `874d89c`
+
+### Key facts for future sessions
+- Shipped in owner-approved stages: the weekly Backblaze backup switched on (21 Nov) with a
+  real-data rehearsal of the restore, migration 032 and its undo; API and payments on
+  `874d89c` with migration 032 at 10:17 and 10:19 UTC on 22 Nov, `TWO_GAMES_ENABLED` unset;
+  `main` fast-forwarded at 11:04 UTC the same day, an owner-approved exception to the
+  planned 24-hour wait.
+- Railway IaC replaces a service's variables as a set. The plan for `921f576` would have
+  deleted the six `BACKUP_*` variables, the sealed secret included, so `874d89c` adds them to
+  `PRESERVED_VARIABLE_NAMES`. The plan's remaining four changes (`nixpacksConfigPath`,
+  `numReplicas` on both services) are permanent reporting drift.
+- `railway up` from a worktree needs `--path-as-root`: without it the first API build
+  (`04a8e1d4`) saw the worktree as a subdirectory and failed before anything ran.
+- Until a league is activated, `docs/runbooks/migration-032-undo.sql` takes production back
+  to `031` keeping every legacy write (0.1 s on real data). Recovery point:
+  `production/the-coupon-20261122T100332Z.dump` (840,154 bytes, SHA-256 `c99307e5…a8ac`),
+  restored locally with every count matching.
+- After shipping: 42 tables with RLS forced, no public-role grants, 37 rounds all `legacy`,
+  the 15 new tables empty, and no backup "misconfigured" line, so the sealed secret reached
+  the new API. The owner's phone check after the API shipment: all normal.
+- **Close-out safety:** PASS — API+web; shipment scheduled by Craig Robinson at 2026-11-22T08:38:32Z; pre-push deployed-API drift in sync; /ship-prod owed immediately after push. The last clause is stale for this stack: API and payments already ran `874d89c` from 10:17 and 10:19 UTC, so nothing is owed.
+
+### Follow-ups
+- Batch 231 (unchecked): two-game activation and suspension tooling, with the mixed-Saturday
+  story made strict, before any league is activated.
+
+**Next:** watch the first legacy settlement on 032 (Yer Leagues A Joke round 3, 22 Nov
+evening) and the 27–28 Nov rounds. Activation needs Batch 231 and a separate owner decision.
+
+### The STATUS note kept frozen during the stack (moved verbatim at close-out)
+
+```text
+Batches **219–228** are implemented locally with the new format inactive.
+At the 17 Nov checkpoint, 219–227 retain nine verified local commits. Batch 228
+has independent 21-case source review and all 30 strict desktop/installed-phone
+stories passing with zero retries/flaky/skipped. It is not accepted or committed.
+
+The latest full gate is 11 of 12: backend 2,067 and frontend assertions 1,496 pass,
+38 smoke stories and one seeded journey pass, zero skips. The protected parser
+rejects ANSI-coloured frontend count output after the sanitised wrapper dropped
+colour controls. No PASS stamp exists. Read-only review confirms the remedy is
+explicit NO_COLOR=1 and TERM=dumb, leaving FORCE_COLOR absent; no gate/test edit.
+Backend and journey renewed attempts are 3 of 3 consumed, so another complete
+gate needs fresh exact approval for one further local full run (about 30 minutes).
+
+The final already-authorised browser attempt verifies this corrected document
+freeze exactly; actual result is recovery-browser-attempt3.json in the ignored
+evidence directory. The report links the failed gate, source/runtime reviews and
+resumable checkpoint. Older timeout/timing/missing-audience causes remain unproved.
+Exact-main baseline recovery passed separately; no baseline source patch exists.
+Fake/injected transports and synthetic credentials remain required. The provider
+selector stays unset for the unchanged default-setting oracle, with no live probe.
+
+Only .local/overnight-two-games/recovery-final-acceptance.json may record future
+complete acceptance and a matching local commit, after the additionally approved
+full gate and exact-tree browser/review checks pass. Absent means 228 is not accepted.
+This frozen note does not claim acceptance from component passes or an older stamp.
+
+Production and main remain unchanged; no formal close-out or canonical row tick.
+Monday-to-Monday London £1 billing, membership intersections, early dues and
+pooled FIFO remain approved. Live coverage/quota, supported traffic/latency,
+tested production recovery, same-head API/payments shipment before web and exact
+future league/week activation approval remain separate.
+This recovery neither executes nor claims the separate 14 Nov provider observation.
+```

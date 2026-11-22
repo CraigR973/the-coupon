@@ -13,23 +13,31 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `c18e81e` at migration `031` (9 Nov) |
-| API deployment | Railway `8e7bde40-0910-4dab-9709-c6382ffbb13a` succeeded, one replica, `europe-west4` (9 Nov) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `c18e81e` at `031`, Railway `4066c2fb-77a1-4fd2-b3e7-ba72af3bad3c` (9 Nov), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
-| Web | `the-coupon-production.vercel.app` is healthy; root and standings deep link serve the same SPA asset with the committed security/cache headers (9 Nov). Batch 215 changes no web code; Batch 218 is the latest web feature and Batch 202 (Vite 8, Tailwind 4) the latest toolchain change. |
-| Database | Supabase `pugujiiojitstkilphrz`, London; RLS forced on 27 of 27 tables, no public-role table or schema grants (9 Nov) |
+| API | `api-production-109b1.up.railway.app` serves `874d89c` at migration `032` (22 Nov) |
+| API deployment | Railway `1299d40b-5253-482e-8d5f-5a455e342008` succeeded, one replica, `europe-west4` (22 Nov) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `874d89c` at `032`, Railway `94dc89ad-1ab9-492e-adb5-69962b85aebd` (22 Nov), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
+| Web | `the-coupon-production.vercel.app` serves `874d89c` (Vercel `dpl_7ywVtuKRTotGgXTX2sfirGxu57Ur`); root, standings and results deep links serve the same SPA asset with the committed security/cache headers (22 Nov). The two-game screens are built and hidden while the format is off. |
+| Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the 15 two-game tables are empty (22 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by **Betfair Sportsbook** since 10:36 UTC on 31 Oct (ADR 0002's 31 Oct amendment). Bet365 has been paid-only since 26 Oct, 19:00 UTC, and a free key gets a 403. Free key: 100 requests/hour and 500/day for the whole deployment. On the 31 Oct card it priced 78 of 85 fixtures, none in the Highland League (31 Oct). The owner chose to keep it rather than pay £49/mo for Bet365 (31 Oct) |
 | Football data | FotMob, no key |
 | Scheduler | on (`SCHEDULER_ENABLED=true`) |
 | Avatars | built and off (`AVATAR_STORAGE=none`) |
-| Backups | **none yet** — the weekly off-site job is live and switched off (Batch 95) |
+| Backups | weekly off-site `pg_dump` to Backblaze B2 (EU), Mondays 04:00 London (Batch 95, switched on 21 Nov); last run by hand 22 Nov 10:03 UTC, 840,154 bytes, restored locally with every count matching (22 Nov). Runbook: `docs/runbooks/backup-restore.md` |
+| Two-game format | shipped and off: `TWO_GAMES_ENABLED` unset on both services, no rollout row, every round `legacy` (22 Nov) |
 
 `scripts/check-deploy-drift.sh` is the authority on what the API is running, never
 `git log`: shipments have gone unrecorded before.
 
 ## Shipment state
 
+- **Batches 219–228 are shipped and verified with the format off** (22 Nov, `874d89c`,
+  migration `032`). API and payments went first (10:17 and 10:19 UTC), the web at 11:04 UTC;
+  both services report `874d89c` / `032`, drift is in sync, and the read-only audit found RLS
+  forced on 42 of 42 tables with no public-role grants, every round `legacy` and the 15 new
+  tables empty. Until a league is activated, `docs/runbooks/migration-032-undo.sql` returns
+  the database to `031` without losing legacy writes; afterwards recovery is forward-only
+  (`docs/runbooks/migration-032-recovery.md`). Recovery point: the 22 Nov 10:03 UTC backup.
 - **Batch 215 is shipped and verified** (9 Nov, `c18e81e`, no migration). Both services
   report `c18e81e` / `031`, readiness is `db: ok`, drift is in sync, and the catalogue audit
   found RLS forced on all 27 tables with no public-role table or schema grants. The exact
@@ -109,11 +117,6 @@ These are not batches; nothing here will happen unless the owner does it or auth
   Production's `season_calendars` table is empty
   (2026-09-24). `python -m src.backfill_season_calendar --dry-run`, review every move,
   then a separately authorised `--apply`; see `docs/backfills/2026-season-calendar.md`.
-- **Switch on the weekly backup** — Batch 95 is live and off (2026-09-26). Create
-  the EU-jurisdiction R2 bucket with a 30-day bucket lock and a 90-day expiry, a key
-  scoped to it, check Supabase egress headroom (FEAT-A09's consumer was never identified;
-  the quota was exceeded on 2026-08-25), seal the `BACKUP_*` variables and run it once by
-  hand. Steps: `docs/runbooks/backup-restore.md`. Until then production has no backup.
 - **The local agent configuration** (review finding PIPE-01, by hand, not a batch).
   `.claude/settings.local.json` still enables the Supabase MCP server — bound to a
   different product — with its write-capable query tool allowed, a blanket shell allow,
@@ -145,38 +148,10 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Batches **219–228** are implemented locally with the new format inactive.
-At the 17 Nov checkpoint, 219–227 retain nine verified local commits. Batch 228
-has independent 21-case source review and all 30 strict desktop/installed-phone
-stories passing with zero retries/flaky/skipped. It is not accepted or committed.
-
-The latest full gate is 11 of 12: backend 2,067 and frontend assertions 1,496 pass,
-38 smoke stories and one seeded journey pass, zero skips. The protected parser
-rejects ANSI-coloured frontend count output after the sanitised wrapper dropped
-colour controls. No PASS stamp exists. Read-only review confirms the remedy is
-explicit NO_COLOR=1 and TERM=dumb, leaving FORCE_COLOR absent; no gate/test edit.
-Backend and journey renewed attempts are 3 of 3 consumed, so another complete
-gate needs fresh exact approval for one further local full run (about 30 minutes).
-
-The final already-authorised browser attempt verifies this corrected document
-freeze exactly; actual result is recovery-browser-attempt3.json in the ignored
-evidence directory. The report links the failed gate, source/runtime reviews and
-resumable checkpoint. Older timeout/timing/missing-audience causes remain unproved.
-Exact-main baseline recovery passed separately; no baseline source patch exists.
-Fake/injected transports and synthetic credentials remain required. The provider
-selector stays unset for the unchanged default-setting oracle, with no live probe.
-
-Only .local/overnight-two-games/recovery-final-acceptance.json may record future
-complete acceptance and a matching local commit, after the additionally approved
-full gate and exact-tree browser/review checks pass. Absent means 228 is not accepted.
-This frozen note does not claim acceptance from component passes or an older stamp.
-
-Production and main remain unchanged; no formal close-out or canonical row tick.
-Monday-to-Monday London £1 billing, membership intersections, early dues and
-pooled FIFO remain approved. Live coverage/quota, supported traffic/latency,
-tested production recovery, same-head API/payments shipment before web and exact
-future league/week activation approval remain separate.
-This recovery neither executes nor claims the separate 14 Nov provider observation.
+Batches **219–228** are closed (22 Nov) and live with the two-game format off. Nothing
+activates without Batch 231 (activation and suspension tooling) and a separate owner
+decision naming the league and its first Saturday. The note kept frozen during the stack
+is in `session-log.md`.
 
 Batches 170-203 are drafted from the 2026-09-28 review and every owner decision they needed
 was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is complete
