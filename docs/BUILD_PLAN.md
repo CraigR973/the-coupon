@@ -1868,7 +1868,7 @@ old-writer compatibility, full gates or failed component acceptance.
   not activate anything. Observe natural member use/results afterwards; tests
   do not prove provider availability, delivery receipt or owner acceptance.
 
-- [ ] **Batch 231 — Two-game activation and suspension tooling**
+- [x] **Batch 231 — Two-game activation and suspension tooling** ✅ 2026-11-22
   — prerequisites: 219–228 shipped with the format off (22 Nov 2026, `874d89c`). Add an
   audited site-admin action that writes one league's `two_game_rollouts` row for an
   untouched future Saturday, and a tested suspension that stops entries and openings while

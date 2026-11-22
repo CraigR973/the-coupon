@@ -9248,3 +9248,39 @@ tested production recovery, same-head API/payments shipment before web and exact
 future league/week activation approval remain separate.
 This recovery neither executes nor claims the separate 14 Nov provider observation.
 ```
+
+## Batch 231 — Two-game activation and suspension tooling
+**Commits:** `97c9555` · verified: full local gate 12/12 (backend 2,087; frontend 1,505; journey 1;
+zero skips; tree `0670224`), two-game browser stories 30/30 · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/45081223347 PASS for `97c9555`
+
+### Key facts for future sessions
+- Activation, suspension and resume are one audited transaction each, run from the site-admin
+  routes or `python -m src.two_game_rollout` (a preview unless `--apply`). Activation refuses
+  with a code and changes nothing; `--retire-untouched-legacy` deletes the league's
+  still-scheduled, unopened and untouched legacy rounds from five days before the first
+  Saturday in the same commit. Runbook: `docs/runbooks/two-game-activation.md`.
+- Owner decision, 22 Nov: a first week whose rule opening has passed opens at activation
+  (`--open-at-activation`) when the league holds no two-game state. The stored fantasy
+  `opens_at` stays the rule's Saturday noon, because migration 032's trigger accepts only a
+  preceding Saturday noon; the rollout's `effective_opening` and the audit row carry the
+  activation instant.
+- Suspension refuses new entries, replacements and early fees (`SUSPENDED`) and opens no
+  game, while weekly billing, settlement, locks and history carry on. Resume refuses on a
+  billing gap and needs the printed reconciliation confirmed; a locked game never reopens.
+- 032's lossless undo ends at `TWO_GAMES_ENABLED`, not at activation: with the flag on every
+  odds-api.io request writes `provider_attempts` and joins write `membership_intervals`, and
+  the undo refuses once any two-game table holds a row. Take the backup before the flag.
+- The first legacy settlement on 032 is Yer Leagues A Joke round 3 at Mon 23 Nov 22:05 (no
+  picks; its window closes Mon 21:00), not 22 Nov: that evening's 18:05, 20:05 and 22:05
+  sweeps each saw 14 rounds, settled none and logged no error.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+### Follow-ups
+- Owner go 1 (22 Nov, 21:00:56 UTC): `/ship-prod` of API and payments with the format off —
+  moved by the owner at 22:45:47 UTC from Tue 24 Nov 13:20 to the night of 22–23 Nov — then
+  a fresh backup and `TWO_GAMES_ENABLED` on both services with no rollout row, legacy
+  verified. Go 2 (owner): Batch 228's activation checkpoint and the league and first Saturday.
+
+**Next:** `/ship-prod` of Batch 231 with the format off (night of 22–23 Nov), then the flag and
+the first legacy jobs under the shared request budget; Thursday's go-2 checkpoint.

@@ -148,10 +148,13 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Batches **219–228** are closed (22 Nov) and live with the two-game format off. Nothing
-activates without Batch 231 (activation and suspension tooling) and a separate owner
-decision naming the league and its first Saturday. The note kept frozen during the stack
-is in `session-log.md`.
+Batches **219–228** are closed (22 Nov) and live with the two-game format off. Batch
+**231** — activation, suspension and resume for one league, audited, from a site-admin
+route or `python -m src.two_game_rollout` — is closed (22 Nov, `97c9555`, API-only) and
+owed to production; the owner moved its `/ship-prod` to the night of 22–23 Nov. Nothing
+activates without Batch 228's activation checkpoint and a separate owner decision naming
+the league and its first Saturday (`docs/runbooks/two-game-activation.md`). The note kept
+frozen during the 219–228 stack is in `session-log.md`.
 
 Batches 170-203 are drafted from the 2026-09-28 review and every owner decision they needed
 was answered on 30 Sep. Group AG is complete, shipped and verified. Group AA is complete
@@ -210,7 +213,7 @@ Checked 2026-10-03.
   that stamp when only `docs/BUILD_PLAN.md`, `session-log.md` and `STATUS.md` changed, otherwise it
   reruns the gate, and waits for both pushed SHAs to pass CI before the group continues. It refuses a test
   count that falls, or that rises without `scripts/ci-test-counts.env` being raised
-  (backend 1,650, frontend 1,418, journey 1; checked 2026-11-09). 13m04s on this Mac
+  (backend 2,087, frontend 1,505, journey 1; checked 2026-11-22). 13m04s on this Mac
   with the journey (2026-09-30), and 38 minutes when macOS's storage scan loads it
   (2026-09-25). Without a database the backend suite is 800 passed and 550 skipped at
   1,350 tests (2026-09-29) — not the gate.
@@ -245,6 +248,8 @@ Checked 2026-10-03.
   19 Nov). On GitHub's Ubuntu 26.04 image Playwright 1.60.0 cannot install Chromium, so both
   browser jobs failed at install on every push from about 18 Nov. Batch 230 moves back.
 
-**Next:** confirm a natural payment on the organiser's Payments screen after Batch 215's
-shipment. No API shipment is owed. Batch 211 stays deferred; the season-calendar backfill
-remains owner-gated, unblocked since 4 Oct.
+**Next:** `/ship-prod` of Batch 231 with the format off (owner, night of 22–23 Nov), then a
+fresh backup and `TWO_GAMES_ENABLED` on both services with no rollout row, legacy verified;
+Batch 228's activation checkpoint (go 2) on Thu 26 Nov. Confirm a natural payment on the
+organiser's Payments screen. Batch 211 stays deferred; the season-calendar backfill remains
+owner-gated, unblocked since 4 Oct.
