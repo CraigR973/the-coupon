@@ -84,6 +84,8 @@ FastAPI + scheduler ─────────────────── pa
 PostgreSQL ← pooled ledger / FIFO credit ────────┘
   ├─ legacy gameweeks → legacy picks → existing results / points
   └─ [INACTIVE: installation + exact league/week gates]
+     site admin / operator command → audited rollout row · suspend · resume
+       untouched check → untouched legacy rounds retired in the same commit
      football-week parent (immutable format)
        ├─ group child → exact UUID / revision / accepted-operation replay
        │  short validation → independent fee commit → atomic unpriced claim
@@ -1872,6 +1874,13 @@ old-writer compatibility, full gates or failed component acceptance.
   untouched future Saturday, and a tested suspension that stops entries and openings while
   keeping billing, settlement and history. Make the mixed-Saturday browser story strict:
   its final check passes today only because the seeded legacy pick already matches.
+  Built 22 Nov: activation refuses unless the league holds no two-game state and every
+  legacy round from five days before the Saturday is still scheduled and unopened with no
+  pick, ledger entry, completion or notice; untouched ones are retired in the same
+  transaction only when requested. Owner decision 22 Nov: a first week whose rule
+  opening has passed may open at activation (`open_at_activation`), provided members
+  were never shown that two-game week. Resume reports a reconciliation and needs its
+  confirmation. Runbook: `docs/runbooks/two-game-activation.md`.
   Acceptance: both actions audited and tested, shipped through `/ship-prod` from `main`;
   then `TWO_GAMES_ENABLED` on with no rollout row and legacy healthy; then Batch 228's
   activation checkpoint and a separate owner decision naming the league and first

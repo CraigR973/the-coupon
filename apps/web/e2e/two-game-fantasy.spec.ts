@@ -696,6 +696,14 @@ test("first mixed Saturday preserves the legacy game and exact next-week Fantasy
   await first.click();
   expect((await firstSaved).status()).toBe(201);
   await expect(first).toHaveAttribute("aria-pressed", "true");
+  // Batch 231: the seeded legacy pick is already AWAY, so the final check alone would pass
+  // even if neither browser write landed. Prove the first one replaced it on the server.
+  const afterFirst = await current(request);
+  expect(afterFirst.legacy).toHaveLength(1);
+  expect(afterFirst.legacy[0]).toMatchObject({
+    fixture_id: s.legacy_fixture,
+    outcome: "HOME",
+  });
   const replaced = page.waitForResponse(
     (r) =>
       r.request().method() === "POST" &&

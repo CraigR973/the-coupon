@@ -26,7 +26,7 @@ without one.
 import uuid
 from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -82,6 +82,14 @@ from src.services.season_calendar import (
     move_anchor,
     season_label,
     withdraw_extra_week,
+)
+from src.services.two_game_rollout_admin import (
+    RolloutRefused,
+    activate_rollout,
+    reconciliation,
+    resume_rollout,
+    rollout_status,
+    suspend_rollout,
 )
 from src.services.weekly_fees import close_memberships, financial_locks, member_barrier
 
@@ -2063,3 +2071,167 @@ async def correct_fixture(
         leagues_audited=leagues_audited,
         members_told=told,
     )
+
+
+# ---------------------------------------------------------------------------
+# Two-game activation and suspension (Batch 231)
+# ---------------------------------------------------------------------------
+#
+# Each action previews by default: the service runs every check inside the request's
+# transaction and the route rolls it back unless ``apply`` is true. A refusal always rolls
+# back and returns the service's own code and details. See
+# :mod:`src.services.two_game_rollout_admin` for the rules; the operator command
+# ``python -m src.two_game_rollout`` runs the same functions.
+
+
+class TwoGameActivationRequest(BaseModel):
+    first_week: date
+    retire_untouched_legacy: bool = False
+    open_at_activation: bool = False
+    apply: bool = False
+
+
+class TwoGameSuspensionRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
+    apply: bool = False
+
+
+class TwoGameResumeRequest(BaseModel):
+    confirm_reconciliation: bool = False
+    apply: bool = False
+
+
+class TwoGameRolloutResult(BaseModel):
+    applied: bool
+    result: dict[str, Any]
+
+
+async def _finish(db: AsyncSession, apply: bool) -> None:
+    if apply:
+        await db.commit()
+    else:
+        await db.rollback()
+
+
+@router.get("/leagues/{league_id}/two-game", response_model=TwoGameRolloutResult)
+async def two_game_rollout_status(
+    league_id: uuid.UUID, admin: AdminUser, db: Db
+) -> TwoGameRolloutResult:
+    """The league's rollout row, its games, obligations and any legacy round in reach."""
+    try:
+        status_ = await rollout_status(db, league_id, _now())
+    except RolloutRefused as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.body()) from exc
+    return TwoGameRolloutResult(applied=False, result=status_)
+
+
+@router.post("/leagues/{league_id}/two-game/activate", response_model=TwoGameRolloutResult)
+@limiter.limit("20/hour", key_func=per_user_key)
+async def activate_two_game(
+    request: Request,
+    league_id: uuid.UUID,
+    body: TwoGameActivationRequest,
+    admin: AdminUser,
+    db: Db,
+) -> TwoGameRolloutResult:
+    """Write this league's rollout row for an untouched future Saturday. Batch 231."""
+    # A rollback expires ORM state, so keep plain ids for the log.
+    admin_id = admin.id
+    try:
+        activation = await activate_rollout(
+            db,
+            league_id=league_id,
+            first_week=body.first_week,
+            actor_id=admin_id,
+            now=_now(),
+            retire_untouched_legacy=body.retire_untouched_legacy,
+            open_at_activation=body.open_at_activation,
+        )
+    except RolloutRefused as exc:
+        await db.rollback()
+        raise HTTPException(status_code=exc.status, detail=exc.body()) from exc
+    await _finish(db, body.apply)
+    log.info(
+        "two-game activation",
+        applied=body.apply,
+        league_id=str(league_id),
+        admin_id=str(admin_id),
+        first_week=activation.first_week.isoformat(),
+        retired_rounds=len(activation.retired),
+        opened_at_activation=activation.opened_at_activation,
+    )
+    return TwoGameRolloutResult(applied=body.apply, result=activation.as_json())
+
+
+@router.post("/leagues/{league_id}/two-game/suspend", response_model=TwoGameRolloutResult)
+@limiter.limit("20/hour", key_func=per_user_key)
+async def suspend_two_game(
+    request: Request,
+    league_id: uuid.UUID,
+    body: TwoGameSuspensionRequest,
+    admin: AdminUser,
+    db: Db,
+) -> TwoGameRolloutResult:
+    """Stop new entries and openings; billing, settlement and history continue."""
+    # A rollback expires ORM state, so keep plain ids for the log.
+    admin_id = admin.id
+    try:
+        rollout = await suspend_rollout(
+            db, league_id=league_id, actor_id=admin_id, now=_now(), reason=body.reason
+        )
+    except RolloutRefused as exc:
+        await db.rollback()
+        raise HTTPException(status_code=exc.status, detail=exc.body()) from exc
+    result = {
+        "league_id": str(league_id),
+        "first_week": rollout.first_week.isoformat(),
+        "suspended": True,
+    }
+    await _finish(db, body.apply)
+    log.info(
+        "two-game suspension",
+        applied=body.apply,
+        league_id=str(league_id),
+        admin_id=str(admin_id),
+    )
+    return TwoGameRolloutResult(applied=body.apply, result=result)
+
+
+@router.post("/leagues/{league_id}/two-game/resume", response_model=TwoGameRolloutResult)
+@limiter.limit("20/hour", key_func=per_user_key)
+async def resume_two_game(
+    request: Request,
+    league_id: uuid.UUID,
+    body: TwoGameResumeRequest,
+    admin: AdminUser,
+    db: Db,
+) -> TwoGameRolloutResult:
+    """Lift a suspension once its reconciliation has been reviewed and confirmed."""
+    # A rollback expires ORM state, so keep plain ids for the log.
+    admin_id = admin.id
+    if not body.apply:
+        try:
+            report = await reconciliation(db, league_id, _now())
+        except RolloutRefused as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.body()) from exc
+        return TwoGameRolloutResult(applied=False, result=report.as_json())
+    try:
+        report = await resume_rollout(
+            db,
+            league_id=league_id,
+            actor_id=admin_id,
+            now=_now(),
+            confirm_reconciliation=body.confirm_reconciliation,
+        )
+    except RolloutRefused as exc:
+        await db.rollback()
+        raise HTTPException(status_code=exc.status, detail=exc.body()) from exc
+    await db.commit()
+    log.info(
+        "two-game resumed",
+        league_id=str(league_id),
+        admin_id=str(admin_id),
+        opened=len(report.opens_on_resume),
+        locked_while_suspended=len(report.locked_while_suspended),
+    )
+    return TwoGameRolloutResult(applied=True, result=report.as_json())

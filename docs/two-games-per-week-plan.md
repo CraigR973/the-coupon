@@ -472,6 +472,12 @@ automatic close-out and web-deployment rules.
   non-void leg wins; an all-void coupon is void, not a win.
 - **All Sunday kick-offs (owner, 11 Nov).** Fantasy admits fixtures kicking off
   through Sunday 23:59 Europe/London; the result may arrive later.
+- **A late first week opens at activation (owner, 22 Nov).** A first week's
+  entries normally open at noon the Saturday before; for 28 Nov that was 21 Nov.
+  The owner accepts that they open at activation instead, provided members were
+  never shown anything about that two-game week. Every other activation rule
+  stands. Batch 231 records it as `open_at_activation` on the audited action;
+  see `docs/runbooks/two-game-activation.md`.
 
 ## Owner decisions approved — 11 Nov
 
