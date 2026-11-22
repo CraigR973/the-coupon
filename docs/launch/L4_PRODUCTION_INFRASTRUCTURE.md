@@ -4261,3 +4261,84 @@ targets. Vercel's unchanged healthy deployment is `dpl_9wDdY5D1AhJaDD59qjRNUL9nB
 The webhook repair is deployed. A natural payment must still demonstrate recovery and
 one ledger entry; none occurred in the bounded startup sample, and no bank probe,
 synthetic webhook, manual bank refresh or manufactured payment was used to claim it.
+
+
+
+### 2026-11-22 — `874d89c`, Batches 219–228: two games per week, shipped with the format off (migration `032`)
+
+Shipped in the owner's staged plan, each stage approved in chat: the recovery point (19–21
+Nov); API and payments ("lets do stage 2 now", 08:38:32 UTC); the Railway keep-list fix
+("Yes, fix it first"); the web ("Approve Stage 3 now", a same-day exception to the planned
+24-hour wait). Source: `fix/two-game-owner-review` at
+`874d89cea18e151fc090f06ee7ded840ab18928c`, uploaded from the clean worktree
+`.claude/worktrees/two-game-release` as a one-off exception to the main-only rule, so the web
+could not reach `main` before its API. `main` was fast-forwarded to the same commit after
+both services were verified.
+
+Recovery point, the first since L4: Batch 95's weekly off-site backup was switched on to
+Backblaze B2 (EU) on 21 Nov. A run by hand at 10:03 UTC wrote
+`production/the-coupon-20261122T100332Z.dump`, 840,154 bytes, SHA-256
+`c99307e513f9c89c62dae38aea2bbb522e8a95ad189ccda61c9c61d4b1f0a8ac`. The owner downloaded it
+and it restored into a local PostgreSQL 17.11 in 1.2 s with all 27 tables' counts equal to
+production's (17,974 rows). The database is owned by `postgres`, which the in-place restore
+needs.
+
+Preflight re-read the exact targets, null `railwayConfigFile` on both services, the required
+variable names (API 13 of 13, payments 7 of 7, no cross-service names, `TWO_GAMES_ENABLED`
+absent) and Vercel's encrypted `VITE_API_URL` and `VITE_VAPID_PUBLIC_KEY`, without values.
+The worktree's migration recovery check passed for `032`. Next locks: 27 Nov 17:30 UTC
+(`yer-leagues-a-joke`) and 28 Nov 14:30 UTC (`2-1-hibs`). Checks before upload: Quality run
+`45005204745` green for `874d89c`; local gate 12 of 12 (2,074 backend, 1,505 frontend,
+journey 1, zero skips, tree `c901669074d17480707b628900dee5feebf5c751`); the two-game browser
+stories 30 of 30; the gate on the new API with `eed94e1`'s web 12 of 12 (1,418 frontend,
+journey 1).
+
+The IaC plan for the previous candidate, `921f576`, deleted six variables
+(`BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION`,
+`BACKUP_S3_SECRET_ACCESS_KEY`, `BACKUP_STORAGE`) because they were missing from
+`PRESERVED_VARIABLE_NAMES`. It was not applied. `874d89c` preserves them. Its pinned plan
+had 0 additions, 4 changes (`nixpacksConfigPath` and `numReplicas` on both services,
+reported as null whatever is applied) and 0 deletions. Applying it at 10:09:41 UTC
+redeployed both old images, API `5c9fc1fc-9c1c-4ba7-b09c-2859281991bc` and payments
+`487a9f38-604c-44ab-87ed-2ef2c2f18939`, both `SUCCESS` at `c18e81e` / `031`: the last
+deployments before `032`.
+
+- API `04a8e1d4-c748-4bba-ba21-e26e26020e20`: `FAILED` at build, nothing ran. Without
+  `--path-as-root` the worktree arrived as a subdirectory and nixpacks could not find
+  `apps/api/requirements.txt`. The version stamp was set back to `c18e81e` at once.
+- API `1299d40b-5253-482e-8d5f-5a455e342008`, uploaded with `--path-as-root`: `SUCCESS`
+  10:17:01 UTC; health `200`, `874d89c`, `032`; readiness `200`, `ok`, `032`. The boot log
+  ran 031→032 once, with no failure or credential pattern, none of the three two-game jobs and
+  no backup "misconfigured" line, so the sealed backup secret reached the new image.
+- Payments `94dc89ad-1ab9-492e-adb5-69962b85aebd`, uploaded after API readiness: `SUCCESS`
+  10:19:28 UTC; health `200`, `service: payments`, `874d89c`, `032`; readiness `200`, `ok`,
+  `032`. In between, its old image answered `503` with `expected: 031`, as designed.
+- Manifest: one replica in `europe-west4-drams3a`, no sleep, IPv6 egress, Nixpacks,
+  `ON_FAILURE` with three retries, 300-second readiness timeout, 0.25 vCPU / 500 MB.
+- Read-only audit inside the API container: `032`; RLS enabled and forced on 42 of 42 public
+  tables; no table grant and no executable function for anon, authenticated or PUBLIC; fence
+  triggers on 9 tables; 37 rounds, all `legacy`; the 15 new tables empty; legacy rows 17,974,
+  unchanged.
+- Web: `main` pushed 11:04:05 UTC (`eed94e1..874d89c`); Vercel production
+  `dpl_7ywVtuKRTotGgXTX2sfirGxu57Ur` `READY` 11:05:04 on the stable alias. Smoke: `/`,
+  `/standings` and `/results` `200` with `/assets/index-38EoXdmB.js` and every committed
+  header; exact-origin `OPTIONS /api/v1/me/games` `200` with credentials; unauthenticated
+  `/me/games` `401`. Quality run `45015479879` green for the `main` push.
+- Close-out `70ce371` pushed 11:25:55 UTC; Quality run `45017293172` green; Vercel rebuilt
+  it as `dpl_3ZMkHdB3Nr4u5tEWAzd7TjFwmdSz` with the same bundle. Drift is in sync for both
+  services.
+
+Backup/restore-point identity: `production/the-coupon-20261122T100332Z.dump` (above). There is
+no image rollback past `032`. While no two-game row exists,
+`docs/runbooks/migration-032-undo.sql` returns the database to `031` keeping every legacy
+write, after which both services go back to `5c9fc1fc` / `487a9f38`; otherwise fix forward,
+with the archive as the last resort. The web rolls back to `dpl_6Exr2WUZb6RRpb6xTBC2h5sdPXQc`
+(`eed94e1`), which served the new API all morning.
+
+The owner's phone checks: after the API and payments shipment, "All look normal"; after the
+web, "All look right" (Home, the current round, standings, a profile and results).
+
+Still to observe: the first legacy settlement on `032` (Yer Leagues A Joke round 3, due in
+the 22 Nov evening sweeps), the 27–28 Nov locks and settlements, and the next natural
+payment matched by the new payments image. Activation is Batch 231 plus a separate owner
+decision.
