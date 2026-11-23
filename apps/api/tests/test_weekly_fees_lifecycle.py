@@ -306,6 +306,17 @@ async def test_erasure_of_name_matching_generated_dues_preserves_immutable_money
     await db.flush()
     await materialize_dues(db, league.id, player.id, london_utc(W1))
     original = [(row.id, row.ledger_entry_id) for row in await dues(db, league, player)]
+
+    # Erasure departs at its own clock and bills the departure week. Pin that clock
+    # inside W1's already-billed week, as the avatar-race test above does, so the
+    # check stays about immutable money rather than about today's date: on the real
+    # clock it went red at Monday 23 Nov 00:00 London, when W2's week began.
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 11, 20, 11, tzinfo=UTC)
+
+    monkeypatch.setattr("src.services.account_erasure.datetime", Clock)
     await erase_account(db, player, AsyncMock())
     await db.flush()
     assert player.deleted_at is not None and not player.is_active
