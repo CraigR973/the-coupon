@@ -4342,3 +4342,55 @@ Still to observe: the first legacy settlement on `032` (Yer Leagues A Joke round
 the 22 Nov evening sweeps), the 27–28 Nov locks and settlements, and the next natural
 payment matched by the new payments image. Activation is Batch 231 plus a separate owner
 decision.
+
+### 2026-11-23 — `eaf8ca7`, Batch 231: two-game activation and suspension tooling, shipped with the format off (no migration)
+
+Approved in chat: the owner's go 1 (22 Nov, 21:00:56 UTC) covered Batch 231's close-out and its
+`/ship-prod` with the format off, booked for Tue 24 Nov 13:20; at 22:45:47 UTC the owner moved
+it to that night ("we can do the shipment to, I don't see what we need to wait on"). Source:
+clean `main` at `eaf8ca7511629acc381906e4539b4c609504c7c0` (Batch 231's implementation
+`97c9555` plus its close-out documents), uploaded from the shared checkout.
+
+Preflight re-read the exact targets, null `railwayConfigFile`, sleep off and the readiness
+checks on both services; the required variable names (API 13 of 13, payments 7 of 7, no
+cross-service names, `TWO_GAMES_ENABLED` absent, the six `BACKUP_*` present) and Vercel's
+encrypted `VITE_API_URL` and `VITE_VAPID_PUBLIC_KEY`, without values. The migration recovery
+check passed: no migration, production at `032`. Checks before upload: Quality runs
+`45081223347` (`97c9555`) and `45082642388` (`eaf8ca7`) green; local gate 12 of 12 (2,087
+backend, 1,505 frontend, journey 1, zero skips, tree
+`0670224535a17b0e8b6a68927f344d3607e87efa`), reused through the stamp guard because the
+close-out changed only its three documents; the two-game browser stories 30 of 30. Next
+lock: 27 Nov 17:30 UTC (`yer-leagues-a-joke`).
+
+The pinned IaC plan had 0 additions, the usual 4 changes and 0 deletions. Applying it at
+00:20:26 UTC redeployed both `874d89c` images: API `fe1a286e-c952-45c0-85d6-4cfbcf50caf8` and
+payments `6b56c9ee-7222-439c-af86-d1fa14af32e4`, both `SUCCESS` by 00:21:52 UTC at `032`.
+
+- API `bcf945c9-3e56-4220-96bc-24670355ee3d`, uploaded 00:22:45 UTC: `SUCCESS` 00:23:59;
+  health `200`, `eaf8ca7`, `032`; readiness `200`, `ok`, `032`. The boot log ran no migration
+  step (already at head) and had no failure or credential pattern, no backup "misconfigured"
+  line and none of the three two-game jobs.
+- Payments `3d3fcc6e-0974-46b8-8de1-b26519e66a92`, uploaded after API readiness at 00:25:18
+  UTC: `SUCCESS` 00:26:34; health `200`, `service: payments`, `eaf8ca7`, `032`; readiness
+  `200`, `ok`, `032`.
+- Manifest: one replica in `europe-west4-drams3a`, no sleep, IPv6 egress, Nixpacks,
+  `ON_FAILURE` with three retries, 300-second readiness timeout, 0.25 vCPU / 500 MB.
+- Read-only audit inside the API container: `032`; RLS enabled and forced on 42 of 42 public
+  tables; no table grant and no executable function for anon, authenticated or PUBLIC; fence
+  triggers on 9 tables; 37 rounds, all `legacy`; the 15 new tables empty; legacy rows 17,975.
+- Web: no deployment needed. Vercel built both pushes from `main`; production
+  `dpl_X7fVXS2eXLSHYAm1Xi5HKptJzJf7` (`eaf8ca7`) serves the 22 Nov bundle. Smoke: `/`,
+  `/standings` and `/results` `200` with `/assets/index-38EoXdmB.js` and every committed
+  header; exact-origin `OPTIONS /api/v1/me/games` `200` with credentials; unauthenticated
+  `/me/games` `401`. Drift is in sync for both services.
+
+Backup/restore-point identity: `production/the-coupon-20261122T100332Z.dump` (22 Nov); the
+weekly run at 04:00 London on 23 Nov follows the shipment. No migration, so an image rollback
+is clean (API `fe1a286e`, payments `6b56c9ee`), and while every two-game table is empty
+`docs/runbooks/migration-032-undo.sql` still applies. The web rolls back to
+`dpl_14GPgxbQrHYLuaLRvDtpsuSi5FS1` (`97c9555`), the same bundle.
+
+Still to observe: the first legacy settlement on `032` — Yer Leagues A Joke round 3 at Mon 23
+Nov 22:05 UTC, because its window closes Mon 21:00; the 22 Nov sweeps had nothing to settle
+and logged no error. `TWO_GAMES_ENABLED`, Batch 228's activation checkpoint and activation
+remain owner steps.

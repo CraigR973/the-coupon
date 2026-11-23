@@ -13,11 +13,11 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `874d89c` at migration `032` (22 Nov) |
-| API deployment | Railway `1299d40b-5253-482e-8d5f-5a455e342008` succeeded, one replica, `europe-west4` (22 Nov) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `874d89c` at `032`, Railway `94dc89ad-1ab9-492e-adb5-69962b85aebd` (22 Nov), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
-| Web | `the-coupon-production.vercel.app` serves `874d89c` (Vercel `dpl_7ywVtuKRTotGgXTX2sfirGxu57Ur`); root, standings and results deep links serve the same SPA asset with the committed security/cache headers (22 Nov). The two-game screens are built and hidden while the format is off. |
-| Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the 15 two-game tables are empty (22 Nov) |
+| API | `api-production-109b1.up.railway.app` serves `eaf8ca7` (Batch 231) at migration `032` (23 Nov) |
+| API deployment | Railway `bcf945c9-3e56-4220-96bc-24670355ee3d` succeeded, one replica, `europe-west4` (23 Nov) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `eaf8ca7` at `032`, Railway `3d3fcc6e-0974-46b8-8de1-b26519e66a92` (23 Nov), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
+| Web | `the-coupon-production.vercel.app` builds every push to `main` (`eaf8ca7` is `dpl_X7fVXS2eXLSHYAm1Xi5HKptJzJf7`); the bundle has been `index-38EoXdmB.js` since 22 Nov, and root, standings and results deep links serve it with the committed security/cache headers (23 Nov). The two-game screens are built and hidden while the format is off. |
+| Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the 15 two-game tables are empty (23 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by **Betfair Sportsbook** since 10:36 UTC on 31 Oct (ADR 0002's 31 Oct amendment). Bet365 has been paid-only since 26 Oct, 19:00 UTC, and a free key gets a 403. Free key: 100 requests/hour and 500/day for the whole deployment. On the 31 Oct card it priced 78 of 85 fixtures, none in the Highland League (31 Oct). The owner chose to keep it rather than pay £49/mo for Bet365 (31 Oct) |
 | Football data | FotMob, no key |
@@ -31,6 +31,13 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Batch 231 is shipped and verified with the format off** (23 Nov, `eaf8ca7`, no
+  migration). The owner moved it from Tue 24 Nov to the night of 22–23 Nov. The IaC apply
+  (the four reporting-only changes) and both uploads ran 00:20–00:27 UTC: API `bcf945c9`,
+  payments `3d3fcc6e`, both `eaf8ca7` / `032`; drift is in sync and the read-only audit
+  matches 22 Nov (RLS 42 of 42, no public-role grants, 37 rounds all `legacy`, the 15 new
+  tables empty). Image rollback: API `fe1a286e`, payments `6b56c9ee` (both `874d89c`). The
+  lossless 032 undo still holds until `TWO_GAMES_ENABLED` goes on.
 - **Batches 219–228 are shipped and verified with the format off** (22 Nov, `874d89c`,
   migration `032`). API and payments went first (10:17 and 10:19 UTC), the web at 11:04 UTC;
   both services report `874d89c` / `032`, drift is in sync, and the read-only audit found RLS
@@ -150,8 +157,8 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 Batches **219–228** are closed (22 Nov) and live with the two-game format off. Batch
 **231** — activation, suspension and resume for one league, audited, from a site-admin
-route or `python -m src.two_game_rollout` — is closed (22 Nov, `97c9555`, API-only) and
-owed to production; the owner moved its `/ship-prod` to the night of 22–23 Nov. Nothing
+route or `python -m src.two_game_rollout` — is closed (22 Nov, `97c9555`) and shipped with
+the format off (23 Nov, `eaf8ca7`). Nothing
 activates without Batch 228's activation checkpoint and a separate owner decision naming
 the league and its first Saturday (`docs/runbooks/two-game-activation.md`). The note kept
 frozen during the 219–228 stack is in `session-log.md`.
@@ -248,8 +255,8 @@ Checked 2026-10-03.
   19 Nov). On GitHub's Ubuntu 26.04 image Playwright 1.60.0 cannot install Chromium, so both
   browser jobs failed at install on every push from about 18 Nov. Batch 230 moves back.
 
-**Next:** `/ship-prod` of Batch 231 with the format off (owner, night of 22–23 Nov), then a
-fresh backup and `TWO_GAMES_ENABLED` on both services with no rollout row, legacy verified;
-Batch 228's activation checkpoint (go 2) on Thu 26 Nov. Confirm a natural payment on the
+**Next:** a fresh backup, then `TWO_GAMES_ENABLED` on both services with no rollout row and
+legacy verified (owner's go 1; planned Tue 24 Nov 15:20 unless the owner moves it); Batch
+228's activation checkpoint (go 2) on Thu 26 Nov. Confirm a natural payment on the
 organiser's Payments screen. Batch 211 stays deferred; the season-calendar backfill remains
 owner-gated, unblocked since 4 Oct.

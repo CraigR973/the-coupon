@@ -9284,3 +9284,33 @@ https://github.com/CraigR973/the-coupon/actions/runs/45081223347 PASS for `97c95
 
 **Next:** `/ship-prod` of Batch 231 with the format off (night of 22–23 Nov), then the flag and
 the first legacy jobs under the shared request budget; Thursday's go-2 checkpoint.
+
+## Shipment — 2026-11-23, `eaf8ca7` (Batch 231; no migration)
+**Railway:** API `bcf945c9-3e56-4220-96bc-24670355ee3d` and payments `3d3fcc6e-0974-46b8-8de1-b26519e66a92` `SUCCESS` · IaC redeploys `fe1a286e` / `6b56c9ee` healthy before upload · Vercel no-op (`dpl_X7fVXS2eXLSHYAm1Xi5HKptJzJf7`, `eaf8ca7`, the 22 Nov bundle) · drift **in sync** for both · exact-SHA CI `45081223347` (`97c9555`) and `45082642388` (`eaf8ca7`) green · reused gate tree `0670224535a17b0e8b6a68927f344d3607e87efa` (backend 2,087; frontend 1,505; journey 1; zero skips)
+
+### Key facts for future sessions
+- The owner moved the shipment from Tue 24 Nov 13:20 to that night in chat at 22:45:47 UTC
+  on 22 Nov, after the 22:05 sweep. The restarts ran 00:20–00:27 UTC on 23 Nov, clear of the
+  hourly :00/:01/:15 jobs and the 04:00 weekly backup; the next lock is Fri 27 Nov 17:30 UTC.
+- The pinned IaC plan was the usual 0 add, 4 change, 0 destroy; applying it redeployed both
+  `874d89c` images before the upload. Uploading from the shared checkout's clean `main` needs
+  no `--path-as-root`.
+- Boot: no migration step ran (032 is head), no credential pattern, no backup "misconfigured"
+  line and none of the three two-game jobs. Railway tags uvicorn's and alembic's INFO lines on
+  stderr as `error`; they are not errors.
+- Read-only audit inside the API container: 032; RLS forced 42 of 42; no public-role grants
+  or executable functions; 9 fence triggers; 37 rounds, all `legacy`; the 15 new tables
+  empty; legacy rows 17,975. Smoke: `/`, `/standings` and `/results` 200 with
+  `index-38EoXdmB.js` and every header; exact-origin CORS 200 with credentials; `/me/games` 401.
+- **Recovery:** no migration, so an image rollback is clean: API
+  `fe1a286e-c952-45c0-85d6-4cfbcf50caf8`, payments `6b56c9ee-7222-439c-af86-d1fa14af32e4`
+  (both `874d89c` / `032`). The lossless 032 undo still holds while every two-game table is
+  empty. Recovery point: the 22 Nov 10:03 UTC backup, then the 23 Nov 04:00 weekly run.
+
+### Follow-ups
+- Owner go 1: a fresh backup, then `TWO_GAMES_ENABLED` on both services with no rollout row
+  and legacy verified (planned Tue 24 Nov 15:20). Go 2: Batch 228's activation checkpoint and
+  the league and first Saturday.
+
+**Next:** the flag after a fresh backup, the first legacy jobs under the shared request
+budget, and Thursday's go-2 checkpoint.
