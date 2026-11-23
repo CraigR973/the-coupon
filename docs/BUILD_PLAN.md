@@ -1980,7 +1980,7 @@ days. Order: **232 → 233 → 234 → 235**.
 
   Scope boundary: presentation of Batch 234's fields and the delete. **Web-only.**
 
-- [ ] **Batch 236 — The group screen keeps its last view through a dropped connection**
+- [x] **Batch 236 — The group screen keeps its last view through a dropped connection** ✅ 2026-11-23
   — found while building Batch 233 (23 Nov); prerequisite: 233 closed. Independent of 234–235,
   so it can run before the first two-game lock.
 

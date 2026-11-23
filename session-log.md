@@ -9545,3 +9545,23 @@ https://github.com/CraigR973/the-coupon/actions/runs/45279027026 PASS for `5198a
 
 **Next:** the owner's call on `/batch-start 236` before Sat 28 Nov; 234–235 the following week,
 away from lock days.
+
+## Batch 236 — The group screen keeps its last view through a dropped connection
+**Commits:** `61a9700` · verified: full local gate 12/12 (backend 2,087; frontend 1,554; journey
+1; zero skips; tree `11b97e6`), two-game browser stories 30/30 (desktop and phone) · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/45289636952 PASS for `61a9700`
+
+### Key facts for future sessions
+- The group query polls every 30 s with `retry: false`, and the app refetches on returning to
+  the front, so one failed read used to replace the screen with "Group game unavailable". It now
+  keeps the last view with a notice when the failure is a `NetworkError`, the fantasy week's
+  rule; a failed first load or any `ApiError` still shows the unavailable screen.
+- The new test fails against the old page (checked by stashing the fix), so it guards the
+  regression rather than restating the change.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- None. Batches 234–235 follow the week after Sat 28 Nov, away from lock days.
+
+**Next:** Sat 28 Nov's first two-game round (group opens 03:00, fantasy locks 12:00, group
+14:30); then `/batch-start 234` the following week.
