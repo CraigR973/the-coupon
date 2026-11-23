@@ -15,6 +15,7 @@ import {
 import { formatCalendarDate, formatInstant } from "../lib/time";
 import { WeekFeePanel } from "../components/WeekFeePanel";
 import { GameIntentStatus } from "../components/GameIntentStatus";
+import { GameSwitch } from "../components/GameSwitch";
 import { Button } from "../components/ui/button";
 
 const label = (status: string) =>
@@ -121,6 +122,7 @@ export function GroupGamePage() {
   const mine = game?.my_entries[0] ?? retained?.my_entry?.pick;
   return (
     <div className="mx-auto max-w-3xl space-y-5" data-testid="group-game">
+      <GameSwitch target={target} />
       <nav aria-label="Game navigation" className="flex flex-wrap gap-4">
         <Link to="/" className="underline">
           Home

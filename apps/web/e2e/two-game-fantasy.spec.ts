@@ -66,6 +66,10 @@ async function warm(request: APIRequestContext, week = 0) {
 }
 const slot = (page: Page, n: number) =>
   page.getByRole("article", { name: `Fantasy slot ${n}`, exact: true });
+// Batch 232 (owner-approved, 23 Nov): prices sit on the fixture cards, and the list names
+// the slot it is choosing for, so a choice for slot n is made in that list.
+const chooser = (page: Page, n: number) =>
+  page.getByRole("region", { name: `Choose fixture for slot ${n}`, exact: true });
 async function select(page: Page, n: number) {
   await slot(page, n)
     .getByRole("button", { name: new RegExp(`^(Fill|Replace) slot ${n}$`) })
@@ -78,7 +82,7 @@ async function choose(
   odds = "2.1500",
   away = false,
 ) {
-  await slot(page, n)
+  await chooser(page, n)
     .getByRole("button", {
       name: `Choose ${away ? "Away" : "Home"} ${home} to win at ${away ? "4.0000" : odds}`,
       exact: true,
@@ -167,7 +171,7 @@ test("six slots, shared Group/member selection, quote provenance and accessible 
   const sharedSave = rawSave(request, s, await bob, 1, 1, "2.15", "HOME");
   await select(page, 2);
   await expect(
-    slot(page, 2).getByText("Already chosen in another slot.", { exact: true }),
+    chooser(page, 2).getByText("Already chosen in another slot.", { exact: true }),
   ).toBeVisible();
   await choose(page, 2, 8);
   await saved(page, 2);
@@ -232,7 +236,7 @@ test("six slots, shared Group/member selection, quote provenance and accessible 
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
-    const button = slot(page, 3).getByRole("button", {
+    const button = chooser(page, 3).getByRole("button", {
       name: "Choose Home 2 to win at 2.1500",
       exact: true,
     });
@@ -438,7 +442,7 @@ test("noon opens the next Fantasy, payment is target-specific and early dues are
     (r) =>
       r.request().method() === "PUT" && r.url().endsWith("/fantasy/slots/1"),
   );
-  await slot(page, 1)
+  await chooser(page, 1)
     .getByRole("button", {
       name: "Choose Next Home 1 to win at 2.1500",
       exact: true,
@@ -460,7 +464,7 @@ test("noon opens the next Fantasy, payment is target-specific and early dues are
   await expect(page.locator("#payment")).toContainText(
     "Paid through this week",
   );
-  await slot(page, 1)
+  await chooser(page, 1)
     .getByRole("button", {
       name: "Choose Next Home 1 to win at 2.1500",
       exact: true,

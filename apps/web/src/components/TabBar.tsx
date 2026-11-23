@@ -1,5 +1,6 @@
 import {addressedGamesDestination,isAddressedGamePath} from '../lib/leagues';
 import { useGameNavigation } from '../hooks/useGameIntents';
+import { gamesTabDestination, leagueForGames } from '../lib/gameSwitch';
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSlidingIndicator } from '@/hooks/useSlidingIndicator';
@@ -59,8 +60,10 @@ export function TabBar() {
   const { pathname } = useLocation();
   const { player, logout } = useAuth();
   const { activeSlug, hasLeagues } = useLeague();
-  const gameLeague=useGameNavigation().find(league=>league.slug===activeSlug);
-  const gamesPath=addressedGamesDestination(pathname)??(gameLeague?`/leagues/${gameLeague.league_id}/games`:undefined);
+  // Batch 232: the Games tab opens the game that needs the member first, not the archive.
+  const addressedArchive=addressedGamesDestination(pathname);
+  const gameLeague=leagueForGames(useGameNavigation(),addressedArchive,activeSlug);
+  const gamesPath=gameLeague?gamesTabDestination(gameLeague):addressedArchive;
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
   // Where the keyboard goes when the sheet closes. Radix restores focus to a

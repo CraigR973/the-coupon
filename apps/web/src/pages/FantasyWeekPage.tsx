@@ -1,14 +1,25 @@
-import { useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useGameRoute } from "../hooks/useGameRoute";
 import { useGameIntents, useGameNavigation } from "../hooks/useGameIntents";
 import { useExpiry } from "../hooks/useExpiry";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
+import type { CountdownParts } from "../hooks/useCountdown";
 import { apiFetch, ApiError, NetworkError } from "../lib/api";
 import { intentKey } from "../lib/gameIntents";
-import { fantasyResultLabel, fantasyRunner, movedPrice } from "../lib/fantasy";
+import { fantasyResultLabel, movedPrice } from "../lib/fantasy";
+import {
+  SLOT_NUMBERS,
+  destinationFor,
+  fixturesHeldElsewhere,
+  heldSelection,
+  slipSummary,
+  type SlotView,
+} from "../lib/fantasySlip";
+import { groupByCompetition, type FixtureGroup } from "../lib/gameFixtures";
 import {
   gamePath,
   gameQueryKey,
@@ -18,253 +29,33 @@ import {
   type GameCard,
   type FantasyFixture,
 } from "../lib/twoGameTypes";
+import type { OddsFormat } from "../lib/types";
 import { formatCalendarDate, formatInstant } from "../lib/time";
+import { cn } from "../lib/utils";
 import { WeekFeePanel } from "../components/WeekFeePanel";
-import { GameIntentStatus } from "../components/GameIntentStatus";
+import { GameSwitch } from "../components/GameSwitch";
+import { Countdown } from "../components/Countdown";
+import {
+  FantasyFixtureCard,
+  type HeldOnCard,
+} from "../components/FantasyFixtureCard";
+import {
+  FantasySlotCard,
+  SlipBar,
+  SwapSheet,
+  type PendingSwap,
+  type SlotQueryState,
+} from "../components/FantasySlip";
+import { Sheet } from "../components/ui/sheet";
 import { Button } from "../components/ui/button";
 
-function FantasySlot({
-  target,
-  slot,
-  game,
-  selected,
-  onSelect,
-  editable,
-}: {
-  target: GameTarget;
-  slot: number;
-  game: FantasyGame;
-  selected: boolean;
-  onSelect: () => void;
-  editable: boolean;
-}) {
-  const { player } = useAuth();
-  const { engine, intents } = useGameIntents();
-  const entry = useQuery({
-    queryKey: [...gameQueryKey(player?.id ?? "", target), "entry", slot],
-    queryFn: ({ signal }) =>
-      apiFetch<GameEntry>(`${gamePath(target)}/slots/${slot}`, { signal }),
-    retry: false,
-    refetchInterval: 30_000,
-  });
-  const intent = intents.find(
-    (value) => intentKey(value.target, value.slot) === intentKey(target, slot),
-  );
-  const online = useOnlineStatus();
-  const knownOffline =
-    !online &&
-    !!entry.data &&
-    (!entry.isError || entry.error instanceof NetworkError);
-  const ready =
-    editable &&
-    !!entry.data &&
-    (!entry.isFetching || knownOffline) &&
-    (!entry.isError || knownOffline) &&
-    !["checking", "sending"].includes(intent?.phase ?? "");
-  const pick = entry.data
-    ? entry.data.pick
-    : game.slots.find((value) => value.slot === slot)?.pick;
-  const price = movedPrice(intent, target, slot);
-  return (
-    <article
-      aria-label={`Fantasy slot ${slot}`}
-      className="rounded-xl border border-border bg-surface p-4 space-y-3"
-    >
-      <h2 className="text-lg font-semibold">Slot {slot}</h2>
-      {pick ? (
-        <div>
-          <p>
-            {pick.runner_name} · Frozen odds {pick.frozen_odds}
-          </p>
-          <p>
-            {fantasyResultLabel(pick.result)} · {pick.points ?? 0} points
-          </p>
-        </div>
-      ) : (
-        <p>Empty slot</p>
-      )}
-      {editable && (
-        <Button
-          variant="outline"
-          className={selected ? "bg-surface-elevated" : undefined}
-          disabled={!ready}
-          onClick={onSelect}
-          aria-pressed={selected}
-        >
-          {pick ? "Replace" : "Fill"} slot {slot}
-        </Button>
-      )}
-      {entry.isError && (
-        <div>
-          <p role="alert">
-            Could not verify slot {slot}. Your saved choice has not been
-            replaced.
-          </p>
-          <Button variant="outline" onClick={() => void entry.refetch()}>
-            Check slot {slot}
-          </Button>
-        </div>
-      )}
-      <GameIntentStatus target={target} slot={slot} />
-      {price && intent && (
-        <div
-          className="space-y-2"
-          role="group"
-          aria-label={`Price confirmation for slot ${slot}`}
-        >
-          <p>
-            The price changed to {price}. Your saved choice stays until you
-            confirm this new price.
-          </p>
-          <Button
-            variant="outline"
-            disabled={!ready}
-            onClick={() =>
-              engine.choose(
-                target,
-                slot,
-                {
-                  fixture_id: intent.body.fixture_id,
-                  market: intent.body.market,
-                  outcome: intent.body.outcome,
-                  odds: price,
-                },
-                entry.data!.revision,
-              )
-            }
-          >
-            Confirm odds {price} for slot {slot}
-          </Button>
-        </div>
-      )}
-      {selected && (
-        <FantasyChooser
-          target={target}
-          slot={slot}
-          game={game}
-          ready={ready}
-          revision={entry.data?.revision ?? 0}
-        />
-      )}
-    </article>
-  );
+function formatCountdown(p: CountdownParts): string {
+  if (p.expired) return "now";
+  if (p.days > 0) return `${p.days}d ${p.hours}h`;
+  if (p.hours > 0) return `${p.hours}h ${p.minutes}m`;
+  return `${p.minutes}m ${p.seconds}s`;
 }
-function FantasyChooser({
-  target,
-  slot,
-  game,
-  ready,
-  revision,
-}: {
-  target: GameTarget;
-  slot: number;
-  game: FantasyGame;
-  ready: boolean;
-  revision: number;
-}) {
-  const { engine, intents } = useGameIntents();
-  const used = new Set(
-    game.slots
-      .filter((entry) => entry.slot !== slot && entry.pick)
-      .map((entry) => entry.pick!.fixture_id),
-  );
-  // Include local choices in other slots so two offline fills do not offer the same fixture.
-  for (const intent of intents)
-    if (
-      intent.target.league_id === target.league_id &&
-      intent.target.week_id === target.week_id &&
-      intent.target.game_kind === "fantasy" &&
-      intent.slot !== slot &&
-      ["queued", "uncertain", "checking", "sending"].includes(intent.phase)
-    )
-      used.add(intent.body.fixture_id);
-  return (
-    <section
-      aria-label={`Choose fixture for slot ${slot}`}
-      className="space-y-3"
-    >
-      <h3 className="font-semibold">Choose a fixture for slot {slot}</h3>
-      {game.fixtures.length === 0 && (
-        <p>Fixtures are pending; an empty response does not confirm a break.</p>
-      )}
-      {game.fixtures.map((fixture) => (
-        <FantasyFixtureRow
-          key={fixture.fixture_id}
-          fixture={fixture}
-          disabled={!ready || used.has(fixture.fixture_id) || !fixture.eligible}
-          used={used.has(fixture.fixture_id)}
-          choose={(market, outcome, odds) =>
-            engine.choose(
-              target,
-              slot,
-              { fixture_id: fixture.fixture_id, market, outcome, odds },
-              revision,
-            )
-          }
-        />
-      ))}
-    </section>
-  );
-}
-function FantasyFixtureRow({
-  fixture,
-  disabled,
-  used,
-  choose,
-}: {
-  fixture: FantasyFixture;
-  disabled: boolean;
-  used: boolean;
-  choose: (market: string, outcome: string, odds: string) => void;
-}) {
-  const quote = fixture.quote;
-  const expired = useExpiry(
-    quote.observed_at
-      ? new Date(new Date(quote.observed_at).getTime() + 60_000).toISOString()
-      : "1970-01-01T00:00:00Z",
-  );
-  return (
-    <div className="border-t border-border pt-3 space-y-2">
-      <h4 className="font-semibold">
-        {fixture.home} v {fixture.away}
-      </h4>
-      <p className="text-sm">
-        {formatInstant(fixture.kickoff_at, "Europe/London", "EEE d MMM HH:mm")}{" "}
-        London
-      </p>
-      {used && <p>Already chosen in another slot.</p>}
-      <p className="text-sm">
-        {quote.provider} · {quote.bookmaker} ·{" "}
-        {quote.observed_at
-          ? `Observed ${formatInstant(quote.observed_at, "Europe/London", "HH:mm:ss")} London`
-          : "No observed price"}{" "}
-        · {quote.availability}
-        {expired && quote.prices.length > 0
-          ? " · Price expired; saving will check a fresh price."
-          : ""}
-        {quote.degraded ? " · Degraded coverage" : ""}
-      </p>
-      {quote.prices.length === 0 && (
-        <p>Prices unavailable. Refresh prices to check again.</p>
-      )}
-      <div className="flex flex-wrap gap-2">
-        {quote.prices.map((price) => (
-          <Button
-            key={`${price.market}/${price.outcome}`}
-            variant="outline"
-            disabled={
-              disabled || !["available", "stale"].includes(quote.availability)
-            }
-            onClick={() => choose(price.market, price.outcome, price.odds)}
-            aria-label={`Choose ${fantasyRunner(fixture, price.outcome)} at ${price.odds}`}
-          >
-            {fantasyRunner(fixture, price.outcome)} · {price.odds}
-          </Button>
-        ))}
-      </div>
-    </div>
-  );
-}
+
 export function FantasyWeekPage() {
   const target = useGameRoute("fantasy");
   return (
@@ -274,13 +65,35 @@ export function FantasyWeekPage() {
     />
   );
 }
+
+/**
+ * The fantasy week on the old coupon layout (Batch 232).
+ *
+ * The fixtures lead, in folded competition sections, and every price is a button: a tap
+ * saves it straight into the slip — the slot already holding that fixture, otherwise the
+ * first free one, and with six in, the member says which pick to swap. The slip sits
+ * beside the fixtures at desktop width and below them on narrower screens, where a bar
+ * keeps its count in view and opens it as a sheet.
+ *
+ * Saving is exactly the six-slot screen's: one addressed slot write at a time through the
+ * shared intent engine, with its revision check, readback and named price confirmation.
+ * "Fill slot N" and "Replace slot N" remain, and point the fixture list at that slot.
+ */
 function FantasyWeek({ target }: { target: GameTarget }) {
   const { player } = useAuth();
+  const oddsFormat: OddsFormat = player?.oddsFormat ?? "decimal";
   const leagues = useGameNavigation();
   const client = useQueryClient();
-  const [selected, setSelected] = useState<number | null>(null);
+  const { engine, intents } = useGameIntents();
+  const online = useOnlineStatus();
+  const [aimed, setAimed] = useState<number | null>(null);
+  const [swap, setSwap] = useState<PendingSwap | null>(null);
+  const [slipOpen, setSlipOpen] = useState(false);
+  const barRef = useRef<HTMLButtonElement | null>(null);
+  const slateRef = useRef<HTMLElement | null>(null);
+  const memberKey = gameQueryKey(player?.id ?? "", target);
   const query = useQuery({
-    queryKey: [...gameQueryKey(player?.id ?? "", target), "view"],
+    queryKey: [...memberKey, "view"],
     queryFn: async ({ signal }) => {
       try {
         return {
@@ -309,7 +122,7 @@ function FantasyWeek({ target }: { target: GameTarget }) {
     game?.opens_at ?? retained?.opens_at ?? "1970-01-01T00:00:00Z",
   );
   const results = useQuery({
-    queryKey: [...gameQueryKey(player?.id ?? "", target), "results"],
+    queryKey: [...memberKey, "results"],
     queryFn: ({ signal }) =>
       apiFetch<{ fantasy: GameCard | null }>(
         `/api/v1/leagues/${target.league_id}/weeks/${target.week_id}/results`,
@@ -319,11 +132,140 @@ function FantasyWeek({ target }: { target: GameTarget }) {
     retry: false,
     refetchInterval: 30_000,
   });
+  // Each slot's own readback, which decides what the slot holds and whether it may be
+  // written. Read only once the game is known, as the slot cards always did.
+  const entries = useQueries({
+    queries: SLOT_NUMBERS.map((slot) => ({
+      queryKey: [...memberKey, "entry", slot],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        apiFetch<GameEntry>(`${gamePath(target)}/slots/${slot}`, { signal }),
+      retry: false,
+      refetchInterval: 30_000,
+      enabled: !!game,
+    })),
+  });
+  const editable = !!game && game.entry_state === "open" && !locked && opened;
+  const views: SlotView[] = SLOT_NUMBERS.map((slot, index) => {
+    const entry = entries[index];
+    const intent = intents.find(
+      (value) => intentKey(value.target, value.slot) === intentKey(target, slot),
+    );
+    const knownOffline =
+      !online &&
+      !!entry.data &&
+      (!entry.isError || entry.error instanceof NetworkError);
+    const ready =
+      editable &&
+      !!entry.data &&
+      (!entry.isFetching || knownOffline) &&
+      (!entry.isError || knownOffline) &&
+      !["checking", "sending"].includes(intent?.phase ?? "");
+    const pick = entry.data
+      ? entry.data.pick
+      : (game?.slots.find((value) => value.slot === slot)?.pick ?? null);
+    return {
+      slot,
+      pick,
+      intent,
+      movedPrice: movedPrice(intent, target, slot),
+      ready,
+    };
+  });
+  const slotQueries: SlotQueryState[] = entries.map((entry) => ({
+    revision: entry.data?.revision ?? null,
+    isError: entry.isError,
+    refetch: () => void entry.refetch(),
+  }));
+  const fixtures = useMemo(
+    () => new Map((game?.fixtures ?? []).map((value) => [value.fixture_id, value])),
+    [game?.fixtures],
+  );
+  const groups = useMemo(
+    () => groupByCompetition(game?.fixtures ?? []),
+    [game?.fixtures],
+  );
+  const aiming = editable ? aimed : null;
+  const elsewhere =
+    aiming !== null ? fixturesHeldElsewhere(aiming, views) : new Set<string>();
+  const { upTo } = slipSummary(views);
   const publicCard = retained ?? results.data?.fantasy;
   const league = leagues.find((value) => value.league_id === target.league_id);
   const refresh = () => {
     void client.invalidateQueries({ queryKey: ["two-games", player?.id] });
   };
+
+  /** What this fixture's card shows as the member's, and whether a tap may save now. */
+  function forCard(fixture: FantasyFixture): {
+    held: HeldOnCard | null;
+    heldElsewhere: boolean;
+    canChoose: boolean;
+  } {
+    const destination =
+      aiming !== null
+        ? { kind: "slot" as const, slot: aiming }
+        : destinationFor(fixture.fixture_id, views);
+    if (destination.kind === "full")
+      return { held: null, heldElsewhere: false, canChoose: editable && fixture.eligible };
+    const view = views[destination.slot - 1];
+    const selection = heldSelection(view);
+    const held =
+      selection && selection.fixture_id === fixture.fixture_id
+        ? {
+            selection,
+            slot: view.slot,
+            pick:
+              view.pick &&
+              view.pick.fixture_id === selection.fixture_id &&
+              view.pick.market === selection.market &&
+              view.pick.outcome === selection.outcome
+                ? view.pick
+                : null,
+            phase:
+              view.intent?.body.fixture_id === fixture.fixture_id
+                ? view.intent.phase
+                : undefined,
+          }
+        : null;
+    const heldElsewhere = elsewhere.has(fixture.fixture_id);
+    return {
+      held,
+      heldElsewhere,
+      canChoose: editable && fixture.eligible && view.ready && !heldElsewhere,
+    };
+  }
+
+  function choose(
+    fixture: FantasyFixture,
+    market: string,
+    outcome: string,
+    odds: string,
+  ) {
+    const destination =
+      aiming !== null
+        ? { kind: "slot" as const, slot: aiming }
+        : destinationFor(fixture.fixture_id, views);
+    if (destination.kind === "full") {
+      setSwap({ fixture, market, outcome, odds });
+      return;
+    }
+    const revision = slotQueries[destination.slot - 1].revision;
+    if (revision === null) return;
+    engine.choose(
+      target,
+      destination.slot,
+      { fixture_id: fixture.fixture_id, market, outcome, odds },
+      revision,
+    );
+  }
+
+  function aim(slot: number) {
+    setSlipOpen(false);
+    setAimed(slot);
+    // Choosing now happens in the fixture list, which on a phone is above the slip.
+    slateRef.current?.scrollIntoView?.({ block: "start" });
+    slateRef.current?.focus({ preventScroll: true });
+  }
+
   if (query.isPending) return <p role="status">Loading this Fantasy week…</p>;
   if (query.isError && (!query.data || !(query.error instanceof NetworkError)))
     return (
@@ -340,13 +282,100 @@ function FantasyWeek({ target }: { target: GameTarget }) {
     );
   const shown = game ?? retained;
   if (!shown) return null;
-  const editable = !!game && game.entry_state === "open" && !locked && opened;
   const points = game?.result.points ?? retained?.result.weekly_points ?? 0;
   const status =
     game?.result.status ?? retained?.result.entry_result ?? "no_entry";
+  const provisional = game?.result.provisional ?? retained?.result.provisional;
+  const filledCount =
+    game?.progress.filled_count ?? retained?.progress.slots_filled ?? 0;
+  const slots = (inSheet: boolean) =>
+    views.map((view) => (
+      <FantasySlotCard
+        key={view.slot}
+        target={target}
+        view={view}
+        query={slotQueries[view.slot - 1]}
+        fixture={view.pick ? fixtures.get(view.pick.fixture_id) : undefined}
+        editable={editable}
+        aimed={aiming === view.slot && !inSheet}
+        onAim={() => aim(view.slot)}
+      />
+    ));
+  const slate = game && (
+    <section
+      ref={slateRef}
+      tabIndex={-1}
+      aria-label={
+        aiming !== null ? `Choose fixture for slot ${aiming}` : "Fantasy fixtures"
+      }
+      data-testid="fantasy-slate"
+      className="scroll-mt-20 focus-visible:outline-hidden"
+    >
+      <h2 className="mb-2 font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
+        {editable ? "Tap a price to add it" : "Fixtures and prices"}
+      </h2>
+      {aiming !== null && (
+        <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-primary bg-surface-elevated px-3 py-2">
+          <p className="font-sans text-sm text-text-primary">
+            Choosing for slot {aiming}. A tapped price goes into this slot.
+          </p>
+          <Button variant="outline" onClick={() => setAimed(null)}>
+            Done
+          </Button>
+        </div>
+      )}
+      {game.fixtures.length === 0 ? (
+        <p className="font-sans text-sm text-text-secondary">
+          Fixtures are pending; an empty response does not confirm a break.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {groups.map((group, index) => (
+            <CompetitionSection
+              key={group.competition_id}
+              group={group}
+              defaultOpen={index === 0}
+              mine={
+                group.fixtures.filter((fixture) =>
+                  views.some((view) => view.pick?.fixture_id === fixture.fixture_id),
+                ).length
+              }
+            >
+              {group.fixtures.map((fixture) => (
+                <FantasyFixtureCard
+                  key={fixture.fixture_id}
+                  fixture={fixture}
+                  competition={group.competition}
+                  oddsFormat={oddsFormat}
+                  {...forCard(fixture)}
+                  onChoose={(market, outcome, odds) =>
+                    choose(fixture, market, outcome, odds)
+                  }
+                />
+              ))}
+            </CompetitionSection>
+          ))}
+        </div>
+      )}
+      {editable && (
+        <SlipBar
+          filled={views.filter((view) => view.pick).length}
+          upTo={upTo}
+          aimed={aiming}
+          onOpen={() => setSlipOpen(true)}
+          onDone={() => setAimed(null)}
+          barRef={barRef}
+        />
+      )}
+    </section>
+  );
   return (
-    <div className="mx-auto max-w-3xl space-y-5" data-testid="fantasy-game">
-      <nav aria-label="Game navigation" className="flex flex-wrap gap-4">
+    <div className="space-y-5" data-testid="fantasy-game">
+      <GameSwitch target={target} />
+      <nav
+        aria-label="Game navigation"
+        className="flex flex-wrap gap-x-4 font-sans text-sm"
+      >
         <Link className="inline-flex min-h-11 items-center underline" to="/">
           Home
         </Link>
@@ -365,21 +394,28 @@ function FantasyWeek({ target }: { target: GameTarget }) {
           </Link>
         )}
       </nav>
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold">
+      <header className="space-y-1">
+        <h1 className="font-sans text-2xl font-semibold text-text-primary">
           Fantasy · {formatCalendarDate(shown.week_label, "d MMM")}
         </h1>
-        <p>
+        <p className="font-sans text-sm text-text-secondary">
           Up to six picks on different fixtures. Partial entries count. Members
           can share selections, including the Group game.
         </p>
-        <p>
+        <p className="font-sans text-sm text-text-secondary">
           Locks{" "}
           {formatInstant(shown.locks_at, "Europe/London", "EEE d MMM HH:mm")}{" "}
-          London.
+          London
+          {editable && (
+            <>
+              {" "}
+              · in <Countdown target={shown.locks_at} format={formatCountdown} />
+            </>
+          )}
+          .
         </p>
         {!editable && (
-          <p role="status">
+          <p role="status" className="font-sans text-sm text-text-primary">
             {retained
               ? "Retained locked history"
               : locked
@@ -390,64 +426,64 @@ function FantasyWeek({ target }: { target: GameTarget }) {
           </p>
         )}
       </header>
-      <section
-        aria-label="Fantasy weekly result"
-        className="rounded-xl border border-border bg-surface p-4 space-y-2"
-      >
-        <p>
-          {game?.progress.filled_count ?? retained?.progress.slots_filled ?? 0}{" "}
-          of 6 slots · {fantasyResultLabel(status)}
-        </p>
-        <p className="font-semibold">
-          {points} weekly points ·{" "}
-          {(game?.result.provisional ?? retained?.result.provisional)
-            ? "Provisional"
-            : "Final"}
-        </p>
-        <p>
-          Winning legs score rounded frozen odds × 10; losses and voids score
-          zero. Group contributes no points. Season totals retain legacy points
-          and add Fantasy legs once.
-        </p>
-      </section>
       {query.isError && (
-        <p role="alert">
+        <p role="alert" className="font-sans text-sm text-text-primary">
           The latest game could not be refreshed. Showing the last received
           view; saves will verify the current slot before sending.
         </p>
       )}
-      {game && (
-        <Button variant="outline" onClick={refresh}>
-          Refresh prices and results
-        </Button>
-      )}
-      {game
-        ? Array.from({ length: 6 }, (_, index) => (
-            <FantasySlot
-              key={index + 1}
-              target={target}
-              slot={index + 1}
-              game={game}
-              selected={selected === index + 1}
-              onSelect={() => setSelected(index + 1)}
-              editable={editable}
-            />
-          ))
-        : retained?.slots?.map((entry) => (
-            <article
-              key={entry.slot}
-              className="rounded-xl border border-border p-4"
-            >
-              <h2>Slot {entry.slot}</h2>
-              <p>
-                {entry.pick
-                  ? `${entry.pick.runner_name} · Frozen odds ${entry.pick.frozen_odds} · ${fantasyResultLabel(entry.pick.result)} · ${entry.pick.points ?? 0} points`
-                  : "Empty slot"}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
+        <div className="min-w-0">{slate}</div>
+        <aside
+          aria-label="Your Fantasy picks"
+          className="min-w-0 space-y-3 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto"
+        >
+          <section
+            aria-label="Fantasy weekly result"
+            className="space-y-1 rounded-lg border border-border bg-surface p-4"
+          >
+            <p className="font-sans text-sm text-text-primary">
+              {filledCount} of 6 slots · {fantasyResultLabel(status)}
+            </p>
+            <p className="font-sans text-lg font-semibold text-text-primary">
+              {points} weekly points · {provisional ? "Provisional" : "Final"}
+            </p>
+            {game && upTo > points && (
+              <p className="font-sans text-xs text-text-secondary">
+                Up to {upTo} points if every pending pick wins.
               </p>
-            </article>
-          ))}
+            )}
+            <p className="font-sans text-xs text-text-muted">
+              A winning pick scores its frozen odds × 10; losses and voids score
+              nothing. Group adds no points.
+            </p>
+          </section>
+          {game && (
+            <Button variant="outline" onClick={refresh}>
+              Refresh prices and results
+            </Button>
+          )}
+          {game
+            ? slots(false)
+            : retained?.slots?.map((entry) => (
+                <article
+                  key={entry.slot}
+                  className="rounded-lg border border-border bg-surface px-3 py-2.5"
+                >
+                  <h2 className="font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+                    Slot {entry.slot}
+                  </h2>
+                  <p className="font-sans text-sm text-text-primary">
+                    {entry.pick
+                      ? `${entry.pick.runner_name} · Frozen odds ${entry.pick.frozen_odds} · ${fantasyResultLabel(entry.pick.result)} · ${entry.pick.points ?? 0} points`
+                      : "Empty slot"}
+                  </p>
+                </article>
+              ))}
+        </aside>
+      </div>
       {results.isError && (
-        <div>
+        <div className="space-y-2">
           <p role="alert">Member totals could not be refreshed.</p>
           <Button variant="outline" onClick={() => void results.refetch()}>
             Retry member totals
@@ -455,16 +491,19 @@ function FantasyWeek({ target }: { target: GameTarget }) {
         </div>
       )}
       {publicCard?.members && (
-        <section aria-label="Member weekly totals">
-          <h2 className="text-lg font-semibold">Member weekly totals</h2>
+        <section
+          aria-label="Member weekly totals"
+          className="space-y-1 rounded-lg border border-border bg-surface p-4"
+        >
+          <h2 className="font-sans text-lg font-semibold">Member weekly totals</h2>
           {publicCard.members.map((member) => (
-            <p key={member.player_id}>
+            <p key={member.player_id} className="font-sans text-sm">
               {member.display_name}: {member.weekly_points} points ·{" "}
               {fantasyResultLabel(member.entry_result)}
             </p>
           ))}
           {publicCard.result.final && (
-            <p>
+            <p className="font-sans text-sm font-medium">
               {publicCard.winner_ids?.length
                 ? `Weekly winners: ${publicCard.members
                     .filter((member) =>
@@ -479,7 +518,7 @@ function FantasyWeek({ target }: { target: GameTarget }) {
       )}
       {league?.weekly_form.length ? (
         <section aria-label="Your recent weeks">
-          <h2 className="text-lg font-semibold">Your recent weeks</h2>
+          <h2 className="font-sans text-lg font-semibold">Your recent weeks</h2>
           {league.weekly_form.map((week) => (
             <p key={week.week_id}>
               <Link
@@ -495,6 +534,95 @@ function FantasyWeek({ target }: { target: GameTarget }) {
         </section>
       ) : null}
       <WeekFeePanel fee={shown.fee} onRefresh={refresh} />
+      {game && (
+        <Sheet
+          open={slipOpen}
+          onClose={() => setSlipOpen(false)}
+          title={`Your picks · ${views.filter((view) => view.pick).length} of 6`}
+          triggerRef={barRef}
+        >
+          <div className="max-h-[70vh] space-y-2 overflow-y-auto px-4 pb-5">
+            {upTo > 0 && (
+              <p className="font-sans text-sm text-text-secondary">
+                Up to {upTo} points if every pending pick wins.
+              </p>
+            )}
+            {slots(true)}
+          </div>
+        </Sheet>
+      )}
+      {game && (
+        <SwapSheet
+          pending={swap}
+          views={views}
+          fixtures={fixtures}
+          revisions={slotQueries.map((value) => value.revision)}
+          oddsFormat={oddsFormat}
+          onSwap={(slot, revision) => {
+            if (!swap) return;
+            engine.choose(
+              target,
+              slot,
+              {
+                fixture_id: swap.fixture.fixture_id,
+                market: swap.market,
+                outcome: swap.outcome,
+                odds: swap.odds,
+              },
+              revision,
+            );
+            setSwap(null);
+          }}
+          onClose={() => setSwap(null)}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * One competition's fixtures behind a header, as the old coupon folds its slate: the
+ * first open so the screen starts on a fixture and a price, the rest closed so a card of
+ * a hundred-odd fixtures still scans as competitions. `defaultOpen` seeds the state only,
+ * so a member who closes a section keeps it closed through the 30-second refresh.
+ */
+function CompetitionSection({
+  group,
+  defaultOpen,
+  mine,
+  children,
+}: {
+  group: FixtureGroup<FantasyFixture>;
+  defaultOpen: boolean;
+  mine: number;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section data-testid={`fantasy-competition-${group.competition_id}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="mb-1 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-hidden focus-visible:shadow-glow"
+      >
+        <span className="min-w-0 truncate font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
+          {group.competition}
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="font-mono text-caption tabular-nums text-text-muted">
+            {mine > 0 ? `${mine}/${group.fixtures.length}` : group.fixtures.length}
+          </span>
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 text-text-muted transition-transform",
+              open && "rotate-180",
+            )}
+            aria-hidden
+          />
+        </span>
+      </button>
+      {open && <div className="flex flex-col gap-4">{children}</div>}
+    </section>
   );
 }

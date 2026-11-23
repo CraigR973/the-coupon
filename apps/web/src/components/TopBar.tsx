@@ -1,5 +1,6 @@
 import {addressedGamesDestination,isAddressedGamePath} from '../lib/leagues';
 import { useGameNavigation } from '../hooks/useGameIntents';
+import { gamesTabDestination, leagueForGames } from '../lib/gameSwitch';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { Moon, Sun, Settings, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -57,8 +58,10 @@ export function TopBar() {
   const { player, logout } = useAuth();
   const { activeSlug, hasLeagues } = useLeague();
   const {pathname}=useLocation();
-  const gameLeague=useGameNavigation().find(league=>league.slug===activeSlug);
-  const gamesPath=addressedGamesDestination(pathname)??(gameLeague?`/leagues/${gameLeague.league_id}/games`:undefined);
+  // Batch 232: the Games tab opens the game that needs the member first, not the archive.
+  const addressedArchive=addressedGamesDestination(pathname);
+  const gameLeague=leagueForGames(useGameNavigation(),addressedArchive,activeSlug);
+  const gamesPath=gameLeague?gamesTabDestination(gameLeague):addressedArchive;
   const { resolved, setMode } = useTheme();
   const navItems = desktopNav(hasLeagues ? activeSlug : null,gamesPath);
   function toggleTheme() {

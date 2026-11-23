@@ -6,9 +6,15 @@ import { Button } from "./ui/button";
 export function GameIntentStatus({
   target,
   slot,
+  compact = false,
 }: {
   target: GameTarget;
   slot: number;
+  /**
+   * Batch 232: the fantasy slip shows a confirmed save as one line, so six saved picks
+   * do not stack six boxes. Every other state keeps its full explanation and actions.
+   */
+  compact?: boolean;
 }) {
   const { engine, intents } = useGameIntents();
   const key = intentKey(target, slot);
@@ -16,6 +22,25 @@ export function GameIntentStatus({
     (value) => intentKey(value.target, value.slot) === key,
   );
   if (!intent) return null;
+  if (compact && intent.phase === "confirmed")
+    return (
+      <div
+        className="flex items-center justify-between gap-2 rounded-md bg-success/[0.08] px-2 py-1 dark:bg-success/15"
+        data-testid={`intent-${slot}`}
+      >
+        <p role="status" className="font-sans text-xs text-text-primary">
+          {intent.message}
+        </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label="Dismiss message"
+          onClick={() => engine.dismiss(key)}
+        >
+          Dismiss
+        </Button>
+      </div>
+    );
   return (
     <div
       className="rounded-lg border border-border p-3 space-y-2"
