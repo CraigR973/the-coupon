@@ -1886,6 +1886,97 @@ old-writer compatibility, full gates or failed component acceptance.
   activation checkpoint and a separate owner decision naming the league and first
   Saturday.
 
+### One coupon screen for both games
+
+Raised by the owner on 23 Nov 2026, the day 2-1 Hibs moved to two games a week. The
+two-game screens list every fixture under a numbered slot, so a member opens a slot, picks,
+and comes back for each of up to six picks; the owner preferred the old coupon screen.
+Owner decisions 23 Nov ("Yes, start batch 1", accepting all three recommendations): one
+Coupon screen per league with a Group | Fantasy switch, built on the old coupon's fixture
+cards; each tapped price saves at once, with no slip to place at the end (a slip left unsent
+at noon would mean no picks, and six saves at once would spend six fresh price checks
+together from the shared 100-an-hour odds allowance); Batches 232–233 live before the first
+two-game lock (Sat 28 Nov, fantasy 12:00 London); 234–235 the following week, away from lock
+days. Order: **232 → 233 → 234 → 235**.
+
+- [ ] **Batch 232 — Fantasy picks on the old coupon layout, filled from a pick slip**
+  — the first of the four. The fantasy week moves onto the old coupon's layout, and its
+  picks are made the way a betting app makes them: tap prices down the list.
+
+  - Fixtures sit in folded competition sections, the first open, in the shared competition
+    order. Each fixture is the old card: competition, kick-off, teams, and each price as a
+    button giving the selection, the price in the member's odds format and its points.
+  - A tapped price saves at once: to the slot already holding that fixture, otherwise to the
+    first free slot. With all six taken, it asks which pick to swap. Every save is the
+    existing single-slot write, with its revision check, uncertain-write reconciliation and
+    named price confirmation, unchanged.
+  - The slip lists the six slots: each pick's selection, fixture, frozen price, result,
+    points and save state, and a moved price is taken there. It sits beside the fixtures at
+    desktop width and below them on narrower screens, where a bar keeps the count and the
+    points in view and opens the slip as a sheet.
+  - "Fill slot N" and "Replace slot N" stay on each slot and point the fixture list at that
+    slot until Done, so a member can still choose a slot deliberately.
+  - A Group | Fantasy switch heads both game screens and links the league's current group
+    game and its actionable fantasy week, from the home summary. The Games tab opens the
+    game that needs the member first, instead of the archive.
+  - Competition names are the readable form of the provider's slug, and cards show no club
+    form, until Batch 234 sends both.
+
+  Tests: every existing fantasy unit test passes unchanged. New tests cover tap-to-fill, the
+  same-fixture swap, the full-slip swap, the slip's count and points, the switch and the Games
+  destination. The two-game browser journeys (`scripts/verify-two-game-web.py`, desktop and
+  phone) pass.
+
+  **Owner approved (23 Nov):** in `apps/web/e2e/two-game-fantasy.spec.ts`, the five lines that
+  find a price button, or "Already chosen in another slot.", inside slot N's card look in the
+  fixture list while it is choosing for slot N instead. No check is removed or loosened.
+
+  Scope boundary: the fantasy screen, the switch on both game screens and the Games tab. The
+  group screen's body is Batch 233. No API change. **Web-only.**
+
+- [ ] **Batch 233 — The Saturday group on the old coupon layout**
+  — prerequisite: 232 closed.
+
+  - The group game takes the same layout: the old status card (pick required, the 14:30
+    clock, how many have picked, the member's pick), folded competitions, and the old cards
+    with selection-only buttons, because group picks are never priced.
+  - A claimed fixture reads "Picked by <name>" and greys out entirely; the member's own reads
+    "Your game". A tap saves the member's one contribution and another switches it, through
+    the existing group write.
+  - The coupon section lists each member's leg and the fold count, with no price, and Copy
+    text for the group chat.
+
+  Tests: every existing group unit test passes unchanged; new tests cover the claimed and own
+  fixture states, the switch-on-tap and the copy text. Any group browser-journey line that has
+  to move is the owner's decision before the batch starts.
+
+  Scope boundary: the group screen only. No API change. **Web-only.**
+
+- [ ] **Batch 234 — Two-game fixtures carry what the old cards show, and a fantasy pick can be removed**
+  — prerequisite: 233 closed.
+
+  - Both games' fixtures add the competition's display name and each club's table position
+    and recent form, as the legacy slate does.
+  - A member can empty one of their own fantasy slots before the lock: an addressed delete
+    carrying the expected revision and an operation id, replayable like a save, leaving the
+    slot's empty readback. Refused after the lock, while suspended, and for another member.
+  - The group view adds the names of the members still to pick.
+
+  Tests: database-backed tests for the new fields, the delete's revision, replay, lock,
+  suspension and ownership refusals, and the still-to-pick names.
+
+  The delete adds a write to the API contract, approved in principle by the owner on 23 Nov.
+  **API-only: `/ship-prod` owed after close-out**, scheduled away from a lock day.
+
+- [ ] **Batch 235 — The coupon screens use Batch 234**
+  — prerequisite: 234 shipped.
+
+  - Both games' cards show club form and the real competition names.
+  - Each slip pick offers Remove.
+  - The group status card names the members still to pick.
+
+  Scope boundary: presentation of Batch 234's fields and the delete. **Web-only.**
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
