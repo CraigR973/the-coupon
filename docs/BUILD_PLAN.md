@@ -1901,7 +1901,7 @@ together from the shared 100-an-hour odds allowance); Batches 232–233 live bef
 two-game lock (Sat 28 Nov, fantasy 12:00 London); 234–235 the following week, away from lock
 days. Order: **232 → 233 → 234 → 235**.
 
-- [ ] **Batch 232 — Fantasy picks on the old coupon layout, filled from a pick slip**
+- [x] **Batch 232 — Fantasy picks on the old coupon layout, filled from a pick slip** ✅ 2026-11-23
   — the first of the four. The fantasy week moves onto the old coupon's layout, and its
   picks are made the way a betting app makes them: tap prices down the list.
 

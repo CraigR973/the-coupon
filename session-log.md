@@ -9481,3 +9481,34 @@ for `2115540`
   the first complete card.
 
 **Next:** tonight's checks at 22:12, Tuesday's job check, Saturday's first two-game round.
+
+## Batch 232 — Fantasy picks on the old coupon layout, filled from a pick slip
+**Commits:** `3d8f146` (plan rows 232–235), `05cf820` · verified: full local gate 12/12 (backend
+2,087; frontend 1,533; journey 1; zero skips; tree `813955a`), two-game browser stories 30/30
+(desktop and phone, run twice) · CI: https://github.com/CraigR973/the-coupon/actions/runs/45246843958
+PASS for `05cf820`
+
+### Key facts for future sessions
+- A tapped fantasy price saves at once: to the slot already holding that fixture, else the
+  first free slot; with six held, a sheet asks which slot to swap. The rules live in
+  `lib/fantasySlip.ts`; every save is still the single-slot write through the intent engine,
+  so revision checks, readback and named price consent are unchanged.
+- "Fill slot N"/"Replace slot N" point the fixture list at slot N until Done, and the list's
+  region is then named "Choose fixture for slot N". That kept all eight fantasy unit tests
+  unchanged; the owner approved five journey lines moving from slot N's card to that list
+  (23 Nov), with no check removed.
+- The Group | Fantasy switch and the fantasy week strip read the home summary already held by
+  `GameNavigationContext`, so they add no request. The Games tab now opens the open game the
+  member has not touched that locks soonest (`lib/gameSwitch.ts`), else the archive as before.
+- Two-game fixtures carry no competition display name or club form: section headings are the
+  readable slug (`lib/gameFixtures.ts`) until Batch 234 sends both.
+- The first gate run failed its `test` step on this batch's own scratch screenshot spec in
+  git-ignored `apps/web/.local/visual/`, which vitest still collects (1,533 tests passed, one
+  file failed). Deleted; the rerun was green with nothing else changed.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- Batch 233 (the Saturday group on the same layout) is due before the first two-game lock,
+  Sat 28 Nov; the owner starts it.
+
+**Next:** `/batch-start 233`.
