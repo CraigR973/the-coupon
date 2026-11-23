@@ -73,6 +73,7 @@ source of truth. The React PWA consumes snake_case `/api/v1/` JSON.
 React PWA / invite / inbox
   └─ [INACTIVE: exact server-enabled game cards]
      Home / coupon screen: Group | Fantasy switch over the old fixture cards
+     Group: old status card · others' games greyed · legs, fold, copy text
      Fantasy slip: tapped price → held fixture's slot, else first free slot
      parent archive / retained results
      authenticated shell → member-bound per-target operation queue
@@ -1936,7 +1937,7 @@ days. Order: **232 → 233 → 234 → 235**.
   Scope boundary: the fantasy screen, the switch on both game screens and the Games tab. The
   group screen's body is Batch 233. No API change. **Web-only.**
 
-- [ ] **Batch 233 — The Saturday group on the old coupon layout**
+- [x] **Batch 233 — The Saturday group on the old coupon layout** ✅ 2026-11-23
   — prerequisite: 232 closed.
 
   - The group game takes the same layout: the old status card (pick required, the 14:30
@@ -1978,6 +1979,21 @@ days. Order: **232 → 233 → 234 → 235**.
   - The group status card names the members still to pick.
 
   Scope boundary: presentation of Batch 234's fields and the delete. **Web-only.**
+
+- [ ] **Batch 236 — The group screen keeps its last view through a dropped connection**
+  — found while building Batch 233 (23 Nov); prerequisite: 233 closed. Independent of 234–235,
+  so it can run before the first two-game lock.
+
+  - A background refresh of the group game that fails on the connection — the 30-second poll,
+    or the refetch when the app comes back to the front — keeps the last view with a notice,
+    as the fantasy week already does, instead of replacing the whole screen with "Group game
+    unavailable". A first load that fails, or a server refusal, still shows that screen.
+  - A save on its way is unaffected: the intent engine already keeps it.
+
+  Tests: a failed background refresh keeps the fixtures, the status card and the coupon with
+  the notice; a failed first load still shows the unavailable screen.
+
+  Scope boundary: the group screen's refresh handling only. No API change. **Web-only.**
 
 ## Verification
 

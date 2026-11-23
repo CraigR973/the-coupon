@@ -9512,3 +9512,36 @@ PASS for `05cf820`
   Sat 28 Nov; the owner starts it.
 
 **Next:** `/batch-start 233`.
+
+## Batch 233 — The Saturday group on the old coupon layout
+**Commits:** `5198ab5` · verified: full local gate 12/12 (backend 2,087; frontend 1,550; journey
+1; zero skips; tree `aef6072`), two-game browser stories 30/30 (desktop and phone) · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/45279027026 PASS for `5198ab5`
+
+### Key facts for future sessions
+- The group screen kept its journey contract word for word ("1 of 3 contributed · 2 missing
+  contributors.", "Your saved contribution: …", "Choose Home 1 to win", `intent-0`), so no
+  browser-journey line moved and the existing group unit test passed unchanged. Nothing on it
+  may say "odds" or "points" (the first journey asserts it): the market heading is "Match
+  result", not the legacy "Match Odds".
+- A save's status renders inside the card it is about, falling back to the top of the list
+  while that card's competition is folded. The coupon's legs come from each fixture's `claim`
+  in slate order; members still to pick are counted, not named, until Batch 234
+  (`lib/groupCoupon.ts`).
+- Same-time fixtures now run by home club on both game screens: Batch 232's shared
+  `groupByCompetition` had broken ties by fixture id, against the API's own kick-off, home
+  club order.
+- Journey run 1 failed an untouched fantasy story on a 5 s wait at load 12–34 (flake). Run 2
+  failed the first group story's light-mode axe scan: the "Pick submitted" chip has a
+  see-through background and `transition-colors`, so the scan caught dark-theme text on the
+  light card mid-fade; fixed with `transition-none`. A scratch axe run then found zero
+  violations in both themes, with and without another member's claim. The gate passed first
+  time.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- Batch 236 (the group screen keeps its last view through a dropped connection) was found here
+  and added unchecked; the owner decides whether it runs before Sat 28 Nov.
+
+**Next:** the owner's call on `/batch-start 236` before Sat 28 Nov; 234–235 the following week,
+away from lock days.

@@ -16,7 +16,7 @@ Checked 2026-10-10 unless a line says otherwise.
 | API | `api-production-109b1.up.railway.app` serves `2115540` (Batch 231's code plus a test-only fix) at migration `032` (23 Nov) |
 | API deployment | Railway `fd64e4a4-9614-4a4b-a603-c454caa0a257` (the flag's redeploy of `add870dc`) succeeded, one replica, `europe-west4` (23 Nov) |
 | Payments | `payments-production-0aa1.up.railway.app` serves `2115540` at `032`, Railway `d2faa3eb-0e01-4b62-8c23-f948bc20c6dd` (the flag's redeploy of `92a2821c`, 23 Nov), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
-| Web | `the-coupon-production.vercel.app` builds every push to `main`; since 19:14 UTC on 23 Nov it serves `05cf820` (Batch 232) as bundle `index-DsMiWc3H.js`, whose fantasy chunk carries the pick slip (read back 23 Nov). The two-game screens are built; the API has served them to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov. The fantasy week is on the old coupon layout with a pick slip; the group body is still the plain screen until Batch 233. |
+| Web | `the-coupon-production.vercel.app` builds every push to `main`; since 22:22 UTC on 23 Nov it serves `5198ab5` (Batch 233) as bundle `index-DZXzJA8Y.js`, whose group chunk carries the coupon layout (read back 23 Nov). The API has served the two-game screens to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov. Both games are on the old coupon layout: fantasy with a pick slip, the group with the status card, claimed games greyed and the coupon's copy text. |
 | Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the two-game tables hold 2-1 Hibs' rollout, its four games and 12 dues since 17:08 UTC (23 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by **Betfair Sportsbook** since 10:36 UTC on 31 Oct (ADR 0002's 31 Oct amendment). Bet365 has been paid-only since 26 Oct, 19:00 UTC, and a free key gets a 403. Free key: 100 requests/hour and 500/day for the whole deployment. On the 31 Oct card it priced 78 of 85 fixtures, none in the Highland League (31 Oct). The owner chose to keep it rather than pay £49/mo for Bet365 (31 Oct). The 07:05 warm pass asks the provider nothing: the 50-request pick reserve withholds it because 06:05 discovery's requests are still inside the rolling hour, so it only reports prices left in memory (22 and 23 Nov) |
@@ -31,6 +31,11 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Batch 233 is live on the web** (23 Nov, `5198ab5`, web-only, pushed 22:22 UTC): the Saturday
+  group on the old coupon layout — status card, folded competitions, a game another member holds
+  greyed as "Picked by <name>", the member's own as "Your game", and the coupon's legs, fold and
+  Copy text. Same-time fixtures on both screens now run by home club. No API change; drift in
+  sync before the push; revert is one push of `main`.
 - **Batch 232 is live on the web** (23 Nov, `05cf820`, web-only, pushed 19:14 UTC): the fantasy
   week on the old coupon layout, each tapped price saved straight into the slip (the held
   fixture's slot, else the first free one; a seventh price asks which pick to swap), a Group |
@@ -183,9 +188,10 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
-Batches **232–235** put both two-game games on one coupon screen (owner, 23 Nov). 232 — fantasy
-on the old coupon layout with a pick slip — is closed and live on the web (23 Nov, `05cf820`).
-233 — the Saturday group on the same layout — is due before the first lock, Sat 28 Nov. 234 (API:
+Batches **232–235** put both two-game games on one coupon screen (owner, 23 Nov). 232 (fantasy
+with a pick slip, `05cf820`) and 233 (the Saturday group, `5198ab5`) are closed and live on the
+web (23 Nov). 236 — the group screen keeping its last view through a dropped connection, found in
+233 — is unchecked and can run before the first lock, Sat 28 Nov, if the owner starts it. 234 (API:
 competition names, club form, removing a fantasy pick, who is still to pick; `/ship-prod` owed)
 and 235 (the screens using it) follow the next week, away from lock days.
 
@@ -289,7 +295,7 @@ Checked 2026-10-03.
   19 Nov). On GitHub's Ubuntu 26.04 image Playwright 1.60.0 cannot install Chromium, so both
   browser jobs failed at install on every push from about 18 Nov. Batch 230 moves back.
 
-**Next:** `/batch-start 233` (the group on the coupon layout) before Sat 28 Nov; 22:15 tonight, check Yer Leagues A Joke round 3 settled (the first legacy
+**Next:** the owner decides whether `/batch-start 236` runs before Sat 28 Nov; 22:15 tonight, check Yer Leagues A Joke round 3 settled (the first legacy
 settlement on `032`, now under the flag), the 5 Dec cards, how many of the 125 fantasy
 fixtures show a price, and the first real fantasy pick; Tue 24 Nov 11:30, check the morning's
 legacy jobs alongside the two-game background work under the shared request budget
