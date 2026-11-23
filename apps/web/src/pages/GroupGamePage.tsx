@@ -7,7 +7,7 @@ import { useGameIntents, useGameNavigation } from "../hooks/useGameIntents";
 import { useGameRoute } from "../hooks/useGameRoute";
 import { useExpiry } from "../hooks/useExpiry";
 import type { CountdownParts } from "../hooks/useCountdown";
-import { apiFetch, ApiError } from "../lib/api";
+import { apiFetch, ApiError, NetworkError } from "../lib/api";
 import { intentKey } from "../lib/gameIntents";
 import { fixtureContext } from "../lib/coupon";
 import {
@@ -130,7 +130,10 @@ export function GroupGamePage() {
     !saving;
   if (query.isPending)
     return <p role="status">Loading the addressed Group game…</p>;
-  if (query.isError) {
+  // A refresh that fails on the connection keeps the last view, as the fantasy week does
+  // (Batch 236): the 30-second poll and the refetch on returning to the app both retry it.
+  // A failed first load, or a refusal from the server, still replaces the screen.
+  if (query.isError && (!query.data || !(query.error instanceof NetworkError))) {
     const destination =
       query.error instanceof ApiError
         ? query.error.data?.destination
@@ -353,6 +356,12 @@ export function GroupGamePage() {
           London time.
         </p>
       </header>
+      {query.isError && (
+        <p role="alert" className="font-sans text-sm text-text-primary">
+          The latest game could not be refreshed. Showing the last received
+          view; a save still checks your saved contribution before sending.
+        </p>
+      )}
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
         {slate && <div className="min-w-0">{slate}</div>}
         <aside
