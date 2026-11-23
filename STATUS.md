@@ -14,8 +14,8 @@ Checked 2026-10-10 unless a line says otherwise.
 | | |
 | --- | --- |
 | API | `api-production-109b1.up.railway.app` serves `2115540` (Batch 231's code plus a test-only fix) at migration `032` (23 Nov) |
-| API deployment | Railway `add870dc-ff36-499d-b568-62b1dde11ad8` succeeded, one replica, `europe-west4` (23 Nov) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `2115540` at `032`, Railway `92a2821c-9006-4a84-89fe-8cdefa10a8e8` (23 Nov), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
+| API deployment | Railway `fd64e4a4-9614-4a4b-a603-c454caa0a257` (the flag's redeploy of `add870dc`) succeeded, one replica, `europe-west4` (23 Nov) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `2115540` at `032`, Railway `d2faa3eb-0e01-4b62-8c23-f948bc20c6dd` (the flag's redeploy of `92a2821c`, 23 Nov), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
 | Web | `the-coupon-production.vercel.app` builds every push to `main` (`2115540` is `dpl_6ahQxw34aWiXgSLzbXQQZXVhkJVm`); the bundle has been `index-38EoXdmB.js` since 22 Nov, and root, standings and results deep links serve it with the committed security/cache headers (23 Nov). The two-game screens are built and hidden while the format is off. |
 | Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the 15 two-game tables are empty (23 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
@@ -23,14 +23,21 @@ Checked 2026-10-10 unless a line says otherwise.
 | Football data | FotMob, no key |
 | Scheduler | on (`SCHEDULER_ENABLED=true`) |
 | Avatars | built and off (`AVATAR_STORAGE=none`) |
-| Backups | weekly off-site `pg_dump` to Backblaze B2 (EU), Mondays 04:00 London (Batch 95, switched on 21 Nov); first weekly run 23 Nov 04:00 UTC, 912,932 bytes; last restore check on the 22 Nov 10:03 UTC run (840,154 bytes), every count matching (23 Nov). Runbook: `docs/runbooks/backup-restore.md` |
-| Two-game format | shipped and off: `TWO_GAMES_ENABLED` unset on both services, no rollout row, every round `legacy` (22 Nov) |
+| Backups | weekly off-site `pg_dump` to Backblaze B2 (EU), Mondays 04:00 London (Batch 95, switched on 21 Nov); first weekly run 23 Nov 04:00 UTC, 912,932 bytes; by hand before the flag 23 Nov 13:51 UTC, `production/the-coupon-20261123T135112Z.dump`, 912,317 bytes, 17,964 rows, not yet restore-checked; last restore check on the 22 Nov 10:03 UTC run (840,154 bytes), every count matching (23 Nov). Runbook: `docs/runbooks/backup-restore.md` |
+| Two-game format | `TWO_GAMES_ENABLED=true` on both services since 14:04 (API) and 14:07 (payments) UTC on 23 Nov; no rollout row, every round `legacy`, the 15 two-game tables still empty at 14:08; the API's three one-minute two-game jobs run and write nothing (23 Nov) |
 
 `scripts/check-deploy-drift.sh` is the authority on what the API is running, never
 `git log`: shipments have gone unrecorded before.
 
 ## Shipment state
 
+- **`TWO_GAMES_ENABLED` is on for both services with no rollout row** (23 Nov, owner's go 1,
+  moved to 14:03 UTC by the owner). A fresh backup came first (13:51 UTC, 912,317 bytes,
+  counts identical before and after). API redeploy `fd64e4a4` succeeded 14:04:40, payments
+  `d2faa3eb` 14:07:48, both `2115540` / `032`; drift in sync; the read-only audit matches 13:30
+  exactly. The lossless 032 undo ends with the first row in a two-game table (the next
+  odds-api.io request or membership change); recovery after that is a forward fix or the
+  13:51 backup. Not an emergency stop: see `docs/runbooks/two-game-activation.md`.
 - **The erasure-test fix is shipped and verified** (23 Nov, `2115540`, no migration,
   behaviour-neutral). It pins one weekly-fees test's clock, which had turned `main` red from
   00:47 to 12:40 UTC when the real date crossed Monday's fee week. The IaC apply and both
@@ -262,10 +269,10 @@ Checked 2026-10-03.
   19 Nov). On GitHub's Ubuntu 26.04 image Playwright 1.60.0 cannot install Chromium, so both
   browser jobs failed at install on every push from about 18 Nov. Batch 230 moves back.
 
-**Next:** tonight, after the 22:15 check that Yer Leagues A Joke round 3 settled, a fresh
-backup, then `TWO_GAMES_ENABLED` on both services with no rollout row and legacy verified
-(owner's go 1; moved from Tue 24 Nov on 23 Nov); Batch 228's activation checkpoint (go 2) on
-Thu 26 Nov, its coverage probe widened to the 94 Saturday 15:00 fixtures (owner, 23 Nov). Next
+**Next:** 22:15 tonight, check Yer Leagues A Joke round 3 settled (the first legacy
+settlement on `032`, now under the flag); Tue 24 Nov 11:30, check the morning's legacy jobs
+under the shared request budget (`provider_attempts`, no refusals); the owner downloads the
+13:51 backup for its restore check; Batch 228's activation checkpoint (go 2) on Thu 26 Nov, its coverage probe widened to the 94 Saturday 15:00 fixtures (owner, 23 Nov). Next
 week, on its own fix branch: the test-data leak that turns `main` red from 24 Dec to 6 Jan
 (`.local/date-sweep/README.md`). Confirm a natural payment on the
 organiser's Payments screen. Batch 211 stays deferred; the season-calendar backfill remains

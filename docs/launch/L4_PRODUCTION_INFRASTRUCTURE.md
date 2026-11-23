@@ -4446,3 +4446,34 @@ Backup/restore-point identity: `production/the-coupon-20261123T040000Z.dump` (th
 Still to observe: the first legacy settlement on `032` — Yer Leagues A Joke round 3 at 22:05
 UTC today. Then, by the owner's decision 2, a fresh backup and `TWO_GAMES_ENABLED` on both
 services tonight.
+
+### 2026-11-23 — `TWO_GAMES_ENABLED=true` on both services, no rollout row (variable change)
+
+Approved in chat: the owner's go 1 (22 Nov) covered the flag with no rollout row and legacy
+verified afterwards; on 23 Nov the owner moved it from that night to the afternoon ("Yes, do
+it now", after being told round 3 has no picks and nothing else blocked it). No code change:
+both services keep `2115540` / `032`.
+
+A fresh off-site backup ran inside the API container first:
+`production/the-coupon-20261123T135112Z.dump`, 912,317 bytes, 13:51:14 UTC, the table counts
+identical before and after (17,964 rows, 42 tables). An earlier post-shipment backup,
+`production/the-coupon-20261123T133511Z.dump` (912,316 bytes), ran at 13:35.
+
+- API: `TWO_GAMES_ENABLED=true` set at 14:03:17 UTC; redeploy
+  `fd64e4a4-9614-4a4b-a603-c454caa0a257` `SUCCESS` 14:04:40; health `200`, `2115540`, `032`;
+  readiness `200`, `ok`, `032`. The boot log added `run_weekly_dues`,
+  `run_two_game_discovery` and `run_two_game_settlement`; their runs at 14:05:24 and
+  14:06:24 succeeded and wrote nothing. No warning, error or credential pattern.
+- Payments: set at 14:06:45 UTC after the API's jobs had run cleanly; redeploy
+  `d2faa3eb-0e01-4b62-8c23-f948bc20c6dd` `SUCCESS` 14:07:48; health `200`,
+  `service: payments`, `2115540`, `032`; readiness `200`, `ok`, `032`; boot log clean.
+- Variable names after: API 13 of 13 and payments 7 of 7, no cross-service names,
+  `TWO_GAMES_ENABLED=true` on both. Drift in sync.
+- Read-only audit at 14:08 UTC (locally through the London session pooler): identical to
+  the 13:30 audit — RLS forced 42 of 42, no public-role grants, 9 fence triggers, 37 rounds
+  all `legacy`, the 15 two-game tables empty, no rollout row.
+
+Recovery: the lossless 032 undo stops applying with the first row in a two-game table; after
+that, a forward fix or the 13:51 backup. `TWO_GAMES_ENABLED` is not an emergency stop
+(`docs/runbooks/two-game-activation.md`). Still to observe: round 3's settlement at 22:05 UTC
+and Tuesday morning's legacy jobs under the shared request budget.

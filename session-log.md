@@ -9396,3 +9396,36 @@ for `2115540`
 - Owner decision 4: the Christmas test trap next week, on its own fix branch.
 
 **Next:** 22:15 round 3 check, the backup and the flag; Thursday's go-2 checkpoint.
+
+## Flag — 2026-11-23, `TWO_GAMES_ENABLED` on both services (no rollout row)
+**Railway:** API redeploy `fd64e4a4-9614-4a4b-a603-c454caa0a257` `SUCCESS` 14:04:40 UTC and payments redeploy `d2faa3eb-0e01-4b62-8c23-f948bc20c6dd` `SUCCESS` 14:07:48 UTC, both `2115540` / `032` · drift **in sync** · backups `production/the-coupon-20261123T133511Z.dump` (912,316 bytes) and, just before the flag, `production/the-coupon-20261123T135112Z.dump` (912,317 bytes), counts identical before and after each
+
+### Key facts for future sessions
+- **Approval:** owner's go 1 (22 Nov) covered the flag with no rollout row; decision 2 of the
+  23 Nov morning report set it for that night after round 3 settled; at 13:4x UTC the owner
+  asked "why can't we do it now?", was told nothing blocked it (round 3 has no picks, so its
+  22:05 settlement now runs under the flag), and replied "Yes, do it now".
+- Timed clear of the :00/:01/:15 jobs: the API at 14:03:17, payments at 14:06:45 after the
+  API's new jobs had run twice. Each variable change redeployed the running image; no upload.
+- **What the flag added on the API:** three one-minute jobs, `run_weekly_dues`,
+  `run_two_game_discovery` and `run_two_game_settlement`. Their first runs at 14:05:24 and
+  14:06:24 succeeded and wrote nothing (`weekly fee catch-up` with 0 obligations). No
+  warning, error or credential pattern in either boot log.
+- **Read-only audit at 14:08 UTC**, locally through the London pooler: identical to 13:30 —
+  `032`; RLS forced 42 of 42; no public-role grants or executable functions; 9 fence
+  triggers; 37 rounds, all `legacy`; the 15 two-game tables empty; `two_game_rollouts` 0;
+  legacy rows 17,964.
+- **Where the lossless undo ends:** with the first row in a two-game table — the next
+  odds-api.io request reserves a `provider_attempts` row and joins and departures write
+  `membership_intervals`. From then on recovery is a forward fix or the 13:51 backup
+  (`docs/runbooks/migration-032-recovery.md`). The flag is not an emergency stop.
+
+### Follow-ups
+- 22:15 tonight: Yer Leagues A Joke round 3's settlement, the first legacy settlement on
+  `032`, now under the flag.
+- Tue 24 Nov 11:30: the 06:05, 07:05, 09:05 and 11:05 legacy jobs under the shared request
+  budget — each succeeded, every request counted in `provider_attempts`, none refused.
+- The owner downloads `production/the-coupon-20261123T135112Z.dump` from Backblaze for the
+  restore check (any day before Thursday's checkpoint).
+
+**Next:** the 22:15 round 3 check, Tuesday's job check, Thursday's go-2 checkpoint.
