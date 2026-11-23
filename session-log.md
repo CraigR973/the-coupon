@@ -9314,3 +9314,85 @@ the first legacy jobs under the shared request budget; Thursday's go-2 checkpoin
 
 **Next:** the flag after a fresh backup, the first legacy jobs under the shared request
 budget, and Thursday's go-2 checkpoint.
+
+## Fix — the erasure dues test read the real clock across Monday's week boundary
+**Commits:** `2115540` · verified: `scripts/ci-local.sh` PASS in its worktree (12 checks;
+backend 2,087, frontend 1,505, journey 1, zero skips; tree `eea4b20`) · CI: `45174343097` PASS
+for `2115540`
+
+### Key facts for future sessions
+- **The failure:** the Batch 231 shipment record `52a41ca` (docs-only) failed CI run
+  45089102728 on both cases of
+  `test_erasure_of_name_matching_generated_dues_preserves_immutable_money` with one extra due.
+  The same code passed CI at 23:04 and 23:19 UTC on 22 Nov; this run began 00:30 UTC on 23 Nov.
+- **Cause:** `erase_account` departs at `datetime.now(UTC)` and `close_memberships` bills the
+  departure week. The test's dues use fixed November weeks (W1 = 21 Nov), so from Mon 23 Nov
+  00:00 London the real clock sat in W2's week and the erasure correctly billed W2. Product
+  behaviour matches the Monday-to-Monday rule; the test had assumed the date.
+- **Fixed where the clock is read:** the test pins `src.services.account_erasure.datetime`
+  inside W1's week, as the avatar-race test in the same module already did. No assertion
+  changed; the guard saw additions only. Red on unchanged `main` at 00:51 UTC, green with the
+  pin. Owner approval in chat, 12:24:19 UTC on 23 Nov: "Yes, all four" — the morning
+  report's four decisions, the first being to push this fix and ship it at 13:20.
+- **Main was red from 00:47 to 12:40 UTC on 23 Nov.** Nothing closed out or shipped
+  in that window.
+- **Date-trap sweep, same day:** both suites were run with Python's, Postgres's and Node's
+  clocks moved together (`.local/date-sweep/`, gitignored, README there). Clean on 28 Nov,
+  30 Nov and 7 Dec 2026 and on 1 Apr 2027; web 1,505 clean on every date tried. Two traps:
+  **24 Dec–6 Jan**, where two `test_season_calendar` tests are refused `EXTRA_WEEK_LOCKED`
+  because `test_home_last_result` commits settled rounds dated 1 and 8 days ago and never
+  deletes them (each file passes alone; edges measured 23/24 Dec and 6/7 Jan); and **from
+  1 Jul 2027**, where 10 tests in `test_picks_flow` and `test_two_game_member_history` seed
+  fixed 2026/27 rounds that fall out of the current season. The method was proved on this
+  failure: the pre-fix test passes at 20 Nov and fails at 23 Nov.
+- **Drift:** test-only but under `apps/api`, so a behaviour-neutral `/ship-prod` was owed.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+### Follow-ups
+- **The Christmas trap** — fix next week on its own fix branch (owner, 23 Nov, decision 4):
+  the "last result" tests should delete the rounds they commit.
+- **The July 2027 trap** — a batch before next summer; no action this year.
+- **The 07:05 odds warm pass asks the provider nothing.** Both 22 and 23 Nov it was withheld
+  as "hourly allowance held for the pick path": 06:05 discovery spends over 50 of the
+  rolling hour's 100 requests and the warm pass starts at 07:05:00, inside that hour. On
+  22 Nov it reported 94 of 94 prices left in the in-memory cache; on 23 Nov, after the
+  00:23 restart, 0. Picking is unaffected (the pick path is exempt from the reserve).
+  Thursday's coverage probe now also prices the 94 Saturday 15:00 fixtures (owner, 23 Nov,
+  decision 3); a code fix waits until after activation week.
+
+**Next:** see the shipment record below.
+
+## Shipment — 2026-11-23, `2115540` (the erasure-test fix; no migration, behaviour-neutral)
+**Railway:** API `add870dc-ff36-499d-b568-62b1dde11ad8` and payments `92a2821c-9006-4a84-89fe-8cdefa10a8e8` `SUCCESS` · IaC redeploys `95dad76c` / `07fdefcc` healthy before upload · Vercel no-op (`dpl_6ahQxw34aWiXgSLzbXQQZXVhkJVm`, `2115540`, the 22 Nov bundle) · drift **in sync** for both · exact-SHA CI `45174343097` (`2115540`) green · reused gate tree `eea4b20b0845c4a1e1a140dc9a81161fdbd4c48a` from the fix worktree's own stamp (backend 2,087; frontend 1,505; journey 1; zero skips)
+
+### Key facts for future sessions
+- Owner decision 1 of the 23 Nov morning report ("Yes, all four", 12:24:19 UTC): push the
+  fix and ship it at 13:20. The restarts ran 13:19–13:26 UTC, clear of the :00/:01/:15 jobs,
+  the 09:05/11:05 slate refreshes and the 18:00–22:15 sweeps; next lock Fri 27 Nov 17:30 UTC.
+- **The gate proof came from the worktree.** The shared checkout's stamp still held the
+  Batch 231 tree, so its guard would have refused; the fix worktree's guard verified the
+  identical tree `eea4b20` that `main` now holds, and the upload went from the shared
+  checkout's clean `main`.
+- **`railway ssh` was refused again** (`kex_exchange_identification` reset by 66.33.22.3),
+  so the read-only audit ran locally under `railway run --no-local` through the London
+  session pooler with the pinned CA: the same script, counts only. Results: `032`; RLS forced
+  42 of 42; no public-role grants or executable functions; 9 fence triggers; 37 rounds, all
+  `legacy`; the 15 new tables empty; legacy rows 17,964 (since 00:27: 1 fixture and its link
+  added by 06:05 discovery, 12 expired notifications and 1 refresh token pruned).
+- Boot: no migration step, no credential pattern, no backup "misconfigured" line, no
+  two-game job; the six `error` lines are uvicorn and alembic INFO on stderr. Variable names:
+  API 13 of 13, payments 7 of 7, `TWO_GAMES_ENABLED` absent on both, `BACKUP_*` 6 of 6.
+- **Recovery:** no migration, so an image rollback is clean: API
+  `95dad76c-be55-425f-836b-5f4a40aaf6cd`, payments `07fdefcc-d186-4622-9bde-c5d4e58d3313`
+  (both `eaf8ca7` / `032`). The lossless 032 undo still holds while every two-game table is
+  empty. Recovery point: `production/the-coupon-20261123T040000Z.dump` (04:00 UTC today,
+  912,932 bytes).
+
+### Follow-ups
+- Owner decision 2: tonight, after the 22:15 check that Yer Leagues A Joke round 3 settled,
+  a fresh backup and then `TWO_GAMES_ENABLED` on both services, no rollout row, legacy
+  verified (moved from Tue 24 Nov 15:20).
+- Owner decision 3: Thursday's coverage probe also prices the 94 Saturday 15:00 fixtures.
+- Owner decision 4: the Christmas test trap next week, on its own fix branch.
+
+**Next:** 22:15 round 3 check, the backup and the flag; Thursday's go-2 checkpoint.

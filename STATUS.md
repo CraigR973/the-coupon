@@ -13,17 +13,17 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `eaf8ca7` (Batch 231) at migration `032` (23 Nov) |
-| API deployment | Railway `bcf945c9-3e56-4220-96bc-24670355ee3d` succeeded, one replica, `europe-west4` (23 Nov) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `eaf8ca7` at `032`, Railway `3d3fcc6e-0974-46b8-8de1-b26519e66a92` (23 Nov), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
-| Web | `the-coupon-production.vercel.app` builds every push to `main` (`eaf8ca7` is `dpl_X7fVXS2eXLSHYAm1Xi5HKptJzJf7`); the bundle has been `index-38EoXdmB.js` since 22 Nov, and root, standings and results deep links serve it with the committed security/cache headers (23 Nov). The two-game screens are built and hidden while the format is off. |
+| API | `api-production-109b1.up.railway.app` serves `2115540` (Batch 231's code plus a test-only fix) at migration `032` (23 Nov) |
+| API deployment | Railway `add870dc-ff36-499d-b568-62b1dde11ad8` succeeded, one replica, `europe-west4` (23 Nov) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `2115540` at `032`, Railway `92a2821c-9006-4a84-89fe-8cdefa10a8e8` (23 Nov), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
+| Web | `the-coupon-production.vercel.app` builds every push to `main` (`2115540` is `dpl_6ahQxw34aWiXgSLzbXQQZXVhkJVm`); the bundle has been `index-38EoXdmB.js` since 22 Nov, and root, standings and results deep links serve it with the committed security/cache headers (23 Nov). The two-game screens are built and hidden while the format is off. |
 | Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the 15 two-game tables are empty (23 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
-| Odds | `odds-api.io` priced by **Betfair Sportsbook** since 10:36 UTC on 31 Oct (ADR 0002's 31 Oct amendment). Bet365 has been paid-only since 26 Oct, 19:00 UTC, and a free key gets a 403. Free key: 100 requests/hour and 500/day for the whole deployment. On the 31 Oct card it priced 78 of 85 fixtures, none in the Highland League (31 Oct). The owner chose to keep it rather than pay £49/mo for Bet365 (31 Oct) |
+| Odds | `odds-api.io` priced by **Betfair Sportsbook** since 10:36 UTC on 31 Oct (ADR 0002's 31 Oct amendment). Bet365 has been paid-only since 26 Oct, 19:00 UTC, and a free key gets a 403. Free key: 100 requests/hour and 500/day for the whole deployment. On the 31 Oct card it priced 78 of 85 fixtures, none in the Highland League (31 Oct). The owner chose to keep it rather than pay £49/mo for Bet365 (31 Oct). The 07:05 warm pass asks the provider nothing: the 50-request pick reserve withholds it because 06:05 discovery's requests are still inside the rolling hour, so it only reports prices left in memory (22 and 23 Nov) |
 | Football data | FotMob, no key |
 | Scheduler | on (`SCHEDULER_ENABLED=true`) |
 | Avatars | built and off (`AVATAR_STORAGE=none`) |
-| Backups | weekly off-site `pg_dump` to Backblaze B2 (EU), Mondays 04:00 London (Batch 95, switched on 21 Nov); last run by hand 22 Nov 10:03 UTC, 840,154 bytes, restored locally with every count matching (22 Nov). Runbook: `docs/runbooks/backup-restore.md` |
+| Backups | weekly off-site `pg_dump` to Backblaze B2 (EU), Mondays 04:00 London (Batch 95, switched on 21 Nov); first weekly run 23 Nov 04:00 UTC, 912,932 bytes; last restore check on the 22 Nov 10:03 UTC run (840,154 bytes), every count matching (23 Nov). Runbook: `docs/runbooks/backup-restore.md` |
 | Two-game format | shipped and off: `TWO_GAMES_ENABLED` unset on both services, no rollout row, every round `legacy` (22 Nov) |
 
 `scripts/check-deploy-drift.sh` is the authority on what the API is running, never
@@ -31,6 +31,13 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **The erasure-test fix is shipped and verified** (23 Nov, `2115540`, no migration,
+  behaviour-neutral). It pins one weekly-fees test's clock, which had turned `main` red from
+  00:47 to 12:40 UTC when the real date crossed Monday's fee week. The IaC apply and both
+  uploads ran 13:19–13:26 UTC: API `add870dc`, payments `92a2821c`, both `2115540` / `032`;
+  drift is in sync and the audit (run through the pooler, `railway ssh` refused) matches.
+  Image rollback: API `95dad76c`, payments `07fdefcc` (both `eaf8ca7`). The lossless 032 undo
+  still holds until `TWO_GAMES_ENABLED` goes on.
 - **Batch 231 is shipped and verified with the format off** (23 Nov, `eaf8ca7`, no
   migration). The owner moved it from Tue 24 Nov to the night of 22–23 Nov. The IaC apply
   (the four reporting-only changes) and both uploads ran 00:20–00:27 UTC: API `bcf945c9`,
@@ -255,8 +262,11 @@ Checked 2026-10-03.
   19 Nov). On GitHub's Ubuntu 26.04 image Playwright 1.60.0 cannot install Chromium, so both
   browser jobs failed at install on every push from about 18 Nov. Batch 230 moves back.
 
-**Next:** a fresh backup, then `TWO_GAMES_ENABLED` on both services with no rollout row and
-legacy verified (owner's go 1; planned Tue 24 Nov 15:20 unless the owner moves it); Batch
-228's activation checkpoint (go 2) on Thu 26 Nov. Confirm a natural payment on the
+**Next:** tonight, after the 22:15 check that Yer Leagues A Joke round 3 settled, a fresh
+backup, then `TWO_GAMES_ENABLED` on both services with no rollout row and legacy verified
+(owner's go 1; moved from Tue 24 Nov on 23 Nov); Batch 228's activation checkpoint (go 2) on
+Thu 26 Nov, its coverage probe widened to the 94 Saturday 15:00 fixtures (owner, 23 Nov). Next
+week, on its own fix branch: the test-data leak that turns `main` red from 24 Dec to 6 Jan
+(`.local/date-sweep/README.md`). Confirm a natural payment on the
 organiser's Payments screen. Batch 211 stays deferred; the season-calendar backfill remains
 owner-gated, unblocked since 4 Oct.

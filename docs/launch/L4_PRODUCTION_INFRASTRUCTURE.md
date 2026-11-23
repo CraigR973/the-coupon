@@ -4394,3 +4394,55 @@ Still to observe: the first legacy settlement on `032` — Yer Leagues A Joke ro
 Nov 22:05 UTC, because its window closes Mon 21:00; the 22 Nov sweeps had nothing to settle
 and logged no error. `TWO_GAMES_ENABLED`, Batch 228's activation checkpoint and activation
 remain owner steps.
+
+### 2026-11-23 — `2115540`, the erasure-test fix, shipped behaviour-neutral (no migration)
+
+Approved in chat: the owner's "Yes, all four" (23 Nov, 12:24:19 UTC) accepted the morning
+report's decisions, the first being "Push the erasure-test fix now, and ship it at 13:20".
+The change pins one test's clock (`apps/api/tests/test_weekly_fees_lifecycle.py`); it reaches
+the image only because tests live under `apps/api`, so the running code is unchanged. Source:
+clean `main` at `211554015d13dd1691a9c099d2a6f23dfdf92e36`, uploaded from the shared checkout.
+
+Preflight re-read the exact targets, a clean `main` equal to `origin/main`, and the API's
+health (`eaf8ca7`, `032`). Checks before upload: Quality run `45174343097` (`2115540`) green on
+all three jobs; local gate 12 of 12 (2,087 backend, 1,505 frontend, journey 1, zero skips,
+tree `eea4b20b0845c4a1e1a140dc9a81161fdbd4c48a`), reused through the fix worktree's own stamp
+guard, which verified the identical tree. Drift before: both services one commit behind that
+reaches the image. Next lock: 27 Nov 17:30 UTC (`yer-leagues-a-joke`).
+
+The pinned IaC plan had 0 additions, the usual 4 changes and 0 deletions. Applying it at
+13:19:31 UTC redeployed both `eaf8ca7` images: API `95dad76c-be55-425f-836b-5f4a40aaf6cd` and
+payments `07fdefcc-d186-4622-9bde-c5d4e58d3313`, both `SUCCESS` by 13:20:58 UTC and ready at
+`032`.
+
+- API `add870dc-ff36-499d-b568-62b1dde11ad8`, uploaded 13:21:35 UTC: `SUCCESS` 13:22:52;
+  health `200`, `2115540`, `032`; readiness `200`, `ok`, `032`. The boot log ran no migration
+  step and had no failure or credential pattern, no backup "misconfigured" line and none of
+  the two-game jobs.
+- Payments `92a2821c-9006-4a84-89fe-8cdefa10a8e8`, uploaded after API readiness at 13:23:56
+  UTC: `SUCCESS` 13:25:36; health `200`, `service: payments`, `2115540`, `032`; readiness
+  `200`, `ok`, `032`.
+- Manifest: one replica in `europe-west4-drams3a`, no sleep, IPv6 egress, Nixpacks,
+  `ON_FAILURE` with three retries, 300-second readiness timeout, 0.25 vCPU / 500 MB.
+- Variable names after the ship: API 13 of 13 and payments 7 of 7, no cross-service names,
+  `TWO_GAMES_ENABLED` absent on both, the six `BACKUP_*` present.
+- Read-only audit, run locally under `railway run --no-local` through the London session
+  pooler because `railway ssh` was refused at the key exchange: `032`; RLS enabled and forced
+  on 42 of 42 public tables; no table grant and no executable function for anon,
+  authenticated or PUBLIC; fence triggers on 9 tables; 37 rounds, all `legacy`; the 15 new
+  tables empty; legacy rows 17,964.
+- Web: no deployment needed. Vercel built `2115540`; production
+  `dpl_6ahQxw34aWiXgSLzbXQQZXVhkJVm` holds the stable alias and serves the 22 Nov bundle.
+  Smoke: `/`, `/standings` and `/results` `200` with `/assets/index-38EoXdmB.js` and every
+  committed header; exact-origin `OPTIONS /api/v1/me/games` `200` with credentials;
+  unauthenticated `/me/games` `401`. Drift is in sync for both services.
+
+Backup/restore-point identity: `production/the-coupon-20261123T040000Z.dump` (the weekly run,
+04:00 UTC on 23 Nov, 912,932 bytes). No migration, so an image rollback is clean (API
+`95dad76c`, payments `07fdefcc`), and while every two-game table is empty
+`docs/runbooks/migration-032-undo.sql` still applies. The web rolls back to
+`dpl_cVww3okEQriZZP99J5eLhiZfegjA` (`52a41ca`), the same bundle.
+
+Still to observe: the first legacy settlement on `032` — Yer Leagues A Joke round 3 at 22:05
+UTC today. Then, by the owner's decision 2, a fresh backup and `TWO_GAMES_ENABLED` on both
+services tonight.
