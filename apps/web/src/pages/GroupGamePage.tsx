@@ -1,39 +1,70 @@
+import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-import { useGameIntents } from "../hooks/useGameIntents";
+import { useGameIntents, useGameNavigation } from "../hooks/useGameIntents";
 import { useGameRoute } from "../hooks/useGameRoute";
 import { useExpiry } from "../hooks/useExpiry";
+import type { CountdownParts } from "../hooks/useCountdown";
 import { apiFetch, ApiError } from "../lib/api";
+import { intentKey } from "../lib/gameIntents";
+import { fixtureContext } from "../lib/coupon";
+import {
+  competitionName,
+  groupByCompetition,
+  type FixtureGroup,
+} from "../lib/gameFixtures";
+import { groupLegs, groupPhase } from "../lib/groupCoupon";
 import {
   gamePath,
   gameQueryKey,
   type GameEntry,
   type GroupGame,
   type GameCard,
+  type GroupFixture,
 } from "../lib/twoGameTypes";
+import type { PickMarket, PickOutcome } from "../lib/types";
 import { formatCalendarDate, formatInstant } from "../lib/time";
+import { cn } from "../lib/utils";
 import { WeekFeePanel } from "../components/WeekFeePanel";
 import { GameIntentStatus } from "../components/GameIntentStatus";
 import { GameSwitch } from "../components/GameSwitch";
+import { Countdown } from "../components/Countdown";
+import { GroupFixtureCard } from "../components/GroupFixtureCard";
+import {
+  GroupCouponSection,
+  GroupStatusCard,
+  type GroupMyPick,
+} from "../components/GroupCoupon";
 import { Button } from "../components/ui/button";
 
-const label = (status: string) =>
-  ({
-    no_coupon: "No coupon",
-    pending: "Pending results",
-    won: "Won",
-    lost: "Lost",
-    void: "Void",
-  })[status] ?? status;
+function formatCountdown(p: CountdownParts): string {
+  if (p.expired) return "now";
+  if (p.days > 0) return `${p.days}d ${p.hours}h`;
+  if (p.hours > 0) return `${p.hours}h ${p.minutes}m`;
+  return `${p.minutes}m ${p.seconds}s`;
+}
+
+/** A save on its way: the selection button shows it, and the card keeps its status. */
+const IN_FLIGHT = new Set(["queued", "sending", "checking", "uncertain"]);
+
 interface GroupRead {
   game: GroupGame | null;
   retained: GameCard | null;
 }
+
+/**
+ * The Saturday group on the old coupon screen (Batch 233): folded competitions of the old
+ * fixture cards beside the old status card and the coupon, as the legacy round screen
+ * lays them out. A tap saves the member's one contribution and another switches it,
+ * through the group's existing single addressed write.
+ */
 export function GroupGamePage() {
   const target = useGameRoute("group");
   const { player } = useAuth();
   const { engine, intents } = useGameIntents();
+  const leagues = useGameNavigation();
   const client = useQueryClient();
   const key = gameQueryKey(player?.id ?? "", target);
   const query = useQuery<GroupRead>({
@@ -70,15 +101,23 @@ export function GroupGamePage() {
   const notOpened = !useExpiry(
     game?.opens_at ?? retained?.opens_at ?? "1970-01-01T00:00:00Z",
   );
+  // Each competition folds on its own; the first starts open, as on the legacy slate.
+  const [folds, setFolds] = useState<Record<string, boolean>>({});
+  const fixtures = game?.fixtures;
+  const groups = useMemo(() => groupByCompetition(fixtures ?? []), [fixtures]);
+  const legs = useMemo(() => groupLegs(fixtures ?? []), [fixtures]);
   const refresh = () => {
     void client.invalidateQueries({ queryKey: ["two-games", player?.id] });
   };
+  const intent = intents.find(
+    (value) => intentKey(value.target, value.slot) === intentKey(target, 0),
+  );
   const saving = intents.some(
-    (intent) =>
-      intent.target.league_id === target.league_id &&
-      intent.target.week_id === target.week_id &&
-      intent.target.game_kind === target.game_kind &&
-      ["checking", "sending"].includes(intent.phase),
+    (value) =>
+      value.target.league_id === target.league_id &&
+      value.target.week_id === target.week_id &&
+      value.target.game_kind === target.game_kind &&
+      ["checking", "sending"].includes(value.phase),
   );
   const editable =
     !!game &&
@@ -116,177 +155,288 @@ export function GroupGamePage() {
   }
   const shown = game ?? retained;
   if (!shown) return null;
+  const league = leagues.find((value) => value.league_id === target.league_id);
   const progress = shown.progress;
   const picked = progress.picked_count ?? 0,
     members = progress.member_count ?? 0;
   const mine = game?.my_entries[0] ?? retained?.my_entry?.pick;
+  const final = shown.result.final;
+  const resultStatus = shown.result.status ?? "pending";
+  const entryOpen = !!game && game.entry_state === "open";
+  // The pick window itself, steady through a save; `editable` also waits out each save.
+  const pickable = entryOpen && !expiry && !notOpened;
+  const locked = !game || expiry || game.entry_state === "locked";
+  const phase = groupPhase({
+    entryState: game ? game.entry_state : "locked",
+    notOpened,
+    expired: expiry,
+    final,
+    hasPick: !!mine,
+    picked,
+    members,
+  });
+  // The old card's clock: the 14:30 countdown while picks are open.
+  let clock: ReactNode = null;
+  if (phase === "not_open")
+    clock = (
+      <>
+        Picks open in{" "}
+        <Countdown target={shown.opens_at} format={formatCountdown} />
+      </>
+    );
+  else if (!["settled", "suspended", "cancelled"].includes(phase))
+    clock = locked ? (
+      "Picks are locked"
+    ) : (
+      <>
+        Picks lock in{" "}
+        <Countdown target={shown.locks_at} format={formatCountdown} />
+      </>
+    );
+  // Why the cards cannot be used yet, when the chip and the clock do not already say it.
+  const status = retained
+    ? "Retained locked history"
+    : pickable
+      ? entry.isError
+        ? "Could not verify your saved contribution"
+        : entry.isFetching || saving
+          ? "Checking the current saved contribution…"
+          : null
+      : null;
+  const myFixture = mine
+    ? game?.fixtures.find((fixture) => fixture.fixture_id === mine.fixture_id)
+    : undefined;
+  const myPick: GroupMyPick | null = mine
+    ? {
+        selection: mine.runner_name,
+        context: myFixture
+          ? fixtureContext(
+              mine.market as PickMarket,
+              mine.outcome as PickOutcome,
+              myFixture.home,
+              myFixture.away,
+            )
+          : null,
+        competition: myFixture ? competitionName(myFixture.competition_id) : null,
+        result: mine.result,
+      }
+    : null;
+  const pending =
+    intent && IN_FLIGHT.has(intent.phase)
+      ? {
+          fixture_id: intent.body.fixture_id,
+          market: intent.body.market,
+          outcome: intent.body.outcome,
+          phase: intent.phase,
+        }
+      : null;
+  const isOpen = (competition: string, index: number) =>
+    folds[competition] ?? index === 0;
+  // The save's status sits in the card it is about, where the member just tapped; it
+  // falls back to the top of the list while that card is folded away or gone.
+  const statusInCard =
+    !!intent &&
+    groups.some(
+      (group, index) =>
+        isOpen(group.competition_id, index) &&
+        group.fixtures.some(
+          (fixture) => fixture.fixture_id === intent.body.fixture_id,
+        ),
+    );
+  const choose = (fixture: GroupFixture, market: string, outcome: string) =>
+    engine.choose(
+      target,
+      0,
+      { fixture_id: fixture.fixture_id, market, outcome },
+      entry.data!.revision,
+    );
+  const weekLabel = formatCalendarDate(shown.week_label, "d MMM");
+  const noPick =
+    phase === "not_open"
+      ? "No pick yet — this game isn't open."
+      : pickable
+        ? "No pick yet — tap a selection to make it yours."
+        : locked
+          ? "You did not pick this week."
+          : "No pick saved.";
+  const slate = game && (
+    <section aria-labelledby="group-fixtures-heading" className="space-y-3">
+      <h2
+        id="group-fixtures-heading"
+        className="font-mono text-caption uppercase tracking-[0.2em] text-text-primary"
+      >
+        {pickable ? "Pick your selection" : "Saturday 15:00 fixtures"}
+      </h2>
+      {!statusInCard && <GameIntentStatus target={target} slot={0} compact />}
+      {game.fixtures.length === 0 ? (
+        <p className="font-sans text-sm text-text-secondary">
+          {game.coverage_state === "confirmed_empty"
+            ? "No eligible fixtures are confirmed."
+            : "Fixtures are pending; an empty response does not confirm a break."}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {groups.map((group, index) => (
+            <CompetitionFold
+              key={group.competition_id}
+              group={group}
+              open={isOpen(group.competition_id, index)}
+              onToggle={() =>
+                setFolds((value) => ({
+                  ...value,
+                  [group.competition_id]: !isOpen(group.competition_id, index),
+                }))
+              }
+            >
+              {group.fixtures.map((fixture) => (
+                <GroupFixtureCard
+                  key={fixture.fixture_id}
+                  fixture={fixture}
+                  competition={group.competition}
+                  memberId={player?.id}
+                  pending={
+                    pending && pending.fixture_id === fixture.fixture_id
+                      ? pending
+                      : null
+                  }
+                  canChoose={editable}
+                  onChoose={(market, outcome) => choose(fixture, market, outcome)}
+                >
+                  {statusInCard &&
+                    intent?.body.fixture_id === fixture.fixture_id && (
+                      <GameIntentStatus target={target} slot={0} compact />
+                    )}
+                </GroupFixtureCard>
+              ))}
+            </CompetitionFold>
+          ))}
+        </div>
+      )}
+    </section>
+  );
   return (
-    <div className="mx-auto max-w-3xl space-y-5" data-testid="group-game">
+    <div className="space-y-5" data-testid="group-game">
       <GameSwitch target={target} />
-      <nav aria-label="Game navigation" className="flex flex-wrap gap-4">
-        <Link to="/" className="underline">
+      <nav
+        aria-label="Game navigation"
+        className="flex flex-wrap gap-x-4 font-sans text-sm"
+      >
+        <Link className="inline-flex min-h-11 items-center underline" to="/">
           Home
         </Link>
-        <Link to={`/leagues/${target.league_id}/games`} className="underline">
+        <Link
+          className="inline-flex min-h-11 items-center underline"
+          to={`/leagues/${target.league_id}/games`}
+        >
           Game archive
         </Link>
+        {league && (
+          <Link
+            className="inline-flex min-h-11 items-center underline"
+            to={`/leagues/${league.slug}/leaderboard`}
+          >
+            Season table
+          </Link>
+        )}
       </nav>
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold">
-          Saturday Group · {formatCalendarDate(shown.week_label, "d MMM")}
+      <header className="space-y-1">
+        <h1 className="font-sans text-2xl font-semibold text-text-primary">
+          Saturday Group · {weekLabel}
         </h1>
-        <p>
+        <p className="font-sans text-sm text-text-secondary">
           One contribution each. A fixture belongs to one member across the
           group.
         </p>
-        <p>
+        <p className="font-sans text-sm text-text-secondary">
           Locks{" "}
           {formatInstant(shown.locks_at, "Europe/London", "EEE d MMM HH:mm")}{" "}
           London time.
         </p>
-        {!editable && (
-          <p role="status">
-            {retained
-              ? "Retained locked history"
-              : expiry
-                ? "Group locked"
-                : notOpened
-                  ? "Entry has not opened"
-                  : game?.entry_state === "suspended"
-                    ? "Entries suspended"
-                    : entry.isError
-                      ? "Could not verify your saved contribution"
-                      : entry.isFetching || saving
-                        ? "Checking the current saved contribution…"
-                        : game?.entry_state}
-          </p>
-        )}
       </header>
-      <section
-        className="rounded-xl border border-border bg-surface p-4 space-y-2"
-        aria-label="Group progress and result"
-      >
-        <p>
-          {picked} of {members} contributed · {Math.max(0, members - picked)}{" "}
-          missing contributors.
-        </p>
-        <p className="font-semibold">
-          {label(shown.result.status ?? "pending")}
-          {shown.result.final ? " · Final" : " · Provisional"}
-        </p>
-        <p className="text-sm text-text-secondary">
-          Incomplete participation is valid. Void legs are neutral; all void is
-          void. Zero contributions means No coupon.
-        </p>
-        <p>
-          Your saved contribution:{" "}
-          {mine ? `${mine.runner_name} · ${label(mine.result)}` : "None yet"}
-        </p>
-      </section>
-      <GameIntentStatus target={target} slot={0} />
-      {entry.isError && game && (
-        <Button variant="outline" onClick={() => void entry.refetch()}>
-          Check saved contribution
-        </Button>
-      )}
-      {game && (
-        <section aria-labelledby="group-fixtures-heading" className="space-y-3">
-          <h2 id="group-fixtures-heading" className="text-xl font-semibold">
-            Saturday 15:00 fixtures
-          </h2>
-          {game.fixtures.length === 0 && (
-            <p>
-              {game.coverage_state === "confirmed_empty"
-                ? "No eligible fixtures are confirmed."
-                : "Fixtures are pending; an empty response does not confirm a break."}
-            </p>
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
+        {slate && <div className="min-w-0">{slate}</div>}
+        <aside
+          aria-label="Group status and coupon"
+          className="min-w-0 space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto"
+        >
+          {!game && <GameIntentStatus target={target} slot={0} compact />}
+          <GroupStatusCard
+            phase={phase}
+            clock={clock}
+            status={status}
+            result={{ status: resultStatus, final }}
+            showResult={final || (locked && resultStatus !== "pending")}
+            picked={picked}
+            members={members}
+            mine={myPick}
+            canSwitch={pickable}
+            noPick={noPick}
+          />
+          {entry.isError && game && (
+            <Button variant="outline" onClick={() => void entry.refetch()}>
+              Check saved contribution
+            </Button>
           )}
-          {game.fixtures.map((fixture) => (
-            <article
-              key={fixture.fixture_id}
-              className="rounded-xl border border-border bg-surface p-4 space-y-3"
-            >
-              <h3 className="font-semibold">
-                {fixture.home} v {fixture.away}
-              </h3>
-              <p className="text-sm">
-                {formatInstant(
-                  fixture.kickoff_at,
-                  "Europe/London",
-                  "EEE d MMM HH:mm",
-                )}{" "}
-                London · {fixture.competition_id}
-              </p>
-              {fixture.claim && (
-                <p>
-                  Claimed by {fixture.claim.display_name}:{" "}
-                  {fixture.claim.runner_name} · {label(fixture.claim.result)}
-                </p>
-              )}
-              {!fixture.eligible && (
-                <p>This fixture is unavailable for a new contribution.</p>
-              )}
-              {fixture.allowed_markets.map((market) => (
-                <fieldset key={market.market} className="space-y-2">
-                  <legend className="text-sm">
-                    {market.market === "MATCH_ODDS"
-                      ? "Match result"
-                      : "Both teams to score"}
-                  </legend>
-                  <div className="flex flex-wrap gap-2">
-                    {market.outcomes.map((outcome) => {
-                      const name =
-                        outcome === "HOME"
-                          ? `${fixture.home} to win`
-                          : outcome === "AWAY"
-                            ? `${fixture.away} to win`
-                            : outcome === "DRAW"
-                              ? "Draw"
-                              : outcome === "YES"
-                                ? "Both teams score"
-                                : "Both teams do not score";
-                      return (
-                        <Button
-                          key={outcome}
-                          variant={
-                            mine?.fixture_id === fixture.fixture_id &&
-                            mine.market === market.market &&
-                            mine.outcome === outcome
-                              ? "default"
-                              : "outline"
-                          }
-                          disabled={
-                            !editable ||
-                            !fixture.eligible ||
-                            (!!fixture.claim &&
-                              fixture.claim.player_id !== player?.id)
-                          }
-                          aria-label={`Choose ${name}`}
-                          onClick={() =>
-                            engine.choose(
-                              target,
-                              0,
-                              {
-                                fixture_id: fixture.fixture_id,
-                                market: market.market,
-                                outcome,
-                              },
-                              entry.data!.revision,
-                            )
-                          }
-                        >
-                          {name}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-              ))}
-            </article>
-          ))}
-        </section>
-      )}
+          {game && (
+            <GroupCouponSection
+              legs={legs}
+              memberId={player?.id}
+              picked={picked}
+              members={members}
+              locked={locked}
+              final={final}
+              resultStatus={resultStatus}
+              weekLabel={weekLabel}
+            />
+          )}
+        </aside>
+      </div>
       <WeekFeePanel fee={shown.fee} onRefresh={refresh} />
     </div>
+  );
+}
+
+/**
+ * One competition's fixtures behind a header that folds them away, as on the legacy
+ * slate. The count reads "claimed/total" once anyone has picked a game in it.
+ */
+function CompetitionFold({
+  group,
+  open,
+  onToggle,
+  children,
+}: {
+  group: FixtureGroup<GroupFixture>;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  const claimed = group.fixtures.filter((fixture) => fixture.claim).length;
+  return (
+    <section data-testid={`group-competition-${group.competition_id}`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="mb-1 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-hidden focus-visible:shadow-glow"
+      >
+        <span className="min-w-0 truncate font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
+          {group.competition}
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="font-mono text-caption tabular-nums text-text-muted">
+            {claimed > 0 ? `${claimed}/${group.fixtures.length}` : group.fixtures.length}
+          </span>
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 text-text-muted transition-transform",
+              open && "rotate-180",
+            )}
+            aria-hidden
+          />
+        </span>
+      </button>
+      {open && <div className="flex flex-col gap-4">{children}</div>}
+    </section>
   );
 }

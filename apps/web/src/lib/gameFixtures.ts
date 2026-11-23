@@ -43,9 +43,13 @@ export interface FixtureGroup<F> {
   fixtures: F[];
 }
 
-/** Grouped by slug, each group by kick-off, groups in the shared order then the fuller card. */
+/**
+ * Grouped by slug, groups in the shared order then the fuller card. Within a group, fixtures
+ * run by kick-off and then home club, the API's own order and the old coupon's: a Saturday
+ * card kicks off almost entirely at 15:00, so the tiebreak is the order members scan.
+ */
 export function groupByCompetition<
-  F extends { competition_id: string; kickoff_at: string; fixture_id: string },
+  F extends { competition_id: string; kickoff_at: string; fixture_id: string; home: string },
 >(fixtures: readonly F[]): FixtureGroup<F>[] {
   const groups = new Map<string, F[]>();
   for (const fixture of fixtures) {
@@ -60,6 +64,7 @@ export function groupByCompetition<
       fixtures: [...grouped].sort(
         (a, b) =>
           Date.parse(a.kickoff_at) - Date.parse(b.kickoff_at) ||
+          a.home.localeCompare(b.home) ||
           a.fixture_id.localeCompare(b.fixture_id),
       ),
     }))
