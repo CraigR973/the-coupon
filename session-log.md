@@ -9402,9 +9402,9 @@ for `2115540`
 
 ### Key facts for future sessions
 - **Approval:** owner's go 1 (22 Nov) covered the flag with no rollout row; decision 2 of the
-  23 Nov morning report set it for that night after round 3 settled; at 13:4x UTC the owner
+  23 Nov morning report set it for that night after round 3 settled; at 13:46:36 UTC the owner
   asked "why can't we do it now?", was told nothing blocked it (round 3 has no picks, so its
-  22:05 settlement now runs under the flag), and replied "Yes, do it now".
+  22:05 settlement now runs under the flag), and at 13:50:22 replied "Yes, do it now".
 - Timed clear of the :00/:01/:15 jobs: the API at 14:03:17, payments at 14:06:45 after the
   API's new jobs had run twice. Each variable change redeployed the running image; no upload.
 - **What the flag added on the API:** three one-minute jobs, `run_weekly_dues`,
@@ -9429,3 +9429,55 @@ for `2115540`
   restore check (any day before Thursday's checkpoint).
 
 **Next:** the 22:15 round 3 check, Tuesday's job check, Thursday's go-2 checkpoint.
+
+## Activation — 2026-11-23, 2-1 Hibs on two games a week from Sat 28 Nov
+**Production:** rollout row at 17:08:50 UTC, no restart (`2115540` / `032` unchanged) · rounds 17 (28 Nov) and 18 (5 Dec) retired untouched · first week: fantasy open from activation, locks Sat 28 Nov 12:00; group opens Sat 03:00, locks 14:30 · 12 × £1 dues for 28 Nov · the 13:51 backup restore-checked first
+
+### Key facts for future sessions
+- **Approval:** the owner at 15:39:20 UTC, "if you say earlier is better, lets do it now"
+  (instead of Thursday). The go-2 checkpoint (preview 15:46) was answered "Yes, after
+  restore"; the owner downloaded the 13:51 backup, which landed at 17:06.
+- **Restore check, 17:07 UTC**, locally on PostgreSQL 17.11 with the runbook's commands:
+  `the-coupon-20261123T135112Z.dump`, 912,317 bytes, SHA-256 `46e32e6d…6677c27`, dumped from
+  17.6. The filtered list left out the 3 `supabase_admin` default-ACL entries. Restored into
+  an empty database: `032`, 42 of 42 tables and 17,964 rows identical to production at 13:51,
+  RLS forced 42 of 42, no public-role grants or executable functions, 35 policies, 16
+  triggers. An unfiltered restore matched it table for table, and the `2115540` API booted on
+  the copy (`/health/ready` 200, `032`). Both copies were deleted afterwards.
+- **Apply:** a fresh preview at 17:08:18 matched the approved one except the activation
+  instant. `activate --retire-untouched-legacy --open-at-activation --apply` ran at 17:08:50
+  (`effective_opening` 17:08:50.507759) and retired round 17 (95 fixtures) and round 18 (93),
+  both `scheduled` with 0 picks. Audit: one `league_updated` row on `two_game_rollouts`.
+- **First minute (17:09:29):** four games — group and fantasy for 28 Nov and 5 Dec, under new
+  parent weeks numbered 17 and 18 (`two_game`, stored `locked` by design so legacy paths
+  ignore them); calendar `ready`, not `schedule_conflict`; 12 dues of £1 for 28 Nov, each with
+  its ledger entry; 12 open membership intervals; the fantasy game's 12 "game opened" notices
+  (the app's own).
+- **The cards fill at the background pace.** Two-game background requests are spaced 360 s
+  (10 an hour). The 28–30 Nov census ran at 17:16 (FotMob verified 118 + 8 fixtures; 18 are in
+  competitions FotMob does not carry), and at 17:17:28 the group card held 95 fixtures and the
+  fantasy card 125, both `complete`. Prices follow one ten-fixture batch per 6 minutes, shared
+  with the other census ranges and legacy price work: at 17:21 none of the 125 showed a price,
+  so nothing was pickable yet. Members' screens re-read every 30 s without a provider request,
+  and a pick fetches its own fresh price. The 5 Dec cards wait for their own census.
+- **A false alarm on activation.** From 17:09:45 to 17:15:31 the discovery job logged
+  `discovery has stopped producing` for 2-1 Hibs each minute and pushed the admins' alert once
+  (17:09:45, then cooled down for a day): retiring the legacy rounds left nothing claimable,
+  and the two-game evidence needs a complete card. Healthy from 17:17:29. One APScheduler
+  skip at 17:17:24 (the previous discovery run was still verifying the slate) is harmless.
+- **Request budget:** 2 background requests by 17:18 and 11 spacing refusals; legacy attempts
+  unchanged; no other warning or error.
+
+### Follow-ups
+- Tonight: the 5 Dec census; how many of the 125 fantasy fixtures show a price; the first
+  real fantasy pick (the runbook's step 5, by a member who has paid); round 3's 22:05
+  settlement.
+- Tue 24 Nov 11:30: the legacy morning jobs alongside the two-game background work under the
+  shared budget.
+- Sat 28 Nov: the group card opens 03:00, fantasy locks 12:00, group 14:30 — the plan's
+  natural acceptance (both locks, the same selection in both games, results through Sunday,
+  the next opening).
+- Before activating Yer Leagues A Joke: stop the silence alarm firing between activation and
+  the first complete card.
+
+**Next:** tonight's checks at 22:12, Tuesday's job check, Saturday's first two-game round.

@@ -16,21 +16,29 @@ Checked 2026-10-10 unless a line says otherwise.
 | API | `api-production-109b1.up.railway.app` serves `2115540` (Batch 231's code plus a test-only fix) at migration `032` (23 Nov) |
 | API deployment | Railway `fd64e4a4-9614-4a4b-a603-c454caa0a257` (the flag's redeploy of `add870dc`) succeeded, one replica, `europe-west4` (23 Nov) |
 | Payments | `payments-production-0aa1.up.railway.app` serves `2115540` at `032`, Railway `d2faa3eb-0e01-4b62-8c23-f948bc20c6dd` (the flag's redeploy of `92a2821c`, 23 Nov), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
-| Web | `the-coupon-production.vercel.app` builds every push to `main` (`2115540` is `dpl_6ahQxw34aWiXgSLzbXQQZXVhkJVm`); the bundle has been `index-38EoXdmB.js` since 22 Nov, and root, standings and results deep links serve it with the committed security/cache headers (23 Nov). The two-game screens are built and hidden while the format is off. |
-| Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the 15 two-game tables are empty (23 Nov) |
+| Web | `the-coupon-production.vercel.app` builds every push to `main` (`2115540` is `dpl_6ahQxw34aWiXgSLzbXQQZXVhkJVm`); the bundle has been `index-38EoXdmB.js` since 22 Nov, and root, standings and results deep links serve it with the committed security/cache headers (23 Nov). The two-game screens are built; the API has served them to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov (not yet seen in a browser). |
+| Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the two-game tables hold 2-1 Hibs' rollout, its four games and 12 dues since 17:08 UTC (23 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by **Betfair Sportsbook** since 10:36 UTC on 31 Oct (ADR 0002's 31 Oct amendment). Bet365 has been paid-only since 26 Oct, 19:00 UTC, and a free key gets a 403. Free key: 100 requests/hour and 500/day for the whole deployment. On the 31 Oct card it priced 78 of 85 fixtures, none in the Highland League (31 Oct). The owner chose to keep it rather than pay £49/mo for Bet365 (31 Oct). The 07:05 warm pass asks the provider nothing: the 50-request pick reserve withholds it because 06:05 discovery's requests are still inside the rolling hour, so it only reports prices left in memory (22 and 23 Nov) |
 | Football data | FotMob, no key |
 | Scheduler | on (`SCHEDULER_ENABLED=true`) |
 | Avatars | built and off (`AVATAR_STORAGE=none`) |
-| Backups | weekly off-site `pg_dump` to Backblaze B2 (EU), Mondays 04:00 London (Batch 95, switched on 21 Nov); first weekly run 23 Nov 04:00 UTC, 912,932 bytes; by hand before the flag 23 Nov 13:51 UTC, `production/the-coupon-20261123T135112Z.dump`, 912,317 bytes, 17,964 rows, not yet restore-checked; last restore check on the 22 Nov 10:03 UTC run (840,154 bytes), every count matching (23 Nov). Runbook: `docs/runbooks/backup-restore.md` |
-| Two-game format | `TWO_GAMES_ENABLED=true` on both services since 14:04 (API) and 14:07 (payments) UTC on 23 Nov; no rollout row, every round `legacy`, the 15 two-game tables still empty at 14:08; the API's three one-minute two-game jobs run and write nothing (23 Nov) |
+| Backups | weekly off-site `pg_dump` to Backblaze B2 (EU), Mondays 04:00 London (Batch 95, switched on 21 Nov); first weekly run 23 Nov 04:00 UTC, 912,932 bytes; by hand before the flag 23 Nov 13:51 UTC, `production/the-coupon-20261123T135112Z.dump`, 912,317 bytes, 17,964 rows, restore-checked at 17:07 UTC from the owner's download: 42 of 42 tables and every row count identical, the `2115540` API ready on the copy (23 Nov). Runbook: `docs/runbooks/backup-restore.md` |
+| Two-game format | `TWO_GAMES_ENABLED=true` on both services since 14:04 (API) and 14:07 (payments) UTC on 23 Nov. **2-1 Hibs is activated** from Sat 28 Nov (17:08:50 UTC, 23 Nov; rounds 17 and 18 retired untouched): its 28 Nov fantasy card (125 fixtures) is open and locks Sat 12:00, its group card (95 fixtures) opens Sat 03:00 and locks 14:30, and 12 members owe £1 for 28 Nov; prices reach the card at one ten-fixture batch per 6 minutes, none shown at 17:21. Yer Leagues A Joke stays legacy (23 Nov) |
 
 `scripts/check-deploy-drift.sh` is the authority on what the API is running, never
 `git log`: shipments have gone unrecorded before.
 
 ## Shipment state
 
+- **2-1 Hibs is on two games a week from Sat 28 Nov** (23 Nov, 17:08:50 UTC, owner's go 2:
+  "Yes, after restore"). The 13:51 backup was restore-checked first (17:07, every table
+  identical). A fresh preview matched the approved one; the apply retired rounds 17 and 18
+  (untouched) and restarted nothing. Within a minute: four games, calendar `ready`, 12 dues of
+  £1, the fantasy game open with the app's 12 notices; both 28 Nov cards complete at 17:17.
+  The discovery-silence alarm fired once (admin push 17:09:45) until the first card filled.
+  Recovery is forward-only or the 13:51 backup; the emergency stop is `suspend`, never the
+  flag (`docs/runbooks/two-game-activation.md`).
 - **`TWO_GAMES_ENABLED` is on for both services with no rollout row** (23 Nov, owner's go 1,
   moved to 14:03 UTC by the owner). A fresh backup came first (13:51 UTC, 912,317 bytes,
   counts identical before and after). API redeploy `fd64e4a4` succeeded 14:04:40, payments
@@ -270,10 +278,13 @@ Checked 2026-10-03.
   browser jobs failed at install on every push from about 18 Nov. Batch 230 moves back.
 
 **Next:** 22:15 tonight, check Yer Leagues A Joke round 3 settled (the first legacy
-settlement on `032`, now under the flag); Tue 24 Nov 11:30, check the morning's legacy jobs
-under the shared request budget (`provider_attempts`, no refusals); the owner downloads the
-13:51 backup for its restore check; Batch 228's activation checkpoint (go 2) on Thu 26 Nov, its coverage probe widened to the 94 Saturday 15:00 fixtures (owner, 23 Nov). Next
-week, on its own fix branch: the test-data leak that turns `main` red from 24 Dec to 6 Jan
+settlement on `032`, now under the flag), the 5 Dec cards, how many of the 125 fantasy
+fixtures show a price, and the first real fantasy pick; Tue 24 Nov 11:30, check the morning's
+legacy jobs alongside the two-game background work under the shared request budget
+(`provider_attempts`, no refusals); Fri ~12:30, recheck the Saturday card's prices; Sat 28 Nov,
+the first two-game round (group opens 03:00, fantasy locks 12:00, group 14:30). Before
+activating Yer Leagues A Joke, stop the silence alarm firing between activation and the first
+complete card. Next week, on its own fix branch: the test-data leak that turns `main` red from 24 Dec to 6 Jan
 (`.local/date-sweep/README.md`). Confirm a natural payment on the
 organiser's Payments screen. Batch 211 stays deferred; the season-calendar backfill remains
 owner-gated, unblocked since 4 Oct.

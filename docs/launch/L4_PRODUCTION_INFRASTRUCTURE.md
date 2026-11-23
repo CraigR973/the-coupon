@@ -4477,3 +4477,33 @@ Recovery: the lossless 032 undo stops applying with the first row in a two-game 
 that, a forward fix or the 13:51 backup. `TWO_GAMES_ENABLED` is not an emergency stop
 (`docs/runbooks/two-game-activation.md`). Still to observe: round 3's settlement at 22:05 UTC
 and Tuesday morning's legacy jobs under the shared request budget.
+
+### 2026-11-23 — 2-1 Hibs activated for two games a week from Sat 28 Nov (no restart)
+
+Approved in chat: the owner moved activation from Thursday's checkpoint to 23 Nov ("if you
+say earlier is better, lets do it now", 15:39 UTC) and answered the go-2 checkpoint "Yes,
+after restore". No code or variable change: both services keep `2115540` / `032`, and the
+action restarts nothing.
+
+Restore check of `production/the-coupon-20261123T135112Z.dump` (downloaded by the owner),
+17:07 UTC on local PostgreSQL 17.11: 912,317 bytes, SHA-256
+`46e32e6d224c5a463e56fc29761732f01db57daaf636a74a34ab3e9e06677c27`, dumped from 17.6;
+restored with the runbook's filtered list (3 `supabase_admin` default-ACL entries left out)
+into an empty database; `032`, 42 of 42 tables and 17,964 rows identical to production at
+13:51; RLS forced 42 of 42, no public-role grants; the `2115540` API ready on it.
+
+- Activation at 17:08:50 UTC (`python -m src.two_game_rollout activate --league 2-1-hibs
+  --first-week 2026-11-28 --retire-untouched-legacy --open-at-activation --apply`, from this
+  Mac through the London pooler), after a fresh preview identical to the approved one except
+  the activation instant. Retired rounds 17 and 18 (untouched, 0 picks).
+- 17:09:29: four games (group and fantasy for 28 Nov and 5 Dec), calendar `ready`, 12 dues of
+  £1 for 28 Nov with ledger entries, the fantasy game open with 12 "game opened" notices.
+- 17:17:28: the 28 Nov group card holds 95 fixtures and the fantasy card 125, coverage
+  `complete`, after the census ran at the background spacing (360 s). Prices arrive one
+  ten-fixture batch per 6 minutes; none was shown yet at 17:21.
+- The discovery-silence alarm fired from 17:09:45 (one admin push) until the first card was
+  complete, and has been healthy since 17:17:29: a known false alarm of the switch-over.
+
+Recovery: forward-only (`docs/runbooks/migration-032-recovery.md`) or the 13:51 backup above.
+Emergency stop: `python -m src.two_game_rollout suspend --league 2-1-hibs --actor <id>
+--reason "…" --apply`, never the flag (`docs/runbooks/two-game-activation.md`).
