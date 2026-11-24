@@ -104,9 +104,11 @@ async function at(request: APIRequestContext, page: Page, at: string) {
   expect(delta).toBeGreaterThanOrEqual(0);
   await page.clock.fastForward(delta);
 }
+// Batch 238 (owner-approved, 24 Nov): the fantasy screen's refresh button is gone; the
+// payment strip's "Check payment status" runs the same refresh of the week and its slots.
 async function refresh(page: Page) {
   await page
-    .getByRole("button", { name: "Refresh prices and results", exact: true })
+    .getByRole("button", { name: "Check payment status", exact: true })
     .click();
 }
 async function home(page: Page) {

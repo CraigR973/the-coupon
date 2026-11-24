@@ -330,11 +330,11 @@ function FantasyWeek({ target }: { target: GameTarget }) {
         </p>
       ) : (
         <div className="flex flex-col gap-4">
-          {groups.map((group, index) => (
+          {groups.map((group) => (
             <CompetitionSection
               key={group.competition_id}
               group={group}
-              defaultOpen={index === 0}
+              defaultOpen={groups.length === 1}
               mine={
                 group.fixtures.filter((fixture) =>
                   views.some((view) => view.pick?.fixture_id === fixture.fixture_id),
@@ -426,6 +426,7 @@ function FantasyWeek({ target }: { target: GameTarget }) {
           </p>
         )}
       </header>
+      <WeekFeePanel fee={shown.fee} onRefresh={refresh} />
       {query.isError && (
         <p role="alert" className="font-sans text-sm text-text-primary">
           The latest game could not be refreshed. Showing the last received
@@ -458,11 +459,6 @@ function FantasyWeek({ target }: { target: GameTarget }) {
               nothing. Group adds no points.
             </p>
           </section>
-          {game && (
-            <Button variant="outline" onClick={refresh}>
-              Refresh prices and results
-            </Button>
-          )}
           {game
             ? slots(false)
             : retained?.slots?.map((entry) => (
@@ -516,24 +512,6 @@ function FantasyWeek({ target }: { target: GameTarget }) {
           )}
         </section>
       )}
-      {league?.weekly_form.length ? (
-        <section aria-label="Your recent weeks">
-          <h2 className="font-sans text-lg font-semibold">Your recent weeks</h2>
-          {league.weekly_form.map((week) => (
-            <p key={week.week_id}>
-              <Link
-                className="inline-flex min-h-11 items-center underline"
-                to={week.destination}
-              >
-                {formatCalendarDate(week.week_label, "d MMM")} ·{" "}
-                {week.format === "legacy" ? "Legacy" : "Fantasy"} ·{" "}
-                {week.weekly_points} points
-              </Link>
-            </p>
-          ))}
-        </section>
-      ) : null}
-      <WeekFeePanel fee={shown.fee} onRefresh={refresh} />
       {game && (
         <Sheet
           open={slipOpen}
@@ -581,10 +559,10 @@ function FantasyWeek({ target }: { target: GameTarget }) {
 }
 
 /**
- * One competition's fixtures behind a header, as the old coupon folds its slate: the
- * first open so the screen starts on a fixture and a price, the rest closed so a card of
- * a hundred-odd fixtures still scans as competitions. `defaultOpen` seeds the state only,
- * so a member who closes a section keeps it closed through the 30-second refresh.
+ * One competition's fixtures behind a header, as the old coupon folds its slate. All
+ * start closed (Batch 238) so a card of a hundred-odd fixtures scans as competitions; a
+ * week with a single competition opens it. `defaultOpen` seeds the state only, so a
+ * member who opens or closes a section keeps it that way through the 30-second refresh.
  */
 function CompetitionSection({
   group,

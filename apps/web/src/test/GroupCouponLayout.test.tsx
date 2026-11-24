@@ -61,7 +61,7 @@ const claimOf = (player: string, fixture: number, outcome = "HOME"): Claim => ({
   result: "pending",
 });
 
-function harness(initial: Record<number, Claim>) {
+function harness(initial: Record<number, Claim>, { single = false } = {}) {
   const claims: Record<number, Claim | null> = { ...initial };
   let revision = Object.values(initial).some((value) => value.player_id === "alice") ? 1 : 0;
   const myPick = (): GamePick | null => {
@@ -120,7 +120,8 @@ function harness(initial: Record<number, Claim>) {
         fixture_id: `fixture-${number}`,
         home: `Home ${number}`,
         away: `Away ${number}`,
-        competition_id: number === 4 ? "scotland-championship" : "scotland-premiership",
+        competition_id:
+          number === 4 && !single ? "scotland-championship" : "scotland-premiership",
         kickoff_at: "2026-11-28T15:00:00Z",
         status: "pending",
         eligible: true,
@@ -166,7 +167,12 @@ function harness(initial: Record<number, Claim>) {
 
 const card = (number: number) => screen.getByTestId(`group-card-fixture-${number}`);
 const choice = (name: string) => screen.getByRole("button", { name });
-const ready = (name: string) => waitFor(() => expect(choice(name)).toBeEnabled());
+// Batch 238: every competition starts folded, so open the first before choosing in it.
+const ready = async (name: string) => {
+  const first = await screen.findByRole("button", { name: /Scottish Premiership/ });
+  if (first.getAttribute("aria-expanded") === "false") fireEvent.click(first);
+  await waitFor(() => expect(choice(name)).toBeEnabled());
+};
 const status = () => screen.getByRole("region", { name: "Group progress and result" });
 
 afterEach(() => {
@@ -238,18 +244,52 @@ describe("the Saturday group on the old coupon layout", () => {
     done();
   });
 
-  it("folds the competitions, the first open, counting the games already picked", async () => {
+  it("starts every competition folded, counting the games already picked", async () => {
     const { done } = harness({ 1: claimOf("bob", 1), 2: claimOf("alice", 2) });
-    await ready("Choose Home 3 to win");
+    await screen.findByRole("button", { name: /Scottish Premiership/ });
     const first = within(screen.getByTestId("group-competition-scotland-premiership"));
     expect(first.getByRole("button", { name: /Scottish Premiership/ })).toHaveAttribute(
       "aria-expanded",
-      "true",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: /Scottish Championship/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
     );
     expect(first.getByText("2/3")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Choose Home 3 to win" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Choose Home 4 to win" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Scottish Championship/ }));
     expect(choice("Choose Home 4 to win")).toBeEnabled();
+    done();
+  });
+
+  it("opens a week's only competition, so the screen never starts empty", async () => {
+    const { done } = harness({}, { single: true });
+    await waitFor(() => expect(choice("Choose Home 4 to win")).toBeEnabled());
+    expect(screen.getByRole("button", { name: /Scottish Premiership/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    done();
+  });
+
+  it("puts the payment strip, the status card and the coupon above the fixtures", async () => {
+    const { done } = harness({ 2: claimOf("alice", 2) });
+    await ready("Choose Home 3 to win");
+    const fixtures = screen.getByTestId("group-competition-scotland-premiership");
+    const above = [
+      screen.getByRole("region", { name: "Payment for 28 Nov" }),
+      status(),
+      screen.getByTestId("group-coupon"),
+    ];
+    for (const element of above)
+      expect(element.compareDocumentPosition(fixtures)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    expect(above[0].compareDocumentPosition(above[1])).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
     done();
   });
 

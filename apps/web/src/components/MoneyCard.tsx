@@ -1,4 +1,6 @@
-import { Trophy } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, Trophy } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { formatPence, sortMembers } from '@/lib/money';
 import { formatCalendarDate } from '@/lib/time';
 import type { LeagueMoney, MemberMoneyStatus, MoneyTarget } from '@/lib/types';
@@ -14,6 +16,9 @@ import { cn } from '@/lib/utils';
  * Shown on the standings page in place of the one-line season pot, for the season being
  * played. A league without a fee never asks for it, and an API from before this batch
  * answers 404, so the page keeps the pot line it had.
+ *
+ * Batch 238 (owner, 24 Nov 2026): the card folds, closed by default, to the prize fund
+ * line; Details opens the targets, the shortfall and who has paid.
  */
 export function MoneyCard({
   money,
@@ -24,6 +29,7 @@ export function MoneyCard({
 }) {
   const full = money.target_full_season;
   const members = sortMembers(money.members);
+  const [open, setOpen] = useState(false);
 
   return (
     <section
@@ -33,7 +39,7 @@ export function MoneyCard({
     >
       <div className="flex items-start gap-2">
         <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-gold-ink" aria-hidden />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h2 id="money-card-heading" className="text-sm font-semibold">
             Prize fund so far{' '}
             <span data-testid="money-pot" className="font-mono tabular-nums">
@@ -45,71 +51,86 @@ export function MoneyCard({
             goes to the season’s winner, and a tie splits it.
           </p>
         </div>
+        <Button
+          variant="ghost"
+          aria-expanded={open}
+          aria-controls="money-card-details"
+          onClick={() => setOpen((value) => !value)}
+          className="shrink-0 transition-none"
+        >
+          Details
+          <ChevronDown
+            aria-hidden="true"
+            className={cn('size-4 transition-transform', open && 'rotate-180')}
+          />
+        </Button>
       </div>
 
-      <dl className="mt-3 flex flex-col gap-2 text-xs sm:max-w-lg" data-testid="money-targets">
-        <TargetRow
-          testId="money-target-to-date"
-          label="Target to date"
-          target={money.target_to_date}
-        />
-        <TargetRow
-          testId="money-target-full-season"
-          label={full.is_estimate ? 'Full season (estimate)' : 'Full season'}
-          target={full}
-        />
-      </dl>
-      {full.is_estimate && full.estimated_through && (
-        <p className="mt-1 text-caption text-text-muted" data-testid="money-estimate-note">
-          An estimate: one round a week to{' '}
-          {formatCalendarDate(full.estimated_through, 'd MMMM')}.
-        </p>
-      )}
-      <p className="mt-2 text-xs" data-testid="money-shortfall">
-        {money.short_of_target_pence > 0 ? (
-          <>
-            The fund is{' '}
-            <strong className="font-semibold text-warning">
-              {formatPence(money.short_of_target_pence)} short
-            </strong>{' '}
-            of the target to date.
-          </>
-        ) : (
-          <span className="text-success">Everything due so far is paid.</span>
+      <div id="money-card-details" hidden={!open}>
+        <dl className="mt-3 flex flex-col gap-2 text-xs sm:max-w-lg" data-testid="money-targets">
+          <TargetRow
+            testId="money-target-to-date"
+            label="Target to date"
+            target={money.target_to_date}
+          />
+          <TargetRow
+            testId="money-target-full-season"
+            label={full.is_estimate ? 'Full season (estimate)' : 'Full season'}
+            target={full}
+          />
+        </dl>
+        {full.is_estimate && full.estimated_through && (
+          <p className="mt-1 text-caption text-text-muted" data-testid="money-estimate-note">
+            An estimate: one round a week to{' '}
+            {formatCalendarDate(full.estimated_through, 'd MMMM')}.
+          </p>
         )}
-      </p>
+        <p className="mt-2 text-xs" data-testid="money-shortfall">
+          {money.short_of_target_pence > 0 ? (
+            <>
+              The fund is{' '}
+              <strong className="font-semibold text-warning">
+                {formatPence(money.short_of_target_pence)} short
+              </strong>{' '}
+              of the target to date.
+            </>
+          ) : (
+            <span className="text-success">Everything due so far is paid.</span>
+          )}
+        </p>
 
-      {members.length > 0 && (
-        <>
-          <h3 className="mt-3 text-xs font-semibold text-text-secondary">Who’s paid</h3>
-          <ul
-            className="mt-1 flex flex-col divide-y divide-border sm:max-w-lg"
-            data-testid="money-members"
-          >
-            {members.map((member) => (
-              <li
-                key={member.player_id}
-                data-testid="money-member"
-                data-status={member.status}
-                className="flex items-baseline justify-between gap-3 py-1.5 text-sm"
-              >
-                <span
-                  className={cn(
-                    'min-w-0 truncate',
-                    member.player_id === currentPlayerId && 'font-semibold',
-                  )}
+        {members.length > 0 && (
+          <>
+            <h3 className="mt-3 text-xs font-semibold text-text-secondary">Who’s paid</h3>
+            <ul
+              className="mt-1 flex flex-col divide-y divide-border sm:max-w-lg"
+              data-testid="money-members"
+            >
+              {members.map((member) => (
+                <li
+                  key={member.player_id}
+                  data-testid="money-member"
+                  data-status={member.status}
+                  className="flex items-baseline justify-between gap-3 py-1.5 text-sm"
                 >
-                  {member.display_name}
-                  {member.player_id === currentPlayerId && (
-                    <span className="font-normal text-text-muted"> (you)</span>
-                  )}
-                </span>
-                <StatusLabel member={member} />
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+                  <span
+                    className={cn(
+                      'min-w-0 truncate',
+                      member.player_id === currentPlayerId && 'font-semibold',
+                    )}
+                  >
+                    {member.display_name}
+                    {member.player_id === currentPlayerId && (
+                      <span className="font-normal text-text-muted"> (you)</span>
+                    )}
+                  </span>
+                  <StatusLabel member={member} />
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
     </section>
   );
 }

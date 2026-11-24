@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   render,
   screen,
@@ -68,6 +68,12 @@ function saved(slot: number, fixture: number, extra: Partial<GamePick> = {}): Ga
   };
 }
 
+// Batch 238: a test may spread the card over two competitions; the rest use one.
+let competitionOf = (_fixture: number) => "scotland-premiership";
+afterEach(() => {
+  competitionOf = () => "scotland-premiership";
+});
+
 function view(picks: Record<number, GamePick | null>): FantasyGame {
   const filled = Object.values(picks).filter(Boolean).length;
   return {
@@ -109,7 +115,7 @@ function view(picks: Record<number, GamePick | null>): FantasyGame {
       fixture_id: `fixture-${i}`,
       home: `Home ${i}`,
       away: `Away ${i}`,
-      competition_id: "scotland-premiership",
+      competition_id: competitionOf(i),
       kickoff_at: `2026-11-28T15:0${i}:00Z`,
       status: "pending",
       eligible: true,
@@ -407,6 +413,69 @@ describe("the fantasy pick slip", () => {
       "aria-current",
       "page",
     );
+    done();
+  });
+
+  it("starts every competition folded when the week has more than one", async () => {
+    competitionOf = (fixture) =>
+      fixture <= 4 ? "scotland-premiership" : "scotland-championship";
+    const { done } = harness();
+    const first = await screen.findByRole("button", { name: /Scottish Premiership/ });
+    const second = screen.getByRole("button", { name: /Scottish Championship/ });
+    expect(first).toHaveAttribute("aria-expanded", "false");
+    expect(second).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: /^Choose Home 1 to win/ })).toBeNull();
+    fireEvent.click(first);
+    await ready("Choose Home 1 to win at 2.1500");
+    expect(screen.queryByRole("button", { name: /^Choose Home 5 to win/ })).toBeNull();
+    done();
+  });
+
+  it("opens a week's only competition and leads with the payment strip", async () => {
+    const { done } = harness();
+    await ready("Choose Home 1 to win at 2.1500");
+    expect(screen.getByRole("button", { name: /Scottish Premiership/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    const strip = screen.getByRole("region", { name: "Payment for 28 Nov" });
+    expect(strip.compareDocumentPosition(screen.getByTestId("fantasy-slate"))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    done();
+  });
+
+  it("drops the recent weeks and the refresh button from the fantasy screen", async () => {
+    const league = {
+      league_id: "league-a",
+      slug: "two-one-hibs",
+      name: "2-1 Hibs",
+      two_games_enabled: true,
+      suspended: false,
+      server_now: "2026-11-24T10:00:00Z",
+      games: [],
+      legacy_rounds: [],
+      next_cursor: null,
+      next_game_state: "known",
+      next_game_opens_at: null,
+      season_stats: null,
+      weekly_form: [
+        {
+          week_id: "week-z",
+          week_label: "2026-11-21",
+          format: "fantasy",
+          destination: "/leagues/league-a/weeks/week-z/fantasy",
+          status: "final",
+          weekly_points: 21,
+        },
+      ],
+    } as unknown as LeagueGames;
+    const { done } = harness({}, [league]);
+    await ready("Choose Home 1 to win at 2.1500");
+    expect(screen.queryByRole("region", { name: "Your recent weeks" })).toBeNull();
+    expect(screen.queryByText("Your recent weeks")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Refresh prices and results" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Check payment status" })).toBeEnabled();
     done();
   });
 });

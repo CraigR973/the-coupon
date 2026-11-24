@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MoneyCard } from '@/components/MoneyCard';
 import { isLeagueMoney } from '@/lib/money';
 import type { LeagueMoney, MemberMoneyStatus } from '@/lib/types';
@@ -104,5 +104,19 @@ describe('MoneyCard', () => {
     expect(isLeagueMoney(null)).toBe(false);
     expect(isLeagueMoney({ slug: 'the-coupon', name: 'The Coupon', members: [] })).toBe(false);
     expect(isLeagueMoney({ ...MONEY, target_full_season: undefined })).toBe(false);
+  });
+
+  it('folds to the prize fund line, closed until Details opens it (Batch 238)', () => {
+    render(<MoneyCard money={MONEY} currentPlayerId="p-Steady" />);
+    const card = screen.getByRole('region', { name: /Prize fund so far/ });
+    expect(within(card).getByTestId('money-pot').textContent).toBe('£5');
+    const details = within(card).getByRole('button', { name: 'Details' });
+    expect(details).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByTestId('money-targets')).not.toBeVisible();
+    expect(screen.getByTestId('money-members')).not.toBeVisible();
+    fireEvent.click(details);
+    expect(details).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('money-targets')).toBeVisible();
+    expect(screen.getByTestId('money-members')).toBeVisible();
   });
 });

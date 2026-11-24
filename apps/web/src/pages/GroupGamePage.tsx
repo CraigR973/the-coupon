@@ -101,7 +101,8 @@ export function GroupGamePage() {
   const notOpened = !useExpiry(
     game?.opens_at ?? retained?.opens_at ?? "1970-01-01T00:00:00Z",
   );
-  // Each competition folds on its own; the first starts open, as on the legacy slate.
+  // Each competition folds on its own, and all start folded (Batch 238) unless the week
+  // has a single competition, which opens so the screen never starts empty.
   const [folds, setFolds] = useState<Record<string, boolean>>({});
   const fixtures = game?.fixtures;
   const groups = useMemo(() => groupByCompetition(fixtures ?? []), [fixtures]);
@@ -233,15 +234,15 @@ export function GroupGamePage() {
           phase: intent.phase,
         }
       : null;
-  const isOpen = (competition: string, index: number) =>
-    folds[competition] ?? index === 0;
+  const isOpen = (competition: string) =>
+    folds[competition] ?? groups.length === 1;
   // The save's status sits in the card it is about, where the member just tapped; it
   // falls back to the top of the list while that card is folded away or gone.
   const statusInCard =
     !!intent &&
     groups.some(
-      (group, index) =>
-        isOpen(group.competition_id, index) &&
+      (group) =>
+        isOpen(group.competition_id) &&
         group.fixtures.some(
           (fixture) => fixture.fixture_id === intent.body.fixture_id,
         ),
@@ -279,15 +280,15 @@ export function GroupGamePage() {
         </p>
       ) : (
         <div className="flex flex-col gap-4">
-          {groups.map((group, index) => (
+          {groups.map((group) => (
             <CompetitionFold
               key={group.competition_id}
               group={group}
-              open={isOpen(group.competition_id, index)}
+              open={isOpen(group.competition_id)}
               onToggle={() =>
                 setFolds((value) => ({
                   ...value,
-                  [group.competition_id]: !isOpen(group.competition_id, index),
+                  [group.competition_id]: !isOpen(group.competition_id),
                 }))
               }
             >
@@ -356,17 +357,19 @@ export function GroupGamePage() {
           London time.
         </p>
       </header>
+      <WeekFeePanel fee={shown.fee} onRefresh={refresh} />
       {query.isError && (
         <p role="alert" className="font-sans text-sm text-text-primary">
           The latest game could not be refreshed. Showing the last received
           view; a save still checks your saved contribution before sending.
         </p>
       )}
+      {/* The status card and the coupon come first, so on a phone they sit above the
+          fixtures (Batch 238); at desktop width the grid keeps the fixtures on the left. */}
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
-        {slate && <div className="min-w-0">{slate}</div>}
         <aside
           aria-label="Group status and coupon"
-          className="min-w-0 space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto"
+          className="min-w-0 space-y-4 lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto"
         >
           {!game && <GameIntentStatus target={target} slot={0} compact />}
           <GroupStatusCard
@@ -399,8 +402,8 @@ export function GroupGamePage() {
             />
           )}
         </aside>
+        {slate && <div className="min-w-0 lg:col-start-1 lg:row-start-1">{slate}</div>}
       </div>
-      <WeekFeePanel fee={shown.fee} onRefresh={refresh} />
     </div>
   );
 }

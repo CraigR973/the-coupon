@@ -256,7 +256,15 @@ export function GroupCouponSection({
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={copy}>
+              {/* transition-none: on a phone the coupon now sits above the fixtures, in view
+                  when the theme flips (Batch 238). */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={copy}
+                className="transition-none"
+              >
                 <Copy className="h-3.5 w-3.5" aria-hidden />
                 {final ? "Copy result" : "Copy text"}
               </Button>
