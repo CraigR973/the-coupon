@@ -4579,3 +4579,37 @@ recovery PASS (no migration, `032`). The pinned IaC plan had 0 additions, the us
 Rollback: API `c8b65e93`, payments `3d5cbf89` (both `65cc0c9`, `032`); no migration, so an image
 rollback is clean. Still to observe: game-read times under member traffic and the first real
 fantasy PUT (none yet since activation).
+
+### 2026-11-24 — `7205e84`, Batch 240: the weekly dues pass takes the league lock only when it has work (no migration)
+
+Approved in chat: the owner's "Build it now", then "when it is done, we should ship" (24 Nov).
+Source: clean `main` at `7205e8481d9e4f194f96783fbac2a7e2211643d0`, uploaded from the shared
+checkout. Checks before upload: Quality runs `45506949491` (`abce089`) and `45509028440`
+(`7205e84`) green; local gate 12 of 12 (2,106 backend, 1,584 frontend, journey 1, zero skips,
+tree `79c2a66a5856a42bf2ba323ac657569f166aa608`), reused through the 240 worktree's stamp guard
+(the tree differs only in close-out documents); migration recovery PASS (no migration, `032`).
+The pinned IaC plan had 0 additions, the usual 4 changes and 0 deletions, and was not
+destructive.
+
+- IaC applied 23:33:09 UTC; it redeployed both `85fa1ae` images (API `c9d4221a`, payments
+  `9523f008`), both `SUCCESS` by 23:34:23.
+- API `07b1640b-86cc-459d-bf17-b319d1e1b6bb`, uploaded 23:34:50: `SUCCESS` 23:36:21; health
+  `200`, `7205e84`, `032`; readiness `ok`. Boot log: no traceback, no credential pattern (the six
+  error-level lines are alembic and uvicorn writing INFO to stderr).
+- Payments `733c3ae4-af8e-42d1-8edf-590982dd5190`, uploaded 23:36:39: `SUCCESS` 23:38:16;
+  health `200`, `service: payments`, `7205e84`, `032`; readiness `ok`. Drift in sync for both.
+- Manifest unchanged: one replica in `europe-west4-drams3a`, no sleep, IPv6 egress, `ON_FAILURE`
+  with three retries, 300-second readiness timeout, 0.25 vCPU / 500 MB.
+- Variable names: API 13 of 13 and payments 7 of 7, no cross-service names, `TWO_GAMES_ENABLED`
+  on both. Read-only audit before and after: `032`, RLS forced on 42 of 42, no public-role
+  grants, 2-1 Hibs' rollout and four games intact, 12 weekly obligations, no picks yet.
+- Web: no deployment needed; `dpl_3Qjj4Fx4QKNPrmiuUCPMzhLMAAto` (`7205e84`) holds the alias with
+  239's bundle `index-D8PvoxrC.js`. Smoke: `/`, `/standings`, `/results` `200` with that asset and
+  the CSP header; an exact-origin preflight for `DELETE` `200` with credentials; unauthenticated
+  `/me/games` `401`.
+- 23:37–23:39 UTC: weekly dues passes 0.34 s, 0.24 s and 0.23 s (were a median 3.9 s, max 4.9),
+  each "weekly fee catch-up" with 0 obligations; no QueuePool error or traceback.
+
+Rollback: API `c9d4221a`, payments `9523f008` (both `85fa1ae`, `032`); no migration, so an image
+rollback is clean. Still to observe: Monday 30 Nov's catch-up writing the 5 Dec dues (12 expected),
+and the first real fantasy PUT (none yet since activation).

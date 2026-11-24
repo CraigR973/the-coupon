@@ -13,9 +13,9 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `85fa1ae` (Batch 234 on Batch 237) at migration `032` (24 Nov) |
-| API deployment | Railway `45ae5d94-9dc9-487a-b2da-14fae3598a7b` succeeded 17:13 UTC, one replica, `europe-west4` (24 Nov); rollback `c8b65e93` (`65cc0c9`) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `85fa1ae` at `032`, Railway `b994b98f-987d-4be9-8f04-6a5c3cadf3a9` (24 Nov; rollback `3d5cbf89`), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
+| API | `api-production-109b1.up.railway.app` serves `7205e84` (Batch 240 on Batches 234 and 237) at migration `032` (24 Nov) |
+| API deployment | Railway `07b1640b-86cc-459d-bf17-b319d1e1b6bb` succeeded 23:36 UTC, one replica, `europe-west4` (24 Nov); rollback `c9d4221a` (`85fa1ae`) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `7205e84` at `032`, Railway `733c3ae4-af8e-42d1-8edf-590982dd5190` (24 Nov; rollback `9523f008`), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
 | Web | `the-coupon-production.vercel.app` builds every push to `main`; since 21:42 UTC on 24 Nov it serves `6bac303` (Batch 239) as bundle `index-D8PvoxrC.js` (`dpl_9D7XSyuYCTvKg7rFYbJH55wR7opX`): the old home page is back, with 2-1 Hibs in its old card, and both games' fixtures show club form, position and competition names (Batch 235). The API has served the two-game screens to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov. |
 | Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the two-game tables hold 2-1 Hibs' rollout, its four games and 12 dues since 17:08 UTC (23 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
@@ -31,10 +31,11 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
-- **Batch 240 is closed on `main`; `/ship-prod` owed** (24 Nov, `abce089`, API-only, no
-  migration; the owner's go is given: "when it is done, we should ship"). Each minute's dues pass
-  reads one snapshot without the league lock and takes the lock only when a member needs a
-  membership interval or a due; the money rules are unchanged.
+- **Batch 240 is shipped and verified** (24 Nov, `7205e84`, no migration; API `07b1640b`
+  23:36 UTC, payments `733c3ae4` 23:38 UTC). Each minute's dues pass reads one snapshot without
+  the league lock and takes the lock only when a member needs a membership interval or a due; the
+  money rules are unchanged. The first passes took 0.23–0.34 s (were 3.9 s, up to 4.9 s), with no
+  error. Still to observe: Monday 30 Nov's catch-up writing the 5 Dec dues.
 - **Batch 239 is live on the web** (24 Nov, `6bac303`, web-only, pushed 21:41 UTC): the old home
   page is back for every member. The hero shows the season's points, picks won and win rate from
   the season table and the next thing that needs them, two-game entries included; each league
