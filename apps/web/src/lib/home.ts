@@ -1,3 +1,6 @@
+import { parseInstant } from './time';
+import type { GameCard, LeagueGames } from './twoGameTypes';
+
 /**
  * What one league card on home is *about* right now.
  *
@@ -66,4 +69,124 @@ export const HOME_CARD_STATE: Record<
  */
 export function showsCouponFigures(state: HomeCardState): boolean {
   return state === 'round_in_progress';
+}
+
+/** One entry inside a two-game league, as home counts it: when it locks and where it is. */
+export interface TwoGameEntry {
+  locksAt: string;
+  destination: string;
+}
+
+/**
+ * Where a two-game league stands for the member right now (Batch 239), from `/me/games`.
+ *
+ * The cross-league summary cannot answer this: it reads legacy rounds only, so on a
+ * two-game league its `current_round` is the last legacy round, not this week. The
+ * league's own cards can. A game is open only while the API said so *and* its lock is
+ * still ahead on this device's clock, so a card read a minute before the lock stops
+ * prompting at the lock rather than at the next refetch. A legacy round still in play
+ * on the same league (the week before the switch) counts exactly as it does elsewhere.
+ */
+export interface TwoGameEntryFacts {
+  /** Open entries still missing the member's pick, soonest lock first. */
+  needs: TwoGameEntry[];
+  /** Open entries the member has made, soonest lock first. */
+  ready: TwoGameEntry[];
+  /** Something has locked and is not final yet. */
+  inProgress: boolean;
+  /** The next announced opening still ahead, and the entry it opens. */
+  next: { opensAt: string; destination: string } | null;
+}
+
+export function twoGameEntryFacts(league: LeagueGames, now = Date.now()): TwoGameEntryFacts {
+  const needs: TwoGameEntry[] = [];
+  const ready: TwoGameEntry[] = [];
+  let inProgress = false;
+  for (const card of league.games) {
+    if (card.archived || card.entry_state === 'cancelled') continue;
+    const locksAt = parseInstant(card.locks_at).getTime();
+    if (card.entry_state === 'open' && now < locksAt) {
+      // Fantasy wants all six: an empty slot can only add points, never cost any.
+      const done =
+        card.game_kind === 'group'
+          ? !!card.my_entry?.pick
+          : (card.progress.slots_filled ?? 0) >= 6;
+      (done ? ready : needs).push({ locksAt: card.locks_at, destination: card.destination });
+    } else if (now >= locksAt && !card.result.final) {
+      inProgress = true;
+    }
+  }
+  for (const round of league.legacy_rounds) {
+    if (round.archived || round.status === 'cancelled' || round.status === 'settled') continue;
+    const locksAt = parseInstant(round.locks_at).getTime();
+    const opensAt = round.picks_open_at ? parseInstant(round.picks_open_at).getTime() : null;
+    if (now >= locksAt) inProgress = true;
+    else if (round.can_pick && (opensAt === null || opensAt <= now)) {
+      (round.my_pick ? ready : needs).push({
+        locksAt: round.locks_at,
+        destination: round.destination,
+      });
+    }
+  }
+  const soonest = (a: TwoGameEntry, b: TwoGameEntry) =>
+    parseInstant(a.locksAt).getTime() - parseInstant(b.locksAt).getTime();
+  needs.sort(soonest);
+  ready.sort(soonest);
+  const opensAt = league.next_game_opens_at;
+  const upcoming =
+    opensAt && parseInstant(opensAt).getTime() > now
+      ? league.games.find((card) => card.game_kind === 'fantasy' && card.opens_at === opensAt)
+      : undefined;
+  return {
+    needs,
+    ready,
+    inProgress,
+    next:
+      opensAt && parseInstant(opensAt).getTime() > now
+        ? {
+            opensAt,
+            destination: upcoming?.destination ?? `/leagues/${league.league_id}/games`,
+          }
+        : null,
+  };
+}
+
+/** A two-game week's own cards, as the `Last result` panel reports them. */
+export interface TwoGameWeekResult {
+  weekId: string;
+  /** The week's Saturday, `yyyy-mm-dd`. */
+  weekLabel: string;
+  group: GameCard | null;
+  fantasy: GameCard | null;
+}
+
+/**
+ * The most recent two-game week whose results are final (Batch 239), or `null`.
+ *
+ * Final means every game that week is final or was cancelled, and at least one is final:
+ * a week whose fantasy game is still provisional is still on the entry rows above as
+ * 'Locked results', and the panel reports the week before it until it is done, as a
+ * legacy round's `Last result` waits for settlement.
+ */
+export function lastTwoGameWeek(league: LeagueGames): TwoGameWeekResult | null {
+  const weeks = new Map<string, GameCard[]>();
+  for (const card of league.games) {
+    weeks.set(card.week_id, [...(weeks.get(card.week_id) ?? []), card]);
+  }
+  let latest: TwoGameWeekResult | null = null;
+  for (const [weekId, cards] of weeks) {
+    const final =
+      cards.some((card) => card.result.final) &&
+      cards.every((card) => card.result.final || card.entry_state === 'cancelled');
+    if (!final) continue;
+    const weekLabel = cards[0]!.week_label;
+    if (latest && latest.weekLabel >= weekLabel) continue;
+    latest = {
+      weekId,
+      weekLabel,
+      group: cards.find((card) => card.game_kind === 'group' && card.result.final) ?? null,
+      fantasy: cards.find((card) => card.game_kind === 'fantasy' && card.result.final) ?? null,
+    };
+  }
+  return latest;
 }

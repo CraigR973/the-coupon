@@ -3,25 +3,21 @@ import type { LeagueGames } from "../lib/twoGameTypes";
 import { formatCalendarDate, formatInstant } from "../lib/time";
 import { useOddsFormat } from "../hooks/useOddsFormat";
 import { formatOdds, marketTag, pickStatusLabel } from "../lib/coupon";
+/**
+ * A two-game league's entries, as rows inside its home card: each game's link, state,
+ * deadline, progress and weekly fee, then any legacy round still in play.
+ *
+ * Batch 239 moved these rows into the league's own card on home, the old card's frame
+ * around them (`DashboardPage`'s `TwoGameLeagueCard`), so this renders the rows alone.
+ * The group row also says whether the member's own pick is in, which is the action the
+ * card exists to prompt; the fantasy row's "N of 6 slots" already does.
+ */
 export function GamesHome({ leagues }: { leagues: LeagueGames[] }) {
   const oddsFormat = useOddsFormat();
   return (
-    <section aria-labelledby="your-games-heading" className="space-y-5">
-      <h2 id="your-games-heading" className="text-xl font-semibold">
-        Your games
-      </h2>
+    <>
       {leagues.map((league) => (
-        <article
-          key={league.league_id}
-          className="rounded-xl border border-border bg-surface p-4 space-y-3"
-          data-testid="two-game-home"
-        >
-          <h3 className="text-lg font-semibold">{league.name}</h3>
-          {league.suspended && (
-            <p role="status">
-              Entries suspended. Results and weekly fees continue.
-            </p>
-          )}
+        <div key={league.league_id} className="space-y-3">
           <ul className="space-y-3">
             {league.games
               .filter((card) => !card.archived)
@@ -58,13 +54,25 @@ export function GamesHome({ leagues }: { leagues: LeagueGames[] }) {
                     London.
                   </p>
                   {card.game_kind === "group" ? (
-                    <p>
-                      {card.progress.picked_count ?? 0} of{" "}
-                      {card.progress.member_count ?? 0} contributed ·{" "}
-                      {card.result.status === "no_coupon"
-                        ? "No coupon"
-                        : card.result.status}
-                    </p>
+                    <>
+                      {card.entry_state === "open" &&
+                        (card.my_entry?.pick ? (
+                          <p className="font-sans text-sm text-text-primary">
+                            Your pick: {card.my_entry.pick.runner_name}
+                          </p>
+                        ) : (
+                          <p className="font-sans text-base font-medium text-warning">
+                            Group pick needed
+                          </p>
+                        ))}
+                      <p>
+                        {card.progress.picked_count ?? 0} of{" "}
+                        {card.progress.member_count ?? 0} contributed ·{" "}
+                        {card.result.status === "no_coupon"
+                          ? "No coupon"
+                          : card.result.status}
+                      </p>
+                    </>
                   ) : (
                     <p>
                       {card.progress.slots_filled ?? 0} of 6 slots ·{" "}
@@ -134,27 +142,8 @@ export function GamesHome({ leagues }: { leagues: LeagueGames[] }) {
               Next fantasy opening is pending confirmation.
             </p>
           )}
-          {league.season_stats && (
-            <p>
-              Season total: {league.season_stats.total_points} points · Rank{" "}
-              {league.season_stats.rank}. Legacy points continue; Fantasy legs
-              add once. Group has no points.
-            </p>
-          )}
-          <Link
-            className="inline-flex min-h-11 items-center underline"
-            to={`/leagues/${league.slug}/leaderboard`}
-          >
-            Season table
-          </Link>
-          <Link
-            className="inline-flex min-h-11 items-center underline"
-            to={`/leagues/${league.league_id}/games`}
-          >
-            Game archive
-          </Link>
-        </article>
+        </div>
       ))}
-    </section>
+    </>
   );
 }

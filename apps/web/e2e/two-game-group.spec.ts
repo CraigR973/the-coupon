@@ -55,7 +55,7 @@ async function open(page: Page, s: Seed, name = "Alice") {
   await page.goto("/login");
   await signIn(page, name);
   await expect(
-    page.getByRole("heading", { name: `Hello, ${name}`, exact: true }),
+    page.getByRole("heading", { name: `Hi ${name}`, exact: true }),
   ).toBeVisible();
   await page
     .getByTestId("two-game-home")

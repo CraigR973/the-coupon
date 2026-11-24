@@ -544,11 +544,11 @@ test("a late save receipt cannot overwrite Sunday results, corrections or contin
   await expect(slot(page, 1)).toContainText("Won · 22 points");
   await home(page);
   await expect(page.getByTestId("two-game-home")).toContainText(
-    "Season total: 52 points",
+    "52 pts",
   );
   await page
     .getByTestId("two-game-home")
-    .getByRole("link", { name: "Season table", exact: true })
+    .getByRole("link", { name: /^Standings/ })
     .click();
   await expect(
     page.getByRole("heading", { name: "Two Game Local", exact: true }),
@@ -597,7 +597,7 @@ test("a late save receipt cannot overwrite Sunday results, corrections or contin
   );
   await home(page);
   await expect(page.getByTestId("two-game-home")).toContainText(
-    "Season total: 30 points",
+    "30 pts",
   );
   await page
     .getByTestId("two-game-home")

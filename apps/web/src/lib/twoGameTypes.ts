@@ -81,6 +81,9 @@ export interface GameCard extends GameTarget {
     final: boolean;
     provisional?: boolean;
     weekly_points?: number;
+    /** Fantasy: how many of the member's picks won, of `slots_filled` (Batch 239 reads it). */
+    won?: number;
+    slots_filled?: number;
   };
   members?: {
     player_id: string;

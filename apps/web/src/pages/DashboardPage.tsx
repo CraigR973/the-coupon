@@ -14,6 +14,7 @@ import type {
   OddsFormat,
   PerLeagueSummary,
 } from '../lib/types';
+import type { GameCard, LeagueGames } from '../lib/twoGameTypes';
 import {
   fixtureContext,
   formatCombinedOdds,
@@ -21,7 +22,15 @@ import {
   outcomeLabel,
   roundName,
 } from '../lib/coupon';
-import { HOME_CARD_STATE, homeCardState, showsCouponFigures } from '../lib/home';
+import {
+  HOME_CARD_STATE,
+  type HomeCardState,
+  type TwoGameWeekResult,
+  homeCardState,
+  lastTwoGameWeek,
+  showsCouponFigures,
+  twoGameEntryFacts,
+} from '../lib/home';
 import { predictionsPath } from '../lib/leagues';
 import { formatCalendarDate, formatInstant, parseInstant } from '../lib/time';
 import { PickFormLine } from '../components/PickFormLine';
@@ -42,8 +51,15 @@ const FAR_PAST = new Date(0).toISOString();
 const PICKABLE: ReadonlySet<GameweekStatus> = new Set(['scheduled', 'open']);
 
 type HomeAction =
-  | { kind: 'pick'; count: number; slug: string; league: string; at: string }
-  | { kind: 'upcoming'; slug: string; league: string; at: string; openPicksReady: boolean }
+  | { kind: 'pick'; count: number; slug: string; league: string; at: string; to: string }
+  | {
+      kind: 'upcoming';
+      slug: string;
+      league: string;
+      at: string;
+      to: string;
+      openPicksReady: boolean;
+    }
   | { kind: 'clear'; openPicksReady: boolean };
 
 function formatCountdown(p: CountdownParts): string {
@@ -58,10 +74,22 @@ function formatCountdown(p: CountdownParts): string {
  * A league is actionable only while its own stored opening/lock instants permit
  * a pick; backend order is alphabetical, so the action is explicitly sorted by
  * the deadline instead.
+ *
+ * Batch 239: a two-game league answers from its own games (`games`), never from the
+ * summary's `current_round`, which on such a league is the last legacy round. It counts
+ * once however many of its entries are open, and the hero's link goes to the entry that
+ * locks first rather than to a legacy coupon the league no longer plays.
  */
-function homeActionFor(leagues: PerLeagueSummary[], now = Date.now()): HomeAction {
-  const needsPick = leagues
-    .flatMap((entry) => {
+function homeActionFor(
+  leagues: PerLeagueSummary[],
+  games: LeagueGames[] = [],
+  now = Date.now(),
+): HomeAction {
+  const twoGame = new Set(games.map((league) => league.slug));
+  const legacy = leagues.filter((entry) => !twoGame.has(entry.slug));
+  const facts = games.map((league) => ({ league, facts: twoGameEntryFacts(league, now) }));
+  const needsPick = [
+    ...legacy.flatMap((entry) => {
       const round = entry.current_round;
       if (!round || round.my_pick || !PICKABLE.has(round.status)) return [];
       const opensAt = round.picks_open_at_utc
@@ -71,9 +99,30 @@ function homeActionFor(leagues: PerLeagueSummary[], now = Date.now()): HomeActio
       if ((opensAt !== null && opensAt > now) || !Number.isFinite(locksAt) || locksAt <= now) {
         return [];
       }
-      return [{ slug: entry.slug, league: entry.name, at: round.locks_at_utc, locksAt }];
-    })
-    .sort((a, b) => a.locksAt - b.locksAt);
+      return [
+        {
+          slug: entry.slug,
+          league: entry.name,
+          at: round.locks_at_utc,
+          locksAt,
+          to: predictionsPath(entry.slug),
+        },
+      ];
+    }),
+    ...facts.flatMap(({ league, facts: { needs } }) =>
+      needs.length > 0
+        ? [
+            {
+              slug: league.slug,
+              league: league.name,
+              at: needs[0]!.locksAt,
+              locksAt: parseInstant(needs[0]!.locksAt).getTime(),
+              to: needs[0]!.destination,
+            },
+          ]
+        : [],
+    ),
+  ].sort((a, b) => a.locksAt - b.locksAt);
 
   if (needsPick.length > 0) {
     const first = needsPick[0]!;
@@ -83,21 +132,23 @@ function homeActionFor(leagues: PerLeagueSummary[], now = Date.now()): HomeActio
       slug: first.slug,
       league: first.league,
       at: first.at,
+      to: first.to,
     };
   }
 
-  const openPicksReady = leagues.some((entry) => {
-    const round = entry.current_round;
-    if (!round?.my_pick || !PICKABLE.has(round.status)) return false;
-    const opensAt = round.picks_open_at_utc
-      ? parseInstant(round.picks_open_at_utc).getTime()
-      : null;
-    const locksAt = parseInstant(round.locks_at_utc).getTime();
-    return (opensAt === null || opensAt <= now) && Number.isFinite(locksAt) && locksAt > now;
-  });
+  const openPicksReady =
+    legacy.some((entry) => {
+      const round = entry.current_round;
+      if (!round?.my_pick || !PICKABLE.has(round.status)) return false;
+      const opensAt = round.picks_open_at_utc
+        ? parseInstant(round.picks_open_at_utc).getTime()
+        : null;
+      const locksAt = parseInstant(round.locks_at_utc).getTime();
+      return (opensAt === null || opensAt <= now) && Number.isFinite(locksAt) && locksAt > now;
+    }) || facts.some(({ facts: { ready } }) => ready.length > 0);
 
-  const upcoming = leagues
-    .flatMap((entry) => {
+  const upcoming = [
+    ...legacy.flatMap((entry) => {
       const roundOpensAt = entry.current_round?.picks_open_at_utc;
       const candidates = [roundOpensAt, entry.next_opens_at_utc]
         .filter((value): value is string => !!value)
@@ -111,11 +162,25 @@ function homeActionFor(leagues: PerLeagueSummary[], now = Date.now()): HomeActio
               league: entry.name,
               at: candidates[0]!.at,
               timestamp: candidates[0]!.timestamp,
+              to: predictionsPath(entry.slug),
             },
           ]
         : [];
-    })
-    .sort((a, b) => a.timestamp - b.timestamp);
+    }),
+    ...facts.flatMap(({ league, facts: { next } }) =>
+      next
+        ? [
+            {
+              slug: league.slug,
+              league: league.name,
+              at: next.opensAt,
+              timestamp: parseInstant(next.opensAt).getTime(),
+              to: next.destination,
+            },
+          ]
+        : [],
+    ),
+  ].sort((a, b) => a.timestamp - b.timestamp);
 
   if (upcoming.length > 0) {
     const first = upcoming[0]!;
@@ -124,6 +189,7 @@ function homeActionFor(leagues: PerLeagueSummary[], now = Date.now()): HomeActio
       slug: first.slug,
       league: first.league,
       at: first.at,
+      to: first.to,
       openPicksReady,
     };
   }
@@ -140,26 +206,46 @@ function homeActionFor(leagues: PerLeagueSummary[], now = Date.now()): HomeActio
  * plays now gets a card carrying that league's pick and standing, and one tap
  * opens that league's coupon. The whole page is one request
  * (`GET /me/cross-league-summary`), not three per league.
+ *
+ * Batch 239 brought this page back for two-game leagues, which had been given a plain
+ * greeting and a "Your games" list of their own. The hero and every league's card are
+ * the old ones again, in one list; a two-game league's card is the old frame around that
+ * league's entries (`TwoGameLeagueCard`). Which leagues play two games is known only once
+ * `/me/games` answers, so the cards and the hero's next action wait for it as well as for
+ * the summary, rather than drawing a two-game league as a legacy card for a moment.
  */
 export function DashboardPage() {
   const { player } = useAuth();
 
-  const { data, isLoading, isError, refetch } = useCrossLeagueSummary();
+  const { data, isLoading: summaryLoading, isError, refetch } = useCrossLeagueSummary();
   const games = useGameNavigation();
-  const gameStatus=useHomeGameStatus();
-  const enabledSlugs = new Set(games.map(league=>league.slug));
-  const leagues = (data?.per_league ?? []).filter(league=>!enabledSlugs.has(league.slug));
+  const gameStatus = useHomeGameStatus();
+  const isLoading = summaryLoading || gameStatus.isLoading;
+  const gamesBySlug = new Map(games.map((league) => [league.slug, league]));
+  const leagues = isLoading ? [] : (data?.per_league ?? []);
+  // A two-game league the summary does not list — it failed, or has not caught up with a
+  // join — still gets its card, from its games alone.
+  const unlisted = isLoading
+    ? []
+    : games.filter((league) => !leagues.some((entry) => entry.slug === league.slug));
+  const cardCount = leagues.length + unlisted.length;
 
   return (
     <div className="relative">
       <div className="space-y-6">
-        {games.length>0||gameStatus.isError?<header className="space-y-2"><h1 className="text-2xl font-semibold">Hello, {player?.displayName??'there'}</h1><p>Each game has its own entry, deadline and weekly payment status.</p></header>:<HomeHero
+        <HomeHero
           displayName={player?.displayName ?? 'there'}
-          summary={data}
+          summary={gameStatus.isLoading ? undefined : data}
+          games={games}
           isLoading={isLoading}
-        />}
-        {gameStatus.isError&&<QueryErrorState title="Couldn't load game status" description="Your existing league history remains available." onRetry={gameStatus.refetch}/>}
-        {games.length>0&&<GamesHome leagues={games}/>}
+        />
+        {gameStatus.isError && (
+          <QueryErrorState
+            title="Couldn't load game status"
+            description="Your existing league history remains available."
+            onRetry={gameStatus.refetch}
+          />
+        )}
 
         {isLoading && (
           <div className="flex flex-col gap-5" aria-label="Loading your leagues">
@@ -176,11 +262,11 @@ export function DashboardPage() {
           />
         )}
 
-        {!isLoading && !isError && leagues.length === 0 && games.length === 0 && !gameStatus.isError && (
+        {!isLoading && !isError && cardCount === 0 && !gameStatus.isError && (
           <FirstLeaguePrompt />
         )}
 
-        {leagues.length > 0 && (
+        {cardCount > 0 && (
           <section aria-labelledby="home-leagues-heading">
             <div className="mb-3 flex items-end justify-between gap-3 px-1">
               <h2
@@ -190,13 +276,25 @@ export function DashboardPage() {
                 Your leagues
               </h2>
               <p className="font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
-                {leagues.length} in play
+                {cardCount} in play
               </p>
             </div>
             <ul className="flex flex-col gap-5" data-testid="home-league-cards">
-              {leagues.map((entry) => (
-                <li key={entry.slug}>
-                  <LeagueHomeCard entry={entry} />
+              {leagues.map((entry) => {
+                const league = gamesBySlug.get(entry.slug);
+                return (
+                  <li key={entry.slug}>
+                    {league ? (
+                      <TwoGameLeagueCard league={league} entry={entry} />
+                    ) : (
+                      <LeagueHomeCard entry={entry} />
+                    )}
+                  </li>
+                );
+              })}
+              {unlisted.map((league) => (
+                <li key={league.slug}>
+                  <TwoGameLeagueCard league={league} />
                 </li>
               ))}
             </ul>
@@ -299,14 +397,16 @@ function FirstLeaguePrompt() {
 function HomeHero({
   displayName,
   summary,
+  games,
   isLoading,
 }: {
   displayName: string;
   summary?: CrossLeagueSummary;
+  games: LeagueGames[];
   isLoading: boolean;
 }) {
   const leagueCount = summary?.leagues_count ?? 0;
-  const action = homeActionFor(summary?.per_league ?? []);
+  const action = homeActionFor(summary?.per_league ?? [], games);
   // Batch 165: only the digits tick, not this card.
 
   return (
@@ -378,7 +478,7 @@ function HomeHero({
               </p>
               {action.kind !== 'clear' && (
                 <Link
-                  to={predictionsPath(action.slug)}
+                  to={action.to}
                   className="mt-1 inline-flex items-center gap-1.5 rounded-sm font-sans text-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:shadow-glow"
                 >
                   <span>
@@ -611,6 +711,197 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
           <span className="ml-1.5">{entry.total_points} pts</span>
         </span>
       </Link>
+    </div>
+  );
+}
+
+/**
+ * A two-game league's card (Batch 239): the old card's frame around the league's entries.
+ *
+ * The state chip, the clock, the `Last result` panel with the season's run, and the
+ * standings line are the old card's. The figures are the league's own season table from
+ * the summary, which already merges fantasy legs with legacy points. The entries, their
+ * deadlines and the weeks' results come from `/me/games`, because the summary reads only
+ * legacy rounds: on a two-game league its `current_round` is the last legacy round, not
+ * this week, so nothing here reads it. `entry` is absent when the summary is: the card
+ * then falls back to the season figures `/me/games` carries itself.
+ *
+ * Nothing on it fades (`transition-none`): the journeys flip the theme and scan at once,
+ * and a chip or link caught mid-fade reads as a contrast failure.
+ */
+function TwoGameLeagueCard({ league, entry }: { league: LeagueGames; entry?: PerLeagueSummary }) {
+  const facts = twoGameEntryFacts(league);
+  const deadline = facts.needs[0] ?? facts.ready[0];
+  // Re-draw at the boundary the state hangs on: the soonest lock, else the next opening.
+  useExpiry(deadline?.locksAt ?? facts.next?.opensAt ?? FAR_PAST);
+  const state: HomeCardState =
+    facts.needs.length > 0
+      ? 'pick_required'
+      : facts.ready.length > 0
+        ? 'pick_submitted'
+        : facts.inProgress
+          ? 'round_in_progress'
+          : 'between_rounds';
+  const { label: stateLabel, variant: stateVariant } = HOME_CARD_STATE[state];
+  const clock = deadline ? (
+    <>
+      Locks in <Countdown target={deadline.locksAt} format={formatCountdown} />
+    </>
+  ) : state === 'round_in_progress' ? (
+    'Locked'
+  ) : facts.next ? (
+    <>
+      Next opens in <Countdown target={facts.next.opensAt} format={formatCountdown} />
+    </>
+  ) : null;
+  const last = lastResultFor(league, entry);
+  const rank = entry ? entry.rank : (league.season_stats?.rank ?? null);
+  const points = entry ? entry.total_points : (league.season_stats?.total_points ?? 0);
+
+  return (
+    <article
+      className="rounded-xl border border-border bg-surface shadow-sm"
+      aria-labelledby={`home-league-${league.slug}`}
+      data-testid="two-game-home"
+    >
+      <div className="space-y-3 p-5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Ticket className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+          <h3
+            id={`home-league-${league.slug}`}
+            className="truncate font-sans text-base font-semibold text-text-primary"
+          >
+            {league.name}
+          </h3>
+        </div>
+        {league.suspended && (
+          <p role="status" className="font-sans text-sm text-text-secondary">
+            Entries suspended. Results and weekly fees continue.
+          </p>
+        )}
+        <div
+          className="flex flex-wrap items-center justify-between gap-2"
+          data-testid={`home-state-${league.slug}`}
+        >
+          <Badge variant={stateVariant} className="transition-none">
+            {stateLabel}
+          </Badge>
+          {clock && (
+            <span className="flex items-center gap-1.5 font-mono text-xs tabular-nums text-text-secondary">
+              {state === 'round_in_progress' ? (
+                <Lock className="h-3.5 w-3.5" aria-hidden />
+              ) : (
+                <Clock className="h-3.5 w-3.5" aria-hidden />
+              )}
+              {clock}
+            </span>
+          )}
+        </div>
+        <GamesHome leagues={[league]} />
+      </div>
+
+      {last?.kind === 'legacy' && <LastResultPanel round={last.round} form={entry?.recent_form} />}
+      {last?.kind === 'two_game' && (
+        <TwoGameLastResult week={last.week} form={entry?.recent_form} />
+      )}
+
+      <Link
+        to={`/leagues/${league.slug}/leaderboard`}
+        className="flex items-center justify-between gap-3 border-t border-border px-5 py-3.5 transition-none hover:bg-surface-elevated focus-visible:outline-hidden focus-visible:shadow-glow"
+      >
+        <span className="flex items-center gap-2 font-mono text-caption uppercase tracking-[0.2em] text-text-muted sm:text-xs">
+          <Trophy className="h-4 w-4 text-primary" aria-hidden />
+          Standings
+        </span>
+        <span className="font-mono text-sm tabular-nums text-text-secondary">
+          <span className={cn(rank === 1 && 'font-semibold text-primary')}>
+            {rank === null ? '—' : `#${rank}`}
+          </span>
+          {entry && <span className="mx-1.5 text-text-muted">of {entry.member_count}</span>}
+          <span className="text-text-muted">·</span>
+          <span className="ml-1.5">{points} pts</span>
+        </span>
+      </Link>
+      <Link
+        to={`/leagues/${league.league_id}/games`}
+        className="flex min-h-11 items-center rounded-b-xl border-t border-border px-5 font-sans text-sm text-text-secondary underline-offset-4 transition-none hover:bg-surface-elevated hover:underline focus-visible:outline-hidden focus-visible:shadow-glow"
+      >
+        Game archive
+      </Link>
+    </article>
+  );
+}
+
+/** Which week a two-game league's `Last result` reports, and from which source. */
+type CardLastResult =
+  | { kind: 'legacy'; round: LastRoundView }
+  | { kind: 'two_game'; week: TwoGameWeekResult };
+
+/**
+ * The later of the league's last settled legacy round (the summary's `last_result`) and
+ * its last final two-game week (Batch 239). Until the first two-game week is final, a
+ * league that has just switched keeps reporting the legacy round it last played.
+ */
+function lastResultFor(league: LeagueGames, entry?: PerLeagueSummary): CardLastResult | null {
+  const week = lastTwoGameWeek(league);
+  const round = entry ? lastRoundView(entry) : null;
+  const roundOn =
+    entry?.last_result?.starts_on ??
+    (entry?.current_round?.status === 'settled' ? entry.current_round.starts_on : null);
+  if (week && (!round || !roundOn || week.weekLabel > roundOn)) {
+    return { kind: 'two_game', week };
+  }
+  return round ? { kind: 'legacy', round } : null;
+}
+
+/** The member's fantasy week in one line: what it scored and how many picks came in. */
+function fantasyResultLine(card: GameCard): string {
+  const { result } = card;
+  if (result.entry_result === 'no_entry') return 'Fantasy: no entry';
+  if (result.entry_result === 'all_void') return 'Fantasy: every pick void';
+  const filled = result.slots_filled ?? card.progress.slots_filled ?? 0;
+  return `Fantasy: ${result.weekly_points ?? 0} pts · ${result.won ?? 0} of ${filled} won`;
+}
+
+/** How the week's group coupon went, and the member's own part in it. Never a price. */
+function groupResultLine(card: GameCard): string {
+  const status = card.result.status;
+  const outcome =
+    status === 'won'
+      ? 'Group coupon won'
+      : status === 'lost'
+        ? 'Group coupon lost'
+        : status === 'void'
+          ? 'Group coupon void'
+          : status === 'no_coupon'
+            ? 'No group coupon'
+            : 'Group coupon settling';
+  const mine = card.my_entry?.pick;
+  return mine ? `${outcome} · Your pick: ${mine.runner_name}` : `${outcome} · You didn’t pick`;
+}
+
+/**
+ * A two-game week in the `Last result` frame (Batch 239): the member's fantasy score and
+ * the group coupon's outcome, beside the season's run. The run is the summary's, which
+ * already draws fantasy weeks as their weekly points.
+ */
+function TwoGameLastResult({ week, form }: { week: TwoGameWeekResult; form?: FormRound[] }) {
+  return (
+    <div className="border-t border-border px-5 py-4" data-testid="last-result">
+      <p className="truncate font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+        Last result · {formatCalendarDate(week.weekLabel, 'EEE d MMM')}
+      </p>
+      {week.fantasy && (
+        <p className="mt-1.5 font-sans text-base font-medium text-text-primary">
+          {fantasyResultLine(week.fantasy)}
+        </p>
+      )}
+      <div className="mt-1 flex items-end justify-between gap-3">
+        <p className="font-sans text-sm text-text-muted">
+          {week.group ? groupResultLine(week.group) : 'No group game that week'}
+        </p>
+        <PickFormLine form={form} className="shrink-0" />
+      </div>
     </div>
   );
 }
