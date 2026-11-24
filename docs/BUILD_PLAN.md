@@ -2064,7 +2064,7 @@ needs the owner's approval of the exact lines.
   reads. No change to what a pass decides, to the request budget, to the web app or to the API
   contract. **API-only: `/ship-prod` owed after close-out**, before Sat 28 Nov.
 
-- [ ] **Batch 238 — Both game screens: a pay strip, folded competitions and the group first on phones**
+- [x] **Batch 238 — Both game screens: a pay strip, folded competitions and the group first on phones** ✅ 2026-11-24
   — owner, 24 Nov 2026; prerequisite: 237 shipped.
 
   - A "Pay £1" strip at the top of both game screens, saying that one weekly fee covers both

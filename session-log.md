@@ -9666,3 +9666,29 @@ old-trusted-guard comparison, as the approval commits for Batch 175 did
 
 **Next:** Batch 238 from this attestation state.
 
+## Batch 238 — Both game screens: a pay strip, folded competitions and the group first on phones
+**Commits:** `32a1195` (oracle approval), `cf407d8` (attestation), `b1c089b` · verified: full
+local gate 12/12 (backend 2,091; frontend 1,564; journey 1; zero skips; tree `8ad6d0b`),
+two-game browser stories 30/30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45433402667 PASS for `b1c089b`
+
+### Key facts for future sessions
+- The strip is `WeekFeePanel` rebuilt in place: heading, owed/paid line, "One £1 a week covers
+  both games.", Pay £1 (or the owed amount), Check payment status, and Details over the period,
+  dues and pooled credit. `#payment` opens Details and focuses the strip, so every journey line
+  about `#payment` held unchanged.
+- Every competition starts folded on both game screens unless the week has only one; the e2e
+  seed has one, so the journeys' choose helpers never moved. Only the Batch 233 group unit test,
+  whose harness has two competitions, changed (owner-approved lines, guard fingerprint on `main`).
+- The group's status card and coupon come first in the DOM (the phone order); at desktop width
+  `lg:col-start-2 lg:row-start-1` puts them back on the right.
+- The first browser run failed one story's light-theme scan (`color-contrast`, timing): the
+  controls now at the top fade their colours on a theme flip, and the scan, which skips colour
+  below the fold, now saw them. `transition-none` on the strip's buttons, Copy text and
+  MoneyCard's Details fixed it; the rerun passed 30/30 and the gate passed again.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- None.
+
+**Next:** Batch 234 (API) and its `/ship-prod`.
+

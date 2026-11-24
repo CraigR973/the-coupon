@@ -16,7 +16,7 @@ Checked 2026-10-10 unless a line says otherwise.
 | API | `api-production-109b1.up.railway.app` serves `65cc0c9` (Batch 237 and the IaC fix that keeps `TWO_GAMES_ENABLED`) at migration `032` (24 Nov) |
 | API deployment | Railway `77d0cf36-dcdb-4b69-aa80-2becaf60f223` succeeded 15:09 UTC, one replica, `europe-west4` (24 Nov); rollback `15056d65` (`2115540`) |
 | Payments | `payments-production-0aa1.up.railway.app` serves `65cc0c9` at `032`, Railway `a07f7352-1ebd-4e6f-852d-894ecb139bcc` (24 Nov; rollback `f149228d`), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
-| Web | `the-coupon-production.vercel.app` builds every push to `main`; since 23:32 UTC on 23 Nov it serves `61a9700` (Batch 236) as bundle `index-BzwO-OuL.js`, whose group chunk carries the coupon layout and keeps its last view through a dropped connection (read back 23 Nov). The API has served the two-game screens to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov. Both games are on the old coupon layout: fantasy with a pick slip, the group with the status card, claimed games greyed and the coupon's copy text. |
+| Web | `the-coupon-production.vercel.app` builds every push to `main`; since 16:07 UTC on 24 Nov it serves `b1c089b` (Batch 238) as bundle `index-DruX7guA.js` (`dpl_3gv7eaPBfqGahP6vRzP2eQMwxMia`): both game screens lead with the payment strip and start every competition folded. The API has served the two-game screens to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov. |
 | Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the two-game tables hold 2-1 Hibs' rollout, its four games and 12 dues since 17:08 UTC (23 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by **Betfair Sportsbook** since 10:36 UTC on 31 Oct (ADR 0002's 31 Oct amendment). Bet365 has been paid-only since 26 Oct, 19:00 UTC, and a free key gets a 403. Free key: 100 requests/hour and 500/day for the whole deployment. On the 31 Oct card it priced 78 of 85 fixtures, none in the Highland League (31 Oct). The owner chose to keep it rather than pay £49/mo for Bet365 (31 Oct). The 07:05 warm pass asks the provider nothing: the 50-request pick reserve withholds it because 06:05 discovery's requests are still inside the rolling hour, so it only reports prices left in memory (22 and 23 Nov) |
@@ -31,6 +31,11 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Batch 238 is live on the web** (24 Nov, `b1c089b`, web-only): a payment strip heads both
+  game screens (Pay £1, one fee for both games, details folded), every competition starts
+  folded unless the week has one, the group's status card and coupon come first on phones, the
+  fantasy screen drops its recent weeks and refresh button, and the season table's money card
+  folds. No API change; drift in sync before the push.
 - **Batch 237 is shipped and verified** (24 Nov, `65cc0c9` with the IaC fix, no migration;
   API `77d0cf36` 15:09 UTC, payments `a07f7352` 15:11 UTC). Game reads take no league lock;
   discovery's setup holds none; the first passes took discovery 2.2–2.7 s, settlement 1.2–1.6 s
