@@ -2107,7 +2107,7 @@ needs the owner's approval of the exact lines.
 
   Scope boundary: presentation only. No API change. **Web-only.**
 
-- [ ] **Batch 239 — The old home page comes back**
+- [x] **Batch 239 — The old home page comes back** ✅ 2026-11-24
   — owner, 24 Nov 2026; prerequisite: 235 closed.
 
   - The hero stats (points, picks won, win rate) and the per-league card (position, form,

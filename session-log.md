@@ -9761,3 +9761,30 @@ zero skips; tree `13f9584`); two-game browser stories PASS30 · CI: https://gith
 
 **Next:** Batch 239.
 
+## Batch 239 — The old home page comes back
+**Commits:** `6bac303` · verified: full local gate 12/12 (backend 2,103; frontend 1,584; journey 1;
+zero skips; tree `742dea9`); two-game browser stories PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45493675956 PASS for `6bac303`
+
+### Key facts for future sessions
+- The cross-league summary reads legacy rounds only for `current_round`, `last_result` and
+  `next_opens_at_utc`, so on a two-game league they describe the last legacy round.
+  `TwoGameLeagueCard` never reads `current_round`: its state, deadlines and two-game last result
+  come from `/me/games` (`twoGameEntryFacts`, `lastTwoGameWeek` in `lib/home.ts`); position,
+  points and the run come from the summary's season table.
+- A two-game league needs the member while an open game lacks their group pick or any of the six
+  fantasy slots. The lock is read on the device clock, so the prompt stops at the lock rather
+  than at the next refetch.
+- Home waits for both reads before drawing any card, so a two-game league is never drawn as a
+  legacy card first; a failed `/me/games` falls back to the legacy cards with a notice.
+- `GamesHome` renders only a league's entry rows; the card's frame is in `DashboardPage`, and
+  `data-testid="two-game-home"` is the card, so the journeys' scoped lookups still reach the
+  entry links, "Game archive" and the Standings line.
+- No ▲/▼ rank movement after a two-game week: the API computes movement for legacy rounds only.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- None new. Rows 240 and 241 still await the owner; the pot swap waits for the owner's new
+  Monzo link.
+
+**Next:** the pot swap when the new Monzo link arrives; then rows 240 and 241 on the owner's word.
+

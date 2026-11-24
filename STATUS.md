@@ -16,7 +16,7 @@ Checked 2026-10-10 unless a line says otherwise.
 | API | `api-production-109b1.up.railway.app` serves `85fa1ae` (Batch 234 on Batch 237) at migration `032` (24 Nov) |
 | API deployment | Railway `45ae5d94-9dc9-487a-b2da-14fae3598a7b` succeeded 17:13 UTC, one replica, `europe-west4` (24 Nov); rollback `c8b65e93` (`65cc0c9`) |
 | Payments | `payments-production-0aa1.up.railway.app` serves `85fa1ae` at `032`, Railway `b994b98f-987d-4be9-8f04-6a5c3cadf3a9` (24 Nov; rollback `3d5cbf89`), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
-| Web | `the-coupon-production.vercel.app` builds every push to `main`; since 21:10 UTC on 24 Nov it serves `38d3f7f` (Batch 235) as bundle `index-DX5qYXGg.js` (`dpl_Dt3fSTJem8YcsRdmBv9HfX9AwfGP`): both games' fixtures show club form, position and competition names, and a second tap on your own pick removes it. The API has served the two-game screens to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov. |
+| Web | `the-coupon-production.vercel.app` builds every push to `main`; since 21:42 UTC on 24 Nov it serves `6bac303` (Batch 239) as bundle `index-D8PvoxrC.js` (`dpl_9D7XSyuYCTvKg7rFYbJH55wR7opX`): the old home page is back, with 2-1 Hibs in its old card, and both games' fixtures show club form, position and competition names (Batch 235). The API has served the two-game screens to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov. |
 | Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the two-game tables hold 2-1 Hibs' rollout, its four games and 12 dues since 17:08 UTC (23 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by **Betfair Sportsbook** since 10:36 UTC on 31 Oct (ADR 0002's 31 Oct amendment). Bet365 has been paid-only since 26 Oct, 19:00 UTC, and a free key gets a 403. Free key: 100 requests/hour and 500/day for the whole deployment. On the 31 Oct card it priced 78 of 85 fixtures, none in the Highland League (31 Oct). The owner chose to keep it rather than pay £49/mo for Bet365 (31 Oct). The 07:05 warm pass asks the provider nothing: the 50-request pick reserve withholds it because 06:05 discovery's requests are still inside the rolling hour, so it only reports prices left in memory (22 and 23 Nov) |
@@ -31,6 +31,11 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Batch 239 is live on the web** (24 Nov, `6bac303`, web-only, pushed 21:41 UTC): the old home
+  page is back for every member. The hero shows the season's points, picks won and win rate from
+  the season table and the next thing that needs them, two-game entries included; each league
+  has its old card again, and a two-game league's card holds that week's entries, its last
+  result and run, and the Standings line. No API change; drift in sync before the push.
 - **Batch 235 is live on the web** (24 Nov, `38d3f7f`, web-only, pushed 21:10 UTC): both games'
   fixture cards show club form, table position and the competition's own name (the group still
   unpriced); tapping your own pick again removes it through Batch 234's `DELETE`s; the Fill and
