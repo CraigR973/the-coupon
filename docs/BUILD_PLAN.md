@@ -1900,7 +1900,8 @@ cards; each tapped price saves at once, with no slip to place at the end (a slip
 at noon would mean no picks, and six saves at once would spend six fresh price checks
 together from the shared 100-an-hour odds allowance); Batches 232–233 live before the first
 two-game lock (Sat 28 Nov, fantasy 12:00 London); 234–235 the following week, away from lock
-days. Order: **232 → 233 → 234 → 235**.
+days. Order: **232 → 233 → 234 → 235**. Owner decision 24 Nov: 234 and 235 are amended and
+built on Tue 24 Nov with Batches 237–239, below, all that day.
 
 - [x] **Batch 232 — Fantasy picks on the old coupon layout, filled from a pick slip** ✅ 2026-11-23
   — the first of the four. The fantasy week moves onto the old coupon's layout, and its
@@ -1955,30 +1956,44 @@ days. Order: **232 → 233 → 234 → 235**.
 
   Scope boundary: the group screen only. No API change. **Web-only.**
 
-- [ ] **Batch 234 — Two-game fixtures carry what the old cards show, and a fantasy pick can be removed**
-  — prerequisite: 233 closed.
+- [ ] **Batch 234 — Two-game fixtures carry what the old cards show, and a pick can be removed in either game**
+  — prerequisite: 233 closed. Amended by the owner on 24 Nov: the group pick gets a delete too.
 
   - Both games' fixtures add the competition's display name and each club's table position
     and recent form, as the legacy slate does.
   - A member can empty one of their own fantasy slots before the lock: an addressed delete
     carrying the expected revision and an operation id, replayable like a save, leaving the
-    slot's empty readback. Refused after the lock, while suspended, and for another member.
+    slot's empty readback.
+  - A member can withdraw their own group pick before the lock, on the same terms: the
+    expected revision and an operation id, replayable, leaving the empty readback and freeing
+    the fixture for the rest of the group.
+  - Both deletes are refused after the lock, while the league is suspended, and for another
+    member.
   - The group view adds the names of the members still to pick.
 
-  Tests: database-backed tests for the new fields, the delete's revision, replay, lock,
+  Tests: database-backed tests for the new fields, both deletes' revision, replay, lock,
   suspension and ownership refusals, and the still-to-pick names.
 
-  The delete adds a write to the API contract, approved in principle by the owner on 23 Nov.
-  **API-only: `/ship-prod` owed after close-out**, scheduled away from a lock day.
+  The deletes add two writes to the API contract: the fantasy one approved in principle by the
+  owner on 23 Nov, the group one on 24 Nov. **API-only: `/ship-prod` owed after close-out.**
 
 - [ ] **Batch 235 — The coupon screens use Batch 234**
-  — prerequisite: 234 shipped.
+  — prerequisite: 234 shipped. Amended by the owner on 24 Nov.
 
-  - Both games' cards show club form and the real competition names.
-  - Each slip pick offers Remove.
+  - Both games' cards show club form, table position and the real competition names, like the
+    legacy cards. The group stays unpriced: no "odds" or "points" text anywhere on the group
+    screen, which the group journey asserts.
+  - Tapping your own pick again removes it, in both games, through Batch 234's deletes.
+  - The "Fill slot N" and "Replace slot N" buttons go: tapping prices fills the slots, and the
+    slots list offers Remove on each pick. A full slip keeps the "Swap a pick" sheet.
   - The group status card names the members still to pick.
 
-  Scope boundary: presentation of Batch 234's fields and the delete. **Web-only.**
+  Tests: new unit tests for each. **Owner approval before the build:** the exact fantasy
+  unit-test and browser-journey lines that must change (Batch 232's approved journey lines
+  find prices while the list is choosing for slot N, which Fill slot N starts), quoted here
+  once approved. The two-game browser stories (`scripts/verify-two-game-web.py`) pass.
+
+  Scope boundary: presentation of Batch 234's fields and the deletes. **Web-only.**
 
 - [x] **Batch 236 — The group screen keeps its last view through a dropped connection** ✅ 2026-11-23
   — found while building Batch 233 (23 Nov); prerequisite: 233 closed. Independent of 234–235,
@@ -1994,6 +2009,93 @@ days. Order: **232 → 233 → 234 → 235**.
   the notice; a failed first load still shows the unavailable screen.
 
   Scope boundary: the group screen's refresh handling only. No API change. **Web-only.**
+
+### The first two-game week
+
+Raised by the owner on 24 Nov 2026 from 2-1 Hibs' first day on two games a week ("all of it
+today"). Order: **237 → `/ship-prod` → 238 → 234 → `/ship-prod` → 235 → 239**; a web
+close-out is refused while a shipment is owed, which fixes that order. Every web batch runs
+`scripts/verify-two-game-web.py` (30 stories). Any change to an existing test or journey line
+needs the owner's approval of the exact lines.
+
+- [ ] **Batch 237 — The two-game jobs stop holding up the server**
+  — raised 24 Nov 2026 from production logs of 23–24 Nov; urgent, before the first two-game
+  lock (Sat 28 Nov, fantasy 12:00 London). `run_two_game_discovery` and
+  `run_two_game_settlement` run on 1-minute intervals, one instance each, and each pass takes
+  80–89 s while doing no work, so they run back to back. Discovery's setup
+  (`DiscoveryWorker.prepare()`) is one transaction that takes 2-1 Hibs' league lock (advisory
+  key 220) in its calendar step and holds it for about 80 s while it issues a query per
+  fixture. Every game-screen read takes the same lock exclusively, and settlement's finalise
+  and the lifecycle events wait for it too. Game reads take a median of 42 s (fantasy), 59 s
+  (group) and 54 s (each slot); the 5+5 pool runs out ("QueuePool limit of size 5 overflow 5
+  reached", a 500 after 10 s); `run_weekly_dues` times out at the pool's 10 s; and no PUT has
+  reached the server in 17 h, because the app's pre-save read gives up after 10 s, so no
+  fantasy pick has saved since the switch-on. `/me/games`, which reads a read-only snapshot
+  without the lock, answers in about 0.7 s.
+
+  - Discovery's setup holds no league lock and no long transaction. The calendar step takes
+    the lock only to create a new parent week, in its own short transaction; linking, the
+    legacy slates, price work and stale-work marking run in short transactions without it.
+  - Empty passes of both jobs are cheap: setup reads and writes in batches instead of a query
+    per fixture, and settlement's finalise and the lifecycle events skip a league with
+    nothing to change instead of queueing for its lock.
+  - Game reads never wait on background work: the fantasy week, a fantasy slot, the group game
+    and the group pick read one read-only snapshot and take no league lock, as `/me/games`
+    already does. Saves keep the lock.
+  - Find why discovery completed no units from about 07:00 UTC on 24 Nov, after 9–10 an hour
+    overnight, and confirm whether prices still refresh. Any change to the request allowances
+    is the owner's decision, not this batch's.
+
+  Tests: reproduce first with production-sized data (two leagues, four games, 443 fixture
+  links and the 24 Nov census rows) on scratch PostgreSQL behind a latency proxy, recording
+  setup's statement count, how long it holds the lock and a concurrent read's time, before and
+  after. New database-backed tests: a game read (fantasy week, slot, group game, group pick)
+  and a save complete while discovery's setup is paused mid-pass; empty settlement, lifecycle
+  and delivery passes complete while another session holds the league lock; setup's
+  statement count does not grow with the card's size. Every existing test passes unchanged.
+
+  Acceptance in production, after `/ship-prod`: game reads in about 1 s, both jobs' passes
+  well inside their interval, no QueuePool errors, and a real fantasy PUT succeeding.
+
+  Scope boundary: the two-game background jobs' transactions and locks, and the four game
+  reads. No change to what a pass decides, to the request budget, to the web app or to the API
+  contract. **API-only: `/ship-prod` owed after close-out**, before Sat 28 Nov.
+
+- [ ] **Batch 238 — Both game screens: a pay strip, folded competitions and the group first on phones**
+  — owner, 24 Nov 2026; prerequisite: 237 shipped.
+
+  - A "Pay £1" strip at the top of both game screens, saying that one weekly fee covers both
+    games, with the details folded away beneath it.
+  - On phones, the group screen puts the status card and the coupon above the fixtures.
+  - Every competition starts folded on both screens. A week with a single competition still
+    opens it.
+  - The fantasy screen loses "Your recent weeks" and the "Refresh prices and results" button.
+  - The payment card on the league's season table screen (`MoneyCard`) folds, closed by
+    default.
+
+  Tests: new unit tests for each. **Owner approval before the build:** changing Batch 233's
+  unit test that asserts the first competition opens is approved in principle (24 Nov); the
+  exact lines, and any other test or journey line the folding or removals move, are quoted
+  here once approved. The two-game browser stories (`scripts/verify-two-game-web.py`) pass.
+
+  Scope boundary: presentation only. No API change. **Web-only.**
+
+- [ ] **Batch 239 — The old home page comes back**
+  — owner, 24 Nov 2026; prerequisite: 235 closed.
+
+  - The hero stats (points, picks won, win rate) and the per-league card (position, form,
+    last result) return, taking their stats from the season table, which already merges
+    fantasy legs with legacy points.
+  - Each two-game league's entry actions (group pick needed, fantasy N of 6) sit inside its old
+    card.
+  - Check first what `/me/cross-league-summary` returns for 2-1 Hibs. If fantasy-specific
+    stats are missing, propose the API addition to the owner before building.
+
+  Tests: new unit tests for the restored page with legacy-only, two-game and mixed leagues;
+  the two-game browser stories pass.
+
+  Scope boundary: the home page. **Web-only**, unless the owner approves an API addition,
+  which then gets its own row and `/ship-prod` first.
 
 ## Verification
 
