@@ -1414,3 +1414,135 @@ async def test_actual_entry_and_opening_race_share_one_remaining_dispatch_across
     finally:
         release.set()
         await asyncio.gather(*tasks, return_exceptions=True)
+
+
+# ── Batch 234: removing a slot, and the old card's club context ─────────────────────────
+
+
+def removal(revision: int, operation: str | None = None) -> dict:
+    return {"expected_revision": revision, "operation_id": operation or str(uuid.uuid4())}
+
+
+@pytest.mark.asyncio
+async def test_member_removes_own_slot_with_revision_replay_and_empty_readback(fantasy):
+    saved = await fantasy.save(1, fantasy.body(0))
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["revision"] == 1
+    body = removal(1)
+    removed = await fantasy.request("DELETE", slot=1, body=body)
+    assert removed.status_code == 200, removed.text
+    assert removed.json()["pick"] is None and removed.json()["revision"] == 2
+    readback = await fantasy.request("GET", slot=1)
+    assert readback.json()["pick"] is None and readback.json()["revision"] == 2
+    replayed = await fantasy.request("DELETE", slot=1, body=body)
+    assert replayed.status_code == 200 and replayed.json() == removed.json()
+    stale = await fantasy.request("DELETE", slot=1, body=removal(1))
+    assert stale.status_code == 409 and stale.json()["detail"]["code"] == "ENTRY_CHANGED"
+    empty = await fantasy.request("DELETE", slot=1, body=removal(2))
+    assert empty.status_code == 409 and empty.json()["detail"]["code"] == "NOTHING_TO_REMOVE"
+    refilled = await fantasy.save(1, fantasy.body(0, revision=2))
+    assert refilled.status_code == 200, refilled.text
+    assert refilled.json()["revision"] == 3
+    assert await fantasy.count(FantasyPick) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("gate", ["locked", "suspended", "nonmember", "conflict"])
+async def test_slot_removal_is_refused_after_lock_while_suspended_and_for_others(fantasy, gate):
+    first = fantasy.body(0)
+    saved = await fantasy.save(1, first)
+    assert saved.status_code == 200, saved.text
+    player, body, expected = 0, removal(1), (409, gate.upper())
+    if gate == "locked":
+        fantasy.source.clock.now = fantasy.game.locks_at
+    elif gate == "suspended":
+        async with fantasy.sessions() as db, db.begin():
+            await db.execute(
+                update(TwoGameRollout)
+                .where(TwoGameRollout.league_id == fantasy.league.id)
+                .values(suspended=True)
+            )
+    elif gate == "nonmember":
+        player, expected = 3, (404, "NOT_FOUND")
+    else:
+        body, expected = removal(1, first["operation_id"]), (409, "OPERATION_CONFLICT")
+    response = await fantasy.request("DELETE", slot=1, player=player, body=body)
+    assert response.status_code == expected[0], response.text
+    assert response.json()["detail"]["code"] == expected[1]
+    assert await fantasy.count(FantasyPick) == 1
+
+
+@pytest.mark.asyncio
+async def test_fantasy_fixtures_name_competitions_and_carry_club_context_read_only(fantasy):
+    from src.models.standing import Standing
+    from src.models.team import Team, TeamAlias
+    from src.services.football_data import season_or_default
+    from src.services.team_matching import normalise_name
+
+    competition = f"context-{uuid.uuid4().hex[:12]}"
+    fixture = fantasy.fixtures[0]
+    async with fantasy.sessions() as db, db.begin():
+        await db.execute(
+            update(Fixture)
+            .where(Fixture.id == fixture.id)
+            .values(competition_id=competition, competition="Context League")
+        )
+        home, away = (
+            Team(
+                provider_team_id=f"{competition}-{side}",
+                name=name,
+                normalised_name=normalise_name(name),
+                competition_id=competition,
+            )
+            for side, name in (("home", fixture.home), ("away", fixture.away))
+        )
+        db.add_all([home, away])
+        await db.flush()
+        # The home club is known by alias; the away club only by its fuzzy-matched name.
+        db.add(
+            TeamAlias(
+                competition_id=competition,
+                normalised=normalise_name(fixture.home),
+                team_id=home.id,
+                alias=fixture.home,
+            )
+        )
+        season = season_or_default(settings.football_season)
+        for team, position in ((home, 3), (away, 7)):
+            db.add(
+                Standing(
+                    competition_id=competition,
+                    competition="Context League",
+                    season=season,
+                    team_id=team.id,
+                    position=position,
+                    points=30 - position,
+                    form="WWDLW",
+                )
+            )
+    async with fantasy.sessions() as db:
+        aliases = await db.scalar(
+            select(func.count())
+            .select_from(TeamAlias)
+            .where(TeamAlias.competition_id == competition)
+        )
+    view = await fantasy.request("GET", path=fantasy.path)
+    assert view.status_code == 200, view.text
+    rows = {row["fixture_id"]: row for row in view.json()["fixtures"]}
+    row = rows[str(fixture.id)]
+    assert row["competition"] == "Context League"
+    assert row["context"]["home"]["position"] == 3
+    assert row["context"]["away"]["position"] == 7
+    assert row["context"]["home"]["form"] == "WWDLW"
+    assert rows[str(fantasy.fixtures[1].id)]["competition"] == "Synthetic"
+    assert rows[str(fantasy.fixtures[1].id)]["context"] is None
+    async with fantasy.sessions() as db:
+        assert (
+            await db.scalar(
+                select(func.count())
+                .select_from(TeamAlias)
+                .where(TeamAlias.competition_id == competition)
+            )
+            == aliases
+            == 1
+        )

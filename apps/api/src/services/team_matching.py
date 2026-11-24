@@ -181,7 +181,9 @@ def pair_score(home: str, away: str, other_home: str, other_away: str) -> float:
     )
 
 
-def best_match(name: str, candidates: Sequence[Team]) -> tuple[Team | None, float]:
+def best_match(
+    name: str, candidates: Sequence[Team], *, quiet: bool = False
+) -> tuple[Team | None, float]:
     """The candidate a normalised name most likely means, and its score.
 
     Returns ``(None, score)`` when nothing clears :data:`MATCH_THRESHOLD`, or when the
@@ -200,6 +202,8 @@ def best_match(name: str, candidates: Sequence[Team]) -> tuple[Team | None, floa
     if top_score < MATCH_THRESHOLD:
         return None, top_score
     if len(scored) > 1 and top_score - scored[1][0] < MATCH_MARGIN:
+        if quiet:
+            return None, top_score
         log.info(
             "team name ambiguous",
             name=name,
@@ -265,8 +269,13 @@ async def resolve_names_by_competition(
     names_by_competition: Mapping[str, Iterable[str]],
     *,
     source: str = "odds",
+    learn: bool = True,
 ) -> dict[str, dict[str, Team]]:
     """Resolve names across competitions in at most two reads, learning new aliases.
+
+    ``learn=False`` (Batch 237's read-only game reads) resolves the same way but writes no
+    alias and logs nothing per name: those reads run in a read-only snapshot, and a screen
+    polled every 30 seconds would otherwise repeat each miss in the logs.
 
     Both reads use the competition and name together. Club names are only unique inside
     one division, so flattening either aliases or fuzzy candidate pools by name would
@@ -318,8 +327,10 @@ async def resolve_names_by_competition(
     for competition_id, names in unresolved.items():
         competition_candidates = candidates.get(competition_id, [])
         for name, normalised in names.items():
-            team, score = best_match(normalised, competition_candidates)
+            team, score = best_match(normalised, competition_candidates, quiet=not learn)
             if team is None:
+                if not learn:
+                    continue
                 log.info(
                     "team name unresolved",
                     competition_id=competition_id,
@@ -331,6 +342,8 @@ async def resolve_names_by_competition(
             resolved[competition_id][name] = team
             learned.setdefault((competition_id, normalised), (name, team))
 
+    if not learn:
+        return resolved
     db.add_all(
         [
             TeamAlias(

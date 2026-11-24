@@ -24,12 +24,14 @@ from src.models.two_game import (
     TwoGameFixture,
 )
 from src.schemas import UtcDatetime
+from src.services.football_data import fixture_context, season_or_default
 from src.services.gameweek import selected_competition_slugs
 from src.services.odds_provider import is_void_status
 from src.services.provider_budget import naive_utc, utc_now
 from src.services.two_game_entry import (
     GroupChoice,
     OperationRequest,
+    RemovePick,
     Target,
     admit_action,
     entry_state,
@@ -98,6 +100,8 @@ class GroupGameView(BaseModel):
     fixtures: list[dict[str, Any]]
     my_entries: list[GroupContribution]
     progress: dict[str, Any]
+    # Batch 234: the members counted as still to pick, named, sorted by name.
+    still_to_pick: list[dict[str, str]] = []
     result: dict[str, Any]
     fee: WeekFee
 
@@ -342,6 +346,67 @@ class GroupEntries:
                 )
             raise
 
+    async def remove(
+        self,
+        league_id: uuid.UUID,
+        week_id: uuid.UUID,
+        player_id: uuid.UUID,
+        body: RemovePick,
+    ) -> GroupEntry:
+        """Withdraw the member's own contribution before the lock (Batch 234).
+
+        One short transaction under the league lock: replay first, then the save's own
+        open, revision and ownership gates; the fixture is free for the group at once.
+        The pick row goes, so the next revision lives in this operation's receipt.
+        """
+        identity: OperationRequest = dict(
+            league_id=league_id,
+            week_id=week_id,
+            kind="group",
+            slot=0,
+            player_id=player_id,
+            body=body,
+        )
+        async with self.sessions() as db, db.begin():
+            original = await lock_and_replay(db, **identity)
+            if original is not None:
+                return GroupEntry.model_validate(original)
+            target = await resolve_target(db, league_id, week_id, "group", player_id)
+            await require_open(db, target, self.now())
+            current = await require_revision(db, target, player_id, body.expected_revision)
+            if current.pick is None:
+                refuse(
+                    409,
+                    "NOTHING_TO_REMOVE",
+                    "There is no contribution to withdraw",
+                    **target.identity(),
+                )
+            admit_action(player_id, league_id)
+            pick = await db.get(GroupPick, current.pick.id)
+            if pick is not None:
+                await db.delete(pick)
+                await db.flush()
+            result = GroupEntry(
+                **target.identity(),
+                pick=None,
+                revision=current.revision + 1,
+                operation_id=body.operation_id,
+            )
+            db.add(
+                GameOperation(
+                    league_id=league_id,
+                    week_id=week_id,
+                    game_id=target.game.id,
+                    game_kind="group",
+                    player_id=player_id,
+                    slot=0,
+                    operation_id=body.operation_id,
+                    body_hash=operation_hash(body),
+                    response=result.model_dump(mode="json"),
+                )
+            )
+            return result
+
     async def view(
         self,
         league_id: uuid.UUID,
@@ -382,6 +447,15 @@ class GroupEntries:
             }
             fixtures = []
             competitions = selected_competition_slugs(target.league)
+            # Batch 234: both clubs' position and form, as the legacy slate shows them. The
+            # read is a read-only snapshot, so names resolve without learning aliases.
+            contexts = await fixture_context(
+                db,
+                [fixture for fixture, _, _ in rows],
+                season=season_or_default(settings.football_season),
+                form_matches=settings.football_form_matches,
+                learn=False,
+            )
             for fixture, pick, profile in rows:
                 status = statuses.get(fixture.id, "pending")
                 eligible = (
@@ -400,6 +474,16 @@ class GroupEntries:
                         "home": fixture.home,
                         "away": fixture.away,
                         "competition_id": fixture.competition_id,
+                        "competition": fixture.competition,
+                        # The group is never priced or scored, so its context leaves out
+                        # the table points: position and form only.
+                        "context": (
+                            contexts[str(fixture.id)].model_dump(
+                                mode="json", exclude={"home": {"points"}, "away": {"points"}}
+                            )
+                            if str(fixture.id) in contexts
+                            else None
+                        ),
                         "kickoff_at": fixture.kickoff_utc.isoformat() + "Z",
                         "status": status,
                         "allowed_markets": [
@@ -459,6 +543,7 @@ class GroupEntries:
                 )
                 or 0
             )
+            locked_audience: set[uuid.UUID] | None = None
             if now >= target.game.locks_at:
                 # A later join or departure cannot rewrite a locked game's audience.
                 owners = {pick.player_id for _, pick, _ in rows if pick is not None}
@@ -475,6 +560,29 @@ class GroupEntries:
                     )
                 )
                 member_count, picked = len(historical | owners), len(owners)
+                locked_audience = historical | owners
+            # Batch 234: name the members still to pick, from the same audience as the count.
+            named = (
+                select(Profile.id, Profile.display_name).where(Profile.id.in_(locked_audience))
+                if locked_audience is not None
+                else select(Profile.id, Profile.display_name)
+                .join(LeagueMembership, LeagueMembership.player_id == Profile.id)
+                .where(
+                    LeagueMembership.league_id == league_id,
+                    LeagueMembership.deleted_at.is_(None),
+                    Profile.deleted_at.is_(None),
+                    Profile.is_active.is_(True),
+                )
+            )
+            contributed = {pick.player_id for _, pick, _ in rows if pick is not None}
+            still_to_pick = sorted(
+                (
+                    {"player_id": str(member_id), "display_name": public_name(name)}
+                    for member_id, name in await db.execute(named)
+                    if member_id not in contributed
+                ),
+                key=lambda member: (member["display_name"].casefold(), member["player_id"]),
+            )
             return GroupGameView(
                 **target.identity(),
                 week_label=target.week.starts_on,
@@ -493,6 +601,7 @@ class GroupEntries:
                     "member_count": member_count,
                     "all_picked": member_count > 0 and picked == member_count,
                 },
+                still_to_pick=still_to_pick,
                 result={
                     "status": group_outcome(
                         [pick.status for _, pick, _ in rows if pick is not None]

@@ -55,13 +55,25 @@ class GroupChoice(BaseModel):
     operation_id: uuid.UUID
 
 
+class RemovePick(BaseModel):
+    """Withdraw the member's own pick: the revision it replaces and a replayable id.
+
+    Batch 234. The body hashes differently from any save, so an operation id reused
+    across a save and a removal is refused as a conflict rather than replayed.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    expected_revision: int = Field(ge=0)
+    operation_id: uuid.UUID
+
+
 class OperationRequest(TypedDict):
     league_id: uuid.UUID
     week_id: uuid.UUID
     kind: str
     slot: int
     player_id: uuid.UUID
-    body: GroupChoice
+    body: GroupChoice | RemovePick
 
 
 def operation_hash(body: BaseModel) -> str:
@@ -77,7 +89,7 @@ async def replay(
     kind: str,
     slot: int,
     player_id: uuid.UUID,
-    body: GroupChoice,
+    body: GroupChoice | RemovePick,
 ) -> dict[str, Any] | None:
     operation: GameOperation | None = await db.scalar(
         select(GameOperation).where(

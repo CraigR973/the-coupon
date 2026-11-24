@@ -19,6 +19,7 @@ from src.config import settings
 from src.models.fixture import Fixture
 from src.models.two_game import FantasyPick, GameOperation, ProviderSnapshot, TwoGameFixture
 from src.schemas import UtcDatetime
+from src.services.football_data import fixture_context, season_or_default
 from src.services.gameweek import selected_competition_slugs
 from src.services.odds_provider import (
     OddsProvider,
@@ -30,6 +31,7 @@ from src.services.provider_budget import ProviderBudgetRefused, naive_utc, utc_n
 from src.services.two_game_entry import (
     GroupChoice,
     OperationRequest,
+    RemovePick,
     Target,
     admit_action,
     entry_state,
@@ -518,6 +520,71 @@ class FantasyEntries:
                 )
             raise
 
+    async def remove(
+        self,
+        league_id: uuid.UUID,
+        week_id: uuid.UUID,
+        player_id: uuid.UUID,
+        slot: int,
+        body: RemovePick,
+    ) -> FantasyEntry:
+        """Empty one of the member's own slots before the lock (Batch 234).
+
+        One short transaction under the league lock: replay first, then the save's own
+        open, revision and ownership gates. No fee, price or provider is involved. The
+        pick row goes, so the slot's next revision lives in this operation's receipt.
+        """
+        require_slot(slot)
+        identity: OperationRequest = dict(
+            league_id=league_id,
+            week_id=week_id,
+            kind="fantasy",
+            slot=slot,
+            player_id=player_id,
+            body=body,
+        )
+        async with self.sessions() as db, db.begin():
+            original = await lock_and_replay(db, **identity)
+            if original is not None:
+                return FantasyEntry.model_validate(original)
+            target = await resolve_target(db, league_id, week_id, "fantasy", player_id)
+            await require_open(db, target, self.now())
+            current = await require_revision(db, target, player_id, slot, body.expected_revision)
+            if current.pick is None:
+                refuse(
+                    409,
+                    "NOTHING_TO_REMOVE",
+                    "This slot holds no pick",
+                    slot=slot,
+                    **target.identity(),
+                )
+            admit_action(player_id, league_id)
+            pick = await db.get(FantasyPick, current.pick.id)
+            if pick is not None:
+                await db.delete(pick)
+                await db.flush()
+            result = FantasyEntry(
+                **target.identity(),
+                slot=slot,
+                pick=None,
+                revision=current.revision + 1,
+                operation_id=body.operation_id,
+            )
+            db.add(
+                GameOperation(
+                    league_id=league_id,
+                    week_id=week_id,
+                    game_id=target.game.id,
+                    game_kind="fantasy",
+                    player_id=player_id,
+                    slot=slot,
+                    operation_id=body.operation_id,
+                    body_hash=operation_hash(body),
+                    response=result.model_dump(mode="json"),
+                )
+            )
+            return result
+
     async def view(
         self, league_id: uuid.UUID, week_id: uuid.UUID, player_id: uuid.UUID
     ) -> FantasyGameView:
@@ -549,6 +616,15 @@ class FantasyEntries:
             }
             competitions = selected_competition_slugs(target.league)
             accepted = {pick.fixture_id for pick in mine}
+            # Batch 234: both clubs' position and form, as the legacy slate shows them. The
+            # read is a read-only snapshot, so names resolve without learning aliases.
+            contexts = await fixture_context(
+                db,
+                list(fixtures),
+                season=season_or_default(settings.football_season),
+                form_matches=settings.football_form_matches,
+                learn=False,
+            )
             rows = []
             for fixture in fixtures:
                 eligible = (
@@ -580,6 +656,12 @@ class FantasyEntries:
                         home=fixture.home,
                         away=fixture.away,
                         competition_id=fixture.competition_id,
+                        competition=fixture.competition,
+                        context=(
+                            contexts[str(fixture.id)].model_dump(mode="json")
+                            if str(fixture.id) in contexts
+                            else None
+                        ),
                         kickoff_at=fixture.kickoff_utc.isoformat() + "Z",
                         status=statuses.get(fixture.id, "pending"),
                         eligible=eligible,

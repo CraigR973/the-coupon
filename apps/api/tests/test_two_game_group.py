@@ -1209,3 +1209,123 @@ async def test_short_auth_dependency_still_refuses_inactive_and_deleted_profiles
         == await game.count(WeeklyFeeObligation)
         == 0
     )
+
+
+# ── Batch 234: withdrawing a contribution, who is still to pick, the old card's context ──
+
+
+def withdrawal(revision: int, operation: str | None = None) -> dict:
+    return {"expected_revision": revision, "operation_id": operation or str(uuid.uuid4())}
+
+
+@pytest.mark.asyncio
+async def test_member_withdraws_own_contribution_and_frees_the_fixture(game):
+    saved = await game.save()
+    assert saved.status_code == 200, saved.text
+    taken = await game.save(game.body(0), player=1)
+    assert taken.status_code == 409 and taken.json()["detail"]["code"] == "FIXTURE_TAKEN"
+    body = withdrawal(1)
+    withdrawn = await game.request("DELETE", body=body)
+    assert withdrawn.status_code == 200, withdrawn.text
+    assert withdrawn.json()["pick"] is None and withdrawn.json()["revision"] == 2
+    replayed = await game.request("DELETE", body=body)
+    assert replayed.status_code == 200 and replayed.json() == withdrawn.json()
+    readback = await game.request("GET")
+    assert readback.json()["pick"] is None and readback.json()["revision"] == 2
+    claimed = await game.save(game.body(0), player=1)
+    assert claimed.status_code == 200, claimed.text
+    again = await game.save(game.body(1, revision=2))
+    assert again.status_code == 200 and again.json()["revision"] == 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("gate", ["locked", "suspended", "nonmember", "empty"])
+async def test_withdrawal_is_refused_after_lock_while_suspended_and_for_others(game, gate):
+    saved = await game.save()
+    assert saved.status_code == 200, saved.text
+    player, body, expected = 0, withdrawal(1), (409, gate.upper())
+    if gate == "locked":
+        game.now = game.group.locks_at
+    elif gate == "suspended":
+        async with game.sessions() as db, db.begin():
+            await db.execute(
+                update(TwoGameRollout)
+                .where(TwoGameRollout.league_id == game.league.id)
+                .values(suspended=True)
+            )
+    elif gate == "nonmember":
+        player, expected = 3, (404, "NOT_FOUND")
+    else:
+        player, body, expected = 1, withdrawal(0), (409, "NOTHING_TO_REMOVE")
+    response = await game.request("DELETE", player=player, body=body)
+    assert response.status_code == expected[0], response.text
+    assert response.json()["detail"]["code"] == expected[1]
+    assert await game.count(GroupPick) == 1
+
+
+@pytest.mark.asyncio
+async def test_group_view_names_who_is_still_to_pick_with_unpriced_club_context(game):
+    from src.display_name import public_name
+    from src.models.standing import Standing
+    from src.models.team import Team, TeamAlias
+    from src.services.football_data import season_or_default
+    from src.services.team_matching import normalise_name
+
+    competition = f"context-{uuid.uuid4().hex[:12]}"
+    fixture = game.fixtures[1]
+    async with game.sessions() as db, db.begin():
+        await db.execute(
+            update(Fixture)
+            .where(Fixture.id == fixture.id)
+            .values(competition_id=competition, competition="Context League")
+        )
+        home = Team(
+            provider_team_id=f"{competition}-home",
+            name=fixture.home,
+            normalised_name=normalise_name(fixture.home),
+            competition_id=competition,
+        )
+        db.add(home)
+        await db.flush()
+        db.add(
+            TeamAlias(
+                competition_id=competition,
+                normalised=normalise_name(fixture.home),
+                team_id=home.id,
+                alias=fixture.home,
+            )
+        )
+        db.add(
+            Standing(
+                competition_id=competition,
+                competition="Context League",
+                season=season_or_default(settings.football_season),
+                team_id=home.id,
+                position=4,
+                points=21,
+                form="LWW",
+            )
+        )
+    saved = await game.save()
+    assert saved.status_code == 200, saved.text
+    view = await game.request("GET", "")
+    assert view.status_code == 200, view.text
+    payload = view.json()
+    assert_unpriced(payload)
+    expected = sorted(
+        (
+            {"player_id": str(player.id), "display_name": public_name(player.display_name)}
+            for player in game.players[1:3]
+        ),
+        key=lambda member: (member["display_name"].casefold(), member["player_id"]),
+    )
+    assert payload["still_to_pick"] == expected
+    assert payload["progress"]["member_count"] - payload["progress"]["picked_count"] == 2
+    rows = {row["fixture_id"]: row for row in payload["fixtures"]}
+    row = rows[str(fixture.id)]
+    assert row["competition"] == "Context League"
+    assert row["context"]["home"]["position"] == 4
+    assert row["context"]["home"]["form"] == "LWW"
+    assert "points" not in row["context"]["home"]
+    assert row["context"]["away"] is None
+    assert rows[str(game.fixtures[0].id)]["competition"] == "Synthetic"

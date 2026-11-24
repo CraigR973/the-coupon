@@ -931,6 +931,7 @@ async def fixture_context(
     *,
     season: int,
     form_matches: int,
+    learn: bool = True,
 ) -> dict[str, FixtureContext]:
     """Table position and recent form for both clubs on each fixture, keyed by fixture id.
 
@@ -955,7 +956,9 @@ async def fixture_context(
         competition_id: {name for fixture in group for name in (fixture.home, fixture.away)}
         for competition_id, group in by_competition.items()
     }
-    resolved = await resolve_names_by_competition(db, names_by_competition, source="odds")
+    resolved = await resolve_names_by_competition(
+        db, names_by_competition, source="odds", learn=learn
+    )
 
     team_ids = {team.id for teams in resolved.values() for team in teams.values()}
     if not team_ids:

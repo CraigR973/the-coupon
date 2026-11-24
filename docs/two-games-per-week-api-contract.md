@@ -97,8 +97,10 @@ two-game card. Insufficient horizon/coverage blocks activation, not payment.
 | `GET /leagues/{league_id}/weeks/{week_id}/games/{game_kind}` | `200 GameView` | Addressed game, fixtures, own entries, progress, result, fee |
 | `PUT /leagues/{league_id}/weeks/{week_id}/games/group/pick` | `200 GroupEntry` | Atomically fill/replace own contribution |
 | `GET /leagues/{league_id}/weeks/{week_id}/games/group/pick` | `200 GroupEntry` | Own pick readback; null if absent |
+| `DELETE /leagues/{league_id}/weeks/{week_id}/games/group/pick` | `200 GroupEntry` | Withdraw own contribution (Batch 234) |
 | `PUT /leagues/{league_id}/weeks/{week_id}/games/fantasy/slots/{slot}` | `200 FantasyEntry` | Atomically fill/replace one independent slot |
 | `GET /leagues/{league_id}/weeks/{week_id}/games/fantasy/slots/{slot}` | `200 FantasyEntry` | Exact slot readback; nullable pick if empty |
+| `DELETE /leagues/{league_id}/weeks/{week_id}/games/fantasy/slots/{slot}` | `200 FantasyEntry` | Empty one own slot (Batch 234) |
 | `GET /leagues/{league_id}/weeks/{week_id}/fee` | `200 WeekFee` | Paid-through obligation, pooled credit and amount owed |
 | `GET /leagues/{league_id}/games` | `200 {games, legacy_rounds, next_cursor}` | All actionable/current games plus addressed history |
 | `GET /me/games` | `200 {leagues}` | Batched home summary for all memberships |
@@ -170,8 +172,20 @@ are refused. Partial entries count at 1–6 picks; empty slots have zero points.
 `/leagues/{league_id}/weeks/{week_id}/{game_kind}`; legacy links stay unchanged.
 Cache keys and offline queue keys include every path identity and the member.
 
-Fixture fields include `fixture_id`, teams, `competition_id`, `kickoff_at`,
-`status`, allowed markets/outcomes and the claim status for this game. Fantasy
+Both deletes (Batch 234) take `{expected_revision, operation_id}`. They replay by
+operation id like a save, answer the slot's or contribution's empty readback at the next
+revision (kept in the operation receipt, since the pick row goes), and refuse a stale
+revision (`409 ENTRY_CHANGED`), an empty target (`409 NOTHING_TO_REMOVE`), a locked or
+suspended game (`409 LOCKED` / `SUSPENDED`), a non-member (`404 NOT_FOUND`) and an
+operation id already used for another request (`409 OPERATION_CONFLICT`). A delete takes
+no fee, price or provider. Withdrawing a group pick frees its fixture for the group.
+
+Fixture fields include `fixture_id`, teams, `competition_id`, `competition` (its display
+name, Batch 234), `context` (each club's table position and recent form, or null when the
+football data cannot place either club; the group's leaves out table points), `kickoff_at`,
+`status`, allowed markets/outcomes and the claim status for this game. The group view also
+carries `still_to_pick`: the members counted as not yet contributed, named and sorted, on
+the same audience as `progress`. Fantasy
 alone adds `quote` containing prices, bookmaker/provider, `observed_at`,
 `age_seconds`, `availability`, `degraded`. A browse snapshot never triggers a
 full-card price refill. Group and locked-result reads make zero pricing calls.
