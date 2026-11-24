@@ -31,6 +31,10 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Batch 240 is closed on `main`; `/ship-prod` owed** (24 Nov, `abce089`, API-only, no
+  migration; the owner's go is given: "when it is done, we should ship"). Each minute's dues pass
+  reads one snapshot without the league lock and takes the lock only when a member needs a
+  membership interval or a due; the money rules are unchanged.
 - **Batch 239 is live on the web** (24 Nov, `6bac303`, web-only, pushed 21:41 UTC): the old home
   page is back for every member. The hero shows the season's points, picks won and win rate from
   the season table and the next thing that needs them, two-game entries included; each league

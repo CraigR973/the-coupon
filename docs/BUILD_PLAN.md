@@ -2141,7 +2141,7 @@ needs the owner's approval of the exact lines.
   Scope boundary: the home page. **Web-only**, unless the owner approves an API addition,
   which then gets its own row and `/ship-prod` first.
 
-- [ ] **Batch 240 — The weekly dues pass stops holding the league lock every minute**
+- [x] **Batch 240 — The weekly dues pass stops holding the league lock every minute** ✅ 2026-11-24
   — found in Batch 237 (24 Nov 2026). `run_weekly_dues` runs every minute, and `bill_all` holds
   each two-game league's financial lock (advisory key 220) for its whole pass while it walks
   every member: 150–200 statements, 6–8 s through a 10 ms proxy at production size, about 4 s

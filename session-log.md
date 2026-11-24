@@ -9788,3 +9788,24 @@ zero skips; tree `742dea9`); two-game browser stories PASS30 · CI: https://gith
 
 **Next:** the pot swap when the new Monzo link arrives; then rows 240 and 241 on the owner's word.
 
+## Batch 240 — The weekly dues pass stops holding the league lock every minute
+**Commits:** `abce089` · verified: full local gate 12/12 (backend 2,106; frontend 1,584; journey 1;
+zero skips; tree `79c2a66`) · CI: https://github.com/CraigR973/the-coupon/actions/runs/45506949491 PASS for `abce089`
+
+### Key facts for future sessions
+- `_bill_league` first opens a REPEATABLE READ READ ONLY snapshot and asks `_billing_needed`
+  (rollout, league, active members, intervals, obligations: five reads) whether the locked pass
+  would write anything. Only then does it take advisory key 220 and run the old pass, which
+  decides again under the lock; `plan_dues` and `materialize_dues` are unchanged.
+- The check mirrors the locked pass: an active member with no open interval is `track_join`'s
+  work, and a `plan_dues` label with no obligation is `materialize_dues`'s. A stale snapshot can
+  delay a due by one pass (a minute) but never writes or skips one.
+- The empty-pass test fails on the old code (it hangs on the held lock); the two waiting tests
+  pass on both, because they pin behaviour that must not change.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+### Follow-ups
+- `/ship-prod` for Batch 240 on the owner's go.
+
+**Next:** `/ship-prod` for Batch 240; then Batch 241.
+
