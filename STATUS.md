@@ -13,9 +13,9 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `65cc0c9` (Batch 237 and the IaC fix that keeps `TWO_GAMES_ENABLED`) at migration `032` (24 Nov) |
-| API deployment | Railway `77d0cf36-dcdb-4b69-aa80-2becaf60f223` succeeded 15:09 UTC, one replica, `europe-west4` (24 Nov); rollback `15056d65` (`2115540`) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `65cc0c9` at `032`, Railway `a07f7352-1ebd-4e6f-852d-894ecb139bcc` (24 Nov; rollback `f149228d`), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
+| API | `api-production-109b1.up.railway.app` serves `85fa1ae` (Batch 234 on Batch 237) at migration `032` (24 Nov) |
+| API deployment | Railway `45ae5d94-9dc9-487a-b2da-14fae3598a7b` succeeded 17:13 UTC, one replica, `europe-west4` (24 Nov); rollback `c8b65e93` (`65cc0c9`) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `85fa1ae` at `032`, Railway `b994b98f-987d-4be9-8f04-6a5c3cadf3a9` (24 Nov; rollback `3d5cbf89`), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
 | Web | `the-coupon-production.vercel.app` builds every push to `main`; since 16:07 UTC on 24 Nov it serves `b1c089b` (Batch 238) as bundle `index-DruX7guA.js` (`dpl_3gv7eaPBfqGahP6vRzP2eQMwxMia`): both game screens lead with the payment strip and start every competition folded. The API has served the two-game screens to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov. |
 | Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the two-game tables hold 2-1 Hibs' rollout, its four games and 12 dues since 17:08 UTC (23 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
@@ -31,10 +31,11 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
-- **Batch 234 is closed and not shipped** (24 Nov, `63747a3`, API-only, no migration;
-  `/ship-prod` owed): competition names and club position and form on both games' fixtures,
-  removing a fantasy slot or a group pick (`DELETE`, replayable, refused after the lock,
-  while suspended and for others), and the group view naming who is still to pick.
+- **Batch 234 is shipped and verified** (24 Nov, `85fa1ae`, no migration; API `45ae5d94`
+  17:13 UTC, payments `b994b98f` 17:15 UTC): competition names and club position and form on
+  both games' fixtures, removing a fantasy slot or a group pick (`DELETE`, replayable, refused
+  after the lock, while suspended and for others), and the group view naming who is still to
+  pick. 17:13–19:22 UTC: settlement 1.2 s, dues 3.9 s, discovery 12 s a pass, no QueuePool error.
 - **Batch 238 is live on the web** (24 Nov, `b1c089b`, web-only): a payment strip heads both
   game screens (Pay £1, one fee for both games, details folded), every competition starts
   folded unless the week has one, the group's status card and coupon come first on phones, the

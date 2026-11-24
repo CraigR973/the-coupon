@@ -4546,3 +4546,36 @@ Rollback: API `15056d65`, payments `f149228d` (both `2115540`, `032`); no migrat
 rollback is clean. Backup/restore point: the 23 Nov 13:51 UTC backup
 (`production/the-coupon-20261123T135112Z.dump`). Still to observe: game-read times under member
 traffic and the first real fantasy PUT.
+
+### 2026-11-24 — `85fa1ae`, Batch 234: club form, competition names and removing a pick (no migration)
+
+Approved in chat: the owner's "Yes, ship 234" (24 Nov). Source: clean `main` at
+`85fa1aee0b5a90355e20deb67d8c9936cbaa9f57`, uploaded from the shared checkout. Checks before
+upload: Quality run `45441533509` (`85fa1ae`) green; local gate 12 of 12 (2,103 backend, 1,564
+frontend, journey 1, zero skips, tree `044f1a1d3d9209f580929f094aa34d269e39001b`), reused through
+the 234 worktree's stamp guard (the tree differs only in close-out documents); migration
+recovery PASS (no migration, `032`). The pinned IaC plan had 0 additions, the usual 4 changes and
+0 deletions.
+
+- IaC applied 17:10:12 UTC; it redeployed both `65cc0c9` images (API `c8b65e93`, payments
+  `3d5cbf89`), both `SUCCESS` by 17:11:40.
+- API `45ae5d94-9dc9-487a-b2da-14fae3598a7b`, uploaded 17:11:58: `SUCCESS` 17:13:46; health
+  `200`, `85fa1ae`, `032`; readiness `ok`. Boot log: no traceback, no credential pattern.
+- Payments `b994b98f-987d-4be9-8f04-6a5c3cadf3a9`, uploaded 17:14:13: `SUCCESS` 17:15:34;
+  health `200`, `service: payments`, `85fa1ae`, `032`; readiness `ok`. Drift in sync for both.
+- Manifest unchanged: one replica in `europe-west4-drams3a`, no sleep, IPv6 egress, `ON_FAILURE`
+  with three retries, 300-second readiness timeout, 0.25 vCPU / 500 MB.
+- Variable names: API 13 of 13 and payments 7 of 7, no cross-service names, `TWO_GAMES_ENABLED`
+  on both. Read-only audit: `032`, RLS forced on 42 of 42, no public-role grants, 2-1 Hibs'
+  rollout and four games intact, no picks yet.
+- Web: no deployment needed; `dpl_77unJpaDaYd5uzGcc9ZAcN97kLNQ` (`85fa1ae`) holds the alias with
+  238's bundle `index-DruX7guA.js`. Smoke: `/`, `/standings`, `/results` `200` with that asset and
+  the CSP header; an exact-origin preflight for `DELETE` `200` with credentials; unauthenticated
+  `/me/games` `401`.
+- 17:13–19:22 UTC: settlement passes median 1.2 s (max 1.8), weekly dues 3.9 s (4.9), discovery
+  12.0 s (13.7) now that its background allowance has rolled over (20 price/census units since
+  17:09); no QueuePool error or traceback. No member request in that window.
+
+Rollback: API `c8b65e93`, payments `3d5cbf89` (both `65cc0c9`, `032`); no migration, so an image
+rollback is clean. Still to observe: game-read times under member traffic and the first real
+fantasy PUT (none yet since activation).
