@@ -24,7 +24,11 @@ with the league as `target_id`, so they appear in the league's own audit log.
    member's season total recorded.
 2. `TWO_GAMES_ENABLED=true` on **both** `api` and `payments`, with no rollout row, and
    legacy verified unchanged afterwards (health, `scripts/check-deploy-drift.sh`, a
-   read-only audit, the next morning's legacy jobs).
+   read-only audit, the next morning's legacy jobs). The variable is set by hand, so it
+   must also sit in both preserved-variable lists in `.railway/railway.ts`: IaC replaces a
+   service's variables as a set, and the next `config apply` would otherwise delete it,
+   switching the format off. Production's plan showed exactly that on 24 Nov 2026, and the
+   Batch 237 shipment stopped on it until the name was preserved.
 
 **Where the lossless undo ends.** `docs/runbooks/migration-032-undo.sql` refuses once any
 two-game table holds a row. With the flag on, every odds-api.io request — legacy ones

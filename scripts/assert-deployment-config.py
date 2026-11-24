@@ -72,6 +72,7 @@ EXPECTED_VARIABLES = {
     "SCHEDULER_ENABLED",
     "SUPABASE_SERVICE_KEY",
     "SUPABASE_URL",
+    "TWO_GAMES_ENABLED",
     "VAPID_CONTACT_EMAIL",
     "VAPID_PRIVATE_KEY",
     "VAPID_PUBLIC_KEY",
@@ -93,6 +94,7 @@ EXPECTED_PAYMENTS_VARIABLES = {
     "MONZO_TOKEN_ENCRYPTION_KEY",
     "MONZO_WEBHOOK_PATH_SECRET",
     "RAILWAY_GIT_COMMIT_SHA",
+    "TWO_GAMES_ENABLED",
 }
 # Owner decision, 2026-10-14: switched off in both projects until the owner creates the
 # service. Switching one on is a reviewed commit that changes this expectation too.
@@ -152,7 +154,14 @@ def assert_payments(payments: dict[str, Any]) -> None:
     assert all(value == {"type": "preserve"} for value in payments["variables"].values())
     # The two services hold disjoint credentials, which is the point of option B: the API
     # never sees a Monzo secret, and the payments service never sees the API's.
-    shared = {"DATABASE_URL", "ENVIRONMENT", "LOG_LEVEL", "RAILWAY_GIT_COMMIT_SHA"}
+    # TWO_GAMES_ENABLED is the installation gate both services read (two-game runbook).
+    shared = {
+        "DATABASE_URL",
+        "ENVIRONMENT",
+        "LOG_LEVEL",
+        "RAILWAY_GIT_COMMIT_SHA",
+        "TWO_GAMES_ENABLED",
+    }
     api_only = EXPECTED_VARIABLES - shared
     assert not (set(payments["variables"]) & api_only)
     assert not any(name.startswith("MONZO_") for name in EXPECTED_VARIABLES)

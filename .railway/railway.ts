@@ -72,6 +72,8 @@ export const PAYMENTS_PRESERVED_VARIABLE_NAMES = [
   "MONZO_TOKEN_ENCRYPTION_KEY",
   "MONZO_WEBHOOK_PATH_SECRET",
   "RAILWAY_GIT_COMMIT_SHA",
+  // Set by hand on 23 Nov 2026 to switch the two-game format on; both services read it.
+  "TWO_GAMES_ENABLED",
 ] as const;
 
 const TARGETS = {
@@ -120,6 +122,7 @@ export const PRESERVED_VARIABLE_NAMES = [
   "SCHEDULER_ENABLED",
   "SUPABASE_SERVICE_KEY",
   "SUPABASE_URL",
+  "TWO_GAMES_ENABLED",
   "VAPID_CONTACT_EMAIL",
   "VAPID_PRIVATE_KEY",
   "VAPID_PUBLIC_KEY",
