@@ -9717,3 +9717,21 @@ zero skips; tree `044f1a1`) · CI: https://github.com/CraigR973/the-coupon/actio
 
 **Next:** `/ship-prod` for 234, then Batch 235.
 
+## Gate maintenance — Batch 235 oracle approval
+**Commit:** `54481c4` · owner-approved 24 Nov 2026 ("Approve 235's lines") · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/45480349694 failed as expected at the
+old-trusted-guard comparison (the commit changes `scripts/assert-quality-guardrails.sh`), as
+the approval commits for Batches 175 and 238 did
+
+### Key facts for future sessions
+- Batch 235 may remove only the twelve oracle lines fingerprinted in the guard, across
+  `FantasyWeekPage.test.tsx`, `FantasyPickSlip.test.tsx` and `GroupCouponLayout.test.tsx`.
+  The fantasy journey's changes remove no oracle line; they are listed in the row with the rest
+  (the full diff the owner approved is `.local/235-test-line-changes.md`). Every other removed
+  oracle stays blocked.
+- Main's guard replayed on the 235 worktree: PASS, "owner-approved exact oracle replacements
+  applied".
+- No application code, API contract, database schema or production data changed.
+
+**Next:** Batch 235 from this attestation state.
+
