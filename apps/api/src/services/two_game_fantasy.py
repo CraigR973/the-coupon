@@ -35,6 +35,7 @@ from src.services.two_game_entry import (
     entry_state,
     lock_and_replay,
     operation_hash,
+    read_snapshot,
     refuse,
     replay_after_refusal,
     require_open,
@@ -282,8 +283,9 @@ class FantasyEntries:
     ) -> FantasyEntry:
         require_slot(slot)
         async with self.sessions() as db, db.begin():
+            await read_snapshot(db)
             target = await resolve_target(
-                db, league_id, week_id, "fantasy", player_id, own_history=True
+                db, league_id, week_id, "fantasy", player_id, own_history=True, lock=False
             )
             return (await read_slots(db, target, player_id, slot))[0]
 
@@ -520,7 +522,8 @@ class FantasyEntries:
         self, league_id: uuid.UUID, week_id: uuid.UUID, player_id: uuid.UUID
     ) -> FantasyGameView:
         async with self.sessions() as db, db.begin():
-            target = await resolve_target(db, league_id, week_id, "fantasy", player_id)
+            await read_snapshot(db)
+            target = await resolve_target(db, league_id, week_id, "fantasy", player_id, lock=False)
             slots = await read_slots(db, target, player_id)
             mine = [entry.pick for entry in slots if entry.pick is not None]
             fixtures = (

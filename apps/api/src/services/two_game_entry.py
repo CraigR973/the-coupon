@@ -15,7 +15,7 @@ from typing import Any, NoReturn, TypedDict, Unpack
 
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import Integer, cast, select
+from sqlalchemy import Integer, cast, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.config import settings
@@ -34,6 +34,16 @@ from src.services.weekly_fees import _active_membership, _rollout, financial_loc
 
 def refuse(status: int, code: str, message: str, **details: Any) -> NoReturn:
     raise HTTPException(status_code=status, detail={"code": code, "message": message, **details})
+
+
+async def read_snapshot(db: AsyncSession) -> None:
+    """Make this transaction one read-only snapshot. Call it before any other statement.
+
+    Batch 237. A game read takes no league lock, so it never queues behind a save, a
+    membership change or background work holding one; the snapshot keeps every fact it
+    returns from the same instant instead. ``/me/games`` has always read this way.
+    """
+    await db.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
 
 
 class GroupChoice(BaseModel):
@@ -182,7 +192,14 @@ async def resolve_target(
     player_id: uuid.UUID,
     *,
     own_history: bool = False,
+    lock: bool = True,
 ) -> Target:
+    """Resolve and authorise one exact game address.
+
+    A write keeps ``lock`` and holds the league's financial lock until it commits. A read
+    passes ``lock=False`` inside :func:`read_snapshot`: it checks the same access facts
+    once, from its snapshot, and never waits for the lock (Batch 237).
+    """
     league = await db.get(League, league_id, populate_existing=True)
     week = await db.get(Gameweek, week_id, populate_existing=True)
     member = await _active_membership(db, league_id, player_id)
@@ -212,27 +229,28 @@ async def resolve_target(
     rollout = await _rollout(db, league_id)
     if rollout is None or week.starts_on < rollout.first_week:
         refuse(404, "NOT_FOUND", "No accessible game target")
-    await financial_lock(db, league_id)
-    # The advisory may have waited for leave/delete/suspension. Refresh every
-    # access fact after it, not just objects cached before waiting.
-    league = await db.get(League, league_id, populate_existing=True)
-    rollout = await _rollout(db, league_id)
-    member = await _active_membership(db, league_id, player_id)
-    if member is None and own_history:
-        member = await db.scalar(
-            select(LeagueMembership).where(
-                LeagueMembership.league_id == league_id,
-                LeagueMembership.player_id == player_id,
+    if lock:
+        await financial_lock(db, league_id)
+        # The advisory may have waited for leave/delete/suspension. Refresh every
+        # access fact after it, not just objects cached before waiting.
+        league = await db.get(League, league_id, populate_existing=True)
+        rollout = await _rollout(db, league_id)
+        member = await _active_membership(db, league_id, player_id)
+        if member is None and own_history:
+            member = await db.scalar(
+                select(LeagueMembership).where(
+                    LeagueMembership.league_id == league_id,
+                    LeagueMembership.player_id == player_id,
+                )
             )
-        )
-    if (
-        league is None
-        or league.deleted_at is not None
-        or rollout is None
-        or week.starts_on < rollout.first_week
-        or member is None
-    ):
-        refuse(404, "NOT_FOUND", "No accessible game target")
+        if (
+            league is None
+            or league.deleted_at is not None
+            or rollout is None
+            or week.starts_on < rollout.first_week
+            or member is None
+        ):
+            refuse(404, "NOT_FOUND", "No accessible game target")
     game: TwoGame | None = await db.scalar(
         select(TwoGame)
         .where(

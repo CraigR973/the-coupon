@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from datetime import datetime
 
 from sqlalchemy import select
@@ -26,6 +26,15 @@ def fixture_state_key(source: str, event_id: str) -> str:
 async def explicitly_void(db: AsyncSession, source: str, event_id: str) -> bool:
     row = await db.get(ProviderSnapshot, fixture_state_key(source, event_id))
     return row is not None and is_void_status(str(row.payload.get("status", "")))
+
+
+async def void_events(db: AsyncSession, source: str, event_ids: Iterable[str]) -> set[str]:
+    """:func:`explicitly_void` for many events in one query (Batch 237)."""
+    keys = {fixture_state_key(source, event_id): event_id for event_id in event_ids}
+    if not keys:
+        return set()
+    rows = await db.scalars(select(ProviderSnapshot).where(ProviderSnapshot.key.in_(keys)))
+    return {keys[row.key] for row in rows if is_void_status(str(row.payload.get("status", "")))}
 
 
 async def record_fixture_observations(

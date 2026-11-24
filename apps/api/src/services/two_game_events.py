@@ -73,6 +73,65 @@ async def claim_recipient(db: AsyncSession, kind: str, subject: str, now: dateti
     ) is not None
 
 
+LIFECYCLE_KINDS = ("game_opened", "game_reminder", "game_locked")
+
+
+def lifecycle_step(game: TwoGame, suspended: bool, now: datetime) -> tuple[str, list[str]]:
+    """The status a game holds at ``now`` and the lifecycle facts it should have recorded."""
+    if now >= game.locks_at:
+        return (game.status if game.status in ("settled", "cancelled") else "locked"), [
+            "game_locked"
+        ]
+    if game.opens_at <= now and not suspended:
+        kinds = ["game_opened"]
+        if (
+            now + timedelta(hours=2, minutes=30)
+            <= game.locks_at
+            <= now + timedelta(hours=3, minutes=30)
+        ):
+            kinds.append("game_reminder")
+        return ("open" if game.status == "scheduled" else game.status), kinds
+    return game.status, []
+
+
+async def lifecycle_due(
+    db: AsyncSession, league_ids: list[uuid.UUID], now: datetime
+) -> set[uuid.UUID]:
+    """Leagues with a status to move or a lifecycle fact to record, read without a lock.
+
+    Batch 237. Most minutes nothing changes, and taking each league's lock to find that
+    out queued this pass behind whatever else held it. A league found here still takes
+    its lock and decides again from what it reads under it.
+    """
+    if not league_ids:
+        return set()
+    rollouts = {
+        row.league_id: row
+        for row in await db.scalars(
+            select(TwoGameRollout).where(TwoGameRollout.league_id.in_(league_ids))
+        )
+    }
+    recorded = {
+        (game_id, kind)
+        for game_id, kind in await db.execute(
+            select(TwoGameEvent.game_id, TwoGameEvent.kind).where(
+                TwoGameEvent.league_id.in_(league_ids),
+                TwoGameEvent.version == 0,
+                TwoGameEvent.kind.in_(LIFECYCLE_KINDS),
+            )
+        )
+    }
+    due: set[uuid.UUID] = set()
+    for game in await db.scalars(select(TwoGame).where(TwoGame.league_id.in_(league_ids))):
+        rollout = rollouts.get(game.league_id)
+        if rollout is None or not rollout.enabled or game.status == "cancelled":
+            continue
+        status, kinds = lifecycle_step(game, rollout.suspended, now)
+        if status != game.status or any((game.id, kind) not in recorded for kind in kinds):
+            due.add(game.league_id)
+    return due
+
+
 async def lifecycle_events(sessions: async_sessionmaker[AsyncSession], now: datetime) -> None:
     async with sessions() as db:
         if not await active(db):
@@ -85,7 +144,10 @@ async def lifecycle_events(sessions: async_sessionmaker[AsyncSession], now: date
                 .order_by(TwoGameRollout.league_id)
             )
         )
+        due = await lifecycle_due(db, league_ids, now)
     for league_id in league_ids:
+        if league_id not in due:
+            continue
         async with sessions() as db, db.begin():
             await financial_locks(db, [league_id])
             rollout = await db.get(TwoGameRollout, league_id, populate_existing=True)
@@ -102,21 +164,7 @@ async def lifecycle_events(sessions: async_sessionmaker[AsyncSession], now: date
             for game in games:
                 if game.status == "cancelled":
                     continue
-                kinds = []
-                if now >= game.locks_at:
-                    if game.status not in ("settled", "cancelled"):
-                        game.status = "locked"
-                    kinds.append("game_locked")
-                elif game.opens_at <= now and not rollout.suspended:
-                    if game.status == "scheduled":
-                        game.status = "open"
-                    kinds.append("game_opened")
-                    if (
-                        now + timedelta(hours=2, minutes=30)
-                        <= game.locks_at
-                        <= now + timedelta(hours=3, minutes=30)
-                    ):
-                        kinds.append("game_reminder")
+                game.status, kinds = lifecycle_step(game, rollout.suspended, now)
                 for kind in kinds:
                     payload: dict[str, Any] = dict(destination=destination(game))
                     if kind == "game_reminder":
@@ -355,6 +403,8 @@ async def deliver_events(
 ) -> int:
     async with sessions() as db, db.begin():
         plans, event_ids, legacy_keys = await prepare_events(db, clock())
+    if not plans and not event_ids and not legacy_keys:
+        return 0
     reports = [await deliver_prepared_notification(plan) for plan in plans]
     async with sessions() as db, db.begin():
         await record_notification_outcomes(db, reports)

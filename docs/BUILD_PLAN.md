@@ -101,11 +101,14 @@ PostgreSQL ← pooled ledger / FIFO credit ────────┘
           independent financial commit → same ledger / pooled FIFO
      member deletion barrier → sorted league locks → exclusive departure
      batched repeatable-read / read-only target cards → no browsing due
+     game reads: one read-only snapshot, no league lock; saves keep the lock
      all actionable children + parent-key archive → exact destinations
      member/week form (aggregate then limit) / shared season totals
      API-only payment receipt context → same FIFO / one receipt per payment
      rolling attempt admission → commit → HTTP (all callers / retries)
      paginated shared census → snapshots / real fixtures
+     discovery setup: short batched transactions, league lock only for a new parent
+     settlement finalise / lifecycle: a league's lock only when it has work due
      short token-fenced leases → refresh-owner-only client / shared quotes
      DB-only quote browse → caller session / no provider acquisition
      distinct picked fixture → leased result chunk → independent commit

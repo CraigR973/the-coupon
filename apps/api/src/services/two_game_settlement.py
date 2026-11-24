@@ -472,9 +472,29 @@ class SettlementWorker:
         async with self.sessions() as db:
             if not await active(db):
                 return
+            now = self.now()
+            # Batch 237: only a league with something to finalise takes its lock — a
+            # settleable legacy round, or a locked game not yet final. A final game changes
+            # only through a result or a correction, and both recompute it themselves.
+            # Taking every league's lock every minute queued this pass, and every save,
+            # behind whatever else held one.
+            due = {week.league_id for week in await settleable_gameweeks(db, now)}
+            due.update(
+                await db.scalars(
+                    select(TwoGame.league_id)
+                    .join(TwoGameRollout, TwoGameRollout.league_id == TwoGame.league_id)
+                    .where(
+                        TwoGame.locks_at <= now,
+                        TwoGame.finalized_at.is_(None),
+                        TwoGameRollout.enabled.is_(True),
+                    )
+                )
+            )
             leagues = list(
                 await db.scalars(
-                    select(League.id).where(League.deleted_at.is_(None)).order_by(League.id)
+                    select(League.id)
+                    .where(League.deleted_at.is_(None), League.id.in_(due))
+                    .order_by(League.id)
                 )
             )
         for league_id in leagues:

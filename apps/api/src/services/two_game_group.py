@@ -36,6 +36,7 @@ from src.services.two_game_entry import (
     lock_and_replay,
     operation_hash,
     operation_revision,
+    read_snapshot,
     refuse,
     replay,
     replay_after_refusal,
@@ -191,8 +192,9 @@ class GroupEntries:
         player_id: uuid.UUID,
     ) -> GroupEntry:
         async with self.sessions() as db, db.begin():
+            await read_snapshot(db)
             target = await resolve_target(
-                db, league_id, week_id, "group", player_id, own_history=True
+                db, league_id, week_id, "group", player_id, own_history=True, lock=False
             )
             return await read_entry(db, target, player_id)
 
@@ -350,7 +352,8 @@ class GroupEntries:
         from src.display_name import public_name
 
         async with self.sessions() as db, db.begin():
-            target = await resolve_target(db, league_id, week_id, "group", player_id)
+            await read_snapshot(db)
+            target = await resolve_target(db, league_id, week_id, "group", player_id, lock=False)
             now = self.now()
             mine = await read_entry(db, target, player_id)
             rows = (

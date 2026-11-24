@@ -89,13 +89,22 @@ async def ensure_two_game_week(
         raise ValueError("football week must have a Saturday label")
     if await rollout_for(db, league_id, week_label, allow_suspended=billing) is None:
         return None
+    existing = select(Gameweek).where(
+        Gameweek.league_id == league_id, Gameweek.starts_on == week_label
+    )
+    # A parent, once created, never changes format or league, so an existing one needs no
+    # lock. Batch 237: taking the league lock here on every call held it across the whole
+    # of discovery's setup, about 80 s a minute, and every game read queued behind it.
+    week = await db.scalar(existing)
+    if week is not None:
+        if not is_two_game(week):
+            raise ValueError("cutover requires an untouched future week; legacy parent exists")
+        return week
     # Serialise new parent/number allocation. No provider I/O occurs in this module.
     await db.execute(
         text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 220))"), {"key": str(league_id)}
     )
-    week = await db.scalar(
-        select(Gameweek).where(Gameweek.league_id == league_id, Gameweek.starts_on == week_label)
-    )
+    week = await db.scalar(existing)
     if week is not None:
         if not is_two_game(week):
             raise ValueError("cutover requires an untouched future week; legacy parent exists")
