@@ -9565,3 +9565,37 @@ https://github.com/CraigR973/the-coupon/actions/runs/45289636952 PASS for `61a97
 
 **Next:** Sat 28 Nov's first two-game round (group opens 03:00, fantasy locks 12:00, group
 14:30); then `/batch-start 234` the following week.
+
+## Evening check — 23–24 Nov, 2-1 Hibs' first evening on two games
+Read-only, from production at 22:14 UTC on 23 Nov and 00:31 on 24 Nov; nothing changed.
+
+- **Round 3 settled under the flag.** Yer Leagues A Joke's round 3 (27 fixtures, no picks)
+  settled at 21:00:35 UTC, when its window closed, not at the 22:05 sweep; its 2 "round
+  settled" notices went out. Round 4 is open and locks Fri 27 Nov 17:30.
+- **Both 5 Dec cards are complete:** group 93 fixtures, fantasy 130 (16 priced at 00:31).
+- **Saturday's prices, 00:31:** 44 of 125 fantasy fixtures — Premier League 7/9, Championship
+  9/11, League One 10/11, League Two 12/12, Scottish Premiership 6/6. None of the Scottish Cup
+  (19), National League tiers (35), Lowland (9), Welsh (10) or Highland (3) fixtures shows a
+  price; of the 81 unpriced, 72 came back unavailable and 9 were still to be asked. Unpriced
+  fixtures stay disabled on the card.
+- **No picks or payments yet** (0 group, 0 fantasy; the ledger holds only the 12 dues).
+  Budget at 22:14: 48 background requests since activation, 9 in the last hour, 494 spacing
+  refusals, no legacy request since 15:45.
+- **Two API stalls**, 21:19:45–21:20:35 and about 23:11:58–23:12:11 UTC. Every database call
+  waited about 50 s: fantasy slot reads returned 200 after 50–51 s, and the dues, settlement
+  and discovery passes, which found no work, took 76–80 s. The 10-connection pool (5 plus 5
+  overflow, 10 s wait) ran out and 17 requests failed with `sqlalchemy.exc.TimeoutError`. That
+  was one group pick read and one `/me/games` at 21:19–21:20, then two members' whole fantasy
+  screens (the week, its six slots and `/me/games`) at 23:12. The 23:12 live-score poll also
+  failed at its first query. Traffic was at most 25 requests a minute, so load did not cause
+  it. At 23:12 the tracebacks hit Railway's 500 logs a second limit and some lines were
+  dropped. Cause not found.
+
+### Follow-ups
+- Before Sat 28 Nov: find the stalls' cause. The candidates are the database or pooler
+  answering slowly, or a lock held across a slow call. A fix that changes the API needs a
+  `/ship-prod` the owner schedules, clear of Fri 17:30 and Saturday's locks.
+- Batch 236 keeps the group screen through a `NetworkError`. The web client turns a 500 into
+  an `ApiError`, so a stall like these still shows "Group game unavailable".
+
+**Next:** the stall investigation, Tuesday's 11:30 job check, Friday's price recheck.

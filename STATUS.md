@@ -24,7 +24,7 @@ Checked 2026-10-10 unless a line says otherwise.
 | Scheduler | on (`SCHEDULER_ENABLED=true`) |
 | Avatars | built and off (`AVATAR_STORAGE=none`) |
 | Backups | weekly off-site `pg_dump` to Backblaze B2 (EU), Mondays 04:00 London (Batch 95, switched on 21 Nov); first weekly run 23 Nov 04:00 UTC, 912,932 bytes; by hand before the flag 23 Nov 13:51 UTC, `production/the-coupon-20261123T135112Z.dump`, 912,317 bytes, 17,964 rows, restore-checked at 17:07 UTC from the owner's download: 42 of 42 tables and every row count identical, the `2115540` API ready on the copy (23 Nov). Runbook: `docs/runbooks/backup-restore.md` |
-| Two-game format | `TWO_GAMES_ENABLED=true` on both services since 14:04 (API) and 14:07 (payments) UTC on 23 Nov. **2-1 Hibs is activated** from Sat 28 Nov (17:08:50 UTC, 23 Nov; rounds 17 and 18 retired untouched): its 28 Nov fantasy card (125 fixtures) is open and locks Sat 12:00, its group card (95 fixtures) opens Sat 03:00 and locks 14:30, and 12 members owe £1 for 28 Nov; prices reach the card at one ten-fixture batch per 6 minutes, none shown at 17:21. Yer Leagues A Joke stays legacy (23 Nov) |
+| Two-game format | `TWO_GAMES_ENABLED=true` on both services since 14:04 (API) and 14:07 (payments) UTC on 23 Nov. **2-1 Hibs is activated** from Sat 28 Nov (17:08:50 UTC, 23 Nov; rounds 17 and 18 retired untouched): its 28 Nov fantasy card (125 fixtures) is open and locks Sat 12:00, its group card (95 fixtures) opens Sat 03:00 and locks 14:30, and 12 members owe £1 for 28 Nov. At 00:31 UTC on 24 Nov the fantasy card showed a price on 44 of 125 fixtures: Premier League 7 of 9, Championship 9 of 11, League One 10 of 11, League Two 12 of 12, Scottish Premiership 6 of 6. None of the Scottish Cup (19), National League tiers (35), Lowland (9), Welsh (10) or Highland (3) fixtures shows one; of the 81 unpriced, Betfair Sportsbook returned 72 as unavailable and 9 were still to be asked. The 5 Dec cards are complete (group 93, fantasy 130, 16 priced). No picks or payments yet. Yer Leagues A Joke stays legacy; its round 3 settled under the flag at 21:00:35 UTC on 23 Nov, with no picks (24 Nov) |
 
 `scripts/check-deploy-drift.sh` is the authority on what the API is running, never
 `git log`: shipments have gone unrecorded before.
@@ -299,9 +299,12 @@ Checked 2026-10-03.
   19 Nov). On GitHub's Ubuntu 26.04 image Playwright 1.60.0 cannot install Chromium, so both
   browser jobs failed at install on every push from about 18 Nov. Batch 230 moves back.
 
-**Next:** `/batch-start 234` the week after Sat 28 Nov, away from lock days; 22:15 tonight, check Yer Leagues A Joke round 3 settled (the first legacy
-settlement on `032`, now under the flag), the 5 Dec cards, how many of the 125 fantasy
-fixtures show a price, and the first real fantasy pick; Tue 24 Nov 11:30, check the morning's
+**Next:** before Sat 28 Nov, find why the API stalled twice on 23 Nov (21:19:45–21:20:35 and
+about 23:12 UTC). Every database call waited about 50 s, even scheduler passes with no work,
+so the 10-connection pool ran out and 17 game-screen requests failed with 500. Traffic was at
+most 25 requests a minute. An API fix needs a `/ship-prod` the owner schedules, clear of Fri
+17:30 and Saturday's locks. `/batch-start 234` the week after Sat 28 Nov, away from lock days;
+watch for the first real fantasy pick; Tue 24 Nov 11:30, check the morning's
 legacy jobs alongside the two-game background work under the shared request budget
 (`provider_attempts`, no refusals); Fri ~12:30, recheck the Saturday card's prices; Sat 28 Nov,
 the first two-game round (group opens 03:00, fantasy locks 12:00, group 14:30). Before
