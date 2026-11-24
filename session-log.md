@@ -9735,3 +9735,29 @@ the approval commits for Batches 175 and 238 did
 
 **Next:** Batch 235 from this attestation state.
 
+## Batch 235 — The coupon screens use Batch 234
+**Commits:** `38d3f7f` · verified: full local gate 12/12 (backend 2,103; frontend 1,569; journey 1;
+zero skips; tree `13f9584`); two-game browser stories PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45488384677 PASS for `38d3f7f`
+
+### Key facts for future sessions
+- Both games' fixture cards show each club's table position and form and the competition's own
+  name, from Batch 234's `context` and `competition`; the group still shows no price and no
+  points, which its journey asserts.
+- A second tap on your own price removes the pick in either game. `GameIntents.remove()` sends a
+  `DELETE` with only `expected_revision` and `operation_id`, reads back first, and settles an
+  unanswered removal by its readback without sending twice. The intent keeps the withdrawn pick
+  so the slot reads as held until the empty readback lands.
+- Fantasy has no slot to aim at: a tap fills the fixture's own slot or the first free one, each
+  slot offers Remove, and a full slip still opens "Swap a pick". The journey's `chooser()` is the
+  one "Fantasy fixtures" list and `select()` empties a filled slot with Remove.
+- The group status card names who is still to pick (`still_to_pick`).
+- Gate: the first run failed typecheck (an unused mock parameter in a new intents test, now
+  `_path`) and the coupon journey (the header was briefly absent while load reached 8.4, the known
+  load flake; it passed on the rerun at load 4.5).
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- None new. Rows 240 and 241 still await the owner.
+
+**Next:** Batch 239.
+

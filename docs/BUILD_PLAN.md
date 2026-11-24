@@ -1980,7 +1980,7 @@ built on Tue 24 Nov with Batches 237–239, below, all that day.
   The deletes add two writes to the API contract: the fantasy one approved in principle by the
   owner on 23 Nov, the group one on 24 Nov. **API-only: `/ship-prod` owed after close-out.**
 
-- [ ] **Batch 235 — The coupon screens use Batch 234**
+- [x] **Batch 235 — The coupon screens use Batch 234** ✅ 2026-11-24
   — prerequisite: 234 shipped. Amended by the owner on 24 Nov.
 
   - Both games' cards show club form, table position and the real competition names, like the
