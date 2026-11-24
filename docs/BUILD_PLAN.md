@@ -72,9 +72,12 @@ source of truth. The React PWA consumes snake_case `/api/v1/` JSON.
 ```text
 React PWA / invite / inbox
   └─ [INACTIVE: exact server-enabled game cards]
+     Home: old hero + one old card per league; a two-game card frames the season table
+       (cross-league summary) around its entries, deadlines and last result (/me/games)
      Home / coupon screen: Group | Fantasy switch over the old fixture cards
-     Group: old status card · others' games greyed · legs, fold, copy text
+     Group: old status card · who's still to pick · others' games greyed · legs, fold, copy text
      Fantasy slip: tapped price → held fixture's slot, else first free slot
+     own price tapped again, or a slot's Remove → replayable DELETE (revision + operation id)
      parent archive / retained results
      authenticated shell → member-bound per-target operation queue
      exact readback → same operation PUT → authoritative refresh → ready
