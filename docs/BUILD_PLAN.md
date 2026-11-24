@@ -1991,10 +1991,21 @@ built on Tue 24 Nov with Batches 237–239, below, all that day.
     slots list offers Remove on each pick. A full slip keeps the "Swap a pick" sheet.
   - The group status card names the members still to pick.
 
-  Tests: new unit tests for each. **Owner approval before the build:** the exact fantasy
-  unit-test and browser-journey lines that must change (Batch 232's approved journey lines
-  find prices while the list is choosing for slot N, which Fill slot N starts), quoted here
-  once approved. The two-game browser stories (`scripts/verify-two-game-web.py`) pass.
+  Tests: new unit tests for each. The two-game browser stories
+  (`scripts/verify-two-game-web.py`) pass.
+
+  **Oracle changes approved (owner, 24 Nov 2026):** this batch may change only the lines in
+  `.local/235-test-line-changes.md` (sent to the owner and approved in chat, "Approve 235's
+  lines"). In `apps/web/src/test/FantasyWeekPage.test.tsx`, six tests stop using "Fill slot N":
+  readiness waits read "Empty slot", the clicks on Fill slot go, and a busy slot is shown by a
+  second price on its fixture staying disabled. In `apps/web/src/test/FantasyPickSlip.test.tsx`,
+  the full-slip test's wait reads "Remove slot 6", and the test "points the fixture list at one
+  slot from Fill slot until Done" is replaced by a test of Remove and the second tap. In
+  `apps/web/src/test/GroupCouponLayout.test.tsx`, the Batch 233 switch test drops its "tapping
+  your own pick again does nothing" step. In `apps/web/e2e/two-game-fantasy.spec.ts`, `chooser()`
+  is the one "Fantasy fixtures" list and `select()` empties a filled slot with Remove; stories
+  1–5 and 7 follow (same-fixture swaps keep stories 2 and 3's revisions and operation counts).
+  No check is removed or loosened without an equal or stronger replacement.
 
   Scope boundary: presentation of Batch 234's fields and the deletes. **Web-only.**
 

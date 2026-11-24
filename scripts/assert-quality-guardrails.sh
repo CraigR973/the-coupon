@@ -187,6 +187,21 @@ EOF
 apps/web/src/test/GroupCouponLayout.test.tsx|it("folds the competitions, the first open, counting the games already picked", async () => {
 EOF
       ;;
+    235) cat <<'EOF'
+apps/web/src/test/FantasyPickSlip.test.tsx|expect(screen.getByRole("button", { name: "Fill slot 3" })).toBeEnabled(),
+apps/web/src/test/FantasyPickSlip.test.tsx|expect(screen.getByRole("button", { name: "Replace slot 6" })).toBeEnabled(),
+apps/web/src/test/FantasyPickSlip.test.tsx|expect(screen.getByRole("region", { name: "Choose fixture for slot 3" })).toBeTruthy();
+apps/web/src/test/FantasyPickSlip.test.tsx|expect(screen.getByRole("region", { name: "Fantasy fixtures" })).toBeTruthy();
+apps/web/src/test/FantasyPickSlip.test.tsx|expect(write.mock.calls[0][0]).toBe(`${gamePath(target)}/slots/3`);
+apps/web/src/test/FantasyPickSlip.test.tsx|expect(write.mock.calls[1][0]).toBe(`${gamePath(target)}/slots/1`);
+apps/web/src/test/FantasyPickSlip.test.tsx|it("points the fixture list at one slot from Fill slot until Done", async () => {
+apps/web/src/test/FantasyWeekPage.test.tsx|expect(
+apps/web/src/test/FantasyWeekPage.test.tsx|expect(screen.getByRole("button", { name: "Fill slot 1" })).toBeDisabled();
+apps/web/src/test/FantasyWeekPage.test.tsx|expect(screen.getByRole("button", { name: "Fill slot 1" })).toBeEnabled(),
+apps/web/src/test/FantasyWeekPage.test.tsx|expect(screen.getByRole("button", { name: "Fill slot 2" })).toBeEnabled();
+apps/web/src/test/GroupCouponLayout.test.tsx|expect(write).toHaveBeenCalledTimes(1);
+EOF
+      ;;
   esac
 }
 
@@ -207,6 +222,7 @@ approved_oracle_paths() {
     208) echo "apps/api/tests/test_payments_service.py" ;;
     209) echo "apps/api/tests/test_pay_to_pick.py apps/web/src/test/PayPanel.test.tsx" ;;
     238) echo "apps/web/src/test/GroupCouponLayout.test.tsx" ;;
+    235) echo "apps/web/src/test/FantasyPickSlip.test.tsx apps/web/src/test/FantasyWeekPage.test.tsx apps/web/src/test/GroupCouponLayout.test.tsx apps/web/e2e/two-game-fantasy.spec.ts" ;;
   esac
 }
 
