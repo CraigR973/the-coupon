@@ -138,6 +138,7 @@ function view(picks: Record<number, GamePick | null>): FantasyGame {
 function harness(
   initial: Record<number, GamePick> = {},
   leagues: LeagueGames[] = [],
+  shape: (fixtures: FantasyGame["fixtures"]) => FantasyGame["fixtures"] = (fixtures) => fixtures,
 ) {
   const picks: Record<number, GamePick | null> = { ...initial };
   const revisions: Record<number, number> = {};
@@ -151,7 +152,9 @@ function harness(
     pick: picks[slot] ?? null,
   });
   api.mockImplementation(async (path: string) =>
-    path === gamePath(target) ? view(picks) : read(slotOf(path)),
+    path === gamePath(target)
+      ? { ...view(picks), fixtures: shape(view(picks).fixtures) }
+      : read(slotOf(path)),
   );
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const write = vi.fn(async (path: string, body: GameIntent["body"]) => {
@@ -166,10 +169,20 @@ function harness(
     });
     return { ...read(slot), operation_id: body.operation_id };
   });
+  // Batch 235: a removal empties its slot at the next revision, as the API's DELETE does.
+  const remove = vi.fn(
+    async (path: string, body: { expected_revision: number; operation_id: string }) => {
+      const slot = slotOf(path);
+      revisions[slot] += 1;
+      picks[slot] = null;
+      return { ...read(slot), operation_id: body.operation_id };
+    },
+  );
   const engine = new GameIntents("alice", {
     member: () => "alice",
     read: async (path) => read(slotOf(path)),
     write,
+    remove,
     changed: () =>
       client.invalidateQueries({ queryKey: ["two-games"] }, { throwOnError: true }),
   });
@@ -188,10 +201,21 @@ function harness(
     client.clear();
     engine.dispose();
   };
-  return { write, engine, done };
+  return { write, remove, engine, done };
 }
 
 const price = (name: string) => screen.getByRole("button", { name });
+// Batch 235: one club's table context, as the API sends it on a fixture.
+const club = (team_id: string, name: string, position: number | null, form: string) => ({
+  team_id,
+  name,
+  position,
+  played: 10,
+  points: 20,
+  goal_difference: 1,
+  form,
+  recent: [],
+});
 const ready = (name: string) =>
   waitFor(() => expect(price(name)).toBeEnabled());
 
@@ -275,7 +299,7 @@ describe("the fantasy pick slip", () => {
     );
     const { write, done } = harness(full);
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Replace slot 6" })).toBeEnabled(),
+      expect(screen.getByRole("button", { name: "Remove slot 6" })).toBeEnabled(),
     );
     fireEvent.click(price("Choose Home 7 to win at 2.1500"));
     const sheet = await screen.findByRole("dialog", { name: "Swap a pick" });
@@ -318,24 +342,62 @@ describe("the fantasy pick slip", () => {
     done();
   });
 
-  it("points the fixture list at one slot from Fill slot until Done", async () => {
-    const { write, engine, done } = harness();
+  it("removes a pick from its slot, or with a second tap on its own price", async () => {
+    const { write, remove, engine, done } = harness({ 1: saved(1, 1), 2: saved(2, 2) });
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Fill slot 3" })).toBeEnabled(),
+      expect(screen.getByRole("button", { name: "Remove slot 2" })).toBeEnabled(),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Fill slot 3" }));
-    const list = screen.getByRole("region", { name: "Choose fixture for slot 3" });
-    fireEvent.click(within(list).getByRole("button", { name: "Choose Home 1 to win at 2.1500" }));
-    await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
-    expect(write.mock.calls[0][0]).toBe(`${gamePath(target)}/slots/3`);
+    expect(screen.queryByRole("button", { name: /^(Fill|Replace) slot/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Remove slot 2" }));
+    await waitFor(() => expect(remove).toHaveBeenCalledTimes(1));
+    expect(remove.mock.calls[0][0]).toBe(`${gamePath(target)}/slots/2`);
+    expect(remove.mock.calls[0][1]).toEqual({
+      expected_revision: 1,
+      operation_id: expect.any(String),
+    });
     await waitFor(() => expect(engine.getSnapshot()[0].phase).toBe("confirmed"));
-    expect(screen.getByRole("region", { name: "Choose fixture for slot 3" })).toBeTruthy();
-    fireEvent.click(screen.getAllByRole("button", { name: "Done" })[0]);
-    expect(screen.getByRole("region", { name: "Fantasy fixtures" })).toBeTruthy();
-    await ready("Choose Home 2 to win at 2.1500");
-    fireEvent.click(price("Choose Home 2 to win at 2.1500"));
-    await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
-    expect(write.mock.calls[1][0]).toBe(`${gamePath(target)}/slots/1`);
+    await waitFor(() =>
+      expect(screen.getByRole("article", { name: "Fantasy slot 2" })).toHaveTextContent(
+        "Empty slot",
+      ),
+    );
+    await waitFor(() =>
+      expect(price("Choose Home 1 to win at 2.1500")).toHaveAttribute(
+        "aria-disabled",
+        "false",
+      ),
+    );
+    fireEvent.click(price("Choose Home 1 to win at 2.1500"));
+    await waitFor(() => expect(remove).toHaveBeenCalledTimes(2));
+    expect(remove.mock.calls[1][0]).toBe(`${gamePath(target)}/slots/1`);
+    expect(write).not.toHaveBeenCalled();
+    done();
+  });
+
+  it("shows each club's position and form and the competition's own name", async () => {
+    competitionOf = () => "scotland-premiership";
+    const { done } = harness({}, [], (fixtures) =>
+      fixtures.map((fixture, index) =>
+        index === 0
+          ? {
+              ...fixture,
+              competition: "Premiership",
+              context: {
+                home: club("home-1", "Home 1", 3, "WWDLW"),
+                away: club("away-1", "Away 1", null, "LL"),
+              },
+            }
+          : { ...fixture, competition: "Premiership" },
+      ),
+    );
+    await ready("Choose Home 1 to win at 2.1500");
+    expect(screen.getByRole("button", { name: /^Premiership/ })).toBeTruthy();
+    const card = screen.getByTestId("fantasy-card-fixture-1");
+    expect(within(card).getByTestId("club-context-home-1")).toHaveTextContent("3rd");
+    expect(within(card).getByTestId("club-context-away-1")).toBeTruthy();
+    expect(
+      within(screen.getByTestId("fantasy-card-fixture-2")).queryByTestId(/^club-context-/),
+    ).toBeNull();
     done();
   });
 

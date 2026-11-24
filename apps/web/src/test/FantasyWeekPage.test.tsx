@@ -96,6 +96,29 @@ function game(): FantasyGame {
     })),
   };
 }
+// Batch 235: "Fill slot n" is gone; a verified empty slot reads "Empty slot" instead.
+const emptySlot = (n: number) =>
+  within(screen.getByRole("article", { name: `Fantasy slot ${n}` })).getByText("Empty slot");
+// A second price on fixture 1 aims a tap at the slot that already holds it.
+function withAway(value: FantasyGame): FantasyGame {
+  return {
+    ...value,
+    fixtures: value.fixtures.map((fixture) =>
+      fixture.fixture_id === "fixture-1"
+        ? {
+            ...fixture,
+            quote: {
+              ...fixture.quote,
+              prices: [
+                ...fixture.quote.prices,
+                { market: "MATCH_ODDS", outcome: "AWAY", odds: "3.0000" },
+              ],
+            },
+          }
+        : fixture,
+    ),
+  };
+}
 function mount(client: QueryClient, engine: GameIntents) {
   return render(
     <QueryClientProvider client={client}>
@@ -122,9 +145,7 @@ describe("Fantasy slot editor", () => {
     );
     const first = mount(client, engine);
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: /^Fill slot 6$/ }),
-      ).toBeEnabled(),
+      expect(emptySlot(6)).toBeTruthy(),
     );
     first.unmount();
     api.mockClear();
@@ -153,9 +174,7 @@ describe("Fantasy slot editor", () => {
       expect(api).not.toHaveBeenCalled();
       const returned = mount(client, engine);
       await waitFor(() =>
-        expect(
-          screen.getByRole("button", { name: /^Fill slot 6$/ }),
-        ).toBeEnabled(),
+        expect(emptySlot(6)).toBeTruthy(),
       );
       expect(api).toHaveBeenCalled();
       returned.unmount();
@@ -169,7 +188,7 @@ describe("Fantasy slot editor", () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    const current = game();
+    const current = withAway(game());
     api.mockImplementation(async (path: string) =>
       path === gamePath(target)
         ? current
@@ -187,26 +206,22 @@ describe("Fantasy slot editor", () => {
       changed: async () => {},
     });
     mount(client, engine);
-    await screen.findByRole("button", { name: "Fill slot 1" });
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Fill slot 1" })).toBeEnabled(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Fill slot 1" }));
+    await waitFor(() => expect(emptySlot(1)).toBeTruthy());
     fireEvent.click(
       screen.getByRole("button", { name: "Choose Home 1 to win at 2.1500" }),
     );
     await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole("button", { name: "Fill slot 1" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Fill slot 2" })).toBeEnabled();
-    fireEvent.click(screen.getByRole("button", { name: "Fill slot 2" }));
-    const chooser = screen.getByRole("region", {
-      name: "Choose fixture for slot 2",
-    });
+    // Slot 1 is busy: another price on its fixture cannot be sent to it yet.
+    expect(
+      screen.getByRole("button", { name: "Choose Away 1 to win at 3.0000" }),
+    ).toBeDisabled();
+    expect(emptySlot(2)).toBeTruthy();
+    const chooser = screen.getByRole("region", { name: "Fantasy fixtures" });
     expect(
       within(chooser).getByRole("button", {
         name: "Choose Home 1 to win at 2.1500",
       }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       within(chooser).getByRole("button", {
         name: "Choose Home 2 to win at 2.1500",
@@ -234,7 +249,7 @@ describe("Fantasy slot editor", () => {
       });
       api.mockImplementation(async (path: string) =>
         path === gamePath(target)
-          ? game()
+          ? withAway(game())
           : path.endsWith("/1") && revision === 1
             ? paused
             : entry(Number(path.split("/").at(-1)), revision),
@@ -254,20 +269,15 @@ describe("Fantasy slot editor", () => {
           ),
       });
       mount(client, engine);
-      await screen.findByRole("button", { name: "Fill slot 1" });
-      await waitFor(() =>
-        expect(
-          screen.getByRole("button", { name: "Fill slot 1" }),
-        ).toBeEnabled(),
-      );
-      fireEvent.click(screen.getByRole("button", { name: "Fill slot 1" }));
+      await waitFor(() => expect(emptySlot(1)).toBeTruthy());
       fireEvent.click(
         screen.getByRole("button", { name: "Choose Home 1 to win at 2.1500" }),
       );
       await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
       await waitFor(() => expect(client.isFetching()).toBeGreaterThan(0));
+      // Another price on fixture 1 aims at slot 1, which stays busy until it refreshes.
       expect(
-        screen.getByRole("button", { name: "Choose Home 2 to win at 2.1500" }),
+        screen.getByRole("button", { name: "Choose Away 1 to win at 3.0000" }),
       ).toBeDisabled();
       if (outcome === "failure") {
         reject(new Error("Read unavailable"));
@@ -276,7 +286,7 @@ describe("Fantasy slot editor", () => {
         );
         expect(
           screen.getByRole("button", {
-            name: "Choose Home 2 to win at 2.1500",
+            name: "Choose Away 1 to win at 3.0000",
           }),
         ).toBeDisabled();
         expect(write).toHaveBeenCalledTimes(1);
@@ -285,7 +295,7 @@ describe("Fantasy slot editor", () => {
         await waitFor(() =>
           expect(
             screen.getByRole("button", {
-              name: "Choose Home 2 to win at 2.1500",
+              name: "Choose Away 1 to win at 3.0000",
             }),
           ).toBeEnabled(),
         );
@@ -321,11 +331,7 @@ describe("Fantasy slot editor", () => {
       changed: async () => {},
     });
     mount(client, engine);
-    await screen.findByRole("button", { name: "Fill slot 1" });
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Fill slot 1" })).toBeEnabled(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Fill slot 1" }));
+    await waitFor(() => expect(emptySlot(1)).toBeTruthy());
     fireEvent.click(
       screen.getByRole("button", { name: "Choose Home 1 to win at 2.1500" }),
     );
@@ -444,9 +450,8 @@ describe("authoritative Fantasy results", () => {
         : entry(Number(path.split("/").at(-1)), 2),
     );
     mount(client, engine);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Fill slot 1" })).toBeEnabled(),
-    );
+    await waitFor(() => expect(emptySlot(1)).toBeTruthy());
+    expect(screen.queryByRole("button", { name: "Remove slot 1" })).toBeNull();
     expect(
       screen.getByRole("article", { name: "Fantasy slot 1" }),
     ).toHaveTextContent("Empty slot");
@@ -477,11 +482,7 @@ describe("known offline Fantasy choices", () => {
     );
     try {
       mount(client, engine);
-      await waitFor(() =>
-        expect(
-          screen.getByRole("button", { name: "Fill slot 1" }),
-        ).toBeEnabled(),
-      );
+      await waitFor(() => expect(emptySlot(1)).toBeTruthy());
       api.mockRejectedValue(new NetworkError("offline", false));
       await act(async () => {
         await client.refetchQueries({ queryKey: ["two-games"] });
@@ -490,7 +491,6 @@ describe("known offline Fantasy choices", () => {
       expect(
         await screen.findByText(/Showing the last received view/),
       ).toBeVisible();
-      fireEvent.click(screen.getByRole("button", { name: "Fill slot 1" }));
       fireEvent.click(
         screen.getByRole("button", { name: "Choose Home 1 to win at 2.1500" }),
       );

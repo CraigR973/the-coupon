@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Check, CloudOff, HelpCircle, Loader2 } from "lucide-react";
 import { Badge } from "./ui/badge";
+import { ClubContext } from "./FormLine";
 import {
   groupResultLabel,
   groupSelection,
@@ -34,6 +35,8 @@ export interface GroupFixtureCardProps {
   /** The game is open and the member's saved contribution is verified. */
   canChoose: boolean;
   onChoose: (market: string, outcome: string) => void;
+  /** Batch 235: withdraw the member's own saved pick — a second tap on it. */
+  onRemove?: () => void;
   /** The save's status, when it is about this fixture. */
   children?: ReactNode;
 }
@@ -54,6 +57,7 @@ export function GroupFixtureCard({
   pending,
   canChoose,
   onChoose,
+  onRemove,
   children,
 }: GroupFixtureCardProps) {
   const claim = fixture.claim;
@@ -101,6 +105,12 @@ export function GroupFixtureCard({
           {fixture.away}
         </p>
       </div>
+      {fixture.context && (
+        <div className="-mt-1 mb-2 grid grid-cols-2 gap-2">
+          <ClubContext team={fixture.context.home} />
+          <ClubContext team={fixture.context.away} align="right" />
+        </div>
+      )}
       {claim && (
         <p
           className={cn(
@@ -150,7 +160,9 @@ export function GroupFixtureCard({
                           : null
                       }
                       actionable={canChoose && !closed && !(mine && held)}
+                      removable={canChoose && mine && held && !settled && !pending}
                       onChoose={onChoose}
+                      onRemove={onRemove}
                     />
                   );
                 })}
@@ -173,7 +185,9 @@ function SelectionButton({
   settled,
   phase,
   actionable,
+  removable,
   onChoose,
+  onRemove,
 }: {
   fixture: GroupFixture;
   market: string;
@@ -186,7 +200,10 @@ function SelectionButton({
   /** The engine's phase while the member's choice of this selection is on its way. */
   phase: string | null;
   actionable: boolean;
+  /** Batch 235: the member's own saved pick, which a second tap withdraws. */
+  removable: boolean;
   onChoose: (market: string, outcome: string) => void;
+  onRemove?: () => void;
 }) {
   const { label, name } = groupSelection(fixture, market, outcome);
   const sending = phase === "sending" || phase === "checking";
@@ -209,15 +226,19 @@ function SelectionButton({
     <button
       type="button"
       disabled={!actionable && !keepsFocus}
-      aria-disabled={!actionable}
+      aria-disabled={!actionable && !removable}
       aria-pressed={pressed}
       aria-label={`Choose ${name}`}
       onClick={() => {
         if (actionable) onChoose(market, outcome);
+        else if (removable) onRemove?.();
       }}
       data-testid={`group-selection-${fixture.fixture_id}-${market}-${outcome}`}
       className={cn(
-        "flex min-h-[56px] flex-col items-start justify-center gap-0.5 rounded-md px-2.5 py-2 text-left transition-colors",
+        "flex min-h-[56px] flex-col items-start justify-center gap-0.5 rounded-md px-2.5 py-2 text-left",
+        // Batch 235: the member's own pick is tappable now (to withdraw it), so the
+        // accessibility scan reads its colours; it must not be caught mid-fade.
+        pressed ? "transition-none" : "transition-colors",
         settled === "won"
           ? "cursor-not-allowed border border-success bg-surface text-text-primary"
           : settled === "lost"

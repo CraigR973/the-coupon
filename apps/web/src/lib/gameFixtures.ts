@@ -49,7 +49,13 @@ export interface FixtureGroup<F> {
  * card kicks off almost entirely at 15:00, so the tiebreak is the order members scan.
  */
 export function groupByCompetition<
-  F extends { competition_id: string; kickoff_at: string; fixture_id: string; home: string },
+  F extends {
+    competition_id: string;
+    competition?: string;
+    kickoff_at: string;
+    fixture_id: string;
+    home: string;
+  },
 >(fixtures: readonly F[]): FixtureGroup<F>[] {
   const groups = new Map<string, F[]>();
   for (const fixture of fixtures) {
@@ -60,7 +66,8 @@ export function groupByCompetition<
   return [...groups.entries()]
     .map(([competition_id, grouped]) => ({
       competition_id,
-      competition: competitionName(competition_id),
+      // Batch 235: the API's own name, as the legacy cards show it; the slug only as a fallback.
+      competition: grouped[0].competition || competitionName(competition_id),
       fixtures: [...grouped].sort(
         (a, b) =>
           Date.parse(a.kickoff_at) - Date.parse(b.kickoff_at) ||

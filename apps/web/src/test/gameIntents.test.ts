@@ -40,6 +40,53 @@ const settled = async (engine: GameIntents, phase: string, count = 1) => {
 };
 
 describe("addressed deferred operations", () => {
+  it("removes a pick with only its revision and operation id, by DELETE, read back first (Batch 235)", async () => {
+    let current = entry(1, "saved");
+    const write = vi.fn();
+    const remove = vi.fn(
+      async (_path: string, body: { expected_revision: number; operation_id: string }) => {
+        current = entry(2, body.operation_id);
+        return current;
+      },
+    );
+    const engine = new GameIntents("alice", {
+      member: () => "alice",
+      read: async () => current,
+      write,
+      remove,
+    });
+    engine.remove(target, 1, choice, 1);
+    await settled(engine, "confirmed");
+    expect(write).not.toHaveBeenCalled();
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(remove.mock.calls[0][0]).toBe("/api/v1/leagues/league-a/weeks/week-a/games/fantasy/slots/1");
+    expect(Object.keys(remove.mock.calls[0][1]).sort()).toEqual([
+      "expected_revision",
+      "operation_id",
+    ]);
+    expect(engine.getSnapshot()[0].message).toBe("Pick removed.");
+  });
+
+  it("confirms an unanswered removal by its readback without sending it twice (Batch 235)", async () => {
+    let current = entry(1, "saved");
+    const remove = vi.fn(
+      async (_path: string, body: { expected_revision: number; operation_id: string }) => {
+        current = entry(2, body.operation_id);
+        throw new NetworkError("lost response", true);
+      },
+    );
+    const engine = new GameIntents("alice", {
+      member: () => "alice",
+      read: async () => current,
+      remove,
+    });
+    engine.remove(target, 1, choice, 1);
+    await settled(engine, "uncertain");
+    engine.reconnect();
+    await settled(engine, "confirmed");
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps two offline slots independent and reconnects each exact operation once", async () => {
     let online = false;
     const write = vi.fn(async (_path: string, body: GameIntent["body"]) =>

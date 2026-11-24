@@ -1,4 +1,4 @@
-import type { FormMatch, FormResult } from '../lib/types';
+import type { FormMatch, FormResult, TeamContext } from '../lib/types';
 import { formatInstant } from '../lib/time';
 import { cn } from '../lib/utils';
 
@@ -192,4 +192,32 @@ export function ordinal(position: number): string {
   if (lastTwo >= 11 && lastTwo <= 13) return `${position}th`;
   const suffix = { 1: 'st', 2: 'nd', 3: 'rd' }[position % 10] ?? 'th';
   return `${position}${suffix}`;
+}
+
+/**
+ * One club's table position and form on a two-game card (Batch 235), as the legacy card
+ * draws them under the club's name. Nothing when the football data cannot place the club.
+ */
+export function ClubContext({
+  team,
+  align = 'left',
+}: {
+  team: TeamContext | null | undefined;
+  align?: 'left' | 'right';
+}) {
+  if (!team || (team.position === null && team.form.length === 0)) return <span aria-hidden />;
+  return (
+    <div
+      className={cn('flex min-w-0 items-center gap-1.5', align === 'right' && 'justify-end')}
+      data-testid={`club-context-${team.team_id}`}
+    >
+      {team.position !== null && (
+        <span className="shrink-0 font-mono text-caption uppercase tracking-[0.15em] text-text-muted">
+          <span className="sr-only">{team.name}, </span>
+          {ordinal(team.position)}
+        </span>
+      )}
+      <FormLine form={team.form} team={team.name} />
+    </div>
+  );
 }

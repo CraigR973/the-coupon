@@ -1,4 +1,10 @@
-import type { PickMarket, PickOutcome, PickStatus, RoundFeeStatus } from "./types";
+import type {
+  FixtureContext,
+  PickMarket,
+  PickOutcome,
+  PickStatus,
+  RoundFeeStatus,
+} from "./types";
 
 export type GameKind = "group" | "fantasy";
 export interface GameTarget {
@@ -139,6 +145,10 @@ export interface GroupFixture {
   home: string;
   away: string;
   competition_id: string;
+  /** Batch 234: the competition's display name, as the legacy slate gives it. */
+  competition?: string;
+  /** Batch 234: both clubs' table position and recent form, or null. */
+  context?: FixtureContext | null;
   kickoff_at: string;
   status: string;
   eligible: boolean;
@@ -164,6 +174,8 @@ export interface GroupGame extends GameTarget {
   fixtures: GroupFixture[];
   my_entries: GamePick[];
   progress: { picked_count: number; member_count: number; all_picked: boolean };
+  /** Batch 234: the members still to pick, named, on the progress count's audience. */
+  still_to_pick?: { player_id: string; display_name: string }[];
   result: { status: string; final: boolean };
   fee: WeekFee;
 }
@@ -182,6 +194,10 @@ export interface FantasyFixture {
   home: string;
   away: string;
   competition_id: string;
+  /** Batch 234: the competition's display name, as the legacy slate gives it. */
+  competition?: string;
+  /** Batch 234: both clubs' table position and recent form, or null. */
+  context?: FixtureContext | null;
   kickoff_at: string;
   status: string;
   eligible: boolean;

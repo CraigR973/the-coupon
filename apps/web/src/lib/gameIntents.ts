@@ -19,7 +19,13 @@ export interface GameChoice {
 export interface GameIntent {
   target: GameTarget;
   slot: number;
+  /**
+   * For a removal (Batch 235) the body still names the pick being withdrawn, so the slip
+   * keeps treating the slot as held until the empty readback arrives; only the expected
+   * revision and the operation id are sent.
+   */
   body: GameChoice & { expected_revision: number; operation_id: string };
+  remove?: boolean;
   phase: IntentPhase;
   message: string;
   refusal?: ApiError;
@@ -36,6 +42,11 @@ interface Ports {
     body: GameIntent["body"],
     member: string,
   ) => Promise<GameEntry>;
+  remove: (
+    path: string,
+    body: { expected_revision: number; operation_id: string },
+    member: string,
+  ) => Promise<GameEntry>;
   member: () => string | null;
   changed: () => void | Promise<void>;
 }
@@ -45,6 +56,13 @@ const defaultPorts: Ports = {
   write: (path, body, member) =>
     apiFetch<GameEntry>(path, {
       method: "PUT",
+      body: JSON.stringify(body),
+      expectedMemberId: member,
+      timeoutMs: 10_000,
+    }),
+  remove: (path, body, member) =>
+    apiFetch<GameEntry>(path, {
+      method: "DELETE",
       body: JSON.stringify(body),
       expectedMemberId: member,
       timeoutMs: 10_000,
@@ -130,6 +148,27 @@ export class GameIntents {
     this.emit();
     void this.run(key);
   }
+  /** Withdraw the pick a slot holds (Batch 235): one replayable DELETE, read back first. */
+  remove(target: GameTarget, slot: number, pick: GameChoice, revision: number) {
+    if (!this.active || this.ports.member() !== this.memberId) return;
+    const key = intentKey(target, slot);
+    this.values.set(key, {
+      target: { ...target },
+      slot,
+      body: {
+        fixture_id: pick.fixture_id,
+        market: pick.market,
+        outcome: pick.outcome,
+        expected_revision: revision,
+        operation_id: crypto.randomUUID(),
+      },
+      remove: true,
+      phase: "queued",
+      message: "Waiting to remove this pick.",
+    });
+    this.emit();
+    void this.run(key);
+  }
   reconnect = () => {
     for (const [key, intent] of this.values) {
       if (["queued", "uncertain"].includes(intent.phase)) void this.run(key);
@@ -195,7 +234,7 @@ export class GameIntents {
           intent,
           generation,
           "confirmed",
-          "Saved choice confirmed.",
+          intent.remove ? "Pick removed." : "Saved choice confirmed.",
         );
         return;
       }
@@ -210,8 +249,18 @@ export class GameIntents {
         await this.refreshRefused(key, intent, generation);
         return;
       }
-      this.update(key, intent, generation, "sending", "Saving this choice…");
-      await this.ports.write(endpoint(intent), intent.body, this.memberId);
+      if (intent.remove) {
+        this.update(key, intent, generation, "sending", "Removing this pick…");
+        const { expected_revision, operation_id } = intent.body;
+        await this.ports.remove(
+          endpoint(intent),
+          { expected_revision, operation_id },
+          this.memberId,
+        );
+      } else {
+        this.update(key, intent, generation, "sending", "Saving this choice…");
+        await this.ports.write(endpoint(intent), intent.body, this.memberId);
+      }
       accepted = true;
       if (!this.current(key, intent, generation)) return;
       // An accepted operation is a historical receipt, not fresh result state.
@@ -230,7 +279,7 @@ export class GameIntents {
         intent,
         generation,
         "confirmed",
-        "Saved choice confirmed.",
+        intent.remove ? "Pick removed." : "Saved choice confirmed.",
       );
     } catch (error) {
       if (!this.current(key, intent, generation)) return;

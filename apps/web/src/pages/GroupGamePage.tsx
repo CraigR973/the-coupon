@@ -254,6 +254,17 @@ export function GroupGamePage() {
       { fixture_id: fixture.fixture_id, market, outcome },
       entry.data!.revision,
     );
+  // Batch 235: a second tap on the member's own saved pick withdraws it.
+  const remove = () => {
+    const pick = entry.data?.pick;
+    if (!pick || !entry.data) return;
+    engine.remove(
+      target,
+      0,
+      { fixture_id: pick.fixture_id, market: pick.market, outcome: pick.outcome },
+      entry.data.revision,
+    );
+  };
   const weekLabel = formatCalendarDate(shown.week_label, "d MMM");
   const noPick =
     phase === "not_open"
@@ -305,6 +316,7 @@ export function GroupGamePage() {
                   }
                   canChoose={editable}
                   onChoose={(market, outcome) => choose(fixture, market, outcome)}
+                  onRemove={remove}
                 >
                   {statusInCard &&
                     intent?.body.fixture_id === fixture.fixture_id && (
@@ -383,6 +395,7 @@ export function GroupGamePage() {
             mine={myPick}
             canSwitch={pickable}
             noPick={noPick}
+            stillToPick={(game?.still_to_pick ?? []).map((member) => member.display_name)}
           />
           {entry.isError && game && (
             <Button variant="outline" onClick={() => void entry.refetch()}>

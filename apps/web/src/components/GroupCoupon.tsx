@@ -51,6 +51,7 @@ export function GroupStatusCard({
   mine,
   canSwitch,
   noPick,
+  stillToPick = [],
 }: {
   phase: GroupPhase;
   clock: ReactNode;
@@ -64,6 +65,8 @@ export function GroupStatusCard({
   canSwitch: boolean;
   /** What to say when the member has no pick. */
   noPick: string;
+  /** Batch 235: the members counted as missing, by name, when the API sends them. */
+  stillToPick?: readonly string[];
 }) {
   const { label, variant } = GROUP_PHASE[phase];
   const tone =
@@ -121,6 +124,11 @@ export function GroupStatusCard({
         {picked} of {members} contributed · {Math.max(0, members - picked)}{" "}
         missing contributors.
       </p>
+      {stillToPick.length > 0 && (
+        <p className="mt-1 break-words font-sans text-sm text-text-secondary" data-testid="group-still-to-pick">
+          Still to pick: {stillToPick.join(", ")}
+        </p>
+      )}
       <div className="mt-3 border-t border-border pt-3" data-testid="group-my-pick">
         {mine ? (
           <>

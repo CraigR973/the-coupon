@@ -14,7 +14,6 @@ import { fantasyResultLabel, movedPrice } from "../lib/fantasy";
 import {
   SLOT_NUMBERS,
   destinationFor,
-  fixturesHeldElsewhere,
   heldSelection,
   slipSummary,
   type SlotView,
@@ -77,7 +76,9 @@ export function FantasyWeekPage() {
  *
  * Saving is exactly the six-slot screen's: one addressed slot write at a time through the
  * shared intent engine, with its revision check, readback and named price confirmation.
- * "Fill slot N" and "Replace slot N" remain, and point the fixture list at that slot.
+ * Batch 235: there is no slot to aim at any more. A tap fills the held fixture's slot or the
+ * first free one, a second tap on the member's own price removes that pick, and each slot
+ * offers Remove; a full slip still asks which pick to swap.
  */
 function FantasyWeek({ target }: { target: GameTarget }) {
   const { player } = useAuth();
@@ -86,7 +87,6 @@ function FantasyWeek({ target }: { target: GameTarget }) {
   const client = useQueryClient();
   const { engine, intents } = useGameIntents();
   const online = useOnlineStatus();
-  const [aimed, setAimed] = useState<number | null>(null);
   const [swap, setSwap] = useState<PendingSwap | null>(null);
   const [slipOpen, setSlipOpen] = useState(false);
   const barRef = useRef<HTMLButtonElement | null>(null);
@@ -184,9 +184,6 @@ function FantasyWeek({ target }: { target: GameTarget }) {
     () => groupByCompetition(game?.fixtures ?? []),
     [game?.fixtures],
   );
-  const aiming = editable ? aimed : null;
-  const elsewhere =
-    aiming !== null ? fixturesHeldElsewhere(aiming, views) : new Set<string>();
   const { upTo } = slipSummary(views);
   const publicCard = retained ?? results.data?.fantasy;
   const league = leagues.find((value) => value.league_id === target.league_id);
@@ -200,10 +197,7 @@ function FantasyWeek({ target }: { target: GameTarget }) {
     heldElsewhere: boolean;
     canChoose: boolean;
   } {
-    const destination =
-      aiming !== null
-        ? { kind: "slot" as const, slot: aiming }
-        : destinationFor(fixture.fixture_id, views);
+    const destination = destinationFor(fixture.fixture_id, views);
     if (destination.kind === "full")
       return { held: null, heldElsewhere: false, canChoose: editable && fixture.eligible };
     const view = views[destination.slot - 1];
@@ -226,11 +220,10 @@ function FantasyWeek({ target }: { target: GameTarget }) {
                 : undefined,
           }
         : null;
-    const heldElsewhere = elsewhere.has(fixture.fixture_id);
     return {
       held,
-      heldElsewhere,
-      canChoose: editable && fixture.eligible && view.ready && !heldElsewhere,
+      heldElsewhere: false,
+      canChoose: editable && fixture.eligible && view.ready,
     };
   }
 
@@ -240,10 +233,7 @@ function FantasyWeek({ target }: { target: GameTarget }) {
     outcome: string,
     odds: string,
   ) {
-    const destination =
-      aiming !== null
-        ? { kind: "slot" as const, slot: aiming }
-        : destinationFor(fixture.fixture_id, views);
+    const destination = destinationFor(fixture.fixture_id, views);
     if (destination.kind === "full") {
       setSwap({ fixture, market, outcome, odds });
       return;
@@ -258,12 +248,21 @@ function FantasyWeek({ target }: { target: GameTarget }) {
     );
   }
 
-  function aim(slot: number) {
-    setSlipOpen(false);
-    setAimed(slot);
-    // Choosing now happens in the fixture list, which on a phone is above the slip.
-    slateRef.current?.scrollIntoView?.({ block: "start" });
-    slateRef.current?.focus({ preventScroll: true });
+  /** Withdraw a slot's own saved pick (Batch 235): its card's Remove, or a second tap. */
+  function removeSlot(slot: number) {
+    const view = views[slot - 1];
+    const revision = slotQueries[slot - 1].revision;
+    if (!editable || !view?.pick || !view.ready || revision === null) return;
+    engine.remove(
+      target,
+      slot,
+      {
+        fixture_id: view.pick.fixture_id,
+        market: view.pick.market,
+        outcome: view.pick.outcome,
+      },
+      revision,
+    );
   }
 
   if (query.isPending) return <p role="status">Loading this Fantasy week…</p>;
@@ -288,7 +287,7 @@ function FantasyWeek({ target }: { target: GameTarget }) {
   const provisional = game?.result.provisional ?? retained?.result.provisional;
   const filledCount =
     game?.progress.filled_count ?? retained?.progress.slots_filled ?? 0;
-  const slots = (inSheet: boolean) =>
+  const slots = () =>
     views.map((view) => (
       <FantasySlotCard
         key={view.slot}
@@ -297,33 +296,20 @@ function FantasyWeek({ target }: { target: GameTarget }) {
         query={slotQueries[view.slot - 1]}
         fixture={view.pick ? fixtures.get(view.pick.fixture_id) : undefined}
         editable={editable}
-        aimed={aiming === view.slot && !inSheet}
-        onAim={() => aim(view.slot)}
+        onRemove={() => removeSlot(view.slot)}
       />
     ));
   const slate = game && (
     <section
       ref={slateRef}
       tabIndex={-1}
-      aria-label={
-        aiming !== null ? `Choose fixture for slot ${aiming}` : "Fantasy fixtures"
-      }
+      aria-label="Fantasy fixtures"
       data-testid="fantasy-slate"
       className="scroll-mt-20 focus-visible:outline-hidden"
     >
       <h2 className="mb-2 font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
         {editable ? "Tap a price to add it" : "Fixtures and prices"}
       </h2>
-      {aiming !== null && (
-        <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-primary bg-surface-elevated px-3 py-2">
-          <p className="font-sans text-sm text-text-primary">
-            Choosing for slot {aiming}. A tapped price goes into this slot.
-          </p>
-          <Button variant="outline" onClick={() => setAimed(null)}>
-            Done
-          </Button>
-        </div>
-      )}
       {game.fixtures.length === 0 ? (
         <p className="font-sans text-sm text-text-secondary">
           Fixtures are pending; an empty response does not confirm a break.
@@ -351,6 +337,7 @@ function FantasyWeek({ target }: { target: GameTarget }) {
                   onChoose={(market, outcome, odds) =>
                     choose(fixture, market, outcome, odds)
                   }
+                  onRemove={(slot) => removeSlot(slot)}
                 />
               ))}
             </CompetitionSection>
@@ -361,9 +348,7 @@ function FantasyWeek({ target }: { target: GameTarget }) {
         <SlipBar
           filled={views.filter((view) => view.pick).length}
           upTo={upTo}
-          aimed={aiming}
           onOpen={() => setSlipOpen(true)}
-          onDone={() => setAimed(null)}
           barRef={barRef}
         />
       )}
@@ -460,7 +445,7 @@ function FantasyWeek({ target }: { target: GameTarget }) {
             </p>
           </section>
           {game
-            ? slots(false)
+            ? slots()
             : retained?.slots?.map((entry) => (
                 <article
                   key={entry.slot}
@@ -525,7 +510,7 @@ function FantasyWeek({ target }: { target: GameTarget }) {
                 Up to {upTo} points if every pending pick wins.
               </p>
             )}
-            {slots(true)}
+            {slots()}
           </div>
         </Sheet>
       )}

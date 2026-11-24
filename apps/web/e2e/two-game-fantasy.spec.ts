@@ -66,14 +66,20 @@ async function warm(request: APIRequestContext, week = 0) {
 }
 const slot = (page: Page, n: number) =>
   page.getByRole("article", { name: `Fantasy slot ${n}`, exact: true });
-// Batch 232 (owner-approved, 23 Nov): prices sit on the fixture cards, and the list names
-// the slot it is choosing for, so a choice for slot n is made in that list.
-const chooser = (page: Page, n: number) =>
-  page.getByRole("region", { name: `Choose fixture for slot ${n}`, exact: true });
+// Batch 235 (owner-approved, 24 Nov): there is no slot to aim at. A tapped price fills the
+// slot already holding its fixture, else the first free one, so choices are made in the one
+// fixture list; a filled slot is emptied with its Remove before a different fixture goes in.
+const chooser = (page: Page, _n: number) =>
+  page.getByRole("region", { name: "Fantasy fixtures", exact: true });
 async function select(page: Page, n: number) {
-  await slot(page, n)
-    .getByRole("button", { name: new RegExp(`^(Fill|Replace) slot ${n}$`) })
-    .click();
+  const remove = slot(page, n).getByRole("button", {
+    name: `Remove slot ${n}`,
+    exact: true,
+  });
+  if (await remove.count()) {
+    await remove.click();
+    await expect(slot(page, n)).toContainText("Empty slot");
+  }
 }
 async function choose(
   page: Page,
@@ -173,8 +179,8 @@ test("six slots, shared Group/member selection, quote provenance and accessible 
   const sharedSave = rawSave(request, s, await bob, 1, 1, "2.15", "HOME");
   await select(page, 2);
   await expect(
-    chooser(page, 2).getByText("Already chosen in another slot.", { exact: true }),
-  ).toBeVisible();
+    chooser(page, 2).getByTestId(`fantasy-card-${s.fixtures[0][0]}`),
+  ).toContainText("Your pick · slot 1");
   await choose(page, 2, 8);
   await saved(page, 2);
   await expect(page.getByLabel("Fantasy weekly result")).toContainText(
@@ -280,12 +286,7 @@ test("two offline fills survive SPA navigation independently and an uncertain re
     .click();
   await expect(page.getByTestId("fantasy-game")).toBeVisible();
   for (let n = 1; n <= 6; n++)
-    await expect(
-      slot(page, n).getByRole("button", {
-        name: `Fill slot ${n}`,
-        exact: true,
-      }),
-    ).toBeEnabled();
+    await expect(slot(page, n)).toContainText("Empty slot");
   await context.setOffline(true);
   await select(page, 1);
   await choose(page, 1, 1);
@@ -327,19 +328,19 @@ test("two offline fills survive SPA navigation independently and an uncertain re
       await route.abort("failed");
     } else await route.continue();
   });
-  await select(page, 1);
-  await choose(page, 1, 3);
+  await choose(page, 1, 1, "2.1500", true);
   await expect(slot(page, 1)).toContainText("No answer yet");
   await slot(page, 1)
     .getByRole("button", { name: "Check and retry this choice", exact: true })
     .click();
   await saved(page, 1);
+  await expect(slot(page, 1)).toContainText("Away 1");
   expect(attempts).toBe(1);
   const state = await current(request);
   expect(state.fantasy).toHaveLength(2);
   expect(
     state.fantasy.find((p: { slot: number }) => p.slot === 1),
-  ).toMatchObject({ fixture_id: s.fixtures[0][2], revision: 2 });
+  ).toMatchObject({ fixture_id: s.fixtures[0][0], revision: 2 });
   expect(
     state.fantasy.find((p: { slot: number }) => p.slot === 2),
   ).toMatchObject({ fixture_id: s.fixtures[0][1], revision: 1 });
@@ -355,7 +356,7 @@ test("two price movements each require fresh consent and unavailable prices pres
   await warm(request);
   await login(page, s);
   await select(page, 1);
-  await choose(page, 1, 1);
+  await choose(page, 1, 1, "2.1500", true);
   await saved(page, 1);
   const operations: string[] = [];
   page.on("request", (r) => {
@@ -364,7 +365,7 @@ test("two price movements each require fresh consent and unavailable prices pres
   });
   await post(request, "quotes", { price: "3.25" });
   await at(request, page, "2026-11-21T11:51:05Z");
-  await choose(page, 1, 2);
+  await choose(page, 1, 1);
   await expect(slot(page, 1)).toContainText("The price changed to 3.2500");
   expect((await current(request)).fantasy[0].fixture_id).toBe(s.fixtures[0][0]);
   await post(request, "quotes", { price: "4.25" });
@@ -385,16 +386,17 @@ test("two price movements each require fresh consent and unavailable prices pres
   await saved(page, 1);
   expect(new Set(operations).size).toBe(3);
   expect((await current(request)).fantasy[0]).toMatchObject({
-    fixture_id: s.fixtures[0][1],
+    fixture_id: s.fixtures[0][0],
     revision: 2,
   });
+  await expect(slot(page, 1)).toContainText("Home 1 · Frozen odds 4.2500");
   await post(request, "quotes", { priced: false });
   await at(request, page, "2026-11-21T11:53:15Z");
-  await choose(page, 1, 3);
+  await choose(page, 1, 1, "2.1500", true);
   await expect(slot(page, 1)).toContainText(/unavailable/i);
   const state = await current(request);
   expect(state.fantasy[0]).toMatchObject({
-    fixture_id: s.fixtures[0][1],
+    fixture_id: s.fixtures[0][0],
     revision: 2,
   });
   expect(state.counts.two_game_operations).toBe(2);
@@ -417,8 +419,11 @@ test("noon opens the next Fantasy, payment is target-specific and early dues are
   await at(request, page, "2026-11-21T12:00:00Z");
   await expect(page.getByText("Fantasy locked", { exact: true })).toBeVisible();
   await expect(
-    slot(page, 1).getByRole("button", { name: "Fill slot 1", exact: true }),
-  ).toHaveCount(0);
+    chooser(page, 1).getByRole("button", {
+      name: "Choose Home 1 to win at 2.1500",
+      exact: true,
+    }),
+  ).toBeDisabled();
   await warm(request, 1);
   await home(page);
   await expect(
@@ -514,6 +519,7 @@ test("a late save receipt cannot overwrite Sunday results, corrections or contin
       await route.fulfill({ response });
     } else await route.continue();
   });
+  await select(page, 1);
   await choose(page, 1, 8);
   await landed;
   await post(request, "clock", { at: "2026-11-22T23:59:00Z" });
@@ -656,9 +662,8 @@ test("first mixed Saturday preserves the legacy game and exact next-week Fantasy
   ).toBeVisible();
   await at(request, page, "2026-11-14T12:00:00Z");
   await refresh(page);
-  await expect(
-    slot(page, 1).getByRole("button", { name: "Fill slot 1", exact: true }),
-  ).toBeEnabled();
+  await expect(slot(page, 1)).toContainText("Empty slot");
+  await expect(chooser(page, 1)).toContainText("Tap a price to add it");
   await home(page);
   const cards = page.getByTestId("two-game-home");
   const legacyCard = cards.getByRole("link", { name: "Legacy round · 14 Nov", exact: true }).locator("..");

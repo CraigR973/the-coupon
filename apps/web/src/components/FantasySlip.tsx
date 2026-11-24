@@ -24,7 +24,8 @@ export interface SlotQueryState {
  * What the six-slot screen put in each slot's card stays here, word for word: the pick
  * and its frozen price, its result and points, the save's progress, the moved-price
  * confirmation and the check when a slot cannot be verified. Choosing moved out to the
- * fixture list; "Fill slot N" and "Replace slot N" now point that list at this slot.
+ * fixture list. Batch 235: a held slot offers Remove, which withdraws its pick through the
+ * same intent engine; there is no slot to aim at.
  */
 export function FantasySlotCard({
   target,
@@ -32,16 +33,14 @@ export function FantasySlotCard({
   query,
   fixture,
   editable,
-  aimed,
-  onAim,
+  onRemove,
 }: {
   target: GameTarget;
   view: SlotView;
   query: SlotQueryState;
   fixture: FantasyFixture | undefined;
   editable: boolean;
-  aimed: boolean;
-  onAim: () => void;
+  onRemove: () => void;
 }) {
   const { engine } = useGameIntents();
   const { slot, pick, intent, movedPrice, ready } = view;
@@ -56,7 +55,7 @@ export function FantasySlotCard({
       aria-label={`Fantasy slot ${slot}`}
       className={cn(
         "space-y-2 rounded-lg border bg-surface px-3 py-2.5",
-        aimed ? "border-primary" : pick ? "border-success/40" : "border-border",
+        pick ? "border-success/40" : "border-border",
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -80,18 +79,21 @@ export function FantasySlotCard({
               </p>
             </>
           ) : (
-            <p className="font-sans text-sm text-text-muted">Empty slot</p>
+            <p className="font-sans text-sm text-text-muted">
+              {/* Batch 235: with no Fill button, an unverified slot says so instead. */}
+              {ready || !editable ? "Empty slot" : `Checking slot ${slot}…`}
+            </p>
           )}
         </div>
-        {editable && (
+        {editable && pick && (
           <Button
             variant="outline"
-            className={cn("shrink-0", aimed && "bg-surface-elevated")}
-            disabled={!ready}
-            onClick={onAim}
-            aria-pressed={aimed}
+            className="shrink-0"
+            disabled={!ready || query.revision === null}
+            onClick={onRemove}
+            aria-label={`Remove slot ${slot}`}
           >
-            {pick ? "Replace" : "Fill"} slot {slot}
+            Remove
           </Button>
         )}
       </div>
@@ -152,30 +154,16 @@ export function FantasySlotCard({
 export function SlipBar({
   filled,
   upTo,
-  aimed,
   onOpen,
-  onDone,
   barRef,
 }: {
   filled: number;
   upTo: number;
-  aimed: number | null;
   onOpen: () => void;
-  onDone: () => void;
   barRef: RefObject<HTMLButtonElement>;
 }) {
   return (
     <div className="sticky bottom-[calc(var(--tabbar-height)+var(--safe-bottom)+0.5rem)] z-banner mt-4 sm:bottom-4 lg:hidden">
-      {aimed !== null ? (
-        <div className="flex min-h-12 items-center justify-between gap-2 rounded-lg border border-primary bg-surface-elevated px-4 py-2 shadow-sheet">
-          <span className="font-sans text-sm font-semibold text-text-primary">
-            Choosing for slot {aimed}
-          </span>
-          <Button variant="outline" onClick={onDone}>
-            Done
-          </Button>
-        </div>
-      ) : (
         <button
           ref={barRef}
           type="button"
@@ -192,7 +180,6 @@ export function SlipBar({
             <ChevronUp className="h-4 w-4" aria-hidden />
           </span>
         </button>
-      )}
     </div>
   );
 }

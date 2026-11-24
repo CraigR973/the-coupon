@@ -61,7 +61,10 @@ const claimOf = (player: string, fixture: number, outcome = "HOME"): Claim => ({
   result: "pending",
 });
 
-function harness(initial: Record<number, Claim>, { single = false } = {}) {
+function harness(
+  initial: Record<number, Claim>,
+  { single = false, shape = (value: GroupGame) => value } = {},
+) {
   const claims: Record<number, Claim | null> = { ...initial };
   let revision = Object.values(initial).some((value) => value.player_id === "alice") ? 1 : 0;
   const myPick = (): GamePick | null => {
@@ -131,7 +134,7 @@ function harness(initial: Record<number, Claim>, { single = false } = {}) {
     };
   };
   api.mockImplementation(async (path: string) =>
-    path === gamePath(target) ? game() : entry(),
+    path === gamePath(target) ? shape(game()) : entry(),
   );
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const write = vi.fn(async (_path: string, body: GameIntent["body"]) => {
@@ -142,7 +145,18 @@ function harness(initial: Record<number, Claim>, { single = false } = {}) {
     revision += 1;
     return { ...entry(), operation_id: body.operation_id };
   });
+  // Batch 235: a withdrawal frees the member's fixture at the next revision, as the API's
+  // DELETE does.
+  const remove = vi.fn(
+    async (_path: string, body: { expected_revision: number; operation_id: string }) => {
+      for (const [number, value] of Object.entries(claims))
+        if (value?.player_id === "alice") claims[Number(number)] = null;
+      revision += 1;
+      return { ...entry(), operation_id: body.operation_id };
+    },
+  );
   const engine = new GameIntents("alice", {
+    remove,
     member: () => "alice",
     read: async () => entry(),
     write,
@@ -162,7 +176,7 @@ function harness(initial: Record<number, Claim>, { single = false } = {}) {
     client.clear();
     engine.dispose();
   };
-  return { write, engine, done };
+  return { write, remove, engine, done };
 }
 
 const card = (number: number) => screen.getByTestId(`group-card-fixture-${number}`);
@@ -218,9 +232,6 @@ describe("the Saturday group on the old coupon layout", () => {
     expect(within(card(2)).queryByTestId("group-claim-fixture-2")).toBeNull();
     expect(status()).toHaveTextContent("Your saved contribution: Home 3");
 
-    fireEvent.click(choice("Choose Home 3 to win"));
-    await ready("Choose Away 3 to win");
-    expect(write).toHaveBeenCalledTimes(1);
     fireEvent.click(within(card(3)).getByRole("button", { name: "Choose Draw" }));
     await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
     expect(write.mock.calls[1][1]).toMatchObject({
@@ -261,6 +272,67 @@ describe("the Saturday group on the old coupon layout", () => {
     expect(screen.queryByRole("button", { name: "Choose Home 4 to win" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Scottish Championship/ }));
     expect(choice("Choose Home 4 to win")).toBeEnabled();
+    done();
+  });
+
+  it("withdraws the member's own pick when it is tapped again", async () => {
+    const { write, remove, engine, done } = harness({ 2: claimOf("alice", 2) });
+    await ready("Choose Home 2 to win");
+    fireEvent.click(choice("Choose Home 2 to win"));
+    await waitFor(() => expect(remove).toHaveBeenCalledTimes(1));
+    expect(remove.mock.calls[0][0]).toBe(`${gamePath(target)}/pick`);
+    expect(remove.mock.calls[0][1]).toEqual({
+      expected_revision: 1,
+      operation_id: expect.any(String),
+    });
+    await waitFor(() => expect(engine.getSnapshot()[0].phase).toBe("confirmed"));
+    await waitFor(() => expect(within(card(2)).queryByText("Your game")).toBeNull());
+    expect(status()).toHaveTextContent("Pick required");
+    expect(write).not.toHaveBeenCalled();
+    done();
+  });
+
+  it("names who is still to pick and shows each club's position and form", async () => {
+    const { done } = harness(
+      { 1: claimOf("bob", 1) },
+      {
+        shape: (value) => ({
+          ...value,
+          still_to_pick: [
+            { player_id: "alice", display_name: "Alice" },
+            { player_id: "carol", display_name: "Carol" },
+          ],
+          fixtures: value.fixtures.map((fixture) =>
+            fixture.fixture_id === "fixture-3"
+              ? {
+                  ...fixture,
+                  competition: "Premiership",
+                  context: {
+                    home: {
+                      team_id: "home-3",
+                      name: "Home 3",
+                      position: 2,
+                      played: 10,
+                      points: null,
+                      goal_difference: 4,
+                      form: "WWW",
+                      recent: [],
+                    },
+                    away: null,
+                  },
+                }
+              : fixture,
+          ),
+        }),
+      },
+    );
+    await ready("Choose Home 3 to win");
+    expect(screen.getByTestId("group-still-to-pick")).toHaveTextContent(
+      "Still to pick: Alice, Carol",
+    );
+    expect(status()).toHaveTextContent("1 of 4 contributed · 3 missing contributors.");
+    expect(within(card(3)).getByTestId("club-context-home-3")).toHaveTextContent("2nd");
+    expect(screen.getByTestId("group-game")).not.toHaveTextContent(/odds|points/i);
     done();
   });
 

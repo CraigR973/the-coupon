@@ -1,5 +1,6 @@
 import { Check, CloudOff, HelpCircle, Loader2 } from "lucide-react";
 import { Badge } from "./ui/badge";
+import { ClubContext } from "./FormLine";
 import { fantasyRunner, fantasyResultLabel } from "../lib/fantasy";
 import { fantasyPoints, type Selection } from "../lib/fantasySlip";
 import { formatOdds, marketLabel, outcomeLabel } from "../lib/coupon";
@@ -33,6 +34,8 @@ export interface FantasyFixtureCardProps {
   /** Whether a tap here may save now — the game is open and the destination slot is free to write. */
   canChoose: boolean;
   onChoose: (market: string, outcome: string, odds: string) => void;
+  /** Batch 235: withdraw the member's own pick from its slot — a second tap on it. */
+  onRemove?: (slot: number) => void;
 }
 
 /**
@@ -52,6 +55,7 @@ export function FantasyFixtureCard({
   heldElsewhere,
   canChoose,
   onChoose,
+  onRemove,
 }: FantasyFixtureCardProps) {
   const prices = [...fixture.quote.prices].sort(
     (a, b) =>
@@ -89,6 +93,12 @@ export function FantasyFixtureCard({
           {fixture.away}
         </p>
       </div>
+      {fixture.context && (
+        <div className="-mt-1 mb-2 grid grid-cols-2 gap-2">
+          <ClubContext team={fixture.context.home} />
+          <ClubContext team={fixture.context.away} align="right" />
+        </div>
+      )}
       {held && (
         <p className="mb-3 font-mono text-caption uppercase tracking-[0.2em] text-success-ink">
           Your pick · slot {held.slot}
@@ -135,6 +145,7 @@ export function FantasyFixtureCard({
                       }
                       canChoose={canChoose && priced && !heldElsewhere}
                       onChoose={onChoose}
+                      onRemove={held && onRemove ? () => onRemove(held.slot) : undefined}
                     />
                   ))}
               </div>
@@ -160,6 +171,7 @@ function PriceButton({
   held,
   canChoose,
   onChoose,
+  onRemove,
 }: {
   fixture: FantasyFixture;
   market: string;
@@ -169,6 +181,7 @@ function PriceButton({
   held: HeldOnCard | null;
   canChoose: boolean;
   onChoose: (market: string, outcome: string, odds: string) => void;
+  onRemove?: () => void;
 }) {
   const label = outcomeLabel(
     market as PickMarket,
@@ -184,21 +197,28 @@ function PriceButton({
   const frozen = held?.pick?.frozen_odds;
   const points = fantasyPoints(frozen ?? odds);
   // A member's own selection stays focusable while it saves, so the keyboard is not
-  // thrown to the top of the page by the very tap it made; a second tap on it does nothing.
+  // thrown to the top of the page by the very tap it made. Batch 235: once it is saved, a
+  // second tap removes it, as a pressed toggle releases; while it saves, a tap does nothing.
   const actionable = canChoose && !mine;
+  const removable =
+    mine && canChoose && !!onRemove && !!held?.pick && !sending && !waiting && !settled;
   return (
     <button
       type="button"
       disabled={!canChoose && !mine}
-      aria-disabled={!actionable}
+      aria-disabled={!actionable && !removable}
       aria-pressed={mine}
       aria-label={`Choose ${fantasyRunner(fixture, outcome)} at ${odds}`}
       onClick={() => {
         if (actionable) onChoose(market, outcome, odds);
+        else if (removable) onRemove?.();
       }}
       data-testid={`fantasy-price-${fixture.fixture_id}-${market}-${outcome}`}
       className={cn(
-        "flex min-h-[56px] flex-col items-start justify-center gap-0.5 rounded-md px-2.5 py-2 text-left transition-colors",
+        "flex min-h-[56px] flex-col items-start justify-center gap-0.5 rounded-md px-2.5 py-2 text-left",
+        // Batch 235: a member's own price is tappable now (to remove it), so the accessibility
+        // scan reads its colours; it must not be caught mid-fade by a theme flip.
+        mine ? "transition-none" : "transition-colors",
         settled === "won"
           ? "border border-success bg-surface text-text-primary"
           : settled === "lost"
