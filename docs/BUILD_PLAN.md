@@ -2121,6 +2121,20 @@ needs the owner's approval of the exact lines.
   Tests: new unit tests for the restored page with legacy-only, two-game and mixed leagues;
   the two-game browser stories pass.
 
+  Checked first (24 Nov): the summary returns the season table's points, picks won, win rate,
+  position and form, fantasy weeks included, but reads legacy rounds only for the current
+  round, the last result and the next opening. The card takes those three from `/me/games`,
+  which already carries each week's results. No API addition.
+
+  **Journey-line changes approved (owner, 24 Nov 2026, "Approve all four"):** the restored hero
+  greets "Hi {name}" and a two-game card's footer is the old Standings line, so exactly four
+  journey lines change (`.local/239-journey-line-changes.md`). In
+  `apps/web/e2e/two-game-group.spec.ts`, `open()` waits for the heading `Hi ${name}` (was
+  `Hello, ${name}`). In `apps/web/e2e/two-game-fantasy.spec.ts`, the two season-total checks on
+  the card read "52 pts" and "30 pts" (were "Season total: 52 points" and "Season total: 30
+  points"), and the settled-week story opens the table by the Standings link (`/^Standings/`,
+  was "Season table"). No unit-test line changes; none of the four trips the quality guard.
+
   Scope boundary: the home page. **Web-only**, unless the owner approves an API addition,
   which then gets its own row and `/ship-prod` first.
 
