@@ -655,9 +655,68 @@ async def bill_all(sessions: async_sessionmaker[AsyncSession], now: datetime | N
     return count
 
 
+async def _billing_needed(db: AsyncSession, league_id: uuid.UUID, moment: datetime) -> bool:
+    """Whether the locked pass below would write anything for this league now.
+
+    Batch 240. The pass runs every minute and almost always finds nothing to do, yet it
+    held the league's financial lock (advisory key 220) for its whole walk of every member,
+    150-200 statements, so a save that coincided waited for it. This answers the same
+    question in five reads, without the lock: an active member with no open interval is
+    one `track_join` would record, and a planned due with no obligation is one
+    `materialize_dues` would write. Only a league that needs either takes the lock, and the
+    locked pass decides again under it, so a stale read can delay work by one pass but
+    never create or skip money. The money rules themselves are untouched.
+    """
+    rollout = await _rollout(db, league_id)
+    if rollout is None:
+        return False
+    active = set(
+        await db.scalars(
+            select(LeagueMembership.player_id)
+            .join(Profile, Profile.id == LeagueMembership.player_id)
+            .where(
+                LeagueMembership.league_id == league_id,
+                LeagueMembership.deleted_at.is_(None),
+                Profile.deleted_at.is_(None),
+                Profile.is_active.is_(True),
+            )
+        )
+    )
+    intervals: dict[uuid.UUID, list[Interval]] = {}
+    for row in await db.scalars(
+        select(MembershipInterval).where(MembershipInterval.league_id == league_id)
+    ):
+        intervals.setdefault(row.player_id, []).append(Interval(row.id, row.joined_at, row.left_at))
+    recorded = {
+        player_id
+        for player_id, rows in intervals.items()
+        if any(row.left_at is None for row in rows)
+    }
+    if active - recorded:
+        return True
+    owed: dict[uuid.UUID, set[date]] = {}
+    for player_id, label in await db.execute(
+        select(WeeklyFeeObligation.player_id, WeeklyFeeObligation.week_label).where(
+            WeeklyFeeObligation.league_id == league_id
+        )
+    ):
+        owed.setdefault(player_id, set()).add(label)
+    target = billing_label(moment)
+    return any(
+        due.label not in owed.get(player_id, set())
+        for player_id, rows in intervals.items()
+        for due in plan_dues(rows, rollout.first_week, target, moment, early=False)
+    )
+
+
 async def _bill_league(
     sessions: async_sessionmaker[AsyncSession], league_id: uuid.UUID, moment: datetime
 ) -> int:
+    # Batch 240: decide on a read-only snapshot first, with no lock; an empty pass ends here.
+    async with sessions() as db, db.begin():
+        await db.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+        if not await _billing_needed(db, league_id, moment):
+            return 0
     count = 0
     async with sessions() as db, db.begin():
         if not await financial_lock(db, league_id) or await _rollout(db, league_id) is None:
