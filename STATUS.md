@@ -31,6 +31,12 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Batch 237 is closed and not shipped** (24 Nov, `3b11d7f`, API-only, no migration;
+  `/ship-prod` owed). Game reads take no league lock and read one snapshot; discovery's setup
+  takes the lock only to create a parent and runs in short batched transactions (68–72
+  statements, was 3,268); settlement and lifecycle passes skip leagues with nothing due. Until it
+  ships, production's game reads still queue behind discovery (p95 50–61 s since 23 Nov 17:00,
+  19 requests 5xx, no PUT).
 - **Batch 236 is live on the web** (23 Nov, `61a9700`, web-only, pushed 23:32 UTC): a group refresh
   that fails on the connection keeps the last view with a notice instead of "Group game
   unavailable"; a failed first load or a server refusal still shows that screen. No API change;
@@ -192,12 +198,17 @@ These are not batches; nothing here will happen unless the owner does it or auth
 
 ## Open batches
 
+Batches **237–241** are the first two-game week's fixes (owner, 24 Nov: all of 237, 238, 234,
+235 and 239 today, in that order, with a `/ship-prod` after 237 and after 234). 237 is closed
+and owes `/ship-prod`; 240 (the dues pass's lock) and 241 (two order-dependent tests) were found
+in 237 and wait for the owner.
+
 Batches **232–235** put both two-game games on one coupon screen (owner, 23 Nov). 232 (fantasy
 with a pick slip, `05cf820`) and 233 (the Saturday group, `5198ab5`) are closed and live on the
 web (23 Nov), as is 236 (the group screen keeping its last view through a dropped connection,
 found in 233, `61a9700`). 234 (API:
-competition names, club form, removing a fantasy pick, who is still to pick; `/ship-prod` owed)
-and 235 (the screens using it) follow the next week, away from lock days.
+competition names, club form, removing a pick in either game, who is still to pick;
+`/ship-prod` owed) and 235 (the screens using it) were amended and moved to 24 Nov by the owner.
 
 Batches **219–228** are closed (22 Nov) and live with the two-game format off. Batch
 **231** — activation, suspension and resume for one league, audited, from a site-admin
@@ -299,17 +310,15 @@ Checked 2026-10-03.
   19 Nov). On GitHub's Ubuntu 26.04 image Playwright 1.60.0 cannot install Chromium, so both
   browser jobs failed at install on every push from about 18 Nov. Batch 230 moves back.
 
-**Next:** before Sat 28 Nov, find why the API stalled twice on 23 Nov (21:19:45–21:20:35 and
-about 23:12 UTC). Every database call waited about 50 s, even scheduler passes with no work,
-so the 10-connection pool ran out and 17 game-screen requests failed with 500. Traffic was at
-most 25 requests a minute. An API fix needs a `/ship-prod` the owner schedules, clear of Fri
-17:30 and Saturday's locks. `/batch-start 234` the week after Sat 28 Nov, away from lock days;
-watch for the first real fantasy pick; Tue 24 Nov 11:30, check the morning's
-legacy jobs alongside the two-game background work under the shared request budget
-(`provider_attempts`, no refusals); Fri ~12:30, recheck the Saturday card's prices; Sat 28 Nov,
-the first two-game round (group opens 03:00, fantasy locks 12:00, group 14:30). Before
-activating Yer Leagues A Joke, stop the silence alarm firing between activation and the first
-complete card. Next week, on its own fix branch: the test-data leak that turns `main` red from 24 Dec to 6 Jan
-(`.local/date-sweep/README.md`). Confirm a natural payment on the
-organiser's Payments screen. Batch 211 stays deferred; the season-calendar backfill remains
+**Next:** `/ship-prod` for Batch 237 on the owner's go, then confirm from production logs that
+game reads take about 1 s, both jobs' passes stay inside their minute, no QueuePool error
+recurs and a real fantasy PUT saves. Then Batches 238, 234 (`/ship-prod`), 235 and 239 today.
+The 24 Nov morning check found no legacy request or refusal; discovery's background allowance
+(120 a day) ran out at 06:57 UTC and parks background price refreshes until 17:09 UTC, about
+12 h of each day, while saves still price fresh. Fri ~12:30, recheck the Saturday card's
+prices; Sat 28 Nov, the first two-game round (group opens 03:00, fantasy locks 12:00, group
+14:30). Before activating Yer Leagues A Joke, stop the silence alarm firing between activation
+and the first complete card. Next week, on its own fix branch: the test-data leak that turns
+`main` red from 24 Dec to 6 Jan (`.local/date-sweep/README.md`). Confirm a natural payment on
+the organiser's Payments screen. Batch 211 stays deferred; the season-calendar backfill remains
 owner-gated, unblocked since 4 Oct.

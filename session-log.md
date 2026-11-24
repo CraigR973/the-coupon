@@ -9599,3 +9599,40 @@ Read-only, from production at 22:14 UTC on 23 Nov and 00:31 on 24 Nov; nothing c
   an `ApiError`, so a stall like these still shows "Group game unavailable".
 
 **Next:** the stall investigation, Tuesday's 11:30 job check, Friday's price recheck.
+
+## Batch 237 — The two-game jobs stop holding up the server
+**Commits:** `0700f1e` (plan rows 237–239, 234–235 amended), `3b11d7f` · verified: full local gate
+12/12 (backend 2,091; frontend 1,554; journey 1; zero skips; tree `613ace8`), before/after
+reproduction on production-sized data · CI: https://github.com/CraigR973/the-coupon/actions/runs/45391816841 PASS for `3b11d7f`
+
+### Key facts for future sessions
+- Cause: discovery's `prepare()` was one transaction. Its calendar step's `ensure_two_game_week`
+  took the league's advisory lock (key 220) on every call, even for an existing parent, and the
+  transaction then ran 3,268 queries, several per fixture. Every game read takes 220 through
+  `resolve_target`, so reads queued for the whole 80 s pass; settlement's `finalise()` and the
+  lifecycle events queued too, and the 5+5 pool ran out.
+- Now: game reads call `read_snapshot()` (REPEATABLE READ, READ ONLY) and
+  `resolve_target(lock=False)`; saves keep the lock. Setup is five short transactions with
+  batched reads and writes (68–72 statements at production size, independent of the card), and
+  takes 220 only to create a parent. `finalise()` and `lifecycle_events()` read, unlocked,
+  whether a league has work due; `lifecycle_step()` is the one rule for both paths. Picks keep
+  their composite foreign key to `two_game_fixtures`, which makes unlocked linking safe.
+- Reproduction (pgserver behind a 10 ms asyncio proxy, two leagues, four games, 443 links, 258
+  work rows): setup 127 s / 3,268 statements → 3.6 s / 72; a game read during setup 128–130 s →
+  0.7–1.3 s; a lock probe 127 s → 0.01 s. Settlement + lifecycle + delivery 0.9–2.1 s, no lock.
+- Discovery's zero units from 06:57:48 UTC on 24 Nov: the background allowance (120 per rolling
+  24 h, 10 an hour) was spent; 247 price and 6 census rows waited for 17:09:36 UTC, when the 23 Nov
+  attempts leave the window. Background prices refresh for about 12 h a day; a save still prices
+  fresh in the foreground. Earlier, 03:53–04:09 UTC, the provider's own header reported nothing
+  remaining. Allowances unchanged (owner's decision).
+- The weekly dues pass still holds 220 for its whole pass every minute (152–200 statements,
+  6–8 s on the proxy). Reads no longer wait for it; a save that coincides does (Batch 240). Two
+  existing tests fail only when run after the two-game modules, identically on `main` (Batch 241).
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+### Follow-ups
+- Batch 240 (the dues pass's lock) and Batch 241 (two order-dependent tests), both unchecked.
+- `/ship-prod` for 237, then confirm from production logs: read times, pass durations, no
+  QueuePool errors, a real fantasy PUT succeeding.
+
+**Next:** `/ship-prod` for 237 on the owner's go; then Batch 238.

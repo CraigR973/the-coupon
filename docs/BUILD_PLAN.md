@@ -2021,7 +2021,7 @@ close-out is refused while a shipment is owed, which fixes that order. Every web
 `scripts/verify-two-game-web.py` (30 stories). Any change to an existing test or journey line
 needs the owner's approval of the exact lines.
 
-- [ ] **Batch 237 — The two-game jobs stop holding up the server**
+- [x] **Batch 237 — The two-game jobs stop holding up the server** ✅ 2026-11-24
   — raised 24 Nov 2026 from production logs of 23–24 Nov; urgent, before the first two-game
   lock (Sat 28 Nov, fantasy 12:00 London). `run_two_game_discovery` and
   `run_two_game_settlement` run on 1-minute intervals, one instance each, and each pass takes
@@ -2099,6 +2099,36 @@ needs the owner's approval of the exact lines.
 
   Scope boundary: the home page. **Web-only**, unless the owner approves an API addition,
   which then gets its own row and `/ship-prod` first.
+
+- [ ] **Batch 240 — The weekly dues pass stops holding the league lock every minute**
+  — found in Batch 237 (24 Nov 2026). `run_weekly_dues` runs every minute, and `bill_all` holds
+  each two-game league's financial lock (advisory key 220) for its whole pass while it walks
+  every member: 150–200 statements, 6–8 s through a 10 ms proxy at production size, about 4 s
+  in production. Game reads no longer wait on it (Batch 237), but a save that coincides waits
+  for the pass to finish.
+
+  - An empty pass reads, without the lock, whether any member needs a membership interval or a
+    due, and takes the lock only for a league that does, deciding again under it.
+  - The money rules (`plan_dues`, `materialize_dues`) are unchanged.
+
+  Tests: an empty dues pass completes while another session holds the league lock; a member
+  who needs a due still gets it, after waiting for the lock; every existing weekly-fee test
+  passes unchanged.
+
+  Scope boundary: the dues job's locking. It touches the money path, so the owner decides
+  before the build. **API-only: `/ship-prod` owed after close-out.**
+
+- [ ] **Batch 241 — Two backend tests pass only when they run before the two-game modules**
+  — found in Batch 237 (24 Nov 2026). Run after the two-game test modules, both of these fail,
+  identically on `main`, and both pass in the gate's alphabetical order:
+  `test_discovery_health.py::test_the_deployment_wide_read_is_the_newest_round_there_is` (its
+  oracle takes the newest round of any format; the health read counts legacy rounds only) and
+  `test_two_game_capacity.py::test_two_large_cards_persist_queue_and_report_six_hour_coverage_failure[sizes1]`.
+
+  - Make each independent of other modules' committed rows without loosening either assertion.
+
+  Tests: both pass in either order. Any changed test line needs the owner's approval of the
+  exact lines first. **Tooling-only.**
 
 ## Verification
 
