@@ -31,6 +31,10 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Batch 234 is closed and not shipped** (24 Nov, `63747a3`, API-only, no migration;
+  `/ship-prod` owed): competition names and club position and form on both games' fixtures,
+  removing a fantasy slot or a group pick (`DELETE`, replayable, refused after the lock,
+  while suspended and for others), and the group view naming who is still to pick.
 - **Batch 238 is live on the web** (24 Nov, `b1c089b`, web-only): a payment strip heads both
   game screens (Pay £1, one fee for both games, details folded), every competition starts
   folded unless the week has one, the group's status card and coupon come first on phones, the

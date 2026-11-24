@@ -1959,7 +1959,7 @@ built on Tue 24 Nov with Batches 237–239, below, all that day.
 
   Scope boundary: the group screen only. No API change. **Web-only.**
 
-- [ ] **Batch 234 — Two-game fixtures carry what the old cards show, and a pick can be removed in either game**
+- [x] **Batch 234 — Two-game fixtures carry what the old cards show, and a pick can be removed in either game** ✅ 2026-11-24
   — prerequisite: 233 closed. Amended by the owner on 24 Nov: the group pick gets a delete too.
 
   - Both games' fixtures add the competition's display name and each club's table position

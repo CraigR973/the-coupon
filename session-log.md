@@ -9692,3 +9692,28 @@ two-game browser stories 30/30 · CI: https://github.com/CraigR973/the-coupon/ac
 
 **Next:** Batch 234 (API) and its `/ship-prod`.
 
+## Batch 234 — Two-game fixtures carry what the old cards show, and a pick can be removed in either game
+**Commits:** `63747a3` · verified: full local gate 12/12 (backend 2,103; frontend 1,564; journey 1;
+zero skips; tree `044f1a1`) · CI: https://github.com/CraigR973/the-coupon/actions/runs/45437977348 PASS for `63747a3`
+
+### Key facts for future sessions
+- Fixture rows on both game views add `competition` (the provider's name) and `context`
+  (`fixture_context`, as the legacy slate builds it). The reads are Batch 237's read-only
+  snapshots, so `resolve_names_by_competition(learn=False)` resolves without writing an alias
+  and logs no miss; `best_match(quiet=True)` drops the ambiguity log on that path too. The
+  group's context excludes table `points`: the group tests assert no `points` key anywhere.
+- `DELETE .../fantasy/slots/{slot}` and `DELETE .../group/pick` take `RemovePick`
+  (`expected_revision`, `operation_id`); one transaction under the league lock, replay first,
+  then the save's own open/revision gates. The pick row goes, so the next revision lives in
+  the operation receipt; a later save continues from it. Refusals: `ENTRY_CHANGED`,
+  `NOTHING_TO_REMOVE`, `LOCKED`, `SUSPENDED`, `NOT_FOUND` (non-member), `OPERATION_CONFLICT`.
+- `still_to_pick` on the group view: names of the members the progress count treats as
+  missing, from the same audience (active members before the lock, the lock-time audience
+  after), sorted by name.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+### Follow-ups
+- `/ship-prod` for 234 on the owner's go; Batch 235 uses it.
+
+**Next:** `/ship-prod` for 234, then Batch 235.
+
