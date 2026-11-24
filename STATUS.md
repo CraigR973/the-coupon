@@ -13,9 +13,9 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `2115540` (Batch 231's code plus a test-only fix) at migration `032` (23 Nov) |
-| API deployment | Railway `fd64e4a4-9614-4a4b-a603-c454caa0a257` (the flag's redeploy of `add870dc`) succeeded, one replica, `europe-west4` (23 Nov) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `2115540` at `032`, Railway `d2faa3eb-0e01-4b62-8c23-f948bc20c6dd` (the flag's redeploy of `92a2821c`, 23 Nov), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
+| API | `api-production-109b1.up.railway.app` serves `65cc0c9` (Batch 237 and the IaC fix that keeps `TWO_GAMES_ENABLED`) at migration `032` (24 Nov) |
+| API deployment | Railway `77d0cf36-dcdb-4b69-aa80-2becaf60f223` succeeded 15:09 UTC, one replica, `europe-west4` (24 Nov); rollback `15056d65` (`2115540`) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `65cc0c9` at `032`, Railway `a07f7352-1ebd-4e6f-852d-894ecb139bcc` (24 Nov; rollback `f149228d`), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); 2-1 Hibs has its link id and all 20 link payments from members were read and matched, through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
 | Web | `the-coupon-production.vercel.app` builds every push to `main`; since 23:32 UTC on 23 Nov it serves `61a9700` (Batch 236) as bundle `index-BzwO-OuL.js`, whose group chunk carries the coupon layout and keeps its last view through a dropped connection (read back 23 Nov). The API has served the two-game screens to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov. Both games are on the old coupon layout: fantasy with a pick slip, the group with the status card, claimed games greyed and the coupon's copy text. |
 | Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the two-game tables hold 2-1 Hibs' rollout, its four games and 12 dues since 17:08 UTC (23 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
@@ -31,12 +31,13 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
-- **Batch 237 is closed and not shipped** (24 Nov, `3b11d7f`, API-only, no migration;
-  `/ship-prod` owed). Game reads take no league lock and read one snapshot; discovery's setup
-  takes the lock only to create a parent and runs in short batched transactions (68–72
-  statements, was 3,268); settlement and lifecycle passes skip leagues with nothing due. Until it
-  ships, production's game reads still queue behind discovery (p95 50–61 s since 23 Nov 17:00,
-  19 requests 5xx, no PUT).
+- **Batch 237 is shipped and verified** (24 Nov, `65cc0c9` with the IaC fix, no migration;
+  API `77d0cf36` 15:09 UTC, payments `a07f7352` 15:11 UTC). Game reads take no league lock;
+  discovery's setup holds none; the first passes took discovery 2.2–2.7 s, settlement 1.2–1.6 s
+  and weekly dues 3.8–4.3 s (were 80–89 s, 80–89 s and the 10 s pool timeout), with no QueuePool
+  error. The first preflight stopped on an IaC plan that would have deleted `TWO_GAMES_ENABLED`;
+  `65cc0c9` preserves it. Still to observe: read times under member traffic and the first real
+  fantasy PUT.
 - **Batch 236 is live on the web** (23 Nov, `61a9700`, web-only, pushed 23:32 UTC): a group refresh
   that fails on the connection keeps the last view with a notice instead of "Group game
   unavailable"; a failed first load or a server refusal still shows that screen. No API change;

@@ -9636,3 +9636,33 @@ reproduction on production-sized data · CI: https://github.com/CraigR973/the-co
   QueuePool errors, a real fantasy PUT succeeding.
 
 **Next:** `/ship-prod` for 237 on the owner's go; then Batch 238.
+
+## Fix — Railway IaC keeps `TWO_GAMES_ENABLED`, and Batch 237's shipment
+**Commits:** `65cc0c9` · verified: full local gate 12/12 (backend 2,091; frontend 1,554; journey
+1; zero skips; tree `751eb92`) · CI: https://github.com/CraigR973/the-coupon/actions/runs/45418815202
+PASS for `65cc0c9`
+
+### Key facts for future sessions
+- `/ship-prod` for 237 stopped at its IaC plan: 2 to destroy, `TWO_GAMES_ENABLED` on both
+  services. A variable set by hand must join `PRESERVED_VARIABLE_NAMES` (and the payments list)
+  before the next apply; the flag also had to join the assertion's shared names, beside
+  `DATABASE_URL`. Same trap as the backup variables on 22 Nov (`874d89c`).
+- Shipped 15:05–15:11 UTC on 24 Nov (record: L4 shipment history). First passes: discovery
+  2.2–2.7 s, settlement 1.2–1.6 s, dues 3.8–4.3 s; no QueuePool error.
+
+**Next:** Batch 238.
+
+## Gate maintenance — Batch 238 oracle approval
+**Commit:** `32a1195` · owner-approved 24 Nov 2026 ("Approve all nine") · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/45423099021 expected to fail at the
+old-trusted-guard comparison, as the approval commits for Batch 175 did
+
+### Key facts for future sessions
+- Batch 238 may change only the nine lines quoted in its row: the Batch 233 group test's title,
+  its opening wait and its first-competition expectation (now folded), the file's `ready`
+  helper and harness option, two import lines, one data line, and the fantasy journey's
+  `refresh` helper. Only the title trips the guard; every other removed oracle stays blocked.
+- No application code, API contract, database schema or production data changed.
+
+**Next:** Batch 238 from this attestation state.
+

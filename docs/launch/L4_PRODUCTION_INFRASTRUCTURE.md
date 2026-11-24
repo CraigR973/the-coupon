@@ -4507,3 +4507,42 @@ into an empty database; `032`, 42 of 42 tables and 17,964 rows identical to prod
 Recovery: forward-only (`docs/runbooks/migration-032-recovery.md`) or the 13:51 backup above.
 Emergency stop: `python -m src.two_game_rollout suspend --league 2-1-hibs --actor <id>
 --reason "…" --apply`, never the flag (`docs/runbooks/two-game-activation.md`).
+
+### 2026-11-24 — `65cc0c9`, Batch 237: two-game jobs stop holding up the server (no migration)
+
+Approved in chat: the owner's "Yes, ship it" (24 Nov), for Batch 237 once its close-out CI was
+green. Source: clean `main` at `65cc0c931ea34b734c15832150cb6dd3b1c18fff`, uploaded from the
+shared checkout.
+
+The first preflight stopped before any change: the pinned IaC plan would have deleted
+`TWO_GAMES_ENABLED` on `api` and `payments` (2 to destroy), because the flag was set by hand on
+23 Nov and never preserved. `65cc0c9` preserves it on both services and in the deployment-config
+assertion (local gate 12 of 12, tree `751eb929c4230976c367aff5338ed39c3f476028`; Quality run
+`45418815202` green). The re-pinned plan had 0 additions, the usual 4 changes and 0 deletions.
+
+- IaC applied 15:05:59 UTC; it redeployed both `2115540` images (API `15056d65`, payments
+  `f149228d`), both `SUCCESS` by 15:07:17.
+- API `77d0cf36-dcdb-4b69-aa80-2becaf60f223`, uploaded 15:07:36: `SUCCESS` 15:09:08; health
+  `200`, `65cc0c9`, `032`; readiness `200`, `ok`, `032`. Boot log: no traceback and no
+  credential pattern; alembic found nothing to apply.
+- Payments `a07f7352-1ebd-4e6f-852d-894ecb139bcc`, uploaded 15:09:52 after API readiness:
+  `SUCCESS` 15:11:34; health `200`, `service: payments`, `65cc0c9`, `032`; readiness `ok`.
+- Manifest: one replica in `europe-west4-drams3a`, no sleep, IPv6 egress, Nixpacks, `ON_FAILURE`
+  with three retries, 300-second readiness timeout, 0.25 vCPU / 500 MB.
+- Variable names after: API 13 of 13 and payments 7 of 7, no cross-service names,
+  `TWO_GAMES_ENABLED` present on both. Drift in sync for both services.
+- Read-only audit through the London session pooler: `032`; RLS forced on 42 of 42 public
+  tables; no public-role table grant or schema usage; 2-1 Hibs' rollout enabled with its four
+  games; no picks yet.
+- Web: no deployment needed. Vercel built `65cc0c9`; `dpl_DFvgifK35nB4kAoP1tMWPnFistnw` holds
+  the stable alias with the unchanged bundle `index-BzwO-OuL.js`. Smoke: `/`, `/standings`,
+  `/results` `200` with that asset and the CSP header; exact-origin `OPTIONS /api/v1/me/games`
+  `200` with credentials; unauthenticated `/me/games` `401`.
+- First minutes in production (15:10–15:13 UTC): discovery passes 2.2–2.7 s (were 80–89 s),
+  settlement 1.2–1.6 s (were 80–89 s), weekly dues 3.8–4.3 s (were cut off by the 10 s pool
+  timeout); no QueuePool error and no skipped run.
+
+Rollback: API `15056d65`, payments `f149228d` (both `2115540`, `032`); no migration, so an image
+rollback is clean. Backup/restore point: the 23 Nov 13:51 UTC backup
+(`production/the-coupon-20261123T135112Z.dump`). Still to observe: game-read times under member
+traffic and the first real fantasy PUT.
