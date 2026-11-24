@@ -183,6 +183,10 @@ apps/api/tests/test_payments_service.py|def test_the_payments_route_table_is_onl
 apps/api/tests/test_payments_service.py|assert paths == {"/health", "/health/ready"}
 EOF
       ;;
+    238) cat <<'EOF'
+apps/web/src/test/GroupCouponLayout.test.tsx|it("folds the competitions, the first open, counting the games already picked", async () => {
+EOF
+      ;;
   esac
 }
 
@@ -202,6 +206,7 @@ approved_oracle_paths() {
     203) echo "apps/api/tests/test_request_budget.py" ;;
     208) echo "apps/api/tests/test_payments_service.py" ;;
     209) echo "apps/api/tests/test_pay_to_pick.py apps/web/src/test/PayPanel.test.tsx" ;;
+    238) echo "apps/web/src/test/GroupCouponLayout.test.tsx" ;;
   esac
 }
 

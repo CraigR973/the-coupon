@@ -2076,10 +2076,23 @@ needs the owner's approval of the exact lines.
   - The payment card on the league's season table screen (`MoneyCard`) folds, closed by
     default.
 
-  Tests: new unit tests for each. **Owner approval before the build:** changing Batch 233's
-  unit test that asserts the first competition opens is approved in principle (24 Nov); the
-  exact lines, and any other test or journey line the folding or removals move, are quoted
-  here once approved. The two-game browser stories (`scripts/verify-two-game-web.py`) pass.
+  Tests: new unit tests for each. The two-game browser stories
+  (`scripts/verify-two-game-web.py`) pass.
+
+  **Oracle changes approved (owner, 24 Nov 2026):** this batch may change only these lines.
+  In `apps/web/src/test/GroupCouponLayout.test.tsx`: the Batch 233 test titled "folds the
+  competitions, the first open, counting the games already picked" becomes "starts every
+  competition folded, counting the games already picked"; in it, the opening
+  `ready("Choose Home 3 to win")` becomes a wait for the Scottish Premiership header, and
+  that header's expected `aria-expanded` moves from `"true"` to `"false"`, with added checks
+  that Scottish Championship is folded too and that no choice shows before opening; the
+  file's `ready` helper opens the first competition before waiting for a choice; the
+  harness gains a single-competition option. In `apps/web/src/test/FantasyPickSlip.test.tsx`:
+  the vitest import adds `afterEach`, and the fixtures' competition comes from
+  `competitionOf(i)`, whose default is unchanged. In `apps/web/src/test/MoneyCard.test.tsx`:
+  the testing-library import adds `fireEvent`. In `apps/web/e2e/two-game-fantasy.spec.ts`:
+  the `refresh` helper clicks "Check payment status" instead of the removed "Refresh prices
+  and results"; both run the same refresh. No check is removed or loosened.
 
   Scope boundary: presentation only. No API change. **Web-only.**
 
