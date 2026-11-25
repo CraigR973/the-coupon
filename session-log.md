@@ -10062,3 +10062,30 @@ PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45711149111 P
 - The owner's phone check of 245, then Batch 246 (owner, 25 Nov: stop after each deploy).
 
 **Next:** the owner's phone check, then Batch 246.
+
+## Batch 246 — Your picks and the coupon, compact
+**Commits:** `b243ac0` · verified: `scripts/ci-local.sh` PASS in its worktree (12 checks; backend
+2,106, frontend 1,629, journey 1, zero skips; tree `0313189`), `scripts/verify-two-game-web.py`
+PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45723812989 PASS for `b243ac0`
+
+### Key facts for future sessions
+- **Fantasy picks:** one card, the weekly result (still labelled "Fantasy weekly result") over
+  a two-column grid of six `FantasySlotCard` tiles. A held tile is itself the "Remove slot N"
+  button while the game is open; an empty one keeps "Empty slot" for screen readers and shows
+  "+ Pick", which closes the slip and focuses the fixtures. The bar reads n of 6 · up to N pts ·
+  Review, with "Your picks" kept in its accessible name.
+- **Group:** the status card leads with the member's pick and a Change button (opens the
+  competition, scrolls to the fixture, focuses the pressed selection), then a dot per member
+  and the still-to-pick names. The coupon is one card with the copy button in its header and
+  each leg's initials; the duplicate "N still to pick" line under the legs is gone.
+- **Gate failure on the way:** the first journeys run failed the group story's light-theme axe
+  scan on the member's own initials (green on a green tint, 4.18:1). The letters are now in the
+  body colour inside a green ring; the rerun was PASS30.
+- **Not built, waiting for the owner:** the plain-words swaps and 2 dp prices change 18 pinned
+  test lines, so they are Batch 249 (asked in chat 23:10 on 25 Nov; no reply before the gate).
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- Batch 249 (plain words, 2 dp prices) once the owner approves its exact test lines.
+
+**Next:** the overnight two-game test pass (owner, 25 Nov), then Batch 249 on approval.

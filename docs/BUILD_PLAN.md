@@ -2387,7 +2387,7 @@ exact lines, asked once per batch before the gate.
   price, without "win N pts"; a fixture the member already holds stays in view when its prices
   go; the 320px reflow and axe checks are the Group journey's existing ones, which pass.
 
-- [ ] **Batch 246 — Your picks and the coupon, compact**
+- [x] **Batch 246 — Your picks and the coupon, compact** ✅ 2026-11-25
   — finding G4 and the review's Group coupon screenshot. Fantasy's picks take a summary card
   plus six full-height slot cards; Group says who is still to pick four ways and nests the
   coupon three deep.
