@@ -9809,3 +9809,29 @@ zero skips; tree `79c2a66`) · CI: https://github.com/CraigR973/the-coupon/actio
 
 **Next:** `/ship-prod` for Batch 240; then Batch 241.
 
+## Operation — 2-1 Hibs moves to a new Monzo payment link (25 Nov 2026)
+**Commits:** this record only · owner-approved in chat ("Switch outright", "Close it, post in chat",
+"can you not set them for me") · no code change, no shipment
+
+### Key facts for future sessions
+- A league holds one link: `payment_link_url` (the Pay button) and `monzo_link_id`
+  (`unipaylink_…`), which the payments service matches on. Payments through any other link are
+  dropped without trace, and the reader re-reads only the last hour (`READ_OVERLAP`), so a new
+  link's id must be set within an hour of the payment it is learned from.
+- The id is not in the link's URL; it was read from Neal's first £1 through the new link (09:50
+  UTC) inside the payments container over `railway ssh`. `railway run` cannot do this: it does not
+  inject sealed variables, so the token key is missing locally. The read used the stored access
+  token without refreshing it and printed link ids only.
+- Set at 09:55 UTC by a guarded write (one transaction: only if 2-1 Hibs still held the old link,
+  no league held the new id, exactly one site admin), with the same `league_updated` audit row the
+  settings screen writes, its `changes` noting the operator did it at the owner's request.
+- The 09:59 read matched Neal's £1 to him and learned the new pot (`collectionpot_…`, its `acc_…`
+  and `pot_…`). From then, a move from the owner's current account into the new pot counts as the
+  owner's payment, including any transfer of the old pot's balance: reverse that by hand if it
+  happens.
+
+### Follow-ups
+- Owner: close the old link in Monzo and tell the group chat (owner's decision, 25 Nov).
+
+**Next:** the owner's decisions on Batch 241, the Monday 30 Nov dues check and Batch 211.
+
