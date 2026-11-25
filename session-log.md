@@ -9970,3 +9970,21 @@ PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45676415615 P
   Then Batch 244 (owner, 25 Nov: stop after each deploy).
 
 **Next:** the owner's phone check, then Batch 244.
+
+## Gate maintenance — Batch 244 oracle approval
+**Commit:** `7953b34` · owner-approved 25 Nov 2026 ("Approve all 3") · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/45687507937 failed as expected at the
+old-trusted-guard comparison (the commit changes `scripts/assert-quality-guardrails.sh`), as
+the approval commits for Batches 175, 235, 238 and 243 did
+
+### Key facts for future sessions
+- Batch 244 may remove only the four oracle lines fingerprinted in the guard: the week-chip
+  check in `FantasyPickSlip.test.tsx`, and in `gameSwitch.test.ts` the week-strip test with its
+  expectation and the old title of the Games-tab test. That test's expected destination moves
+  to this week's Group, a line the guard does not count; it is quoted in the row with the rest.
+  Every other removed oracle stays blocked.
+- Main's guard replayed on the 244 worktree: PASS, "owner-approved exact oracle replacements
+  applied".
+- No application code, API contract, database schema or production data changed.
+
+**Next:** Batch 244 from this attestation state.
