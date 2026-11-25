@@ -135,7 +135,7 @@ export function PlayerProfilePage() {
           </h2>
           <Link
             to={predictionsPath(slug, '/results')}
-            className="shrink-0 font-mono text-caption uppercase tracking-[0.2em] text-text-muted hover:text-text-primary"
+            className="shrink-0 eyebrow text-text-muted hover:text-text-primary"
           >
             How each week went →
           </Link>

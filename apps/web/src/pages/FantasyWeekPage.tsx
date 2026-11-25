@@ -307,7 +307,7 @@ function FantasyWeek({ target }: { target: GameTarget }) {
       data-testid="fantasy-slate"
       className="scroll-mt-20 focus-visible:outline-hidden"
     >
-      <h2 className="mb-2 font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
+      <h2 className="mb-2 eyebrow text-text-primary">
         {editable ? "Tap a price to add it" : "Fixtures and prices"}
       </h2>
       {game.fixtures.length === 0 ? (
@@ -451,7 +451,7 @@ function FantasyWeek({ target }: { target: GameTarget }) {
                   key={entry.slot}
                   className="rounded-lg border border-border bg-surface px-3 py-2.5"
                 >
-                  <h2 className="font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+                  <h2 className="eyebrow text-text-muted">
                     Slot {entry.slot}
                   </h2>
                   <p className="font-sans text-sm text-text-primary">
@@ -569,7 +569,7 @@ function CompetitionSection({
         aria-expanded={open}
         className="mb-1 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-hidden focus-visible:shadow-glow"
       >
-        <span className="min-w-0 truncate font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
+        <span className="min-w-0 truncate eyebrow text-text-primary">
           {group.competition}
         </span>
         <span className="flex shrink-0 items-center gap-2">

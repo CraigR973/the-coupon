@@ -78,7 +78,7 @@ export function FantasyFixtureCard({
     >
       <div className="mb-2 flex items-start justify-between gap-2">
         <Badge variant="muted">{competition}</Badge>
-        <span className="shrink-0 font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+        <span className="shrink-0 font-sans text-caption tabular-nums text-text-muted">
           {kickoff}
         </span>
       </div>
@@ -100,7 +100,7 @@ export function FantasyFixtureCard({
         </div>
       )}
       {held && (
-        <p className="mb-3 font-mono text-caption uppercase tracking-[0.2em] text-success-ink">
+        <p className="mb-3 eyebrow text-success">
           Your pick · slot {held.slot}
         </p>
       )}
@@ -122,7 +122,7 @@ export function FantasyFixtureCard({
         <div className="flex flex-col gap-3">
           {markets.map((market) => (
             <div key={market}>
-              <p className="mb-1 font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+              <p className="mb-1 eyebrow text-text-muted">
                 {marketLabel(market as PickMarket)}
               </p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -217,8 +217,10 @@ function PriceButton({
       className={cn(
         "flex min-h-[56px] flex-col items-start justify-center gap-0.5 rounded-md px-2.5 py-2 text-left",
         // Batch 235: a member's own price is tappable now (to remove it), so the accessibility
-        // scan reads its colours; it must not be caught mid-fade by a theme flip.
-        mine ? "transition-none" : "transition-colors",
+        // scan reads its colours; it must not be caught mid-fade by a theme flip. Batch 242: no
+        // price fades at all. The tile's own colours faded while its points line, which sets
+        // its own colour, switched at once, so mid-fade the line sat on the old background.
+        "transition-none",
         settled === "won"
           ? "border border-success bg-surface text-text-primary"
           : settled === "lost"
@@ -254,11 +256,11 @@ function PriceButton({
       </span>
       <span
         className={cn(
-          "w-full truncate text-caption font-mono uppercase tracking-wide text-text-muted",
+          "w-full break-words text-caption font-sans font-medium text-text-muted first-letter:uppercase",
           mine && !settled && "text-text-secondary",
           settled && "font-sans normal-case tracking-normal",
-          settled === "won" && "text-success-ink",
-          settled === "lost" && "text-error-ink",
+          settled === "won" && "text-success",
+          settled === "lost" && "text-error",
         )}
       >
         {waiting

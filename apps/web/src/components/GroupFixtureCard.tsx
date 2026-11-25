@@ -80,7 +80,7 @@ export function GroupFixtureCard({
     >
       <div className="mb-2 flex items-start justify-between gap-2">
         <Badge variant="muted">{competition}</Badge>
-        <span className="shrink-0 font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+        <span className="shrink-0 font-sans text-caption tabular-nums text-text-muted">
           {kickoff}
         </span>
       </div>
@@ -114,8 +114,8 @@ export function GroupFixtureCard({
       {claim && (
         <p
           className={cn(
-            "mb-3 font-mono text-caption uppercase tracking-[0.2em]",
-            mine ? "text-success-ink" : "text-text-secondary",
+            "mb-3 eyebrow",
+            mine ? "text-success" : "text-text-secondary",
           )}
           data-testid={`group-claim-${fixture.fixture_id}`}
         >
@@ -136,7 +136,7 @@ export function GroupFixtureCard({
           ].sort((a, b) => (OUTCOME_ORDER[a] ?? 9) - (OUTCOME_ORDER[b] ?? 9));
           return (
             <div key={market}>
-              <p className="mb-1 font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+              <p className="mb-1 eyebrow text-text-muted">
                 {MARKET_LABEL[market] ?? market}
               </p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -237,8 +237,9 @@ function SelectionButton({
       className={cn(
         "flex min-h-[56px] flex-col items-start justify-center gap-0.5 rounded-md px-2.5 py-2 text-left",
         // Batch 235: the member's own pick is tappable now (to withdraw it), so the
-        // accessibility scan reads its colours; it must not be caught mid-fade.
-        pressed ? "transition-none" : "transition-colors",
+        // accessibility scan reads its colours; it must not be caught mid-fade. Batch 242: no
+        // choice fades at all; its points line sets its own colour and would lag the tile.
+        "transition-none",
         settled === "won"
           ? "cursor-not-allowed border border-success bg-surface text-text-primary"
           : settled === "lost"
@@ -272,11 +273,11 @@ function SelectionButton({
       {caption && (
         <span
           className={cn(
-            "w-full truncate text-caption font-mono uppercase tracking-wide text-text-muted",
+            "w-full break-words text-caption font-sans font-medium text-text-muted first-letter:uppercase",
             pressed && !settled && "text-text-secondary",
             settled && "font-sans normal-case tracking-normal",
-            settled === "won" && "text-success-ink",
-            settled === "lost" && "text-error-ink",
+            settled === "won" && "text-success",
+            settled === "lost" && "text-error",
           )}
         >
           {caption}

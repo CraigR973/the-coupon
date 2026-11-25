@@ -160,7 +160,7 @@ export function LeaderboardPage() {
           data-testid="season-pot"
           className="mt-3 flex items-start gap-2 rounded-lg border border-border bg-surface px-4 py-3 font-sans"
         >
-          <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-gold-ink" aria-hidden />
+          <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-gold" aria-hidden />
           <p className="text-sm text-text-primary">
             <strong className="font-semibold">Season pot {formatPence(seasonPot)}</strong>
             <span className="block text-caption text-text-muted">
@@ -266,8 +266,8 @@ export function LeaderboardPage() {
                     {medal && <span aria-hidden="true" data-testid="rank-medal" className={cn('absolute inset-y-0 left-0 w-[3px]', medal)} />}
                     <span className={cn(
                       'text-center font-mono text-sm tabular-nums text-text-muted',
-                      s.rank === 1 && 'text-gold-ink',
-                      s.rank === 3 && 'text-bronze-ink',
+                      s.rank === 1 && 'text-gold',
+                      s.rank === 3 && 'text-bronze',
                     )}>
                       {s.rank}
                     </span>
@@ -275,7 +275,7 @@ export function LeaderboardPage() {
                       <p
                         className={cn(
                           'truncate font-sans text-sm font-semibold leading-[18px]',
-                          isMe ? 'text-primary-ink' : 'text-text-primary',
+                          isMe ? 'text-primary' : 'text-text-primary',
                         )}
                       >
                         {s.display_name}

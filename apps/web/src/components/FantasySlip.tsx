@@ -46,9 +46,9 @@ export function FantasySlotCard({
   const { slot, pick, intent, movedPrice, ready } = view;
   const tone =
     pick?.result === "won"
-      ? "text-success-ink"
+      ? "text-success"
       : pick?.result === "lost"
-        ? "text-error-ink"
+        ? "text-error"
         : "text-text-muted";
   return (
     <article
@@ -60,7 +60,7 @@ export function FantasySlotCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+          <h3 className="eyebrow text-text-muted">
             Slot {slot}
           </h3>
           {pick ? (
@@ -150,6 +150,9 @@ export function FantasySlotCard({
  *
  * Sticky at the foot of the fixture list rather than fixed to the screen, so once the
  * list ends it settles above the slip itself instead of covering it.
+ *
+ * Batch 242: it scrolls away with the list's end, so it must pass under the sticky top
+ * bar (`z-header`, 50) rather than over it, and still sit above the tab bar (40).
  */
 export function SlipBar({
   filled,
@@ -163,7 +166,7 @@ export function SlipBar({
   barRef: RefObject<HTMLButtonElement>;
 }) {
   return (
-    <div className="sticky bottom-[calc(var(--tabbar-height)+var(--safe-bottom)+0.5rem)] z-banner mt-4 sm:bottom-4 lg:hidden">
+    <div className="sticky bottom-[calc(var(--tabbar-height)+var(--safe-bottom)+0.5rem)] z-[45] mt-4 sm:bottom-4 lg:hidden">
         <button
           ref={barRef}
           type="button"
@@ -239,7 +242,7 @@ export function SwapSheet({
                 className="flex min-h-12 w-full items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2 text-left hover:border-primary/60 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-hidden focus-visible:shadow-glow"
               >
                 <span className="min-w-0">
-                  <span className="block font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+                  <span className="block eyebrow text-text-muted">
                     Slot {view.slot}
                   </span>
                   <span className="block break-words font-sans text-sm text-text-primary">

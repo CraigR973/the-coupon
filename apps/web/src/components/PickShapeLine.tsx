@@ -89,7 +89,7 @@ export function PickShapeGrid({ shape }: { shape: Standing | PickShape }) {
 function Figure({ label, value }: { label: string; value: string | number | undefined }) {
   return (
     <div>
-      <dt className="font-mono text-caption uppercase tracking-[0.2em] text-text-muted">{label}</dt>
+      <dt className="eyebrow text-text-muted">{label}</dt>
       <dd className="font-mono text-sm tabular-nums text-text-primary">{value ?? '—'}</dd>
     </div>
   );

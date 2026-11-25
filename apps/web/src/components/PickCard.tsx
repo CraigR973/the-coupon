@@ -92,7 +92,7 @@ function TeamContextLine({
       data-testid={`team-context-${team.team_id}`}
     >
       {team.position !== null && (
-        <span className="shrink-0 font-mono text-caption uppercase tracking-[0.15em] text-text-muted">
+        <span className="shrink-0 font-mono text-caption tabular-nums text-text-muted">
           <span className="sr-only">{team.name}, </span>
           {ordinal(team.position)}
         </span>
@@ -196,7 +196,7 @@ export function PickCard({
       {/* Eyebrow: competition + kickoff */}
       <div className="mb-2 flex items-start justify-between gap-2">
         <Badge variant="muted">{fixture.competition}</Badge>
-        <span className="shrink-0 font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+        <span className="shrink-0 font-sans text-caption tabular-nums text-text-muted">
           {kickoffLocal}
         </span>
       </div>
@@ -249,7 +249,7 @@ export function PickCard({
       {/* Fixture-level marker: who has taken anything on this game */}
       {claimed && (
         <p
-          className="mb-3 font-mono text-caption uppercase tracking-[0.2em] text-text-muted"
+          className="mb-3 eyebrow text-text-muted"
           data-testid={`fixture-claimed-${fixture.fixture_id}`}
         >
           {fixture.mine ? (
@@ -270,7 +270,7 @@ export function PickCard({
             );
             return (
               <div key={market}>
-                <p className="mb-1 font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+                <p className="mb-1 eyebrow text-text-muted">
                   {marketLabel(market)}
                 </p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -338,9 +338,9 @@ function SelectionButton({
   const settledStatus = settledLeg?.status === 'pending' ? null : settledLeg?.status;
   const settledTone =
     settledStatus === 'won'
-      ? 'text-success-ink'
+      ? 'text-success'
       : settledStatus === 'lost'
-        ? 'text-error-ink'
+        ? 'text-error'
         : 'text-text-muted';
 
   return (
@@ -356,7 +356,7 @@ function SelectionButton({
       aria-pressed={sel.mine}
       data-testid={`selection-${fixture.fixture_id}-${sel.market}-${sel.outcome}`}
       className={cn(
-        'flex min-h-[56px] flex-col items-start justify-center gap-0.5 rounded-md px-2.5 py-2 text-left transition-colors',
+        'flex min-h-[56px] flex-col items-start justify-center gap-0.5 rounded-md px-2.5 py-2 text-left transition-none',
         settledStatus === 'won'
           ? 'cursor-not-allowed border border-success bg-surface text-text-primary'
           : settledStatus === 'lost'
@@ -397,7 +397,7 @@ function SelectionButton({
       </span>
       <span
         className={cn(
-          'w-full truncate text-caption font-mono uppercase tracking-wide text-text-muted',
+          'w-full break-words text-caption font-sans font-medium text-text-muted first-letter:uppercase',
           sel.mine && !settledStatus && 'text-text-secondary',
           settledStatus && 'font-sans normal-case tracking-normal',
           settledStatus && settledTone,

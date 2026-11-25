@@ -38,7 +38,7 @@ export function MoneyCard({
       className="mt-3 rounded-lg border border-border bg-surface px-4 py-3 font-sans text-text-primary"
     >
       <div className="flex items-start gap-2">
-        <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-gold-ink" aria-hidden />
+        <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-gold" aria-hidden />
         <div className="min-w-0 flex-1">
           <h2 id="money-card-heading" className="text-sm font-semibold">
             Prize fund so far{' '}

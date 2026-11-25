@@ -205,4 +205,12 @@ describe('TopBar avatar menu', () => {
       expect(name.className.split(' ')).not.toContain('sm:inline');
     }
   });
+
+  // Batch 242 (owner, 25 Nov 2026): the bell joins the avatar on every signed-in screen,
+  // and the light/dark choice lives in Settings → Appearance only.
+  it('carries the notification bell beside the avatar, and no theme switch', () => {
+    renderTopBar('/football');
+    expect(screen.getAllByTestId('notification-bell').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /switch to (light|dark) mode/i })).toBeNull();
+  });
 });

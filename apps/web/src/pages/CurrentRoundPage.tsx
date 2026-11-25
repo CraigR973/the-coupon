@@ -456,7 +456,7 @@ export function CurrentRoundPage() {
     <section aria-labelledby="slate-heading" data-testid="slate-section">
       <h2
         id="slate-heading"
-        className="mb-2 font-mono text-caption uppercase tracking-[0.2em] text-text-primary"
+        className="mb-2 eyebrow text-text-primary"
       >
         {cardsLocked ? 'Slate and prices' : 'Pick your selection'}
       </h2>
@@ -645,7 +645,7 @@ function CompetitionSection({
         aria-expanded={open}
         className="mb-1 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-hidden focus-visible:shadow-glow"
       >
-        <span className="min-w-0 truncate font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
+        <span className="min-w-0 truncate eyebrow text-text-primary">
           {group.competition}
         </span>
         <span className="flex shrink-0 items-center gap-2">

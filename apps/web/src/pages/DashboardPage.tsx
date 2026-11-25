@@ -43,7 +43,6 @@ import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '../lib/utils';
 import { useExpiry } from '@/hooks/useExpiry';
 import { Countdown } from '@/components/Countdown';
-import { NotificationBell } from '@/components/NotificationBell';
 
 const FAR_PAST = new Date(0).toISOString();
 
@@ -275,7 +274,7 @@ export function DashboardPage() {
               >
                 Your leagues
               </h2>
-              <p className="font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+              <p className="eyebrow text-text-muted">
                 {cardCount} in play
               </p>
             </div>
@@ -300,9 +299,6 @@ export function DashboardPage() {
             </ul>
           </section>
         )}
-      </div>
-      <div className="absolute right-5 top-5 sm:right-7 sm:top-7">
-        <NotificationBell />
       </div>
     </div>
   );
@@ -360,7 +356,7 @@ function FirstLeaguePrompt() {
       />
 
       <div className="rounded-xl border border-border bg-surface p-5 shadow-sm">
-        <p className="font-mono text-caption uppercase tracking-[0.2em] text-primary">
+        <p className="eyebrow text-primary">
           Your first round
         </p>
         <h2
@@ -441,7 +437,7 @@ function HomeHero({
       />
 
       <div className="relative">
-        <p className="font-mono text-caption uppercase tracking-[0.3em] text-primary">
+        <p className="eyebrow text-primary">
           The Coupon · Your season
         </p>
         <h1
@@ -625,7 +621,7 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
             to the next round's opening, and `Last result` below already names that one. */}
         {namesRound && round && (
           <p
-            className="mb-2 truncate font-mono text-caption uppercase tracking-[0.2em] text-text-muted"
+            className="mb-2 truncate eyebrow text-text-muted"
             data-testid={`home-round-${entry.slug}`}
           >
             {roundName(
@@ -642,7 +638,7 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
         >
           <Badge variant={stateVariant}>{stateLabel}</Badge>
           {clock && (
-            <span className="flex items-center gap-1.5 font-mono text-xs tabular-nums text-text-secondary">
+            <span className="flex items-center gap-1.5 font-sans text-xs tabular-nums text-text-secondary">
               {state === 'round_in_progress' ? (
                 <Lock className="h-3.5 w-3.5" aria-hidden />
               ) : (
@@ -698,7 +694,7 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
         to={`/leagues/${entry.slug}/leaderboard`}
         className="flex items-center justify-between gap-3 rounded-b-xl border-t border-border px-5 py-3.5 transition-colors hover:bg-surface-elevated focus-visible:outline-hidden focus-visible:shadow-glow"
       >
-        <span className="flex items-center gap-2 font-mono text-caption uppercase tracking-[0.2em] text-text-muted sm:text-xs">
+        <span className="flex items-center gap-2 eyebrow text-text-muted sm:text-xs">
           <Trophy className="h-4 w-4 text-primary" aria-hidden />
           Standings
         </span>
@@ -787,7 +783,7 @@ function TwoGameLeagueCard({ league, entry }: { league: LeagueGames; entry?: Per
             {stateLabel}
           </Badge>
           {clock && (
-            <span className="flex items-center gap-1.5 font-mono text-xs tabular-nums text-text-secondary">
+            <span className="flex items-center gap-1.5 font-sans text-xs tabular-nums text-text-secondary">
               {state === 'round_in_progress' ? (
                 <Lock className="h-3.5 w-3.5" aria-hidden />
               ) : (
@@ -809,7 +805,7 @@ function TwoGameLeagueCard({ league, entry }: { league: LeagueGames; entry?: Per
         to={`/leagues/${league.slug}/leaderboard`}
         className="flex items-center justify-between gap-3 border-t border-border px-5 py-3.5 transition-none hover:bg-surface-elevated focus-visible:outline-hidden focus-visible:shadow-glow"
       >
-        <span className="flex items-center gap-2 font-mono text-caption uppercase tracking-[0.2em] text-text-muted sm:text-xs">
+        <span className="flex items-center gap-2 eyebrow text-text-muted sm:text-xs">
           <Trophy className="h-4 w-4 text-primary" aria-hidden />
           Standings
         </span>
@@ -888,7 +884,7 @@ function groupResultLine(card: GameCard): string {
 function TwoGameLastResult({ week, form }: { week: TwoGameWeekResult; form?: FormRound[] }) {
   return (
     <div className="border-t border-border px-5 py-4" data-testid="last-result">
-      <p className="truncate font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+      <p className="truncate eyebrow text-text-muted">
         Last result · {formatCalendarDate(week.weekLabel, 'EEE d MMM')}
       </p>
       {week.fantasy && (
@@ -1011,7 +1007,7 @@ function LastResultPanel({ round, form }: { round: LastRoundView; form?: FormRou
   return (
     <div className="border-t border-border px-5 py-4" data-testid="last-result">
       <div className="flex items-center justify-between gap-3">
-        <p className="truncate font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+        <p className="truncate eyebrow text-text-muted">
           Last result · {round.label}
         </p>
         {movement != null && movement !== 0 && (

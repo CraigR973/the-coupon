@@ -42,10 +42,10 @@ export function SeasonStrip({ seasons, selected, onSelect, className }: Props) {
       data-testid="season-strip"
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-caption font-mono uppercase tracking-[0.24em] text-text-primary">
+        <p className="eyebrow text-text-primary">
           Season
         </p>
-        <span className="rounded-full border border-border/80 bg-surface px-2 py-0.5 text-caption font-mono uppercase tracking-[0.18em] text-text-muted">
+        <span className="rounded-full border border-border/80 bg-surface px-2 py-0.5 eyebrow text-text-muted">
           Past seasons
         </span>
       </div>

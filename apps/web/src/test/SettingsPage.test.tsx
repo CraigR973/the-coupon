@@ -437,4 +437,11 @@ describe('SettingsPage — profile picture', () => {
       expect((upload![1]!.headers as Record<string, string>)['Content-Type']).toBe('image/png');
     });
   });
+
+  it('offers light, dark and system now the top bar has no theme switch (Batch 242)', async () => {
+    renderPage();
+    const theme = await screen.findByRole('radiogroup', { name: 'Theme' });
+    const options = Array.from(theme.querySelectorAll('[role="radio"]'), (radio) => radio.textContent);
+    expect(options).toEqual(['Light', 'Dark', 'System']);
+  });
 });

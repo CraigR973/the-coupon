@@ -527,6 +527,22 @@
   font-family: 'JetBrains Mono', ui-monospace, monospace;
 }
 
+/*
+ * One label voice (Batch 242, review finding X1). A label is words, so it takes the app
+ * font: small, semibold, upper case with a little tracking. Monospace is for numbers
+ * only. About sixty labels were `font-mono uppercase` at 0.15–0.3em tracking, which made
+ * every one shout and pushed short tiles into truncation ("YOUR PICK · 15 P…"). The
+ * wordmark keeps its own treatment. The size and line height are the `caption` step.
+ */
+@utility eyebrow {
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 @utility no-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;

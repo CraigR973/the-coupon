@@ -123,7 +123,7 @@ export function RoundStatus({
       <div className="mt-3 border-t border-border pt-3" data-testid="my-pick-summary">
         {mine ? (
           <>
-            <p className="font-mono text-caption uppercase tracking-[0.25em] text-text-muted">
+            <p className="eyebrow text-text-muted">
               Your pick
             </p>
             <p className="mt-1 break-words font-sans text-sm font-medium text-text-primary">

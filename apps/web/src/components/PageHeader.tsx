@@ -22,7 +22,7 @@ interface PageHeaderProps {
 }
 
 const backChipClass =
-  'inline-flex items-center gap-1 mb-3 text-xs font-mono uppercase tracking-[0.2em] text-text-muted hover:text-text-primary press-down rounded-md focus-visible:outline-hidden focus-visible:shadow-glow';
+  'inline-flex items-center gap-1 mb-3 eyebrow text-text-muted hover:text-text-primary press-down rounded-md focus-visible:outline-hidden focus-visible:shadow-glow';
 
 export function PageHeader({ title, eyebrow, showBack, back, action, className, wrapTitle }: PageHeaderProps) {
   const navigate = useNavigate();
@@ -56,7 +56,7 @@ export function PageHeader({ title, eyebrow, showBack, back, action, className, 
         <div className="flex-1 min-w-0">
           {eyebrow && (
             <>
-              <p className="font-mono text-caption tracking-[0.3em] uppercase text-text-muted mb-1.5">
+              <p className="eyebrow text-text-muted mb-1.5">
                 {eyebrow}
               </p>
               <div className="border-t border-accent/30 mb-2" aria-hidden />

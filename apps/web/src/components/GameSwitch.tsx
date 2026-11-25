@@ -48,7 +48,7 @@ export function GameSwitch({ target }: { target: GameTarget }) {
               <span className="font-sans text-sm font-semibold">{NAME[kind]}</span>
               <span
                 className={cn(
-                  "font-mono text-caption tabular-nums",
+                  "font-sans text-caption tabular-nums",
                   active ? "text-text-secondary" : "text-text-muted",
                 )}
               >
@@ -89,7 +89,7 @@ export function GameSwitch({ target }: { target: GameTarget }) {
               to={card.destination}
               aria-current={card.week_id === target.week_id ? "page" : undefined}
               className={cn(
-                "inline-flex min-h-11 items-center rounded-md border px-3 font-mono text-caption",
+                "inline-flex min-h-11 items-center rounded-md border px-3 font-sans text-caption font-medium tabular-nums",
                 "focus-visible:outline-hidden focus-visible:shadow-glow",
                 card.week_id === target.week_id
                   ? "border-border-strong bg-surface-elevated text-text-primary"

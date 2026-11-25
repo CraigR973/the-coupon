@@ -924,4 +924,10 @@ describe('the hero’s corner glows', () => {
     // And the layer is the hero's own child, so it can only ever clip to the hero.
     expect(screen.getByTestId('home-hero').contains(glows)).toBe(true);
   });
+
+  it('leaves the notification bell to the top bar (Batch 242)', async () => {
+    renderPage();
+    await screen.findByTestId('home-hero');
+    expect(screen.queryByTestId('notification-bell')).toBeNull();
+  });
 });

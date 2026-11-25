@@ -40,12 +40,13 @@ export function StatCard({
     >
       <Label
         className={cn(
-          'font-mono text-caption uppercase text-text-muted',
+          'font-sans font-semibold text-caption uppercase text-text-muted',
           // Batch 170. `truncate` cut "Picks won" and "Win rate" at 390 and even "Points" at
           // 320. Compact labels wrap instead, and below `sm` they track at the WCAG
           // text-spacing value (0.12em), so the longest single word fits at 320 with or
-          // without that override.
-          compact ? 'tracking-[0.12em] sm:tracking-[0.25em]' : 'truncate tracking-[0.25em]',
+          // without that override. Batch 242: labels are words, so they take the app
+          // font, and every width keeps that 0.12em rather than widening to 0.25em.
+          compact ? 'tracking-[0.12em]' : 'truncate tracking-[0.12em]',
         )}
       >
         {label}

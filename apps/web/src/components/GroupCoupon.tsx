@@ -71,9 +71,9 @@ export function GroupStatusCard({
   const { label, variant } = GROUP_PHASE[phase];
   const tone =
     result.status === "won"
-      ? "text-success-ink"
+      ? "text-success"
       : result.status === "lost"
-        ? "text-error-ink"
+        ? "text-error"
         : "text-text-primary";
   return (
     <section
@@ -188,9 +188,9 @@ export function GroupCouponSection({
   const fold = groupFold(legs, picked, members);
   const outcome =
     resultStatus === "won"
-      ? { label: "Coupon won", colour: "text-success-ink" }
+      ? { label: "Coupon won", colour: "text-success" }
       : resultStatus === "lost"
-        ? { label: "Coupon lost", colour: "text-error-ink" }
+        ? { label: "Coupon lost", colour: "text-error" }
         : resultStatus === "void"
           ? { label: "All void", colour: "text-text-primary" }
           : { label: "Coupon settled", colour: "text-text-primary" };
@@ -216,7 +216,7 @@ export function GroupCouponSection({
           aria-controls={LEGS_ID}
           className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-hidden focus-visible:shadow-glow"
         >
-          <span className="min-w-0 truncate font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
+          <span className="min-w-0 truncate eyebrow text-text-primary">
             {final ? "Result" : "The coupon"}
           </span>
           <span className="flex shrink-0 items-center gap-2">
@@ -249,7 +249,7 @@ export function GroupCouponSection({
                   </span>
                 </p>
               ) : (
-                <p className="font-mono text-caption uppercase tracking-[0.25em] text-text-muted">
+                <p className="eyebrow text-text-muted">
                   Group accumulator
                 </p>
               )}

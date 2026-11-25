@@ -212,7 +212,7 @@ export function ClubContext({
       data-testid={`club-context-${team.team_id}`}
     >
       {team.position !== null && (
-        <span className="shrink-0 font-mono text-caption uppercase tracking-[0.15em] text-text-muted">
+        <span className="shrink-0 font-mono text-caption tabular-nums text-text-muted">
           <span className="sr-only">{team.name}, </span>
           {ordinal(team.position)}
         </span>

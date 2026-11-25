@@ -90,9 +90,9 @@ export function CouponSection({
   const pricedLegs = legCount - voidLegs;
   const settledOutcome =
     coupon?.all_won === true
-      ? { label: 'Coupon won', colour: 'text-success-ink' }
+      ? { label: 'Coupon won', colour: 'text-success' }
       : coupon?.all_won === false
-        ? { label: 'Coupon lost', colour: 'text-error-ink' }
+        ? { label: 'Coupon lost', colour: 'text-error' }
         : { label: 'Coupon settled', colour: 'text-text-primary' };
 
   async function copyShareText() {
@@ -127,7 +127,7 @@ export function CouponSection({
           className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-hidden focus-visible:shadow-glow"
           data-testid="coupon-toggle"
         >
-          <span className="min-w-0 truncate font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
+          <span className="min-w-0 truncate eyebrow text-text-primary">
             {heading}
           </span>
           <span className="flex shrink-0 items-center gap-2">
@@ -185,7 +185,7 @@ export function CouponSection({
                 </>
               ) : (
                 <>
-                  <p className="font-mono text-caption uppercase tracking-[0.25em] text-text-muted">
+                  <p className="eyebrow text-text-muted">
                     {pricedLegs}-fold accumulator
                   </p>
                   <p className="mt-1 text-3xl font-semibold tabular-nums text-text-primary">

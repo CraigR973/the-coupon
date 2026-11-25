@@ -48,7 +48,7 @@ export function GameweekNav({ history, compact = false }: GameweekNavProps) {
       </NavButton>
 
       <div className={cn('flex min-w-0 items-center', compact ? 'gap-2' : 'flex-col gap-0.5')}>
-        <span className="truncate font-mono text-caption uppercase tracking-[0.2em] text-text-primary">
+        <span className="truncate eyebrow text-text-primary">
           {roundName(
             current.number,
             formatCalendarDate(current.starts_on, 'EEE d MMM yyyy'),
@@ -74,7 +74,7 @@ export function GameweekNav({ history, compact = false }: GameweekNavProps) {
             type="button"
             onClick={() => select(undefined)}
             className={cn(
-              'inline-flex items-center gap-1 rounded-md border border-border font-mono text-caption uppercase tracking-[0.15em] text-text-muted press-down hover:text-text-primary focus-visible:outline-hidden focus-visible:shadow-glow',
+              'inline-flex items-center gap-1 rounded-md border border-border eyebrow text-text-muted press-down hover:text-text-primary focus-visible:outline-hidden focus-visible:shadow-glow',
               compact ? 'h-8 w-8 justify-center' : 'tap-target px-2 py-1.5',
             )}
             data-testid="gameweek-latest"

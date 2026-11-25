@@ -67,7 +67,7 @@ export function OddsGuide({ storageKey = DEFAULT_STORAGE_KEY, defaultOpen = fals
         )}
       >
         <div className="flex items-center gap-2">
-          <p className="font-mono text-caption uppercase tracking-[0.25em] text-text-muted">How scoring works</p>
+          <p className="eyebrow text-text-muted">How scoring works</p>
           <span className="inline-block rounded bg-primary/[0.08] dark:bg-primary/15 px-1.5 py-0.5 font-mono text-caption font-semibold leading-4 text-text-primary">
             win = odds × 10
           </span>
@@ -104,7 +104,7 @@ export function OddsGuide({ storageKey = DEFAULT_STORAGE_KEY, defaultOpen = fals
           </ul>
 
           <div className="px-4 pb-4">
-            <p className="mb-2 font-mono text-caption uppercase tracking-[0.2em] text-text-muted">
+            <p className="mb-2 eyebrow text-text-muted">
               If your pick wins
             </p>
             <table className="w-full border-collapse text-xs font-sans" aria-label="Odds to points examples">

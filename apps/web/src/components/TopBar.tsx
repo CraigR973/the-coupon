@@ -2,11 +2,11 @@ import {addressedGamesDestination,isAddressedGamePath} from '../lib/leagues';
 import { useGameNavigation } from '../hooks/useGameIntents';
 import { gamesTabDestination, leagueForGames } from '../lib/gameSwitch';
 import { NavLink, Link, useLocation } from 'react-router-dom';
-import { Moon, Sun, Settings, LogOut, User } from 'lucide-react';
+import { Settings, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLeague } from '@/contexts/LeagueContext';
-import { useTheme } from '@/contexts/ThemeContext';
 import { Brand } from '@/components/Brand';
+import { NotificationBell } from '@/components/NotificationBell';
 import { Avatar } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -62,26 +62,7 @@ export function TopBar() {
   const addressedArchive=addressedGamesDestination(pathname);
   const gameLeague=leagueForGames(useGameNavigation(),addressedArchive,activeSlug);
   const gamesPath=gameLeague?gamesTabDestination(gameLeague):addressedArchive;
-  const { resolved, setMode } = useTheme();
   const navItems = desktopNav(hasLeagues ? activeSlug : null,gamesPath);
-  function toggleTheme() {
-    setMode(resolved === 'dark' ? 'light' : 'dark');
-  }
-
-  const themeToggle = (
-    <button
-      type="button"
-      onClick={toggleTheme}
-      aria-label={resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-      className="tap-target inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text-primary press-down focus-visible:outline-hidden focus-visible:shadow-glow"
-    >
-      {resolved === 'dark' ? (
-        <Sun className="h-4 w-4" aria-hidden />
-      ) : (
-        <Moon className="h-4 w-4" aria-hidden />
-      )}
-    </button>
-  );
 
   const avatarMenu = player ? (
     <DropdownMenu>
@@ -127,20 +108,25 @@ export function TopBar() {
       )}
     >
       <div className="max-w-7xl mx-auto px-4 h-[52px] sm:h-14 flex items-center gap-4">
-        {/* ── Mobile layout (< sm): toggle | centred brand | avatar ── */}
-        <div className="relative flex sm:hidden items-center w-full justify-between">
-          {themeToggle}
+        {/* ── Mobile layout (< sm): brand | bell + avatar ──
+            Batch 242: the bell lived inside Home's hero and nowhere else, and the
+            light/dark switch took the left slot on every screen. The bell now sits by the
+            avatar on every signed-in screen; the theme choice is in Settings → Appearance. */}
+        <div className="relative flex sm:hidden items-center w-full justify-end">
           <NavLink
             to="/"
             aria-label="Home"
-            className="press-down absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center"
+            className="press-down absolute inset-y-0 left-0 flex items-center"
           >
             <Brand variant="compact" size={46} />
           </NavLink>
-          {avatarMenu}
+          <div className="flex items-center gap-2">
+            {player && <NotificationBell />}
+            {avatarMenu}
+          </div>
         </div>
 
-        {/* ── Desktop layout (sm+): brand | nav | toggle + badge + avatar ── */}
+        {/* ── Desktop layout (sm+): brand | nav | bell + avatar ── */}
         <NavLink to="/" aria-label="Home" className="press-down hidden sm:block shrink-0">
           <Brand variant="compact" size={46} />
         </NavLink>
@@ -179,7 +165,7 @@ export function TopBar() {
         </nav>
 
         <div className="hidden sm:flex items-center gap-3">
-          {themeToggle}
+          {player && <NotificationBell />}
           {avatarMenu}
         </div>
       </div>

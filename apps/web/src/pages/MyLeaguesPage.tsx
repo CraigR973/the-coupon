@@ -36,7 +36,7 @@ function LeagueCard({
     <Link to={`/leagues/${league.slug}`} className="block h-full group">
       <Card className="flex h-full min-h-[156px] flex-col border-border/80 bg-linear-to-br/srgb from-surface-elevated via-surface to-surface hover:border-primary/50 transition-colors group-hover:border-primary/50">
         <CardHeader className="pb-3 space-y-2">
-          <p className="font-mono text-caption uppercase tracking-[0.22em] text-text-muted">
+          <p className="eyebrow text-text-muted">
             {isLastViewed ? 'Last viewed' : 'League hub'}
           </p>
           <div className="flex items-start justify-between gap-2">
@@ -83,7 +83,7 @@ function LeagueCard({
               </>
             ) : null}
           </div>
-          <span className="font-mono text-caption uppercase tracking-[0.2em] text-primary transition-colors group-hover:text-accent">
+          <span className="eyebrow text-primary transition-colors group-hover:text-accent">
             Open standings →
           </span>
         </CardContent>
