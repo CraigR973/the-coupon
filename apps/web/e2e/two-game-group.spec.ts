@@ -110,6 +110,11 @@ test("exact cold-login/payment link, unpriced contribution, mobile layout and ac
     page.getByRole("heading", { name: "Payment for 21 Nov" }),
   ).toBeVisible();
   await expect(page.locator("#payment")).toBeFocused();
+  // Batch 247: a paid week's status keeps to one line on a phone. The strip's text used
+  // to shrink to about 40px beside its buttons and print a word a line.
+  const paidStatus = page.locator("#payment").getByRole("status");
+  await expect(paidStatus).toHaveText("Paid through this week");
+  expect((await paidStatus.boundingBox())!.height).toBeLessThan(30);
   const invalid = await (
     await request.get(API + "/__two_game_e2e/invalid-auth-tokens")
   ).json();
@@ -486,6 +491,9 @@ test("unpaid Group targets payment focus, and sign-out discards an offline membe
   await expect(page.locator("#payment")).toContainText(
     "£0.99 owed through this week",
   );
+  // Batch 247: owed, the text stacks above the Pay, status and Details buttons on a phone.
+  const owedHeading = page.locator("#week-payment-heading");
+  expect((await owedHeading.boundingBox())!.height).toBeLessThan(30);
   await context.setOffline(true);
   await choose(page, 2);
   await expect(page.getByTestId("intent-0")).toContainText(

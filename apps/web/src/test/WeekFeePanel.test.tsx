@@ -76,4 +76,40 @@ describe("the week's payment strip", () => {
     expect(screen.getByText(/Pooled credit after recorded fees/)).toBeVisible();
     expect(region).toHaveFocus();
   });
+
+  // Batch 247 (owner, 25 Nov 2026): a paid week is one line. The status check and Details
+  // stay in it as icon buttons; the heading and the £1 note fold away with the detail.
+  it("keeps a paid week to one line, its status check and detail one tap away", () => {
+    const { refresh } = strip(fee({ amount_owed_pence: 0, paid_through: true }));
+    expect(screen.getByRole("status")).toHaveTextContent("Paid through this week");
+    const heading = screen.getByRole("heading", { name: "Payment for 28 Nov" });
+    expect(heading).toHaveClass("sr-only");
+    expect(screen.getByText("One £1 a week covers both games.")).not.toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Check payment status" }));
+    expect(refresh).toHaveBeenCalledTimes(1);
+    const details = screen.getByRole("button", { name: "Details" });
+    expect(details).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(details);
+    expect(details).toHaveAttribute("aria-expanded", "true");
+    expect(heading).not.toHaveClass("sr-only");
+    expect(screen.getByText("One £1 a week covers both games.")).toBeVisible();
+    expect(screen.getByText(/Pooled credit after recorded fees/)).toBeVisible();
+  });
+
+  it("shows a paid week's heading and detail when a #payment link lands on it", () => {
+    strip(
+      fee({ amount_owed_pence: 0, paid_through: true }),
+      "/leagues/league-a/weeks/week-a/fantasy#payment",
+    );
+    const region = screen.getByRole("region", { name: "Payment for 28 Nov" });
+    expect(screen.getByRole("button", { name: "Details" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByRole("heading", { name: "Payment for 28 Nov" })).not.toHaveClass(
+      "sr-only",
+    );
+    expect(screen.getByText(/Pooled credit after recorded fees/)).toBeVisible();
+    expect(region).toHaveFocus();
+  });
 });
