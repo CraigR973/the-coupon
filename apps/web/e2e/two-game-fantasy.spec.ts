@@ -436,9 +436,8 @@ test("noon opens the next Fantasy, payment is target-specific and early dues are
       .getByTestId("two-game-home")
       .getByRole("link", { name: "Fantasy · 21 Nov", exact: true }),
   ).toBeVisible();
-  await expect(page.getByTestId("two-game-home")).toContainText(
-    "Locked results",
-  );
+  // Batch 243: the locked Fantasy row reads its score so far, with next week's below.
+  await expect(page.getByTestId("two-game-home")).toContainText("0 pts so far");
   await page
     .getByTestId("two-game-home")
     .getByRole("link", { name: "Fantasy · 28 Nov", exact: true })

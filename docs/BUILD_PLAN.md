@@ -72,8 +72,11 @@ source of truth. The React PWA consumes snake_case `/api/v1/` JSON.
 ```text
 React PWA / invite / inbox
   └─ [INACTIVE: exact server-enabled game cards]
-     Home: old hero + one old card per league; a two-game card frames the season table
-       (cross-league summary) around its entries, deadlines and last result (/me/games)
+     Home: date hero + one slim totals row; one card per league (summary order)
+       two-game card: one week, the earliest not final (/me/games): countdown, Fantasy
+       and Group rows, £1 chip, one button; next week's open Fantasy as one line;
+       then last result, standings, archive (cross-league summary)
+       single-game league: its old card
      Home / coupon screen: Group | Fantasy switch over the old fixture cards
      Group: old status card · who's still to pick · others' games greyed · legs, fold, copy text
      Fantasy slip: tapped price → held fixture's slot, else first free slot

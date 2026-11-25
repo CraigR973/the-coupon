@@ -151,6 +151,76 @@ export function twoGameEntryFacts(league: LeagueGames, now = Date.now()): TwoGam
   };
 }
 
+/** One football week's two games, as Home's week card shows them (Batch 243). */
+export interface TwoGameWeek {
+  weekId: string;
+  /** The week's Saturday, `yyyy-mm-dd`. */
+  weekLabel: string;
+  group: GameCard | null;
+  fantasy: GameCard | null;
+}
+
+/** What Home's week card is about, and the one line it gives the week after. */
+export interface HomeWeek {
+  /** The week on the card, or `null` when the league has no live week to show. */
+  week: TwoGameWeek | null;
+  /** A later week's Fantasy that is already open, for the card's "next week" line. */
+  nextFantasy: GameCard | null;
+  /**
+   * A legacy round still in play on a league that has switched (the week before its first
+   * two-game week). It is the week on the card, so the two-game week that follows it is the
+   * "next week" line rather than a second set of rows.
+   */
+  legacyInPlay: boolean;
+}
+
+function isLive(card: GameCard): boolean {
+  return !card.archived && card.entry_state !== 'cancelled';
+}
+
+/**
+ * One week at a time (owner, 25 Nov 2026; Batch 243).
+ *
+ * The card shows the football week named by this Saturday from the moment it is the
+ * earliest week whose results are not final, so Saturday afternoon keeps this week's results
+ * on screen while next week's Fantasy, which opens at Saturday noon, is one line beneath it.
+ * When this week's results are final the card moves on by itself, because that week is no
+ * longer the earliest live one. A legacy round still in play comes first in the same way.
+ */
+export function homeWeek(league: LeagueGames): HomeWeek {
+  const weeks = new Map<string, GameCard[]>();
+  for (const card of league.games) {
+    if (!isLive(card)) continue;
+    weeks.set(card.week_id, [...(weeks.get(card.week_id) ?? []), card]);
+  }
+  const ordered = [...weeks.entries()]
+    .map(([weekId, cards]) => ({ weekId, cards, weekLabel: cards[0]!.week_label }))
+    .sort((a, b) => a.weekLabel.localeCompare(b.weekLabel));
+  const legacyInPlay = league.legacy_rounds.some(
+    (round) => !round.archived && round.status !== 'cancelled' && round.status !== 'settled',
+  );
+  const current = legacyInPlay
+    ? undefined
+    : ordered.find(({ cards }) => !cards.every((card) => card.result.final));
+  const later = ordered.filter(({ weekLabel }) => !current || weekLabel > current.weekLabel);
+  const nextFantasy =
+    later
+      .flatMap(({ cards }) => cards)
+      .find((card) => card.game_kind === 'fantasy' && card.entry_state === 'open') ?? null;
+  return {
+    week: current
+      ? {
+          weekId: current.weekId,
+          weekLabel: current.weekLabel,
+          group: current.cards.find((card) => card.game_kind === 'group') ?? null,
+          fantasy: current.cards.find((card) => card.game_kind === 'fantasy') ?? null,
+        }
+      : null,
+    nextFantasy,
+    legacyInPlay,
+  };
+}
+
 /** A two-game week's own cards, as the `Last result` panel reports them. */
 export interface TwoGameWeekResult {
   weekId: string;

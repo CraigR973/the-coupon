@@ -74,7 +74,11 @@ export function formatCombinedOdds(odds: number, format: OddsFormat = 'decimal')
   if (odds >= 1_000_000) {
     return format === 'fractional' ? '999,999+/1' : '1,000,000+';
   }
-  return formatOdds(odds, format);
+  // Batch 243: a coupon price runs to six figures, so its whole part takes separators
+  // ("85,172.43", "85,171/1"), as the capped form above already did.
+  return formatOdds(odds, format).replace(/^\d{4,}/, (whole) =>
+    Number(whole).toLocaleString('en-GB'),
+  );
 }
 
 /**

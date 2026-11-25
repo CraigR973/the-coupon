@@ -481,3 +481,101 @@ describe('the old home page for two-game leagues (Batch 239)', () => {
     expect(within(card).getByRole('link', { name: 'Fantasy · 28 Nov' })).toBeVisible();
   });
 });
+
+// ── Batch 243: one football week at a time, then the season ─────────────────────────
+
+describe('Batch 243: Home shows this week, then the season', () => {
+  beforeEach(() => {
+    stubAuth();
+    stubFetch(HIBS_SUMMARY);
+  });
+
+  it('names the week, counts down to its soonest lock and shows the £1 once', async () => {
+    renderWithGames([hibsGames()]);
+    const card = await screen.findByTestId('two-game-home');
+    expect(within(card).getByText('This week · Sat 28 Nov')).toBeTruthy();
+    expect(within(card).getByText('Fantasy locks in')).toBeTruthy();
+    expect(within(card).getAllByText(/£1 paid/)).toHaveLength(1);
+    expect(card.textContent).not.toMatch(/Entry open|Opening announced|Provisional|Paid through this week/);
+  });
+
+  it('offers one button for the most urgent thing', async () => {
+    renderWithGames([hibsGames()]);
+    const card = await screen.findByTestId('two-game-home');
+    const action = within(card).getByRole('link', { name: 'Pick 4 more for Fantasy' });
+    expect(action.getAttribute('href')).toBe('/leagues/hibs-id/weeks/w-now/fantasy');
+  });
+
+  it('asks for the week’s £1 first when it is owed', async () => {
+    const owed = hibsGames();
+    owed.games = owed.games.map((game) =>
+      game.week_id === THIS_WEEK.id
+        ? { ...game, fee: { ...game.fee, paid_through: false, amount_owed_pence: 100 } }
+        : game,
+    );
+    renderWithGames([owed]);
+    const card = await screen.findByTestId('two-game-home');
+    expect(within(card).getByRole('link', { name: 'Pay £1 to play' }).getAttribute('href')).toBe(
+      '/leagues/hibs-id/weeks/w-now/fantasy#payment',
+    );
+    expect(within(card).getByRole('link', { name: '£1 owed' })).toBeTruthy();
+  });
+
+  it('keeps this week on screen, and next week’s open Fantasy is one line', async () => {
+    const next = { id: 'w-next', label: '2026-12-05' };
+    const games = hibsGames();
+    games.games = games.games.map((game) =>
+      game.week_id === THIS_WEEK.id && game.game_kind === 'fantasy'
+        ? {
+            ...game,
+            entry_state: 'locked',
+            purpose: 'results',
+            locks_at: inHours(-1),
+            result: { final: false, provisional: true, weekly_points: 15 },
+          }
+        : game,
+    );
+    games.games.push(
+      twoGameCard(next, 'fantasy', { opens_at: inHours(-1), locks_at: inHours(160) }),
+    );
+    renderWithGames([games]);
+    const card = await screen.findByTestId('two-game-home');
+    expect(within(card).getByText('This week · Sat 28 Nov')).toBeTruthy();
+    expect(within(card).getByRole('link', { name: 'Fantasy · 28 Nov' })).toBeTruthy();
+    expect(card.textContent).toContain('15 pts so far');
+    const line = within(card).getByRole('link', { name: 'Fantasy · 5 Dec' });
+    expect(line.closest('p')?.textContent).toContain('Next week’s Fantasy is open');
+    expect(within(card).queryByRole('link', { name: 'Saturday Group · 5 Dec' })).toBeNull();
+  });
+
+  it('moves on to next week once this week’s results are final', async () => {
+    const next = { id: 'w-next', label: '2026-12-05' };
+    const games = hibsGames();
+    games.games = games.games.map((game) =>
+      game.week_id === THIS_WEEK.id
+        ? {
+            ...game,
+            entry_state: 'locked',
+            purpose: 'results',
+            locks_at: inHours(-30),
+            result: { ...game.result, final: true },
+          }
+        : game,
+    );
+    games.games.push(
+      twoGameCard(next, 'fantasy', { opens_at: inHours(-40), locks_at: inHours(100) }),
+      twoGameCard(next, 'group', {
+        entry_state: 'not_open',
+        purpose: 'upcoming',
+        opens_at: inHours(90),
+        locks_at: inHours(102),
+      }),
+    );
+    renderWithGames([games]);
+    const card = await screen.findByTestId('two-game-home');
+    expect(within(card).getByText('This week · Sat 5 Dec')).toBeTruthy();
+    expect(within(card).getByRole('link', { name: 'Fantasy · 5 Dec' })).toBeTruthy();
+    expect(within(card).queryByRole('link', { name: 'Fantasy · 28 Nov' })).toBeNull();
+    expect(card.textContent).toMatch(/Saturday Group.*Opens /s);
+  });
+});

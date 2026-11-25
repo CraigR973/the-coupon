@@ -36,10 +36,19 @@ describe('formatOdds', () => {
 
 describe('formatCombinedOdds', () => {
   it('keeps ordinary prices and marks the readable cap in either notation', () => {
-    expect(formatCombinedOdds(999_999.99)).toBe('999999.99');
+    expect(formatCombinedOdds(999_999.99)).toBe('999,999.99');
     expect(formatCombinedOdds(1_000_000)).toBe('1,000,000+');
     expect(formatCombinedOdds(1e26)).toBe('1,000,000+');
     expect(formatCombinedOdds(1e26, 'fractional')).toBe('999,999+/1');
+  });
+
+  // Batch 243: a six-figure coupon price read as "85172.43" on Home.
+  it('puts separators in the whole part of a large price, in either notation', () => {
+    expect(formatCombinedOdds(85_172.43)).toBe('85,172.43');
+    expect(formatCombinedOdds(1_234.5)).toBe('1,234.50');
+    expect(formatCombinedOdds(2_001, 'fractional')).toBe('2,000/1');
+    expect(formatCombinedOdds(999.99)).toBe('999.99');
+    expect(formatCombinedOdds(12.5)).toBe('12.50');
   });
 });
 

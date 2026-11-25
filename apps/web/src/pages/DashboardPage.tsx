@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useGameNavigation,useHomeGameStatus } from '../hooks/useGameIntents';
-import { GamesHome } from '../components/GamesHome';
-import { ArrowRight, Clock, Lock, Ticket, Trophy } from 'lucide-react';
+import { LegacyRoundItem } from '../components/GamesHome';
+import { ArrowRight, Check, ChevronRight, Clock, Lock, Ticket, Trophy } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { type CountdownParts } from '../hooks/useCountdown';
 import { useCrossLeagueSummary } from '../hooks/useCrossLeagueSummary';
@@ -27,6 +27,7 @@ import {
   type HomeCardState,
   type TwoGameWeekResult,
   homeCardState,
+  homeWeek,
   lastTwoGameWeek,
   showsCouponFigures,
   twoGameEntryFacts,
@@ -45,6 +46,9 @@ import { useExpiry } from '@/hooks/useExpiry';
 import { Countdown } from '@/components/Countdown';
 
 const FAR_PAST = new Date(0).toISOString();
+
+/** The hero's season figures as a flat row, not tiles (Batch 243). */
+const SEASON_FIGURE = 'border-0 bg-transparent px-0 py-0 shadow-none sm:px-0';
 
 /** The two states a round can still be claimed in — settlement has finished with the rest. */
 const PICKABLE: ReadonlySet<GameweekStatus> = new Set(['scheduled', 'open']);
@@ -234,6 +238,7 @@ export function DashboardPage() {
       <div className="space-y-6">
         <HomeHero
           displayName={player?.displayName ?? 'there'}
+          timezone={player?.timezone}
           summary={gameStatus.isLoading ? undefined : data}
           games={games}
           isLoading={isLoading}
@@ -392,11 +397,13 @@ function FirstLeaguePrompt() {
  */
 function HomeHero({
   displayName,
+  timezone,
   summary,
   games,
   isLoading,
 }: {
   displayName: string;
+  timezone?: string;
   summary?: CrossLeagueSummary;
   games: LeagueGames[];
   isLoading: boolean;
@@ -407,7 +414,7 @@ function HomeHero({
 
   return (
     <section
-      className="relative min-h-[218px] overflow-hidden rounded-2xl border border-border bg-surface px-5 py-6 shadow-md sm:px-7 sm:py-7"
+      className="relative overflow-hidden rounded-2xl border border-border bg-surface px-5 py-5 shadow-md sm:px-7 sm:py-6"
       data-testid="home-hero"
       aria-labelledby="home-heading"
     >
@@ -437,12 +444,14 @@ function HomeHero({
       />
 
       <div className="relative">
+        {/* Batch 243: the date, not the brand again (the top bar carries it). */}
         <p className="eyebrow text-primary">
-          The Coupon · Your season
+          {formatInstant(new Date().toISOString(), timezone ?? 'Europe/London', 'EEEE d MMM') ??
+            'Your season'}
         </p>
         <h1
           id="home-heading"
-          className="mt-2 font-sans text-[2rem] font-semibold leading-tight tracking-tight text-text-primary sm:text-4xl sm:leading-10"
+          className="mt-1 font-sans text-2xl font-semibold leading-tight tracking-tight text-text-primary sm:text-3xl"
         >
           Hi {displayName}
         </h1>
@@ -456,14 +465,8 @@ function HomeHero({
           </p>
         ) : (
           <div className="mt-2">
-            {/* Not "the week": a league sets its own window, and several of them do not
-                land on the same one. */}
-            <p className="font-sans text-sm text-text-secondary">
-              {leagueCount} {leagueCount === 1 ? 'league' : 'leagues'}, one clear view of
-              every round.
-            </p>
-            <div className="mt-2" data-testid="home-next-action">
-              <p className="font-sans text-lg font-semibold leading-snug text-text-primary">
+            <div data-testid="home-next-action">
+              <p className="font-sans text-base font-semibold leading-snug text-text-primary">
                 {action.kind === 'pick'
                   ? `${action.count} ${action.count === 1 ? 'league needs' : 'leagues need'} a pick`
                   : action.openPicksReady
@@ -490,35 +493,37 @@ function HomeHero({
         )}
 
         {isLoading ? (
-          <div className="mt-5 grid grid-cols-3 gap-2" aria-label="Loading your season summary">
+          <div className="mt-4 grid grid-cols-3 gap-3" aria-label="Loading your season summary">
             {Array.from({ length: 3 }).map((_, index) => (
-              <Skeleton key={index} className="h-[58px] rounded-lg" />
+              <Skeleton key={index} className="h-[40px] rounded-lg" />
             ))}
           </div>
         ) : summary && leagueCount > 0 ? (
+          // Batch 243: one quiet row across leagues rather than three boxed tiles; each
+          // league's own position and points are on its card below.
           <dl
-            className="mt-5 grid grid-cols-3 gap-2"
+            className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-3"
             aria-label="Your season at a glance"
             data-testid="home-season-summary"
           >
             <StatCard
               compact
               definition
-              className="bg-surface-elevated"
+              className={SEASON_FIGURE}
               label="Points"
               value={summary.total_points}
             />
             <StatCard
               compact
               definition
-              className="bg-surface-elevated"
+              className={SEASON_FIGURE}
               label="Picks won"
               value={`${summary.picks_won}/${summary.picks_played}`}
             />
             <StatCard
               compact
               definition
-              className="bg-surface-elevated"
+              className={SEASON_FIGURE}
               label="Win rate"
               value={summary.win_rate_pct === null ? '—' : `${summary.win_rate_pct}%`}
             />
@@ -711,16 +716,56 @@ function LeagueHomeCard({ entry }: { entry: PerLeagueSummary }) {
   );
 }
 
+const GAME_NAME: Record<GameCard['game_kind'], string> = {
+  group: 'Saturday Group',
+  fantasy: 'Fantasy',
+};
+
+const money = (pence: number) =>
+  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(pence / 100);
+
+/** "£1" rather than "£1.00" when the amount is whole pounds. */
+const shortMoney = (pence: number) => (pence % 100 === 0 ? `£${pence / 100}` : money(pence));
+
+/** How a locked week's coupon stands, in plain words. */
+function couponStatus(card: GameCard): string {
+  switch (card.result.status) {
+    case 'won':
+      return 'Coupon won';
+    case 'lost':
+      return 'Coupon lost';
+    case 'void':
+      return 'Coupon void';
+    case 'no_coupon':
+      return 'No coupon this week';
+    default:
+      return 'Coupon in play';
+  }
+}
+
+/** Whether a game takes entries now, by its own state and this device's clock. */
+function isOpenNow(card: GameCard, now: number): boolean {
+  return card.entry_state === 'open' && parseInstant(card.locks_at).getTime() > now;
+}
+
+function isUpcoming(card: GameCard, now: number): boolean {
+  return card.purpose === 'upcoming' && parseInstant(card.opens_at).getTime() > now;
+}
+
 /**
- * A two-game league's card (Batch 239): the old card's frame around the league's entries.
+ * A two-game league's card (Batch 243): one football week at a time, then the season.
  *
- * The state chip, the clock, the `Last result` panel with the season's run, and the
- * standings line are the old card's. The figures are the league's own season table from
- * the summary, which already merges fantasy legs with legacy points. The entries, their
- * deadlines and the weeks' results come from `/me/games`, because the summary reads only
- * legacy rounds: on a two-game league its `current_round` is the last legacy round, not
- * this week, so nothing here reads it. `entry` is absent when the summary is: the card
- * then falls back to the season figures `/me/games` carries itself.
+ * The week comes first: the deadline that matters next as a countdown, the week's two
+ * games as rows, the £1 once, and one button for the most urgent thing. Next week's
+ * Fantasy, open from Saturday noon, is one line until this week's results are final
+ * (`homeWeek`). The season follows: the standings line, the last result with the run of
+ * five, and the archive link. The figures are the league's own season table from the
+ * summary; `entry` is absent when the summary is, and the card then falls back to the
+ * season figures `/me/games` carries.
+ *
+ * Batch 239 drew every entry of every week as an equal box with an underlined title, the
+ * deadline in three places and the fee once per box. Test ids, link names and the
+ * phrases the journeys read ("Group pick needed", "N of 6 slots") are kept on purpose.
  *
  * Nothing on it fades (`transition-none`): the journeys flip the theme and scan at once,
  * and a chip or link caught mid-fade reads as a contrast failure.
@@ -739,61 +784,98 @@ function TwoGameLeagueCard({ league, entry }: { league: LeagueGames; entry?: Per
           ? 'round_in_progress'
           : 'between_rounds';
   const { label: stateLabel, variant: stateVariant } = HOME_CARD_STATE[state];
-  const clock = deadline ? (
-    <>
-      Locks in <Countdown target={deadline.locksAt} format={formatCountdown} />
-    </>
-  ) : state === 'round_in_progress' ? (
-    'Locked'
-  ) : facts.next ? (
-    <>
-      Next opens in <Countdown target={facts.next.opensAt} format={formatCountdown} />
-    </>
-  ) : null;
+  const { week, nextFantasy, legacyInPlay } = homeWeek(league);
+  const now = Date.now();
+  const games = week ? [week.fantasy, week.group].filter((card): card is GameCard => !!card) : [];
+  const fee = games[0]?.fee;
+  const open = games
+    .filter((card) => isOpenNow(card, now))
+    .sort((a, b) => parseInstant(a.locks_at).getTime() - parseInstant(b.locks_at).getTime());
+  const upcoming = games
+    .filter((card) => isUpcoming(card, now))
+    .sort((a, b) => parseInstant(a.opens_at).getTime() - parseInstant(b.opens_at).getTime());
+  const action = weekAction(games, now);
   const last = lastResultFor(league, entry);
   const rank = entry ? entry.rank : (league.season_stats?.rank ?? null);
   const points = entry ? entry.total_points : (league.season_stats?.total_points ?? 0);
 
   return (
     <article
-      className="rounded-xl border border-border bg-surface shadow-sm"
+      className="rounded-2xl border border-border bg-surface shadow-sm"
       aria-labelledby={`home-league-${league.slug}`}
       data-testid="two-game-home"
     >
-      <div className="space-y-3 p-5">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <Ticket className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-          <h3
-            id={`home-league-${league.slug}`}
-            className="truncate font-sans text-base font-semibold text-text-primary"
-          >
-            {league.name}
-          </h3>
+      <div className="space-y-4 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="eyebrow text-text-muted">
+              {week
+                ? `This week · ${formatCalendarDate(week.weekLabel, 'EEE d MMM')}`
+                : legacyInPlay
+                  ? 'This week'
+                  : 'Between weeks'}
+            </p>
+            <h3
+              id={`home-league-${league.slug}`}
+              className="mt-0.5 truncate font-sans text-lg font-semibold text-text-primary"
+            >
+              {league.name}
+            </h3>
+          </div>
+          {fee && <FeeChip fee={fee} />}
         </div>
         {league.suspended && (
           <p role="status" className="font-sans text-sm text-text-secondary">
             Entries suspended. Results and weekly fees continue.
           </p>
         )}
-        <div
-          className="flex flex-wrap items-center justify-between gap-2"
-          data-testid={`home-state-${league.slug}`}
-        >
+        <div className="flex flex-col items-start gap-2" data-testid={`home-state-${league.slug}`}>
           <Badge variant={stateVariant} className="transition-none">
             {stateLabel}
           </Badge>
-          {clock && (
-            <span className="flex items-center gap-1.5 font-sans text-xs tabular-nums text-text-secondary">
-              {state === 'round_in_progress' ? (
-                <Lock className="h-3.5 w-3.5" aria-hidden />
-              ) : (
-                <Clock className="h-3.5 w-3.5" aria-hidden />
-              )}
-              {clock}
-            </span>
-          )}
+          <WeekClock open={open} upcoming={upcoming} games={games} next={facts.next} />
         </div>
-        <GamesHome leagues={[league]} />
+        {legacyInPlay ? (
+          <ul className="space-y-3">
+            {league.legacy_rounds
+              .filter((card) => !card.archived)
+              .map((card) => (
+                <LegacyRoundItem key={card.week_id} card={card} serverNow={league.server_now} />
+              ))}
+          </ul>
+        ) : (
+          games.length > 0 && (
+            <ul className="overflow-hidden rounded-xl border border-border divide-y divide-border">
+              {games.map((card) => (
+                <WeekGameRow key={card.game_id} card={card} now={now} />
+              ))}
+            </ul>
+          )
+        )}
+        {action && (
+          <Button asChild className="w-full transition-none">
+            <Link to={action.to}>{action.label}</Link>
+          </Button>
+        )}
+        {nextFantasy && (
+          <p className="font-sans text-sm text-text-secondary">
+            Next week’s Fantasy is open:{' '}
+            <Link
+              to={nextFantasy.destination}
+              className="inline-flex min-h-11 items-center font-semibold text-primary transition-none hover:underline focus-visible:outline-hidden focus-visible:shadow-glow"
+            >
+              {GAME_NAME.fantasy} · {formatCalendarDate(nextFantasy.week_label, 'd MMM')}
+            </Link>
+            {!nextFantasy.fee.paid_through && (
+              <> · {money(nextFantasy.fee.amount_owed_pence)} owed through this week</>
+            )}
+          </p>
+        )}
+        {league.next_game_state === 'pending' && (
+          <p className="font-sans text-sm text-text-secondary">
+            Next fantasy opening is pending confirmation.
+          </p>
+        )}
       </div>
 
       {last?.kind === 'legacy' && <LastResultPanel round={last.round} form={entry?.recent_form} />}
@@ -820,11 +902,218 @@ function TwoGameLeagueCard({ league, entry }: { league: LeagueGames; entry?: Per
       </Link>
       <Link
         to={`/leagues/${league.league_id}/games`}
-        className="flex min-h-11 items-center rounded-b-xl border-t border-border px-5 font-sans text-sm text-text-secondary underline-offset-4 transition-none hover:bg-surface-elevated hover:underline focus-visible:outline-hidden focus-visible:shadow-glow"
+        className="flex min-h-11 items-center justify-between rounded-b-2xl border-t border-border px-5 font-sans text-sm text-text-secondary transition-none hover:bg-surface-elevated focus-visible:outline-hidden focus-visible:shadow-glow"
       >
         Game archive
+        <ChevronRight className="h-4 w-4 text-text-muted" aria-hidden />
       </Link>
     </article>
+  );
+}
+
+/** The week's £1, once per card: a tick when paid, the amount when owed (Batch 243). */
+function FeeChip({ fee }: { fee: GameCard['fee'] }) {
+  return (
+    <Link
+      to={fee.destination}
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 font-sans text-xs font-semibold transition-none focus-visible:outline-hidden focus-visible:shadow-glow',
+        fee.paid_through ? 'bg-success/[0.08] text-success dark:bg-success/15' : 'bg-warning/[0.08] text-warning dark:bg-warning/15',
+      )}
+    >
+      {fee.paid_through ? (
+        <>
+          <Check className="h-3.5 w-3.5" aria-hidden />
+          {shortMoney(fee.obligation_pence)} paid
+        </>
+      ) : (
+        <>{shortMoney(fee.amount_owed_pence)} owed</>
+      )}
+    </Link>
+  );
+}
+
+/**
+ * The deadline that matters next, large: the soonest open game's lock with the other open
+ * game's lock beside it; else the soonest opening; else, once the week is locked, its
+ * results so far; else the next week's opening (Batch 243).
+ */
+function WeekClock({
+  open,
+  upcoming,
+  games,
+  next,
+}: {
+  open: GameCard[];
+  upcoming: GameCard[];
+  games: GameCard[];
+  next: { opensAt: string } | null;
+}) {
+  const lead = open[0];
+  if (lead) {
+    const other = open[1] ?? upcoming[0];
+    return (
+      <div className="min-w-0">
+        <p className="font-sans text-sm text-text-secondary">{GAME_NAME[lead.game_kind]} locks in</p>
+        <p className="font-mono text-3xl font-semibold leading-tight tabular-nums text-text-primary">
+          <Countdown target={lead.locks_at} format={formatCountdown} />
+        </p>
+        <p className="font-sans text-xs text-text-muted">
+          {formatInstant(lead.locks_at, 'Europe/London', 'EEE HH:mm')}
+          {other &&
+            (open[1]
+              ? ` · ${GAME_NAME[other.game_kind]} locks at ${formatInstant(other.locks_at, 'Europe/London', 'HH:mm')}`
+              : ` · ${GAME_NAME[other.game_kind]} opens ${formatInstant(other.opens_at, 'Europe/London', 'EEE HH:mm')}`)}
+        </p>
+      </div>
+    );
+  }
+  const soonest = upcoming[0];
+  if (soonest) {
+    return (
+      <div className="min-w-0">
+        <p className="font-sans text-sm text-text-secondary">{GAME_NAME[soonest.game_kind]} opens in</p>
+        <p className="font-mono text-3xl font-semibold leading-tight tabular-nums text-text-primary">
+          <Countdown target={soonest.opens_at} format={formatCountdown} />
+        </p>
+        <p className="font-sans text-xs text-text-muted">
+          {formatInstant(soonest.opens_at, 'Europe/London', 'EEE d MMM HH:mm')}
+        </p>
+      </div>
+    );
+  }
+  const fantasy = games.find((card) => card.game_kind === 'fantasy');
+  if (games.length > 0) {
+    return (
+      <div className="min-w-0">
+        <p className="font-sans text-sm text-text-secondary">Results so far</p>
+        <p className="font-mono text-3xl font-semibold leading-tight tabular-nums text-text-primary">
+          {fantasy ? `${fantasy.result.weekly_points ?? 0} pts` : '—'}
+        </p>
+        <p className="font-sans text-xs text-text-muted">Final once every game has finished</p>
+      </div>
+    );
+  }
+  if (next) {
+    return (
+      <p className="font-sans text-sm text-text-secondary">
+        Next week opens in <Countdown target={next.opensAt} format={formatCountdown} />
+      </p>
+    );
+  }
+  return null;
+}
+
+/** The one button a week card offers: whatever needs the member soonest (Batch 243). */
+function weekAction(games: GameCard[], now: number): { label: string; to: string } | null {
+  const open = games
+    .filter((card) => isOpenNow(card, now))
+    .sort((a, b) => parseInstant(a.locks_at).getTime() - parseInstant(b.locks_at).getTime());
+  if (open.length === 0) return null;
+  const fee = open[0]!.fee;
+  if (!fee.paid_through) {
+    return {
+      label: fee.amount_owed_pence === 100 ? 'Pay £1 to play' : `Pay ${money(fee.amount_owed_pence)} to play`,
+      to: fee.destination,
+    };
+  }
+  for (const card of open) {
+    if (card.game_kind === 'fantasy') {
+      const filled = card.progress.slots_filled ?? 0;
+      if (filled < 6) {
+        return {
+          label: filled === 0 ? 'Make your Fantasy picks' : `Pick ${6 - filled} more for Fantasy`,
+          to: card.destination,
+        };
+      }
+    } else if (!card.my_entry?.pick) {
+      return { label: 'Make your Saturday Group pick', to: card.destination };
+    }
+  }
+  return null;
+}
+
+/** One game of the week as a row: its name, what it needs and a chip (Batch 243). */
+function WeekGameRow({ card, now }: { card: GameCard; now: number }) {
+  const open = isOpenNow(card, now);
+  const upcoming = isUpcoming(card, now);
+  const filled = card.progress.slots_filled ?? 0;
+  const picked = card.progress.picked_count ?? 0;
+  const members = card.progress.member_count ?? 0;
+  const opens = formatInstant(card.opens_at, 'Europe/London', 'EEE HH:mm');
+  const chip: { label: string; variant: 'success' | 'warning' | 'muted' } = upcoming
+    ? { label: `Opens ${opens}`, variant: 'muted' }
+    : !open
+      ? { label: card.entry_state === 'suspended' ? 'Suspended' : 'Locked', variant: 'muted' }
+      : card.game_kind === 'fantasy'
+        ? filled >= 6
+          ? { label: 'Full', variant: 'success' }
+          : { label: `${6 - filled} to pick`, variant: 'warning' }
+        : card.my_entry?.pick
+          ? { label: 'Picked', variant: 'success' }
+          : { label: 'Pick needed', variant: 'warning' };
+
+  return (
+    <li className="flex items-center gap-3 px-4 py-3">
+      <div className="min-w-0 flex-1 space-y-1">
+        <Link
+          to={card.destination}
+          className="inline-flex items-center font-sans text-base font-semibold text-text-primary transition-none hover:text-primary focus-visible:outline-hidden focus-visible:shadow-glow"
+        >
+          {GAME_NAME[card.game_kind]}
+          <span className="sr-only"> · {formatCalendarDate(card.week_label, 'd MMM')}</span>
+        </Link>
+        {card.game_kind === 'fantasy' ? (
+          <>
+            {!upcoming && (
+              <div className="grid max-w-[9.5rem] grid-cols-6 gap-1" aria-hidden>
+                {Array.from({ length: 6 }, (_, index) => (
+                  <span
+                    key={index}
+                    className={cn(
+                      'h-1.5 rounded-full',
+                      index < filled ? 'bg-primary' : 'bg-border-strong',
+                    )}
+                  />
+                ))}
+              </div>
+            )}
+            {!upcoming && (
+              <p className="font-sans text-sm text-text-secondary">
+                <span>{filled} of 6 slots</span>
+                {!open && <span> · {card.result.weekly_points ?? 0} pts so far</span>}
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="flex flex-wrap gap-x-2 font-sans text-sm text-text-secondary">
+            {upcoming ? (
+              <span>Not open yet</span>
+            ) : (
+              <>
+                {!open && <span>{couponStatus(card)} ·</span>}
+                {card.my_entry?.pick ? (
+                  <span className="text-text-primary">Your pick: {card.my_entry.pick.runner_name}</span>
+                ) : open ? (
+                  <span className="font-medium text-warning">Group pick needed</span>
+                ) : (
+                  <span>You didn’t pick</span>
+                )}
+                {open && members > 0 && (
+                  <span className="tabular-nums text-text-muted">
+                    {picked} of {members} in
+                  </span>
+                )}
+              </>
+            )}
+          </p>
+        )}
+      </div>
+      <Badge variant={chip.variant} className="shrink-0 transition-none">
+        {chip.label}
+      </Badge>
+      <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+    </li>
   );
 }
 

@@ -206,7 +206,8 @@ describe('DashboardPage', () => {
     const summary = await screen.findByTestId('home-season-summary');
     const hero = screen.getByTestId('home-hero');
     expect(hero.textContent).toContain('Hi Alice');
-    expect(hero.textContent).toContain('2 leagues, one clear view of every round');
+    // Batch 243: the hero opens with today's date, not a sentence about the page.
+    expect(hero.querySelector('p')?.textContent).toMatch(/^[A-Z][a-z]+day \d{1,2} [A-Z][a-z]{2}$/);
 
     expect(summary.textContent).toContain('Points57');
     expect(summary.textContent).toContain('Picks won3/5');
