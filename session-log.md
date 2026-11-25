@@ -9829,6 +9829,10 @@ zero skips; tree `79c2a66`) · CI: https://github.com/CraigR973/the-coupon/actio
   and `pot_…`). From then, a move from the owner's current account into the new pot counts as the
   owner's payment, including any transfer of the old pot's balance: reverse that by hand if it
   happens.
+- It happened: the owner moved the old pot's 192.00 GBP into the new pot at 10:08 UTC, and the
+  webhook booked it at once as the owner's payment (entry `5c77f6e6`). Reversed at 10:10 at the
+  owner's word with a site-admin-style `adjustment` of −192.00 on the owner (entry `9d280fa2`, note
+  names the entry); deleting it instead would let the next read re-add it. The move nets to 0.
 
 ### Follow-ups
 - Owner: close the old link in Monzo and tell the group chat (owner's decision, 25 Nov).
