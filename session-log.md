@@ -9921,3 +9921,23 @@ PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45644868579 P
 - The owner's phone check of 242, then Batch 243 (owner, 25 Nov: stop after each deploy).
 
 **Next:** the owner's phone check, then Batch 243.
+
+## Gate maintenance — Batch 243 oracle approval
+**Commit:** `83f3444` · owner-approved 25 Nov 2026 ("Approve all 5") · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/45671726873 failed as expected at the
+old-trusted-guard comparison (the commit changes `scripts/assert-quality-guardrails.sh`), as
+the approval commits for Batches 175, 235 and 238 did
+
+### Key facts for future sessions
+- Batch 243 may remove only the two oracle lines fingerprinted in the guard: the hero test's
+  filler-sentence check in `DashboardPage.test.tsx` and the 999,999.99 price check in
+  `coupon.test.ts`. The fantasy journey's change (a three-line "Locked results" check on Home
+  becomes "0 pts so far") removes no line the guard counts as an oracle; it is quoted in the row
+  with the rest. Every other removed oracle stays blocked.
+- Main's guard replayed on the 243 worktree: PASS, "owner-approved exact oracle replacements
+  applied".
+- The row also records the agent's calls on the build (season part on the same card, totals as
+  one slim row, single-game card unchanged, summary order kept, no "up to N pts").
+- No application code, API contract, database schema or production data changed.
+
+**Next:** Batch 243 from this attestation state.
