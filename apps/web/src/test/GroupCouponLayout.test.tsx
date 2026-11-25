@@ -316,6 +316,33 @@ describe("the Saturday group on the old coupon layout", () => {
     done();
   });
 
+  it("puts the member's pick first, with Change taking them to their fixture", async () => {
+    // Batch 246: the pick, then who is in (a dot each), then the coupon card.
+    const { done } = harness({ 1: claimOf("bob", 1), 2: claimOf("alice", 2) });
+    await ready("Choose Home 3 to win");
+    const mine = within(status()).getByTestId("group-my-pick");
+    expect(mine).toHaveTextContent("Home 2");
+    const dots = within(status()).getByTestId("group-member-dots");
+    expect(dots.children).toHaveLength(4);
+    expect(mine.compareDocumentPosition(dots)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    fireEvent.click(within(mine).getByRole("button", { name: "Change" }));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(choice("Choose Home 2 to win")),
+    );
+    done();
+  });
+
+  it("lists each leg with its picker's initials, the copy in the coupon's header", async () => {
+    const { done } = harness({ 1: claimOf("bob", 1), 2: claimOf("alice", 2) });
+    await ready("Choose Home 3 to win");
+    const coupon = screen.getByTestId("group-coupon");
+    expect(within(coupon).getByTestId("group-leg-0")).toHaveTextContent(/^BS/);
+    expect(within(coupon).getByTestId("group-leg-1")).toHaveTextContent(/^AL/);
+    const header = coupon.firstElementChild as HTMLElement;
+    expect(within(header).getByRole("button", { name: /^Copy/ })).toBeTruthy();
+    done();
+  });
+
   it("withdraws the member's own pick when it is tapped again", async () => {
     const { write, remove, engine, done } = harness({ 2: claimOf("alice", 2) });
     await ready("Choose Home 2 to win");

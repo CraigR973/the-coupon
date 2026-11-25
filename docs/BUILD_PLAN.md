@@ -83,7 +83,10 @@ React PWA / invite / inbox
      Fixture rows, both games: clubs with position and form, kick-off between, then
        Home | Draw | Away buttons (Group: + both-score sheet); competitions open under
        sticky headers with jump chips; unpriced Fantasy fixtures fold into one row
-     Group: old status card · who's still to pick · others' games greyed · legs, fold, copy text
+     Group: status card (your pick first, Change; a dot per member, who's still to pick),
+       then one coupon card (fold, legs with initials, copy for the chat in its header)
+     Fantasy picks: one card of six tiles (tap a held one to remove; "+ Pick" to the
+       fixtures); slim bar: n of 6 · up to N pts · Review
      Fantasy slip: tapped price → held fixture's slot, else first free slot
      own price tapped again, or a slot's Remove → replayable DELETE (revision + operation id)
      archive: the list behind the week bar / retained results
@@ -2403,6 +2406,32 @@ exact lines, asked once per batch before the gate.
   Tests: removing a pick, slip totals, the copied text, the waiting list, the lock and the
   results states. Scope boundary: the Fantasy picks, the Group status card and the coupon.
   **Web-only.**
+
+  As built (agent's calls, 25 Nov 2026): the layout shipped with no test line changed. The
+  plain-words swaps and 2 dp prices in the picks are pinned in 18 test lines (6 in journeys),
+  so they wait for the owner's approval as Batch 249 (asked in chat at 23:10 on 25 Nov; no
+  reply before the gate): "contributed · missing contributors", "Still to pick", "Your saved
+  contribution", "Frozen odds 2.1500", "Pending results · 0 points" and "Copy text" still read
+  as before, and the badges keep "Pick submitted" and "Pick required", as Home's do. The dots
+  and the waiting list sit in the status card, where the tests read them, rather than in the
+  coupon card. The member's own initials are ringed in green with the letters in the body
+  colour, because green letters on the green tint missed contrast in light (the journeys'
+  axe scan caught it).
+
+- [ ] **Batch 249 — Plain words on the game screens, with prices at 2 dp**
+  — the part of Batch 246 that changes pinned test lines, waiting for the owner's approval of
+  the exact lines.
+
+  - Group: "2 of 4 contributed · 2 missing contributors" becomes "2 of 4 picked"; "Still to
+    pick: …" becomes "Waiting on …"; "Your saved contribution: X" becomes "Your pick: X"; the
+    "Copy text" button becomes "Copy for chat"; the badges read "Picked" and "Pick needed".
+  - Fantasy: a pick reads "Home 1 · 2.15" (every price through `formatOdds`, 2 dp) instead of
+    "Home 1 · Frozen odds 2.1500"; "Pending results" becomes "Waiting for results", and a pick
+    still to play shows no "· 0 points".
+
+  Tests: the swapped lines in `GroupCouponLayout.test.tsx`, `GroupRefreshFailure.test.tsx`,
+  `FantasyPickSlip.test.tsx`, `FantasyWeekPage.test.tsx` and both two-game journeys. Any changed
+  test line needs the owner's approval of the exact lines first. **Web-only.**
 
 - [x] **Batch 247 — A paid week's payment strip squeezes to one word a line on phones** ✅ 2026-11-25
   — finding G2, live since Batch 238 (24 Nov). In `WeekFeePanel` the text column is

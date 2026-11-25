@@ -399,6 +399,26 @@ export function GroupGamePage() {
             canSwitch={pickable}
             noPick={noPick}
             stillToPick={(game?.still_to_pick ?? []).map((member) => member.display_name)}
+            onChange={
+              mine
+                ? () => {
+                    // Batch 246: Change opens the member's competition and puts them on their
+                    // fixture, where another tap switches the pick.
+                    const fixture = game?.fixtures.find((value) => value.fixture_id === mine.fixture_id);
+                    if (fixture)
+                      setFolds((value) => ({ ...value, [fixture.competition_id]: true }));
+                    window.setTimeout(() => {
+                      const card = document.querySelector<HTMLElement>(
+                        `[data-testid="group-card-${mine.fixture_id}"]`,
+                      );
+                      card?.scrollIntoView?.({ block: "center" });
+                      card?.querySelector<HTMLElement>("button[aria-pressed='true']")?.focus({
+                        preventScroll: true,
+                      });
+                    }, 0);
+                  }
+                : undefined
+            }
           />
           {entry.isError && game && (
             <Button variant="outline" onClick={() => void entry.refetch()}>

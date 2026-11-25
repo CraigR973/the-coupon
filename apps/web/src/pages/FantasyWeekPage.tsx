@@ -302,18 +302,30 @@ function FantasyWeek({ target }: { target: GameTarget }) {
   const provisional = game?.result.provisional ?? retained?.result.provisional;
   const filledCount =
     game?.progress.filled_count ?? retained?.progress.slots_filled ?? 0;
-  const slots = () =>
-    views.map((view) => (
-      <FantasySlotCard
-        key={view.slot}
-        target={target}
-        view={view}
-        query={slotQueries[view.slot - 1]}
-        fixture={view.pick ? fixtures.get(view.pick.fixture_id) : undefined}
-        editable={editable}
-        onRemove={() => removeSlot(view.slot)}
-      />
-    ));
+  // Batch 246: an empty tile's "+ Pick" closes the slip and puts the member on the fixtures.
+  const toFixtures = () => {
+    setSlipOpen(false);
+    window.setTimeout(() => {
+      slateRef.current?.scrollIntoView?.({ block: "start" });
+      slateRef.current?.focus({ preventScroll: true });
+    }, 0);
+  };
+  const slots = () => (
+    <div className="grid grid-cols-2 gap-2">
+      {views.map((view) => (
+        <FantasySlotCard
+          key={view.slot}
+          target={target}
+          view={view}
+          query={slotQueries[view.slot - 1]}
+          fixture={view.pick ? fixtures.get(view.pick.fixture_id) : undefined}
+          editable={editable}
+          onRemove={() => removeSlot(view.slot)}
+          onPick={toFixtures}
+        />
+      ))}
+    </div>
+  );
   const slate = game && (
     <section
       ref={slateRef}
@@ -461,50 +473,62 @@ function FantasyWeek({ target }: { target: GameTarget }) {
         <div className="min-w-0">{slate}</div>
         <aside
           aria-label="Your Fantasy picks"
-          className="min-w-0 space-y-3 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto"
+          className="min-w-0 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto"
         >
-          <section
-            aria-label="Fantasy weekly result"
-            className="space-y-1 rounded-lg border border-border bg-surface p-4"
-          >
-            <p className="font-sans text-sm text-text-primary">
-              {filledCount} of 6 slots · {fantasyResultLabel(status)}
-            </p>
-            <p className="font-sans text-lg font-semibold text-text-primary">
-              {points} weekly points · {provisional ? "Provisional" : "Final"}
-            </p>
-            {game && upTo > points && (
-              <p className="font-sans text-xs text-text-secondary">
-                Up to {upTo} points if every pending pick wins.
+          {/* Batch 246: one "Your picks" card, the week's score over six compact tiles. */}
+          <section className="rounded-xl border border-border bg-surface">
+            <div aria-label="Fantasy weekly result" role="group" className="space-y-0.5 p-4 pb-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <h2 className="font-sans text-base font-semibold text-text-primary">
+                  Your picks
+                </h2>
+                {game && upTo > points && (
+                  <span className="font-mono text-sm tabular-nums text-text-secondary">
+                    up to {upTo} pts
+                  </span>
+                )}
+              </div>
+              <p className="font-sans text-sm text-text-secondary">
+                {filledCount} of 6 slots · {fantasyResultLabel(status)}
               </p>
-            )}
+              <p className="font-sans text-lg font-semibold text-text-primary">
+                {points} weekly points · {provisional ? "Provisional" : "Final"}
+              </p>
+            </div>
+            <div className="px-4 pb-4">
+              {game ? (
+                slots()
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {retained?.slots?.map((entry) => (
+                    <article
+                      key={entry.slot}
+                      aria-label={`Fantasy slot ${entry.slot}`}
+                      className={cn(
+                        "min-w-0 rounded-lg border px-2.5 py-2",
+                        entry.pick ? "border-border bg-surface" : "border-dashed border-border-strong",
+                      )}
+                    >
+                      <p className="break-words font-sans text-sm text-text-primary">
+                        {entry.pick
+                          ? `${entry.pick.runner_name} · Frozen odds ${entry.pick.frozen_odds} · ${fantasyResultLabel(entry.pick.result)} · ${entry.pick.points ?? 0} points`
+                          : "Empty slot"}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
             {league && (
               <Link
                 to={`/leagues/${league.slug}/leaderboard`}
-                className="inline-flex min-h-11 items-center gap-1 font-sans text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:shadow-glow"
+                className="flex min-h-11 items-center justify-between gap-2 rounded-b-xl border-t border-border px-4 font-sans text-sm font-semibold text-text-primary hover:bg-surface-elevated focus-visible:outline-hidden focus-visible:shadow-glow"
               >
                 Season table
-                <ChevronRight className="h-4 w-4" aria-hidden />
+                <ChevronRight className="h-4 w-4 text-text-muted" aria-hidden />
               </Link>
             )}
           </section>
-          {game
-            ? slots()
-            : retained?.slots?.map((entry) => (
-                <article
-                  key={entry.slot}
-                  className="rounded-lg border border-border bg-surface px-3 py-2.5"
-                >
-                  <h2 className="eyebrow text-text-muted">
-                    Slot {entry.slot}
-                  </h2>
-                  <p className="font-sans text-sm text-text-primary">
-                    {entry.pick
-                      ? `${entry.pick.runner_name} · Frozen odds ${entry.pick.frozen_odds} · ${fantasyResultLabel(entry.pick.result)} · ${entry.pick.points ?? 0} points`
-                      : "Empty slot"}
-                  </p>
-                </article>
-              ))}
         </aside>
       </div>
       {results.isError && (
@@ -548,10 +572,10 @@ function FantasyWeek({ target }: { target: GameTarget }) {
           title={`Your picks · ${views.filter((view) => view.pick).length} of 6`}
           triggerRef={barRef}
         >
-          <div className="max-h-[70vh] space-y-2 overflow-y-auto px-4 pb-5">
+          <div className="max-h-[70vh] space-y-3 overflow-y-auto pb-2">
             {upTo > 0 && (
-              <p className="font-sans text-sm text-text-secondary">
-                Up to {upTo} points if every pending pick wins.
+              <p className="font-mono text-sm tabular-nums text-text-secondary">
+                up to {upTo} pts
               </p>
             )}
             {slots()}

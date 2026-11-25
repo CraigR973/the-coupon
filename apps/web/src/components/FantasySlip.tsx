@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { ChevronUp, Ticket } from "lucide-react";
+import { ChevronUp, Plus, Ticket, X } from "lucide-react";
 import { useGameIntents } from "../hooks/useGameIntents";
 import { fantasyResultLabel, fantasyRunner } from "../lib/fantasy";
 import { fantasyPoints, type SlotView } from "../lib/fantasySlip";
@@ -19,13 +19,14 @@ export interface SlotQueryState {
 }
 
 /**
- * One of the six slots in the slip (Batch 232).
+ * One of the six slots in the slip, as a compact tile (Batch 246; Batch 232 before it).
  *
- * What the six-slot screen put in each slot's card stays here, word for word: the pick
- * and its frozen price, its result and points, the save's progress, the moved-price
- * confirmation and the check when a slot cannot be verified. Choosing moved out to the
- * fixture list. Batch 235: a held slot offers Remove, which withdraws its pick through the
- * same intent engine; there is no slot to aim at.
+ * A held slot shows the pick and its price, the fixture, and its result once there is one;
+ * tapping it removes the pick (Batch 235's Remove, the same intent-engine withdrawal), so the
+ * whole tile is the "Remove slot N" button while the game is open. An empty slot is dashed and
+ * reads "+ Pick", which takes the member to the fixtures. The save's progress, the moved-price
+ * confirmation and the check when a slot cannot be verified stay inside the tile, word for
+ * word, because the journeys read them there.
  */
 export function FantasySlotCard({
   target,
@@ -34,6 +35,7 @@ export function FantasySlotCard({
   fixture,
   editable,
   onRemove,
+  onPick,
 }: {
   target: GameTarget;
   view: SlotView;
@@ -41,6 +43,8 @@ export function FantasySlotCard({
   fixture: FantasyFixture | undefined;
   editable: boolean;
   onRemove: () => void;
+  /** Batch 246: an empty tile's "+ Pick" goes to the fixtures. */
+  onPick?: () => void;
 }) {
   const { engine } = useGameIntents();
   const { slot, pick, intent, movedPrice, ready } = view;
@@ -50,53 +54,71 @@ export function FantasySlotCard({
       : pick?.result === "lost"
         ? "text-error"
         : "text-text-muted";
+  const summary = pick && (
+    <span className="block min-w-0">
+      <span className="block break-words font-sans text-sm text-text-primary">
+        <span className="font-semibold">{pick.runner_name}</span>
+        <span className="text-text-secondary"> · Frozen odds {pick.frozen_odds}</span>
+      </span>
+      {fixture && (
+        <span className="block truncate font-sans text-xs text-text-muted">
+          {fixture.home} v {fixture.away} ·{" "}
+          {formatInstant(fixture.kickoff_at, "Europe/London", "EEE HH:mm")}
+        </span>
+      )}
+      <span className={cn("block font-sans text-xs", tone)}>
+        {fantasyResultLabel(pick.result)} · {pick.points ?? 0} points
+      </span>
+    </span>
+  );
   return (
     <article
       aria-label={`Fantasy slot ${slot}`}
       className={cn(
-        "space-y-2 rounded-lg border bg-surface px-3 py-2.5",
-        pick ? "border-success/40" : "border-border",
+        "min-w-0 space-y-1.5 rounded-lg border px-2.5 py-2",
+        pick ? "border-success/40 bg-surface" : "border-dashed border-border-strong",
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="eyebrow text-text-muted">
-            Slot {slot}
-          </h3>
-          {pick ? (
-            <>
-              <p className="break-words font-sans text-sm font-medium text-text-primary">
-                {pick.runner_name} · Frozen odds {pick.frozen_odds}
-              </p>
-              {fixture && (
-                <p className="break-words font-sans text-xs text-text-muted">
-                  {fixture.home} v {fixture.away} ·{" "}
-                  {formatInstant(fixture.kickoff_at, "Europe/London", "EEE HH:mm")}
-                </p>
-              )}
-              <p className={cn("font-sans text-xs", tone)}>
-                {fantasyResultLabel(pick.result)} · {pick.points ?? 0} points
-              </p>
-            </>
-          ) : (
-            <p className="font-sans text-sm text-text-muted">
-              {/* Batch 235: with no Fill button, an unverified slot says so instead. */}
-              {ready || !editable ? "Empty slot" : `Checking slot ${slot}…`}
-            </p>
-          )}
-        </div>
-        {editable && pick && (
-          <Button
-            variant="outline"
-            className="shrink-0"
+      {pick ? (
+        editable ? (
+          <button
+            type="button"
             disabled={!ready || query.revision === null}
             onClick={onRemove}
             aria-label={`Remove slot ${slot}`}
+            className="flex w-full items-start justify-between gap-1.5 rounded-md text-left disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-hidden focus-visible:shadow-glow"
           >
-            Remove
-          </Button>
-        )}
-      </div>
+            {summary}
+            <X className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+          </button>
+        ) : (
+          summary
+        )
+      ) : ready || !editable ? (
+        editable && onPick ? (
+          <>
+            <span className="sr-only">Empty slot</span>
+            <button
+              type="button"
+              onClick={onPick}
+              className="flex min-h-11 w-full items-center justify-center gap-1 rounded-md font-sans text-sm font-semibold text-primary focus-visible:outline-hidden focus-visible:shadow-glow"
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+              Pick
+              <span className="sr-only"> for slot {slot}</span>
+            </button>
+          </>
+        ) : (
+          <p className="flex min-h-11 items-center justify-center font-sans text-sm text-text-muted">
+            Empty slot
+          </p>
+        )
+      ) : (
+        <p className="flex min-h-11 items-center justify-center font-sans text-sm text-text-muted">
+          {/* Batch 235: with no Fill button, an unverified slot says so instead. */}
+          {`Checking slot ${slot}…`}
+        </p>
+      )}
       {query.isError && (
         <div className="space-y-2">
           <p role="alert" className="font-sans text-sm text-text-primary">
@@ -153,6 +175,7 @@ export function FantasySlotCard({
  *
  * Batch 242: it scrolls away with the list's end, so it must pass under the sticky top
  * bar (`z-header`, 50) rather than over it, and still sit above the tab bar (40).
+ * Batch 246: slim — n of 6, up to N pts and Review.
  */
 export function SlipBar({
   filled,
@@ -172,14 +195,16 @@ export function SlipBar({
           type="button"
           onClick={onOpen}
           aria-haspopup="dialog"
-          className="flex min-h-12 w-full items-center justify-between gap-2 rounded-lg bg-primary px-4 py-3 text-on-primary shadow-sheet focus-visible:outline-hidden focus-visible:shadow-glow"
+          className="flex min-h-11 w-full items-center justify-between gap-2 rounded-full bg-primary px-4 py-2 text-on-primary shadow-sheet focus-visible:outline-hidden focus-visible:shadow-glow"
         >
           <span className="flex items-center gap-2 font-sans text-sm font-semibold">
             <Ticket className="h-4 w-4" aria-hidden />
-            Your picks {filled} of 6
+            <span className="sr-only">Your picks </span>
+            {filled} of 6
+            <span className="font-mono font-normal tabular-nums">· up to {upTo} pts</span>
           </span>
-          <span className="flex items-center gap-1 font-mono text-sm tabular-nums">
-            up to {upTo} pts
+          <span className="flex items-center gap-1 font-sans text-sm font-semibold">
+            Review
             <ChevronUp className="h-4 w-4" aria-hidden />
           </span>
         </button>

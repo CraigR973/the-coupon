@@ -538,6 +538,32 @@ describe("the fantasy pick slip", () => {
     done();
   });
 
+  it("shows the picks as tiles, a held one removed by a tap and an empty one leading to the fixtures", async () => {
+    // Batch 246: one "Your picks" card of six compact tiles.
+    const { remove, done } = harness({ 1: saved(1, 1) });
+    await ready("Choose Home 2 to win at 2.1500");
+    const card = screen.getByRole("complementary", { name: "Your Fantasy picks" });
+    expect(within(card).getAllByRole("article")).toHaveLength(6);
+    expect(within(card).getByRole("heading", { name: "Your picks" })).toBeTruthy();
+    const empty = within(card).getByRole("article", { name: "Fantasy slot 2" });
+    fireEvent.click(within(empty).getByRole("button", { name: "Pick for slot 2" }));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("region", { name: "Fantasy fixtures" })),
+    );
+    fireEvent.click(within(card).getByRole("button", { name: "Remove slot 1" }));
+    await waitFor(() => expect(remove).toHaveBeenCalledTimes(1));
+    expect(remove.mock.calls[0][0]).toBe(`${gamePath(target)}/slots/1`);
+    done();
+  });
+
+  it("keeps the picks bar slim: how many, what they can score, and Review", async () => {
+    const { done } = harness({ 1: saved(1, 1) });
+    const bar = await screen.findByRole("button", { name: /Your picks 1 of 6/ });
+    expect(bar).toHaveTextContent("1 of 6");
+    expect(bar).toHaveTextContent("Review");
+    done();
+  });
+
   it("opens a week's only competition and leads with the payment strip", async () => {
     const { done } = harness();
     await ready("Choose Home 1 to win at 2.1500");
