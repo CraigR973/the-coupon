@@ -2171,6 +2171,161 @@ needs the owner's approval of the exact lines.
   Tests: both pass in either order. Any changed test line needs the owner's approval of the
   exact lines first. **Tooling-only.**
 
+### Home and Games redesign
+
+Raised by the owner on 25 Nov 2026: "I don't like the layout at all", the games page "only
+need[s] to see one game week at a time", and parts "[don't look] a professional grade app".
+The review, with screenshots and mockups of Home, Fantasy and Group, is the owner's private
+page `https://claude.ai/artifact/YAQxr5UXdXUprfPgYzFHzr`; its findings are named H1–H6, G1–G6
+and X1–X5 there. Its local evidence and the realistic two-game scratch stack used for it
+(12 fake members, real club names, a season of settled rounds) are in
+`.local/design-review-2026-11-25/`.
+
+Owner's answers, 25 Nov ("Yes to all"): (1) build the mockups' direction; (2) on Saturday
+afternoon the screens keep this week until its results are final, with next week as one line;
+(3) Batch 247 ships before Sat 28 Nov; (4) Batches 242–246 run from Mon 30 Nov, one at a
+time, and stop after each deploy for the owner's phone check. The review's design calls stood
+with that answer: cross-league season totals leave Home for the profile page; Fantasy prices
+sit inline as three buttons a fixture; Group choices open in a sheet; Fantasy rows show club
+position inline and form on tap, Group rows show both; points show on picks and the sticky
+bar, not under every price; competitions start open with jump chips and unpriced fixtures
+collapse to one row; the greeting stays, smaller; the light/dark switch moves to Settings.
+
+Order: **247 now → 242 → 243 → 244 → 245 → 246**. Every batch is web-only and deploys on its
+close-out push: no push between Saturday 03:00 and 15:00 London. Every batch runs
+`scripts/verify-two-game-web.py` and checks the legacy league's screens too (Yer Leagues A Joke
+stays legacy). Any change to an existing test or journey line needs the owner's approval of the
+exact lines, asked once per batch before the gate.
+
+- [ ] **Batch 242 — One type voice, tidy numbers and real buttons**
+  — review findings X1–X5. Words are set in spaced-out monospace capitals on about 20 labels,
+  underlined text stands in for buttons, odds print three ways (`1.53`, `1.5300`, `2.03`) and
+  the coupon price as `85172.43`.
+
+  - One label style in the app font (semibold, 11–12px, uppercase, about 0.06em), used
+    sparingly; monospace with tabular figures for numbers only (odds, countdowns, points). The
+    wordmark keeps its treatment.
+  - Every price goes through `formatOdds` (2 dp decimal, or fractional per the member's
+    setting); combined prices get thousands separators; a pending pick shows no "0 points".
+  - No underlined body text as a control: navigating titles become rows with a chevron, and the
+    `Home · Game archive · Season table` link rows go.
+  - Top bar: the logo and wordmark on the left; the notification bell (today only on Home,
+    floating inside the hero) joins the avatar on every signed-in screen; the light/dark
+    switch moves to Settings (System, Light, Dark).
+  - Glitches: a selected price's points line no longer truncates (`YOUR PICK · 15 P…`), and the
+    sticky picks bar never slides under the top bar.
+
+  Tests: odds and combined-price formatting; the bell in the top bar and the theme choice in
+  Settings; axe and theme-flip scans in both themes; every journey green. Scope boundary:
+  shared styles, the top bar, Settings, number formatting and the named glitches; no screen is
+  rebuilt (243–246). **Web-only.**
+
+- [ ] **Batch 243 — Home shows this week: one week card and one season card per league**
+  — findings H1–H6. Home leads with a greeting and season totals, shows 21 Nov's games and 28
+  Nov's Fantasy as equal boxes, nests a box per game inside the league box, and repeats the
+  deadline three times and the fee once per game.
+
+  - A week card per league: the fee once as a chip (a Pay button when owed), the soonest open
+    deadline as a large countdown with the other game's lock beside it, both games as rows
+    (Fantasy: n of 6 with a six-segment bar and "up to N pts"; Group: the member's pick or "Pick
+    needed", and n of the league in), and one button for the most urgent action. An upcoming
+    game reads "Opens Sat 03:00"; nothing reads "Opening announced", "Entry open",
+    "Provisional" or "No coupon".
+  - One week at a time (owner, 25 Nov): the card shows the football week named by this Saturday
+    from Monday until its results are final, with results so far once it locks (Fantasy points,
+    won, lost and to play; the coupon's legs). Next week's open Fantasy is one line, "Next
+    week's Fantasy is open", until this week is final; then the card moves on.
+  - A season card per league: position of members, season points, last week's points, the last
+    five weeks as small tiles with their points, and last week in one line. It replaces the
+    Standings row, the Last result panel and the Game archive row.
+  - The hero becomes a date line and a smaller greeting; the cross-league totals (points, picks
+    won, win rate) move to the profile page.
+  - A legacy league keeps the same frame with its round as the week; a member in several leagues
+    gets one week card per league, the one that needs them first.
+
+  Tests: each state (Wednesday: Fantasy open, Group upcoming; Saturday morning: both open;
+  Saturday evening: results so far and the next-week line; Monday: moved on); a legacy-only
+  member; a two-league member; the fee shown once per league. Scope boundary: Home and the
+  profile page's totals. **Web-only.**
+
+- [ ] **Batch 244 — The game screens show one week, with arrows**
+  — findings G1, G5 and G6. Fantasy shows "21 Nov · Open" and "28 Nov · Next" chips all week,
+  the archive is a list of bare links, and the rules sit above the fold.
+
+  - A week header, `‹ Sat 21 Nov ›`, above the Group | Fantasy switch. The arrows step back
+    through earlier weeks' results and forward to next week once it exists (a dot marks next
+    week's open Fantasy). It replaces the Fantasy week chips, and the archive becomes the list
+    behind the week name.
+  - The week a link without one lands on follows Home's rule (243): this week until its results
+    are final.
+  - One status line under the switch: the lock countdown and time, and the fee chip; the full
+    payment strip only when money is owed (247).
+  - The rules become one line and a "How it works" sheet holding the existing rule text.
+  - A past week shows its results: each Fantasy pick won or lost with its points, and the
+    coupon's legs.
+
+  Tests: stepping across weeks; deep links to a week; Saturday's overlap of this week's results
+  and next week's entry; a legacy round in the history. Scope boundary: the game screens'
+  header, the archive and week defaulting. **Web-only.**
+
+- [ ] **Batch 245 — Compact fixture rows for both games**
+  — finding G3. A fixture card is about 400px tall (the competition repeated inside its own
+  section, the date repeated, three prices in a two-column grid), so about 1.5 fit a phone
+  screen and every competition starts folded.
+
+  - Fantasy row: kick-off, both clubs with table position as a small number, and Home, Draw and
+    Away prices side by side as three buttons; a chosen price fills and shows a tick; tapping
+    the clubs shows their form and position. About eight rows a phone screen.
+  - Group row: kick-off, both clubs with position and form dots, and a chip for the member's own
+    pick or the holder's name. Tapping opens a sheet with the five options (result and both
+    teams to score); a held fixture is greyed with its holder's name.
+  - Competitions start open under sticky headers, with jump chips (and picked counts) at the
+    top; unpriced fixtures collapse into one row at the end of their competition.
+
+  Tests: a tapped price saves to the held fixture's slot or the first free one (the existing
+  rule); chosen, disabled and unpriced states; jump chips; saving from the sheet; holder chips;
+  320px reflow and axe. Scope boundary: both games' fixture rows and competition grouping.
+  **Web-only.**
+
+- [ ] **Batch 246 — Your picks and the coupon, compact**
+  — finding G4 and the review's Group coupon screenshot. Fantasy's picks take a summary card
+  plus six full-height slot cards; Group says who is still to pick four ways and nests the
+  coupon three deep.
+
+  - Fantasy: one "Your picks" card of six compact tiles (club and price; an empty one dashed,
+    "+ Pick"), "up to N pts", and tap a tile to remove it. The sticky bar becomes slim: n of 6,
+    up to N pts and Review.
+  - Group: the member's pick first (selection, fixture, Change); then the coupon as one card
+    with a dot per member, "Waiting on …", the legs as one list (initials, selection, fixture)
+    and "Copy for chat" in its header. The group chat is iMessage, so the copy is the share
+    path.
+  - Plain words throughout: "Picked", "Pick needed", "Locks in …"; no "contributed", "missing
+    contributors", "Frozen odds" or "Pending results · 0 points".
+
+  Tests: removing a pick, slip totals, the copied text, the waiting list, the lock and the
+  results states. Scope boundary: the Fantasy picks, the Group status card and the coupon.
+  **Web-only.**
+
+- [ ] **Batch 247 — A paid week's payment strip squeezes to one word a line on phones**
+  — finding G2, live since Batch 238 (24 Nov). In `WeekFeePanel` the text column is
+  `flex-1 min-w-0` in a wrapping row, so its basis is zero and the row never wraps. Once the Pay
+  button has gone, at 390px the column is about 40px wide and prints "Payment / for / 28 /
+  Nov / Paid / through …" a word a line beside "Check payment status" and "Details". Every paid
+  member sees it at the top of both game screens.
+
+  - Paid: one line — a tick, "Paid through this week", a refresh icon button named "Check
+    payment status" (the screens' manual refresh since Batch 238) and a Details icon button. The
+    "Payment for …" heading names the region throughout and shows, with "One £1 a week covers
+    both games.", when Details opens or a `#payment` link lands.
+  - Owed: the same content; on a phone the text stacks above the Pay, status and Details
+    buttons, so it can never squeeze.
+
+  Tests: the paid strip keeps its status check and details; a `#payment` landing on a paid week
+  opens it and shows the heading; at phone width the group journey's paid status and its owed
+  heading each take one line. Every existing strip assertion stays unchanged. Scope boundary:
+  `WeekFeePanel` only; what counts as paid and every money rule are untouched. **Web-only —
+  ship before Sat 28 Nov 03:00 London.**
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
