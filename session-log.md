@@ -9988,3 +9988,30 @@ the approval commits for Batches 175, 235, 238 and 243 did
 - No application code, API contract, database schema or production data changed.
 
 **Next:** Batch 244 from this attestation state.
+
+## Batch 244 — The game screens show one week, with arrows
+**Commits:** `8454296` · verified: `scripts/ci-local.sh` PASS in its worktree (12 checks; backend
+2,106, frontend 1,621, journey 1, zero skips; tree `b8b3e01`), `scripts/verify-two-game-web.py`
+PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45691410493 PASS for `8454296`
+
+### Key facts for future sessions
+- **Week bar:** `GameHeader` (the renamed `GameSwitch.tsx`) puts Home, ‹ week › and the archive
+  in the "Game navigation" bar the journeys already click, then the switch for the week on
+  screen. `weekStops`/`weekStep` in `lib/gameSwitch.ts` read the home summary, so the arrows reach
+  the live weeks and the last five finished ones; a week older than that, reached from the
+  archive, is placed by its date and still steps back towards the present.
+- **One rule for links without a week:** the Games tab now uses `homeWeek` (243), so Saturday
+  afternoon opens this week's results, and next week's open Fantasy waits behind the arrow's
+  dot. The switch flips within the week on screen and falls back to the old `switchCard`.
+- **Kept on purpose:** the paid payment line is still Batch 247's one line, since the journeys
+  read "Paid through this week" and use "Check payment status"; the Group status card keeps its
+  countdown, so the Group rules line shows only the lock time. The headings are screen-reader
+  only now that the bar names the week and the switch the game.
+- **Test lines:** 3 owner-approved changes (`7953b34`, attested in the next commit): the week-chip
+  check, the week-strip test and the Games-tab expectation. No journey line changed.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- The owner's phone check of 244, then Batch 245 (owner, 25 Nov: stop after each deploy).
+
+**Next:** the owner's phone check, then Batch 245.

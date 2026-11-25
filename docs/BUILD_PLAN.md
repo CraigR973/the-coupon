@@ -2286,7 +2286,7 @@ exact lines, asked once per batch before the gate.
   the summary's order, which Batch 239's tests pin, so ordering by need is left to the owner;
   the Fantasy row shows n of 6 and the bar, without "up to N pts".
 
-- [ ] **Batch 244 — The game screens show one week, with arrows**
+- [x] **Batch 244 — The game screens show one week, with arrows** ✅ 2026-11-25
   — findings G1, G5 and G6. Fantasy shows "21 Nov · Open" and "28 Nov · Next" chips all week,
   the archive is a list of bare links, and the rules sit above the fold.
 
