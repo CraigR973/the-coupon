@@ -10015,3 +10015,23 @@ PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45691410493 P
 - The owner's phone check of 244, then Batch 245 (owner, 25 Nov: stop after each deploy).
 
 **Next:** the owner's phone check, then Batch 245.
+
+## Gate maintenance — Batch 245 oracle approval
+**Commit:** `e7cb702` · owner-approved 25 Nov 2026 ("Approve all 3") · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/45708192052 failed as expected at the
+old-trusted-guard comparison (the commit changes `scripts/assert-quality-guardrails.sh`), as
+the approval commits for Batches 175, 235, 238, 243 and 244 did
+
+### Key facts for future sessions
+- Batch 245 may remove only the eight oracle lines fingerprinted in the guard: the folded-start
+  checks in `FantasyPickSlip.test.tsx` and `GroupCouponLayout.test.tsx`, now that every
+  competition starts open. The Batch 242 no-fade scan's anchor in `typeVoice.test.ts` also moves,
+  a line the guard does not count; it is quoted in the row with the rest. Every other removed
+  oracle stays blocked.
+- The owner chose Group rows shaped like Fantasy's (one tap; both teams to score in a sheet),
+  recorded in the row.
+- Main's guard replayed on the 245 worktree: PASS, "owner-approved exact oracle replacements
+  applied".
+- No application code, API contract, database schema or production data changed.
+
+**Next:** Batch 245 from this attestation state.
