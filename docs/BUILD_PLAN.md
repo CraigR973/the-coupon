@@ -2334,7 +2334,7 @@ exact lines, asked once per batch before the gate.
   existing results views (each slot won or lost with its points, the coupon's legs), which
   Batch 246 compacts.
 
-- [ ] **Batch 245 — Compact fixture rows for both games**
+- [x] **Batch 245 — Compact fixture rows for both games** ✅ 2026-11-25
   — finding G3. A fixture card is about 400px tall (the competition repeated inside its own
   section, the date repeated, three prices in a two-column grid), so about 1.5 fit a phone
   screen and every competition starts folded.

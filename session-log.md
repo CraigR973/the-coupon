@@ -10035,3 +10035,30 @@ the approval commits for Batches 175, 235, 238, 243 and 244 did
 - No application code, API contract, database schema or production data changed.
 
 **Next:** Batch 245 from this attestation state.
+
+## Batch 245 — Compact fixture rows for both games
+**Commits:** `2f47e82` · verified: `scripts/ci-local.sh` PASS in its worktree (12 checks; backend
+2,106, frontend 1,625, journey 1, zero skips; tree `e8dcf42`), `scripts/verify-two-game-web.py`
+PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45711149111 PASS for `2f47e82`
+
+### Key facts for future sessions
+- **One row shape for both games** (owner, 25 Nov: "Like Fantasy"): `FixtureHead` in
+  `components/FixtureRow.tsx` lays the clubs either side of a "v" with `ClubContext` (position and
+  form) beneath and the kick-off between, over Home | Draw | Away buttons. Group adds a fourth
+  "Both score?" button whose sheet holds the two both-teams-to-score selections; it is disabled
+  on another member's fixture, like every other button there.
+- **Accessible names unchanged** ("Choose Home 1 to win at 2.1500", "Choose Home 2 to win"), so
+  every journey still taps the same buttons; the group journey's 320px reflow, 44px target and
+  axe checks pass on the new rows. Buttons show the outcome and price only, no "win N pts".
+- **Competitions start open** (238's folded start is gone) under sticky headers at the offline
+  banner's offsets, with jump chips as links, so no chip is ever mistaken for its header button.
+  The page holds the fold state; a jump chip reopens a folded section. Unpriced Fantasy fixtures
+  fold into one row per competition unless the member holds one.
+- **Test lines:** 3 owner-approved changes (`e7cb702`, attested in the next commit): both
+  folded-start tests and the Batch 242 scan's tile anchor (56px or 44px). No journey line changed.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- The owner's phone check of 245, then Batch 246 (owner, 25 Nov: stop after each deploy).
+
+**Next:** the owner's phone check, then Batch 246.
