@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useGameRoute } from "../hooks/useGameRoute";
 import { useGameIntents, useGameNavigation } from "../hooks/useGameIntents";
@@ -32,7 +32,7 @@ import type { OddsFormat } from "../lib/types";
 import { formatCalendarDate, formatInstant } from "../lib/time";
 import { cn } from "../lib/utils";
 import { WeekFeePanel } from "../components/WeekFeePanel";
-import { GameSwitch } from "../components/GameSwitch";
+import { GameHeader, GameRules } from "../components/GameHeader";
 import { Countdown } from "../components/Countdown";
 import {
   FantasyFixtureCard,
@@ -354,62 +354,64 @@ function FantasyWeek({ target }: { target: GameTarget }) {
       )}
     </section>
   );
+  const lockTime = formatInstant(shown.locks_at, "Europe/London", "EEE HH:mm");
   return (
     <div className="space-y-5" data-testid="fantasy-game">
-      <GameSwitch target={target} />
-      <nav
-        aria-label="Game navigation"
-        className="flex flex-wrap gap-x-4 font-sans text-sm"
-      >
-        <Link className="inline-flex min-h-11 items-center underline" to="/">
-          Home
-        </Link>
-        <Link
-          className="inline-flex min-h-11 items-center underline"
-          to={`/leagues/${target.league_id}/games`}
-        >
-          Game archive
-        </Link>
-        {league && (
-          <Link
-            className="inline-flex min-h-11 items-center underline"
-            to={`/leagues/${league.slug}/leaderboard`}
-          >
-            Season table
-          </Link>
-        )}
-      </nav>
+      <GameHeader target={target} weekLabel={shown.week_label} />
+      {/* Batch 244: the week bar names the week and the switch the game, so the heading is
+          for assistive technology; one status line and one rules line replace the header's
+          three paragraphs. */}
       <header className="space-y-1">
-        <h1 className="font-sans text-2xl font-semibold text-text-primary">
+        <h1 className="sr-only">
           Fantasy · {formatCalendarDate(shown.week_label, "d MMM")}
         </h1>
-        <p className="font-sans text-sm text-text-secondary">
-          Up to six picks on different fixtures. Partial entries count. Members
-          can share selections, including the Group game.
-        </p>
-        <p className="font-sans text-sm text-text-secondary">
-          Locks{" "}
-          {formatInstant(shown.locks_at, "Europe/London", "EEE d MMM HH:mm")}{" "}
-          London
-          {editable && (
+        <p className="font-sans text-sm text-text-primary" data-testid="game-status">
+          {editable ? (
             <>
-              {" "}
-              · in <Countdown target={shown.locks_at} format={formatCountdown} />
+              Fantasy locks in{" "}
+              <span className="font-mono font-semibold tabular-nums">
+                <Countdown target={shown.locks_at} format={formatCountdown} />
+              </span>
+              <span className="text-text-secondary"> · {lockTime}</span>
+            </>
+          ) : (
+            <>
+              <span role="status" className="font-medium">
+                {retained
+                  ? "Retained locked history"
+                  : locked
+                    ? "Fantasy locked"
+                    : !opened
+                      ? "Entry has not opened"
+                      : "Entries suspended"}
+              </span>
+              <span className="text-text-secondary">
+                {" "}
+                ·{" "}
+                {retained || locked
+                  ? formatInstant(shown.locks_at, "Europe/London", "EEE d MMM HH:mm")
+                  : !opened
+                    ? `Opens ${formatInstant(shown.opens_at, "Europe/London", "EEE d MMM HH:mm")}`
+                    : `Locks ${formatInstant(shown.locks_at, "Europe/London", "EEE d MMM HH:mm")}`}
+              </span>
             </>
           )}
-          .
         </p>
-        {!editable && (
-          <p role="status" className="font-sans text-sm text-text-primary">
-            {retained
-              ? "Retained locked history"
-              : locked
-                ? "Fantasy locked"
-                : !opened
-                  ? "Entry has not opened"
-                  : "Entries suspended"}
+        <GameRules summary="Up to six picks, one per fixture. A win scores its odds × 10.">
+          <p>
+            Up to six picks on different fixtures. Partial entries count. Members
+            can share selections, including the Group game.
           </p>
-        )}
+          <p>
+            A winning pick scores its frozen odds × 10; losses and voids score
+            nothing. Group adds no points.
+          </p>
+          <p>
+            Locks{" "}
+            {formatInstant(shown.locks_at, "Europe/London", "EEE d MMM HH:mm")}{" "}
+            London.
+          </p>
+        </GameRules>
       </header>
       <WeekFeePanel fee={shown.fee} onRefresh={refresh} />
       {query.isError && (
@@ -439,10 +441,15 @@ function FantasyWeek({ target }: { target: GameTarget }) {
                 Up to {upTo} points if every pending pick wins.
               </p>
             )}
-            <p className="font-sans text-xs text-text-muted">
-              A winning pick scores its frozen odds × 10; losses and voids score
-              nothing. Group adds no points.
-            </p>
+            {league && (
+              <Link
+                to={`/leagues/${league.slug}/leaderboard`}
+                className="inline-flex min-h-11 items-center gap-1 font-sans text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:shadow-glow"
+              >
+                Season table
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </Link>
+            )}
           </section>
           {game
             ? slots()

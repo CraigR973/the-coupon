@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
-  currentWeeks,
   gamesTabDestination,
   leagueForGames,
   switchCard,
+  switchTarget,
+  weekStep,
+  weekStops,
 } from "../lib/gameSwitch";
-import type { GameCard, LeagueGames } from "../lib/twoGameTypes";
+import type { GameCard, LeagueGames, LegacyGameCard } from "../lib/twoGameTypes";
 
 function card(
   kind: "group" | "fantasy",
@@ -76,18 +78,6 @@ describe("the switch's week for each game", () => {
     expect(switchCard(games, "group")?.week_label).toBe("2026-12-05");
   });
 
-  it("lists every current week of one game, oldest first, for the week strip", () => {
-    const games = league([
-      card("fantasy", "2026-12-05", "entry"),
-      card("fantasy", "2026-11-28", "results"),
-      card("fantasy", "2026-11-21", "results", { archived: true }),
-      card("group", "2026-11-28", "entry"),
-    ]);
-    expect(currentWeeks(games, "fantasy").map((value) => value.week_label)).toEqual([
-      "2026-11-28",
-      "2026-12-05",
-    ]);
-  });
 });
 
 describe("the Games tab", () => {
@@ -111,7 +101,7 @@ describe("the Games tab", () => {
     );
   });
 
-  it("passes over a game the member has already played for one they have not", () => {
+  it("keeps this week's played game over next week's untouched Fantasy (Batch 244)", () => {
     const games = league([
       card("group", "2026-11-28", "entry", {
         my_entry: {
@@ -136,8 +126,10 @@ describe("the Games tab", () => {
       }),
       card("fantasy", "2026-12-05", "entry", { progress: { slots_filled: 0 } }),
     ]);
+    // Batch 244 (owner-approved, 25 Nov 2026): a link without a week follows Home's rule,
+    // this week until its results are final; next week's Fantasy waits behind the arrow.
     expect(gamesTabDestination(games)).toBe(
-      "/leagues/league-a/weeks/2026-12-05/fantasy",
+      "/leagues/league-a/weeks/2026-11-28/group",
     );
   });
 
@@ -167,5 +159,133 @@ describe("the Games tab", () => {
       "league-a",
     );
     expect(leagueForGames(leagues, "/leagues/gone/games", "two-one-hibs")).toBeUndefined();
+  });
+});
+
+/** Batch 244: both games of one football week share its id, as the API sends them. */
+function weekCard(
+  kind: "group" | "fantasy",
+  week: string,
+  purpose: string,
+  extra: Partial<GameCard> = {},
+): GameCard {
+  return card(kind, week, purpose, {
+    week_id: `week-${week}`,
+    destination: `/leagues/league-a/weeks/week-${week}/${kind}`,
+    ...extra,
+  });
+}
+
+function legacyRound(startsOn: string): LegacyGameCard {
+  return {
+    format: "legacy",
+    league_id: "league-a",
+    week_id: `legacy-${startsOn}`,
+    destination: `/leagues/two-one-hibs/predictions?gw=legacy-${startsOn}#coupon`,
+    starts_on: startsOn,
+    week_number: "16",
+    status: "settled",
+    locks_at: `${startsOn}T14:30:00Z`,
+    can_pick: false,
+    archived: true,
+    picks_open_at: null,
+    picked_count: 5,
+    my_pick: null,
+    fee: null,
+  };
+}
+
+describe("the week bar (Batch 244)", () => {
+  // Saturday 28 Nov, 15:30: this week's games have locked and its results are coming in;
+  // next week's Fantasy opened at noon and its Group is announced. 14 Nov was legacy.
+  const saturday = (): LeagueGames => ({
+    ...league([
+      weekCard("fantasy", "2026-11-21", "results", { archived: true, result: { final: true } }),
+      weekCard("group", "2026-11-21", "results", { archived: true, result: { final: true } }),
+      weekCard("fantasy", "2026-11-28", "results"),
+      weekCard("group", "2026-11-28", "results"),
+      weekCard("fantasy", "2026-12-05", "entry"),
+      weekCard("group", "2026-12-05", "upcoming"),
+    ]),
+    legacy_rounds: [legacyRound("2026-11-14")],
+  });
+
+  it("lists every week oldest first, both games together, with a legacy round among them", () => {
+    expect(
+      weekStops(saturday()).map((stop) => [stop.label, !!stop.group, !!stop.fantasy, !!stop.legacy]),
+    ).toEqual([
+      ["2026-11-14", false, false, true],
+      ["2026-11-21", true, true, false],
+      ["2026-11-28", true, true, false],
+      ["2026-12-05", true, true, false],
+    ]);
+  });
+
+  it("leaves out a week whose games were all cancelled", () => {
+    const games = league([
+      weekCard("fantasy", "2026-11-21", "results", { entry_state: "cancelled" }),
+      weekCard("group", "2026-11-21", "results", { entry_state: "cancelled" }),
+      weekCard("fantasy", "2026-11-28", "entry"),
+    ]);
+    expect(weekStops(games).map((stop) => stop.label)).toEqual(["2026-11-28"]);
+  });
+
+  it("keeps Saturday's results as this week, with next week's open Fantasy one arrow on", () => {
+    const step = weekStep(saturday(), { weekId: "week-2026-11-28", label: "2026-11-28" }, "fantasy");
+    expect(step.relation).toBe("this");
+    expect(step.next).toEqual({
+      destination: "/leagues/league-a/weeks/week-2026-12-05/fantasy",
+      label: "2026-12-05",
+      fantasyOpen: true,
+    });
+    expect(step.previous).toEqual({
+      destination: "/leagues/league-a/weeks/week-2026-11-21/fantasy",
+      label: "2026-11-21",
+    });
+  });
+
+  it("names next week as next, and steps the Group screen through Group weeks", () => {
+    const step = weekStep(saturday(), { weekId: "week-2026-12-05", label: "2026-12-05" }, "group");
+    expect(step.relation).toBe("next");
+    expect(step.next).toBeNull();
+    expect(step.previous?.destination).toBe("/leagues/league-a/weeks/week-2026-11-28/group");
+  });
+
+  it("steps back from the first two-game week into the legacy round before it", () => {
+    const step = weekStep(saturday(), { weekId: "week-2026-11-21", label: "2026-11-21" }, "fantasy");
+    expect(step.relation).toBe("past");
+    expect(step.previous).toEqual({
+      destination: "/leagues/two-one-hibs/predictions?gw=legacy-2026-11-14#coupon",
+      label: "2026-11-14",
+    });
+  });
+
+  it("places a deep-linked week older than the summary by its date", () => {
+    const step = weekStep(saturday(), { weekId: "week-2026-10-31", label: "2026-10-31" }, "fantasy");
+    expect(step.relation).toBe("past");
+    expect(step.previous).toBeNull();
+    expect(step.next?.destination).toBe(
+      "/leagues/two-one-hibs/predictions?gw=legacy-2026-11-14#coupon",
+    );
+    expect(step.next?.fantasyOpen).toBe(false);
+  });
+
+  it("flips Group and Fantasy within the week on screen, else to the game's current week", () => {
+    expect(switchTarget(saturday(), "group", "week-2026-11-21")?.destination).toBe(
+      "/leagues/league-a/weeks/week-2026-11-21/group",
+    );
+    const fantasyOnly = league([
+      weekCard("fantasy", "2026-11-21", "results"),
+      weekCard("group", "2026-11-28", "upcoming"),
+    ]);
+    expect(switchTarget(fantasyOnly, "group", "week-2026-11-21")?.destination).toBe(
+      "/leagues/league-a/weeks/week-2026-11-28/group",
+    );
+  });
+
+  it("sends the Games tab to this week's results on Saturday afternoon, not next week's entry", () => {
+    expect(gamesTabDestination(saturday())).toBe(
+      "/leagues/league-a/weeks/week-2026-11-28/fantasy",
+    );
   });
 });

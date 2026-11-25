@@ -77,11 +77,13 @@ React PWA / invite / inbox
        and Group rows, £1 chip, one button; next week's open Fantasy as one line;
        then last result, standings, archive (cross-league summary)
        single-game league: its old card
-     Home / coupon screen: Group | Fantasy switch over the old fixture cards
+     Game screens: week bar (Home · ‹ week › · archive; dot = next Fantasy open), then
+       Group | Fantasy for that week; one status line, rules line + How it works sheet
+     Games tab and links without a week: Home's week (this week until final)
      Group: old status card · who's still to pick · others' games greyed · legs, fold, copy text
      Fantasy slip: tapped price → held fixture's slot, else first free slot
      own price tapped again, or a slot's Remove → replayable DELETE (revision + operation id)
-     parent archive / retained results
+     archive: the list behind the week bar / retained results
      authenticated shell → member-bound per-target operation queue
      exact readback → same operation PUT → authoritative refresh → ready
      fresh named-price consent → new operation; per-slot results poll

@@ -465,16 +465,15 @@ describe("the fantasy pick slip", () => {
     const fantasy = within(games).getByRole("link", { name: /Fantasy/ });
     expect(fantasy).toHaveAttribute("aria-current", "page");
     expect(fantasy).toHaveTextContent("2 of 6 picked");
-    const weeks = screen.getByRole("navigation", { name: "Fantasy weeks" });
+    // Batch 244 (owner-approved, 25 Nov 2026): the week bar replaces the week chips. 21 Nov's
+    // results are still coming in, so it is this week, and 28 Nov is next week, one arrow on.
+    const weeks = screen.getByRole("navigation", { name: "Game navigation" });
+    expect(within(weeks).getByText("Next week")).toBeTruthy();
+    expect(within(weeks).getByText("Sat 28 Nov")).toBeTruthy();
     expect(
-      within(weeks)
-        .getAllByRole("link")
-        .map((link) => link.textContent),
-    ).toEqual(["21 Nov · Results", "28 Nov · Open"]);
-    expect(within(weeks).getByRole("link", { name: "28 Nov · Open" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+      within(weeks).getByRole("link", { name: "Earlier week, Sat 21 Nov" }),
+    ).toHaveAttribute("href", "/leagues/league-a/weeks/week-z/fantasy");
+    expect(within(weeks).queryByRole("link", { name: /^Next week/ })).toBeNull();
     done();
   });
 

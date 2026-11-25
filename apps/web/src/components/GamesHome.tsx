@@ -23,16 +23,16 @@ export function GamesHome({ leagues }: { leagues: LeagueGames[] }) {
               .map((card) => (
                 <li
                   key={card.game_id}
-                  className="rounded-lg border border-border p-3 space-y-1"
+                  className="rounded-lg border border-border bg-surface p-3 space-y-1 font-sans text-sm text-text-secondary"
                 >
                   <Link
-                    className="inline-flex min-h-11 items-center font-semibold underline"
+                    className="inline-flex min-h-11 items-center text-base font-semibold text-text-primary hover:text-primary focus-visible:outline-hidden focus-visible:shadow-glow"
                     to={card.destination}
                   >
                     {card.game_kind === "group" ? "Saturday Group" : "Fantasy"}{" "}
                     · {formatCalendarDate(card.week_label, "d MMM")}
                   </Link>
-                  <p>
+                  <p className="font-medium text-text-primary">
                     {card.entry_state === "open"
                       ? "Entry open"
                       : card.entry_state === "locked"
@@ -80,7 +80,7 @@ export function GamesHome({ leagues }: { leagues: LeagueGames[] }) {
                     </p>
                   )}
                   <Link
-                    className="inline-flex min-h-11 items-center underline text-sm"
+                    className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:shadow-glow"
                     to={card.fee.destination}
                   >
                     {card.fee.paid_through
@@ -119,14 +119,14 @@ export function LegacyRoundItem({
 }) {
   const oddsFormat = useOddsFormat();
   return (
-    <li className="rounded-lg border border-border p-3 space-y-1">
+    <li className="rounded-lg border border-border bg-surface p-3 space-y-1 font-sans text-sm text-text-secondary">
       <Link
-        className="inline-flex min-h-11 items-center underline"
+        className="inline-flex min-h-11 items-center text-base font-semibold text-text-primary hover:text-primary focus-visible:outline-hidden focus-visible:shadow-glow"
         to={card.destination}
       >
         Legacy round · {formatCalendarDate(card.starts_on, "d MMM")}
       </Link>
-      <p>
+      <p className="font-medium text-text-primary">
         {card.status === "cancelled"
           ? "Cancelled"
           : card.status === "settled"

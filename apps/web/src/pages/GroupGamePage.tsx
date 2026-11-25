@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useGameIntents, useGameNavigation } from "../hooks/useGameIntents";
 import { useGameRoute } from "../hooks/useGameRoute";
@@ -29,7 +29,7 @@ import { formatCalendarDate, formatInstant } from "../lib/time";
 import { cn } from "../lib/utils";
 import { WeekFeePanel } from "../components/WeekFeePanel";
 import { GameIntentStatus } from "../components/GameIntentStatus";
-import { GameSwitch } from "../components/GameSwitch";
+import { GameHeader, GameRules } from "../components/GameHeader";
 import { Countdown } from "../components/Countdown";
 import { GroupFixtureCard } from "../components/GroupFixtureCard";
 import {
@@ -332,42 +332,25 @@ export function GroupGamePage() {
   );
   return (
     <div className="space-y-5" data-testid="group-game">
-      <GameSwitch target={target} />
-      <nav
-        aria-label="Game navigation"
-        className="flex flex-wrap gap-x-4 font-sans text-sm"
-      >
-        <Link className="inline-flex min-h-11 items-center underline" to="/">
-          Home
-        </Link>
-        <Link
-          className="inline-flex min-h-11 items-center underline"
-          to={`/leagues/${target.league_id}/games`}
+      <GameHeader target={target} weekLabel={shown.week_label} />
+      {/* Batch 244: the week bar names the week and the switch the game, so the heading is
+          for assistive technology. The status card below keeps the countdown, so the rules
+          line carries only the lock time. */}
+      <header>
+        <h1 className="sr-only">Saturday Group · {weekLabel}</h1>
+        <GameRules
+          summary={`One pick each, and a fixture belongs to one member. Locks ${formatInstant(shown.locks_at, "Europe/London", "EEE HH:mm")}.`}
         >
-          Game archive
-        </Link>
-        {league && (
-          <Link
-            className="inline-flex min-h-11 items-center underline"
-            to={`/leagues/${league.slug}/leaderboard`}
-          >
-            Season table
-          </Link>
-        )}
-      </nav>
-      <header className="space-y-1">
-        <h1 className="font-sans text-2xl font-semibold text-text-primary">
-          Saturday Group · {weekLabel}
-        </h1>
-        <p className="font-sans text-sm text-text-secondary">
-          One contribution each. A fixture belongs to one member across the
-          group.
-        </p>
-        <p className="font-sans text-sm text-text-secondary">
-          Locks{" "}
-          {formatInstant(shown.locks_at, "Europe/London", "EEE d MMM HH:mm")}{" "}
-          London time.
-        </p>
+          <p>
+            One contribution each. A fixture belongs to one member across the
+            group.
+          </p>
+          <p>
+            Locks{" "}
+            {formatInstant(shown.locks_at, "Europe/London", "EEE d MMM HH:mm")}{" "}
+            London time.
+          </p>
+        </GameRules>
       </header>
       <WeekFeePanel fee={shown.fee} onRefresh={refresh} />
       {query.isError && (
@@ -413,6 +396,15 @@ export function GroupGamePage() {
               resultStatus={resultStatus}
               weekLabel={weekLabel}
             />
+          )}
+          {league && (
+            <Link
+              to={`/leagues/${league.slug}/leaderboard`}
+              className="inline-flex min-h-11 items-center gap-1 font-sans text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:shadow-glow"
+            >
+              Season table
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </Link>
           )}
         </aside>
         {slate && <div className="min-w-0 lg:col-start-1 lg:row-start-1">{slate}</div>}
