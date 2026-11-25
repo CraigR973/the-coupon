@@ -2197,7 +2197,7 @@ close-out push: no push between Saturday 03:00 and 15:00 London. Every batch run
 stays legacy). Any change to an existing test or journey line needs the owner's approval of the
 exact lines, asked once per batch before the gate.
 
-- [ ] **Batch 242 — One type voice, colours that render and a tidier top bar**
+- [x] **Batch 242 — One type voice, colours that render and a tidier top bar** ✅ 2026-11-25
   — review findings X1 and X5, and a colour fault found on the build (25 Nov). Words are set
   in spaced-out monospace capitals on about 60 labels, 21 colour classes render nothing, the
   bell floats inside Home's hero and nowhere else, and the Fantasy screen has two glitches.
@@ -2248,7 +2248,9 @@ exact lines, asked once per batch before the gate.
   - The hero becomes a date line and a smaller greeting; the cross-league totals (points, picks
     won, win rate) move to the profile page.
   - From 242: combined prices with thousands separators (`85,172.43`), and no underlined
-    titles or links on Home.
+    titles or links on Home. Since 242 the hero's "Picks won" tile label wraps to two lines at
+    390px (the app font is wider than monospace at Batch 170's 0.12em); the tiles leave Home
+    here, so check that their labels fit on the profile page.
   - A legacy league keeps the same frame with its round as the week; a member in several leagues
     gets one week card per league, the one that needs them first.
 

@@ -9893,3 +9893,31 @@ Batch 248 (12 checks; backend 2,106, frontend 1,587, journey 1, zero skips; tree
 - Batch 242, then 243–246, the rest of the Home and Games redesign (owner, 25 Nov).
 
 **Next:** Batch 242.
+
+## Batch 242 — One type voice, colours that render and a tidier top bar
+**Commits:** `3a78a50` · verified: `scripts/ci-local.sh` PASS in its worktree (12 checks; backend
+2,106, frontend 1,596, journey 1, zero skips; tree `7e9f4f5`), `scripts/verify-two-game-web.py`
+PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45644868579 PASS for `3a78a50`
+
+### Key facts for future sessions
+- **Labels:** one `@utility eyebrow` in `index.css` (Outfit 600, 12px, upper case, 0.06em)
+  replaced `font-mono … uppercase tracking-[0.15–0.3em]` on 60 labels in 28 files; kick-off times
+  read in sentence case; `StatCard` labels keep Batch 170's 0.12em in the app font. The wordmark
+  is unchanged. `typeVoice.test.ts` scans the source so neither comes back.
+- **Dead colours:** `text-*-ink` (21 uses) generated nothing, since `text-*` already resolves the
+  brand and semantic names to their `-ink` tokens; won and lost labels and your own table row had
+  no colour. Fixed app-wide, with a source scan that fails on any `*-ink` class name.
+- **Gate failure on the way:** the first two-game run failed the Fantasy story's dark/light scan
+  on the restyled points line of every price tile except the member's own. Tiles faded their
+  colours while the points line, which sets its own, switched at once. Price tiles are now
+  `transition-none` (Fantasy, Group and the legacy `PickCard`), with a source-scan test; the rerun
+  was PASS30. The story had passed 5 of 5 repeats both before and after the restyle, so the race
+  is rare but real.
+- **Scope moved on the build** so that no existing test line changed: number formatting to 243
+  and 246, underlined titles and link rows to 243 and 244 (recorded in their rows).
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- The owner's phone check of 242, then Batch 243 (owner, 25 Nov: stop after each deploy).
+
+**Next:** the owner's phone check, then Batch 243.
