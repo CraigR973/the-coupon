@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Check, CloudOff, HelpCircle, Loader2 } from "lucide-react";
-import { Badge } from "./ui/badge";
-import { ClubContext } from "./FormLine";
+import { FixtureHead } from "./FixtureRow";
+import { Sheet } from "./ui/sheet";
 import {
   groupResultLabel,
   groupSelection,
@@ -11,13 +11,7 @@ import { formatInstant } from "../lib/time";
 import { cn } from "../lib/utils";
 import type { GroupFixture } from "../lib/twoGameTypes";
 
-const MARKET_ORDER = ["MATCH_ODDS", "BOTH_TEAMS_TO_SCORE"];
 const OUTCOME_ORDER: Record<string, number> = { HOME: 0, DRAW: 1, AWAY: 2, YES: 0, NO: 1 };
-/** "Match result", not the legacy "Match Odds": nothing on the group screen is priced. */
-const MARKET_LABEL: Record<string, string> = {
-  MATCH_ODDS: "Match result",
-  BOTH_TEAMS_TO_SCORE: "Both teams to score",
-};
 
 /** The member's choice on its way to this fixture, as the save engine reports it. */
 export interface PendingGroupChoice {
@@ -41,10 +35,14 @@ export interface GroupFixtureCardProps {
   children?: ReactNode;
 }
 
+/** The outcome a result button names, short, because the clubs sit above it (Batch 245). */
+const SHORT: Record<string, string> = { HOME: "Home", DRAW: "Draw", AWAY: "Away" };
+
 /**
- * One Saturday fixture as the old coupon drew it (Batch 233): competition and kick-off,
- * the two clubs, and each selection as a button. Group picks are never priced, so the
- * buttons carry the selection alone.
+ * One Saturday fixture as a compact row (Batch 245), shaped like a Fantasy row (owner, 25 Nov
+ * 2026): the clubs with their position and form, the kick-off between them, and Home, Draw and
+ * Away as three buttons, so one tap picks. Both teams to score sits behind a fourth button
+ * that opens a sheet. Group picks are never priced, so the buttons carry the selection alone.
  *
  * A fixture belongs to one member across the group. Another member's reads "Picked by
  * <name>" and greys out entirely; the member's own reads "Your game", and another of its
@@ -52,7 +50,6 @@ export interface GroupFixtureCardProps {
  */
 export function GroupFixtureCard({
   fixture,
-  competition,
   memberId,
   pending,
   canChoose,
@@ -60,63 +57,108 @@ export function GroupFixtureCard({
   onRemove,
   children,
 }: GroupFixtureCardProps) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLButtonElement | null>(null);
   const claim = fixture.claim;
   const mine = !!claim && claim.player_id === memberId;
   const takenBy = claim && !mine ? claim : null;
   const closed = !!takenBy || !fixture.eligible;
   const settled = claim && claim.result !== "pending" ? claim.result : null;
-  const kickoff =
-    formatInstant(fixture.kickoff_at, "Europe/London", "EEE d MMM, HH:mm") ?? "";
-  const markets = MARKET_ORDER.filter((market) =>
-    fixture.allowed_markets.some((value) => value.market === market),
-  );
+  const kickoff = formatInstant(fixture.kickoff_at, "Europe/London", "EEE HH:mm") ?? "";
+  const outcomesOf = (market: string) =>
+    [...(fixture.allowed_markets.find((value) => value.market === market)?.outcomes ?? [])].sort(
+      (a, b) => (OUTCOME_ORDER[a] ?? 9) - (OUTCOME_ORDER[b] ?? 9),
+    );
+  const result = outcomesOf("MATCH_ODDS");
+  const btts = outcomesOf("BOTH_TEAMS_TO_SCORE");
+  const button = (market: string, outcome: string, wide = false) => {
+    const held = !!claim && claim.market === market && claim.outcome === outcome;
+    return (
+      <SelectionButton
+        key={`${market}/${outcome}`}
+        fixture={fixture}
+        market={market}
+        outcome={outcome}
+        short={wide ? null : (SHORT[outcome] ?? null)}
+        pressed={mine && held}
+        holder={takenBy && held ? shortName(takenBy.display_name) : null}
+        settled={held ? settled : null}
+        phase={
+          pending && pending.market === market && pending.outcome === outcome
+            ? pending.phase
+            : null
+        }
+        actionable={canChoose && !closed && !(mine && held)}
+        removable={canChoose && mine && held && !settled && !pending}
+        onChoose={(chosenMarket, chosenOutcome) => {
+          setMoreOpen(false);
+          onChoose(chosenMarket, chosenOutcome);
+        }}
+        onRemove={
+          onRemove &&
+          (() => {
+            setMoreOpen(false);
+            onRemove();
+          })
+        }
+      />
+    );
+  };
+  const bttsHeld = !!claim && claim.market === "BOTH_TEAMS_TO_SCORE";
+  const bttsMine = mine && bttsHeld;
+  const bttsPending = pending?.market === "BOTH_TEAMS_TO_SCORE";
   return (
     <div
       className={cn(
-        "flex flex-col rounded-lg border bg-surface px-4 py-3",
+        "rounded-lg border bg-surface px-3 py-2.5",
         mine ? "border-success/60" : closed ? "border-border/50" : "border-border",
       )}
       data-testid={`group-card-${fixture.fixture_id}`}
     >
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <Badge variant="muted">{competition}</Badge>
-        <span className="shrink-0 font-sans text-caption tabular-nums text-text-muted">
-          {kickoff}
-        </span>
+      <FixtureHead fixture={fixture} kickoff={kickoff} muted={closed} />
+      <div
+        className={cn("mt-2 grid gap-1.5", btts.length > 0 ? "grid-cols-4" : "grid-cols-3")}
+      >
+        {result.map((outcome) => button("MATCH_ODDS", outcome))}
+        {btts.length > 0 && (
+          <button
+            ref={moreRef}
+            type="button"
+            disabled={closed && !bttsMine}
+            aria-pressed={bttsMine}
+            aria-label={
+              bttsHeld && claim
+                ? `Both teams to score: ${groupSelection(fixture, claim.market, claim.outcome).name}`
+                : "Both teams to score"
+            }
+            onClick={() => setMoreOpen(true)}
+            data-testid={`group-more-${fixture.fixture_id}`}
+            className={cn(
+              "flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md px-1.5 py-1 text-center font-sans text-caption font-medium transition-none",
+              bttsMine
+                ? "border-2 border-success bg-success/[0.08] text-text-primary dark:bg-success/15"
+                : closed
+                  ? "cursor-not-allowed border border-border/50 bg-surface text-text-secondary opacity-55"
+                  : "cursor-pointer border border-border bg-surface-elevated text-text-secondary hover:border-primary/60 press-down",
+              "focus-visible:outline-hidden focus-visible:shadow-glow",
+            )}
+          >
+            <span className="flex items-center gap-1">
+              {bttsMine && <Check className="h-3 w-3 shrink-0" aria-hidden />}
+              Both score?
+              {bttsPending && <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden />}
+            </span>
+            {bttsHeld && claim && (
+              <span className="max-w-full truncate text-text-muted">
+                {claim.outcome === "YES" ? "Yes" : "No"}
+              </span>
+            )}
+          </button>
+        )}
       </div>
-      <div className="relative mb-2 grid grid-cols-2 items-baseline gap-2">
-        <p
-          className={cn(
-            "min-w-0 truncate pr-3 text-sm font-sans font-medium",
-            closed ? "text-text-secondary" : "text-text-primary",
-          )}
-        >
-          {fixture.home}
-        </p>
-        <span className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 text-sm text-text-muted">
-          v
-        </span>
-        <p
-          className={cn(
-            "min-w-0 truncate pl-3 text-right text-sm font-sans font-medium",
-            closed ? "text-text-secondary" : "text-text-primary",
-          )}
-        >
-          {fixture.away}
-        </p>
-      </div>
-      {fixture.context && (
-        <div className="-mt-1 mb-2 grid grid-cols-2 gap-2">
-          <ClubContext team={fixture.context.home} />
-          <ClubContext team={fixture.context.away} align="right" />
-        </div>
-      )}
       {claim && (
         <p
-          className={cn(
-            "mb-3 eyebrow",
-            mine ? "text-success" : "text-text-secondary",
-          )}
+          className={cn("mt-2 eyebrow", mine ? "text-success" : "text-text-secondary")}
           data-testid={`group-claim-${fixture.fixture_id}`}
         >
           {mine ? "Your game" : `Picked by ${shortName(claim.display_name)}`}
@@ -124,54 +166,23 @@ export function GroupFixtureCard({
         </p>
       )}
       {!fixture.eligible && !claim && (
-        <p className="mb-3 font-sans text-xs text-text-muted">
+        <p className="mt-2 font-sans text-xs text-text-muted">
           This fixture is unavailable for a new contribution.
         </p>
       )}
-      <div className="flex flex-col gap-3">
-        {markets.map((market) => {
-          const outcomes = [
-            ...(fixture.allowed_markets.find((value) => value.market === market)
-              ?.outcomes ?? []),
-          ].sort((a, b) => (OUTCOME_ORDER[a] ?? 9) - (OUTCOME_ORDER[b] ?? 9));
-          return (
-            <div key={market}>
-              <p className="mb-1 eyebrow text-text-muted">
-                {MARKET_LABEL[market] ?? market}
-              </p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {outcomes.map((outcome) => {
-                  const held =
-                    !!claim && claim.market === market && claim.outcome === outcome;
-                  return (
-                    <SelectionButton
-                      key={`${market}/${outcome}`}
-                      fixture={fixture}
-                      market={market}
-                      outcome={outcome}
-                      pressed={mine && held}
-                      holder={takenBy && held ? shortName(takenBy.display_name) : null}
-                      settled={held ? settled : null}
-                      phase={
-                        pending &&
-                        pending.market === market &&
-                        pending.outcome === outcome
-                          ? pending.phase
-                          : null
-                      }
-                      actionable={canChoose && !closed && !(mine && held)}
-                      removable={canChoose && mine && held && !settled && !pending}
-                      onChoose={onChoose}
-                      onRemove={onRemove}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {children && <div className="mt-3">{children}</div>}
+      {children && <div className="mt-2">{children}</div>}
+      {btts.length > 0 && (
+        <Sheet
+          open={moreOpen}
+          onClose={() => setMoreOpen(false)}
+          title={`Both teams to score · ${fixture.home} v ${fixture.away}`}
+          triggerRef={moreRef}
+        >
+          <div className="grid gap-2 pb-2">
+            {btts.map((outcome) => button("BOTH_TEAMS_TO_SCORE", outcome, true))}
+          </div>
+        </Sheet>
+      )}
     </div>
   );
 }
@@ -180,6 +191,7 @@ function SelectionButton({
   fixture,
   market,
   outcome,
+  short,
   pressed,
   holder,
   settled,
@@ -192,6 +204,8 @@ function SelectionButton({
   fixture: GroupFixture;
   market: string;
   outcome: string;
+  /** Batch 245: a short label ("Home") on the row, where the clubs are named above it. */
+  short: string | null;
   /** The member's saved pick. */
   pressed: boolean;
   /** Another member holds this exact selection. */
@@ -235,7 +249,8 @@ function SelectionButton({
       }}
       data-testid={`group-selection-${fixture.fixture_id}-${market}-${outcome}`}
       className={cn(
-        "flex min-h-[56px] flex-col items-start justify-center gap-0.5 rounded-md px-2.5 py-2 text-left",
+        "flex min-h-11 flex-col justify-center gap-0.5 rounded-md py-1",
+        short ? "items-center px-1.5 text-center" : "items-start px-3 text-left",
         // Batch 235: the member's own pick is tappable now (to withdraw it), so the
         // accessibility scan reads its colours; it must not be caught mid-fade. Batch 242: no
         // choice fades at all; its points line sets its own colour and would lag the tile.
@@ -254,10 +269,20 @@ function SelectionButton({
         "focus-visible:outline-hidden focus-visible:shadow-glow",
       )}
     >
-      <span className="flex w-full items-start justify-between gap-1">
-        <span className="min-w-0 break-words text-label font-sans font-medium sm:truncate">
+      <span
+        className={cn(
+          "flex max-w-full items-center gap-1",
+          short ? "justify-center" : "w-full justify-between",
+        )}
+      >
+        <span
+          className={cn(
+            "min-w-0 font-sans font-medium",
+            short ? "truncate text-caption" : "break-words text-label",
+          )}
+        >
           {pressed && <Check className="mr-0.5 inline h-3 w-3" aria-hidden />}
-          {label}
+          {short ?? label}
         </span>
         {sending && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />}
         {waiting && (

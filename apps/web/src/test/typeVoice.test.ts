@@ -102,7 +102,8 @@ describe('the type voice and colour names (Batch 242)', () => {
       join('components', 'PickCard.tsx'),
     ]) {
       const text = files.find((file) => file.path === path)!.text;
-      const start = text.indexOf('flex min-h-[56px]');
+      // Batch 245 (owner-approved, 25 Nov 2026): the compact rows' tiles are 44px tall.
+      const start = text.search(/flex min-h-(?:\[56px\]|11) flex-col/);
       expect(start, `${path} has no price tile`).toBeGreaterThan(-1);
       // The tile's class list runs from its base string to the first transition it names.
       const transition = /transition-[a-z]+/.exec(text.slice(start, start + 800));

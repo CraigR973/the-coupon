@@ -477,18 +477,64 @@ describe("the fantasy pick slip", () => {
     done();
   });
 
-  it("starts every competition folded when the week has more than one", async () => {
+  it("starts every competition open under its header, with a chip to jump to each", async () => {
     competitionOf = (fixture) =>
       fixture <= 4 ? "scotland-premiership" : "scotland-championship";
     const { done } = harness();
     const first = await screen.findByRole("button", { name: /Scottish Premiership/ });
     const second = screen.getByRole("button", { name: /Scottish Championship/ });
-    expect(first).toHaveAttribute("aria-expanded", "false");
-    expect(second).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("button", { name: /^Choose Home 1 to win/ })).toBeNull();
-    fireEvent.click(first);
+    // Batch 245 (owner-approved, 25 Nov 2026): every competition starts open, and a fold
+    // the member makes is undone by that competition's jump chip.
+    expect(first).toHaveAttribute("aria-expanded", "true");
+    expect(second).toHaveAttribute("aria-expanded", "true");
     await ready("Choose Home 1 to win at 2.1500");
+    expect(screen.getByRole("button", { name: /^Choose Home 5 to win/ })).toBeTruthy();
+    const chips = screen.getByRole("navigation", { name: "Fantasy competitions" });
+    const jump = within(chips).getByRole("link", { name: /Scottish Championship/ });
+    expect(jump).toHaveAttribute("href", "#fantasy-competition-scotland-championship");
+    fireEvent.click(second);
+    expect(second).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("button", { name: /^Choose Home 5 to win/ })).toBeNull();
+    fireEvent.click(jump);
+    expect(second).toHaveAttribute("aria-expanded", "true");
+    done();
+  });
+
+  it("folds fixtures without prices into one row at the end of their competition", async () => {
+    // Batch 245: most of a real card is unpriced (lower leagues), so those wait in one row.
+    const { done } = harness({}, [], (fixtures) =>
+      fixtures.map((fixture, index) =>
+        index >= 5
+          ? { ...fixture, quote: { ...fixture.quote, prices: [], availability: "unavailable" } }
+          : fixture,
+      ),
+    );
+    await ready("Choose Home 1 to win at 2.1500");
+    expect(screen.queryByTestId("fantasy-card-fixture-6")).toBeNull();
+    const fold = screen.getByRole("button", { name: "2 fixtures without prices yet" });
+    expect(fold).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(fold);
+    expect(
+      within(screen.getByTestId("fantasy-card-fixture-6")).getByText("No prices yet."),
+    ).toBeTruthy();
+    expect(screen.getByTestId("fantasy-card-fixture-7")).toBeTruthy();
+    done();
+  });
+
+  it("keeps a held fixture in view after its prices go", async () => {
+    const { done } = harness({ 1: saved(1, 6) }, [], (fixtures) =>
+      fixtures.map((fixture, index) =>
+        index >= 5
+          ? { ...fixture, quote: { ...fixture.quote, prices: [], availability: "unavailable" } }
+          : fixture,
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("fantasy-card-fixture-6")).getByText("Your pick · slot 1"),
+      ).toBeTruthy(),
+    );
+    expect(screen.getByRole("button", { name: "1 fixture without prices yet" })).toBeTruthy();
     done();
   });
 

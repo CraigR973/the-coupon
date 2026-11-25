@@ -32,6 +32,11 @@ import type { OddsFormat } from "../lib/types";
 import { formatCalendarDate, formatInstant } from "../lib/time";
 import { cn } from "../lib/utils";
 import { WeekFeePanel } from "../components/WeekFeePanel";
+import {
+  CompetitionChips,
+  SECTION_SCROLL_MARGIN,
+  STICKY_HEADER,
+} from "../components/FixtureRow";
 import { GameHeader, GameRules } from "../components/GameHeader";
 import { Countdown } from "../components/Countdown";
 import {
@@ -88,6 +93,9 @@ function FantasyWeek({ target }: { target: GameTarget }) {
   const { engine, intents } = useGameIntents();
   const online = useOnlineStatus();
   const [swap, setSwap] = useState<PendingSwap | null>(null);
+  // Batch 245: every competition starts open; a member who folds one keeps it folded
+  // through the 30-second refresh, and a jump chip opens it again.
+  const [folded, setFolded] = useState<Record<string, boolean>>({});
   const [slipOpen, setSlipOpen] = useState(false);
   const barRef = useRef<HTMLButtonElement | null>(null);
   const slateRef = useRef<HTMLElement | null>(null);
@@ -185,6 +193,13 @@ function FantasyWeek({ target }: { target: GameTarget }) {
     [game?.fixtures],
   );
   const { upTo } = slipSummary(views);
+  /** A competition's count, as its header and jump chip show it: picks of fixtures, or fixtures. */
+  const countLabel = (group: FixtureGroup<FantasyFixture>) => {
+    const mine = group.fixtures.filter((fixture) =>
+      views.some((view) => view.pick?.fixture_id === fixture.fixture_id),
+    ).length;
+    return mine > 0 ? `${mine}/${group.fixtures.length}` : `${group.fixtures.length}`;
+  };
   const publicCard = retained ?? results.data?.fantasy;
   const league = leagues.find((value) => value.league_id === target.league_id);
   const refresh = () => {
@@ -316,32 +331,54 @@ function FantasyWeek({ target }: { target: GameTarget }) {
         </p>
       ) : (
         <div className="flex flex-col gap-4">
-          {groups.map((group) => (
-            <CompetitionSection
-              key={group.competition_id}
-              group={group}
-              defaultOpen={groups.length === 1}
-              mine={
-                group.fixtures.filter((fixture) =>
-                  views.some((view) => view.pick?.fixture_id === fixture.fixture_id),
-                ).length
-              }
-            >
-              {group.fixtures.map((fixture) => (
-                <FantasyFixtureCard
-                  key={fixture.fixture_id}
-                  fixture={fixture}
-                  competition={group.competition}
-                  oddsFormat={oddsFormat}
-                  {...forCard(fixture)}
-                  onChoose={(market, outcome, odds) =>
-                    choose(fixture, market, outcome, odds)
-                  }
-                  onRemove={(slot) => removeSlot(slot)}
-                />
-              ))}
-            </CompetitionSection>
-          ))}
+          <CompetitionChips
+            label="Fantasy competitions"
+            chips={groups.map((group) => ({
+              id: group.competition_id,
+              anchor: `fantasy-competition-${group.competition_id}`,
+              name: group.competition,
+              count: countLabel(group),
+            }))}
+            onJump={(id) => setFolded((value) => ({ ...value, [id]: false }))}
+          />
+          {groups.map((group) => {
+            // Batch 245: a fixture with no prices to tap waits in one row at the end of its
+            // competition, unless the member already holds it.
+            const shownNow = (fixture: FantasyFixture) =>
+              fixture.quote.prices.length > 0 ||
+              views.some((view) => view.pick?.fixture_id === fixture.fixture_id);
+            const card = (fixture: FantasyFixture) => (
+              <FantasyFixtureCard
+                key={fixture.fixture_id}
+                fixture={fixture}
+                competition={group.competition}
+                oddsFormat={oddsFormat}
+                {...forCard(fixture)}
+                onChoose={(market, outcome, odds) => choose(fixture, market, outcome, odds)}
+                onRemove={(slot) => removeSlot(slot)}
+              />
+            );
+            const unpriced = group.fixtures.filter((fixture) => !shownNow(fixture));
+            return (
+              <CompetitionSection
+                key={group.competition_id}
+                group={group}
+                open={!folded[group.competition_id]}
+                onToggle={() =>
+                  setFolded((value) => ({
+                    ...value,
+                    [group.competition_id]: !value[group.competition_id],
+                  }))
+                }
+                count={countLabel(group)}
+              >
+                {group.fixtures.filter(shownNow).map(card)}
+                {unpriced.length > 0 && (
+                  <UnpricedFold count={unpriced.length}>{unpriced.map(card)}</UnpricedFold>
+                )}
+              </CompetitionSection>
+            );
+          })}
         </div>
       )}
       {editable && (
@@ -551,38 +588,44 @@ function FantasyWeek({ target }: { target: GameTarget }) {
 }
 
 /**
- * One competition's fixtures behind a header, as the old coupon folds its slate. All
- * start closed (Batch 238) so a card of a hundred-odd fixtures scans as competitions; a
- * week with a single competition opens it. `defaultOpen` seeds the state only, so a
- * member who opens or closes a section keeps it that way through the 30-second refresh.
+ * One competition's fixtures behind a header that folds them away (Batch 232). Batch 245:
+ * every section starts open, its header stays in view under the top bar while its fixtures
+ * scroll, and the page holds the fold state, so a jump chip can open a folded section and
+ * the member's choice survives the 30-second refresh.
  */
 function CompetitionSection({
   group,
-  defaultOpen,
-  mine,
+  open,
+  onToggle,
+  count,
   children,
 }: {
   group: FixtureGroup<FantasyFixture>;
-  defaultOpen: boolean;
-  mine: number;
+  open: boolean;
+  onToggle: () => void;
+  count: string;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
   return (
-    <section data-testid={`fantasy-competition-${group.competition_id}`}>
+    <section
+      id={`fantasy-competition-${group.competition_id}`}
+      data-testid={`fantasy-competition-${group.competition_id}`}
+      className={SECTION_SCROLL_MARGIN}
+    >
       <button
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={onToggle}
         aria-expanded={open}
-        className="mb-1 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-hidden focus-visible:shadow-glow"
+        className={cn(
+          STICKY_HEADER,
+          "mb-1 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-hidden focus-visible:shadow-glow",
+        )}
       >
         <span className="min-w-0 truncate eyebrow text-text-primary">
           {group.competition}
         </span>
         <span className="flex shrink-0 items-center gap-2">
-          <span className="font-mono text-caption tabular-nums text-text-muted">
-            {mine > 0 ? `${mine}/${group.fixtures.length}` : group.fixtures.length}
-          </span>
+          <span className="font-mono text-caption tabular-nums text-text-muted">{count}</span>
           <ChevronDown
             className={cn(
               "h-4 w-4 text-text-muted transition-transform",
@@ -592,7 +635,29 @@ function CompetitionSection({
           />
         </span>
       </button>
-      {open && <div className="flex flex-col gap-4">{children}</div>}
+      {open && <div className="flex flex-col gap-2">{children}</div>}
     </section>
+  );
+}
+
+/** The fixtures in a competition with no prices to tap yet, folded into one row (Batch 245). */
+function UnpricedFold({ count, children }: { count: number; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-dashed border-border px-3 font-sans text-sm text-text-secondary hover:bg-surface-elevated focus-visible:outline-hidden focus-visible:shadow-glow"
+      >
+        {count === 1 ? "1 fixture without prices yet" : `${count} fixtures without prices yet`}
+        <ChevronDown
+          className={cn("h-4 w-4 shrink-0 text-text-muted transition-transform", open && "rotate-180")}
+          aria-hidden
+        />
+      </button>
+      {open && <div className="mt-2 flex flex-col gap-2">{children}</div>}
+    </div>
   );
 }

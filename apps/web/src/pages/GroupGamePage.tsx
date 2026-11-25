@@ -28,6 +28,11 @@ import type { PickMarket, PickOutcome } from "../lib/types";
 import { formatCalendarDate, formatInstant } from "../lib/time";
 import { cn } from "../lib/utils";
 import { WeekFeePanel } from "../components/WeekFeePanel";
+import {
+  CompetitionChips,
+  SECTION_SCROLL_MARGIN,
+  STICKY_HEADER,
+} from "../components/FixtureRow";
 import { GameIntentStatus } from "../components/GameIntentStatus";
 import { GameHeader, GameRules } from "../components/GameHeader";
 import { Countdown } from "../components/Countdown";
@@ -101,8 +106,8 @@ export function GroupGamePage() {
   const notOpened = !useExpiry(
     game?.opens_at ?? retained?.opens_at ?? "1970-01-01T00:00:00Z",
   );
-  // Each competition folds on its own, and all start folded (Batch 238) unless the week
-  // has a single competition, which opens so the screen never starts empty.
+  // Each competition folds on its own. Batch 245: all start open under sticky headers,
+  // with jump chips at the top; a jump chip opens a section the member folded.
   const [folds, setFolds] = useState<Record<string, boolean>>({});
   const fixtures = game?.fixtures;
   const groups = useMemo(() => groupByCompetition(fixtures ?? []), [fixtures]);
@@ -234,8 +239,7 @@ export function GroupGamePage() {
           phase: intent.phase,
         }
       : null;
-  const isOpen = (competition: string) =>
-    folds[competition] ?? groups.length === 1;
+  const isOpen = (competition: string) => folds[competition] ?? true;
   // The save's status sits in the card it is about, where the member just tapped; it
   // falls back to the top of the list while that card is folded away or gone.
   const statusInCard =
@@ -291,6 +295,22 @@ export function GroupGamePage() {
         </p>
       ) : (
         <div className="flex flex-col gap-4">
+          <CompetitionChips
+            label="Group competitions"
+            chips={groups.map((group) => {
+              const claimed = group.fixtures.filter((fixture) => fixture.claim).length;
+              return {
+                id: group.competition_id,
+                anchor: `group-competition-${group.competition_id}`,
+                name: group.competition,
+                count:
+                  claimed > 0
+                    ? `${claimed}/${group.fixtures.length}`
+                    : `${group.fixtures.length}`,
+              };
+            })}
+            onJump={(id) => setFolds((value) => ({ ...value, [id]: true }))}
+          />
           {groups.map((group) => (
             <CompetitionFold
               key={group.competition_id}
@@ -430,12 +450,19 @@ function CompetitionFold({
 }) {
   const claimed = group.fixtures.filter((fixture) => fixture.claim).length;
   return (
-    <section data-testid={`group-competition-${group.competition_id}`}>
+    <section
+      id={`group-competition-${group.competition_id}`}
+      data-testid={`group-competition-${group.competition_id}`}
+      className={SECTION_SCROLL_MARGIN}
+    >
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="mb-1 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-hidden focus-visible:shadow-glow"
+        className={cn(
+          STICKY_HEADER,
+          "mb-1 flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2 text-left tap-target focus-visible:outline-hidden focus-visible:shadow-glow",
+        )}
       >
         <span className="min-w-0 truncate eyebrow text-text-primary">
           {group.competition}
@@ -453,7 +480,7 @@ function CompetitionFold({
           />
         </span>
       </button>
-      {open && <div className="flex flex-col gap-4">{children}</div>}
+      {open && <div className="flex flex-col gap-2">{children}</div>}
     </section>
   );
 }

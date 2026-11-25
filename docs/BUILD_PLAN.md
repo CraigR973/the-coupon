@@ -80,6 +80,9 @@ React PWA / invite / inbox
      Game screens: week bar (Home · ‹ week › · archive; dot = next Fantasy open), then
        Group | Fantasy for that week; one status line, rules line + How it works sheet
      Games tab and links without a week: Home's week (this week until final)
+     Fixture rows, both games: clubs with position and form, kick-off between, then
+       Home | Draw | Away buttons (Group: + both-score sheet); competitions open under
+       sticky headers with jump chips; unpriced Fantasy fixtures fold into one row
      Group: old status card · who's still to pick · others' games greyed · legs, fold, copy text
      Fantasy slip: tapped price → held fixture's slot, else first free slot
      own price tapped again, or a slot's Remove → replayable DELETE (revision + operation id)

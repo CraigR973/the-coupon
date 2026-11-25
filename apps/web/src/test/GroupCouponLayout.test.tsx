@@ -255,23 +255,64 @@ describe("the Saturday group on the old coupon layout", () => {
     done();
   });
 
-  it("starts every competition folded, counting the games already picked", async () => {
+  it("starts every competition open, counting the games already picked", async () => {
     const { done } = harness({ 1: claimOf("bob", 1), 2: claimOf("alice", 2) });
     await screen.findByRole("button", { name: /Scottish Premiership/ });
     const first = within(screen.getByTestId("group-competition-scotland-premiership"));
+    // Batch 245 (owner-approved, 25 Nov 2026): every competition starts open, with a jump
+    // chip each carrying the same count as its header.
     expect(first.getByRole("button", { name: /Scottish Premiership/ })).toHaveAttribute(
       "aria-expanded",
-      "false",
+      "true",
     );
     expect(screen.getByRole("button", { name: /Scottish Championship/ })).toHaveAttribute(
       "aria-expanded",
-      "false",
+      "true",
     );
     expect(first.getByText("2/3")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Choose Home 3 to win" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Choose Home 4 to win" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Scottish Championship/ }));
-    expect(choice("Choose Home 4 to win")).toBeEnabled();
+    await waitFor(() => expect(choice("Choose Home 4 to win")).toBeEnabled());
+    expect(choice("Choose Home 3 to win")).toBeEnabled();
+    const chips = screen.getByRole("navigation", { name: "Group competitions" });
+    expect(within(chips).getByRole("link", { name: /Scottish Premiership/ })).toHaveTextContent(
+      "2/3",
+    );
+    done();
+  });
+
+  it("saves both teams to score from its sheet, behind the row's fourth button", async () => {
+    // Batch 245 (owner, 25 Nov 2026): rows shaped like Fantasy's, with the two
+    // both-teams-to-score selections one tap further, in a sheet.
+    const { write, done } = harness(
+      {},
+      {
+        shape: (value) => ({
+          ...value,
+          fixtures: value.fixtures.map((fixture) =>
+            fixture.fixture_id === "fixture-3"
+              ? {
+                  ...fixture,
+                  allowed_markets: [
+                    ...fixture.allowed_markets,
+                    { market: "BOTH_TEAMS_TO_SCORE", outcomes: ["YES", "NO"] },
+                  ],
+                }
+              : fixture,
+          ),
+        }),
+      },
+    );
+    await ready("Choose Home 3 to win");
+    expect(within(card(2)).queryByRole("button", { name: "Both teams to score" })).toBeNull();
+    fireEvent.click(within(card(3)).getByRole("button", { name: "Both teams to score" }));
+    const sheet = await screen.findByRole("dialog", { name: /Both teams to score/ });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Choose Both teams score" }));
+    await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
+    expect(write.mock.calls[0][1]).toMatchObject({
+      fixture_id: "fixture-3",
+      market: "BOTH_TEAMS_TO_SCORE",
+      outcome: "YES",
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     done();
   });
 
