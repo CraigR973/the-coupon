@@ -9941,3 +9941,32 @@ the approval commits for Batches 175, 235 and 238 did
 - No application code, API contract, database schema or production data changed.
 
 **Next:** Batch 243 from this attestation state.
+
+## Batch 243 — Home shows this week: one week card and one season card per league
+**Commits:** `7ea6bfc` · verified: `scripts/ci-local.sh` PASS in its worktree (12 checks; backend
+2,106, frontend 1,606, journey 1, zero skips; tree `fedc3c4`), `scripts/verify-two-game-web.py`
+PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45676415615 PASS for `7ea6bfc`
+
+### Key facts for future sessions
+- **One week at a time:** `homeWeek` in `lib/home.ts` puts the earliest week that is not final on
+  the card, so Saturday afternoon keeps this week's results while next week's open Fantasy is one
+  line; the card moves on once every game that week is final. A legacy round still in play comes
+  first, with the first two-game week as the line.
+- **Few test lines moved:** the rebuild kept the test ids, link names (partly screen-reader only,
+  such as "Fantasy · 28 Nov") and phrases the tests read, so only 5 existing lines changed, approved
+  by the owner (`83f3444`, attested `edeb301`).
+- **Totals stay on Home** as one slim row, because the gate's coupon journey pins
+  `home-season-summary`. At 390px its three labels now fit on one line, which closes 242's
+  "Picks won" wrap.
+- **Not built from the row (agent's calls, listed for the owner):** a separate season card (the
+  standings, last result with form and archive stay under the week on the same card); ordering
+  leagues by need (Batch 239's test pins the summary's order); "up to N pts" on the Fantasy row; a
+  new frame for single-game leagues. `formatCombinedOdds` now adds thousands separators below its
+  1,000,000 cap in every format.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- The owner's phone check of 243, with the agent's calls above; any they overrule becomes a row.
+  Then Batch 244 (owner, 25 Nov: stop after each deploy).
+
+**Next:** the owner's phone check, then Batch 244.

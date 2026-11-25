@@ -2230,7 +2230,7 @@ exact lines, asked once per batch before the gate.
   styles, colour names, the top bar and the named glitches; no screen is rebuilt (243–246).
   **Web-only.**
 
-- [ ] **Batch 243 — Home shows this week: one week card and one season card per league**
+- [x] **Batch 243 — Home shows this week: one week card and one season card per league** ✅ 2026-11-25
   — findings H1–H6. Home leads with a greeting and season totals, shows 21 Nov's games and 28
   Nov's Fantasy as equal boxes, nests a box per game inside the league box, and repeats the
   deadline three times and the fee once per game.

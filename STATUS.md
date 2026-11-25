@@ -16,7 +16,7 @@ Checked 2026-10-10 unless a line says otherwise.
 | API | `api-production-109b1.up.railway.app` serves `7205e84` (Batch 240 on Batches 234 and 237) at migration `032` (24 Nov) |
 | API deployment | Railway `07b1640b-86cc-459d-bf17-b319d1e1b6bb` succeeded 23:36 UTC, one replica, `europe-west4` (24 Nov); rollback `c9d4221a` (`85fa1ae`) |
 | Payments | `payments-production-0aa1.up.railway.app` serves `7205e84` at `032`, Railway `733c3ae4-af8e-42d1-8edf-590982dd5190` (24 Nov; rollback `9523f008`), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); **2-1 Hibs moved to a new payment link and pot on 25 Nov**: link id `unipaylink_0000BCfe…` and the new Pay URL set at 09:55 UTC by a guarded database write at the owner's request (audited as `league_updated`); its first payment (09:50 UTC) was matched automatically by the 09:59 read, which also learned the new pot; payments through the old link no longer count, and the owner is closing it (25 Nov); before that, all 20 link payments from members were read and matched through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
-| Web | `the-coupon-production.vercel.app` builds every push to `main`; since 15:25 UTC on 25 Nov it serves `3a78a50` (Batch 242) as bundle `index-DXoh5RdL.js` (deployment `the-coupon-production-bwcevln5y`): labels in the app font, colours that render on won and lost results, and the bell in the top bar; before it the same day a paid week's payment strip became one line (Batch 247, 14:33 UTC) and badges stopped fading (Batch 248, 14:06 UTC). Since Batch 239 (`6bac303`, 24 Nov) the old home page is back, with 2-1 Hibs in its old card, and both games' fixtures show club form, position and competition names (Batch 235). The API has served the two-game screens to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov. |
+| Web | `the-coupon-production.vercel.app` builds every push to `main`; since 18:34 UTC on 25 Nov it serves `7ea6bfc` (Batch 243) as bundle `index-Bjzpgohd.js` (deployment `the-coupon-production-db2sk24an`): Home shows one football week per league, with a countdown to the next deadline, Fantasy and Saturday Group as two rows, the week's £1 once and one button, under a hero that opens with the date. Earlier the same day: labels in the app font, colours that render on won and lost results and the bell in the top bar (Batch 242, 15:25 UTC), a paid week's payment strip on one line (Batch 247, 14:33 UTC) and badges that no longer fade (Batch 248, 14:06 UTC). Both games' fixtures show club form, position and competition names (Batch 235). The API has served the two-game screens to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov. |
 | Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the two-game tables hold 2-1 Hibs' rollout, its four games and 12 dues since 17:08 UTC (23 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by **Betfair Sportsbook** since 10:36 UTC on 31 Oct (ADR 0002's 31 Oct amendment). Bet365 has been paid-only since 26 Oct, 19:00 UTC, and a free key gets a 403. Free key: 100 requests/hour and 500/day for the whole deployment. On the 31 Oct card it priced 78 of 85 fixtures, none in the Highland League (31 Oct). The owner chose to keep it rather than pay £49/mo for Bet365 (31 Oct). The 07:05 warm pass asks the provider nothing: the 50-request pick reserve withholds it because 06:05 discovery's requests are still inside the rolling hour, so it only reports prices left in memory (22 and 23 Nov) |
@@ -31,12 +31,19 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Batch 243 is live on the web** (25 Nov, `7ea6bfc`, web-only, pushed 18:33 UTC), the Home
+  rebuild: each two-game league's card shows one football week, the earliest whose results
+  are not final, with the soonest deadline as a countdown, Fantasy and Saturday Group as two
+  rows, the week's £1 once as a chip and one button; next week's open Fantasy is one line until
+  this week is final. The hero opens with the date and keeps the cross-league totals as one
+  slim row; combined prices carry thousands separators. Waiting on the owner's phone check
+  before Batch 244. No API change; drift in sync before the push.
 - **Batch 242 is live on the web** (25 Nov, `3a78a50`, web-only, pushed 15:24 UTC), the first
   batch of the Home and Games redesign: one label style in the app font instead of spaced-out
   monospace capitals (60 labels), 21 dead `text-*-ink` colour names fixed (won and lost labels
   were uncoloured), the bell beside the avatar on every screen, the light/dark switch only in
-  Settings, and price tiles that neither cut off their points line nor fade. Waiting on the
-  owner's phone check before Batch 243. No API change; drift in sync before the push.
+  Settings, and price tiles that neither cut off their points line nor fade. No API change;
+  drift in sync before the push.
 - **Batch 247 is live on the web** (25 Nov, `b348150`, web-only, pushed 14:32 UTC): a paid
   week's payment strip is one line (a tick, "Paid through this week", and the status check
   and Details as icon buttons); owed, its text stacks above the buttons on a phone. Every paid
