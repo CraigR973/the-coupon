@@ -9839,3 +9839,29 @@ zero skips; tree `79c2a66`) · CI: https://github.com/CraigR973/the-coupon/actio
 
 **Next:** the owner's decisions on Batch 241, the Monday 30 Nov dues check and Batch 211.
 
+## Batch 248 — The light-theme scan catches chips mid-fade, so a Group story fails one run in five
+**Commits:** `f59fd41` · verified: `scripts/ci-local.sh` PASS in its worktree (12 checks; backend
+2,106, frontend 1,585, journey 1, zero skips; tree `33d9f0f`), `scripts/verify-two-game-web.py`
+PASS30, and the group story 10 of 10 repeats · CI: https://github.com/CraigR973/the-coupon/actions/runs/45630352556 PASS for `f59fd41`
+
+### Key facts for future sessions
+- **Found verifying Batch 247.** Its journeys rerun failed the group story's light-theme axe scan
+  (`color-contrast`, desktop). That story alone failed 3 of 5 repeats on 247's branch and 1 of 5
+  on unchanged `main`: a pre-existing flake, so it was fixed first on its own branch.
+- **Cause:** the story flips `html` from dark to light and scans at once. Every `Badge` had
+  `transition-colors`, and a muted badge fades text and background together, so they cross
+  mid-fade (2.2–4.1:1). Batch 235 put a muted competition chip on every group fixture card; a
+  scratch axe run with node targets found those six chips and nothing else.
+- **Diagnosis trap:** a scan in the same JS task as the class flip finds nothing, because the
+  fade has not begun; wait a frame plus 8–120 ms. The tools are kept in
+  `.local/design-review-2026-11-25/theme-flip-diag/` (`verify-repeat.py` gives any story's
+  failure rate on any tree).
+- **Fix:** the `Badge` base class is `transition-none`, so the Batch 233 and 239 per-instance
+  opt-outs are redundant. Shipped to the web at 14:06 UTC (bundle `index-ZQsjtxQ_.js`).
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- Batch 247, rebased onto this and re-gated, then Batch 242 (owner, 25 Nov: "can we start the
+  redesign now", then "proceed").
+
+**Next:** Batch 247.

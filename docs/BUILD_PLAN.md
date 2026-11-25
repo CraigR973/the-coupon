@@ -2326,8 +2326,8 @@ exact lines, asked once per batch before the gate.
   `WeekFeePanel` only; what counts as paid and every money rule are untouched. **Web-only —
   ship before Sat 28 Nov 03:00 London.**
 
-- [ ] **Batch 248 — The light-theme scan catches chips mid-fade, so a Group story fails one
-  run in five** — found 25 Nov 2026 while verifying Batch 247; it runs first, because 247's
+- [x] **Batch 248 — The light-theme scan catches chips mid-fade, so a Group story fails one
+  run in five** ✅ 2026-11-25 — found 25 Nov 2026 while verifying Batch 247; it runs first, because 247's
   verification needs the two-game stories green. `scripts/verify-two-game-web.py`'s group story
   ("exact cold-login/payment link, unpriced contribution, mobile layout and accessibility")
   flips `html` from dark to light and runs axe without waiting. Every `Badge` carries
