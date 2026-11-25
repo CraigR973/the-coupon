@@ -2259,6 +2259,28 @@ exact lines, asked once per batch before the gate.
   member; a two-league member; the fee shown once per league. Scope boundary: Home and the
   profile page's totals. **Web-only.**
 
+  **Oracle changes approved (owner, 25 Nov 2026):** this batch may change only these lines,
+  sent to the owner in chat and approved ("Approve all 5"). In
+  `apps/web/src/test/DashboardPage.test.tsx`, the hero test's
+  `expect(hero.textContent).toContain('2 leagues, one clear view of every round');` goes with
+  that filler sentence, and the test checks instead that the hero opens with today's date
+  (`expect(hero.querySelector('p')?.textContent).toMatch(/^[A-Z][a-z]+day \d{1,2} [A-Z][a-z]{2}$/);`).
+  In `apps/web/src/test/coupon.test.ts`, `expect(formatCombinedOdds(999_999.99)).toBe('999999.99');`
+  becomes `toBe('999,999.99')`, because combined prices now carry thousands separators. In
+  `apps/web/e2e/two-game-fantasy.spec.ts`, the Saturday-noon story's three-line
+  `toContainText("Locked results")` check on Home becomes
+  `await expect(page.getByTestId("two-game-home")).toContainText("0 pts so far");`, because a
+  locked Fantasy row now shows its score. No check on money, picks, locks or results is removed
+  or loosened.
+
+  As built (agent's calls, listed for the owner at close-out): the season part is the
+  standings row, the last result with its recent-form tiles and the archive row, restyled under
+  the week on the same card rather than a separate season card; the cross-league totals stay on
+  Home as one slim row, because the gate's single-game journey pins `home-season-summary` (the
+  profile already shows them); a single-game league keeps its current card; league cards keep
+  the summary's order, which Batch 239's tests pin, so ordering by need is left to the owner;
+  the Fantasy row shows n of 6 and the bar, without "up to N pts".
+
 - [ ] **Batch 244 — The game screens show one week, with arrows**
   — findings G1, G5 and G6. Fantasy shows "21 Nov · Open" and "28 Nov · Next" chips all week,
   the archive is a list of bare links, and the rules sit above the fold.

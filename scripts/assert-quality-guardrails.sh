@@ -202,6 +202,11 @@ apps/web/src/test/FantasyWeekPage.test.tsx|expect(screen.getByRole("button", { n
 apps/web/src/test/GroupCouponLayout.test.tsx|expect(write).toHaveBeenCalledTimes(1);
 EOF
       ;;
+    243) cat <<'EOF'
+apps/web/src/test/DashboardPage.test.tsx|expect(hero.textContent).toContain('2 leagues, one clear view of every round');
+apps/web/src/test/coupon.test.ts|expect(formatCombinedOdds(999_999.99)).toBe('999999.99');
+EOF
+      ;;
   esac
 }
 
@@ -223,6 +228,7 @@ approved_oracle_paths() {
     209) echo "apps/api/tests/test_pay_to_pick.py apps/web/src/test/PayPanel.test.tsx" ;;
     238) echo "apps/web/src/test/GroupCouponLayout.test.tsx" ;;
     235) echo "apps/web/src/test/FantasyPickSlip.test.tsx apps/web/src/test/FantasyWeekPage.test.tsx apps/web/src/test/GroupCouponLayout.test.tsx apps/web/e2e/two-game-fantasy.spec.ts" ;;
+    243) echo "apps/web/src/test/DashboardPage.test.tsx apps/web/src/test/coupon.test.ts apps/web/e2e/two-game-fantasy.spec.ts" ;;
   esac
 }
 
