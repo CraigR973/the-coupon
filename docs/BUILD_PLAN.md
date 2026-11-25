@@ -2306,7 +2306,7 @@ exact lines, asked once per batch before the gate.
   results states. Scope boundary: the Fantasy picks, the Group status card and the coupon.
   **Web-only.**
 
-- [ ] **Batch 247 — A paid week's payment strip squeezes to one word a line on phones**
+- [x] **Batch 247 — A paid week's payment strip squeezes to one word a line on phones** ✅ 2026-11-25
   — finding G2, live since Batch 238 (24 Nov). In `WeekFeePanel` the text column is
   `flex-1 min-w-0` in a wrapping row, so its basis is zero and the row never wraps. Once the Pay
   button has gone, at 390px the column is about 40px wide and prints "Payment / for / 28 /

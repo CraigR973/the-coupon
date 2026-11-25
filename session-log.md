@@ -9865,3 +9865,31 @@ PASS30, and the group story 10 of 10 repeats · CI: https://github.com/CraigR973
   redesign now", then "proceed").
 
 **Next:** Batch 247.
+
+## Batch 247 — A paid week's payment strip squeezes to one word a line on phones
+**Commits:** `b348150` · verified: `scripts/ci-local.sh` PASS in its worktree after the rebase onto
+Batch 248 (12 checks; backend 2,106, frontend 1,587, journey 1, zero skips; tree `91c3c39`),
+`scripts/verify-two-game-web.py` PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45635227968 PASS for `b348150`
+
+### Key facts for future sessions
+- **Cause:** the strip's text column was `flex-1 min-w-0` in a wrapping row. `flex-1` is a 0%
+  basis, so the row never wraps, and once the Pay button has gone the text column takes all the
+  shrinkage: about 40px at 390px, a word a line. A text column in a wrapping row needs a real
+  basis (`flex-[1_1_14rem]`), or stack it on phones.
+- Paid, "Check payment status" and "Details" are icon buttons under those accessible names, so
+  every journey's refresh helper and the strip's unit tests still find them; the heading stays
+  the region's name, visually hidden until Details opens or a `#payment` link lands.
+- `text-success-ink` and its siblings generate nothing (`text-success` already resolves to the
+  ink token); the first build's tick rendered white until it used `text-success`. Batch 242 fixes
+  the 21 other uses.
+- **Gate failures on the way:** the first journeys run passed; the rerun on the final tree failed
+  the group story's light-theme scan, a pre-existing flake (1 in 5 on `main`), fixed first as
+  Batch 248. This branch was then rebased onto 248 (only the test-count lines clashed) and
+  re-gated from scratch. The phone checks are new lines in the existing group journey, so the
+  runner still expects 30 stories.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- Batch 242, then 243–246, the rest of the Home and Games redesign (owner, 25 Nov).
+
+**Next:** Batch 242.
