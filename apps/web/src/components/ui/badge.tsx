@@ -2,8 +2,14 @@ import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
+/**
+ * Batch 248: a badge is a static label, so it does not fade its colours. With
+ * `transition-colors` a theme switch faded text and background together, and mid-fade the
+ * two crossed: the muted competition chips fell to 2.2:1, which failed the two-game stories'
+ * light-theme axe scan one run in five. Two instances had already opted out one at a time.
+ */
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors',
+  'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-none',
   {
     variants: {
       variant: {
