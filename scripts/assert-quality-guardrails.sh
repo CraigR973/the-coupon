@@ -214,6 +214,17 @@ apps/web/src/test/gameSwitch.test.ts|expect(currentWeeks(games, "fantasy").map((
 apps/web/src/test/gameSwitch.test.ts|it("passes over a game the member has already played for one they have not", () => {
 EOF
       ;;
+    245) cat <<'EOF'
+apps/web/src/test/FantasyPickSlip.test.tsx|it("starts every competition folded when the week has more than one", async () => {
+apps/web/src/test/FantasyPickSlip.test.tsx|expect(first).toHaveAttribute("aria-expanded", "false");
+apps/web/src/test/FantasyPickSlip.test.tsx|expect(second).toHaveAttribute("aria-expanded", "false");
+apps/web/src/test/FantasyPickSlip.test.tsx|expect(screen.queryByRole("button", { name: /^Choose Home 1 to win/ })).toBeNull();
+apps/web/src/test/GroupCouponLayout.test.tsx|it("starts every competition folded, counting the games already picked", async () => {
+apps/web/src/test/GroupCouponLayout.test.tsx|expect(screen.queryByRole("button", { name: "Choose Home 3 to win" })).toBeNull();
+apps/web/src/test/GroupCouponLayout.test.tsx|expect(screen.queryByRole("button", { name: "Choose Home 4 to win" })).toBeNull();
+apps/web/src/test/GroupCouponLayout.test.tsx|expect(choice("Choose Home 4 to win")).toBeEnabled();
+EOF
+      ;;
   esac
 }
 
@@ -237,6 +248,7 @@ approved_oracle_paths() {
     235) echo "apps/web/src/test/FantasyPickSlip.test.tsx apps/web/src/test/FantasyWeekPage.test.tsx apps/web/src/test/GroupCouponLayout.test.tsx apps/web/e2e/two-game-fantasy.spec.ts" ;;
     243) echo "apps/web/src/test/DashboardPage.test.tsx apps/web/src/test/coupon.test.ts apps/web/e2e/two-game-fantasy.spec.ts" ;;
     244) echo "apps/web/src/test/FantasyPickSlip.test.tsx apps/web/src/test/gameSwitch.test.ts" ;;
+    245) echo "apps/web/src/test/FantasyPickSlip.test.tsx apps/web/src/test/GroupCouponLayout.test.tsx apps/web/src/test/typeVoice.test.ts" ;;
   esac
 }
 

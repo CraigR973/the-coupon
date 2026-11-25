@@ -2350,6 +2350,37 @@ exact lines, asked once per batch before the gate.
   320px reflow and axe. Scope boundary: both games' fixture rows and competition grouping.
   **Web-only.**
 
+  **Owner decision (25 Nov 2026):** Group rows are shaped like Fantasy's ("Like Fantasy"):
+  Home, Draw and Away as three buttons in the row, so one tap picks, with both teams to score
+  behind a fourth button that opens a sheet, instead of a sheet holding all five options.
+
+  **Oracle changes approved (owner, 25 Nov 2026):** this batch may change only these lines,
+  sent to the owner in chat and approved ("Approve all 3"). In
+  `apps/web/src/test/FantasyPickSlip.test.tsx`, the test
+  `it("starts every competition folded when the week has more than one", async () => {` becomes
+  "starts every competition open under its header, with a chip to jump to each": its
+  `expect(first).toHaveAttribute("aria-expanded", "false");` and
+  `expect(second).toHaveAttribute("aria-expanded", "false");` become `"true"`, and
+  `expect(screen.queryByRole("button", { name: /^Choose Home 1 to win/ })).toBeNull();` and the
+  click that opened the first section go, with jump-chip checks added. In
+  `apps/web/src/test/GroupCouponLayout.test.tsx`, the test
+  `it("starts every competition folded, counting the games already picked", async () => {`
+  becomes "starts every competition open, counting the games already picked": its two expected
+  `"false"` values become `"true"`;
+  `expect(screen.queryByRole("button", { name: "Choose Home 3 to win" })).toBeNull();`,
+  `expect(screen.queryByRole("button", { name: "Choose Home 4 to win" })).toBeNull();`, the click
+  on Scottish Championship and `expect(choice("Choose Home 4 to win")).toBeEnabled();` give way to
+  checks that both selections are enabled at once and that the chip carries the "2/3" count. In
+  `apps/web/src/test/typeVoice.test.ts`, Batch 242's no-fade scan finds a price tile by
+  `/flex min-h-(?:\[56px\]|11) flex-col/` instead of `'flex min-h-[56px]'`, because the compact
+  rows' tiles are 44px tall; the rule it enforces is unchanged. No check on money, picks, locks
+  or results is removed or loosened.
+
+  As built (agent's calls): club position and form stay visible under each club rather than
+  behind a tap, as the existing tests and Batch 235 expect; the buttons show the outcome and the
+  price, without "win N pts"; a fixture the member already holds stays in view when its prices
+  go; the 320px reflow and axe checks are the Group journey's existing ones, which pass.
+
 - [ ] **Batch 246 — Your picks and the coupon, compact**
   — finding G4 and the review's Group coupon screenshot. Fantasy's picks take a summary card
   plus six full-height slot cards; Group says who is still to pick four ways and nests the
