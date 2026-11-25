@@ -2326,6 +2326,25 @@ exact lines, asked once per batch before the gate.
   `WeekFeePanel` only; what counts as paid and every money rule are untouched. **Web-only —
   ship before Sat 28 Nov 03:00 London.**
 
+- [ ] **Batch 248 — The light-theme scan catches chips mid-fade, so a Group story fails one
+  run in five** — found 25 Nov 2026 while verifying Batch 247; it runs first, because 247's
+  verification needs the two-game stories green. `scripts/verify-two-game-web.py`'s group story
+  ("exact cold-login/payment link, unpriced contribution, mobile layout and accessibility")
+  flips `html` from dark to light and runs axe without waiting. Every `Badge` carries
+  `transition-colors`, and a muted badge fades its text and its background together, so
+  mid-fade the two colours cross and contrast falls to 2.2–4.1:1. Since Batch 235 every group
+  fixture card carries a muted competition chip, so the scan fails 1 run in 5 on `main` (3 in 5
+  on Batch 247's branch). A scratch axe run with node targets named the six chips; nothing else
+  failed.
+
+  - Badges stop transitioning colour: the base class swaps `transition-colors` for
+    `transition-none`. A badge is a static label, so no member loses a fade they can use, and
+    the two per-instance `transition-none` overrides (Batches 233 and 239) become redundant.
+
+  Tests: no badge variant transitions; the group story passes 10 repeats in a row; every
+  two-game story green. No existing test line changes. Scope boundary: the `Badge` base class.
+  **Web-only.**
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
