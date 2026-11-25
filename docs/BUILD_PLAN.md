@@ -2304,6 +2304,31 @@ exact lines, asked once per batch before the gate.
   and next week's entry; a legacy round in the history. Scope boundary: the game screens'
   header, the archive and week defaulting. **Web-only.**
 
+  **Oracle changes approved (owner, 25 Nov 2026):** this batch may change only these lines,
+  sent to the owner in chat and approved ("Approve all 3"). In
+  `apps/web/src/test/FantasyPickSlip.test.tsx`, the switch test's check of the week chips (the
+  "Fantasy weeks" navigation, its links `["21 Nov · Results", "28 Nov · Open"]` and
+  `expect(within(weeks).getByRole("link", { name: "28 Nov · Open" })).toHaveAttribute(` with
+  `"aria-current"`) becomes a check of the week bar: "Next week", "Sat 28 Nov" and the
+  earlier-week link to 21 Nov. In `apps/web/src/test/gameSwitch.test.ts`, the week-strip test
+  `it("lists every current week of one game, oldest first, for the week strip", () => {` and its
+  `expect(currentWeeks(games, "fantasy").map((value) => value.week_label)).toEqual([` go with
+  the strip, and `currentWeeks` leaves the import; the Games-tab test
+  `it("passes over a game the member has already played for one they have not", () => {`
+  becomes "keeps this week's played game over next week's untouched Fantasy (Batch 244)", its
+  expected destination moving from `/leagues/league-a/weeks/2026-12-05/fantasy` to
+  `/leagues/league-a/weeks/2026-11-28/group` under Home's rule. Eight new week-bar tests replace
+  the strip test. No check on money, picks, locks or results is removed or loosened.
+
+  As built (agent's calls): the arrows reach the weeks the home summary lists (the live ones and
+  the last five finished), and the archive holds the rest; the week name is not a link, with
+  Home and the archive as icons at either end of the bar; the Group status card keeps its
+  countdown, so the Group rules line carries only the lock time; the paid payment line stays
+  Batch 247's one line under the status line rather than a chip on it, because the journeys read
+  "Paid through this week" and use its "Check payment status" button; a past week shows the
+  existing results views (each slot won or lost with its points, the coupon's legs), which
+  Batch 246 compacts.
+
 - [ ] **Batch 245 — Compact fixture rows for both games**
   — finding G3. A fixture card is about 400px tall (the competition repeated inside its own
   section, the date repeated, three prices in a two-column grid), so about 1.5 fit a phone

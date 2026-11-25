@@ -207,6 +207,13 @@ apps/web/src/test/DashboardPage.test.tsx|expect(hero.textContent).toContain('2 l
 apps/web/src/test/coupon.test.ts|expect(formatCombinedOdds(999_999.99)).toBe('999999.99');
 EOF
       ;;
+    244) cat <<'EOF'
+apps/web/src/test/FantasyPickSlip.test.tsx|expect(within(weeks).getByRole("link", { name: "28 Nov · Open" })).toHaveAttribute(
+apps/web/src/test/gameSwitch.test.ts|it("lists every current week of one game, oldest first, for the week strip", () => {
+apps/web/src/test/gameSwitch.test.ts|expect(currentWeeks(games, "fantasy").map((value) => value.week_label)).toEqual([
+apps/web/src/test/gameSwitch.test.ts|it("passes over a game the member has already played for one they have not", () => {
+EOF
+      ;;
   esac
 }
 
@@ -229,6 +236,7 @@ approved_oracle_paths() {
     238) echo "apps/web/src/test/GroupCouponLayout.test.tsx" ;;
     235) echo "apps/web/src/test/FantasyPickSlip.test.tsx apps/web/src/test/FantasyWeekPage.test.tsx apps/web/src/test/GroupCouponLayout.test.tsx apps/web/e2e/two-game-fantasy.spec.ts" ;;
     243) echo "apps/web/src/test/DashboardPage.test.tsx apps/web/src/test/coupon.test.ts apps/web/e2e/two-game-fantasy.spec.ts" ;;
+    244) echo "apps/web/src/test/FantasyPickSlip.test.tsx apps/web/src/test/gameSwitch.test.ts" ;;
   esac
 }
 
