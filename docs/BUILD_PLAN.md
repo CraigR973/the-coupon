@@ -2418,7 +2418,7 @@ exact lines, asked once per batch before the gate.
   colour, because green letters on the green tint missed contrast in light (the journeys'
   axe scan caught it).
 
-- [ ] **Batch 249 — Plain words on the game screens, with prices at 2 dp**
+- [x] **Batch 249 — Plain words on the game screens, with prices at 2 dp** ✅ 2026-11-26
   — the part of Batch 246 that changes pinned test lines.
 
   - Group: "2 of 4 contributed · 2 missing contributors" becomes "2 of 4 picked"; "Still to

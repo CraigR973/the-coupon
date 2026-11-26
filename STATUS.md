@@ -16,7 +16,7 @@ Checked 2026-10-10 unless a line says otherwise.
 | API | `api-production-109b1.up.railway.app` serves `7205e84` (Batch 240 on Batches 234 and 237) at migration `032` (24 Nov) |
 | API deployment | Railway `07b1640b-86cc-459d-bf17-b319d1e1b6bb` succeeded 23:36 UTC, one replica, `europe-west4` (24 Nov); rollback `c9d4221a` (`85fa1ae`) |
 | Payments | `payments-production-0aa1.up.railway.app` serves `7205e84` at `032`, Railway `733c3ae4-af8e-42d1-8edf-590982dd5190` (24 Nov; rollback `9523f008`), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); **2-1 Hibs moved to a new payment link and pot on 25 Nov**: link id `unipaylink_0000BCfe…` and the new Pay URL set at 09:55 UTC by a guarded database write at the owner's request (audited as `league_updated`); its first payment (09:50 UTC) was matched automatically by the 09:59 read, which also learned the new pot; payments through the old link no longer count, and the owner is closing it (25 Nov); before that, all 20 link payments from members were read and matched through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
-| Web | `the-coupon-production.vercel.app` builds every push to `main`; since 23:46 UTC on 25 Nov it serves `b243ac0` (Batch 246) as bundle `index-BwcuLqBB.js` (deployment `the-coupon-production-4zn4e6j5k`): Fantasy's picks are one card of six tiles with a slim bar, and Group's status card leads with the member's pick before one coupon card. Earlier the same day: both games' fixtures as compact rows under open competitions with jump chips (Batch 245, 22:12 UTC), the game screens' week bar above the Group | Fantasy switch (Batch 244, 20:05 UTC), Home showing one football week per league, with a countdown, both games as rows, the week's £1 once and one button (Batch 243, 18:34 UTC), labels in the app font, colours that render on won and lost results and the bell in the top bar (Batch 242, 15:25 UTC), a paid week's payment strip on one line (Batch 247, 14:33 UTC) and badges that no longer fade (Batch 248, 14:06 UTC). Both games' fixtures show club form, position and competition names (Batch 235). The API has served the two-game screens to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov. |
+| Web | `the-coupon-production.vercel.app` builds every push to `main`; since 09:49 UTC on 26 Nov it serves `3e73a89` (Batch 249) as bundle `index-BBIpYPn0.js` (deployment `the-coupon-production-k15wd3dqn`): plain words on both game screens ("2 of 4 picked", "Waiting on …", "Your pick", "Copy for chat", "Waiting for results") and each Fantasy pick's price at 2 dp. On 25 Nov: Fantasy's picks as one card of six tiles with a slim bar, and Group's status card leading with the member's pick before one coupon card (Batch 246, 23:46 UTC); both games' fixtures as compact rows under open competitions with jump chips (Batch 245, 22:12 UTC), the game screens' week bar above the Group | Fantasy switch (Batch 244, 20:05 UTC), Home showing one football week per league, with a countdown, both games as rows, the week's £1 once and one button (Batch 243, 18:34 UTC), labels in the app font, colours that render on won and lost results and the bell in the top bar (Batch 242, 15:25 UTC), a paid week's payment strip on one line (Batch 247, 14:33 UTC) and badges that no longer fade (Batch 248, 14:06 UTC). Both games' fixtures show club form, position and competition names (Batch 235). The API has served the two-game screens to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov. |
 | Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the two-game tables hold 2-1 Hibs' rollout, its four games and 12 dues since 17:08 UTC (23 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
 | Odds | `odds-api.io` priced by **Betfair Sportsbook** since 10:36 UTC on 31 Oct (ADR 0002's 31 Oct amendment). Bet365 has been paid-only since 26 Oct, 19:00 UTC, and a free key gets a 403. Free key: 100 requests/hour and 500/day for the whole deployment. On the 31 Oct card it priced 78 of 85 fixtures, none in the Highland League (31 Oct). The owner chose to keep it rather than pay £49/mo for Bet365 (31 Oct). The 07:05 warm pass asks the provider nothing: the 50-request pick reserve withholds it because 06:05 discovery's requests are still inside the rolling hour, so it only reports prices left in memory (22 and 23 Nov) |
@@ -31,6 +31,14 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Batch 249 is live on the web** (26 Nov, `3e73a89`, web-only, pushed 09:49 UTC): plain
+  words on both game screens. Group's status card says "N of M picked", "Waiting on …" and
+  "Your pick: X", and the coupon's button "Copy for chat"; Fantasy's tiles show the price at
+  2 dp in the member's odds format, without "Frozen odds", and "Waiting for results" with no
+  points for a pick still to play; both games say "Waiting for results" for pending. The
+  owner approved the 17 changed test lines (26 Nov). The badges, the moved-price confirmation
+  and the price buttons' screen-reader names keep their words. No API change; drift in sync
+  before the push.
 - **Two-game mode passed an overnight test pass** (26 Nov, on `ce5deae`): all 30 two-game
   browser stories 4 runs in a row with no failures; a realistic league walked through a whole
   week (Wed, Sat morning and afternoon, results final, Monday) with no console or page errors
@@ -41,8 +49,8 @@ Checked 2026-10-10 unless a line says otherwise.
   batch of the redesign: Fantasy's picks are one "Your picks" card of six tiles (tap a held
   one to remove it, "+ Pick" goes to the fixtures) with a slim bar; Group's status card leads
   with the member's pick and Change, then a dot per member, and the coupon is one card with
-  each leg's initials and the copy in its header. Plain words and 2 dp prices wait for the
-  owner's test-line approval as Batch 249. No API change; drift in sync before the push.
+  each leg's initials and the copy in its header. Plain words and 2 dp prices followed as
+  Batch 249 (26 Nov). No API change; drift in sync before the push.
 - **Batch 245 is live on the web** (25 Nov, `2f47e82`, web-only, pushed 22:12 UTC): each
   fixture on both games is a compact row (clubs with position and form, the kick-off between,
   Home, Draw and Away as three buttons), about 110px instead of about 400px; Group rows take

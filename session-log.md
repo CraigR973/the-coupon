@@ -10140,3 +10140,31 @@ the approval commits for Batches 175, 235, 238, 243, 244 and 245 did
 - No application code, API contract, database schema or production data changed.
 
 **Next:** Batch 249 from this attestation state.
+
+## Batch 249 — Plain words on the game screens, with prices at 2 dp
+**Commits:** `3e73a89` · verified: `scripts/ci-local.sh` PASS in its worktree (12 checks; backend
+2,106, frontend 1,629, journey 1, zero skips; tree `301322d`), `scripts/verify-two-game-web.py`
+PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45795533320 PASS for `3e73a89`
+
+### Key facts for future sessions
+- **Group:** the status card reads "N of M picked" and "Waiting on …" (testid
+  `group-still-to-pick` kept) and the member's line "Your pick: X"; the coupon's button is
+  "Copy for chat" ("Copy result" once final). Both games' pending label is "Waiting for
+  results" (`fantasyResultLabel`, `groupResultLabel`).
+- **Fantasy:** a tile reads "{club} · 2.15" through `formatOdds` in the member's odds format
+  (`FantasySlotCard` takes `oddsFormat`); a pick still to play shows no points; the locked-history
+  tiles match. The Games archive's Group line reads "N of M picked · {result}".
+- **320px:** below 360px the coupon header's "N of M" count is `sr-only`, so "Copy for chat" fits
+  beside the title. A scratch-stack phone capture found "THE C…" before the gate's final run.
+- **Owner approval:** 17 test lines (7 fingerprinted in the guard), approved 26 Nov ("Approve
+  249"); new checks pin the old words' absence. The badges ("Pick submitted", "Pick
+  required"), the moved-price confirmation ("The price changed to 3.2500") and the price
+  buttons' screen-reader names keep their words, because their lines were not in the approved set.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- Optional, each needing the owner's approval of its pinned lines: "Picked"/"Pick needed"
+  badges on Home and both games, and the moved-price confirmation and price buttons' names at
+  2 dp.
+
+**Next:** the redesign's batches are all closed; Batch 241 waits for the owner's decision.
