@@ -4613,3 +4613,34 @@ destructive.
 Rollback: API `c9d4221a`, payments `9523f008` (both `85fa1ae`, `032`); no migration, so an image
 rollback is clean. Still to observe: Monday 30 Nov's catch-up writing the 5 Dec dues (12 expected),
 and the first real fantasy PUT (none yet since activation).
+
+### 2026-11-26 — `a4728c3`, Batch 252: a test pins Fantasy privacy before lock (tests only, no migration)
+
+Approved in chat: the owner chose "Merge now and release" (26 Nov), so the drift check, which
+counts every commit under `apps/api`, would not block web fixes before Saturday. Source: clean
+`main` at `a4728c3d3428ec32e589d5635e3ba7839c8a32f7`, uploaded from the shared checkout. Checks
+before upload: Quality run `45867434479` (`a4728c3`) green; local gate 12 of 12 (2,107 backend,
+1,631 frontend, journey 1, zero skips, tree `da4f0963dbd11aa1a790a8cb1d155a6801951382`), reused
+through the 252 worktree's stamp guard (identical tree); migration recovery PASS (no migration,
+`032`). The pinned IaC plan had 0 additions, the usual 4 changes and 0 deletions, and was not
+destructive.
+
+- IaC applied 17:37:45 UTC; it redeployed both `7205e84` images (API `6cfb34af`, payments
+  `5e1b860b`), both `SUCCESS` by 17:39:13.
+- API `c5feaaa2-0436-4bec-aee8-4dfab07302a3`, uploaded 17:39:28: `SUCCESS` by 17:41:02; health
+  `200`, `a4728c3`, `032`; readiness `ok`. Boot log: no traceback, no credential pattern (the six
+  error-level lines are alembic and uvicorn writing INFO to stderr).
+- Payments `56365aee-8c79-4f79-8a18-91c1a371951e`, uploaded 17:41:18: `SUCCESS` by 17:42:25;
+  health `200`, `service: payments`, `a4728c3`, `032`; readiness `ok`. Drift in sync for both.
+- Manifest unchanged: one replica in `europe-west4-drams3a`, no sleep, IPv6 egress, `ON_FAILURE`
+  with three retries, 300-second readiness timeout, 0.25 vCPU / 500 MB.
+- Variable names: API 13 of 13 and payments 7 of 7, no cross-service names, `TWO_GAMES_ENABLED`
+  on both. Read-only audit before and after: `032`, RLS forced on 42 of 42, no public-role
+  grants, one rollout, four games, 6 Fantasy picks, 0 Group picks, 12 weekly obligations.
+- Web: no deployment needed; `the-coupon-production-hxd7c03no` (`a4728c3`) holds the alias with
+  Batch 251's bundle `index-Cv5lh-FH.js`. Smoke: `/`, `/standings`, `/results` `200` with that
+  asset and the CSP header; an exact-origin preflight for `DELETE` `200` with credentials;
+  unauthenticated `/me/games` `401`.
+
+Rollback: API `07b1640b`, payments `733c3ae4` (both `7205e84`, `032`); no migration, so an image
+rollback is clean.
