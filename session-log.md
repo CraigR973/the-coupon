@@ -10089,3 +10089,31 @@ PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45723812989 P
 - Batch 249 (plain words, 2 dp prices) once the owner approves its exact test lines.
 
 **Next:** the overnight two-game test pass (owner, 25 Nov), then Batch 249 on approval.
+
+## Overnight two-game test pass
+**Verified on:** `ce5deae` (web `b243ac0`, deployed 23:46 UTC; API and payments `7205e84` at 032)
+· owner, 25 Nov: "complete the remaining batches and then thoroughly test the new 2 game mode"
+
+- **Browser stories:** `scripts/verify-two-game-web.py` PASS30 four runs in a row on the final
+  code, zero failures, flaky or skipped.
+- **Whole-week walkthrough** on the realistic scratch stack (12 members, real clubs): Wed 20:00,
+  Sat 10:30, Sat 15:30, Sun 23:30 after settlement, Mon 09:00; Home, Fantasy, Group and the
+  archive on a phone in both themes and on desktop. 0 console errors, 0 page errors, no overflow
+  at 320px, settlement resolved 11 fixtures with 0 failures, and the card moved on to 28 Nov on
+  Monday. Script `.local/overnight-2026-11-26/week.cjs`, run against that folder's `stack.py`.
+- **Date sweep:** backend 2,106 passed at Sat 28 Nov 15:30 and Mon 30 Nov 12:00; web 1,629 passed
+  at Sat 28 Nov 10:30 and 15:30 and Mon 30 Nov 09:00.
+- **Production, read-only:** both health checks OK, payments database ready; 24 hours of API
+  traffic, 654 requests, 0 server errors; app logs (the CLI's 7-hour cap) 0 error lines. The
+  Fantasy card read takes 1.3 s at the median.
+
+### Key facts for future sessions
+- On the scratch stack, token expiry follows the stack's own clock, so a walkthrough must sign
+  in again after each jump of more than the token's life; a desktop browser shows the app's PIN
+  re-entry once after a multi-day jump, which is the session lock working.
+- The date sweep's `web_shifted.sh` hard-codes the library and checkout paths; point `D=` at the
+  built `libclockshift.dylib` and `W=` at a checkout whose `node_modules` matches its lockfile.
+- No fault found that blocks rollout. Open: Batch 249 (plain words, 2 dp; owner approval),
+  Batch 241 (test-order fix; owner decision), Batches 211 and 230 (owner-scheduled).
+
+**Next:** Batch 249 on the owner's approval of its exact test lines.

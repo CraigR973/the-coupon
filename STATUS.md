@@ -31,6 +31,12 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Two-game mode passed an overnight test pass** (26 Nov, on `ce5deae`): all 30 two-game
+  browser stories 4 runs in a row with no failures; a realistic league walked through a whole
+  week (Wed, Sat morning and afternoon, results final, Monday) with no console or page errors
+  and no 320px overflow; backend 2,106 and web 1,629 tests pass with the clock at Sat 28 Nov
+  and Mon 30 Nov; production healthy (no server errors in 24 hours of API traffic). Report:
+  `.local/overnight-2026-11-26/two-game-test-report.md`.
 - **Batch 246 is live on the web** (25 Nov, `b243ac0`, web-only, pushed 23:45 UTC), the last
   batch of the redesign: Fantasy's picks are one "Your picks" card of six tiles (tap a held
   one to remove it, "+ Pick" goes to the fixtures) with a slim bar; Group's status card leads
