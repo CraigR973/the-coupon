@@ -369,6 +369,10 @@ test("two price movements each require fresh consent and unavailable prices pres
   await choose(page, 1, 1);
   await expect(slot(page, 1)).toContainText("The price changed to 3.25");
   await expect(slot(page, 1)).not.toContainText("3.2500");
+  // Batch 251: the new price is offered on the row the member tapped, in view.
+  const moved = page.getByTestId(`fantasy-moved-${s.fixtures[0][0]}`);
+  await expect(moved).toContainText("Price moved: Home is now 3.25");
+  await expect(moved).toBeInViewport();
   expect((await current(request)).fantasy[0].fixture_id).toBe(s.fixtures[0][0]);
   await post(request, "quotes", { price: "4.25" });
   await at(request, page, "2026-11-21T11:52:10Z");
@@ -379,6 +383,7 @@ test("two price movements each require fresh consent and unavailable prices pres
     })
     .click();
   await expect(slot(page, 1)).toContainText("The price changed to 4.25");
+  await expect(moved).toContainText("Price moved: Home is now 4.25");
   await slot(page, 1)
     .getByRole("button", {
       name: "Confirm odds 4.25 for slot 1",
@@ -386,6 +391,7 @@ test("two price movements each require fresh consent and unavailable prices pres
     })
     .click();
   await saved(page, 1);
+  await expect(moved).toHaveCount(0);
   expect(new Set(operations).size).toBe(3);
   expect((await current(request)).fantasy[0]).toMatchObject({
     fixture_id: s.fixtures[0][0],

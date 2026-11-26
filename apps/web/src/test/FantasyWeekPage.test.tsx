@@ -354,6 +354,108 @@ describe("Fantasy slot editor", () => {
     client.clear();
     engine.dispose();
   });
+  it("offers a moved price on the fixture the member tapped, and confirms it there", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    api.mockImplementation(async (path: string) =>
+      path === gamePath(target)
+        ? game()
+        : entry(Number(path.split("/").at(-1))),
+    );
+    const write = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiError(409, "Confirm price", {
+          code: "PRICE_MOVED",
+          ...target,
+          slot: 1,
+          current_odds: "3.2500",
+        }),
+      )
+      .mockResolvedValue(entry(1, 1));
+    const engine = new GameIntents("alice", {
+      member: () => "alice",
+      read: async () => entry(1),
+      write,
+      changed: async () => {},
+    });
+    mount(client, engine);
+    await waitFor(() => expect(emptySlot(1)).toBeTruthy());
+    fireEvent.click(
+      screen.getByRole("button", { name: "Choose Home 1 to win at 2.1500" }),
+    );
+    // Batch 251: the new price waits on the row that was tapped, not only in the picks card.
+    const moved = await within(screen.getByTestId("fantasy-card-fixture-1")).findByRole(
+      "group",
+      { name: "Moved price on Home 1 v Away 1" },
+    );
+    expect(moved).toHaveTextContent("Price moved: Home is now 3.25");
+    expect(
+      within(screen.getByTestId("fantasy-card-fixture-1")).queryByText(/Your pick/),
+    ).toBeNull();
+    fireEvent.click(within(moved).getByRole("button", { name: "Pick at 3.25" }));
+    await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
+    expect(write.mock.calls[1][1]).toMatchObject({
+      fixture_id: "fixture-1",
+      market: "MATCH_ODDS",
+      outcome: "HOME",
+      odds: "3.2500",
+      expected_revision: 0,
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("group", { name: "Moved price on Home 1 v Away 1" }),
+      ).toBeNull(),
+    );
+    client.clear();
+    engine.dispose();
+  });
+  it("cancels a moved price on the row without saving anything", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    api.mockImplementation(async (path: string) =>
+      path === gamePath(target)
+        ? game()
+        : entry(Number(path.split("/").at(-1))),
+    );
+    const write = vi.fn().mockRejectedValueOnce(
+      new ApiError(409, "Confirm price", {
+        code: "PRICE_MOVED",
+        ...target,
+        slot: 1,
+        current_odds: "3.2500",
+      }),
+    );
+    const engine = new GameIntents("alice", {
+      member: () => "alice",
+      read: async () => entry(1),
+      write,
+      changed: async () => {},
+    });
+    mount(client, engine);
+    await waitFor(() => expect(emptySlot(1)).toBeTruthy());
+    fireEvent.click(
+      screen.getByRole("button", { name: "Choose Home 1 to win at 2.1500" }),
+    );
+    const moved = await screen.findByRole("group", {
+      name: "Moved price on Home 1 v Away 1",
+    });
+    fireEvent.click(within(moved).getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("group", { name: "Moved price on Home 1 v Away 1" }),
+      ).toBeNull(),
+    );
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(emptySlot(1)).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Confirm odds 3.25 for slot 1" }),
+    ).toBeNull();
+    client.clear();
+    engine.dispose();
+  });
 });
 
 describe("authoritative Fantasy results", () => {

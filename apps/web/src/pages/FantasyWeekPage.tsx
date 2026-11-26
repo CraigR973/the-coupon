@@ -43,6 +43,7 @@ import { Countdown } from "../components/Countdown";
 import {
   FantasyFixtureCard,
   type HeldOnCard,
+  type MovedOnCard,
 } from "../components/FantasyFixtureCard";
 import {
   FantasySlotCard,
@@ -243,6 +244,45 @@ function FantasyWeek({ target }: { target: GameTarget }) {
     };
   }
 
+  /**
+   * Batch 251: a save of this fixture refused because its price moved, offered on the row
+   * the member tapped. Confirming sends the API's new price into the same slot, exactly
+   * as the picks card's "Confirm odds" does; Cancel dismisses the refusal, so the slot
+   * keeps whatever it held before.
+   */
+  function movedFor(fixture: FantasyFixture): MovedOnCard | null {
+    const view = views.find(
+      (value) =>
+        value.movedPrice !== null &&
+        value.intent?.body.fixture_id === fixture.fixture_id,
+    );
+    if (!view || !view.intent || view.movedPrice === null) return null;
+    const { intent, slot } = view;
+    const price = view.movedPrice;
+    const revision = slotQueries[slot - 1].revision;
+    return {
+      slot,
+      outcome: intent.body.outcome,
+      price,
+      ready: view.ready && revision !== null,
+      onConfirm: () => {
+        if (revision === null) return;
+        engine.choose(
+          target,
+          slot,
+          {
+            fixture_id: intent.body.fixture_id,
+            market: intent.body.market,
+            outcome: intent.body.outcome,
+            odds: price,
+          },
+          revision,
+        );
+      },
+      onCancel: () => engine.dismiss(intentKey(target, slot)),
+    };
+  }
+
   function choose(
     fixture: FantasyFixture,
     market: string,
@@ -370,6 +410,7 @@ function FantasyWeek({ target }: { target: GameTarget }) {
                 {...forCard(fixture)}
                 onChoose={(market, outcome, odds) => choose(fixture, market, outcome, odds)}
                 onRemove={(slot) => removeSlot(slot)}
+                moved={movedFor(fixture)}
               />
             );
             const unpriced = group.fixtures.filter((fixture) => !shownNow(fixture));

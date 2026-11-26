@@ -2479,6 +2479,25 @@ exact lines, asked once per batch before the gate.
   M" count is hidden on screen (screen readers still hear it), because the longer "Copy for
   chat" squeezed the title to "THE C…" at 320px; the status card above says "N of M picked".
 
+- [ ] **Batch 251 — Confirm a moved Fantasy price on the fixture you tapped**
+  — found by the owner's first real picks (26 Nov, 10:39 UTC): slot 2's save was refused
+  because its price had moved, and the confirmation appeared only inside the picks card, which
+  on a phone is the Review sheet or the foot of the page, so it had to be found (45 seconds
+  between the refusal and the confirmation). The owner called it clunky and chose "Confirm on
+  the row".
+
+  - When a save is refused with `PRICE_MOVED`, the fixture row that was tapped shows "Price
+    moved: Home is now 2.38" with "Pick at 2.38" and Cancel, under its price buttons, and
+    scrolls no further than needed to keep it in view. Pick sends the API's new price into the
+    same slot, as the picks card's "Confirm odds" does; Cancel dismisses the refusal, so the
+    slot keeps what it held. Every pick is still at a price the member saw.
+  - The picks card keeps its own confirmation, word for word.
+
+  Tests: confirming on the row sends the new price ("3.2500") with the slot's revision and the
+  strip goes; Cancel saves nothing and leaves the slot empty; the Fantasy journey sees the strip
+  in view after each move, on desktop and phone, and gone after the save. No existing test line
+  changes. **Web-only.**
+
 - [x] **Batch 250 — The moved-price confirmation at 2 dp** ✅ 2026-11-26
   — the last price a member could still see at 4 dp after Batch 249. When a price moves during
   a save, the slot says "The price changed to 3.2500" and offers "Confirm odds 3.2500 for

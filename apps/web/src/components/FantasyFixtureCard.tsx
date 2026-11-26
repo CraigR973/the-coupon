@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Check, CloudOff, HelpCircle, Loader2 } from "lucide-react";
 import { FixtureHead } from "./FixtureRow";
 import { fantasyRunner, fantasyResultLabel } from "../lib/fantasy";
@@ -7,6 +8,7 @@ import { formatInstant } from "../lib/time";
 import { cn } from "../lib/utils";
 import type { FantasyFixture, GamePick } from "../lib/twoGameTypes";
 import type { OddsFormat, PickMarket, PickOutcome } from "../lib/types";
+import { Button } from "./ui/button";
 
 const MARKET_ORDER = ["MATCH_ODDS", "BOTH_TEAMS_TO_SCORE"];
 const OUTCOME_ORDER: Record<string, number> = { HOME: 0, DRAW: 1, AWAY: 2, YES: 0, NO: 1 };
@@ -19,6 +21,22 @@ export interface HeldOnCard {
   pick: GamePick | null;
   /** The engine's phase for a choice on its way, if one is. */
   phase?: string;
+}
+
+/**
+ * Batch 251: the member's own save on this fixture was refused because its price moved,
+ * so the row offers the new price where they tapped, instead of only inside the picks
+ * card (on a phone, the Review sheet or the foot of the page).
+ */
+export interface MovedOnCard {
+  slot: number;
+  outcome: string;
+  /** The API's new price, exactly as it quoted it; the confirmation sends it unchanged. */
+  price: string;
+  /** The slot can be written now: its readback is known and nothing is on its way. */
+  ready: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
 }
 
 export interface FantasyFixtureCardProps {
@@ -35,6 +53,8 @@ export interface FantasyFixtureCardProps {
   onChoose: (market: string, outcome: string, odds: string) => void;
   /** Batch 235: withdraw the member's own pick from its slot — a second tap on it. */
   onRemove?: (slot: number) => void;
+  /** Batch 251: a moved price to confirm or cancel on this row. */
+  moved?: MovedOnCard | null;
 }
 
 /** The outcome a price button names, short, because the clubs sit above it (Batch 245). */
@@ -65,6 +85,7 @@ export function FantasyFixtureCard({
   canChoose,
   onChoose,
   onRemove,
+  moved,
 }: FantasyFixtureCardProps) {
   const prices = [...fixture.quote.prices].sort(
     (a, b) =>
@@ -93,6 +114,13 @@ export function FantasyFixtureCard({
       onRemove={held && onRemove ? () => onRemove(held.slot) : undefined}
     />
   );
+  // Batch 251: bring a newly offered price into view, scrolling no further than needed,
+  // so a row near the foot of the screen never hides its own confirmation.
+  const movedRef = useRef<HTMLDivElement>(null);
+  const movedKey = moved ? `${moved.slot}/${moved.price}` : null;
+  useEffect(() => {
+    if (movedKey) movedRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [movedKey]);
   const result = prices.filter((price) => price.market === "MATCH_ODDS");
   const others = prices.filter((price) => price.market !== "MATCH_ODDS");
   return (
@@ -116,7 +144,43 @@ export function FantasyFixtureCard({
           )}
         </>
       )}
-      {held && (
+      {moved && (
+        <div
+          ref={movedRef}
+          role="group"
+          aria-label={`Moved price on ${fixture.home} v ${fixture.away}`}
+          data-testid={`fantasy-moved-${fixture.fixture_id}`}
+          className="mt-2 scroll-mb-24 scroll-mt-28 space-y-2 rounded-md border border-warning/40 bg-warning/[0.08] p-2 dark:bg-warning/15"
+        >
+          <p className="font-sans text-sm text-text-primary">
+            Price moved: {SHORT[moved.outcome] ?? "your selection"} is now{" "}
+            <span className="font-semibold">
+              {formatOdds(Number(moved.price), oddsFormat)}
+            </span>
+          </p>
+          {/* transition-none: the journeys flip the theme and scan at once (Batch 248). */}
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              disabled={!moved.ready}
+              onClick={moved.onConfirm}
+              className="transition-none"
+            >
+              Pick at {formatOdds(Number(moved.price), oddsFormat)}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={moved.onCancel}
+              className="transition-none"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+      {/* Batch 251: while the row asks about a moved price, it does not claim the pick yet. */}
+      {held && !moved && (
         <p className="mt-2 eyebrow text-success">
           Your pick · slot {held.slot}
         </p>
@@ -218,7 +282,10 @@ function PriceButton({
           mine ? "text-text-primary" : "text-text-secondary",
         )}
       >
-        {mine && <Check className="h-3 w-3 shrink-0" aria-hidden />}
+        {/* Batch 251: a choice waiting on a moved price is not saved yet, so no tick. */}
+        {mine && held?.phase !== "refused" && (
+          <Check className="h-3 w-3 shrink-0" aria-hidden />
+        )}
         <span className="truncate">{SHORT[outcome] ?? label}</span>
         {sending && <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden />}
         {!sending && waiting && (
