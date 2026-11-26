@@ -75,6 +75,13 @@ _COUNTRY_CODES: dict[str, str] = {
     "scotland": "SCO",
     "northern ireland": "NIR",
     "wales": "WAL",
+    # Batch 255: Fantasy's European top flights. Read from the live catalogue on
+    # 2026-11-26, where each name also exists elsewhere — Serie A in Ecuador, the
+    # Bundesliga in Austria, Ligue 1 in Algeria — which is why the code scopes the match.
+    "spain": "ESP",
+    "italy": "ITA",
+    "germany": "GER",
+    "france": "FRA",
 }
 
 #: Competitions FotMob does not name the way the odds provider does, plus every

@@ -1363,3 +1363,113 @@ async def test_legacy_and_census_lock_shared_metadata_in_the_same_order(source, 
         if task is not None and not task.done():
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+
+
+# ── Batch 255: Fantasy's European top flights ─────────────────────────────────
+
+
+def european(source, suffix, slug, name, day=WEEK, hour=15, minute=0):
+    """A census row from one of Fantasy's European leagues, through the shared helper."""
+    event_id = source.event(suffix, day, hour, minute)
+    source.rows[-1]["league"] = {"name": name, "slug": slug}
+    return event_id
+
+
+@pytest.mark.asyncio
+async def test_fantasy_links_the_four_top_flights_and_group_and_legacy_never_do(
+    source, monkeypatch
+):
+    """One census page feeds all three readers, and only Fantasy takes the four.
+
+    The LaLiga game kicks off at exactly 15:00 UK, the one instant both Group and a default
+    legacy round play, so nothing but the rule keeps it off them. The legacy walk's pool
+    leaves the four out, and the census still costs one request for the weekend.
+    """
+    monkeypatch.setattr(settings, "slate_horizon_weeks", 1)
+    league = await source.league()
+    async with source.sessions() as db, db.begin():
+        owner = Profile(display_name=f"Legacy {uuid.uuid4().hex}", pin_hash="x")
+        db.add(owner)
+        await db.flush()
+        legacy = League(
+            slug=f"legacy-{uuid.uuid4().hex}", name="Synthetic legacy Saturday", created_by=owner.id
+        )
+        db.add(legacy)
+        await db.flush()
+        legacy_id = legacy.id
+        source.leagues.append(legacy_id)
+    uk = source.event("uk")
+    laliga = european(source, "laliga", "spain-laliga", "Spain - LaLiga")
+    serie_a = european(
+        source, "serie-a", "italy-serie-a", "Italy - Serie A", WEEK + timedelta(days=1), 19, 45
+    )
+    second_tier = european(source, "laliga-2", "spain-laliga-2", "Spain - LaLiga 2")
+    worker = source.worker(include_legacy=True)
+    for _ in range(20):
+        await worker.run()
+        source.clock.now += timedelta(minutes=6)
+    try:
+        await _assert_european_links(source, league, legacy_id, uk, laliga, serie_a, second_tier)
+    finally:
+        # The pool is shared and committed: leave no Fantasy-only slug for later modules.
+        async with source.sessions() as db, db.begin():
+            await db.execute(
+                update(Fixture)
+                .where(Fixture.provider_event_id.in_([laliga, serie_a]))
+                .values(competition_id="england-premier-league")
+            )
+    weekend_calls = [
+        params
+        for path, params in source.calls
+        if path == "/events" and params["from"].startswith(WEEK.isoformat())
+    ]
+    assert len(weekend_calls) == 1
+
+
+async def _assert_european_links(source, league, legacy_id, uk, laliga, serie_a, second_tier):
+    from src.services.gameweek import pooled_competition_ids
+
+    async with source.sessions() as db:
+        games = {
+            game.kind: game
+            for game in await db.scalars(
+                select(TwoGame)
+                .join(Gameweek)
+                .where(TwoGame.league_id == league, Gameweek.starts_on == WEEK)
+            )
+        }
+
+        async def linked(game_id):
+            return set(
+                await db.scalars(
+                    select(Fixture.provider_event_id)
+                    .join(TwoGameFixture)
+                    .where(TwoGameFixture.game_id == game_id)
+                )
+            )
+
+        assert await linked(games["fantasy"].id) == {uk, laliga, serie_a}
+        assert await linked(games["group"].id) == {uk}
+        parent = await db.scalar(
+            select(Gameweek).where(Gameweek.league_id == legacy_id, Gameweek.starts_on == WEEK)
+        )
+        assert parent is not None and parent.format == "legacy"
+        legacy_links = set(
+            await db.scalars(
+                select(Fixture.provider_event_id)
+                .join(GameweekFixture)
+                .where(GameweekFixture.gameweek_id == parent.id)
+            )
+        )
+        assert legacy_links == {uk}
+        assert (
+            await db.scalar(
+                select(func.count())
+                .select_from(Fixture)
+                .where(Fixture.provider_event_id == second_tier)
+            )
+            == 0
+        )
+        pooled = await pooled_competition_ids(db)
+        assert "england-premier-league" in pooled
+        assert not {"spain-laliga", "italy-serie-a"} & pooled

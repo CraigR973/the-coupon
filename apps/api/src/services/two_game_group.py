@@ -24,6 +24,7 @@ from src.models.two_game import (
     TwoGameFixture,
 )
 from src.schemas import UtcDatetime
+from src.services.competitions import plays_competition
 from src.services.football_data import fixture_context, season_or_default
 from src.services.gameweek import selected_competition_slugs
 from src.services.odds_provider import is_void_status
@@ -463,7 +464,7 @@ class GroupEntries:
                     == london_utc(target.week.starts_on, 15)
                     == target.game.window_start
                     == target.game.window_end
-                    and (competitions is None or fixture.competition_id in competitions)
+                    and plays_competition("group", fixture.competition_id, competitions)
                     and not is_void_status(status)
                 )
                 if not eligible and pick is None:

@@ -33,6 +33,7 @@ from src.models.league_membership import LeagueMembership
 from src.models.pick import Pick
 from src.models.profile import Profile
 from src.services.competitions import MEASURED_PLAYED_CATALOGUE as MEASURED_CATALOGUE
+from src.services.competitions import is_fantasy_only, plays_competition
 from src.services.dues import (
     NOTE_ROUND_WITHDRAWN,
     record_dues_for_opened,
@@ -621,11 +622,11 @@ async def sync_slate(
     the caller owns the transaction boundary.
     """
     wanted = selected_competition_slugs(league)
-    selected = (
-        slate.fixtures
-        if wanted is None
-        else [sf for sf in slate.fixtures if sf.competition_id in wanted]
-    )
+    # Batch 255: the same rule the two-game paths apply, so Fantasy's European leagues —
+    # in the shared census and pool since then — never reach a legacy round by any route.
+    selected = [
+        sf for sf in slate.fixtures if plays_competition("legacy", sf.competition_id, wanted)
+    ]
     playable = [sf for sf in selected if not is_void_status(sf.status)]
 
     # Calendar/round locks always precede shared Fixture locks. Fresh source facts
@@ -1036,9 +1037,17 @@ async def pooled_competition_ids(db: AsyncSession) -> set[str]:
     Returns the raw pool. The caller intersects it with whatever else narrows the walk;
     an empty set means a deployment with no fixtures at all, where the honest answer is to
     walk everything and bootstrap.
+
+    Batch 255: Fantasy's European leagues are left out. Only the weekend census ever
+    finds them, every caller here is a British legacy walk, and counting them would
+    report four competitions walked that no walk asks about.
     """
     rows = await db.execute(select(Fixture.competition_id).distinct())
-    return {competition_id for (competition_id,) in rows.all() if competition_id}
+    return {
+        competition_id
+        for (competition_id,) in rows.all()
+        if competition_id and not is_fantasy_only(competition_id)
+    }
 
 
 async def discover_fixtures(

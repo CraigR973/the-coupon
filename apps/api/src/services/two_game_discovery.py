@@ -29,6 +29,7 @@ from src.models.two_game import (
     TwoGameFixture,
     TwoGameRollout,
 )
+from src.services.competitions import plays_competition
 from src.services.gameweek import (
     active_leagues,
     fixtures_for,
@@ -400,7 +401,7 @@ class DiscoveryWorker:
             )
             return (
                 in_window
-                and (wanted is None or fixture.competition_id in wanted)
+                and plays_competition(game.kind, fixture.competition_id, wanted)
                 and fixture.provider_event_id not in void
             )
 

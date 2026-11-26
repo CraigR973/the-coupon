@@ -26,6 +26,7 @@ from src.models.league_membership import LeagueMembership
 from src.models.pick import PickMarket, PickOutcome
 from src.models.two_game import GameOperation, ProviderWork, TwoGame, TwoGameFixture, TwoGameRollout
 from src.rate_limit import consume_shared_limit
+from src.services.competitions import plays_competition
 from src.services.gameweek import selected_competition_slugs
 from src.services.two_game_fixture_state import explicitly_void
 from src.services.two_game_storage import london_utc
@@ -330,8 +331,7 @@ async def selection(
     competitions = selected_competition_slugs(target.league)
     if (
         not eligible
-        or competitions is not None
-        and fixture.competition_id not in competitions
+        or not plays_competition(target.game.kind, fixture.competition_id, competitions)
         or await explicitly_void(db, settings.odds_provider.value, fixture.provider_event_id)
     ):
         refuse(422, "INVALID_SELECTION", "This fixture is no longer eligible", **target.identity())

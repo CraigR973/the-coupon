@@ -109,3 +109,62 @@ def is_played(competition_id: str) -> bool:
 def played(competition_ids: Iterable[str]) -> list[str]:
     """``competition_ids`` narrowed to the played ones, order preserved."""
     return [value for value in competition_ids if is_played(value)]
+
+
+# ── Fantasy's European top flights (Batch 255) ──────────────────────────────────
+#
+# Owner decision, 26 Nov 2026: Fantasy also plays the Spanish, Italian, German and French
+# top flights, for every two-game league, with no per-league switch ("lets go with one
+# rule and not have the switch"). Group and legacy rounds stay British.
+#
+# A list here, not a rule like the trim above, because it is four deliberate choices
+# rather than a classification of a catalogue that grows: the trim keeps a competition
+# the provider adds next season, and this must not take Spain's second tier because it
+# begins with ``spain-``. The slugs are the provider's own, **read from the live
+# catalogue on 2026-11-11** and confirmed by the live 28 Nov census on 2026-11-26 (31
+# fixtures in the Fantasy window, every one priced by Betfair Sportsbook in the sample).
+
+#: The census keeps a British competition by this prefix (and :func:`is_played`).
+UK_SLUG_PREFIXES: tuple[str, ...] = ("england-", "scotland-", "wales-", "northern-ireland-")
+
+#: Played by Fantasy alone, whatever a league's own (British) competition list says.
+FANTASY_ONLY_COMPETITIONS: frozenset[str] = frozenset(
+    {
+        "spain-laliga",
+        "italy-serie-a",
+        "germany-bundesliga",
+        "france-ligue-1",
+    }
+)
+
+
+def is_fantasy_only(competition_id: str) -> bool:
+    """Whether ``competition_id`` is one of Fantasy's European top flights."""
+    return competition_id.strip().casefold() in FANTASY_ONLY_COMPETITIONS
+
+
+def census_keeps(competition_id: str) -> bool:
+    """Whether the weekend census keeps an event from ``competition_id``.
+
+    The played British competitions, as before, plus Fantasy's four. Everything else the
+    one global page carries — some 2,400 events a weekend — is dropped as it always was.
+    """
+    slug = competition_id.strip().casefold()
+    return (slug.startswith(UK_SLUG_PREFIXES) and is_played(slug)) or is_fantasy_only(slug)
+
+
+def plays_competition(kind: str, competition_id: str, selected: frozenset[str] | None) -> bool:
+    """Whether a ``kind`` game (``legacy``, ``group`` or ``fantasy``) plays a competition.
+
+    ``selected`` is the league's own list (:func:`~src.services.gameweek.
+    selected_competition_slugs`; ``None`` = every played British competition). The four
+    European top flights belong to Fantasy alone and ignore that list: the list is chosen
+    from a British catalogue, so it can neither include nor exclude them. Every other
+    competition follows the list exactly as it did before this batch.
+
+    The one rule the census, discovery, the game reads and the save all apply, so a
+    fixture a card shows is a fixture its save accepts.
+    """
+    if is_fantasy_only(competition_id):
+        return kind == "fantasy"
+    return selected is None or competition_id in selected

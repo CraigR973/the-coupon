@@ -19,6 +19,7 @@ from src.config import settings
 from src.models.fixture import Fixture
 from src.models.two_game import FantasyPick, GameOperation, ProviderSnapshot, TwoGameFixture
 from src.schemas import UtcDatetime
+from src.services.competitions import plays_competition
 from src.services.football_data import fixture_context, season_or_default
 from src.services.gameweek import selected_competition_slugs
 from src.services.odds_provider import (
@@ -629,7 +630,7 @@ class FantasyEntries:
             for fixture in fixtures:
                 eligible = (
                     target.game.window_start <= fixture.kickoff_utc < target.game.window_end
-                    and (competitions is None or fixture.competition_id in competitions)
+                    and plays_competition("fantasy", fixture.competition_id, competitions)
                     and not is_void_status(statuses.get(fixture.id, "pending"))
                 )
                 if not eligible and fixture.id not in accepted:

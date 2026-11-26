@@ -49,6 +49,9 @@ Concrete methods, snake_case fields, refusal codes and F/C/Q acceptance mapping:
   overlap and either game may use the same selection. Partial entries count.
   Each winning leg adds the existing rounded frozen-odds × 10 points; losses
   and voids add zero. Existing season points continue exactly once.
+- Fantasy also draws from the Spanish, Italian, German and French top flights,
+  whatever a league's British competition list says; Group and legacy rounds
+  stay British (owner, 26 Nov 2026; Batch 255).
 - Next fantasy opens at the preceding eligible Saturday noon, using London
   calendar arithmetic across DST. Confirmed breaks require recorded schedule
   evidence; empty provider data alone proves no break. Home exposes every
@@ -2577,6 +2580,68 @@ exact lines, asked once per batch before the gate.
   Tests: no badge variant transitions; the group story passes 10 repeats in a row; every
   two-game story green. No existing test line changes. Scope boundary: the `Badge` base class.
   **Web-only.**
+
+### European top flights in Fantasy
+
+Raised by the owner on 26 Nov 2026: "would it be feasible to include games from european
+leagues in the fantasy mode?" The plan offered a per-league switch
+(`.local/european-fantasy-plan-2026-11-26.md`, Git-ignored); the owner chose instead: "lets go
+with one rule and not have the switch and also implement and enable this overnight from now"
+(26 Nov, evening). Order: **255 → `/ship-prod` → 256**; a web close-out is refused while a
+shipment is owed, which fixes that order. Batches 253 and 254 belong to another session
+(stuck two-game results) and stay off `main` until after the first two-game weekend.
+
+- [ ] **Batch 255 — Fantasy also plays the Spanish, Italian, German and French top flights**
+  — one rule for every two-game league, with no switch and no migration. Group and legacy
+  rounds stay British. Shipping enables it: the next weekend census links the games.
+
+  Pre-flight, live on 26 Nov at 23:20 UTC (2 odds-api.io requests): the 28 Nov census is one
+  page of 2,442 events; 31 games of the four leagues fall in the Fantasy window (LaLiga 8,
+  Serie A 7, Bundesliga 8, Ligue 1 8), none incomplete; Betfair Sportsbook priced 10 of 10
+  sampled, Match Odds and BTTS both; FotMob lists all four (ESP 87, ITA 55, GER 54, FRA 53)
+  under their exact names, beside same-named leagues in Ecuador, Austria and Algeria.
+
+  - One rule in `services/competitions.py`: the four slugs as the live catalogue spells them
+    (`spain-laliga`, `italy-serie-a`, `germany-bundesliga`, `france-ligue-1`) belong to Fantasy
+    alone and ignore a league's own competition list, which is chosen from a British catalogue;
+    every other competition follows that list exactly as before. The census, Fantasy and Group
+    discovery, both game reads, the save, and legacy linking (`sync_slate`, so census, pooled
+    and fetched slates alike) all apply it.
+  - The census keeps the four besides the played British competitions: still one page a
+    weekend and no extra request. A European event missing its teams or kick-off is logged and
+    left off the page instead of failing it, so the addition can never stop the British card.
+  - The legacy walk's pool (`pooled_competition_ids`) leaves the four out, so no British walk
+    counts or asks about them.
+  - FotMob resolves Spain, Italy, Germany and France, so club position and form appear once
+    the football sync ingests the four tables (it follows the fixture pool). Of 28 Nov's 62
+    clubs, all but 1. FC Cologne, FSV Mainz and Stade Rennais match FotMob's names under the
+    existing rules; those three show no form, as an unmatched British club does. The void
+    cross-check now covers the four too, and voids only a confident match FotMob shows moved
+    or called off.
+  - Prices, settlement and scoring are unchanged. Price work follows whatever a Fantasy card
+    links, inside the same background budget (120 requests a day), so a browsed price is
+    refreshed less often; a save still takes a fresh quote.
+
+  Tests: the census keeps the four and drops their second tiers, Ukraine and Austria's
+  Bundesliga, in one request; an incomplete European event is skipped while a British one
+  still fails the page; the rule for each kind of game, with and without a league list;
+  FotMob's country scope against the three namesakes; one census linking Fantasy, Group and a
+  default legacy round with LaLiga at exactly 15:00, and the legacy pool without the four; the
+  Fantasy read and save accepting LaLiga under a British-only list while refusing a British
+  fixture outside it, and Group's read and save refusing LaLiga. 10 new tests (2107 → 2117);
+  no existing test line changes. **API-only. `/ship-prod` scheduled by the owner** ("implement
+  and enable this overnight from now", 26 Nov), straight after close-out.
+
+- [ ] **Batch 256 — The four European leagues sit after the eight named British divisions**
+  — prerequisite: 255 shipped. Without it they sort last, after every lower British tier, on
+  the Fantasy card and on Football Stats. Their headings already read like the British ones
+  ("Spain - LaLiga" beside "England - Premier League"), because both are the API's own names.
+
+  - The shared order names them straight after Scottish League Two: LaLiga, Serie A,
+    Bundesliga, then Ligue 1. Every other competition keeps its rank.
+
+  Tests: the four rank after the eight and before the lower British tiers, in that order; a
+  Fantasy card groups them there. No existing test line changes. **Web-only.**
 
 ## Verification
 

@@ -1546,3 +1546,48 @@ async def test_fantasy_fixtures_name_competitions_and_carry_club_context_read_on
             == aliases
             == 1
         )
+
+
+@pytest.mark.asyncio
+async def test_a_european_top_flight_plays_in_fantasy_whatever_the_uk_list_and_never_in_group(
+    fantasy,
+):
+    """Batch 255 (owner, 26 Nov 2026): one rule for every two-game league.
+
+    The league narrows itself to one British competition, which still takes a British fixture
+    outside that list off Fantasy. LaLiga stays, because a list chosen from a British
+    catalogue can neither include nor exclude it. Group refuses LaLiga even though this
+    synthetic card links it to the group game at exactly 15:00.
+    """
+    async with fantasy.sessions() as db, db.begin():
+        league = await db.get(League, fantasy.league.id)
+        league.competitions = [{"slug": "synthetic", "name": "Synthetic"}]
+        for index, slug in ((0, "spain-laliga"), (1, "england-premier-league")):
+            row = await db.get(Fixture, fantasy.fixtures[index].id)
+            row.competition_id = slug
+    laliga, outside = str(fantasy.fixtures[0].id), str(fantasy.fixtures[1].id)
+    try:
+        view = await fantasy.request("GET", path=fantasy.path)
+        assert view.status_code == 200, view.text
+        rows = {row["fixture_id"]: row for row in view.json()["fixtures"]}
+        assert rows[laliga]["eligible"] is True
+        assert outside not in rows
+        saved = await fantasy.save(1, fantasy.body(0))
+        assert saved.status_code == 200, saved.text
+        refused = await fantasy.save(2, fantasy.body(1))
+        assert refused.status_code == 422 and "no longer eligible" in refused.text
+        group_path = fantasy.path.replace("fantasy", "group")
+        group_view = await fantasy.request("GET", path=group_path)
+        assert group_view.status_code == 200, group_view.text
+        group_rows = {row["fixture_id"] for row in group_view.json()["fixtures"]}
+        assert laliga not in group_rows and str(fantasy.fixtures[2].id) in group_rows
+        body = fantasy.body(0)
+        body.pop("odds")
+        group = await fantasy.request("PUT", path=group_path + "/pick", body=body)
+        assert group.status_code == 422 and "no longer eligible" in group.text
+    finally:
+        # The pool is shared and committed: leave no real slug behind for later modules.
+        async with fantasy.sessions() as db, db.begin():
+            for index in (0, 1):
+                row = await db.get(Fixture, fantasy.fixtures[index].id)
+                row.competition_id = "synthetic"

@@ -48,7 +48,7 @@ import structlog
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError
 
 from src.config import settings
-from src.services.competitions import is_played
+from src.services.competitions import census_keeps, is_fantasy_only, is_played
 from src.services.odds_provider import (
     EVENTS_PER_ODDS_REQUEST,
     CensusPage,
@@ -528,11 +528,16 @@ class OddsApiProvider(OddsProvider):
             if league is None:
                 raise OddsProviderAPIError("census event has no competition identity")
             slug = league.slug
-            uk = slug.startswith(("england-", "scotland-", "wales-", "northern-ireland-"))
-            if not uk or not is_played(slug):
+            if not census_keeps(slug):
                 continue
             teams = _teams(event)
             if not event.id or event.date is None or teams is None:
+                if is_fantasy_only(slug):
+                    # Batch 255: Fantasy's European leagues are an addition, so one of their
+                    # events arriving incomplete must never stop the British card. It is
+                    # left off this page and logged; a British event still fails the page.
+                    log.warning("census skipped an incomplete fantasy-only event", league=slug)
+                    continue
                 raise OddsProviderAPIError("UK census event is incomplete")
             kickoff = as_utc(event.date)
             if not first <= kickoff.replace(tzinfo=None) < last:
