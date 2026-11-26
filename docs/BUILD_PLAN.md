@@ -2479,6 +2479,29 @@ exact lines, asked once per batch before the gate.
   M" count is hidden on screen (screen readers still hear it), because the longer "Copy for
   chat" squeezed the title to "THE C…" at 320px; the status card above says "N of M picked".
 
+- [ ] **Batch 250 — The moved-price confirmation at 2 dp**
+  — the last price a member could still see at 4 dp after Batch 249. When a price moves during
+  a save, the slot says "The price changed to 3.2500" and offers "Confirm odds 3.2500 for
+  slot 1".
+
+  - Both read the moved price through `formatOdds`, in the member's odds format: "The price
+    changed to 3.25" and "Confirm odds 3.25 for slot 1". The confirmation still sends the price
+    exactly as the API quoted it ("3.2500").
+
+  Tests: the confirmation's lines in `FantasyWeekPage.test.tsx` and the Fantasy journey, a check
+  that the confirmation reads "3.25." in full, and a check that "3.2500" no longer shows.
+  **Web-only.**
+
+  **Oracle changes approved (owner, 26 Nov 2026):** approved in chat ("Yes, do it"), answering
+  the Batch 249 report, which listed these five lines, each changed only by losing its two
+  trailing zeros. In `apps/web/e2e/two-game-fantasy.spec.ts`:
+  `await expect(slot(page, 1)).toContainText("The price changed to 3.2500");`,
+  `await expect(slot(page, 1)).toContainText("The price changed to 4.2500");`,
+  `name: "Confirm odds 3.2500 for slot 1",` and `name: "Confirm odds 4.2500 for slot 1",`; in
+  `apps/web/src/test/FantasyWeekPage.test.tsx`, `name: "Confirm odds 3.2500 for slot 1",`. The
+  check that the confirming write sends `odds: "3.2500"` stays as it is. None of the five is a
+  line the guard fingerprints, so the guard is unchanged.
+
 - [x] **Batch 247 — A paid week's payment strip squeezes to one word a line on phones** ✅ 2026-11-25
   — finding G2, live since Batch 238 (24 Nov). In `WeekFeePanel` the text column is
   `flex-1 min-w-0` in a wrapping row, so its basis is zero and the row never wraps. Once the Pay

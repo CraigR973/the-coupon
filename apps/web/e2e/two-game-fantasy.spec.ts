@@ -367,20 +367,21 @@ test("two price movements each require fresh consent and unavailable prices pres
   await post(request, "quotes", { price: "3.25" });
   await at(request, page, "2026-11-21T11:51:05Z");
   await choose(page, 1, 1);
-  await expect(slot(page, 1)).toContainText("The price changed to 3.2500");
+  await expect(slot(page, 1)).toContainText("The price changed to 3.25");
+  await expect(slot(page, 1)).not.toContainText("3.2500");
   expect((await current(request)).fantasy[0].fixture_id).toBe(s.fixtures[0][0]);
   await post(request, "quotes", { price: "4.25" });
   await at(request, page, "2026-11-21T11:52:10Z");
   await slot(page, 1)
     .getByRole("button", {
-      name: "Confirm odds 3.2500 for slot 1",
+      name: "Confirm odds 3.25 for slot 1",
       exact: true,
     })
     .click();
-  await expect(slot(page, 1)).toContainText("The price changed to 4.2500");
+  await expect(slot(page, 1)).toContainText("The price changed to 4.25");
   await slot(page, 1)
     .getByRole("button", {
-      name: "Confirm odds 4.2500 for slot 1",
+      name: "Confirm odds 4.25 for slot 1",
       exact: true,
     })
     .click();

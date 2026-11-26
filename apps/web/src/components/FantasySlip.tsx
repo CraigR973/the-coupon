@@ -140,6 +140,8 @@ export function FantasySlotCard({
         </div>
       )}
       <GameIntentStatus target={target} slot={slot} compact />
+      {/* Batch 250: the moved price reads at 2 dp in the member's notation, as every other
+          price does; the confirmation still sends the price exactly as the API quoted it. */}
       {movedPrice && intent && (
         <div
           className="space-y-2 rounded-md border border-warning/40 bg-warning/[0.08] p-2 dark:bg-warning/15"
@@ -147,7 +149,8 @@ export function FantasySlotCard({
           aria-label={`Price confirmation for slot ${slot}`}
         >
           <p className="font-sans text-sm text-text-primary">
-            The price changed to {movedPrice}. Your saved choice stays until you
+            The price changed to {formatOdds(Number(movedPrice), oddsFormat)}. Your saved choice
+            stays until you
             confirm this new price.
           </p>
           <Button
@@ -168,7 +171,7 @@ export function FantasySlotCard({
               );
             }}
           >
-            Confirm odds {movedPrice} for slot {slot}
+            Confirm odds {formatOdds(Number(movedPrice), oddsFormat)} for slot {slot}
           </Button>
         </div>
       )}

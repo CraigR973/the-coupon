@@ -336,8 +336,12 @@ describe("Fantasy slot editor", () => {
       screen.getByRole("button", { name: "Choose Home 1 to win at 2.1500" }),
     );
     const confirm = await screen.findByRole("button", {
-      name: "Confirm odds 3.2500 for slot 1",
+      name: "Confirm odds 3.25 for slot 1",
     });
+    // Batch 250: the confirmation reads 2 dp, and the write below still sends "3.2500".
+    expect(
+      screen.getByRole("group", { name: "Price confirmation for slot 1" }),
+    ).toHaveTextContent("The price changed to 3.25. Your saved choice");
     const original = write.mock.calls[0][1];
     fireEvent.click(confirm);
     await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
