@@ -29,6 +29,7 @@ import {
   type FantasyFixture,
 } from "../lib/twoGameTypes";
 import type { OddsFormat } from "../lib/types";
+import { formatOdds } from "../lib/coupon";
 import { formatCalendarDate, formatInstant } from "../lib/time";
 import { cn } from "../lib/utils";
 import { WeekFeePanel } from "../components/WeekFeePanel";
@@ -322,6 +323,7 @@ function FantasyWeek({ target }: { target: GameTarget }) {
           editable={editable}
           onRemove={() => removeSlot(view.slot)}
           onPick={toFixtures}
+          oddsFormat={oddsFormat}
         />
       ))}
     </div>
@@ -511,7 +513,8 @@ function FantasyWeek({ target }: { target: GameTarget }) {
                     >
                       <p className="break-words font-sans text-sm text-text-primary">
                         {entry.pick
-                          ? `${entry.pick.runner_name} · Frozen odds ${entry.pick.frozen_odds} · ${fantasyResultLabel(entry.pick.result)} · ${entry.pick.points ?? 0} points`
+                          ? // Batch 249: the price at 2 dp, and no points on a pick still to play.
+                            `${entry.pick.runner_name} · ${formatOdds(Number(entry.pick.frozen_odds), oddsFormat)} · ${fantasyResultLabel(entry.pick.result)}${entry.pick.result === "pending" ? "" : ` · ${entry.pick.points ?? 0} points`}`
                           : "Empty slot"}
                       </p>
                     </article>

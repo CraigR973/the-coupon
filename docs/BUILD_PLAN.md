@@ -2470,6 +2470,15 @@ exact lines, asked once per batch before the gate.
   screen-reader name keeps 4 dp ("Choose Home 1 to win at 2.1500", pinned throughout), while
   its visible price was already 2 dp.
 
+  As built (agent's calls, 26 Nov 2026): Group's "Pending results" reads "Waiting for results"
+  too, and the Games archive's Group line reads "N of M picked · Won", its result through the
+  same labels instead of the raw status, so both games and the archive use the same words;
+  neither line is pinned by a test. The Fantasy locked-history tiles drop "Frozen odds" and a
+  pending pick's points the same way as the live tiles. A tile's price follows the member's
+  odds format, as the fixture rows' prices already did. Below 360px the coupon header's "N of
+  M" count is hidden on screen (screen readers still hear it), because the longer "Copy for
+  chat" squeezed the title to "THE C…" at 320px; the status card above says "N of M picked".
+
 - [x] **Batch 247 — A paid week's payment strip squeezes to one word a line on phones** ✅ 2026-11-25
   — finding G2, live since Batch 238 (24 Nov). In `WeekFeePanel` the text column is
   `flex-1 min-w-0` in a wrapping row, so its basis is zero and the row never wraps. Once the Pay

@@ -174,7 +174,8 @@ test("six slots, shared Group/member selection, quote provenance and accessible 
   await select(page, 1);
   await choose(page, 1, 1);
   await saved(page, 1);
-  await expect(slot(page, 1)).toContainText("Frozen odds 2.1500");
+  await expect(slot(page, 1)).toContainText("Home 1 · 2.15");
+  await expect(slot(page, 1)).not.toContainText("Frozen odds");
   // Keep Alice's first accepted selection before Bob's shared selection.
   const sharedSave = rawSave(request, s, await bob, 1, 1, "2.15", "HOME");
   await select(page, 2);
@@ -389,7 +390,7 @@ test("two price movements each require fresh consent and unavailable prices pres
     fixture_id: s.fixtures[0][0],
     revision: 2,
   });
-  await expect(slot(page, 1)).toContainText("Home 1 · Frozen odds 4.2500");
+  await expect(slot(page, 1)).toContainText("Home 1 · 4.25");
   await post(request, "quotes", { priced: false });
   await at(request, page, "2026-11-21T11:53:15Z");
   await choose(page, 1, 1, "2.1500", true);
@@ -526,7 +527,7 @@ test("a late save receipt cannot overwrite Sunday results, corrections or contin
   await post(request, "settle", { statuses: { "local-0-7": "in_progress" } });
   await refresh(page);
   await expect(page.getByLabel("Fantasy weekly result")).toContainText(
-    "Pending results",
+    "Waiting for results",
   );
   await post(request, "clock", { at: "2026-11-23T00:05:00Z" });
   await page.clock.setSystemTime(new Date("2026-11-23T00:05:00Z"));

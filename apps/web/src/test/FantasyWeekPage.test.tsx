@@ -400,7 +400,9 @@ describe("authoritative Fantasy results", () => {
         await vi.advanceTimersByTimeAsync(10);
       });
       const first = screen.getByRole("article", { name: "Fantasy slot 1" });
-      expect(first).toHaveTextContent("Pending results · 0 points");
+      expect(first).toHaveTextContent("Waiting for results");
+      // Batch 249: a pick still to play shows no points yet.
+      expect(first).not.toHaveTextContent("0 points");
       result = "won";
       points = 22;
       await act(async () => {

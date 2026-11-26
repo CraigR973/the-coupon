@@ -238,8 +238,12 @@ describe("the fantasy pick slip", () => {
     await waitFor(() =>
       expect(
         screen.getByRole("article", { name: "Fantasy slot 1" }),
-      ).toHaveTextContent("Home 1 · Frozen odds 2.1500"),
+      ).toHaveTextContent("Home 1 · 2.15"),
     );
+    // Batch 249: the price at 2 dp, without "Frozen odds".
+    expect(
+      screen.getByRole("article", { name: "Fantasy slot 1" }),
+    ).not.toHaveTextContent(/Frozen odds|2\.1500/);
     expect(price("Choose Home 1 to win at 2.1500")).toHaveAttribute(
       "aria-pressed",
       "true",

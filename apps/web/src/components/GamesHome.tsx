@@ -3,6 +3,7 @@ import type { LeagueGames } from "../lib/twoGameTypes";
 import { formatCalendarDate, formatInstant } from "../lib/time";
 import { useOddsFormat } from "../hooks/useOddsFormat";
 import { formatOdds, marketTag, pickStatusLabel } from "../lib/coupon";
+import { groupResultLabel } from "../lib/groupCoupon";
 /**
  * A two-game league's entries, as rows inside its home card: each game's link, state,
  * deadline, progress and weekly fee, then any legacy round still in play.
@@ -64,12 +65,11 @@ export function GamesHome({ leagues }: { leagues: LeagueGames[] }) {
                             Group pick needed
                           </p>
                         ))}
+                      {/* Batch 249: plain words, as the Group screen says them. */}
                       <p>
                         {card.progress.picked_count ?? 0} of{" "}
-                        {card.progress.member_count ?? 0} contributed ·{" "}
-                        {card.result.status === "no_coupon"
-                          ? "No coupon"
-                          : card.result.status}
+                        {card.progress.member_count ?? 0} picked
+                        {card.result.status ? ` · ${groupResultLabel(card.result.status)}` : ""}
                       </p>
                     </>
                   ) : (

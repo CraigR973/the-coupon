@@ -120,7 +120,7 @@ export function GroupStatusCard({
           <>
             <div className="min-w-0">
               <p className="break-words font-sans text-base text-text-primary">
-                {"Your saved contribution: "}
+                {"Your pick: "}
                 <span className="font-semibold">{mine.selection}</span>
                 {mine.result !== "pending" ? ` · ${groupResultLabel(mine.result)}` : ""}
               </p>
@@ -169,13 +169,14 @@ export function GroupStatusCard({
             ))}
           </div>
         )}
+        {/* Batch 249: plain words — "2 of 4 picked" and "Waiting on …", not "contributed" and
+            "missing contributors". */}
         <p className="font-sans text-sm font-medium text-text-primary">
-          {picked} of {members} contributed · {Math.max(0, members - picked)}{" "}
-          missing contributors.
+          {picked} of {members} picked
         </p>
         {stillToPick.length > 0 && (
           <p className="mt-0.5 break-words font-sans text-sm text-text-secondary" data-testid="group-still-to-pick">
-            Still to pick: {stillToPick.join(", ")}
+            Waiting on {stillToPick.join(", ")}
           </p>
         )}
       </div>
@@ -186,8 +187,8 @@ export function GroupStatusCard({
 const LEGS_ID = "group-coupon-legs";
 
 /**
- * Every member's leg stacked into the group's coupon (Batch 233): the fold, Copy text for
- * the group chat, and each leg. The legacy section's shape with the price taken out,
+ * Every member's leg stacked into the group's coupon (Batch 233): the fold, Copy for chat
+ * (Batch 249; "Copy text" before it), and each leg. The legacy section's shape with the price taken out,
  * because the group is never priced.
  */
 export function GroupCouponSection({
@@ -254,7 +255,15 @@ export function GroupCouponSection({
               {final ? "Result" : "The coupon"}
             </span>
             <span className="flex shrink-0 items-center gap-2">
-              <span className="font-mono text-caption tabular-nums text-text-muted">
+              {/* Batch 249: below 360px the count gives way to "Copy for chat", which would
+                  otherwise squeeze the title to "THE C…"; the status card above already says
+                  "N of M picked", and screen readers still hear it. */}
+              <span
+                className={cn(
+                  "font-mono text-caption tabular-nums text-text-muted",
+                  legs.length > 0 && "max-[360px]:sr-only",
+                )}
+              >
                 {legs.length === 0
                   ? "No picks yet"
                   : final
@@ -282,7 +291,7 @@ export function GroupCouponSection({
             className="shrink-0 transition-none"
           >
             <Copy className="h-3.5 w-3.5" aria-hidden />
-            {final ? "Copy result" : "Copy text"}
+            {final ? "Copy result" : "Copy for chat"}
           </Button>
         )}
       </div>

@@ -64,11 +64,11 @@ export function groupPhase(input: GroupPhaseInput): GroupPhase {
   return input.hasPick ? "submitted" : "open";
 }
 
-/** The group's result words, as the group screen has always printed them. */
+/** The group's result words; Batch 249 says "Waiting for results", not "Pending results". */
 export const groupResultLabel = (status: string) =>
   ({
     no_coupon: "No coupon",
-    pending: "Pending results",
+    pending: "Waiting for results",
     won: "Won",
     lost: "Lost",
     void: "Void",

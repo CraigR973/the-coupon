@@ -4,7 +4,8 @@ export const fantasyResultLabel = (status: string) =>
   ({
     no_entry: "No entry",
     all_void: "All void",
-    pending: "Pending results",
+    // Batch 249: plain words ("Pending results" before it).
+    pending: "Waiting for results",
     scored: "Scored",
     won: "Won",
     lost: "Lost",

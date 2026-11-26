@@ -36,6 +36,7 @@ export function FantasySlotCard({
   editable,
   onRemove,
   onPick,
+  oddsFormat,
 }: {
   target: GameTarget;
   view: SlotView;
@@ -45,6 +46,8 @@ export function FantasySlotCard({
   onRemove: () => void;
   /** Batch 246: an empty tile's "+ Pick" goes to the fixtures. */
   onPick?: () => void;
+  /** Batch 249: the pick's price in the member's notation, as the fixture rows print it. */
+  oddsFormat: OddsFormat;
 }) {
   const { engine } = useGameIntents();
   const { slot, pick, intent, movedPrice, ready } = view;
@@ -58,7 +61,11 @@ export function FantasySlotCard({
     <span className="block min-w-0">
       <span className="block break-words font-sans text-sm text-text-primary">
         <span className="font-semibold">{pick.runner_name}</span>
-        <span className="text-text-secondary"> · Frozen odds {pick.frozen_odds}</span>
+        {/* Batch 249: "Home 1 · 2.15", not "Home 1 · Frozen odds 2.1500". */}
+        <span className="text-text-secondary">
+          {" "}
+          · {formatOdds(Number(pick.frozen_odds), oddsFormat)}
+        </span>
       </span>
       {fixture && (
         <span className="block truncate font-sans text-xs text-text-muted">
@@ -67,7 +74,10 @@ export function FantasySlotCard({
         </span>
       )}
       <span className={cn("block font-sans text-xs", tone)}>
-        {fantasyResultLabel(pick.result)} · {pick.points ?? 0} points
+        {/* A pick still to play has no points to show yet. */}
+        {pick.result === "pending"
+          ? fantasyResultLabel(pick.result)
+          : `${fantasyResultLabel(pick.result)} · ${pick.points ?? 0} points`}
       </span>
     </span>
   );

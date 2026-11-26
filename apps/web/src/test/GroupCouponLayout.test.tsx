@@ -206,9 +206,11 @@ describe("the Saturday group on the old coupon layout", () => {
     expect(choice("Choose Away 2 to win")).toBeEnabled();
     expect(within(card(3)).queryByTestId("group-claim-fixture-3")).toBeNull();
     expect(status()).toHaveTextContent("Pick submitted");
-    expect(status()).toHaveTextContent("2 of 4 contributed · 2 missing contributors.");
-    expect(status()).toHaveTextContent("Your saved contribution: Home 2");
+    expect(status()).toHaveTextContent("2 of 4 picked");
+    expect(status()).toHaveTextContent("Your pick: Home 2");
     expect(status()).toHaveTextContent("Picks lock in");
+    // Batch 249: plain words only.
+    expect(status()).not.toHaveTextContent(/contributed|missing contributors|Still to pick/);
     done();
   });
 
@@ -230,7 +232,7 @@ describe("the Saturday group on the old coupon layout", () => {
       "Saved choice confirmed.",
     );
     expect(within(card(2)).queryByTestId("group-claim-fixture-2")).toBeNull();
-    expect(status()).toHaveTextContent("Your saved contribution: Home 3");
+    expect(status()).toHaveTextContent("Your pick: Home 3");
 
     fireEvent.click(within(card(3)).getByRole("button", { name: "Choose Draw" }));
     await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
@@ -240,7 +242,7 @@ describe("the Saturday group on the old coupon layout", () => {
       expected_revision: 2,
     });
     await waitFor(() =>
-      expect(status()).toHaveTextContent("Your saved contribution: Draw"),
+      expect(status()).toHaveTextContent("Your pick: Draw"),
     );
     done();
   });
@@ -251,7 +253,7 @@ describe("the Saturday group on the old coupon layout", () => {
     expect(status()).toHaveTextContent("Pick required");
     expect(status()).toHaveTextContent("No pick yet — tap a selection to make it yours.");
     expect(screen.getByTestId("group-coupon")).toHaveTextContent("No picks yet");
-    expect(screen.queryByRole("button", { name: "Copy text" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy for chat" })).toBeNull();
     done();
   });
 
@@ -396,9 +398,9 @@ describe("the Saturday group on the old coupon layout", () => {
     );
     await ready("Choose Home 3 to win");
     expect(screen.getByTestId("group-still-to-pick")).toHaveTextContent(
-      "Still to pick: Alice, Carol",
+      "Waiting on Alice, Carol",
     );
-    expect(status()).toHaveTextContent("1 of 4 contributed · 3 missing contributors.");
+    expect(status()).toHaveTextContent("1 of 4 picked");
     expect(within(card(3)).getByTestId("club-context-home-3")).toHaveTextContent("2nd");
     expect(screen.getByTestId("group-game")).not.toHaveTextContent(/odds|points/i);
     done();
@@ -447,7 +449,7 @@ describe("the Saturday group on the old coupon layout", () => {
     expect(within(coupon).getByTestId("group-leg-0")).toHaveTextContent("Bob Smith — Home 1");
     expect(within(coupon).getByTestId("group-leg-1")).toHaveTextContent("Alice — Home 2");
     expect(screen.getByTestId("group-game")).not.toHaveTextContent(/odds|points/i);
-    fireEvent.click(within(coupon).getByRole("button", { name: "Copy text" }));
+    fireEvent.click(within(coupon).getByRole("button", { name: "Copy for chat" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     expect(writeText.mock.calls[0][0]).toBe(
       [

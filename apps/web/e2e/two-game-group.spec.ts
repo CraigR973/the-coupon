@@ -127,7 +127,7 @@ test("exact cold-login/payment link, unpriced contribution, mobile layout and ac
   await choose(page, 1);
   await confirmed(page);
   await expect(page.getByLabel("Group progress and result")).toContainText(
-    "1 of 3 contributed · 2 missing contributors",
+    "1 of 3 picked",
   );
   await expect(page.getByTestId("group-game")).not.toContainText(
     /odds|points/i,
@@ -272,7 +272,7 @@ test("two members race a whole fixture and the loser keeps their prior contribut
     const previous = winner.player_id === s.players.Alice ? "Home 2" : "Home 3";
     await expect(
       loserPage.getByLabel("Group progress and result"),
-    ).toContainText(`Your saved contribution: ${previous}`);
+    ).toContainText(`Your pick: ${previous}`);
     await expect(loserPage.getByTestId("intent-0")).toContainText(
       /claimed|taken|another|contribution/i,
     );
@@ -555,7 +555,7 @@ test("an incomplete Group with a neutral void still wins without adding season p
       "Won · Final",
     );
     await expect(page.getByLabel("Group progress and result")).toContainText(
-      "2 of 3 contributed · 1 missing contributors",
+      "2 of 3 picked",
     );
     const data = await state(request);
     expect(

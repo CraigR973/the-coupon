@@ -167,7 +167,7 @@ describe("the group screen through a failed refresh", () => {
     ).toBeTruthy();
     expect(
       screen.getByRole("region", { name: "Group progress and result" }),
-    ).toHaveTextContent("Your saved contribution: Home 2");
+    ).toHaveTextContent("Your pick: Home 2");
     expect(screen.getByTestId("group-fold")).toHaveTextContent("2-fold");
 
     failure = null;
