@@ -122,6 +122,73 @@ async def test_addressed_new_results_never_fall_back_to_another_week_or_member(g
 
 
 @pytest.mark.asyncio
+async def test_fantasy_picks_and_totals_of_others_stay_hidden_until_lock(games):
+    """Owner, 26 Nov 2026: nobody sees another member's Fantasy picks before lock.
+
+    Before lock, every read a member can make (the addressed game, each slot, Home and the
+    week's results) carries only their own picks and summary. From lock, the cards name every
+    member's totals and counts, and still never another member's selection.
+    """
+    f = games
+    alice, bob = (str(player.id) for player in f.players[:2])
+    for player, fixture in [(0, 0), (1, 1)]:
+        saved = await f.save(1, f.body(fixture), player=player)
+        assert saved.status_code == 200, saved.text
+    alices_fixture, bobs_fixture = str(f.fixtures[0].id), str(f.fixtures[1].id)
+    results = f"/api/v1/leagues/{f.league.id}/weeks/{f.parent.id}/results"
+
+    async def fantasy_reads(player):
+        responses = [
+            await f.request("GET", path=f.path, player=player),
+            await f.request("GET", path=results, player=player),
+            await f.request("GET", path="/api/v1/me/games", player=player),
+            *[await f.request("GET", slot=slot, player=player) for slot in range(1, 7)],
+        ]
+        for response in responses:
+            assert response.status_code == 200, response.text
+        addressed, week, home, *slots = (response.json() for response in responses)
+        league = next(row for row in home["leagues"] if row["league_id"] == str(f.league.id))
+        card = next(row for row in league["games"] if row["game_id"] == str(f.game.id))
+        return addressed, week["fantasy"], card, slots
+
+    def picked(rows):
+        return {row["pick"]["fixture_id"] for row in rows if row["pick"]}
+
+    addressed, week_card, home_card, slots = await fantasy_reads(1)
+    for payload in [addressed, week_card, home_card, *slots]:
+        text = json.dumps(payload)
+        assert alice not in text and f.players[0].display_name not in text
+    assert picked(addressed["slots"]) == picked(slots) == {bobs_fixture}
+    assert [entry["fixture_id"] for entry in addressed["my_entries"]] == [bobs_fixture]
+    for card in (week_card, home_card):
+        assert [member["player_id"] for member in card["members"]] == [bob]
+        assert picked(card["slots"]) == {bobs_fixture}
+
+    f.source.clock.now = london_utc(WEEK, 12, 1)
+    addressed, week_card, home_card, slots = await fantasy_reads(1)
+    summary = {
+        "player_id",
+        "display_name",
+        "entered",
+        "slots_filled",
+        "entry_result",
+        "weekly_points",
+        "pending",
+        "won",
+        "lost",
+        "void",
+    }
+    for card in (week_card, home_card):
+        by_id = {member["player_id"]: member for member in card["members"]}
+        assert {alice, bob} <= set(by_id)
+        assert by_id[alice]["entered"] is True and by_id[alice]["slots_filled"] == 1
+        assert all(set(member) == summary for member in card["members"])
+        assert alices_fixture not in json.dumps(card["members"])
+        assert picked(card["slots"]) == {bobs_fixture}
+    assert picked(addressed["slots"]) == picked(slots) == {bobs_fixture}
+
+
+@pytest.mark.asyncio
 async def test_invalid_history_cursor_has_scoped_validation_without_provider(games):
     f = games
     for cursor in ["bad!", "e30", "a" * 300]:

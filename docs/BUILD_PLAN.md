@@ -2479,6 +2479,24 @@ exact lines, asked once per batch before the gate.
   M" count is hidden on screen (screen readers still hear it), because the longer "Copy for
   chat" squeezed the title to "THE C…" at 320px; the status card above says "N of M picked".
 
+- [ ] **Batch 252 — A test pins that nobody sees another member's Fantasy picks before lock**
+  — the owner asked on 26 Nov whether anyone can see others' Fantasy picks before the week
+  locks. The server already refuses: before lock every Fantasy read carries only the member's
+  own slots and summary (`addressed_entry` and the `members` filter in `two_game_reads.py`),
+  and from lock the cards name each member's totals and counts but never a selection. No test
+  pinned either half, so a later change could break it silently.
+
+  - One backend test in `test_two_game_reads.py`: two members save Fantasy picks; before lock,
+    Bob's addressed game, six slots, Home card and week results carry no trace of Alice (id or
+    name) and only his own pick, and the members list is Bob alone; from lock, both are named
+    with exactly the summary fields (entered, slots filled, result, points and counts) and
+    Alice's fixture appears nowhere in the summaries.
+
+  Test-only; no behaviour changes. Because the drift check counts every commit under
+  `apps/api` as reaching the API image, this owes a `/ship-prod`, which the owner chose to run
+  straight after ("Merge now and release", 26 Nov) so web fixes are not blocked before
+  Saturday. **API (tests only).**
+
 - [x] **Batch 251 — Confirm a moved Fantasy price on the fixture you tapped** ✅ 2026-11-26
   — found by the owner's first real picks (26 Nov, 10:39 UTC): slot 2's save was refused
   because its price had moved, and the confirmation appeared only inside the picks card, which
