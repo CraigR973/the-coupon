@@ -10117,3 +10117,26 @@ PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45723812989 P
   Batch 241 (test-order fix; owner decision), Batches 211 and 230 (owner-scheduled).
 
 **Next:** Batch 249 on the owner's approval of its exact test lines.
+
+## Gate maintenance — Batch 249 oracle approval
+**Commit:** `56e7c17` · owner-approved 26 Nov 2026 ("Approve 249", 08:43 UTC) · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/45787397351 failed as expected at the
+old-trusted-guard comparison (the commit changes `scripts/assert-quality-guardrails.sh`), as
+the approval commits for Batches 175, 235, 238, 243, 244 and 245 did
+
+### Key facts for future sessions
+- Batch 249 may remove only the seven oracle lines fingerprinted in the guard: six status-card
+  and copy-button checks in `GroupCouponLayout.test.tsx` ("contributed · missing
+  contributors", "Your saved contribution", "Copy text") and the pending slot check in
+  `FantasyWeekPage.test.tsx`. Ten more changed lines that the guard does not count (two in
+  `GroupCouponLayout.test.tsx`, one each in `GroupRefreshFailure.test.tsx` and
+  `FantasyPickSlip.test.tsx`, six in the two-game journeys) are quoted in the row with the
+  rest, 17 in all. Every other removed oracle stays blocked.
+- The badges ("Pick submitted", "Pick required"), the moved-price confirmation ("The price
+  changed to 3.2500") and the price buttons' screen-reader names keep their words, because
+  their lines were not in the approved set; the row records them.
+- Main's guard replayed on the 249 worktree: PASS, "owner-approved exact oracle replacements
+  applied".
+- No application code, API contract, database schema or production data changed.
+
+**Next:** Batch 249 from this attestation state.
