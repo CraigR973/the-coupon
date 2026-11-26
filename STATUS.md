@@ -31,6 +31,11 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Batch 252 is live** (26 Nov, `a4728c3`, tests only; API and payments released
+  17:37–17:42 UTC): a backend test pins that nobody sees another member's Fantasy picks
+  before lock, and only totals and counts after it. Released straight after the push, as
+  the owner chose, because the drift check counts any commit under `apps/api`; drift is in
+  sync.
 - **Batch 251 is live on the web** (26 Nov, `5647cff`, web-only, pushed 11:50 UTC): when a
   Fantasy save is refused because its price moved, the tapped row offers the new price ("Price
   moved: Home is now 3.25", Pick at 3.25, Cancel) in view, instead of only in the picks card

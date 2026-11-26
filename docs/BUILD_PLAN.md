@@ -2479,7 +2479,7 @@ exact lines, asked once per batch before the gate.
   M" count is hidden on screen (screen readers still hear it), because the longer "Copy for
   chat" squeezed the title to "THE C…" at 320px; the status card above says "N of M picked".
 
-- [ ] **Batch 252 — A test pins that nobody sees another member's Fantasy picks before lock**
+- [x] **Batch 252 — A test pins that nobody sees another member's Fantasy picks before lock** ✅ 2026-11-26
   — the owner asked on 26 Nov whether anyone can see others' Fantasy picks before the week
   locks. The server already refuses: before lock every Fantasy read carries only the member's
   own slots and summary (`addressed_entry` and the `members` filter in `two_game_reads.py`),

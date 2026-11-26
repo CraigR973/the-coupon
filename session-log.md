@@ -10211,3 +10211,29 @@ PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45814247450 P
 - **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
 
 **Next:** the owner's real test with Neal; Batch 241 waits for the owner's decision.
+
+## Batch 252 — A test pins that nobody sees another member's Fantasy picks before lock
+**Commits:** `a4728c3` · verified: `scripts/ci-local.sh` PASS in its worktree (12 checks; backend
+2,107, frontend 1,631, journey 1, zero skips; tree `da4f096`) · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/45867434479 PASS for `a4728c3` · shipped
+17:37–17:42 UTC (API `c5feaaa2`, payments `56365aee`; record in the L4 shipment history)
+
+### Key facts for future sessions
+- `test_fantasy_picks_and_totals_of_others_stay_hidden_until_lock` (`test_two_game_reads.py`):
+  before lock, Bob's addressed game, six slots, Home card and week results carry no trace of
+  Alice (id or name) and only his own pick, and the members list is Bob alone; from lock, both
+  are named with exactly the ten summary fields and Alice's fixture appears in none of them.
+- From lock the members list is the pick owners plus members whose `MembershipInterval` spans
+  the lock. The test fixture writes no intervals, so it names Alice and Bob only; production has
+  an interval for every member.
+- Any commit under `apps/api`, tests included, makes `check-deploy-drift.sh` report a
+  `/ship-prod` owed and blocks later web close-outs. The owner chose "Merge now and release", so
+  it shipped straight after and drift is in sync.
+- The real test on 26 Nov: the owner and Neal each saved six Fantasy picks; two moved-price
+  refusals were confirmed; no server error. Fantasy saves take about 3 seconds (rapid taps queue
+  to 6–8 seconds); the old-format `gameweek/current` read still takes up to 6 seconds for one
+  phone.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push, then shipped (in sync)
+
+**Next:** the weekend check in its own session (the owner has the prompt); Batch 241 waits for
+the owner's decision.
