@@ -2479,7 +2479,7 @@ exact lines, asked once per batch before the gate.
   M" count is hidden on screen (screen readers still hear it), because the longer "Copy for
   chat" squeezed the title to "THE C…" at 320px; the status card above says "N of M picked".
 
-- [ ] **Batch 251 — Confirm a moved Fantasy price on the fixture you tapped**
+- [x] **Batch 251 — Confirm a moved Fantasy price on the fixture you tapped** ✅ 2026-11-26
   — found by the owner's first real picks (26 Nov, 10:39 UTC): slot 2's save was refused
   because its price had moved, and the confirmation appeared only inside the picks card, which
   on a phone is the Review sheet or the foot of the page, so it had to be found (45 seconds

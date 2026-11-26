@@ -10187,3 +10187,27 @@ PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45806245455 P
 - **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
 
 **Next:** the redesign's batches are all closed; Batch 241 waits for the owner's decision.
+
+## Batch 251 — Confirm a moved Fantasy price on the fixture you tapped
+**Commits:** `5647cff` · verified: `scripts/ci-local.sh` PASS in its worktree (12 checks; backend
+2,106, frontend 1,631, journey 1, zero skips; tree `095b8a6`), `scripts/verify-two-game-web.py`
+PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45814247450 PASS for `5647cff`
+
+### Key facts for future sessions
+- **Found in the first real use:** the owner's slot 2 save at 10:39 UTC on 26 Nov was refused
+  (`409`, price moved) and confirmed 45 seconds later, because the confirmation lived only in
+  the picks card. Every production save took about 3 seconds (the 60-second live price check).
+- `FantasyFixtureCard` takes `moved` (`MovedOnCard`), built by `FantasyWeekPage.movedFor()`
+  from the slot view whose refused intent names this fixture: group "Moved price on {home} v
+  {away}" (testid `fantasy-moved-<fixture>`), "Pick at …" re-sends the API's string with the
+  slot's revision, Cancel calls `engine.dismiss`. It scrolls itself into view (`block:
+  "nearest"`, scroll margins for the sticky header and slip bar).
+- A choice refused only for a moved price still holds its slot by design (`choiceStands`), so
+  the row keeps it pressed; Batch 251 drops its tick and the "Your pick · slot N" line until it
+  saves.
+- Scratch-stack recipe: `/__two_game_e2e/quotes` does not move the review stack's prices (its
+  own per-fixture table answers), and the stack clock must pass the 60-second pick check; the
+  session's scratch `stack.py` gained `/__review/move`.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+**Next:** the owner's real test with Neal; Batch 241 waits for the owner's decision.
