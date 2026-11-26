@@ -2479,7 +2479,7 @@ exact lines, asked once per batch before the gate.
   M" count is hidden on screen (screen readers still hear it), because the longer "Copy for
   chat" squeezed the title to "THE C…" at 320px; the status card above says "N of M picked".
 
-- [ ] **Batch 250 — The moved-price confirmation at 2 dp**
+- [x] **Batch 250 — The moved-price confirmation at 2 dp** ✅ 2026-11-26
   — the last price a member could still see at 4 dp after Batch 249. When a price moves during
   a save, the slot says "The price changed to 3.2500" and offers "Confirm odds 3.2500 for
   slot 1".

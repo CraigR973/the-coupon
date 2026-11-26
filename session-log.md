@@ -10168,3 +10168,22 @@ PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45795533320 P
   2 dp.
 
 **Next:** the redesign's batches are all closed; Batch 241 waits for the owner's decision.
+
+## Batch 250 — The moved-price confirmation at 2 dp
+**Commits:** `8971554` · verified: `scripts/ci-local.sh` PASS in its worktree (12 checks; backend
+2,106, frontend 1,629, journey 1, zero skips; tree `758b0cd`), `scripts/verify-two-game-web.py`
+PASS30 · CI: https://github.com/CraigR973/the-coupon/actions/runs/45806245455 PASS for `8971554`
+
+### Key facts for future sessions
+- `FantasySlotCard` prints the moved price through `formatOdds` (the member's notation) in "The
+  price changed to …" and "Confirm odds … for slot N"; the confirming write still sends
+  `movedPrice`, the API's own string, which the unit test pins as `odds: "3.2500"`.
+- Owner approval: five test lines, each only losing its two trailing zeros, approved 26 Nov ("Yes,
+  do it"); none is a guard-fingerprinted line, so no approval commit was needed. New checks pin the
+  full sentence "The price changed to 3.25. Your saved choice" and the absence of "3.2500".
+- Every price a member sees is now 2 dp, except the price buttons' screen-reader names ("Choose
+  Home 1 to win at 2.1500"), pinned in 34 test lines; the visible price on those buttons was
+  already 2 dp.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+**Next:** the redesign's batches are all closed; Batch 241 waits for the owner's decision.
