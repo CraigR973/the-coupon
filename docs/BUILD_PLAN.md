@@ -2419,19 +2419,56 @@ exact lines, asked once per batch before the gate.
   axe scan caught it).
 
 - [ ] **Batch 249 — Plain words on the game screens, with prices at 2 dp**
-  — the part of Batch 246 that changes pinned test lines, waiting for the owner's approval of
-  the exact lines.
+  — the part of Batch 246 that changes pinned test lines.
 
   - Group: "2 of 4 contributed · 2 missing contributors" becomes "2 of 4 picked"; "Still to
     pick: …" becomes "Waiting on …"; "Your saved contribution: X" becomes "Your pick: X"; the
-    "Copy text" button becomes "Copy for chat"; the badges read "Picked" and "Pick needed".
-  - Fantasy: a pick reads "Home 1 · 2.15" (every price through `formatOdds`, 2 dp) instead of
-    "Home 1 · Frozen odds 2.1500"; "Pending results" becomes "Waiting for results", and a pick
-    still to play shows no "· 0 points".
+    "Copy text" button becomes "Copy for chat".
+  - Fantasy: a pick reads "Home 1 · 2.15" (its price through `formatOdds`, 2 dp, in the
+    member's odds format) instead of "Home 1 · Frozen odds 2.1500"; "Pending results" becomes
+    "Waiting for results", and a pick still to play shows no "· 0 points".
 
   Tests: the swapped lines in `GroupCouponLayout.test.tsx`, `GroupRefreshFailure.test.tsx`,
   `FantasyPickSlip.test.tsx`, `FantasyWeekPage.test.tsx` and both two-game journeys. Any changed
   test line needs the owner's approval of the exact lines first. **Web-only.**
+
+  **Oracle changes approved (owner, 26 Nov 2026):** the owner approved this batch in chat
+  ("Approve 249", 08:43 UTC), answering the morning report's request to approve the six swaps'
+  test lines. This batch may change only these 17 lines, each by its swap alone. In
+  `apps/web/src/test/GroupCouponLayout.test.tsx`:
+  `expect(status()).toHaveTextContent("2 of 4 contributed · 2 missing contributors.");` and
+  `expect(status()).toHaveTextContent("1 of 4 contributed · 3 missing contributors.");` expect
+  "2 of 4 picked" and "1 of 4 picked";
+  `expect(status()).toHaveTextContent("Your saved contribution: Home 2");`,
+  `expect(status()).toHaveTextContent("Your saved contribution: Home 3");` and
+  `expect(status()).toHaveTextContent("Your saved contribution: Draw"),` expect "Your pick: …";
+  `"Still to pick: Alice, Carol",` becomes `"Waiting on Alice, Carol",`; and
+  `expect(screen.queryByRole("button", { name: "Copy text" })).toBeNull();` and
+  `fireEvent.click(within(coupon).getByRole("button", { name: "Copy text" }));` name the button
+  "Copy for chat". In `apps/web/src/test/GroupRefreshFailure.test.tsx`,
+  `).toHaveTextContent("Your saved contribution: Home 2");` expects "Your pick: Home 2". In
+  `apps/web/src/test/FantasyPickSlip.test.tsx`,
+  `).toHaveTextContent("Home 1 · Frozen odds 2.1500"),` expects "Home 1 · 2.15". In
+  `apps/web/src/test/FantasyWeekPage.test.tsx`,
+  `expect(first).toHaveTextContent("Pending results · 0 points");` expects "Waiting for results".
+  In `apps/web/e2e/two-game-group.spec.ts`, `"1 of 3 contributed · 2 missing contributors",` and
+  `"2 of 3 contributed · 1 missing contributors",` become `"1 of 3 picked",` and
+  `"2 of 3 picked",`, and ``).toContainText(`Your saved contribution: ${previous}`);`` expects
+  "Your pick: …". In `apps/web/e2e/two-game-fantasy.spec.ts`,
+  `await expect(slot(page, 1)).toContainText("Frozen odds 2.1500");` and
+  `await expect(slot(page, 1)).toContainText("Home 1 · Frozen odds 4.2500");` expect
+  "Home 1 · 2.15" and "Home 1 · 4.25", and `"Pending results",` becomes
+  `"Waiting for results",`. New checks pin the old words' absence: no "Frozen odds" or "2.1500"
+  in the tile, no "0 points" on a pick still to play, and no "contributed", "missing
+  contributors" or "Still to pick" in the status card. No check on money, picks, locks or
+  results is removed or loosened.
+
+  Left as they are, because their lines were not in the approved set: the badges keep "Pick
+  submitted" and "Pick required", as Home's and the old round's do (3 pinned lines on the game
+  screens, more on Home); the moved-price confirmation keeps "The price changed to 3.2500" and
+  its "Confirm odds 3.2500 for slot 1" button (5 pinned lines); and a price button's
+  screen-reader name keeps 4 dp ("Choose Home 1 to win at 2.1500", pinned throughout), while
+  its visible price was already 2 dp.
 
 - [x] **Batch 247 — A paid week's payment strip squeezes to one word a line on phones** ✅ 2026-11-25
   — finding G2, live since Batch 238 (24 Nov). In `WeekFeePanel` the text column is

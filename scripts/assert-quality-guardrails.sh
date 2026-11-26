@@ -225,6 +225,16 @@ apps/web/src/test/GroupCouponLayout.test.tsx|expect(screen.queryByRole("button",
 apps/web/src/test/GroupCouponLayout.test.tsx|expect(choice("Choose Home 4 to win")).toBeEnabled();
 EOF
       ;;
+    249) cat <<'EOF'
+apps/web/src/test/GroupCouponLayout.test.tsx|expect(status()).toHaveTextContent("2 of 4 contributed · 2 missing contributors.");
+apps/web/src/test/GroupCouponLayout.test.tsx|expect(status()).toHaveTextContent("Your saved contribution: Home 2");
+apps/web/src/test/GroupCouponLayout.test.tsx|expect(status()).toHaveTextContent("Your saved contribution: Home 3");
+apps/web/src/test/GroupCouponLayout.test.tsx|expect(status()).toHaveTextContent("Your saved contribution: Draw"),
+apps/web/src/test/GroupCouponLayout.test.tsx|expect(screen.queryByRole("button", { name: "Copy text" })).toBeNull();
+apps/web/src/test/GroupCouponLayout.test.tsx|expect(status()).toHaveTextContent("1 of 4 contributed · 3 missing contributors.");
+apps/web/src/test/FantasyWeekPage.test.tsx|expect(first).toHaveTextContent("Pending results · 0 points");
+EOF
+      ;;
   esac
 }
 
@@ -249,6 +259,7 @@ approved_oracle_paths() {
     243) echo "apps/web/src/test/DashboardPage.test.tsx apps/web/src/test/coupon.test.ts apps/web/e2e/two-game-fantasy.spec.ts" ;;
     244) echo "apps/web/src/test/FantasyPickSlip.test.tsx apps/web/src/test/gameSwitch.test.ts" ;;
     245) echo "apps/web/src/test/FantasyPickSlip.test.tsx apps/web/src/test/GroupCouponLayout.test.tsx apps/web/src/test/typeVoice.test.ts" ;;
+    249) echo "apps/web/src/test/GroupCouponLayout.test.tsx apps/web/src/test/GroupRefreshFailure.test.tsx apps/web/src/test/FantasyPickSlip.test.tsx apps/web/src/test/FantasyWeekPage.test.tsx apps/web/e2e/two-game-group.spec.ts apps/web/e2e/two-game-fantasy.spec.ts" ;;
   esac
 }
 
