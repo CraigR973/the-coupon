@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { compareCompetitions, competitionRank } from '@/lib/competitions';
+import { groupByCompetition } from '@/lib/gameFixtures';
 
 /** The shape both the pick screen's groups and Football Stats' tables satisfy. */
 const c = (competition_id: string, competition = competition_id) => ({
@@ -96,5 +97,61 @@ describe('compareCompetitions', () => {
     const asTables = [...set].sort(compareCompetitions).map((x) => x.competition_id);
     const asGroups = [...set].reverse().sort(compareCompetitions).map((x) => x.competition_id);
     expect(asTables).toEqual(asGroups);
+  });
+});
+
+describe('the European top flights (Batch 256)', () => {
+  const european = ['spain-laliga', 'italy-serie-a', 'germany-bundesliga', 'france-ligue-1'];
+
+  it('rank straight after the British ladder, in their declared order', () => {
+    expect(european.map((id) => competitionRank(id))).toEqual([
+      [0, 8, 'spain-laliga'],
+      [0, 9, 'italy-serie-a'],
+      [0, 10, 'germany-bundesliga'],
+      [0, 11, 'france-ligue-1'],
+    ]);
+  });
+
+  it('sit between Scottish League Two and the lower British tiers', () => {
+    const shuffled = [
+      c('england-national-league'),
+      c('france-ligue-1'),
+      c('scotland-league-two'),
+      c('wales-cymru-premier'),
+      c('spain-laliga'),
+      c('scotland-highland-league'),
+      c('england-premier-league'),
+    ];
+    expect([...shuffled].sort(compareCompetitions).map((x) => x.competition_id)).toEqual([
+      'england-premier-league',
+      'scotland-league-two',
+      'spain-laliga',
+      'france-ligue-1',
+      'england-national-league',
+      'scotland-highland-league',
+      'wales-cymru-premier',
+    ]);
+  });
+
+  it('group on a Fantasy card under the API name, after the British ladder', () => {
+    const fixture = (fixture_id: string, competition_id: string, competition: string) => ({
+      fixture_id,
+      competition_id,
+      competition,
+      kickoff_at: '2026-11-28T15:00:00Z',
+      home: `Home ${fixture_id}`,
+    });
+    const groups = groupByCompetition([
+      fixture('a', 'england-national-league', 'England - National League'),
+      fixture('b', 'germany-bundesliga', 'Germany - Bundesliga'),
+      fixture('c', 'england-premier-league', 'England - Premier League'),
+      fixture('d', 'spain-laliga', 'Spain - LaLiga'),
+    ]);
+    expect(groups.map((group) => group.competition)).toEqual([
+      'England - Premier League',
+      'Spain - LaLiga',
+      'Germany - Bundesliga',
+      'England - National League',
+    ]);
   });
 });

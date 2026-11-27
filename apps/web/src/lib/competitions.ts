@@ -12,7 +12,11 @@
  * name: names carry sponsor text and have changed before.
  */
 
-/** The eight divisions with a fixed, non-negotiable order, best first. */
+/**
+ * The eight British divisions with a fixed, non-negotiable order, best first — then
+ * Fantasy's four European top flights (Batch 256), which would otherwise sort below
+ * every lower British tier.
+ */
 const COMPETITION_ORDER = new Map(
   [
     'england-premier-league',
@@ -23,6 +27,10 @@ const COMPETITION_ORDER = new Map(
     'scotland-championship',
     'scotland-league-one',
     'scotland-league-two',
+    'spain-laliga',
+    'italy-serie-a',
+    'germany-bundesliga',
+    'france-ligue-1',
   ].map((id, index) => [id, index] as const),
 );
 
