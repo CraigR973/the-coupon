@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from src.models.two_game import ProviderAttempt, ProviderRefusal, ProviderWork
+from src.models.two_game import ProviderAttempt, ProviderControl, ProviderRefusal, ProviderWork
 from src.services.odds_api import OddsApiProvider
 from src.services.provider_budget import (
     BudgetPolicy,
@@ -563,3 +563,118 @@ async def test_later_first_header_deducts_earlier_still_in_flight_request(
         release.set()
         await earlier
         await client.close()
+
+
+async def _agrees(budget: ProviderBudget, category) -> tuple[str, datetime] | None:
+    """``check`` leaves no trace, then ``admit`` gives exactly the answer it gave."""
+
+    async def trace() -> tuple[object, ...]:
+        async with budget.sessions() as db:
+            control = await db.get(ProviderControl, budget.meter)
+            return (
+                await db.scalar(
+                    select(func.count())
+                    .select_from(ProviderRefusal)
+                    .where(ProviderRefusal.meter == budget.meter)
+                ),
+                await db.scalar(
+                    select(func.count())
+                    .select_from(ProviderAttempt)
+                    .where(ProviderAttempt.meter == budget.meter)
+                ),
+                None if control is None else (control.last_clock_at, control.header_remaining),
+            )
+
+    before = await trace()
+    verdict = await budget.check(category)
+    assert await trace() == before
+    if verdict is None:
+        await budget.admit(category)
+    else:
+        with pytest.raises(ProviderBudgetRefused) as refused:
+            await budget.admit(category)
+        assert (refused.value.reason, refused.value.retry_at) == verdict
+    return verdict
+
+
+@pytest.mark.asyncio
+async def test_check_gives_admissions_answer_and_writes_nothing(db_engine, clock: Clock) -> None:
+    """Batch 257: the discovery worker looks before it claims, so the look must agree with
+    admission exactly and leave no refusal, attempt or clock behind."""
+    clock.now = datetime(2026, 11, 20, 11)  # a Friday; London is on UTC in November
+    lane = meter(
+        db_engine, clock, background_hourly=2, background_daily=3, background_spacing_seconds=60
+    )
+    assert await _agrees(lane, "background") is None
+    clock.now += timedelta(seconds=30)
+    assert await _agrees(lane, "background") == (
+        "background_spacing",
+        datetime(2026, 11, 20, 11, 1),
+    )
+    clock.now = datetime(2026, 11, 20, 11, 1)
+    assert await _agrees(lane, "background") is None
+    clock.now = datetime(2026, 11, 20, 11, 2)
+    assert await _agrees(lane, "background") == ("category_hour", datetime(2026, 11, 20, 12))
+    clock.now = datetime(2026, 11, 20, 12, 30)
+    assert await _agrees(lane, "background") is None
+    clock.now = datetime(2026, 11, 20, 13, 30)
+    assert await _agrees(lane, "background") == ("category_day", datetime(2026, 11, 21, 11))
+    # Saturday's pause outlasts the day ceiling, and the opening waits for noon.
+    clock.now = datetime(2026, 11, 21, 10, 30)
+    assert await _agrees(lane, "background") == (
+        "background_pause",
+        datetime(2026, 11, 21, 13),
+    )
+    assert await _agrees(lane, "opening") == ("opening_window", datetime(2026, 11, 21, 12))
+
+    cooled = meter(db_engine, clock)
+    clock.now = datetime(2026, 11, 20, 11)
+    await cooled.observe(await cooled.admit("foreground"), 429, {"Retry-After": "120"})
+    assert await _agrees(cooled, "background") == (
+        "provider_cooldown",
+        datetime(2026, 11, 20, 11, 2),
+    )
+    clock.now = datetime(2026, 11, 20, 11, 5)
+    exhausted = await cooled.admit("foreground")
+    await cooled.observe(exhausted, 200, {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "120"})
+    assert await _agrees(cooled, "background") == (
+        "provider_remaining",
+        datetime(2026, 11, 20, 11, 7),
+    )
+    # A passed reset counts as cleared, as admission treats it, without being written.
+    clock.now = datetime(2026, 11, 20, 11, 8)
+    assert await _agrees(cooled, "background") is None
+
+
+@pytest.mark.asyncio
+async def test_the_settings_spread_background_calls_evenly_and_never_meet_the_day_ceiling(
+    db_engine, clock: Clock
+) -> None:
+    """Batch 257: one call every 12 minutes is the daily 120 spread over 24 hours. At 6
+    minutes the lane spent the 120 by about 07:00 UTC and then made no call until about
+    17:10, every day from 24 Nov 2026."""
+    budget = ProviderBudget(
+        async_sessionmaker(db_engine, expire_on_commit=False),
+        meter=f"test-{uuid.uuid4().hex}",
+        policy=ProviderBudget.from_settings().policy,
+        clock=clock,
+    )
+    assert budget.policy.background_spacing_seconds == 720
+    clock.now = datetime(2026, 11, 23, 0, 0, 29)  # a Monday, at the job's usual second
+    admitted: list[datetime] = []
+    for _ in range(26 * 60):  # past a full day, so the rolling ceiling has rolled over
+        if await budget.check("background") is None:
+            await budget.admit("background")
+            admitted.append(clock.now)
+        clock.now += timedelta(minutes=1)
+    assert len(admitted) == 130
+    assert {later - earlier for earlier, later in zip(admitted, admitted[1:])} == {
+        timedelta(minutes=12)
+    }
+    async with budget.sessions() as db:
+        refused = await db.scalar(
+            select(func.count())
+            .select_from(ProviderRefusal)
+            .where(ProviderRefusal.meter == budget.meter)
+        )
+    assert refused == 0

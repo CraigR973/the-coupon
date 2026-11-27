@@ -85,7 +85,10 @@ class Settings(BaseSettings):
     two_game_daily_attempts: int = Field(default=450, gt=0)
     two_game_background_hourly: int = Field(default=10, gt=0)
     two_game_background_daily: int = Field(default=120, gt=0)
-    two_game_background_spacing_seconds: int = Field(default=360, gt=0)
+    # One background call every 12 minutes is the daily 120 spread over 24 hours (Batch 257).
+    # At 6 minutes the lane spent the 120 by about 07:00 UTC and then made no call until about
+    # 17:10, every day from 24 Nov 2026, so nothing was discovered or priced in between.
+    two_game_background_spacing_seconds: int = Field(default=720, gt=0)
     two_game_opening_attempts: int = Field(default=5, gt=0)
     two_game_settlement_hourly: int = Field(default=30, gt=0)
     two_game_settlement_daily: int = Field(default=200, gt=0)

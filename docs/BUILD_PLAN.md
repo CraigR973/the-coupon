@@ -2643,6 +2643,63 @@ shipment is owed, which fixes that order. Batches 253 and 254 belong to another 
   Tests: the four rank after the eight and before the lower British tiers, in that order; a
   Fantasy card groups them there. No existing test line changes. **Web-only.**
 
+### The odds lane: censuses first, no dark hours
+
+Raised 27 Nov 2026, the morning after Batch 255 shipped: the 28–29 Nov census came due at
+05:17 UTC and lost every background slot until the daily ceiling closed the lane at 07:40, so
+the European games could not reach a card before about 17:11. The owner asked for a fix ("Yes,
+plan it"; plan in `.local/odds-lane-plan-2026-11-27.md`, Git-ignored), then chose to build and
+release it the same day ("Yes, today", about 09:30 UTC): released by 18:00 UTC, and rolled back
+to the previous image if a read-only check after the release fails. Before the release, the
+weekend-check session removes `TWO_GAME_NEGATIVE_RECHECK_SECONDS=21600`, the stopgap the owner
+set on production at 09:29 UTC: it also sets the quote's negative floor, so it would hold off a
+save for 6 h on a fixture last seen unpriced, and the Railway plan would delete it.
+
+- [ ] **Batch 257 — A due census goes first, and the background lane spends evenly through the day**
+  — measured in production on 27 Nov (read-only). The background lane made 118–120 calls on
+  each of 24–26 Nov, all between about 17:10 and 07:00 UTC, then none for about 10 h 12 min.
+  152 of its 280 live price jobs were fixtures Betfair had not priced, each due again 5 minutes
+  after every unpriced answer (`two_game_negative_recheck_seconds`). Every refused claim
+  restamped its job with the next slot's time and wrote a `provider_refusals` row (about 2,000
+  a day; 7,830 since 23 Nov). Because `claim` orders by `(next_at, key)`, a due census is
+  refused first and served last: 4 of 6 censuses were waiting at 09:00.
+
+  - Look before claiming: `ProviderBudget.check` returns the refusal `admit` would give a
+    category now and writes nothing (no refusal, attempt or control clock; a passed provider
+    reset is cleared on a detached copy). `DiscoveryWorker.run` asks it (background, or opening
+    in the Saturday noon hour) before each unit and ends the pass when the lane would refuse, so
+    nothing is claimed, restamped or recorded. `admit` stays the authority at dispatch; a race
+    defers exactly as before. The scheduler's worker factory passes
+    `ProviderBudget.from_settings()`, the provider's own meter and policy.
+  - A due census goes first: the worker claims a due census before any price work.
+    `WorkQueue.claim` keeps its generic order, so settlement's queue is unchanged.
+  - Unpriced re-checks follow kick-off (`unpriced_recheck`): after an unpriced answer the job is
+    next due in 3 h when kick-off is under 2 days away, 6 h at 2–4 days and 24 h beyond; a
+    priced answer keeps the 6 h sweep. The quote's own 5-minute negative floor and the
+    Saturday-noon opening re-check are unchanged, so a save and the next card's noon check
+    behave as before. A job with no fixture keeps `negative_seconds`.
+  - Spread the day: `two_game_background_spacing_seconds` defaults to 720 (one call every 12
+    minutes, 120 a day) instead of 360. `BudgetPolicy`'s own default stays 360, so the budget
+    tests keep their policy. Production sets no override (checked 27 Nov), so the default ships
+    with the image.
+  - A completed unit clears `attempts` on its census or price jobs, so the defer back-off (6
+    minutes per attempt, at most 60) counts consecutive failures again. Every job carried
+    130–350 attempts from refused claims, so one real error waited 60 minutes.
+
+  Tests: `check` agrees with `admit` on spacing, both background ceilings, the Saturday pause,
+  the opening window, a cooldown and an exhausted then reset provider allowance, and writes
+  nothing; 26 hours of minute passes under the settings policy admit exactly one call every 12
+  minutes and meet no ceiling; a closed lane leaves the queue, the refusal ledger and the calls
+  untouched; 27 Nov replayed (a census due behind 60 older unpriced jobs takes the first open
+  slot, which a price chunk took before); re-check times at about 30 h, 54 h and 8 days to
+  kick-off, priced still 6 h, the quote floor still 5 minutes; the noon opening still re-checks
+  the next card's fixture backed off for a day, once; a landed page clears 300 attempts, so the
+  next failure waits 6 minutes; the scheduler's worker checks the installation meter with the
+  settings policy. 8 new tests (2117 → 2125); no existing test line changes. Scope boundary:
+  `two_game_discovery.py`, one read-only method in `provider_budget.py`, one default in
+  `config.py`, the scheduler's worker factory, and tests. **API-only. `/ship-prod` scheduled by
+  the owner** ("Yes, today", 27 Nov), straight after close-out and before 18:00 UTC.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

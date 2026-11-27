@@ -53,6 +53,7 @@ from src.services.odds_provider import (
 )
 from src.services.provider_budget import (
     Category,
+    ProviderBudget,
     ProviderBudgetRefused,
     naive_utc,
     provider_category,
@@ -87,6 +88,33 @@ def census_ranges(first: datetime, last: datetime) -> list[tuple[datetime, datet
     return sorted(ranges)
 
 
+#: Batch 257: how long after an unpriced answer a fixture's price job is next due, by how far
+#: away kick-off is. On 27 Nov 2026 the background lane had first seen prices on 58 fixtures
+#: it had found unpriced: 40 within two days of kick-off, 17 at two to four days, 1 earlier.
+UNPRICED_RECHECK_NEAR = timedelta(hours=3)  # kick-off within two days
+UNPRICED_RECHECK_MID = timedelta(hours=6)  # two to four days away
+UNPRICED_RECHECK_FAR = timedelta(days=1)  # later than that
+
+
+def unpriced_recheck(kickoff: datetime, now: datetime) -> timedelta:
+    """When to ask again about a fixture the bookmaker has not priced. Batch 257.
+
+    The price job used to be due again five minutes after every unpriced answer. On 27 Nov
+    2026 those were 152 of the lane's 280 price jobs (62 of them in four leagues the
+    bookmaker almost never prices), and re-asking about them spent the lane's 120 daily
+    calls by about 07:00 UTC, so nothing was priced or discovered until about 17:10. Only
+    the work queue backs off: the quote's own negative floor stays at ``negative_seconds``,
+    so a member's save is held off no longer than before, and Saturday noon's opening check
+    still pulls the next card's unpriced fixtures forward.
+    """
+    ahead = naive_utc(kickoff) - now
+    if ahead < timedelta(days=2):
+        return UNPRICED_RECHECK_NEAR
+    if ahead < timedelta(days=4):
+        return UNPRICED_RECHECK_MID
+    return UNPRICED_RECHECK_FAR
+
+
 class DiscoveryWorker:
     def __init__(
         self,
@@ -104,7 +132,12 @@ class DiscoveryWorker:
         negative_seconds: int = 300,
         include_legacy: bool = True,
         verify_rows: Callable[[list[SlateFixture]], Awaitable[list[SlateFixture]]] | None = None,
+        budget: ProviderBudget | None = None,
     ) -> None:
+        """``budget`` is the meter the provider charges; when given, each unit of a pass asks
+        it first and a closed lane claims nothing (Batch 257). The scheduler passes the
+        installation meter. Without one, every unit goes straight to admission, as before.
+        """
         if not 1 <= page_size <= 5000 or min(units_per_pass, lookahead, sweep_seconds) <= 0:
             raise ValueError("invalid bounded discovery policy")
         self.sessions, self.acquire, self.clock = sessions, acquire, clock
@@ -113,6 +146,7 @@ class DiscoveryWorker:
         self.sweep_seconds, self.negative_seconds = sweep_seconds, negative_seconds
         self.include_legacy = include_legacy
         self.verify_rows = verify_rows
+        self.budget = budget
         self.queue = WorkQueue(sessions, clock=clock, lease_seconds=lease_seconds)
 
     def census_key(self, first: datetime, last: datetime) -> str:
@@ -635,6 +669,9 @@ class DiscoveryWorker:
             work.cursor = page.next_cursor
             work.next_at = now + timedelta(seconds=self.sweep_seconds if page.complete else 360)
             work.last_error = None
+            # Batch 257: a page that lands starts the failure back-off afresh, so the next
+            # real error waits six minutes rather than the cap a long history once earned.
+            work.attempts = 0
             work.lease_token = work.lease_until = None
         # Link only committed pages. A failure here leaves the census reusable on
         # preparation/restart; it never spends the page request again for a DB retry.
@@ -680,16 +717,18 @@ class DiscoveryWorker:
                 positive = view.availability == "available"
                 observed = view.observed_at is not None and view.observed_at >= now
                 delay = self.sweep_seconds if positive and observed else self.queue.lease_seconds
+                fixture = await db.get(Fixture, lease.fixture_id) if lease.fixture_id else None
                 if not positive and view.observed_at is not None:
-                    work.next_at = max(
-                        now + timedelta(seconds=1),
-                        view.observed_at + timedelta(seconds=self.negative_seconds),
+                    wait = (
+                        unpriced_recheck(fixture.kickoff_utc, now)
+                        if fixture is not None
+                        else timedelta(seconds=self.negative_seconds)
                     )
+                    work.next_at = max(now + timedelta(seconds=1), view.observed_at + wait)
                 else:
                     work.next_at = now + timedelta(seconds=delay)
                 if observed and view.observed_at is not None:
                     work.completed_at = view.observed_at
-                    fixture = await db.get(Fixture, lease.fixture_id) if lease.fixture_id else None
                     if fixture is not None:
                         record_observations(
                             [fixture],
@@ -699,6 +738,8 @@ class DiscoveryWorker:
                         )
                 work.kind = "price"
                 work.last_error = None if positive else "price_unavailable"
+                # Batch 257: a chunk that completes starts each job's failure back-off afresh.
+                work.attempts = 0
                 work.lease_token = work.lease_until = None
 
     async def run(self, *, prepare: bool = True) -> int:
@@ -716,11 +757,18 @@ class DiscoveryWorker:
         keys = await self._opening_keys(now) if category == "opening" else None
         completed = 0
         for _ in range(self.units_per_pass):
-            lease = await self.queue.claim(
-                ("census", "price", "price_single"),
-                source=self.source,
-                keys=keys,
-            )
+            if self.budget is not None and await self.budget.check(category) is not None:
+                # Batch 257: a closed lane claims nothing. A refused claim used to restamp
+                # its job with the next slot's time, so the census — first in key order —
+                # was always the first refused and the last served (27 Nov 2026: this
+                # weekend's census lost every slot from 05:17 UTC until the daily ceiling).
+                break
+            # A due census goes before price work: it is the only job that adds games.
+            lease = await self.queue.claim(("census",), source=self.source, keys=keys)
+            if lease is None:
+                lease = await self.queue.claim(
+                    ("price", "price_single"), source=self.source, keys=keys
+                )
             if lease is None:
                 break
             leases = [lease]

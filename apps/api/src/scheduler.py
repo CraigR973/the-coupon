@@ -72,7 +72,7 @@ from src.services.odds_provider import OddsProvider, SlateFixture, SlateWindow
 from src.services.odds_session import odds_session
 from src.services.odds_warm import warm_round
 from src.services.payment_notices import prepare_payment_notices
-from src.services.provider_budget import provider_category
+from src.services.provider_budget import ProviderBudget, provider_category
 from src.services.scoring import (
     settle_gameweeks_via_provider,
     standings,
@@ -412,6 +412,9 @@ def _two_game_discovery_worker() -> DiscoveryWorker:
         lease_seconds=settings.two_game_work_lease_seconds,
         negative_seconds=settings.two_game_negative_recheck_seconds,
         verify_rows=verify_rows,
+        # The same meter and policy the provider charges (Batch 257), so the worker's look
+        # before claiming agrees with the admission that follows it.
+        budget=ProviderBudget.from_settings(),
     )
 
 

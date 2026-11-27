@@ -19,6 +19,7 @@ from src.models.league import League
 from src.models.profile import Profile
 from src.models.two_game import (
     ConfirmedBreak,
+    ProviderRefusal,
     ProviderSnapshot,
     ProviderWork,
     TwoGame,
@@ -27,7 +28,7 @@ from src.models.two_game import (
 )
 from src.services.odds_api import OddsApiProvider
 from src.services.odds_provider import OddsProviderAPIError, SlateWindow
-from src.services.provider_budget import BudgetPolicy, ProviderBudget
+from src.services.provider_budget import INSTALLATION_METER, BudgetPolicy, ProviderBudget
 from src.services.provider_work import WorkQueue, enqueue
 from src.services.two_game_discovery import DiscoveryWorker, census_ranges
 from src.services.two_game_schedule import fantasy_opening, game_schedule, prepare_calendar
@@ -1473,3 +1474,225 @@ async def _assert_european_links(source, league, legacy_id, uk, laliga, serie_a,
         pooled = await pooled_competition_ids(db)
         assert "england-premier-league" in pooled
         assert not {"spain-laliga", "italy-serie-a"} & pooled
+
+
+# ── Batch 257: a due census goes first, and a closed lane claims nothing ──────────────
+
+
+async def _queue(source: CensusSource) -> list[tuple[object, ...]]:
+    async with source.sessions() as db:
+        rows = await db.scalars(
+            select(ProviderWork)
+            .where(ProviderWork.payload["source"].astext == source.source)
+            .order_by(ProviderWork.key)
+        )
+        return [
+            (row.key, row.next_at, row.attempts, row.lease_until, row.last_error) for row in rows
+        ]
+
+
+async def _refusals(source: CensusSource) -> int:
+    async with source.sessions() as db:
+        count = await db.scalar(
+            select(func.count())
+            .select_from(ProviderRefusal)
+            .where(ProviderRefusal.meter == source.source)
+        )
+        return int(count or 0)
+
+
+@pytest.mark.asyncio
+async def test_a_closed_lane_claims_restamps_and_records_nothing(source):
+    """Before the next slot opens, a pass leaves every job and the refusal ledger as they were.
+
+    A refused claim used to restamp its job with the next slot's time and record a refusal,
+    every minute: about 2,000 refusals a day in production on 27 Nov 2026."""
+    await source.league()
+    for index in range(25):
+        source.event(f"closed-{index}")
+    worker = source.worker(budget=source.budget, units_per_pass=3)
+    assert await worker.run() == 1
+    assert len(source.calls) == 1
+    before = await _queue(source)
+    assert any(next_at <= source.clock.now for _, next_at, *_ in before)
+    for _ in range(5):
+        source.clock.now += timedelta(minutes=1)
+        assert await worker.run() == 0
+    assert await _queue(source) == before
+    assert len(source.calls) == 1
+    assert await _refusals(source) == 0
+
+
+@pytest.mark.asyncio
+async def test_a_census_due_behind_older_price_work_takes_the_first_open_slot(source):
+    """27 Nov 2026 replayed. This weekend's census came due at 05:17 UTC and lost every slot
+    until the daily ceiling, because each refused claim restamped it behind price jobs that
+    had come due earlier. Now a closed lane claims nothing and a due census goes first."""
+    await source.league()
+    source.unpriced.update(source.event(f"older-{index}") for index in range(60))
+    worker = source.worker(budget=source.budget)
+    await one_census(source, worker, WEEK)
+    week = worker.census_key(london_utc(WEEK), london_utc(WEEK + timedelta(days=2)))
+    opens = source.clock.now + timedelta(hours=2)
+    mine = ProviderWork.payload["source"].astext == source.source
+    async with source.sessions() as db, db.begin():
+        await db.execute(
+            update(ProviderWork)
+            .where(mine, ProviderWork.kind == "price")
+            .values(next_at=opens - timedelta(hours=1))
+        )
+        await db.execute(
+            update(ProviderWork)
+            .where(mine, ProviderWork.kind == "census", ProviderWork.key != week)
+            .values(next_at=opens + timedelta(days=30))
+        )
+        await db.execute(
+            update(ProviderWork)
+            .where(ProviderWork.key == week)
+            .values(next_at=opens - timedelta(minutes=30))
+        )
+    # The last background call was a minute earlier, so the slot opens five minutes in.
+    source.clock.now = opens - timedelta(minutes=1)
+    await source.budget.admit("background")
+    seen, made = len(source.calls), []
+    for minute in range(12):
+        source.clock.now = opens + timedelta(minutes=minute)
+        await worker.run()
+        made.extend((minute, path) for path, _ in source.calls[seen:])
+        seen = len(source.calls)
+    assert [minute for minute, _ in made] == [5, 11]
+    assert made[0][1] == "/events" and made[1][1].startswith("/odds")
+    assert await _refusals(source) == 0
+
+
+@pytest.mark.asyncio
+async def test_unpriced_price_work_backs_off_by_kick_off_and_priced_keeps_its_sweep(source):
+    """Betfair priced most fixtures within four days of kick-off (27 Nov 2026: 57 of 58 the
+    lane had first found unpriced), so a fixture it has not priced is asked about again in
+    3 h, 6 h or a day by how far away kick-off is, instead of every five minutes."""
+    await source.league()
+    near = source.event("near")  # Saturday 15:00, about 30 hours away
+    mid = source.event("mid", WEEK + timedelta(days=1))  # Sunday 15:00, about 54 hours
+    far = source.event("far", WEEK + timedelta(days=7))  # the next card, eight days away
+    priced = source.event("priced")
+    source.unpriced.update({near, mid, far})
+    worker = source.worker()
+    await one_census(source, worker, WEEK)
+    source.clock.now += timedelta(minutes=6)
+    await one_census(source, worker, WEEK + timedelta(days=7))
+    source.clock.now += timedelta(minutes=6)
+    now = source.clock.now
+    events = (near, mid, far, priced)
+    leases = []
+    for event in events:
+        lease = await worker.queue.claim(
+            ("price",), source=source.source, keys=[worker.price_key(event)]
+        )
+        assert lease is not None
+        leases.append(lease)
+    await worker._price(leases, source.client, "background")
+    async with source.sessions() as db:
+        work = {event: await db.get(ProviderWork, worker.price_key(event)) for event in events}
+        quote = await db.get(ProviderSnapshot, worker.quote_key(near))
+    assert {event: row.next_at - now for event, row in work.items() if row is not None} == {
+        near: timedelta(hours=3),
+        mid: timedelta(hours=6),
+        far: timedelta(days=1),
+        priced: timedelta(hours=6),
+    }
+    assert [row.last_error for row in work.values() if row is not None] == [
+        "price_unavailable",
+        "price_unavailable",
+        "price_unavailable",
+        None,
+    ]
+    assert all(row is not None and row.attempts == 0 for row in work.values())
+    # Only the work queue backs off: a member's save still meets the five-minute floor.
+    assert quote is not None and quote.negative_recheck_at == now + timedelta(minutes=5)
+
+
+@pytest.mark.asyncio
+async def test_noon_opening_still_rechecks_a_backed_off_unpriced_fixture_once(source):
+    """The next card's unpriced fixture backed off for a day on Saturday morning is still
+    asked about at noon, when the card opens, and only once."""
+    from src.services.two_game_quotes import SharedQuotes
+
+    await source.league()
+    target = WEEK + timedelta(days=7)
+    event = source.event("backed-off", target)
+    source.unpriced.add(event)
+    worker = source.worker(budget=source.budget)
+    await one_census(source, worker, target)
+    source.clock.now = london_utc(WEEK, 9, 30)
+    key = worker.price_key(event)
+    lease = await worker.queue.claim(("price",), source=source.source, keys=[key])
+    assert lease is not None
+    await worker._price([lease], source.client, "background")
+    async with source.sessions() as db:
+        work = await db.get(ProviderWork, key)
+        assert work is not None and work.next_at == source.clock.now + timedelta(days=1)
+    source.clock.now = london_utc(WEEK, 12)
+    source.unpriced.clear()
+    before = len(source.calls)
+    for _ in range(3):
+        await worker.run()
+    noon = source.calls[before:]
+    asked = [
+        params
+        for path, params in noon
+        if path.startswith("/odds")
+        and event in (params.get("eventIds") or params.get("eventId") or "").split(",")
+    ]
+    assert len(asked) == 1
+    cache = SharedQuotes(
+        source.sessions, source.client, source=source.source, bookmaker="Bet365", clock=source.clock
+    )
+    view = (await cache.peek_many([event]))[event]
+    assert view.availability == "available" and view.observed_at == source.clock.now
+
+
+@pytest.mark.asyncio
+async def test_a_landed_page_clears_attempts_so_the_next_failure_waits_six_minutes(source):
+    """Production's census rows carried 130-350 attempts from refused claims on 27 Nov 2026,
+    so one real provider error held a census back for the 60-minute cap."""
+    await source.league()
+    source.event("retry")
+    worker = source.worker()
+    await worker.prepare()
+    key = worker.census_key(london_utc(WEEK), london_utc(WEEK + timedelta(days=2)))
+    async with source.sessions() as db, db.begin():
+        await db.execute(
+            update(ProviderWork)
+            .where(ProviderWork.key == key)
+            .values(attempts=300, next_at=source.clock.now)
+        )
+    lease = await worker.queue.claim(("census",), source=source.source, keys=[key])
+    assert lease is not None
+    await worker._page(lease, source.client, "background")
+    async with source.sessions() as db:
+        work = await db.get(ProviderWork, key)
+        assert work is not None and work.attempts == 0
+    source.clock.now += timedelta(hours=6)
+    async with source.sessions() as db, db.begin():
+        await db.execute(
+            update(ProviderWork)
+            .where(ProviderWork.key != key, ProviderWork.payload["source"].astext == source.source)
+            .values(next_at=datetime.max)
+        )
+    source.malformed = True
+    await worker.run(prepare=False)
+    async with source.sessions() as db:
+        work = await db.get(ProviderWork, key)
+        assert work is not None and work.last_error == "OddsProviderAPIError"
+        assert work.next_at == source.clock.now + timedelta(minutes=6)
+
+
+def test_the_scheduler_worker_checks_the_meter_its_provider_charges():
+    """The look before claiming must read the same meter and policy admission charges."""
+    from src import scheduler
+
+    worker = scheduler._two_game_discovery_worker()
+    assert worker.budget is not None
+    assert worker.budget.meter == INSTALLATION_METER
+    assert worker.budget.policy == ProviderBudget.from_settings().policy
+    assert worker.budget.policy.background_spacing_seconds == 720

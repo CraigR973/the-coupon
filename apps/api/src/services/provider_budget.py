@@ -222,6 +222,38 @@ class ProviderBudget:
                 checks.append((name, retry))
         return max(checks, key=lambda item: item[1]) if checks else None
 
+    async def check(self, category: Category | None = None) -> tuple[str, datetime] | None:
+        """The refusal :meth:`admit` would give right now, or ``None``. Writes nothing.
+
+        Batch 257. The discovery worker asks before it claims work. A refused claim used to
+        restamp its job with the next slot's time and record a refusal, every minute: on
+        27 Nov 2026 that was about 2,000 refusals a day, and a due census, which sorts first,
+        was always the first job refused and the last one served. Admission stays the
+        authority at dispatch, so a call this lets through can still be refused there and is
+        then deferred exactly as before.
+
+        No lock is taken and the monotonic clock is not advanced: the control row is read as
+        :meth:`view` reads it, and a provider reset that has passed is treated as admission
+        would treat it, on a detached copy.
+        """
+        chosen = category or _category.get()
+        async with self.sessions() as db:
+            stored = await db.get(ProviderControl, self.meter)
+            wall = naive_utc(self.clock())
+            now = max(wall, stored.last_clock_at or datetime.min) if stored is not None else wall
+            reset = stored.header_reset_at if stored is not None else None
+            current = ProviderControl(
+                meter=self.meter,
+                cooldown_until=stored.cooldown_until if stored is not None else None,
+                header_remaining=(
+                    stored.header_remaining
+                    if stored is not None and (reset is None or reset > now)
+                    else None
+                ),
+                header_reset_at=reset,
+            )
+            return self._refusal(current, await self._attempts(db, now), chosen, now)
+
     async def admit(self, category: Category | None = None) -> Reservation:
         chosen = category or _category.get()
         refusal: tuple[str, datetime] | None
