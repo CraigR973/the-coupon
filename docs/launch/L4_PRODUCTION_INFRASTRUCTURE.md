@@ -4644,3 +4644,39 @@ destructive.
 
 Rollback: API `07b1640b`, payments `733c3ae4` (both `7205e84`, `032`); no migration, so an image
 rollback is clean.
+
+### 2026-11-27 — `d6826d9`, Batch 255: Fantasy's four European top flights (no migration)
+
+Approved in chat: the owner asked to "implement and enable this overnight from now" (26 Nov),
+which schedules this shipment. Source: clean `main` at `d6826d9a9e2be2470fd9edc6327e6d645dcfae69`
+(Batch 255's close-out of `6cd8996`), uploaded from the shared checkout. Checks before upload:
+Quality runs `45914252964` (`6cd8996`) and `45915733016` (`d6826d9`) green; local gate 12 of 12
+(2,117 backend, 1,631 frontend, journey 1, zero skips, tree
+`c91f669a417712e09193b31f6629d0c2882f4174`), reused through the 255 worktree's stamp guard (the
+tree differs only in the three close-out documents); migration recovery PASS (no migration,
+`032`). The pinned IaC plan had 0 additions, the usual 4 changes and 0 deletions, and was not
+destructive.
+
+- IaC applied 00:30:06 UTC; it redeployed both `a4728c3` images (API `d81dc885`, payments
+  `b9365385`), both `SUCCESS` by 00:31:05.
+- API `07c6ee55-743c-488d-9a58-bc369dca614b`, uploaded 00:31:36: `SUCCESS` by 00:32:51; health
+  `200`, `d6826d9`, `032`; readiness `ok`. Boot log: 51 lines, no traceback, no credential
+  pattern (the six error-level lines are alembic and uvicorn writing INFO to stderr); the
+  scheduler started.
+- Payments `4c8e213a-05b2-4d1a-aebb-04421620f78c`, uploaded 00:33:52: `SUCCESS` by 00:35:08;
+  health `200`, `service: payments`, `d6826d9`, `032`; readiness `ok`. Drift in sync for both.
+- Manifest unchanged: one replica in `europe-west4-drams3a`, no sleep, IPv6 egress, `ON_FAILURE`
+  with three retries, 300-second readiness timeout, 0.25 vCPU / 500 MB.
+- Variable names: API 13 of 13 and payments 7 of 7, no cross-service names, `TWO_GAMES_ENABLED`
+  on both; Vercel's `VITE_API_URL` and `VITE_VAPID_PUBLIC_KEY` production-scoped and encrypted.
+  Read-only audit before and after: `032`, RLS forced on 42 of 42, no public-role grants, one
+  rollout, four games, 12 Fantasy picks, 0 Group picks, 12 weekly obligations, and no European
+  fixture anywhere yet: the 28 Nov census is next due at 05:17 UTC.
+- Web: no deployment needed; `the-coupon-production-q13s7o4cu` (`d6826d9`) holds the alias with
+  Batch 251's bundle `index-Cv5lh-FH.js`. Smoke: `/` and `/standings` `200` with that asset and
+  the CSP header; an exact-origin preflight `200` with credentials; unauthenticated `/me/games`
+  `401`.
+
+Rollback: API `c5feaaa2`, payments `56365aee` (both `a4728c3`, `032`); no migration, so an image
+rollback is clean. The old census drops the four leagues, but European fixtures already on a
+Fantasy card may stay linked under the old code.
