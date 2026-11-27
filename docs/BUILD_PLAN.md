@@ -2591,7 +2591,7 @@ with one rule and not have the switch and also implement and enable this overnig
 shipment is owed, which fixes that order. Batches 253 and 254 belong to another session
 (stuck two-game results) and stay off `main` until after the first two-game weekend.
 
-- [ ] **Batch 255 — Fantasy also plays the Spanish, Italian, German and French top flights**
+- [x] **Batch 255 — Fantasy also plays the Spanish, Italian, German and French top flights** ✅ 2026-11-27
   — one rule for every two-game league, with no switch and no migration. Group and legacy
   rounds stay British. Shipping enables it: the next weekend census links the games.
 

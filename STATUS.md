@@ -31,6 +31,13 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Batch 255 is on `main`, `/ship-prod` owed and scheduled by the owner** (27 Nov,
+  `6cd8996`, API-only, pushed 00:01 UTC): Fantasy also plays LaLiga, Serie A, the Bundesliga
+  and Ligue 1, for every two-game league, with no switch (owner, 26 Nov: "one rule and not have
+  the switch … implement and enable this overnight"); Group and legacy rounds stay British.
+  The weekend census keeps the four at no extra request. Live pre-flight on 26 Nov: 31 of their
+  games in the 28 Nov Fantasy window, Betfair Sportsbook priced 10 of 10 sampled. Batch 256
+  (their place in the card order) follows the shipment.
 - **Batch 252 is live** (26 Nov, `a4728c3`, tests only; API and payments released
   17:37–17:42 UTC): a backend test pins that nobody sees another member's Fantasy picks
   before lock, and only totals and counts after it. Released straight after the push, as

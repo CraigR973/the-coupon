@@ -10237,3 +10237,32 @@ https://github.com/CraigR973/the-coupon/actions/runs/45867434479 PASS for `a4728
 
 **Next:** the weekend check in its own session (the owner has the prompt); Batch 241 waits for
 the owner's decision.
+
+## Batch 255 — Fantasy also plays the Spanish, Italian, German and French top flights
+**Commits:** `6cd8996` · verified: `scripts/ci-local.sh` PASS in its worktree on the first
+attempt (12 checks; backend 2,117, frontend 1,631, journey 1, zero skips; tree `c91f669`) · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/45914252964 PASS for `6cd8996`
+
+### Key facts for future sessions
+- One rule, `plays_competition(kind, competition_id, selected)` in `services/competitions.py`:
+  `spain-laliga`, `italy-serie-a`, `germany-bundesliga` and `france-ligue-1` belong to Fantasy
+  alone and ignore a league's British competition list; the census (`census_keeps`), Fantasy
+  and Group discovery, both game reads, the save and `sync_slate` all apply it. Owner, 26 Nov:
+  one rule for every two-game league, no switch.
+- Live pre-flight (26 Nov 23:20 UTC, 2 requests): the 28 Nov census is one page of 2,442
+  events with 31 European games in the window; Betfair Sportsbook priced 10 of 10 sampled;
+  FotMob ids ESP 87, ITA 55, GER 54, FRA 53, beside namesakes in Ecuador (246), Austria (38)
+  and Algeria (516).
+- The shared fixture pool now holds the four. `pooled_competition_ids` (every British legacy
+  walk) leaves them out; `football_data.pooled_competitions` keeps them, so FotMob ingests their
+  tables. Pool-reading tests are order-sensitive: in a non-alphabetical file order six
+  football-data tests and one capacity test fail on other modules' committed rows, so both new
+  DB tests restore their slugs in `finally`.
+- Club names: 59 of 28 Nov's 62 clubs match FotMob under the existing rules; 1. FC Cologne
+  (0.67), FSV Mainz (0.59) and Stade Rennais (0.53) do not, so they show no form.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+### Follow-ups
+- Batch 256 (the four after the eight named British divisions), web-only, after the shipment.
+
+**Next:** `/ship-prod` (scheduled by the owner), then Batch 256.
