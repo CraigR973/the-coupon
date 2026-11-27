@@ -31,6 +31,14 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Batch 257 is on `main`, `/ship-prod` owed and scheduled by the owner** (27 Nov, `f46a1d6`,
+  API-only, pushed 11:01 UTC): a due census goes first, and the background odds lane spends its
+  120 daily calls evenly, one every 12 minutes, instead of making none from about 07:00 to 17:10
+  UTC every day. The worker asks the budget before claiming, so a closed lane restamps and
+  records nothing, and a fixture Betfair has not priced is asked again in 3 h, 6 h or a day by
+  distance to kick-off. The owner chose to release it today ("Yes, today"), before 18:00 UTC,
+  once the weekend-check session has removed the `TWO_GAME_NEGATIVE_RECHECK_SECONDS=21600`
+  stopgap set on production at 09:29 UTC.
 - **Batch 256 is live on the web** (27 Nov, `424e418`, web-only, pushed 01:04 UTC): the four
   European leagues sit straight after the eight named British divisions (LaLiga, Serie A,
   Bundesliga, Ligue 1) on the Fantasy card and Football Stats, instead of below every lower

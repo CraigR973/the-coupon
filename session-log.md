@@ -10287,3 +10287,33 @@ https://github.com/CraigR973/the-coupon/actions/runs/45920482451 PASS for `424e4
 
 **Next:** watch the 28 Nov census (due 05:17 UTC) link the European games and the background
 lane price them; Batch 241 waits for the owner's decision.
+
+## Batch 257 — A due census goes first, and the background lane spends evenly through the day
+**Commits:** `f46a1d6` · verified: `scripts/ci-local.sh` PASS in its worktree on the first
+attempt (12 checks; backend 2,125, frontend 1,634, journey 1, zero skips; tree `7796165`) · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/45987064510 PASS for `f46a1d6`
+
+### Key facts for future sessions
+- The old lane's limit cycle: with 6-minute spacing and a rolling 120-a-day ceiling the window
+  stayed full and a new call could only replace one that expired, so the lane ran about
+  17:10–07:00 UTC and made no call for about 10 h every day (24–26 Nov). At 12 minutes
+  (`two_game_background_spacing_seconds=720`) the ceiling never binds.
+- A refused claim used to restamp its job with the refusal's retry time, so at a tie only the
+  first census in key order got through and the rest lost the cascade (the 05:01 tie on 27 Nov
+  let only `8bdb1f08` through). `ProviderBudget.check` is read-only; the worker asks it before
+  each unit, so a closed lane claims and records nothing.
+- `two_game_negative_recheck_seconds` also sets the quote's `negative_recheck_at`, which makes a
+  save refuse ("bounded market recheck is pending") until it passes. Never raise it to slow
+  background work: `unpriced_recheck` backs off the work queue alone.
+- Saturday noon's opening re-runs the next card's census in the opening category, whatever the
+  background lane is doing.
+- `test_discovery_health`'s deployment-wide newest-round test fails if the two-game modules run
+  before it (their rounds are stamped now); it passes in the gate's alphabetical order.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+### Follow-ups
+- None.
+
+**Next:** `/ship-prod` today, as the owner scheduled ("Yes, today"), once the weekend-check
+session has removed the `TWO_GAME_NEGATIVE_RECHECK_SECONDS=21600` stopgap; then read-only lane
+checks 15 minutes after it, after the 17:11 reopening and at 19:30.

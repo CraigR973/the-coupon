@@ -2655,7 +2655,7 @@ weekend-check session removes `TWO_GAME_NEGATIVE_RECHECK_SECONDS=21600`, the sto
 set on production at 09:29 UTC: it also sets the quote's negative floor, so it would hold off a
 save for 6 h on a fixture last seen unpriced, and the Railway plan would delete it.
 
-- [ ] **Batch 257 — A due census goes first, and the background lane spends evenly through the day**
+- [x] **Batch 257 — A due census goes first, and the background lane spends evenly through the day** ✅ 2026-11-27
   — measured in production on 27 Nov (read-only). The background lane made 118–120 calls on
   each of 24–26 Nov, all between about 17:10 and 07:00 UTC, then none for about 10 h 12 min.
   152 of its 280 live price jobs were fixtures Betfair had not priced, each due again 5 minutes
@@ -2695,7 +2695,8 @@ save for 6 h on a fixture last seen unpriced, and the Railway plan would delete 
   kick-off, priced still 6 h, the quote floor still 5 minutes; the noon opening still re-checks
   the next card's fixture backed off for a day, once; a landed page clears 300 attempts, so the
   next failure waits 6 minutes; the scheduler's worker checks the installation meter with the
-  settings policy. 8 new tests (2117 → 2125); no existing test line changes. Scope boundary:
+  settings policy. 8 new tests (2117 → 2125); no existing check changes (two test imports each
+  gain a name). Scope boundary:
   `two_game_discovery.py`, one read-only method in `provider_budget.py`, one default in
   `config.py`, the scheduler's worker factory, and tests. **API-only. `/ship-prod` scheduled by
   the owner** ("Yes, today", 27 Nov), straight after close-out and before 18:00 UTC.
