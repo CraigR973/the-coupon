@@ -4680,3 +4680,47 @@ destructive.
 Rollback: API `c5feaaa2`, payments `56365aee` (both `a4728c3`, `032`); no migration, so an image
 rollback is clean. The old census drops the four leagues, but European fixtures already on a
 Fantasy card may stay linked under the old code.
+
+### 2026-11-27 — `3b8eb2c`, Batch 257: a due census first and an even background lane (no migration)
+
+Approved in chat: the owner answered "Yes, today" (about 09:30 UTC) to building Batch 257 and
+releasing it by 18:00 UTC, rolling back to the previous image if a read-only check after the
+release fails; that schedules this shipment. Source: clean `main` at
+`3b8eb2cff6609b659073d6837c03a2f7150f4907` (Batch 257's close-out of `f46a1d6`), uploaded from
+the shared checkout. Checks before upload: Quality runs `45987064510` (`f46a1d6`) and
+`45989081824` (`3b8eb2c`) green; local gate 12 of 12 (2,125 backend, 1,634 frontend, journey 1,
+zero skips, tree `7796165cbc08c072bbd037e2c14117976d1dde34`), reused through the 257 worktree's
+stamp guard (the tree differs only in the three close-out documents); migration recovery PASS
+(no migration, `032`). Before the plan, the weekend-check session removed
+`TWO_GAME_NEGATIVE_RECHECK_SECONDS=21600`, a stopgap set at 09:29:58 on the owner's decision
+(deleted 11:17:00, then redeployed as `8cc568d5` by 11:28:39); the plan would otherwise have
+deleted it. The pinned IaC plan had 0 additions, the usual 4 changes and 0 deletions, and was
+not destructive.
+
+- IaC applied 11:32:27 UTC; it redeployed both `d6826d9` images (API `c33cb07d`, payments
+  `ab14fd2d`), both `SUCCESS` by 11:33:32.
+- API `4a76d9af-6e6c-4528-a352-a8991c277642`, uploaded 11:33:45: `SUCCESS` by 11:35:13; health
+  `200`, `3b8eb2c`, `032`; readiness `ok`. Boot log: 51 lines, no traceback, no credential
+  pattern (the six error-level lines are alembic and uvicorn writing INFO to stderr); the
+  scheduler started.
+- Payments `d410bbe1-0ef0-424e-be8c-1f20bbebd7eb`, uploaded 11:36:12: `SUCCESS` by 11:37:31;
+  health `200`, `service: payments`, `3b8eb2c`, `032`; readiness `ok`. Drift in sync for both.
+- Manifest unchanged: one replica in `europe-west4-drams3a`, no sleep, IPv6 egress, `ON_FAILURE`
+  with three retries, 300-second readiness timeout, 0.25 vCPU / 500 MB.
+- Variable names: API 13 of 13 and payments 7 of 7, no cross-service names, `TWO_GAMES_ENABLED`
+  on both and no `TWO_GAME_NEGATIVE_RECHECK_SECONDS`; Vercel's `VITE_API_URL` and
+  `VITE_VAPID_PUBLIC_KEY` production-scoped and encrypted. Read-only audit after: `032`, RLS
+  forced on 42 of 42, no public-role grants, one rollout, four games, 18 Fantasy picks, 0 Group
+  picks, 12 weekly obligations, 10 European fixtures in the pool and none on a card yet (the
+  background lane is at its daily ceiling until about 17:11).
+- Web: no deployment needed; `dpl_4581Z7WuYqoG6e6PAjgdNshsZvAd` (created 11:16 UTC, after the
+  `3b8eb2c` push) holds the alias with Batch 256's bundle `index-ZWl4hMPd.js`. Smoke: `/` and
+  `/standings` `200` with that asset and the CSP header; an exact-origin preflight `200` with
+  credentials; unauthenticated `/me/games` `401`.
+- First check on the new code (11:38 UTC): no background call and no refusal row since the
+  release, where the old code wrote about three refusals a minute at the ceiling; the six
+  censuses still wait for 17:11:06 with their attempt counts unchanged.
+
+Rollback: API `8cc568d5` and payments `4c8e213a` (both `d6826d9`, `032`, neither carrying the
+21600 stopgap); no migration, so an image rollback is clean. The old code would restamp the
+queue and starve the censuses again.
