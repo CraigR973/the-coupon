@@ -31,6 +31,11 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Batch 256 is live on the web** (27 Nov, `424e418`, web-only, pushed 01:04 UTC): the four
+  European leagues sit straight after the eight named British divisions (LaLiga, Serie A,
+  Bundesliga, Ligue 1) on the Fantasy card and Football Stats, instead of below every lower
+  British tier. Their headings are the API's names ("Spain - LaLiga"). No API change; drift in
+  sync before the push.
 - **Batch 255 is live** (27 Nov, `6cd8996`, API-only; API and payments released 00:31–00:35
   UTC at `d6826d9`, as the owner scheduled): Fantasy also plays LaLiga, Serie A, the Bundesliga
   and Ligue 1, for every two-game league, with no switch (owner, 26 Nov: "one rule and not have

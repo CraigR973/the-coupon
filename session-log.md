@@ -10266,3 +10266,24 @@ https://github.com/CraigR973/the-coupon/actions/runs/45914252964 PASS for `6cd89
 - Batch 256 (the four after the eight named British divisions), web-only, after the shipment.
 
 **Next:** `/ship-prod` (scheduled by the owner), then Batch 256.
+
+## Batch 256 — The four European leagues sit after the eight named British divisions
+**Commits:** `424e418` · verified: `scripts/ci-local.sh` PASS in its worktree on the first
+attempt (12 checks; backend 2,117, frontend 1,634, journey 1, zero skips; tree `c9840a4`);
+`scripts/verify-two-game-web.py` 30 of 30, no flake or skip · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/45920482451 PASS for `424e418`
+
+### Key facts for future sessions
+- `COMPETITION_ORDER` in `apps/web/src/lib/competitions.ts` now has twelve entries: the eight
+  British divisions, then `spain-laliga`, `italy-serie-a`, `germany-bundesliga`,
+  `france-ligue-1` (bucket 0, tiers 8–11), so every other competition keeps its rank.
+- `scripts/verify-two-game-web.py` calls the ambient `node`: run it with Node 24 on `PATH`
+  (`. ~/.nvm/nvm.sh; nvm use 24`). Its first run here failed at its build step on this Mac's
+  old Node ("Unexpected reserved word" at vite's top-level await), not on the batch.
+- **Close-out safety:** PASS — web-only; pre-push deployed-API drift in sync; no API shipment added
+
+### Follow-ups
+- None.
+
+**Next:** watch the 28 Nov census (due 05:17 UTC) link the European games and the background
+lane price them; Batch 241 waits for the owner's decision.

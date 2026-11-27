@@ -2632,7 +2632,7 @@ shipment is owed, which fixes that order. Batches 253 and 254 belong to another 
   no existing test line changes. **API-only. `/ship-prod` scheduled by the owner** ("implement
   and enable this overnight from now", 26 Nov), straight after close-out.
 
-- [ ] **Batch 256 — The four European leagues sit after the eight named British divisions**
+- [x] **Batch 256 — The four European leagues sit after the eight named British divisions** ✅ 2026-11-27
   — prerequisite: 255 shipped. Without it they sort last, after every lower British tier, on
   the Fantasy card and on Football Stats. Their headings already read like the British ones
   ("Spain - LaLiga" beside "England - Premier League"), because both are the API's own names.
