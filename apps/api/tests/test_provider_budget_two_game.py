@@ -323,6 +323,39 @@ async def test_late_headers_never_increase_capacity_and_expired_reset_recovers(
 
 
 @pytest.mark.asyncio
+async def test_a_newer_reply_restores_the_figure_while_calls_keep_coming(
+    db_engine, clock: Clock
+) -> None:
+    """Batch 258: 28 Nov 2026 replayed. A call every 13 minutes, each answered with the
+    provider's own figure and no reset header, took the stored figure down by one a call until
+    every request was refused for an hour, while the provider still had 95 left."""
+    budget = meter(db_engine, clock, hourly=90, daily=450)
+    for _ in range(110):
+        reservation = await budget.admit("foreground")
+        await budget.observe(reservation, 200, {"X-RateLimit-Remaining": "95"})
+        clock.now += timedelta(minutes=13)
+    assert (await budget.view()).header_remaining == 95
+    await budget.admit("foreground")
+
+
+@pytest.mark.asyncio
+async def test_a_late_reply_to_an_earlier_request_still_only_lowers_the_figure(
+    db_engine, clock: Clock
+) -> None:
+    """Batch 258 keeps the conservative half: with resets that slide with each request, the
+    reply to the earlier of two overlapping requests cannot raise what the later one set."""
+    budget = meter(db_engine, clock, hourly=90, daily=450)
+    first = await budget.admit("foreground")
+    clock.now += timedelta(minutes=1)
+    second = await budget.admit("foreground")
+    await budget.observe(second, 200, {"X-RateLimit-Remaining": "40"})
+    # The earlier request is still in flight, so it is deducted from the later reply.
+    assert (await budget.view()).header_remaining == 39
+    await budget.observe(first, 200, {"X-RateLimit-Remaining": "60"})
+    assert (await budget.view()).header_remaining == 39
+
+
+@pytest.mark.asyncio
 async def test_background_spacing_is_durable_and_saturday_pause_is_not_a_quota_reset(
     db_engine, clock: Clock
 ) -> None:

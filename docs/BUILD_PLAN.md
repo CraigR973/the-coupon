@@ -2701,6 +2701,36 @@ save for 6 h on a fixture last seen unpriced, and the Railway plan would delete 
   `config.py`, the scheduler's worker factory, and tests. **API-only. `/ship-prod` scheduled by
   the owner** ("Yes, today", 27 Nov), straight after close-out and before 18:00 UTC.
 
+### The odds lane: the provider's remaining-calls figure follows its replies
+
+Raised Sat 28 Nov 2026 at 04:34 UTC by the weekend watcher session, under the owner's standing
+instruction for the 03:00–14:30 watch ("I am happy for the session to fix anything it finds rather
+than waiting for me", 27 Nov, 22:59:48 UTC). Batch 257's even spacing left the provider's
+remaining-calls figure (`provider_controls.header_remaining`) falling by one a call: it was 17 at
+04:39 while the provider's next reply said 95. At 0 every provider call, Fantasy saves included, is
+refused for an hour, which the figure would have reached at about 08:00. The watcher cleared it by
+a guarded one-row write at 04:39:16 UTC (row saved first, Git-ignored `.local/`).
+
+- [ ] **Batch 258 — A newer reply sets the provider's remaining-calls figure** — measured in
+  production on 28 Nov (read-only, then the one-row reset). `observe` kept the minimum of the
+  stored figure and every reply, and `admit` lowers it by one a call, so it could only fall. It is
+  cleared only when `header_reset_at` passes, and with no reset header that is the newest call
+  + 1 h, so while calls come less than an hour apart it never passes. Under the old lane the daily
+  idle gap (about 07:00–17:10) cleared it, and the nightly "provider pause" at about 02:00–04:00
+  was this figure reaching 0 about 100 calls later, not odds-api.io's own limit.
+
+  - A reply whose reset is later than the stored reset answers a newer request: its figure (less
+    the requests still in flight) replaces the stored one. A reply with an equal or earlier reset
+    (a late reply to an earlier request, or the same fixed window) can still only lower it.
+  - Nothing else changes: the in-flight deduction, reset handling, cooldowns and every ceiling.
+
+  Tests: 28 Nov replayed (110 calls 13 minutes apart, each answered "95" with no reset header,
+  end at 95 and still admit; on the old code the run is refused after 96 calls); a late reply to
+  the earlier of two overlapping requests cannot raise what the later one set. 2 new tests
+  (2125 → 2127); no existing test line changes. Scope boundary: `observe` in
+  `provider_budget.py` and its tests. **API-only. `/ship-prod` scheduled by the owner's 27 Nov
+  instruction above**; never during 11:30–12:05 or 14:15–14:35 UTC on Saturday.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,

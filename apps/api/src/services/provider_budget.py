@@ -342,10 +342,18 @@ class ProviderBudget:
                         )
                     )
                     available = max(0, remaining - (later or 0))
+                    # Batch 258: a reply whose reset is later than the stored one answers a
+                    # newer request, so its figure replaces the stored one; a late reply to an
+                    # earlier request (an equal or earlier reset) can still only lower it.
+                    # Taking the minimum of every reply let the figure only fall, and a reset
+                    # that slides to "this request + 1 h" never passes while calls keep coming:
+                    # on 28 Nov 2026 one call every 13 minutes had taken it to 17 while the
+                    # provider's next reply said 95, and at 0 every call is refused for an hour.
+                    newer = control.header_reset_at is None or reset > control.header_reset_at
                     control.header_remaining = (
-                        min(control.header_remaining, available)
-                        if control.header_remaining is not None
-                        else available
+                        available
+                        if newer or control.header_remaining is None
+                        else min(control.header_remaining, available)
                     )
                     control.header_reset_at = max(control.header_reset_at or reset, reset)
             if status in (401, 403, 429):
