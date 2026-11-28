@@ -235,6 +235,11 @@ apps/web/src/test/GroupCouponLayout.test.tsx|expect(status()).toHaveTextContent(
 apps/web/src/test/FantasyWeekPage.test.tsx|expect(first).toHaveTextContent("Pending results · 0 points");
 EOF
       ;;
+    259) cat <<'EOF'
+apps/web/src/test/FantasyPickSlip.test.tsx|it("starts every competition open under its header, with a chip to jump to each", async () => {
+apps/web/src/test/GroupCouponLayout.test.tsx|it("starts every competition open, counting the games already picked", async () => {
+EOF
+      ;;
   esac
 }
 
@@ -260,6 +265,7 @@ approved_oracle_paths() {
     244) echo "apps/web/src/test/FantasyPickSlip.test.tsx apps/web/src/test/gameSwitch.test.ts" ;;
     245) echo "apps/web/src/test/FantasyPickSlip.test.tsx apps/web/src/test/GroupCouponLayout.test.tsx apps/web/src/test/typeVoice.test.ts" ;;
     249) echo "apps/web/src/test/GroupCouponLayout.test.tsx apps/web/src/test/GroupRefreshFailure.test.tsx apps/web/src/test/FantasyPickSlip.test.tsx apps/web/src/test/FantasyWeekPage.test.tsx apps/web/e2e/two-game-group.spec.ts apps/web/e2e/two-game-fantasy.spec.ts" ;;
+    259) echo "apps/web/src/test/FantasyPickSlip.test.tsx apps/web/src/test/GroupCouponLayout.test.tsx" ;;
   esac
 }
 

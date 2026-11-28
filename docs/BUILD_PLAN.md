@@ -2731,6 +2731,41 @@ a guarded one-row write at 04:39:16 UTC (row saved first, Git-ignored `.local/`)
   `provider_budget.py` and its tests. **API-only. `/ship-prod` scheduled by the owner's 27 Nov
   instruction above**; never during 11:30–12:05 or 14:15–14:35 UTC on Saturday.
 
+### The game screens: every competition starts folded again
+
+Raised by the owner on the morning of Sat 28 Nov 2026, 2-1 Hibs' first two-game Saturday: "can we
+have each league collapsed by default when making picks, currently they are all expanded". Batch
+245 (25 Nov) made every competition start open on both game screens; Batch 238 had them folded
+unless the week had only one. The owner chose to release it after that day's 14:30 Group lock
+("After the 14:30 lock (Recommended)"), not during the run-up to the 12:00 Fantasy lock.
+
+- [ ] **Batch 259 — Every competition starts folded on both game screens**
+  — Fantasy and Group start every competition folded again, as Batch 238 had them, unless the
+  week has only one. Batch 245's sticky headers, counts and jump chips stay. A header or its chip
+  opens a competition; what the member opens or folds survives the 30-second refresh, not a new
+  visit. Group's Change still opens the competition holding the member's pick. The legacy slate
+  is unchanged: it already opens only its first competition. No API change.
+
+  Tests: both "starts every competition open" tests become "starts every competition folded",
+  with their old checks kept after a tap; a new test pins that Change opens the folded
+  competition holding the member's pick and leaves the others folded (1634 → 1635). Scope
+  boundary: the fold default in `FantasyWeekPage.tsx` and `GroupGamePage.tsx`, and their tests.
+  **Web-only.**
+
+  **Oracle changes approved (owner, 28 Nov 2026):** this batch may change only these lines, sent
+  to the owner in chat and approved ("Approve all 4 (Recommended)"). In
+  `apps/web/src/test/FantasyPickSlip.test.tsx`, the test
+  `it("starts every competition open under its header, with a chip to jump to each", async () => {`
+  becomes "starts every competition folded when the week has more than one, with a chip that
+  opens each": its `aria-expanded` "true" checks and its Home 5 check stay, now after a tap on the
+  first header and on the second competition's chip, with new checks that both start folded and
+  hide their prices. In `apps/web/src/test/GroupCouponLayout.test.tsx`, the test
+  `it("starts every competition open, counting the games already picked", async () => {` becomes
+  "starts every competition folded, counting the games already picked": its two expected `"true"`
+  values become `"false"`, and its two enabled-selection checks stay, now after the chip and the
+  header open each competition. No check on money, picks, locks or results is removed or
+  loosened.
+
 ## Verification
 
 - **Backend:** pytest covers both pick-uniqueness directions, odds scoring,
