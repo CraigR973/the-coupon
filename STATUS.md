@@ -31,6 +31,12 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
+- **Batch 258 is closed out, `/ship-prod` owed** (28 Nov, `89aa487`, API-only; scheduled by the
+  owner's standing instruction for the Saturday watch, 27 Nov 22:59:48 UTC: "I am happy for the
+  session to fix anything it finds rather than waiting for me"): a newer reply from odds-api.io
+  sets the app's copy of its remaining calls, instead of the copy only ever falling until it
+  refused every call for an hour. Until it ships, the copy was cleared by a guarded one-row write
+  at 04:39:16 UTC (17 by the copy, 95 by the provider's next reply).
 - **Batch 257 is live** (27 Nov, `f46a1d6`, API-only; API and payments released 11:33–11:37
   UTC at `3b8eb2c`, as the owner scheduled: "Yes, today"): a due census goes first, and the
   background odds lane spends its 120 daily calls evenly, one every 12 minutes, instead of making

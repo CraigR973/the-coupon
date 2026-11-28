@@ -2711,7 +2711,7 @@ remaining-calls figure (`provider_controls.header_remaining`) falling by one a c
 refused for an hour, which the figure would have reached at about 08:00. The watcher cleared it by
 a guarded one-row write at 04:39:16 UTC (row saved first, Git-ignored `.local/`).
 
-- [ ] **Batch 258 — A newer reply sets the provider's remaining-calls figure** — measured in
+- [x] **Batch 258 — A newer reply sets the provider's remaining-calls figure** ✅ 2026-11-28 — measured in
   production on 28 Nov (read-only, then the one-row reset). `observe` kept the minimum of the
   stored figure and every reply, and `admit` lowers it by one a call, so it could only fall. It is
   cleared only when `header_reset_at` passes, and with no reset header that is the newest call

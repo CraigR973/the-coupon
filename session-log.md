@@ -10317,3 +10317,32 @@ https://github.com/CraigR973/the-coupon/actions/runs/45987064510 PASS for `f46a1
 **Next:** `/ship-prod` today, as the owner scheduled ("Yes, today"), once the weekend-check
 session has removed the `TWO_GAME_NEGATIVE_RECHECK_SECONDS=21600` stopgap; then read-only lane
 checks 15 minutes after it, after the 17:11 reopening and at 19:30.
+
+## Batch 258 — A newer reply sets the provider's remaining-calls figure
+**Commits:** `89aa487` · verified: `scripts/ci-local.sh` PASS in its worktree on the first
+attempt (12 checks; backend 2,127, frontend 1,634, journey 1, zero skips; tree `ef9cacad`) · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/46111851412 PASS for `89aa487`
+
+### Key facts for future sessions
+- `provider_controls.header_remaining` is the app's copy of odds-api.io's remaining calls.
+  `admit` lowers it by one a call; before this batch every reply could only lower it further
+  (the minimum), and it cleared only when `header_reset_at` passed. The stored reset is always
+  the newest call + 1 h, so under Batch 257's call every 13 minutes it never passed. 28 Nov,
+  04:39 UTC: the copy said 17, the provider's next reply 95.
+- The old nightly "provider pause" (`provider_remaining` refusals at about 02:00–04:00 UTC,
+  24–27 Nov) was this copy reaching 0 about 100 calls after the daily idle gap cleared it, not
+  odds-api.io's own limit.
+- Found and fixed live by the Saturday watcher session under the owner's standing instruction
+  (27 Nov, 22:59:48 UTC: "I am happy for the session to fix anything it finds rather than
+  waiting for me"). Before the release the copy was cleared by a guarded one-row write at
+  04:39:16 UTC; the row is saved in the Git-ignored `.local/weekend-watch-2026-11-28/`.
+- To clear a stale copy by hand: set `header_remaining` and `header_reset_at` to NULL on the
+  `installation-odds-v1` row; the provider's next reply sets the true figure.
+- **Close-out safety:** PASS — API-only; pre-push deployed-API drift in sync; /ship-prod owed after push
+
+### Follow-ups
+- None.
+
+**Next:** `/ship-prod` straight after close-out (scheduled by the owner's instruction above;
+never during 11:30–12:05 or 14:15–14:35 UTC on Saturday), then confirm the copy follows the
+provider's replies across the next background calls.
