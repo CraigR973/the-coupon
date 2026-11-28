@@ -10346,3 +10346,23 @@ https://github.com/CraigR973/the-coupon/actions/runs/46111851412 PASS for `89aa4
 **Next:** `/ship-prod` straight after close-out (scheduled by the owner's instruction above;
 never during 11:30–12:05 or 14:15–14:35 UTC on Saturday), then confirm the copy follows the
 provider's replies across the next background calls.
+
+## Gate maintenance — Batch 259 oracle approval
+**Commit:** `66d8173` · owner-approved 28 Nov 2026 ("Approve all 4 (Recommended)") · CI:
+https://github.com/CraigR973/the-coupon/actions/runs/46138401914 failed as expected at the
+old-trusted-guard comparison (the commit changes `scripts/assert-quality-guardrails.sh`), as
+the approval commits for Batches 175, 235, 238, 243, 244, 245 and 249 did
+
+### Key facts for future sessions
+- Batch 259 may remove only the two oracle lines fingerprinted in the guard: the titles of the
+  "starts every competition open" tests in `FantasyPickSlip.test.tsx` and
+  `GroupCouponLayout.test.tsx`. Two more changed lines that the guard does not count (the Group
+  test's two expected `"true"` values, now `"false"`) are quoted in the row with the rest, 4 in
+  all. Every other removed oracle stays blocked.
+- The owner chose to release the batch after the 14:30 Group lock on 28 Nov ("After the 14:30
+  lock (Recommended)"), recorded in the row: the implementation push waits until then.
+- Main's guard replayed on the 259 worktree: PASS, "owner-approved exact oracle replacements
+  applied".
+- No application code, API contract, database schema or production data changed.
+
+**Next:** Batch 259 from this attestation state.
