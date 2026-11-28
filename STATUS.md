@@ -13,9 +13,9 @@ Checked 2026-10-10 unless a line says otherwise.
 
 | | |
 | --- | --- |
-| API | `api-production-109b1.up.railway.app` serves `3b8eb2c` (Batch 257: a due census goes first and the background odds lane spends evenly) at migration `032` (27 Nov) |
-| API deployment | Railway `4a76d9af-6e6c-4528-a352-a8991c277642` succeeded 11:35 UTC, one replica, `europe-west4` (27 Nov); rollback `8cc568d5` (`d6826d9`, without the 21600 stopgap) |
-| Payments | `payments-production-0aa1.up.railway.app` serves `3b8eb2c` at `032`, Railway `d410bbe1-0ef0-424e-be8c-1f20bbebd7eb` (27 Nov; rollback `4c8e213a`), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); **2-1 Hibs moved to a new payment link and pot on 25 Nov**: link id `unipaylink_0000BCfe…` and the new Pay URL set at 09:55 UTC by a guarded database write at the owner's request (audited as `league_updated`); its first payment (09:50 UTC) was matched automatically by the 09:59 read, which also learned the new pot; payments through the old link no longer count, and the owner is closing it (25 Nov); before that, all 20 link payments from members were read and matched through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
+| API | `api-production-109b1.up.railway.app` serves `079aea3` (Batch 258: a newer reply from odds-api.io sets the app's copy of its remaining calls) at migration `032` (28 Nov) |
+| API deployment | Railway `a839331d-3626-4c8a-b93c-79c708266d9d` succeeded 05:53:50 UTC, one replica, `europe-west4` (28 Nov); rollback `41d359f6` (`3b8eb2c`, Batch 257) |
+| Payments | `payments-production-0aa1.up.railway.app` serves `079aea3` at `032`, Railway `5d5a7b4a-8c85-4b67-8508-a9d3b658b1b9` (28 Nov; rollback `ee4a3d0c`, `3b8eb2c`), one replica, `europe-west4`, no access log; **Monzo connected** at 21:32 UTC (owner's account, confidential client, webhook registered); payments count from 21:29 UTC (16 Oct); **2-1 Hibs moved to a new payment link and pot on 25 Nov**: link id `unipaylink_0000BCfe…` and the new Pay URL set at 09:55 UTC by a guarded database write at the owner's request (audited as `league_updated`); its first payment (09:50 UTC) was matched automatically by the 09:59 read, which also learned the new pot; payments through the old link no longer count, and the owner is closing it (25 Nov); before that, all 20 link payments from members were read and matched through the five-minute read in the 24 Oct observation; retained logs also prove a webhook-matched payment, and a 9 Nov probe confirms selective `400 bad_request.app_version_outdated` refusals; the owner's own top-ups into the pot are matched since Batch 216 (the pot's `pot_…` name learned from Monzo's filings), and the first one waits in the queue once; Monzo's approval lapses about 14 Jan 2027 (25 Oct) |
 | Web | `the-coupon-production.vercel.app` builds every push to `main`; since 11:51 UTC on 26 Nov it serves `5647cff` (Batch 251) as bundle `index-Cv5lh-FH.js` (deployment `the-coupon-production-p6f7aptir`): a moved Fantasy price is confirmed on the row that was tapped ("Price moved: Home is now 3.25", Pick or Cancel). Earlier the same day: the moved price at 2 dp (Batch 250, 10:59 UTC) and, from Batch 249 (09:49 UTC), plain words on both game screens ("2 of 4 picked", "Waiting on …", "Your pick", "Copy for chat", "Waiting for results") and each Fantasy pick's price at 2 dp. On 25 Nov: Fantasy's picks as one card of six tiles with a slim bar, and Group's status card leading with the member's pick before one coupon card (Batch 246, 23:46 UTC); both games' fixtures as compact rows under open competitions with jump chips (Batch 245, 22:12 UTC), the game screens' week bar above the Group | Fantasy switch (Batch 244, 20:05 UTC), Home showing one football week per league, with a countdown, both games as rows, the week's £1 once and one button (Batch 243, 18:34 UTC), labels in the app font, colours that render on won and lost results and the bell in the top bar (Batch 242, 15:25 UTC), a paid week's payment strip on one line (Batch 247, 14:33 UTC) and badges that no longer fade (Batch 248, 14:06 UTC). Both games' fixtures show club form, position and competition names (Batch 235). The API has served the two-game screens to 2-1 Hibs since its activation at 17:08 UTC on 23 Nov. |
 | Database | Supabase `pugujiiojitstkilphrz`, London, owned by `postgres`; RLS forced on 42 of 42 tables, no public-role table or schema grants; the two-game tables hold 2-1 Hibs' rollout, its four games and 12 dues since 17:08 UTC (23 Nov) |
 | League data | 1 live league, 13 active accounts, 7 active push subscriptions (2026-09-24) |
@@ -31,12 +31,14 @@ Checked 2026-10-10 unless a line says otherwise.
 
 ## Shipment state
 
-- **Batch 258 is closed out, `/ship-prod` owed** (28 Nov, `89aa487`, API-only; scheduled by the
-  owner's standing instruction for the Saturday watch, 27 Nov 22:59:48 UTC: "I am happy for the
-  session to fix anything it finds rather than waiting for me"): a newer reply from odds-api.io
-  sets the app's copy of its remaining calls, instead of the copy only ever falling until it
-  refused every call for an hour. Until it ships, the copy was cleared by a guarded one-row write
-  at 04:39:16 UTC (17 by the copy, 95 by the provider's next reply).
+- **Batch 258 is live** (28 Nov, `89aa487`, API-only; API and payments released 05:51–05:55 UTC
+  at `079aea3`, scheduled by the owner's standing instruction for the Saturday watch, 27 Nov
+  22:59:48 UTC: "I am happy for the session to fix anything it finds rather than waiting for
+  me"): a newer reply from odds-api.io sets the app's copy of its remaining calls, instead of the
+  copy only ever falling until it refused every call for an hour. Before the release the copy
+  was cleared by a guarded one-row write at 04:39:16 UTC (17 by the copy, 95 by the provider's
+  next reply); the first call on the new image (05:55:36) set it to 95 where the old code gave
+  90. Drift in sync; smoke, CORS and boot logs clean.
 - **Batch 257 is live** (27 Nov, `f46a1d6`, API-only; API and payments released 11:33–11:37
   UTC at `3b8eb2c`, as the owner scheduled: "Yes, today"): a due census goes first, and the
   background odds lane spends its 120 daily calls evenly, one every 12 minutes, instead of making
